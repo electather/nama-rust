@@ -21,6 +21,7 @@ import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { refusalOf, serverMessage } from "@/lib/forms";
 import { serverFailedToPlan } from "@/lib/playback-wording";
 import { toMs } from "@/lib/watch-state";
+import { stopPlan } from "@/lib/playback-source";
 
 /** What the player asks a plan for, beside the Version. */
 interface Asking {
@@ -45,6 +46,8 @@ interface Asking {
   noSubtitles: boolean;
   /** What the User chose for this ask, which the plan may drop. */
   justChose: Choice;
+  /** The plan this ask replaces, which the Server is told stopped first, if any. */
+  replacing: bigint | undefined;
   /**
    * How many times the player asked again, so each plan plays in a new `<video>`: one that keeps
    * the last plan's URL, as Direct Play does when its choice is dropped, would stay paused.
@@ -86,6 +89,7 @@ export function usePlaybackPlan({
     subtitleTrack: undefined,
     noSubtitles: false,
     justChose: {},
+    replacing: undefined,
     asks: 0,
   }));
   const { startPositionMs } = asking;
@@ -112,7 +116,7 @@ export function usePlaybackPlan({
  */
 function useCantPlay(
   plan: PlaybackPlan,
-  { failedMethods, startPositionMs }: Asking,
+  { failedMethods, startPositionMs, asks }: Asking,
   setAsking: Dispatch<SetStateAction<Asking>>,
 ) {
   const [gaveUp, setGaveUp] = useState(false);
@@ -124,21 +128,23 @@ function useCantPlay(
       // Read here: React may run the updater later, when the `<video>` has moved on.
       const resumeFrom = resumeFromMs(video, startPositionMs);
       if (failedMethods.includes(plan.method)) setGaveUp(true);
-      // hls.js and the `<video>` may both report one failure: only the first asks again.
+      // hls.js and the `<video>` may both report one failure: only the first asks again. A plan
+      // already being replaced fails once the Server stops it, which asks nothing.
       else
         setAsking((before) =>
-          before.failedMethods.includes(plan.method)
+          before.asks !== asks || before.failedMethods.includes(plan.method)
             ? before
             : {
                 ...before,
                 ...honoured(plan, before),
                 failedMethods: [...before.failedMethods, plan.method],
                 startPositionMs: resumeFrom,
+                replacing: plan.id,
                 asks: before.asks + 1,
               },
         );
     },
-    [failedMethods, plan, setAsking, startPositionMs],
+    [asks, failedMethods, plan, setAsking, startPositionMs],
   );
   return { gaveUp, onCantPlay };
 }
@@ -185,6 +191,7 @@ function asker(
       ...choice,
       justChose: choice,
       startPositionMs: resumeFrom,
+      replacing: plan.id,
       asks: before.asks + 1,
     }));
   };
@@ -222,13 +229,15 @@ function useSubtitleChoice(askFromHere: ReturnType<typeof asker>, plan: Playback
 }
 
 /**
- * The plan for Version `versionId` as `asking` says, asked for once and never reused after. A
+ * The plan for Version `versionId` as `asking` says, asked for once and never reused after, once
+ * the Server is told the plan it replaces stopped, so that one's Transcode leaves room for it. A
  * Server too busy to Transcode it, or that fails to plan it, gives a plan that can't play, saying so.
  */
 function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
   const { failedMethods, startPositionMs, audioTrack, playbackLimit, subtitleTrack, noSubtitles } =
     asking;
+  const { replacing } = asking;
   return useSuspenseQuery({
     queryKey: [
       "planPlayback",
@@ -239,8 +248,10 @@ function usePlan(versionId: bigint, asking: Asking) {
       playbackLimit,
       subtitleTrack,
       noSubtitles,
+      String(replacing),
     ],
     queryFn: async () => {
+      if (replacing !== undefined) await stopPlan(transport, replacing);
       const deviceDecoding = await findDeviceDecoding();
       const input = {
         versionId,
@@ -252,27 +263,25 @@ function usePlan(versionId: bigint, asking: Asking) {
         subtitleTrack,
         noSubtitles,
       };
-      try {
-        const response = await callUnaryMethod(
-          transport,
-          PlaybackService.method.planPlayback,
-          input,
-        );
-        return create(PlaybackPlanSchema, response.plan);
-      } catch (error) {
-        if (isCode(error, Code.Internal)) return cantPlayPlan({ text: serverFailedToPlan });
-        const { reason, params } = refusalOf(error);
-        if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return cantPlayPlan({
-          kind: PlaybackReasonKind.SERVER_BUSY,
-          params,
-          text: serverMessage(error),
-        });
-      }
+      return callUnaryMethod(transport, PlaybackService.method.planPlayback, input).then(
+        ({ plan }) => create(PlaybackPlanSchema, plan),
+        cantPlayBecause,
+      );
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
+}
+
+/**
+ * A plan that can't play, saying why, for a Server that failed to plan or is too busy to Transcode
+ * as `error` says. Any other `error` is thrown.
+ */
+function cantPlayBecause(error: unknown) {
+  if (isCode(error, Code.Internal)) return cantPlayPlan({ text: serverFailedToPlan });
+  const { reason, params } = refusalOf(error);
+  if (reason !== RefusalReason.SERVER_BUSY) throw error;
+  return cantPlayPlan({ kind: PlaybackReasonKind.SERVER_BUSY, params, text: serverMessage(error) });
 }
 
 /** A plan that can't play, for the one `reason`. */

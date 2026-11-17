@@ -3324,7 +3324,9 @@ pub struct PlanPlaybackRequestView<'a> {
     pub start_position_ms: u64,
     /// The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
     /// Unset for the Server to choose by the User's Audio Preference, or else the one the Version
-    /// plays by default, which `PlaybackPlan.audio_track` then says.
+    /// plays by default, which `PlaybackPlan.audio_track` then says. A place that isn't an audio
+    /// Track, as when the Version changed since the caller saw it, plays the one the Version plays
+    /// by default, and gets no reason.
     ///
     /// Field 3: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
@@ -3332,7 +3334,8 @@ pub struct PlanPlaybackRequestView<'a> {
     /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
     /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
     /// from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
-    /// Preference, which `PlaybackPlan.starting_subtitle` then says.
+    /// Preference, which `PlaybackPlan.starting_subtitle` then says. A place that isn't a subtitle
+    /// Track, or one the Device draws itself, is the same as `no_subtitles`, and gets no reason.
     ///
     /// Field 4: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
@@ -3806,7 +3809,9 @@ impl PlanPlaybackRequestOwnedView {
     }
     /// The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
     /// Unset for the Server to choose by the User's Audio Preference, or else the one the Version
-    /// plays by default, which `PlaybackPlan.audio_track` then says.
+    /// plays by default, which `PlaybackPlan.audio_track` then says. A place that isn't an audio
+    /// Track, as when the Version changed since the caller saw it, plays the one the Version plays
+    /// by default, and gets no reason.
     ///
     /// Field 3: `audio_track`
     #[must_use]
@@ -3817,7 +3822,8 @@ impl PlanPlaybackRequestOwnedView {
     /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
     /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
     /// from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
-    /// Preference, which `PlaybackPlan.starting_subtitle` then says.
+    /// Preference, which `PlaybackPlan.starting_subtitle` then says. A place that isn't a subtitle
+    /// Track, or one the Device draws itself, is the same as `no_subtitles`, and gets no reason.
     ///
     /// Field 4: `subtitle_track`
     #[must_use]
@@ -3919,6 +3925,10 @@ pub struct DeviceDecodingView<'a> {
     ///
     /// Field 2: `hdr`
     pub hdr: bool,
+    /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
+    ///
+    /// Field 10: `h264_10bit`
+    pub h264_10bit: bool,
     /// Whether it plays HLS without a script's help.
     ///
     /// Field 3: `native_hls`
@@ -3978,6 +3988,13 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.hdr = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.h264_10bit = ::buffa::types::decode_bool(&mut cur)?;
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -4143,6 +4160,7 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
             video_codecs: self.video_codecs.to_vec(),
             audio_codecs: self.audio_codecs.to_vec(),
             hdr: self.hdr,
+            h264_10bit: self.h264_10bit,
             native_hls: self.native_hls,
             mse: self.mse,
             audio_channels: self.audio_channels,
@@ -4202,6 +4220,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if self.h264_10bit {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -4270,6 +4291,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
+        if self.h264_10bit {
+            ::buffa::types::put_bool_field(10u32, self.h264_10bit, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -4314,6 +4338,9 @@ impl<'__a> ::serde::Serialize for DeviceDecodingView<'__a> {
         }
         if self.hdr {
             __map.serialize_entry("hdr", &self.hdr)?;
+        }
+        if self.h264_10bit {
+            __map.serialize_entry("h26410bit", &self.h264_10bit)?;
         }
         if self.native_hls {
             __map.serialize_entry("nativeHls", &self.native_hls)?;
@@ -4461,6 +4488,13 @@ impl DeviceDecodingOwnedView {
     #[must_use]
     pub fn hdr(&self) -> bool {
         self.0.reborrow().hdr
+    }
+    /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
+    ///
+    /// Field 10: `h264_10bit`
+    #[must_use]
+    pub fn h264_10bit(&self) -> bool {
+        self.0.reborrow().h264_10bit
     }
     /// Whether it plays HLS without a script's help.
     ///
@@ -4826,7 +4860,11 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 1: `method`
     pub method: ::buffa::EnumValue<super::super::PlaybackMethod>,
-    /// Where to play it from, on this Server. Empty when it can't be played.
+    /// Where to play it from, on this Server. Empty when it can't be played. The Server ends the
+    /// plan, publishing `PlaybackEnded`, about a minute after it was last asked for anything; for a
+    /// Direct Play, each part of its file sent counts as asked for. So while nothing is being
+    /// fetched, as when the player is paused, a client keeps the plan by asking for `url` (`HEAD` is
+    /// enough) at least every 30 seconds, and calls `StopPlayback` when it closes.
     ///
     /// Field 2: `url`
     pub url: &'a str,
@@ -4835,8 +4873,10 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 3: `tracks`
     pub tracks: ::buffa::RepeatedView<'a, super::super::__buffa::view::TrackView<'a>>,
-    /// The facts that shaped it, in the order the steps that found them ran. A step that changes
-    /// nothing gives none, so a Direct Play nothing stood in the way of has none.
+    /// The facts that shaped it, in the order the steps that found them ran. A step gives one only
+    /// when it rules a method out, changes what plays, drops a choice or assumes what it couldn't
+    /// know, so a Direct Play on a Server that can do everything has none; one on a busy Server, or
+    /// one without ffmpeg, says so as context (ADR 0034).
     ///
     /// Field 13: `reasons`
     pub reasons: ::buffa::RepeatedView<
@@ -4864,12 +4904,13 @@ pub struct PlaybackPlanView<'a> {
     pub playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
     /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
-    /// no audio or its Tracks aren't known.
+    /// no audio or its Tracks aren't known. A plan that can't be played drops no choice, so it says
+    /// the one asked for, if that is one of the Version's audio Tracks.
     ///
     /// Field 8: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
-    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
-    /// for none, as when the one asked for can't be burned in.
+    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`, or would
+    /// if it could be played. Unset for none, as when the one asked for can't be burned in.
     ///
     /// Field 9: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
@@ -4892,8 +4933,8 @@ pub struct PlaybackPlanView<'a> {
         ::buffa::EnumValue<super::super::PlaybackLimit>,
     >,
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
-    /// burns in, or else, when the request left the choice to the Server, one of `subtitles` that
-    /// the player shows itself. Unset for none.
+    /// burns in, or would if it could be played, or else, when the request left the choice to the
+    /// Server, one of `subtitles` that the player shows itself. Unset for none.
     ///
     /// Field 14: `starting_subtitle`
     pub starting_subtitle: ::core::option::Option<u32>,
@@ -5516,7 +5557,11 @@ impl PlaybackPlanOwnedView {
     pub fn method(&self) -> ::buffa::EnumValue<super::super::PlaybackMethod> {
         self.0.reborrow().method
     }
-    /// Where to play it from, on this Server. Empty when it can't be played.
+    /// Where to play it from, on this Server. Empty when it can't be played. The Server ends the
+    /// plan, publishing `PlaybackEnded`, about a minute after it was last asked for anything; for a
+    /// Direct Play, each part of its file sent counts as asked for. So while nothing is being
+    /// fetched, as when the player is paused, a client keeps the plan by asking for `url` (`HEAD` is
+    /// enough) at least every 30 seconds, and calls `StopPlayback` when it closes.
     ///
     /// Field 2: `url`
     #[must_use]
@@ -5533,8 +5578,10 @@ impl PlaybackPlanOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrackView<'_>> {
         &self.0.reborrow().tracks
     }
-    /// The facts that shaped it, in the order the steps that found them ran. A step that changes
-    /// nothing gives none, so a Direct Play nothing stood in the way of has none.
+    /// The facts that shaped it, in the order the steps that found them ran. A step gives one only
+    /// when it rules a method out, changes what plays, drops a choice or assumes what it couldn't
+    /// know, so a Direct Play on a Server that can do everything has none; one on a busy Server, or
+    /// one without ffmpeg, says so as context (ADR 0034).
     ///
     /// Field 13: `reasons`
     #[must_use]
@@ -5578,15 +5625,16 @@ impl PlaybackPlanOwnedView {
     }
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
     /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
-    /// no audio or its Tracks aren't known.
+    /// no audio or its Tracks aren't known. A plan that can't be played drops no choice, so it says
+    /// the one asked for, if that is one of the Version's audio Tracks.
     ///
     /// Field 8: `audio_track`
     #[must_use]
     pub fn audio_track(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().audio_track
     }
-    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
-    /// for none, as when the one asked for can't be burned in.
+    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`, or would
+    /// if it could be played. Unset for none, as when the one asked for can't be burned in.
     ///
     /// Field 9: `subtitle_track`
     #[must_use]
@@ -5620,8 +5668,8 @@ impl PlaybackPlanOwnedView {
         &self.0.reborrow().playback_limits
     }
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
-    /// burns in, or else, when the request left the choice to the Server, one of `subtitles` that
-    /// the player shows itself. Unset for none.
+    /// burns in, or would if it could be played, or else, when the request left the choice to the
+    /// Server, one of `subtitles` that the player shows itself. Unset for none.
     ///
     /// Field 14: `starting_subtitle`
     #[must_use]

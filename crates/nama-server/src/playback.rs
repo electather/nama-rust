@@ -115,12 +115,14 @@ pub(crate) struct Plan {
     pub(crate) subtitles: Vec<Subtitle>,
     /// The Playback Limit it keeps to, `None` being Original.
     pub(crate) limit: Option<PlaybackLimit>,
-    /// The place in the Version's Tracks of the audio Track it plays, if it has audio.
+    /// The place in the Version's Tracks of the audio Track it plays, or would if it could be
+    /// played, if it has audio.
     pub(crate) audio: Option<usize>,
-    /// The place in the Version's Tracks of the subtitle Track it burns in, if any.
+    /// The place in the Version's Tracks of the subtitle Track it burns in, or would if it could
+    /// be played, if any.
     pub(crate) burn_in: Option<usize>,
     /// The place in the Version's Tracks of the subtitle Track playback starts with, if any: the
-    /// one it burns in, or else a text one the Server chose for the Device to show.
+    /// one in `burn_in`, or else a text one the Server chose for the Device to show.
     pub(crate) starting_subtitle: Option<usize>,
     pub(crate) offers: Offers,
 }
@@ -277,7 +279,12 @@ pub(crate) struct Subtitle {
 }
 
 /// What a Device says it can decode, as it found out just now. The Server never stores it.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each is a separate thing the Device says it can do, as the proto's `DeviceDecoding` \
+              has them"
+)]
 pub(crate) struct DeviceDecoding {
     /// The containers it plays.
     pub(crate) containers: Vec<proto::Container>,
@@ -287,6 +294,8 @@ pub(crate) struct DeviceDecoding {
     pub(crate) audio_codecs: Vec<proto::AudioCodec>,
     /// Whether its display shows HDR.
     pub(crate) hdr: bool,
+    /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
+    pub(crate) h264_10bit: bool,
     /// Whether it plays HLS, natively or through Media Source Extensions, which every method but
     /// Direct Play needs.
     pub(crate) hls: bool,
@@ -307,6 +316,9 @@ pub(crate) struct Asked {
     pub(crate) audio: AskedAudio,
     pub(crate) subtitle: AskedSubtitle,
     pub(crate) limit: PickedLimit,
+    /// Where playing starts, in milliseconds. A Remux or a Transcode starts ffmpeg at the segment
+    /// playing there.
+    pub(crate) start_ms: i64,
     /// The Device's address, which says whether it's on the local network.
     pub(crate) client: IpAddr,
 }
@@ -357,6 +369,7 @@ pub(crate) async fn plan(
         audio,
         subtitle,
         limit,
+        start_ms,
         client,
     } = asked;
     let probe = match probing.current(version).await {
@@ -386,7 +399,7 @@ pub(crate) async fn plan(
         can_do: abilities.can_do().await,
         failed,
         audio,
-        running_transcodes: running.running_transcodes(caller.device.id),
+        running_transcodes: running.running_transcodes(),
         max_transcodes: settings.max_transcodes,
         picked_limit: limit,
         network: if on_local_network(client) {
@@ -407,7 +420,7 @@ pub(crate) async fn plan(
             None => Ok(Some(Planned::Unplayable(plan))),
         };
     }
-    let started = running.start(caller, plan).await?;
+    let started = running.start(caller, plan, start_ms).await?;
     Ok(started.map(Planned::Started))
 }
 
@@ -471,6 +484,7 @@ pub(crate) const fn method_to_proto(method: Option<Method>) -> proto::PlaybackMe
 }
 
 /// What a plan is based on.
+#[derive(Clone)]
 struct Facts {
     version: i64,
     /// What probing found in the Version, or `None` if it couldn't be probed.
@@ -484,8 +498,7 @@ struct Facts {
     /// The audio Track the User chose, or the Server chose by their Audio Preference, by its place
     /// in the Version's Tracks, if one was.
     audio: Option<usize>,
-    /// The Transcodes running, leaving out one of this Device's own, which the Transcode cap
-    /// counts.
+    /// The Transcodes running, every Device's own included.
     running_transcodes: RunningTranscodes,
     /// The most Transcodes the admin let the Server run at once, or `None` for the default.
     max_transcodes: Option<NonZeroU32>,
@@ -549,7 +562,8 @@ const LASTING_STEPS: [Step; 4] = [
 /// The steps for what rules a method out only for now.
 const NOW_STEPS: [Step; 2] = [failed_on_device, server_busy];
 
-/// The steps for the User's choices, which narrow only while a method is left.
+/// The steps for the User's choices, each dropped where it leaves no method and the plan plays
+/// without it.
 const CHOICE_STEPS: [(Choice, Step); 4] = [
     (Choice::Audio, chosen_audio),
     (Choice::Limit, network),
@@ -559,7 +573,8 @@ const CHOICE_STEPS: [(Choice, Step); 4] = [
 
 /// The plan for `facts` that every step allows. A choice that would leave no method is added to
 /// `facts.dropped` and the steps run again without it, since what the earlier steps see, such as
-/// the audio the Device must decode, may change with it.
+/// the audio the Device must decode, may change with it. A choice is kept if the plan doesn't play
+/// without it either, so an unplayable plan says what was asked.
 fn build(facts: &mut Facts) -> Plan {
     // Matched here, not before, since a dropped audio choice changes the audio it's matched over.
     if let Some(preferred) = &facts.subtitle_preference {
@@ -580,9 +595,11 @@ fn build(facts: &mut Facts) -> Plan {
         let given = step(facts, candidates);
         let allows = allowed_by(&given);
         // A step allowing every method has no choice in effect to drop.
-        if allowed.is_disjoint(&allows) && allows != BTreeSet::from(Method::ALL) {
-            facts.dropped.insert(choice);
-            return build(facts);
+        if allowed.is_disjoint(&allows)
+            && allows != BTreeSet::from(Method::ALL)
+            && let Some(plan) = plan_without(choice, facts)
+        {
+            return plan;
         }
         allowed.retain(|method| allows.contains(method));
         reasons.extend(given);
@@ -604,11 +621,9 @@ fn build(facts: &mut Facts) -> Plan {
         *on_failure = fallback(facts, transcode, &reasons);
     }
     let audio = candidates.and_then(|candidates| candidates.audio);
+    // A burn-in still in effect rules out all but a Transcode, so it plays by one or not at all.
     let burned_in = facts.subtitle.filter(|_| {
-        matches!(
-            &playing,
-            Some(Playing::Transcode { transcode, .. }) if transcode.video.burn_in.is_some()
-        )
+        candidates.is_some_and(|candidates| candidates.transcode.video.burn_in.is_some())
     });
     let tracks = (facts.probe.as_ref())
         .map_or_default(|probe| played_by(playing.as_ref(), played_tracks(probe, audio)));
@@ -627,6 +642,17 @@ fn build(facts: &mut Facts) -> Plan {
         starting_subtitle: burned_in.or(facts.shown_subtitle),
         offers: offers(facts, &lasting),
     }
+}
+
+/// The plan for `facts` with `choice` dropped, if it plays, and only then drops it from `facts`.
+fn plan_without(choice: Choice, facts: &mut Facts) -> Option<Plan> {
+    let mut without = facts.clone();
+    without.dropped.insert(choice);
+    let plan = build(&mut without);
+    plan.playing.is_some().then(|| {
+        *facts = without;
+        plan
+    })
 }
 
 /// How the plan for `facts` plays by `method`, with what it converts, before its fallback is

@@ -86,6 +86,7 @@ pub(super) fn firefox() -> DeviceDecoding {
             AudioCodec::AUDIO_CODEC_FLAC,
         ],
         hdr: false,
+        h264_10bit: false,
         hls: true,
         audio_channels: 2,
         subtitle_formats: vec![],
@@ -153,6 +154,7 @@ pub(super) const fn remuxing(track: usize, aac_channels: Option<i64>) -> Playing
                 track,
                 aac_channels,
             }),
+            hevc: false,
         },
         duration_ms: LENGTH_MS,
     }
@@ -382,6 +384,7 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
         audio: AskedAudio::Preferred(None),
         subtitle: AskedSubtitle::None,
         limit: PickedLimit::Unpicked,
+        start_ms: 0,
         client: std::net::Ipv4Addr::LOCALHOST.into(),
     };
     let planned = plan(
@@ -644,6 +647,60 @@ fn a_device_without_hls_that_decodes_everything_direct_plays_or_nothing_whatever
             let no_hls = reason_of(&plan, Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS);
             assert_eq!(no_hls.decided, plan.method().is_none(), "{chosen}");
         }
+    }
+}
+
+#[test]
+fn an_unplayable_plan_keeps_the_choices_asked_and_drops_none() {
+    let p720 = Some(PlaybackLimit::P720);
+    let choices: [(&str, Change, _); 3] = [
+        (
+            "the second audio Track",
+            choosing_the_second_audio_track,
+            (Some(2), None, None),
+        ),
+        ("720p", picking_720p, (Some(1), p720, None)),
+        ("PGS", burning_in_pgs, (Some(1), None, Some(3))),
+    ];
+    for (chosen, choose, asked) in choices {
+        let mut facts = direct_played();
+        choose(&mut facts);
+        without_ffmpeg(&mut facts);
+        facts.failed = BTreeSet::from([Method::DirectPlay]);
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), None, "{chosen}");
+        assert_eq!((plan.audio, plan.limit, plan.burn_in), asked, "{chosen}");
+        let dropped = [
+            Kind::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,
+            Kind::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED,
+            Kind::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED,
+        ];
+        assert!(
+            !kinds(&plan).iter().any(|kind| dropped.contains(kind)),
+            "{chosen}"
+        );
+    }
+}
+
+#[test]
+fn a_busy_server_refuses_a_device_that_needs_a_transcode_whatever_is_chosen() {
+    let choices: [(&str, Change); 3] = [
+        ("the second audio Track", choosing_the_second_audio_track),
+        ("720p", picking_720p),
+        ("PGS", burning_in_pgs),
+    ];
+    for (chosen, choose) in choices {
+        let mut facts = direct_played();
+        if let Some(probe) = &mut facts.probe {
+            probe.tracks[0] = video("hevc");
+        }
+        choose(&mut facts);
+        while_busy(&mut facts);
+
+        assert_eq!(build(&mut facts).method(), None, "{chosen}");
+        assert_eq!(too_busy_to_play(facts), Some(2), "{chosen}");
     }
 }
 

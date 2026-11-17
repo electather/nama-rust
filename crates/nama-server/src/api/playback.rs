@@ -71,6 +71,7 @@ impl PlaybackService for PlaybackServiceHandler {
                 video_codecs: known(&decoding.video_codecs),
                 audio_codecs: known(&decoding.audio_codecs),
                 hdr: decoding.hdr,
+                h264_10bit: decoding.h264_10bit,
                 hls: decoding.native_hls || decoding.mse,
                 audio_channels: decoding.audio_channels,
                 subtitle_formats: known(&decoding.subtitle_formats),
@@ -81,6 +82,8 @@ impl PlaybackService for PlaybackServiceHandler {
             audio,
             subtitle,
             limit: picked_limit(request.playback_limit),
+            // Past `i64::MAX` is past the end of any Version, so it plays from its last segment.
+            start_ms: i64::try_from(request.start_position_ms).unwrap_or(i64::MAX),
             client,
         };
         let plan = playback::plan(

@@ -97,14 +97,16 @@ pub(super) fn every_two_seconds() -> Timeline {
 /// Starts a Remux for the Device 7 whose ffmpeg writes nothing, and returns its id with the
 /// keyframes each run of ffmpeg started at.
 pub(super) async fn start_writing_nothing(plans: &RunningPlans) -> (u64, Arc<Mutex<Vec<usize>>>) {
-    start_method_writing_nothing(plans, Method::Remux, every_two_seconds()).await
+    start_method_writing_nothing(plans, Method::Remux, every_two_seconds(), 0).await
 }
 
-/// As [`start_writing_nothing`], for a plan by `method` cut as `timeline` says.
+/// As [`start_writing_nothing`], for a plan by `method` cut as `timeline` says, played from
+/// `start_ms`.
 pub(super) async fn start_method_writing_nothing(
     plans: &RunningPlans,
     method: Method,
     timeline: Timeline,
+    start_ms: i64,
 ) -> (u64, Arc<Mutex<Vec<usize>>>) {
     let starts = Arc::new(Mutex::new(vec![]));
     let started = Arc::clone(&starts);
@@ -120,6 +122,7 @@ pub(super) async fn start_method_writing_nothing(
             playback(7),
             method,
             timeline,
+            start_ms,
             Runs {
                 run: Box::new(run),
                 fallback: None,
@@ -146,41 +149,23 @@ async fn a_running_plan_is_marked_with_its_method_and_found_only_by_its_device()
 // The fake ffmpeg is `sleep`.
 #[cfg(unix)]
 #[tokio::test]
-async fn another_devices_transcodes_count_until_one_stops_and_remuxes_never_do() {
+async fn every_devices_transcodes_count_until_one_stops_and_remuxes_never_do() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     let transcode = || {
         let timeline = every_two_seconds();
-        start_method_writing_nothing(&plans, Method::Transcode, timeline)
+        start_method_writing_nothing(&plans, Method::Transcode, timeline, 0)
     };
     let (first, _) = transcode().await;
     start_writing_nothing(&plans).await;
-    assert_eq!(plans.running_transcodes(8).all, 1, "a Remux doesn't count");
+    assert_eq!(plans.running_transcodes().all, 1, "a Remux doesn't count");
     transcode().await;
 
-    let for_another_device = plans.running_transcodes(8).all;
-    let for_its_own_device = plans.running_transcodes(7).all;
+    let full = plans.running_transcodes().all;
     plans.stop_for(first, 7).await;
 
-    assert_eq!(for_another_device, 2);
-    assert_eq!(
-        for_its_own_device, 1,
-        "the one its new plan replaces doesn't count"
-    );
-    assert_eq!(plans.running_transcodes(8).all, 1);
-}
-
-// The fake ffmpeg is `sleep`.
-#[cfg(unix)]
-#[tokio::test]
-async fn a_device_leaves_only_one_of_its_own_transcodes_out_of_the_count() {
-    let data = tempfile::tempdir().unwrap();
-    let plans = running_plans(data.path()).await;
-    for _ in 0..3 {
-        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
-    }
-
-    assert_eq!(plans.running_transcodes(7).all, 2);
+    assert_eq!(full, 2);
+    assert_eq!(plans.running_transcodes().all, 1);
 }
 
 // The fake ffmpeg is `sleep`.
@@ -190,9 +175,9 @@ async fn a_transcode_on_hardware_counts_as_cpu_bound_once_it_fell_back_and_a_rem
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     let (on_hardware, _) =
-        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
+        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds(), 0).await;
     let (remux, _) = start_writing_nothing(&plans).await;
-    let before = plans.running_transcodes(8);
+    let before = plans.running_transcodes();
 
     hls(&plans, on_hardware, 7)
         .fell_back
@@ -203,7 +188,7 @@ async fn a_transcode_on_hardware_counts_as_cpu_bound_once_it_fell_back_and_a_rem
 
     assert_eq!(before.cpu_bound, 0);
     assert_eq!(
-        plans.running_transcodes(8),
+        plans.running_transcodes(),
         RunningTranscodes {
             all: 1,
             cpu_bound: 1
@@ -218,6 +203,7 @@ async fn start_sleeping(plans: &RunningPlans, device: i64) -> u64 {
             playback(device),
             Method::Remux,
             every_two_seconds(),
+            0,
             Runs {
                 run: Box::new(|_: &Path, _: Keyframe| {
                     tokio::process::Command::new("sleep")
@@ -276,16 +262,20 @@ async fn a_plan_gone_unused_tells_its_playback_ended() {
         &events,
     );
     let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
-    start_sleeping(&plans, 7).await;
+    let id = start_sleeping(&plans, 7).await;
 
     plans.stop_unused(Duration::ZERO).await;
 
+    let playback = Playback {
+        plan_id: id,
+        ..playback(7)
+    };
     let started = event(PlaybackStarted {
-        playback: playback(7).into(),
+        playback: playback.clone().into(),
         ..Default::default()
     });
     let ended = event(PlaybackEnded {
-        playback: playback(7).into(),
+        playback: playback.into(),
         ..Default::default()
     });
     for told in [started, ended] {
@@ -318,7 +308,11 @@ async fn a_plan_its_device_stops_ends_at_once_and_another_device_cant_stop_it() 
     assert!(plans.ask(id, device).is_none());
     assert!(!dir.exists());
     let ended = event(PlaybackEnded {
-        playback: playback(device).into(),
+        playback: Playback {
+            plan_id: id,
+            ..playback(device)
+        }
+        .into(),
         ..Default::default()
     });
     let next = subscription.next().await.unwrap();
@@ -351,6 +345,44 @@ async fn a_direct_play_is_kept_while_its_device_asks_for_its_version_and_then_en
 
     assert!(plans.ask(asked, device).is_some());
     assert!(plans.ask(unasked, another).is_none());
+}
+
+#[tokio::test]
+async fn a_direct_play_is_kept_while_its_file_is_sent_and_then_ends() {
+    let data = tempfile::tempdir().unwrap();
+    let db = database(data.path()).await;
+    let plans = plans_in(
+        &db,
+        settings(&db, data.path().join("transcodes")).playback(),
+    );
+    let (version, device, another) = (4, 7, 8);
+    let direct_play = |on| Playback {
+        device_id: on,
+        version_id: version,
+        method: PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY.into(),
+        ..Default::default()
+    };
+    let (sent_to, not_sent_to) = (
+        plans.direct_play(direct_play(device)),
+        plans.direct_play(direct_play(another)),
+    );
+    let late_part = futures_util::stream::once(async {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    });
+    let mut file =
+        std::pin::pin!(plans.ask_direct_plays_while_sending(version, Some(device), late_part));
+
+    file.next().await;
+    plans.stop_unused(Duration::from_millis(50)).await;
+
+    assert!(plans.ask(sent_to, device).is_some());
+    assert!(plans.ask(not_sent_to, another).is_none());
+
+    assert!(file.next().await.is_none());
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    plans.stop_unused(Duration::from_millis(50)).await;
+
+    assert!(plans.ask(sent_to, device).is_none());
 }
 
 // The stand-in ffmpeg is `sleep`.
@@ -483,9 +515,9 @@ async fn a_version_being_deleted_starts_no_plan_until_it_is_gone() {
     let plans = running_plans(data.path()).await;
     let deleting = plans.end_for_deleting(&[4]).await;
 
-    let while_deleting = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+    let while_deleting = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
     drop(deleting);
-    let after = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+    let after = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
 
     assert!(while_deleting.is_none());
     assert!(after.is_some());

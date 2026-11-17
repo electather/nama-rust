@@ -143,6 +143,17 @@ impl Fixture {
         .await
     }
 
+    /// Tells the Server the Admin's player stopped the plan `plan_id`.
+    async fn stop(&self, plan_id: u64) {
+        PlaybackServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .stop_playback(StopPlaybackRequest {
+                plan_id,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
     async fn ask_for_plan(
         &self,
         request: PlanPlaybackRequest,
@@ -458,6 +469,25 @@ async fn with_the_cap_at_1_a_second_device_that_needs_a_transcode_is_told_the_se
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
+async fn with_the_cap_at_1_a_device_needing_a_second_transcode_is_busy_until_it_stops_its_first() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [_, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
+    let first = fx.transcode(hevc).await;
+
+    let while_it_runs = fx.plan(hevc).await;
+    fx.stop(first.id).await;
+
+    assert_refused(
+        while_it_runs,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_SERVER_BUSY,
+    );
+    fx.transcode(hevc).await;
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
 async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_says_why() {
     let bin = tempfile::tempdir().unwrap();
     let (fx, [h264, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
@@ -481,13 +511,7 @@ async fn when_a_transcodes_session_ends_its_slot_frees_up_for_the_next() {
     let bishop = fx.server.user_with_default_permissions("Bishop").await;
     let admins = fx.transcode(hevc).await;
 
-    PlaybackServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
-        .stop_playback(StopPlaybackRequest {
-            plan_id: admins.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    fx.stop(admins.id).await;
 
     let plan = plan_as(&bishop, hevc).await.unwrap();
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
@@ -647,6 +671,7 @@ async fn each_plan_tells_subscribers_its_playback_started() {
     let first = fx.plan(version).await.unwrap();
     let replacing = fx.plan(version).await.unwrap();
 
+    assert_ne!(first.id, replacing.id);
     for plan in [first, replacing] {
         let told = PlaybackStarted {
             playback: admins_playback(version, plan).into(),
@@ -697,19 +722,52 @@ async fn a_direct_play_its_player_stops_tells_subscribers_its_playback_ended() {
     let plan = fx.plan(version).await.unwrap();
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
 
-    PlaybackServiceClient::new(HttpClient::plaintext(), config)
-        .stop_playback(StopPlaybackRequest {
-            plan_id: plan.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    fx.stop(plan.id).await;
 
     let told = PlaybackEnded {
         playback: admins_playback(version, plan).into(),
         ..Default::default()
     };
     assert_eq!(subscription.next().await, told.into());
+}
+
+#[tokio::test]
+async fn stopping_the_plan_another_replaced_tells_subscribers_only_its_playback_ended() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let config = fx.server.client_config();
+    let started_or_ended = [
+        EventType::EVENT_TYPE_PLAYBACK_STARTED,
+        EventType::EVENT_TYPE_PLAYBACK_ENDED,
+    ];
+    let mut subscription = subscribe(&config, &started_or_ended).await;
+    let first = fx.plan(version).await.unwrap();
+    fx.plan(version).await.unwrap();
+    for _ in 0..2 {
+        subscription.next().await;
+    }
+
+    PlaybackServiceClient::new(HttpClient::plaintext(), config)
+        .stop_playback(StopPlaybackRequest {
+            plan_id: first.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    // A later plan's Started comes after every Ended the stop published, so an Ended for the
+    // replacing plan would come between.
+    let later = fx.plan(version).await.unwrap();
+
+    let ended = PlaybackEnded {
+        playback: admins_playback(version, first).into(),
+        ..Default::default()
+    };
+    let started = PlaybackStarted {
+        playback: admins_playback(version, later).into(),
+        ..Default::default()
+    };
+    assert_eq!(subscription.next().await, ended.into());
+    assert_eq!(subscription.next().await, started.into());
 }
 
 /// What Observers are told of the Admin playing the Version `version` by `plan`.
@@ -722,6 +780,7 @@ fn admins_playback(version: i64, plan: PlaybackPlan) -> Playback {
         method: plan.method,
         tracks: plan.tracks,
         reasons: plan.reasons,
+        plan_id: plan.id,
         ..Default::default()
     }
 }

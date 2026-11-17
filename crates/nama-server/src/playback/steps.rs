@@ -8,7 +8,7 @@ use super::{
     choices::burn_in,
     codecs::{
         aac_channels, channels_of, converted_channels, hdr_name, played_hdr, played_tracks,
-        transcoded_hdr, undecodable, undecodable_container,
+        played_video, transcoded_hdr, undecodable, undecodable_container,
     },
     limits::video_limit,
     method_to_proto,
@@ -391,7 +391,11 @@ pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> Remux {
         track,
         aac_channels: aac_channels(&facts.device, played),
     });
-    Remux { audio }
+    let video = facts.probe.as_ref().and_then(played_video);
+    Remux {
+        audio,
+        hevc: video.is_some_and(|video| video.codec == "hevc"),
+    }
 }
 
 /// What a Transcode for `facts` converts, playing `audio` as [`remux`] does.
@@ -406,7 +410,7 @@ pub(super) fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> Transc
     }
 }
 
-/// The step for how busy the Server is: no Transcode while other Devices run as many as it may.
+/// The step for how busy the Server is: no Transcode while as many run as it may.
 pub(super) fn server_busy(facts: &Facts, candidates: Option<&Candidates>) -> Vec<Reason> {
     let video = candidates.map(|candidates| &candidates.transcode.video);
     let busy = transcodes_full(facts, video).map(|max| {
@@ -426,7 +430,8 @@ pub(super) fn server_busy(facts: &Facts, candidates: Option<&Candidates>) -> Vec
 /// The most Transcodes the Server may run at once, if running that many is all that keeps the
 /// plan for `facts` from playing: a Transcode would play it otherwise. A plan nothing else plays
 /// is refused as busy rather than shown as unplayable, since trying again later may play it. Only
-/// what the Device needs counts: a choice that needs a Transcode is dropped first.
+/// what the Device needs counts: `build` keeps a choice only when nothing plays without it either,
+/// so a Transcode the choice needs is one the Device needs too.
 pub(super) fn too_busy_to_play(facts: Facts) -> Option<u32> {
     let running_transcodes = facts.running_transcodes;
     if running_transcodes == RunningTranscodes::default() {

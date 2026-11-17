@@ -31,6 +31,8 @@ pub(crate) fn hls_init_from(name: &str) -> Option<usize> {
 pub(crate) struct Remux {
     /// The audio Track it plays, or `None` when the Version has none.
     pub(crate) audio: Option<RemuxAudio>,
+    /// Whether the video it copies is HEVC, so it's tagged `hvc1` for Apple's players.
+    pub(crate) hevc: bool,
 }
 
 /// The audio Track a Remux plays.
@@ -109,11 +111,12 @@ fn transcoded_video(
     before: Option<String>,
     burn_in: Option<BurnIn>,
     after: Option<String>,
+    seeks: bool,
 ) -> Vec<String> {
     let drawn = match burn_in {
         None => None,
         Some(BurnIn::Image { subtitle, picture }) => {
-            let graph = overlay_graph(before, subtitle, picture, after);
+            let graph = overlay_graph(before, subtitle, picture, after, seeks);
             return ["-filter_complex", &graph, "-map", "[video]"]
                 .map(str::to_owned)
                 .into();
@@ -142,7 +145,11 @@ fn overlay_graph(
     subtitle: usize,
     picture: Option<(i64, i64)>,
     after: Option<String>,
+    seeks: bool,
 ) -> String {
+    // The input's `-ss` drops a bitmap that began before it, so a run that seeks reads the
+    // subtitle from a second input, `transcode` opens, that doesn't.
+    let source = usize::from(seeks);
     // A bitmap's canvas can be smaller than the picture, as a 4K Blu-ray's 1080p PGS is, or
     // another shape, as a cropped film's 1080p PGS is: scaled evenly and centred, its text is
     // neither stretched nor cut off.
@@ -153,7 +160,7 @@ fn overlay_graph(
     let (before, fit) = (or_null(before), or_null(fit));
     let after: String = after.map_or_default(|after| format!(",{after}"));
     format!(
-        "[0:V:0]{before}[picture];[0:s:{subtitle}]{fit}[subtitle];\
+        "[0:V:0]{before}[picture];[{source}:s:{subtitle}]{fit}[subtitle];\
          [picture][subtitle]overlay=(W-w)/2:(H-h)/2{after}[video]"
     )
 }
@@ -216,7 +223,9 @@ pub(super) struct VideoArgs {
 }
 
 /// The arguments for ffmpeg that convert the first video of the file at `path` as `video` says.
-pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
+///
+/// `seeks` is whether the input is opened at a point past its start.
+pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> VideoArgs {
     let size = video.limit.and_then(|limit| limit.size);
     let accel = video.hardware.as_ref().map(|hardware| hardware.accel);
     let gpu = video
@@ -266,7 +275,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     };
     VideoArgs {
         input: accel.map_or_default(|accel| accel.input(gpu, false)),
-        video: transcoded_video(path, before, video.burn_in, after),
+        video: transcoded_video(path, before, video.burn_in, after, seeks),
         codec,
     }
 }
