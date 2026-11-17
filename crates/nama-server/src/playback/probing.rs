@@ -213,9 +213,10 @@ impl Probing {
 
     /// When the Version `version`'s file starts and each keyframe of its first video falls: as
     /// kept for its file as it is now, or else listed in the background, which reads the whole
-    /// file, and kept. If something is listing them already, waits for that instead. Waits at most [`LISTING_WAIT`] for a listing, then returns
-    /// [`ProbeError::NotListedYet`] while it carries on. They're kept only while the Version's
-    /// Tracks were read from its file as it is now.
+    /// file, and kept. If something is listing them already, waits for that instead. Waits at
+    /// most [`LISTING_WAIT`] for a listing, then returns [`ProbeError::NotListedYet`] while it
+    /// carries on. They're kept only while the Version's Tracks were read from its file as it is
+    /// now.
     pub(super) async fn keyframes(&self, version: i64) -> Result<ListedKeyframes, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;

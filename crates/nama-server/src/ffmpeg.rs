@@ -367,7 +367,7 @@ impl Ffmpeg {
     /// Copied audio is cut there by `file_start_ms`, when the file starts as Probing reads it.
     #[expect(
         clippy::too_many_arguments,
-        reason = "the file's start is listed with its keyframes, after the plan made `remux`"
+        reason = "the plan makes `remux` before Probing lists the file's start with its keyframes"
     )]
     pub(crate) fn remux(
         &self,

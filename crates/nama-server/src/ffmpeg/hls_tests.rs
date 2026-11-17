@@ -21,7 +21,7 @@ fn system_ffmpeg() -> Ffmpeg {
 /// `remux` says, until ffmpeg is done.
 #[expect(
     clippy::too_many_arguments,
-    reason = "`Ffmpeg::remux`'s, and the ffmpeg to run"
+    reason = "forwards `Ffmpeg::remux`'s arguments, and takes the ffmpeg to run them on"
 )]
 async fn remux_with(
     ffmpeg: &Ffmpeg,
@@ -95,6 +95,25 @@ fn boxes<'a>(data: &'a [u8], name: &'a [u8; 4]) -> impl Iterator<Item = &'a [u8]
         }
         None
     })
+}
+
+/// Asserts that a Remux of a 14-second file into `restarted` from keyframe 3 of its 2-second
+/// ones wrote only `3.m4s` to `6.m4s`, each's video starting within `within` of the track's units
+/// of where it does in the Remux from the first into `whole`.
+fn assert_same_video_from_3(whole: &Path, restarted: &Path, within: u64) {
+    assert!(!restarted.join("2.m4s").exists());
+    for n in 3..7 {
+        let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
+        let (expected, actual) = (
+            starts_at(&segment(whole), VIDEO),
+            starts_at(&segment(restarted), VIDEO),
+        );
+        assert!(
+            expected.abs_diff(actual) <= within,
+            "{n}.m4s: {actual} against {expected}"
+        );
+    }
+    assert!(!restarted.join("7.m4s").exists());
 }
 
 /// What Probing reads of the file at `path`: when it starts, in milliseconds, and when each
@@ -338,20 +357,8 @@ async fn a_remux_started_at_a_keyframe_writes_the_same_files_from_there_on() {
     };
     remux(&ffmpeg, &file, &restarted, third, None).await;
 
-    assert!(!restarted.join("2.m4s").exists());
-    for n in 3..7 {
-        let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
-        let (expected, actual) = (
-            starts_at(&segment(&whole), VIDEO),
-            starts_at(&segment(&restarted), VIDEO),
-        );
-        // Within 2 ms, at 12288 units a second: a run's first file can round differently.
-        assert!(
-            expected.abs_diff(actual) <= 25,
-            "{n}.m4s: {actual} against {expected}"
-        );
-    }
-    assert!(!restarted.join("7.m4s").exists());
+    // Within 2 ms, at 12288 units a second: a run's first file can round differently.
+    assert_same_video_from_3(&whole, &restarted, 25);
 }
 
 #[tokio::test]
@@ -458,17 +465,16 @@ async fn a_remux_of_a_file_starting_after_0_starts_its_copied_audio_where_a_run_
 
     remux_with(&ffmpeg, &ts, &copied, &restarted, third, start_ms).await;
 
-    let segment = |dir: &Path| fs::read(dir.join("3.m4s")).unwrap();
     // Within 2 ms, as a run's first file can round differently: MPEG-TS video is timed at 90000
     // units a second, and this audio at 44100.
-    for (track, within) in [(VIDEO, 180), (AUDIO, 88)] {
-        let (expected, actual) = (
-            starts_at(&segment(&whole), track),
-            starts_at(&segment(&restarted), track),
-        );
-        assert!(
-            expected.abs_diff(actual) <= within,
-            "track {track}: {actual} against {expected}"
-        );
-    }
+    assert_same_video_from_3(&whole, &restarted, 180);
+    let segment = |dir: &Path| fs::read(dir.join("3.m4s")).unwrap();
+    let (expected, actual) = (
+        starts_at(&segment(&whole), AUDIO),
+        starts_at(&segment(&restarted), AUDIO),
+    );
+    assert!(
+        expected.abs_diff(actual) <= 88,
+        "{actual} against {expected}"
+    );
 }
