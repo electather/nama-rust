@@ -56,8 +56,8 @@ pub(crate) struct CustomImages {
     store: ImageStore,
 }
 
-/// Which of a title's images a Custom Image stands in for.
-#[derive(Debug, Clone, Copy)]
+/// Which of a title's images a Custom Image, or an image beside the media, stands in for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum Role {
     Poster,
     Backdrop,
@@ -109,10 +109,20 @@ enum Error {
 }
 
 impl Role {
-    const fn name(self) -> &'static str {
+    /// As paths and the database name it.
+    pub(super) const fn name(self) -> &'static str {
         match self {
             Self::Poster => "poster",
             Self::Backdrop => "backdrop",
+        }
+    }
+
+    /// The role [`Role::name`] gives `name`, if any.
+    pub(super) fn named(name: &str) -> Option<Self> {
+        match name {
+            "poster" => Some(Self::Poster),
+            "backdrop" => Some(Self::Backdrop),
+            _ => None,
         }
     }
 }
@@ -155,21 +165,16 @@ impl Slot {
     /// The slot `path` names, and what it stands in for an image of, if it names one, and only as
     /// [`Slot`]'s constructors write it, so each image has one path.
     fn parse(path: &str) -> Option<(Self, Subject)> {
-        let role = |name| match name {
-            "poster" => Some(Role::Poster),
-            "backdrop" => Some(Role::Backdrop),
-            _ => None,
-        };
         let title = |segment| parse_hint(&percent_decode(segment)?);
         let parts: Vec<&str> = path.split('/').collect();
         let (slot, subject) = match parts[..] {
             ["movie", id, name] => {
                 let id = title(id)?;
-                (Self::movie(&id, role(name)?), Subject::Movie(id))
+                (Self::movie(&id, Role::named(name)?), Subject::Movie(id))
             }
             ["show", id, name] => {
                 let id = title(id)?;
-                (Self::show(&id, role(name)?), Subject::Show(id))
+                (Self::show(&id, Role::named(name)?), Subject::Show(id))
             }
             ["show", id, "season", number, "poster"] => {
                 let (id, number) = (title(id)?, number.parse::<u32>().ok()?.into());
@@ -387,18 +392,24 @@ impl CustomImages {
         let Some(current) = current.filter(|current| current.version == version) else {
             return Ok(StatusCode::NOT_FOUND.into_response());
         };
-        let content_type = match current.content_type.as_str() {
-            "image/png" => "image/png",
-            "image/webp" => "image/webp",
-            SVG => SVG,
-            _ => "image/jpeg",
-        };
+        let content_type = served_type(&current.content_type);
         let mut key = slot.key();
         key.push(version);
         Ok(self
             .store
             .serve(&key, content_type, resize, request)
             .await?)
+    }
+}
+
+/// The content type to serve an image stored as `content_type` with, one the store told from its
+/// bytes.
+pub(super) fn served_type(content_type: &str) -> &'static str {
+    match content_type {
+        "image/png" => "image/png",
+        "image/webp" => "image/webp",
+        SVG => SVG,
+        _ => "image/jpeg",
     }
 }
 

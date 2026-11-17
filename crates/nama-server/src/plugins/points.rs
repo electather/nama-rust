@@ -161,8 +161,9 @@ impl ExtensionPoints {
     /// Tells every Provider of `T`, given the id of the Plugin providing it, each as its own task,
     /// without waiting for them.
     ///
-    /// A failure is logged, without the Plugin's secret settings, and not retried. A Provider that
-    /// panics is disabled. Must be called within a Tokio runtime.
+    /// A failure is logged and recorded for the Plugins page, without the Plugin's secret settings,
+    /// and not retried; an answer clears the record. A Provider that panics is disabled. Must be
+    /// called within a Tokio runtime.
     pub fn tell_each<T, E, F>(&self, call: impl Fn(PluginId, Arc<T>) -> F + Clone + Send + 'static)
     where
         T: ?Sized + Send + Sync + 'static,
@@ -199,8 +200,8 @@ impl ExtensionPoints {
         }
     }
 
-    /// Calls `call` with `provider`, logging its failure, unless `entry`'s Plugin has been
-    /// disabled since [`ExtensionPoints::tell_each`].
+    /// Calls `call` with `provider`, recording and logging its failure, unless `entry`'s Plugin has
+    /// been disabled since [`ExtensionPoints::tell_each`].
     async fn tell_if_current<T, E, F>(
         &self,
         entry: &Entry,
@@ -214,14 +215,16 @@ impl ExtensionPoints {
         if !self.is_current(entry) {
             return;
         }
-        let point = entry.registration.point().name();
+        let key = entry.registration.point();
+        let point = key.name();
         let called = contain_call(&entry.plugin, point, || {
             formatted(call(entry.plugin.clone(), provider))
         });
         match called.await {
-            Ok(Ok(())) => {}
+            Ok(Ok(())) => self.provider_answered(&entry.plugin, key),
             Ok(Err(failure)) => {
                 let error = failure.blanked(&entry.secrets).message;
+                self.provider_failed(&entry.plugin, key, &error);
                 warn!(plugin = %entry.plugin, point, error, "provider failed");
             }
             Err(message) => self.disable_after_panic(entry, point, &message),

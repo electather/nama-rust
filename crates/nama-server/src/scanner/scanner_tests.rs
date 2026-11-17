@@ -13,7 +13,7 @@ use crate::{
     images::ImageStore,
     library::{
         Artwork, Change, Contents, CustomImages, File, Item, Libraries, LibraryError, LibraryKind,
-        LibraryVersion, Order,
+        LibraryVersion, LocalImages, Order,
     },
     log_capture::CapturedLog,
     playback::{Probing, SubtitleCache},
@@ -87,7 +87,8 @@ impl Fixture {
                 Arc::clone(&db),
                 plugins,
                 Artwork::new(images.clone(), ExtensionPoints::default()),
-                CustomImages::new(Arc::clone(&db), images),
+                CustomImages::new(Arc::clone(&db), images.clone()),
+                LocalImages::new(Arc::clone(&db), images),
                 events.clone(),
                 probing.clone(),
                 None,

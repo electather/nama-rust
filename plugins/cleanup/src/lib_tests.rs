@@ -1,14 +1,15 @@
 use std::{cell::RefCell, collections::HashSet};
 
 use nama_pdk::{
-    Library, Manifest, Permission, TitleId, TitleRef, TitleRefKind, TitleWatchStates, WatchState,
+    Library, Manifest, Permission, TitleId, TitleRef, TitleRefKind, TitleRequesters,
+    TitleWatchStates, WatchState,
     extism_pdk::Error,
     nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
 };
 
 use super::{
-    Asked, DAY_MS, Deleted, Key, MAX_STORED, ask_due, chosen_libraries, cutoff_ms, days, decode,
-    delete_due, encode, is_due, manifest, refusal,
+    Asked, Cutoffs, DAY_MS, Deleted, Key, MAX_STORED, ask_due, chosen_libraries, days, decode,
+    delete_due, encode, manifest, refusal,
 };
 
 const NOW_MS: i64 = 1_800_000_000_000;
@@ -56,68 +57,112 @@ fn watched(states: Vec<WatchState>) -> TitleWatchStates {
     }
 }
 
-/// The cutoff of a 30-day setting at `NOW_MS`.
-fn thirty_days_ago() -> i64 {
-    cutoff_ms(NOW_MS, 30)
+/// A title the Users `user_ids` Requested.
+fn requested_by(user_ids: &[i64]) -> TitleRequesters {
+    TitleRequesters {
+        title_ref: episode("1").title_ref(4).into(),
+        requested: true,
+        user_ids: user_ids.to_vec(),
+        ..TitleRequesters::default()
+    }
+}
+
+fn nobody_requested() -> TitleRequesters {
+    TitleRequesters {
+        requested: false,
+        ..requested_by(&[])
+    }
+}
+
+/// The cutoffs of a 30-day `days` and a 90-day `days_unwatched` at `NOW_MS`.
+fn cutoffs() -> Cutoffs {
+    Cutoffs::at(NOW_MS, 30, 90)
+}
+
+/// Long enough ago for a played title to be due.
+const WATCHED_LONG_AGO: i64 = NOW_MS - 31 * DAY_MS;
+/// Long enough ago for a title nobody played to be due.
+const ADDED_LONG_AGO: i64 = NOW_MS - 91 * DAY_MS;
+/// Past `days` but not `days_unwatched`.
+const ADDED_A_WHILE_AGO: i64 = NOW_MS - 60 * DAY_MS;
+
+#[test]
+fn a_title_its_only_requester_played_more_than_the_days_ago_is_due() {
+    let title = watched(vec![played(ADA, WATCHED_LONG_AGO)]);
+
+    assert!(cutoffs().is_due(ADDED_A_WHILE_AGO, &requested_by(&[ADA]), &title));
 }
 
 #[test]
-fn a_title_every_user_played_more_than_the_days_ago_is_due() {
-    let long_ago = thirty_days_ago() - DAY_MS;
-    let title = watched(vec![played(ADA, long_ago), played(BEN, long_ago)]);
+fn a_title_another_user_played_but_its_requester_did_not_is_kept_until_days_unwatched() {
+    let title = watched(vec![played(BEN, WATCHED_LONG_AGO)]);
 
-    assert!(is_due(&title, &[ADA, BEN], thirty_days_ago()));
+    assert!(!cutoffs().is_due(ADDED_A_WHILE_AGO, &requested_by(&[ADA]), &title));
+    assert!(cutoffs().is_due(ADDED_LONG_AGO, &requested_by(&[ADA]), &title));
 }
 
 #[test]
-fn a_title_one_user_played_recently_is_kept() {
-    let title = watched(vec![
-        played(ADA, thirty_days_ago() - DAY_MS),
-        played(BEN, NOW_MS - DAY_MS),
+fn a_title_its_requester_played_recently_is_kept_however_long_ago_it_was_added() {
+    let title = watched(vec![played(ADA, NOW_MS - DAY_MS)]);
+
+    assert!(!cutoffs().is_due(ADDED_LONG_AGO, &requested_by(&[ADA]), &title));
+}
+
+#[test]
+fn a_title_two_users_requested_is_kept_until_both_are_done() {
+    let one_done = watched(vec![played(ADA, WATCHED_LONG_AGO), played(BEN, NOW_MS)]);
+    let both_done = watched(vec![
+        played(ADA, WATCHED_LONG_AGO),
+        played(BEN, WATCHED_LONG_AGO),
     ]);
 
-    assert!(!is_due(&title, &[ADA, BEN], thirty_days_ago()));
+    let requesters = requested_by(&[ADA, BEN]);
+    assert!(!cutoffs().is_due(ADDED_A_WHILE_AGO, &requesters, &one_done));
+    assert!(cutoffs().is_due(ADDED_A_WHILE_AGO, &requesters, &both_done));
 }
 
 #[test]
-fn a_title_any_user_has_in_progress_is_kept() {
-    let long_ago = thirty_days_ago() - DAY_MS;
-    // A User the Kernel no longer lists still keeps it.
-    let title = watched(vec![
-        played(ADA, long_ago),
-        played(BEN, long_ago),
-        started(3, long_ago),
-    ]);
+fn a_title_its_requester_never_finished_is_due_once_days_unwatched_passed_since_it_was_added() {
+    let unplayed = WatchState {
+        played: false,
+        position_ms: 0,
+        ..played(ADA, NOW_MS)
+    };
+    for states in [vec![], vec![started(ADA, NOW_MS)], vec![unplayed]] {
+        let title = watched(states);
 
-    assert!(!is_due(&title, &[ADA, BEN], thirty_days_ago()));
+        assert!(!cutoffs().is_due(ADDED_A_WHILE_AGO, &requested_by(&[ADA]), &title));
+        assert!(cutoffs().is_due(ADDED_LONG_AGO, &requested_by(&[ADA]), &title));
+    }
 }
 
 #[test]
-fn a_title_one_user_has_not_played_is_kept() {
-    let long_ago = thirty_days_ago() - DAY_MS;
-    let title = watched(vec![played(ADA, long_ago)]);
+fn a_title_nobody_requested_is_never_due() {
+    let title = watched(vec![played(ADA, WATCHED_LONG_AGO)]);
 
-    assert!(!is_due(&title, &[ADA, BEN], thirty_days_ago()));
+    assert!(!cutoffs().is_due(ADDED_LONG_AGO, &nobody_requested(), &title));
 }
 
 #[test]
-fn with_no_users_nothing_is_due() {
-    let title = watched(vec![played(ADA, thirty_days_ago() - DAY_MS)]);
+fn a_title_whose_requesters_were_all_deleted_is_due_once_days_unwatched_passed_since_it_was_added()
+{
+    let title = watched(vec![played(ADA, WATCHED_LONG_AGO)]);
 
-    assert!(!is_due(&title, &[], thirty_days_ago()));
+    assert!(!cutoffs().is_due(ADDED_A_WHILE_AGO, &requested_by(&[]), &title));
+    assert!(cutoffs().is_due(ADDED_LONG_AGO, &requested_by(&[]), &title));
 }
 
 #[test]
-fn a_title_played_exactly_the_days_ago_is_due_and_a_millisecond_later_is_kept() {
-    let cutoff = cutoff_ms(NOW_MS, 30);
+fn a_title_played_or_added_exactly_the_days_ago_is_due_and_a_millisecond_later_is_kept() {
+    let requesters = requested_by(&[ADA]);
+    let played_at = |at_ms| watched(vec![played(ADA, at_ms)]);
+    let watched_cutoff = NOW_MS - 30 * DAY_MS;
+    let added_cutoff = NOW_MS - 90 * DAY_MS;
 
-    assert_eq!(cutoff, NOW_MS - 30 * DAY_MS);
-    assert!(is_due(&watched(vec![played(ADA, cutoff)]), &[ADA], cutoff));
-    assert!(!is_due(
-        &watched(vec![played(ADA, cutoff + 1)]),
-        &[ADA],
-        cutoff
-    ));
+    assert!(cutoffs().is_due(NOW_MS, &requesters, &played_at(watched_cutoff)));
+    assert!(!cutoffs().is_due(NOW_MS, &requesters, &played_at(watched_cutoff + 1)));
+    assert!(cutoffs().is_due(added_cutoff, &requesters, &watched(vec![])));
+    assert!(!cutoffs().is_due(added_cutoff + 1, &requesters, &watched(vec![])));
 }
 
 /// A fake `delete_media`: each delete takes along the titles `files` puts in the same file, and
@@ -363,16 +408,22 @@ fn a_library_chosen_twice_is_cleaned_once() {
 
 #[test]
 fn days_is_a_whole_number_of_zero_or_more() {
-    assert_eq!(days(Some("30")).ok(), Some(30));
-    assert_eq!(days(Some("0")).ok(), Some(0));
+    assert_eq!(days("days", Some("30")).ok(), Some(30));
+    assert_eq!(days("days", Some("0")).ok(), Some(0));
     for refused in [None, Some("-1"), Some("a week")] {
-        let error = days(refused).map(drop).unwrap_err().to_string();
-        assert!(error.contains("setting days"), "{refused:?}: {error}");
+        let error = days("days_unwatched", refused)
+            .map(drop)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("setting days_unwatched"),
+            "{refused:?}: {error}"
+        );
     }
 }
 
 #[test]
-fn manifest_declares_days_defaulting_to_30_and_libraries() {
+fn manifest_declares_days_defaulting_to_30_days_unwatched_to_90_and_libraries() {
     let manifest = manifest();
     let settings: Vec<_> = (manifest.settings.iter())
         .map(|field| {
@@ -398,6 +449,13 @@ fn manifest_declares_days_defaulting_to_30_and_libraries() {
                 (Some(0), None),
             ),
             (
+                "days_unwatched",
+                Some(SettingKind::SETTING_KIND_INTEGER),
+                true,
+                Some(Value::IntegerValue(90)),
+                (Some(0), None),
+            ),
+            (
                 "libraries",
                 Some(SettingKind::SETTING_KIND_LIBRARIES),
                 false,
@@ -412,7 +470,7 @@ fn manifest_declares_days_defaulting_to_30_and_libraries() {
             Permission::PERMISSION_STORE.into(),
             Permission::PERMISSION_READ_LIBRARIES.into(),
             Permission::PERMISSION_READ_WATCH_STATES.into(),
-            Permission::PERMISSION_READ_USERS.into(),
+            Permission::PERMISSION_READ_REQUESTS.into(),
             Permission::PERMISSION_DELETE_MEDIA.into(),
         ],
         ..Manifest::default()

@@ -201,8 +201,8 @@ message WatchState {
 // What `list_users` takes.
 message UsersAsked {}
 
-// What `list_users` answers: every User. Every User sees every Library, so these are every User a
-// title is for, including those without any Watch State.
+// What `list_users` answers: every User. Every User sees every Library, so these are every User who
+// can watch a title, including those without any Watch State.
 message Users {
   repeated User users = 1;
 }

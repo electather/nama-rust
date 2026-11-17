@@ -6,6 +6,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 import {
   BrowseService,
   type ContinueWatchingEntrySchema,
+  type ListContinueWatchingRequest,
   type ShowSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
@@ -52,6 +53,22 @@ function episodeEntry(
     },
   } as const;
 }
+
+test("Home asks for one page of Continue Watching, a row's worth", async () => {
+  const asked: ListContinueWatchingRequest[] = [];
+  openApp(
+    "/",
+    server({
+      listContinueWatching: (request) => {
+        asked.push(request);
+        return {};
+      },
+    }),
+  );
+
+  await screen.findByRole("heading", { name: "Libraries" });
+  expect(asked).toMatchObject([{ page: { size: 6, token: "" } }]);
+});
 
 test("a Movie's Continue Watching card resumes it, with how much is left", async () => {
   openHome({

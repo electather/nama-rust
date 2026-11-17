@@ -59,6 +59,9 @@ pub(crate) const OFFERED_ARTWORK_DIR: &str = "artwork-cache";
 /// Where Custom Images are kept.
 pub(crate) const CUSTOM_IMAGES_DIR: &str = "custom-images";
 
+/// Where the copies of images beside the media are kept, one folder per Library.
+pub(crate) const LOCAL_IMAGES_DIR: &str = "local-images";
+
 /// Where the Plugins' Manifest logos are kept, one folder per Plugin.
 pub(crate) const PLUGIN_LOGOS_DIR: &str = "plugin-logos";
 
@@ -68,6 +71,7 @@ pub(crate) const ORIGINAL_DIRS: &[&str] = &[
     KEPT_ARTWORK_DIR,
     OFFERED_ARTWORK_DIR,
     CUSTOM_IMAGES_DIR,
+    LOCAL_IMAGES_DIR,
     PLUGIN_LOGOS_DIR,
 ];
 

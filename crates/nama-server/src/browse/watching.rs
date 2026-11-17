@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_proto::nama::v1::{PageRequest, PageResponse};
 
 use super::{Browse, Error, Show, Target, Titles, Version, finding_failed, with_tracks};
 use crate::{
@@ -10,6 +11,7 @@ use crate::{
         LibraryEpisode, LibraryMovie, LibraryVersion, MovieOrEpisode, Progress, TitlesIn,
         WatchState, WatchStateKind,
     },
+    page::Page,
     playback::Probe,
 };
 
@@ -29,6 +31,10 @@ pub(crate) enum Started<V = Version> {
         state: WatchState,
     },
 }
+
+/// Where a title sits in Continue Watching, newest first: when the Watch State it's listed by
+/// changed, and that state's row id, which breaks ties within a second.
+type Recency = (i64, i64);
 
 impl Browse {
     /// Records, as of now, that the User `user` has got as far as `progress` through the Version
@@ -84,18 +90,50 @@ impl Browse {
         Ok(self.watch_states.mark(user, marked, played).await?)
     }
 
-    /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
-    /// played, most recent first. Each is in the oldest Library that has it under any of its ids,
-    /// listed once with its most recently updated Watch State among them, so a newer played one
-    /// under one id hides an older started one under another (ADR 0042). One no Library has is
-    /// left out.
-    pub(crate) async fn continue_watching(&self, user: i64) -> Result<Vec<Started>, Error> {
+    /// A page of the User `user`'s Continue Watching: the Movies and Episodes they've started and
+    /// not played, most recent first. Each is in the oldest Library that has it under any of its
+    /// ids, listed once with its most recently updated Watch State among them, so a newer played
+    /// one under one id hides an older started one under another (ADR 0042). One no Library has
+    /// is left out. Only the first page counts them all.
+    pub(crate) async fn continue_watching(
+        &self,
+        user: i64,
+        asked: &PageRequest,
+    ) -> Result<(Vec<Started>, PageResponse), Error> {
+        let page = Page::<i64>::read(asked, b"ListContinueWatching")?;
+        // ponytail: each page builds the whole list, which its whole-Library reads already cost;
+        // keyset `watch_states` in SQL once Continue Watching stops reading whole Libraries.
+        let all = self.all_started(user).await?;
+        let total = all.len();
+        let mut listed: Vec<_> = (all.into_iter())
+            .filter(|&(_, recency)| page.after.is_none_or(|after| recency < after))
+            .collect();
+        let mut paging = page.finish(&mut listed, |&(_, recency)| recency);
+        if page.is_first() {
+            paging.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
+        }
+        let probes = self
+            .probes(listed.iter().flat_map(|(title, _)| title.versions()))
+            .await?;
+        let listed = (listed.into_iter())
+            .map(|(title, _)| title.with_tracks(&probes))
+            .collect();
+        Ok((listed, paging))
+    }
+
+    /// The whole of [`Self::continue_watching`], without Tracks, each title with its recency.
+    async fn all_started(
+        &self,
+        user: i64,
+    ) -> Result<Vec<(Started<LibraryVersion>, Recency)>, Error> {
         let started = self.watch_states.continue_watching(user).await?;
         if started.is_empty() {
             return Ok(Vec::new());
         }
         let mut found = Found {
-            unfound: started.iter().cloned().collect(),
+            unfound: (started.iter())
+                .map(|(watched, state, _)| (watched.clone(), *state))
+                .collect(),
             place: HashMap::new(),
             titles: Vec::new(),
         };
@@ -110,20 +148,15 @@ impl Browse {
             .map(|(asked, title)| (asked, Some(title)))
             .unzip();
         let newest = self.watch_states.of_titles(Some(user), &asked).await?;
-        let listed: Vec<_> = (started.into_iter())
-            .filter_map(|(watched, _)| {
+        Ok((started.into_iter())
+            .filter_map(|(watched, WatchState { updated_at, .. }, row)| {
                 let place = *found.place.get(&watched)?;
                 // Taken under the first of its ids listed, so a title is listed once.
                 let title = titles.get_mut(place)?.take()?;
                 let &(_, state) = newest.get(place)?.first()?;
-                (state.position_ms > 0 && !state.played).then(|| title.with_state(state))
+                (state.position_ms > 0 && !state.played)
+                    .then(|| (title.with_state(state), (updated_at, row)))
             })
-            .collect();
-        let probes = self
-            .probes(listed.iter().flat_map(Started::versions))
-            .await?;
-        Ok((listed.into_iter())
-            .map(|title| title.with_tracks(&probes))
             .collect())
     }
 }

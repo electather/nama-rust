@@ -9,4 +9,4 @@ The image store: the images the Server keeps, their resized copies and thumbhash
 ### Neighbours
 
 - Uses: `db` and `server_settings` (`ImageSettings`).
-- Used by: `artwork` and `custom_images` (the Library area), `plugins` (`clean_svg`, `MAX_SVG_BYTES`, and `Blobs` for its Plugin-backed store), the `api` router, `crates/nama-server/src/api/plugins.rs` and `crates/nama-server/src/api/server.rs` (`SwitchImageStore`), and startup in `lib.rs`.
+- Used by: `artwork`, `custom_images` and `local_images` (the Library area), `plugins` (`clean_svg`, `MAX_SVG_BYTES`, and `Blobs` for its Plugin-backed store), the `api` router, `crates/nama-server/src/api/plugins.rs` and `crates/nama-server/src/api/server.rs` (`SwitchImageStore`), and startup in `lib.rs`.

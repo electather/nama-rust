@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT local_images.content_type FROM local_images\n             JOIN library_files ON library_files.id = local_images.version_id\n             WHERE library_files.library_id = ? AND local_images.stored = ?\n             LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_type",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "content_type"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cb89b08aa50e2c629ee05d1ffb3c08837b803633843be3a757572366a0062b47"
+}

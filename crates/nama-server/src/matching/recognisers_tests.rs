@@ -20,6 +20,7 @@ use crate::{
         Artwork, Change, Contents, Item, Libraries, ScanLocks, TitleSources, UnmatchedReason,
         fixture,
     },
+    log_capture::CapturedLog,
     matching::{
         Matcher, Miss, Summary, TitleKey, sources,
         testing::{Fixture, Library, Outcome, episode, matched, movie},
@@ -312,11 +313,11 @@ async fn the_recogniser_receives_the_items_path_relative_to_the_library_folder()
     assert_eq!(asked[0].paths, ["Dark/Dark.mkv"]);
 }
 
-/// TMDB, and a Recogniser enabled and listed in both of `media`'s Libraries that fails for the
-/// title `failing`.
-async fn failing_for(failing: &'static str) -> Fixture {
+/// TMDB, and a Recogniser enabled and listed in both of `media`'s Libraries that answers
+/// `answers`.
+async fn recognising(answers: Answers) -> Fixture {
     let media = Fixture::new().await;
-    let recogniser = FakePlugin(Some((Answers::FailsFor(failing), Asked::default())));
+    let recogniser = FakePlugin(Some((answers, Asked::default())));
     media.plugins.enable(Arc::new(recogniser)).unwrap();
     for library in [media.movies.id, media.shows.id] {
         (media
@@ -335,7 +336,7 @@ async fn outcomes_after_scan(media: &Fixture, library: &Library) -> Vec<Outcome>
 
 #[tokio::test]
 async fn a_recogniser_failing_for_one_movie_leaves_the_next_movie_matched_in_the_same_pass() {
-    let media = failing_for("Alien").await;
+    let media = recognising(Answers::FailsFor("Alien")).await;
     media
         .movies
         .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
@@ -352,7 +353,7 @@ async fn a_recogniser_failing_for_one_movie_leaves_the_next_movie_matched_in_the
 
 #[tokio::test]
 async fn a_recogniser_failing_for_one_show_leaves_another_shows_episodes_matched() {
-    let media = failing_for("Dark").await;
+    let media = recognising(Answers::FailsFor("Dark")).await;
     media
         .shows
         .write(
@@ -375,7 +376,7 @@ async fn a_recogniser_failing_for_one_show_leaves_another_shows_episodes_matched
 
 #[tokio::test]
 async fn a_recogniser_failing_for_one_title_still_lets_the_scan_refresh_outdated_matches() {
-    let media = failing_for("Alien").await;
+    let media = recognising(Answers::FailsFor("Alien")).await;
     media
         .movies
         .write("Dune (2021)/Dune (2021).mkv", &[movie("Dune", 2021)])
@@ -398,6 +399,31 @@ async fn a_recogniser_failing_for_one_title_still_lets_the_scan_refresh_outdated
         media.outcomes(&media.movies).await,
         [Outcome::Undecided, matched(438_631, "Dune")]
     );
+}
+
+#[tokio::test]
+async fn a_recogniser_failing_on_several_titles_is_logged_once_per_match_with_the_count() {
+    let media = recognising(Answers::Fails).await;
+    media
+        .movies
+        .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
+        .await;
+    media
+        .movies
+        .write("Dune (2021)/Dune (2021).mkv", &[movie("Dune", 2021)])
+        .await;
+
+    for _ in 0..2 {
+        // The test's runtime has one thread, so Matching logs to it.
+        let log = CapturedLog::start();
+        media.scan(&media.movies).await;
+        let log = log.finish();
+        let failed: Vec<&str> = (log.lines())
+            .filter(|line| line.contains("plugin=rr"))
+            .collect();
+        assert_eq!(failed.len(), 1, "{log}");
+        assert!(failed[0].contains("titles=2"), "{log}");
+    }
 }
 
 #[test]

@@ -15,6 +15,9 @@ import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { episodeName, metadataLine, timeLeft, titleParam } from "@/lib/browse";
 
+/** Home's one page of Continue Watching: whole rows at one, two and three columns. */
+const continueWatchingRow = { page: { size: 6 } };
+
 export const Route = createFileRoute("/_member/")({
   loader: ({ context: { queryClient, transport } }) =>
     Promise.all([
@@ -23,7 +26,9 @@ export const Route = createFileRoute("/_member/")({
         staleTime: "static",
       }),
       queryClient.query({
-        ...createQueryOptions(BrowseService.method.listContinueWatching, {}, { transport }),
+        ...createQueryOptions(BrowseService.method.listContinueWatching, continueWatchingRow, {
+          transport,
+        }),
         staleTime: "static",
       }),
     ]),
@@ -48,7 +53,7 @@ function Home() {
 
 /** What you've started and not played, most recent first. Nothing at all when there's none. */
 function ContinueWatching() {
-  const { data } = useSuspenseQuery(BrowseService.method.listContinueWatching, {});
+  const { data } = useSuspenseQuery(BrowseService.method.listContinueWatching, continueWatchingRow);
   if (data.entries.length === 0) return null;
   return (
     <section aria-labelledby="continue-watching" className="mt-10">

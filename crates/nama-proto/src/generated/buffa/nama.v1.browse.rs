@@ -5895,13 +5895,21 @@ pub const __CONTINUE_WATCHING_EPISODE_JSON_ANY: ::buffa::type_registry::JsonAnyE
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListContinueWatchingRequest {
+    /// The page of Continue Watching to list.
+    ///
+    /// Field 1: `page`
+    #[serde(
+        rename = "page",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub page: ::buffa::MessageField<PageRequest, ::buffa::Inline<PageRequest>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ListContinueWatchingRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ListContinueWatchingRequest").finish()
+        f.debug_struct("ListContinueWatchingRequest").field("page", &self.page).finish()
     }
 }
 impl ListContinueWatchingRequest {
@@ -5927,20 +5935,36 @@ impl ::buffa::Message for ListContinueWatchingRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -5954,6 +5978,17 @@ impl ::buffa::Message for ListContinueWatchingRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.page.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5962,6 +5997,7 @@ impl ::buffa::Message for ListContinueWatchingRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.page = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5998,7 +6034,7 @@ pub const __LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY: ::buffa::type_registry::Jso
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListContinueWatchingResponse {
-    /// Most recent first.
+    /// The page's entries, most recent first, those changed in the same second newest-started first.
     ///
     /// Field 1: `entries`
     #[serde(
@@ -6007,6 +6043,14 @@ pub struct ListContinueWatchingResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub entries: ::buffa::alloc::vec::Vec<ContinueWatchingEntry>,
+    /// The rest of the list: the next page's token, and on the first page how many entries it has.
+    ///
+    /// Field 2: `page`
+    #[serde(
+        rename = "page",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub page: ::buffa::MessageField<PageResponse, ::buffa::Inline<PageResponse>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -6015,6 +6059,7 @@ impl ::core::fmt::Debug for ListContinueWatchingResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ListContinueWatchingResponse")
             .field("entries", &self.entries)
+            .field("page", &self.page)
             .finish()
     }
 }
@@ -6053,6 +6098,14 @@ impl ::buffa::Message for ListContinueWatchingResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6070,6 +6123,14 @@ impl ::buffa::Message for ListContinueWatchingResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6096,6 +6157,17 @@ impl ::buffa::Message for ListContinueWatchingResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.entries.push(elem);
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.page.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -6105,6 +6177,7 @@ impl ::buffa::Message for ListContinueWatchingResponse {
     }
     fn clear(&mut self) {
         self.entries.clear();
+        self.page = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

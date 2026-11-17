@@ -400,6 +400,8 @@ impl Matcher {
             // The only other failure of a read is the Library being gone, with nothing to Match.
             Err(_) => return Ok(Summary::default()),
         };
+        // Bound to a name, not `_`, so it logs once as this returns, by `?` or a cancel too.
+        let _failures_log = this.recognisers.failures_log();
         let Pending {
             movies,
             shows,
