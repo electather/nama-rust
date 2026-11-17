@@ -413,6 +413,7 @@ impl Matcher {
         let mut available = true;
         for (key, items) in movies {
             if cancel.is_cancelled() {
+                this.recognisers.log_failures();
                 return Err(Error::Cancelled);
             }
             if !available {
@@ -431,6 +432,7 @@ impl Matcher {
         }
         for (key, episodes) in shows {
             if cancel.is_cancelled() {
+                this.recognisers.log_failures();
                 return Err(Error::Cancelled);
             }
             if !available {
@@ -441,6 +443,7 @@ impl Matcher {
             available = !decided.any_undecided();
             self.store(library, decided, &mut summary).await?;
         }
+        this.recognisers.log_failures();
         if available {
             available = self.refresh(library, &this.metadata, cancel).await?;
         }

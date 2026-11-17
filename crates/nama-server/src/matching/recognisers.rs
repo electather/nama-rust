@@ -2,7 +2,13 @@
 //! sources' search has decided (ADR 0050's title level). A Recogniser only proposes ids; Matching
 //! fetches the title they name from the Library's title sources, as it does an ID Hint's.
 
-use std::{ffi::OsStr, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    ffi::OsStr,
+    mem,
+    path::Path,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+};
 
 use nama_plugin_api::{
     PluginId, PointKey,
@@ -23,6 +29,9 @@ pub(super) struct Recognisers {
     plugins: ExtensionPoints,
     /// The Plugins asked, first asked first: none until [`Recognisers::in_order`] gives some.
     order: Vec<PluginId>,
+    /// Each Recogniser that failed since [`Recognisers::log_failures`] last ran: how many titles
+    /// it failed on, and its last error.
+    failed: Arc<Mutex<BTreeMap<PluginId, (usize, String)>>>,
 }
 
 /// What a search for an Item's title found, which the Recognisers are asked about.
@@ -50,20 +59,40 @@ pub(super) struct Recognised {
 }
 
 impl Recognisers {
-    pub(super) const fn new(plugins: ExtensionPoints) -> Self {
+    pub(super) fn new(plugins: ExtensionPoints) -> Self {
         Self {
             plugins,
             order: Vec::new(),
+            failed: Arc::default(),
         }
     }
 
     /// These Recognisers asking those of the Plugins `order` names that are enabled, in its
-    /// order, as a Library's `recognisers` lists them.
+    /// order, as a Library's `recognisers` lists them, with no failures yet.
     pub(super) fn in_order(&self, order: &[String]) -> Self {
         Self {
             plugins: self.plugins.clone(),
             order: order.iter().map(|id| PluginId::from(id.clone())).collect(),
+            failed: Arc::default(),
         }
+    }
+
+    /// Logs each Recogniser that failed since this last ran, once, with how many titles it
+    /// failed on and its last error. Matching calls it as it stops asking during a scan.
+    pub(super) fn log_failures(&self) {
+        let failed = mem::take(&mut *self.failures());
+        for (plugin, (titles, last)) in failed {
+            tracing::warn!(
+                %plugin,
+                titles,
+                last_error = last,
+                "a Recogniser failed, so the titles it failed on are matched again on the next scan"
+            );
+        }
+    }
+
+    fn failures(&self) -> MutexGuard<'_, BTreeMap<PluginId, (usize, String)>> {
+        self.failed.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// The title the first Recogniser in order to name one by an id `metadata`'s sources serve
@@ -93,8 +122,7 @@ impl Recognisers {
 
     /// The well-formed ids the Plugin `plugin`'s Recogniser names for `asked`, in its order;
     /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Records whether
-    /// the call failed for the Admin to see, and logs a failure only when a run of them starts:
-    /// Matching has no scan to log a tally at the end of, as a scan's own pass does.
+    /// the call failed for the Admin to see, and counts a failure for [`Self::log_failures`].
     async fn ask(
         &self,
         plugin: &PluginId,
@@ -121,17 +149,12 @@ impl Recognisers {
                 result: Err(failure),
                 ..
             }) => {
-                let failing = self
-                    .plugins
+                self.plugins
                     .provider_failed(plugin, point, &failure.message);
-                // A Plugin disabled meanwhile starts no run, so nothing is logged for it.
-                if failing.is_some_and(|failing| failing.in_a_row == 1) {
-                    tracing::warn!(
-                        %plugin,
-                        error = failure.message,
-                        "the Recogniser failed; its failures in a row are shown on its Plugin page"
-                    );
-                }
+                let mut failed = self.failures();
+                let (titles, last) = failed.entry(plugin.clone()).or_default();
+                *titles = titles.saturating_add(1);
+                *last = failure.message;
                 Err(Miss::RecogniserFailed)
             }
             // Doesn't serve `recognise_title`, isn't enabled or a Recogniser, or it panicked,
