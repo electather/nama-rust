@@ -1,14 +1,12 @@
 //! Reading Requests back from the database, and listing them for a viewer.
 
-use std::{cmp::Reverse, collections::BTreeMap};
+use std::collections::BTreeMap;
 
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::metadata;
 use nama_proto::nama::v1::{
-    ExternalId, FollowedShow, ListRequestsResponse, QualityChange, Refusal, RefusalReason, Request,
+    ExternalId, ListRequestsResponse, PageRequest, QualityChange, Refusal, RefusalReason, Request,
     RequestState, RequestedMovie, RequestedSeason,
 };
-use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 
 use super::asked::{self, Asked};
@@ -16,6 +14,7 @@ use super::followed::load_followed;
 use super::quality::stored_quality;
 use super::state::{open_request, read_state, stored};
 use super::{Error, Requests};
+use crate::page::Page;
 use crate::users::{User, may_see};
 
 /// The client API's id `value` in `namespace`.
@@ -35,70 +34,80 @@ pub(super) fn read_title_id(text: &str) -> Result<ExternalId, sqlx::Error> {
     Ok(title_id(id.namespace(), &id.value()))
 }
 
+/// Hands `$query!` the SQL for the Requests and Followed Shows the User `?1` may see, or all if
+/// it is NULL, in the state `?2`, or any if it is NULL: one row each of `is_request`, `id` and
+/// `created_at`.
+macro_rules! listed_sql {
+    ($query:ident) => {
+        $query!(
+            "SELECT 1 AS is_request, id, created_at FROM requests
+             WHERE (?2 IS NULL OR state = ?2)
+               AND (?1 IS NULL OR id IN (SELECT request_id FROM requesters WHERE user_id = ?1))
+             UNION ALL
+             SELECT 0, id, created_at FROM followed_shows
+             WHERE (?2 IS NULL OR state = ?2)
+               AND (?1 IS NULL OR id IN (SELECT followed_show_id FROM followed_show_requesters
+                                         WHERE user_id = ?1))"
+        )
+    };
+}
+
+/// The sort key of [`Requests::list`]'s newest-first order, tie-broken by id: when a row opened,
+/// and whether it is a Request, which lists before a Followed Show opened in the same second.
+type Place = (i64, bool);
+
 impl Requests {
-    /// A page of at most `size` of the Requests and Followed Shows `viewer` may see, newest first:
-    /// only those in `state` if given, each matched on its own. `token` is the page before's
-    /// `next_page_token`, or empty for the first page.
+    /// A page of the Requests and Followed Shows `viewer` may see, newest first: only those in
+    /// `state` if given, each matched on its own. Only the first page counts them all.
     pub(crate) async fn list(
         &self,
         viewer: &User,
         state: Option<RequestState>,
-        size: usize,
-        token: &str,
+        page: &PageRequest,
     ) -> Result<ListRequestsResponse, Error> {
-        let after = read_page_token(token, state)?;
-        // ponytail: reads every Request and Followed Show, whoever `viewer` is, to list one page;
-        // page and filter in the queries once a Server's Requests number in the thousands.
-        let mut rows: Vec<Listed> = self
-            .listed(viewer)
-            .await?
-            .into_iter()
-            .filter(|row| state.is_none_or(|state| row.state() == state))
-            .filter(|row| after.is_none_or(|after| row.place() < after))
-            .collect();
-        rows.sort_unstable_by_key(|row| Reverse(row.place()));
-        let more = rows.len() > size;
-        rows.truncate(size);
-        let next_page_token = match rows.last() {
-            Some(last) if more => page_token(state, last.place()),
-            _ => String::new(),
-        };
-        let mut page = ListRequestsResponse {
-            next_page_token,
+        let state = state.map(stored);
+        let page = Page::<Place>::read(page, state.unwrap_or_default().as_bytes())?;
+        let whose = viewer.whose_requests();
+        let mut conn = self.db.reader().acquire().await?;
+        let mut places = places(&mut conn, whose, state, &page).await?;
+        let mut rest = page.finish(&mut places, |row| {
+            ((row.created_at, row.is_request), row.id)
+        });
+        if page.is_first() {
+            let total = count(&mut conn, whose, state).await?;
+            rest.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
+        }
+        let mut listed = ListRequestsResponse {
+            page: rest.into(),
             ..Default::default()
         };
-        for row in rows {
-            match row {
-                Listed::Request(request) => page.requests.push(request),
-                Listed::Followed(show) => page.followed_shows.push(show),
+        // shortcut: two queries per row, for at most 100 rows; read a page's rows in one query
+        // each for Requests and Followed Shows if pages get slow.
+        for place in places {
+            // A row withdrawn since `places` was read is left out, as if the page were read later.
+            if place.is_request {
+                let request = load_one(&mut conn, place.id).await?;
+                listed
+                    .requests
+                    .extend(request.map(|request| self.progress.attach(request)));
+            } else {
+                let followed = load_followed(&mut conn, Some(place.id), None).await?;
+                listed.followed_shows.extend(followed);
             }
         }
-        Ok(page)
+        Ok(listed)
     }
 
     /// How many of the Requests and Followed Shows `viewer` may see are Pending, as many as
     /// [`Self::list`] shows them, counting a Followed Show apart from its Season Requests.
     pub(crate) async fn count_pending(&self, viewer: &User) -> Result<u32, sqlx::Error> {
-        // ponytail: reads every Request and Followed Show to count the Pending ones, so the count
-        // is what `list` shows; count in SQL once a Server's Requests number in the thousands.
-        let rows = self.listed(viewer).await?;
-        let pending = rows
-            .iter()
-            .filter(|row| row.state() == RequestState::Pending)
-            .count();
-        Ok(u32::try_from(pending).unwrap_or(u32::MAX))
-    }
-
-    /// Every Request and Followed Show `viewer` may see, unordered.
-    async fn listed(&self, viewer: &User) -> Result<Vec<Listed>, sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
-        let requests = self.visible(&mut conn, None, viewer).await?;
-        let followed = load_followed(&mut conn, None, viewer.whose_requests()).await?;
-        Ok(requests
-            .into_iter()
-            .map(Listed::Request)
-            .chain(followed.into_iter().map(Listed::Followed))
-            .collect())
+        count(
+            &mut conn,
+            viewer.whose_requests(),
+            Some(stored(RequestState::Pending)),
+        )
+        .await
     }
 
     /// The Request `id`, if `viewer` may see it.
@@ -145,71 +154,66 @@ impl Requests {
     }
 }
 
-/// A row of [`Requests::list`].
-#[expect(
-    clippy::large_enum_variant,
-    reason = "short-lived rows of one page, built and taken apart in one pass"
-)]
-enum Listed {
-    Request(Request),
-    Followed(FollowedShow),
-}
-
-impl Listed {
-    fn state(&self) -> RequestState {
-        match self {
-            Self::Request(request) => request.state,
-            Self::Followed(followed) => followed.state,
-        }
-        .as_known()
-        .unwrap_or_default()
-    }
-
-    fn place(&self) -> Place {
-        match self {
-            Self::Request(request) => Place {
-                created_at: request.created_at,
-                is_request: true,
-                id: request.id,
-            },
-            Self::Followed(followed) => Place {
-                created_at: followed.created_at,
-                is_request: false,
-                id: followed.id,
-            },
-        }
-    }
-}
-
-/// Where a row sits in [`Requests::list`]'s order, newer sorting greater. A Request sorts as
-/// newer than a Followed Show opened in the same second, so it lists first.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-struct Place {
-    created_at: i64,
+/// A row of [`Requests::list`], before it is read in full.
+struct Listed {
     is_request: bool,
     id: i64,
+    created_at: i64,
 }
 
-/// The token for the page after the one ending at `last`, tied to the filter `state`. Encoded so
-/// clients treat it as opaque and don't build their own.
-#[expect(
-    clippy::expect_used,
-    reason = "a string and plain numbers always serialize to JSON"
-)]
-fn page_token(state: Option<RequestState>, last: Place) -> String {
-    URL_SAFE_NO_PAD.encode(serde_json::to_vec(&(state.map(stored), last)).expect("serializes"))
+/// The rows of `page` of the Requests and Followed Shows the User `whose` may see, or all if
+/// `None`, in the stored state `state`, or any if `None`, newest first.
+async fn places(
+    conn: &mut SqliteConnection,
+    whose: Option<i64>,
+    state: Option<&str>,
+    page: &Page<Place>,
+) -> Result<Vec<Listed>, sqlx::Error> {
+    let (opened_before, request_before, id_before) = match page.after {
+        Some(((created_at, is_request), id)) => (Some(created_at), Some(is_request), Some(id)),
+        None => (None, None, None),
+    };
+    macro_rules! places {
+        ($listed:literal) => {
+            sqlx::query_as!(
+                Listed,
+                r#"SELECT is_request AS "is_request!: bool", id AS "id!",
+                          created_at AS "created_at!"
+                   FROM ("#
+                    + $listed
+                    + r#")
+                   WHERE ?3 IS NULL OR (created_at, is_request, id) < (?3, ?4, ?5)
+                   ORDER BY created_at DESC, is_request DESC, id DESC
+                   LIMIT ?6"#,
+                whose,
+                state,
+                opened_before,
+                request_before,
+                id_before,
+                page.limit(),
+            )
+        };
+    }
+    listed_sql!(places).fetch_all(conn).await
 }
 
-/// Where the page `token` continues from, or `None` for the first page.
-fn read_page_token(token: &str, state: Option<RequestState>) -> Result<Option<Place>, Error> {
-    if token.is_empty() {
-        return Ok(None);
+/// How many of the Requests and Followed Shows the User `whose` may see, or all if `None`, are
+/// in the stored state `state`, or any if `None`.
+async fn count(
+    conn: &mut SqliteConnection,
+    whose: Option<i64>,
+    state: Option<&str>,
+) -> Result<u32, sqlx::Error> {
+    macro_rules! count {
+        ($listed:literal) => {
+            sqlx::query_scalar!(
+                r#"SELECT COUNT(*) AS "count!: u32" FROM ("# + $listed + ")",
+                whose,
+                state
+            )
+        };
     }
-    let json = URL_SAFE_NO_PAD.decode(token).unwrap_or_default();
-    match serde_json::from_slice::<(Option<String>, Place)>(&json) {
-        Ok((filter, last)) if filter.as_deref() == state.map(stored) => Ok(Some(last)),
-        _ => Err(Error::PageTokenInvalid),
-    }
+    listed_sql!(count).fetch_one(conn).await
 }
 
 /// The id a Request is kept under, from its `title_id`, and every id of its title, in namespace

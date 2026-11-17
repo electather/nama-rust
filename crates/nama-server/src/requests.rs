@@ -20,6 +20,7 @@ use crate::{
     db::Database,
     events::EventBus,
     library::{Contents, TitleSources},
+    page,
     plugins::ExtensionPoints,
 };
 
@@ -79,8 +80,8 @@ pub(crate) enum Error {
     Unavailable,
     #[error(transparent)]
     Quality(#[from] qualities::Refused),
-    #[error("the page token isn't one this Server gave for listing in this state")]
-    PageTokenInvalid,
+    #[error(transparent)]
+    PageTokenInvalid(#[from] page::TokenInvalid),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }

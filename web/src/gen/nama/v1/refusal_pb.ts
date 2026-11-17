@@ -544,7 +544,7 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: the page token isn't one the Server handed out for the same request, such
-   * as one listing Requests in another state. `field` is `page_token`.
+   * as one listing Requests in another state. `field` is `page.token`.
    *
    * @generated from enum value: REFUSAL_REASON_PAGE_TOKEN_INVALID = 58;
    */

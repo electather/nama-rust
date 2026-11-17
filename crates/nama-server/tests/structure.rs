@@ -457,6 +457,7 @@ const ROWS: &[&[&str]] = &[
         "forwarded",
         "web",
         "db",
+        "page",
         "config",
         "diagnostics",
     ],
