@@ -1,6 +1,6 @@
 import { ShowMore } from "@/components/show-more";
 import { PlayUnmatched, parsedAs } from "@/components/unmatched-item";
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, type UnmatchedItemSummary } from "@/gen/nama/v1/browse_pb";
 import { usePaged } from "@/lib/paged";
 
 /** `ListUnmatched`'s first page of the Library `libraryId`'s Unmatched Items. */
@@ -31,13 +31,11 @@ export function NotMatched({ libraryId }: { libraryId: bigint }) {
       <ul className="mt-2 flex flex-col">
         {items.map((item) => (
           // A file holding two Episodes lists each, under the same Version.
-          <li
+          <NotMatchedRow
             key={`${item.versionId}:${item.episode}`}
-            className="flex items-center gap-3 border-b py-2 last:border-b-0"
-          >
-            <span className="min-w-0 flex-1">{parsedAs(item)}</span>
-            <PlayUnmatched libraryId={libraryId} versionId={item.versionId} name={parsedAs(item)} />
-          </li>
+            item={item}
+            libraryId={libraryId}
+          />
         ))}
       </ul>
       {hasNextPage && <ShowMore load={fetchNextPage} loaded={data.pages.length} />}
@@ -50,5 +48,15 @@ function Count({ count }: { count: number | undefined }) {
   if (count === undefined) return null;
   return (
     <span className="ms-2 text-sm font-normal text-muted-foreground">{count.toLocaleString()}</span>
+  );
+}
+
+function NotMatchedRow({ item, libraryId }: { item: UnmatchedItemSummary; libraryId: bigint }) {
+  const name = parsedAs(item);
+  return (
+    <li className="flex items-center gap-3 border-b py-2 last:border-b-0">
+      <span className="min-w-0 flex-1">{name}</span>
+      <PlayUnmatched libraryId={libraryId} versionId={item.versionId} name={name} />
+    </li>
   );
 }

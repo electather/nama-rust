@@ -19,11 +19,11 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/unmatched/$v
   staticData: { fullScreen: true },
   notFoundComponent: NotFound,
   errorComponent: PlayerError,
-  component: PlayUnmatched,
+  component: PlayUnmatchedVersion,
 });
 
 /** Plays an Unmatched Item's Version, which keeps no Watch State (ADR 0013). */
-function PlayUnmatched() {
+function PlayUnmatchedVersion() {
   // A refetch that finds it Matched since keeps what was read, so playing goes on.
   const { item, version } = useSuspenseQuery(
     BrowseService.method.getUnmatchedVersion,

@@ -38,7 +38,7 @@ pub(crate) struct Unmatched {
 }
 
 /// Where an Unmatched Item sits in either order [`Contents::unmatched`] lists in: when a scan
-/// found it, and its file's path.
+/// found it, and its file's path, which is empty when listing by when found (ADR 0062).
 pub(crate) type UnmatchedPlace = (i64, String);
 
 /// Hands `$query!` the SQL for the Items of the Library `?1` that need a Match, one row each in

@@ -85,8 +85,6 @@ async fn a_users_own_audio_language_is_kept_as_their_untitled_audio_row_until_th
     assert_eq!(preferences.users_audio(user).await.unwrap(), None);
 }
 
-// An Unmatched Item's Version can't be planned yet (`Contents::version_file`), so this is
-// where the User's own is seen to reach one.
 #[tokio::test]
 async fn the_users_own_audio_preference_reaches_a_version_of_an_unmatched_item() {
     let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
