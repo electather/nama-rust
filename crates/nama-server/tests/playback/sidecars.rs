@@ -89,7 +89,7 @@ async fn an_edited_sidecar_scanned_again_serves_its_new_text_from_the_same_url()
 async fn an_english_preference_starts_a_sidecar_and_a_picked_one_keeps_what_its_name_says() {
     // After the file's own video and subtitle, in path order: forced SDH at 2, then these.
     const SDH_WITH_NOTES: u32 = 3;
-    const FULL: u32 = 5;
+    const FULL: u32 = 6;
     let (fx, version) = Fixture::alien_with_sidecars(&[
         ("Alien (1979) - 1080p.en.forced.sdh.srt", SIDECAR_HELLO),
         (
@@ -97,6 +97,10 @@ async fn an_english_preference_starts_a_sidecar_and_a_picked_one_keeps_what_its_
             SIDECAR_HELLO,
         ),
         ("Alien (1979) - 1080p.en.forced.srt", SIDECAR_HELLO),
+        (
+            "Alien (1979) - 1080p.en.forced.with notes.srt",
+            SIDECAR_HELLO,
+        ),
         ("Alien (1979) - 1080p.en.srt", SIDECAR_HELLO),
     ])
     .await;
@@ -115,7 +119,8 @@ async fn an_english_preference_starts_a_sidecar_and_a_picked_one_keeps_what_its_
     .unwrap();
 
     assert_eq!(preferred, Some(FULL));
-    // Kept without its title, it would start the untitled forced SDH one before it.
+    // Kept without its title, it would start the untitled forced SDH one before it; without SDH,
+    // the forced one with notes after it.
     let started = fx.plan(version).await.unwrap().starting_subtitle;
     assert_eq!(started, Some(SDH_WITH_NOTES));
 }

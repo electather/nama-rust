@@ -2,8 +2,8 @@
 //!
 //! [`Sidecars`] owns `sidecar_subtitles` (see the area's `AGENTS.md`). A scan finds the files and
 //! says which Version each is beside; their rows go when the Version goes. Only their names and
-//! metadata are read, never the files. Every reader of a Version's Tracks has the text ones
-//! appended after the file's own ([`Sidecars::append_to`]).
+//! metadata are read, never the files. Readers of a Version's Tracks append the text ones with
+//! [`Sidecars::append_to`] (see the area's `AGENTS.md`).
 
 use std::{collections::HashMap, ffi::OsStr, path::Path, sync::Arc};
 
