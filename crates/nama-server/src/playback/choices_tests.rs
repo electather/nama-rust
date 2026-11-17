@@ -451,6 +451,39 @@ fn an_ass_sidecar_beside_a_file_with_fonts_is_burned_in_from_its_path_on_a_devic
 }
 
 #[test]
+fn a_pgs_sidecar_is_burned_in_from_its_path_on_a_device_that_doesnt_draw_pgs() {
+    let sidecar = Track {
+        kind: TrackKind::Subtitle {
+            image: true,
+            header: false,
+            sidecar: Some(Sidecar {
+                path: "/media/Alien.en.sup".to_owned(),
+                size: 1,
+                modified_ns: 2,
+            }),
+        },
+        ..pgs()
+    };
+    let tracks = vec![video("h264"), audio("aac", true), pgs(), pgs(), sidecar];
+    let mut facts = Facts {
+        subtitle: Some(4),
+        ..facts(Some(tracks))
+    };
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.burn_in, Some(4));
+    let burn_in = transcoded(&plan).video.burn_in;
+    assert!(
+        matches!(
+            &burn_in,
+            Some(BurnIn::Image { subtitle: 0, sidecar: Some(path), .. }) if path == "/media/Alien.en.sup"
+        ),
+        "{burn_in:?}"
+    );
+}
+
+#[test]
 fn a_subtitle_choice_that_isnt_an_image_or_ass_subtitle_burns_nothing_in() {
     let teletext = text_subtitle("dvb_teletext");
     let tracks = vec![video("h264"), audio("aac", true), teletext, subtitle()];

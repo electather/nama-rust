@@ -136,10 +136,14 @@ async fn serve(
     let Some(source) = source else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let served = subtitles
-        .cache
-        .get_or_make(&source.cache_key(), source.read(&subtitles.ffmpeg))
-        .await;
+    let served = if source.is_sup() {
+        // Already what's served for PGS, so neither ffmpeg nor the cache needs to copy it.
+        tokio::fs::read(&source.path).await.map_err(Error::from)
+    } else {
+        (subtitles.cache)
+            .get_or_make(&source.cache_key(), source.read(&subtitles.ffmpeg))
+            .await
+    };
     match served {
         Ok(served) => ([(header::CONTENT_TYPE, source.content_type())], served).into_response(),
         Err(err) => {
@@ -224,6 +228,7 @@ struct Source {
     path: String,
     /// Its place among that file's subtitle Tracks, which is how ffmpeg picks it out.
     subtitle: usize,
+    sidecar: bool,
     served_as: proto::SubtitleFormat,
     /// ASS or SSA, whose dialogue ffmpeg would make WebVTT with their styling and drawings in.
     ass: bool,
@@ -254,11 +259,17 @@ impl Source {
         Some(Self {
             served_as: format_of(found)?,
             ass: found.is_ass_subtitle(),
+            sidecar: found.sidecar().is_some(),
             file,
             name,
             path,
             subtitle,
         })
+    }
+
+    /// Whether it's a `.sup` sidecar served as PGS.
+    fn is_sup(&self) -> bool {
+        self.sidecar && self.served_as == PGS
     }
 
     fn cache_key(&self) -> PathBuf {

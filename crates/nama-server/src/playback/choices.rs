@@ -175,28 +175,29 @@ pub(super) fn burn_in(facts: &Facts) -> Option<BurnIn> {
         .subtitle
         .filter(|_| !facts.dropped.contains(&Choice::Subtitle))?;
     let track = (probe.tracks.get(place)).filter(|track| burns_in(&facts.device, probe, track))?;
-    if let Some(sidecar) = track.sidecar() {
-        return Some(BurnIn::Text {
-            subtitle: TextSubtitle::Sidecar(sidecar.path.clone()),
+    let sidecar = track.sidecar().map(|sidecar| sidecar.path.clone());
+    if matches!(track.kind, TrackKind::Subtitle { image: true, .. }) {
+        // A sidecar holds just its one subtitle.
+        let subtitle = if sidecar.is_some() {
+            0
+        } else {
+            probe.ffmpeg_index(place)?
+        };
+        return Some(BurnIn::Image {
+            subtitle,
+            sidecar,
+            picture: picture(facts),
         });
     }
-    let subtitle = probe.ffmpeg_index(place)?;
-    Some(
-        if matches!(track.kind, TrackKind::Subtitle { image: true, .. }) {
-            BurnIn::Image {
-                subtitle,
-                picture: picture(facts),
-            }
-        } else {
-            BurnIn::Text {
-                subtitle: TextSubtitle::Stream {
-                    subtitle,
-                    track: place,
-                    fonts: probe.font_attachments.len(),
-                },
-            }
+    let subtitle = match sidecar {
+        Some(sidecar) => TextSubtitle::Sidecar(sidecar),
+        None => TextSubtitle::Stream {
+            subtitle: probe.ffmpeg_index(place)?,
+            track: place,
+            fonts: probe.font_attachments.len(),
         },
-    )
+    };
+    Some(BurnIn::Text { subtitle })
 }
 
 /// The place in `probe`'s Tracks of the subtitle Track `preferred` starts playback with, `None` for off or
