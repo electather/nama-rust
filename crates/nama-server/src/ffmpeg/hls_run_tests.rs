@@ -1,8 +1,10 @@
 use std::path::Path;
 
+use encoding_rs::WINDOWS_1256;
+
 use super::{
-    Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe, Remux, RemuxAudio,
-    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
+    Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe, PERSIAN_SRT, Remux,
+    RemuxAudio, TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
 };
 
 /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
@@ -469,6 +471,32 @@ fn a_sidecar_text_subtitle_is_burned_in_from_its_own_file_by_libass() {
         value_of(&args, "-vf"),
         Some(r"subtitles=filename=\'Alien.en.ass\'")
     );
+}
+
+/// The filters a Transcode burns in a sidecar holding `bytes` with.
+fn sidecar_burn_in_filters(bytes: &[u8]) -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let sidecar = dir.path().join("Alien.en.srt");
+    std::fs::write(&sidecar, bytes).unwrap();
+    let burned = VideoConversion {
+        burn_in: Some(BurnIn::Text {
+            subtitle: TextSubtitle::Sidecar(sidecar.to_str().unwrap().to_owned()),
+        }),
+        ..SOFTWARE
+    };
+
+    let args = transcode_args(burned);
+
+    value_of(&args, "-vf").unwrap().to_owned()
+}
+
+#[test]
+fn a_sidecar_not_in_utf8_is_burned_in_read_in_the_charset_its_bytes_are_in() {
+    let persian = sidecar_burn_in_filters(&WINDOWS_1256.encode(PERSIAN_SRT).0);
+    let utf8 = sidecar_burn_in_filters(PERSIAN_SRT.as_bytes());
+
+    assert!(persian.ends_with(r":charenc=\'windows-1256\'"), "{persian}");
+    assert!(!utf8.contains("charenc"), "{utf8}");
 }
 
 #[test]

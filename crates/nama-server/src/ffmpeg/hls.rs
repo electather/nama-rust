@@ -2,7 +2,7 @@
 
 use std::{io, path::Path, process::Stdio};
 
-use super::{Hardware, finding::is_release_before};
+use super::{Hardware, finding::is_release_before, sidecar_charset};
 
 /// The software filters a Transcode tone-maps HDR to SDR with: to linear light, to BT.709's
 /// primaries, Hable's curve from HDR's brightness to SDR's 100 nits, then back to BT.709 video.
@@ -149,7 +149,17 @@ fn transcoded_video(
         )),
         Some(BurnIn::Text {
             subtitle: TextSubtitle::Sidecar(sidecar),
-        }) => Some(format!("subtitles=filename={}", filter_value(sidecar))),
+        }) => {
+            // Blocks on the disk, briefly, as each run's start already does for the cache. One
+            // that can't be read gets no `charenc`, as in `Ffmpeg::subtitle`.
+            let charset = (std::fs::read(sidecar).ok()).and_then(|bytes| sidecar_charset(&bytes));
+            let charenc =
+                charset.map_or_default(|charset| format!(":charenc={}", filter_value(charset)));
+            Some(format!(
+                "subtitles=filename={}{charenc}",
+                filter_value(sidecar)
+            ))
+        }
         Some(BurnIn::Text {
             subtitle: TextSubtitle::Cached { ass, fonts },
         }) => Some(format!(
