@@ -37,9 +37,10 @@ use proto::SubtitleFormat::{
 };
 
 mod ass;
+mod text_pass;
 
 use super::{
-    Sidecars,
+    Probing, Sidecars,
     tracks::{PROBE_VERSION, Probe, Track, TrackKind, Tracks},
 };
 use crate::{
@@ -101,6 +102,8 @@ pub(super) struct Subtitles {
     pub(super) sidecars: Sidecars,
     pub(super) ffmpeg: Arc<Ffmpeg>,
     pub(super) cache: Cache,
+    /// Runs text passes, which read whole files, in the background.
+    pub(super) probing: Probing,
 }
 
 /// Serves `GET` [`url`]s, 404 unless the Track is a subtitle of a Version served in that format,
@@ -126,20 +129,24 @@ async fn serve(
     UrlPath((version, track)): UrlPath<(i64, usize)>,
     format_of: fn(&Track) -> Option<proto::SubtitleFormat>,
 ) -> Response {
-    let source = match probed(&subtitles, version).await {
-        Ok(probed) => probed.and_then(|probed| Source::find(probed, track, format_of)),
+    let probed = match probed(&subtitles, version).await {
+        Ok(Some(probed)) => probed,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {
             tracing::error!("could not look up the Version {version}'s Track {track}: {err}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let Some(source) = source else {
+    let Some(source) = Source::find(&probed, track, format_of) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let served = subtitles
-        .cache
-        .get_or_make(&source.cache_key(), source.read(&subtitles.ffmpeg))
-        .await;
+    let key = source.cache_key();
+    let served = if source.from_text_pass {
+        subtitles.read_by_text_pass(&key, &probed).await
+    } else {
+        let read = source.read(&subtitles.ffmpeg);
+        subtitles.cache.get_or_make(&key, read).await
+    };
     match served {
         Ok(served) => ([(header::CONTENT_TYPE, source.content_type())], served).into_response(),
         Err(err) => {
@@ -149,12 +156,12 @@ async fn serve(
     }
 }
 
-/// Serves the Version `version`'s font `font`, read out of its file with ffmpeg the first time.
+/// Serves the Version `version`'s font `font`, read out of its file by a text pass the first time.
 async fn serve_font(
     State(subtitles): State<Subtitles>,
     UrlPath((version, font)): UrlPath<(i64, usize)>,
 ) -> Response {
-    let (path, file, probe) = match probed(&subtitles, version).await {
+    let probed = match probed(&subtitles, version).await {
         Ok(Some(probed)) => probed,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {
@@ -163,12 +170,11 @@ async fn serve_font(
         }
     };
     // Only what probing recorded as a font, never another attachment.
-    let Some(&attachment) = probe.font_attachments.get(font) else {
+    if font >= probed.2.font_attachments.len() {
         return StatusCode::NOT_FOUND.into_response();
-    };
-    let key = cache_key(file, &format!("font-{font}"));
-    let read = async { Ok::<_, Error>(subtitles.ffmpeg.attachment(&path, attachment).await?) };
-    match subtitles.cache.get_or_make(&key, read).await {
+    }
+    let key = cache_key(probed.1, &font_name(font));
+    match subtitles.read_by_text_pass(&key, &probed).await {
         // The renderer reads a font's bytes whatever its type, and nothing should guess one.
         Ok(bytes) => (
             [
@@ -212,6 +218,12 @@ enum Error {
     Io(#[from] io::Error),
     #[error(transparent)]
     Read(#[from] SubtitleError),
+    /// Kept from an earlier text pass, which isn't tried again until the file changes.
+    #[error("reading the subtitles out failed before, and the file hasn't changed since: {0}")]
+    FailedBefore(String),
+    /// The text pass stopped without it, as when the Server shuts down; it logged why.
+    #[error("the subtitles weren't read out")]
+    NotReadOut,
 }
 
 /// A subtitle Track, inside a Version's file or in a sidecar beside it.
@@ -227,6 +239,8 @@ struct Source {
     served_as: proto::SubtitleFormat,
     /// ASS or SSA, whose dialogue ffmpeg would make WebVTT with their styling and drawings in.
     ass: bool,
+    /// A text Track inside the file, which a text pass reads out with the others.
+    from_text_pass: bool,
 }
 
 impl Source {
@@ -234,7 +248,7 @@ impl Source {
     /// `probe`, in the format `format_of` gives it: `None` if there's no such Track or it gives
     /// none.
     fn find(
-        (path, file, probe): (String, Stored, Probe),
+        (path, file, probe): &(String, Stored, Probe),
         track: usize,
         format_of: fn(&Track) -> Option<proto::SubtitleFormat>,
     ) -> Option<Self> {
@@ -249,12 +263,13 @@ impl Source {
                 sidecar.path.clone(),
                 0,
             ),
-            None => (track.to_string(), path, probe.ffmpeg_index(track)?),
+            None => (track.to_string(), path.clone(), probe.ffmpeg_index(track)?),
         };
         Some(Self {
             served_as: format_of(found)?,
             ass: found.is_ass_subtitle(),
-            file,
+            from_text_pass: found.sidecar().is_none() && found.is_text_subtitle(),
+            file: *file,
             name,
             path,
             subtitle,
@@ -262,15 +277,7 @@ impl Source {
     }
 
     fn cache_key(&self) -> PathBuf {
-        let name = &self.name;
-        let name = match self.served_as {
-            // Read out as they are, so how WebVTT is made doesn't change them.
-            PGS => format!("{name}.sup"),
-            VOBSUB => format!("{name}.mks"),
-            ASS => format!("{name}.ass"),
-            UNSPECIFIED | WEBVTT => format!("{name}.v{WEBVTT_VERSION}.vtt"),
-        };
-        cache_key(self.file, &name)
+        cache_key(self.file, &cached_name(&self.name, self.served_as))
     }
 
     const fn content_type(&self) -> &'static str {
@@ -283,9 +290,10 @@ impl Source {
         }
     }
 
-    /// Reads it out of its file: a PGS Track copied into `.sup`, the framing a Device's renderer
-    /// reads, a VobSub one into Matroska, which carries its palette and size beside it, an ASS or
-    /// SSA one as ASS for a Device that draws it, and any other as WebVTT.
+    /// Reads it out of its file, as a sidecar or an image Track is: a PGS Track copied into
+    /// `.sup`, the framing a Device's renderer reads, a VobSub one into Matroska, which carries its
+    /// palette and size beside it, an ASS or SSA one as ASS for a Device that draws it, and any
+    /// other as WebVTT.
     async fn read(&self, ffmpeg: &Ffmpeg) -> Result<Vec<u8>, Error> {
         let (path, subtitle) = (&self.path, self.subtitle);
         match self.served_as {
@@ -299,6 +307,22 @@ impl Source {
             UNSPECIFIED | WEBVTT => Ok(ffmpeg.subtitle(path, subtitle, "webvtt", "webvtt").await?),
         }
     }
+}
+
+/// What the subtitle named `name` is cached as, served as `served_as`.
+fn cached_name(name: &str, served_as: proto::SubtitleFormat) -> String {
+    match served_as {
+        // Read out as they are, so how WebVTT is made doesn't change them.
+        PGS => format!("{name}.sup"),
+        VOBSUB => format!("{name}.mks"),
+        ASS => format!("{name}.ass"),
+        UNSPECIFIED | WEBVTT => format!("{name}.v{WEBVTT_VERSION}.vtt"),
+    }
+}
+
+/// What the font `font`, by its place among the fonts a Version's file carries, is cached as.
+fn font_name(font: usize) -> String {
+    format!("font-{font}")
 }
 
 /// Where the file `name`, cached for the Version stored as `file`, goes in the [`Cache`].
@@ -315,12 +339,15 @@ fn cache_folder(file: Stored) -> String {
     )
 }
 
-/// Subtitles on disk, each made by its source the first time it's asked for. It has no size limit.
+/// Subtitles on disk, each made by its source the first time it's asked for, and a Version's text
+/// ones and fonts all at once. It has no size limit.
+// ponytail: a Version's text subtitles and fonts are all cached once any is asked for, wanted or
+// not; throw away the least recently served if that fills disks.
 #[derive(Debug, Clone)]
 pub(crate) struct Cache {
     dir: PathBuf,
-    /// A lock per subtitle being made, so requests for it at once wait for one making rather
-    /// than each read the file.
+    /// A lock per subtitle being made, or per Version's folder for a text pass, so requests for it
+    /// at once wait for one making rather than each read the file.
     making_locks: Arc<Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>>,
 }
 
@@ -361,6 +388,29 @@ impl Cache {
         self.making_locks()
             .retain(|_, lock| Arc::strong_count(lock) > 1);
         subtitle
+    }
+
+    /// The folder the subtitles cached for the Version stored as `file` go in.
+    fn folder(&self, file: Stored) -> PathBuf {
+        self.dir.join("versions").join(cache_folder(file))
+    }
+
+    /// Waits for the one making, at a time, of what's cached in `folder`: one `start` starts and
+    /// hands the lock it holds until it's done, unless one is running already. Whoever waits
+    /// doesn't own it, so it goes on when they give up.
+    async fn after_making_all(
+        &self,
+        folder: &Path,
+        start: impl FnOnce(tokio::sync::OwnedMutexGuard<()>),
+    ) {
+        let making_lock = Arc::clone(self.making_locks().entry(folder.to_owned()).or_default());
+        if let Ok(making) = Arc::clone(&making_lock).try_lock_owned() {
+            start(making);
+        }
+        drop(making_lock.lock().await);
+        drop(making_lock);
+        self.making_locks()
+            .retain(|_, lock| Arc::strong_count(lock) > 1);
     }
 
     /// Throws away the subtitles cached for every Version but `stored`, at its file as stored

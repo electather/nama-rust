@@ -5,7 +5,8 @@ use super::tests::Fixture;
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
 use super::{
-    Error, Keyframes, LISTING_WAIT, LISTINGS_AT_ONCE, ProbeError, ffprobe::WHOLE_FILE_TIMEOUT,
+    Error, Keyframes, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE,
+    ffprobe::WHOLE_FILE_TIMEOUT,
 };
 #[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
@@ -305,7 +306,7 @@ async fn a_listing_past_the_cap_waits_for_a_slot() {
     );
     let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), &listing)).await;
     let mut plans = Vec::new();
-    for n in 0..=LISTINGS_AT_ONCE {
+    for n in 0..=WHOLE_FILE_READS_AT_ONCE {
         let movie = format!("Movie {n} (2000)/Movie {n} (2000).mkv");
         media.write_probed(&movie, 10).await;
         let version = media.file_id(&movie).await;
@@ -315,7 +316,7 @@ async fn a_listing_past_the_cap_waits_for_a_slot() {
         ));
     }
     let started = tokio::time::Instant::now();
-    while probe_runs(bin.path()) < LISTINGS_AT_ONCE {
+    while probe_runs(bin.path()) < WHOLE_FILE_READS_AT_ONCE {
         assert!(
             started.elapsed() < Duration::from_secs(5),
             "the listings never started"
@@ -328,14 +329,55 @@ async fn a_listing_past_the_cap_waits_for_a_slot() {
     fs::write(&go, "").unwrap();
     let listed = futures_util::future::join_all(plans).await;
 
-    assert_eq!(while_full, LISTINGS_AT_ONCE);
+    assert_eq!(while_full, WHOLE_FILE_READS_AT_ONCE);
     assert!(
         listed
             .iter()
             .all(|listed| listed.as_ref().is_ok_and(Result::is_ok)),
         "{listed:?}"
     );
-    assert_eq!(probe_runs(bin.path()), LISTINGS_AT_ONCE + 1);
+    assert_eq!(probe_runs(bin.path()), WHOLE_FILE_READS_AT_ONCE + 1);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn another_whole_file_read_waits_while_listings_fill_the_cap() {
+    let bin = tempfile::tempdir().unwrap();
+    let go = bin.path().join("go");
+    let listing = format!(
+        "while [ ! -e '{}' ]; do sleep 0.05; done\nprintf '0.000000,K__\\n'",
+        go.display()
+    );
+    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), &listing)).await;
+    for n in 0..WHOLE_FILE_READS_AT_ONCE {
+        let movie = format!("Movie {n} (2000)/Movie {n} (2000).mkv");
+        media.write_probed(&movie, 10).await;
+        let version = media.file_id(&movie).await;
+        let probing = media.probing.clone();
+        tokio::spawn(async move { probing.keyframes(version).await });
+    }
+    let started = tokio::time::Instant::now();
+    while probe_runs(bin.path()) < WHOLE_FILE_READS_AT_ONCE {
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "the listings never started"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let (reading, mut was_read) = tokio::sync::oneshot::channel();
+    let read = async move { reading.send(()).unwrap() };
+
+    let spawned = (media.probing).read_whole_file_in_background(tracing::Span::none(), read);
+    // Long enough for it to run, were it not held back.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let while_full = was_read.try_recv();
+    fs::write(&go, "").unwrap();
+
+    assert!(spawned);
+    assert!(while_full.is_err(), "it read while listings filled the cap");
+    let after = tokio::time::timeout(Duration::from_secs(5), was_read).await;
+    assert!(after.is_ok_and(|sent| sent.is_ok()), "it never read");
 }
 
 // The fake ffprobe is a shell script.

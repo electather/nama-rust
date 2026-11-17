@@ -11,7 +11,7 @@ mod hls;
 mod test_media;
 
 use std::{
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     io,
     path::{Path, PathBuf},
     process::Stdio,
@@ -501,26 +501,45 @@ impl Ffmpeg {
         Ok(output.stdout)
     }
 
-    /// The file at `path`'s attachment `attachment`, such as a font, counting only its
-    /// attachments from 0.
-    pub(crate) async fn attachment(
+    /// Reads, in one read of the file at `path`, each of `subtitles`, a subtitle stream by its
+    /// place among the file's subtitle streams, encoded and written in a format ffmpeg names the
+    /// same as its encoder, such as `webvtt` or `ass`, and each of `attachments`, such as a font,
+    /// by its place among the file's attachments, into the file each names.
+    ///
+    /// A file may be left partly written when it fails.
+    pub(crate) async fn extract(
         &self,
         path: &str,
-        attachment: usize,
-    ) -> Result<Vec<u8>, SubtitleError> {
-        let dump = format!("-dump_attachment:t:{attachment}");
-        let output = self.read_out(&[&dump, "pipe:1", "-i", path]).await?;
-        // With no output file named, ffmpeg dumps it and then fails for want of one, so only
-        // what it wrote says whether it worked.
-        if output.stdout.is_empty() {
-            return Err(failed(&output));
+        subtitles: &[(usize, &str, PathBuf)],
+        attachments: &[(usize, PathBuf)],
+    ) -> Result<(), SubtitleError> {
+        let mut args: Vec<OsString> = vec![];
+        for (attachment, to) in attachments {
+            args.push(format!("-dump_attachment:t:{attachment}").into());
+            args.push(to.into());
         }
-        Ok(output.stdout)
+        args.extend(["-i".into(), path.into()]);
+        for (subtitle, format, to) in subtitles {
+            let map = format!("0:s:{subtitle}");
+            args.extend(["-map", &map, "-c:s", format, "-f", format].map(OsString::from));
+            args.push(to.into());
+        }
+        let output = self.read_out(&args).await?;
+        // With no output file named, ffmpeg dumps the attachments and then fails for want of one,
+        // so only what it wrote says whether that worked.
+        if output.status.success() || subtitles.is_empty() && all_there(attachments).await? {
+            Ok(())
+        } else {
+            Err(failed(&output))
+        }
     }
 
     /// What ffmpeg, quiet but for errors, writes given `args`, within [`SUBTITLE_TIMEOUT`].
     #[tracing::instrument(name = "ffmpeg extract", skip_all)]
-    async fn read_out(&self, args: &[&str]) -> Result<std::process::Output, SubtitleError> {
+    async fn read_out(
+        &self,
+        args: &[impl AsRef<OsStr>],
+    ) -> Result<std::process::Output, SubtitleError> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Err(SubtitleError::Unavailable);
         };
@@ -532,6 +551,16 @@ impl Ffmpeg {
             .output();
         Ok(tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??)
     }
+}
+
+/// Whether each of `written`'s files is there.
+async fn all_there(written: &[(usize, PathBuf)]) -> io::Result<bool> {
+    for (_, path) in written {
+        if !tokio::fs::try_exists(path).await? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// A failed read-out, saying what ffmpeg wrote to stderr.
