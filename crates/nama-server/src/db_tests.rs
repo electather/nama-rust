@@ -163,6 +163,11 @@ async fn an_upgrade_that_leaves_a_broken_foreign_key_names_its_row_and_applies_n
     .await
     .unwrap();
     assert_eq!(tables, 0);
+    let recorded: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    assert_eq!(recorded, 0);
 }
 
 #[tokio::test]

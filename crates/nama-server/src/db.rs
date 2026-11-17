@@ -51,7 +51,8 @@ pub enum OpenError {
     /// SQLite couldn't open or set up the database file.
     #[error("could not open the database: {0}")]
     Sqlx(#[from] sqlx::Error),
-    /// A newer version of Nama upgraded the database, with the migration of this version.
+    /// A newer version of Nama upgraded the database; holds the version of the migration this
+    /// one doesn't have.
     #[error(
         "the database was upgraded by a newer version of Nama (migration {0} is unknown to this \
          one): run that version, or go back to the copy in {BEFORE_UPGRADE_FILE_NAME} as the \
@@ -384,14 +385,20 @@ async fn migrate(
             });
         }
     }
+    if pending.is_empty() {
+        // Still run: it's what fails on a database a newer Server upgraded. Nothing to check keys
+        // for, and a row broken before keys were enforced mustn't stop every start.
+        migrator.run(&mut *conn).await?;
+        return Ok(pending);
+    }
     // SQLite ignores this pragma inside a transaction, so it goes off before the upgrade's opens
     // (ADR 0060): with it on, a rebuild's `DROP TABLE` would cascade into the rows referencing it.
-    sqlx::query("PRAGMA foreign_keys = OFF")
+    sqlx::query!("PRAGMA foreign_keys = OFF")
         .execute(&mut *conn)
         .await?;
     let upgraded = upgrade(conn, migrator).await;
     // The upgrade's own error says more than one turning foreign keys back on.
-    let restored = sqlx::query("PRAGMA foreign_keys = ON")
+    let restored = sqlx::query!("PRAGMA foreign_keys = ON")
         .execute(&mut *conn)
         .await;
     upgraded?;
@@ -407,15 +414,20 @@ async fn upgrade(conn: &mut SqliteConnection, migrator: &Migrator) -> Result<(),
     let mut tx = conn.begin_with("BEGIN IMMEDIATE").await?;
     let upgraded = async {
         migrator.run(&mut *tx).await?;
-        let broken: Option<(String, Option<i64>, String)> =
-            sqlx::query_as(r#"SELECT "table", rowid, parent FROM pragma_foreign_key_check"#)
-                .fetch_optional(&mut *tx)
-                .await?;
+        // The casts are for sqlx, which can't look up the pragma's own columns' types.
+        let broken = sqlx::query!(
+            r#"SELECT CAST("table" AS TEXT) AS "table!: String",
+                      CAST(rowid AS INTEGER) AS "rowid?: i64",
+                      CAST(parent AS TEXT) AS "parent!: String"
+               FROM pragma_foreign_key_check"#
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
         match broken {
-            Some((table, rowid, parent)) => Err(OpenError::BrokenForeignKey {
-                table,
-                rowid,
-                parent,
+            Some(row) => Err(OpenError::BrokenForeignKey {
+                table: row.table,
+                rowid: row.rowid,
+                parent: row.parent,
             }),
             None => Ok(()),
         }
