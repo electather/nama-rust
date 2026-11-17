@@ -69,8 +69,9 @@ impl Browse {
 
     /// Marks, as of now, `target` of the Library `library` played or unplayed for the User
     /// `user`: a Season or Show is each of its Episodes. Played is written under each one's
-    /// preferred id; unplayed forgets it under every id. Either shows the Movie or Show again in
-    /// Continue Watching. Fails as browsing to it does if the Library has no such title.
+    /// preferred id; unplayed forgets it under every id. Either, where it changes a Watch State,
+    /// shows the Movie or Show again in Continue Watching. Fails as browsing to it does if the
+    /// Library has no such title.
     pub(crate) async fn mark(
         &self,
         user: i64,
@@ -78,13 +79,12 @@ impl Browse {
         target: Target,
         played: bool,
     ) -> Result<(), Error> {
-        let Targeted { titles, whole } = self.targeted(library, target).await?;
-        self.watch_states.mark(user, titles, played).await?;
-        // Forgetting leaves no Watch State written to show it again, as playing it does.
-        if !played {
-            self.watch_states.hide(user, whole, false).await?;
+        let Targeted { titles, entry } = self.targeted(library, target).await?;
+        if played {
+            Ok(self.watch_states.mark(user, titles, true).await?)
+        } else {
+            Ok(self.watch_states.mark_unplayed(user, titles, entry).await?)
         }
-        Ok(())
     }
 
     /// Hides the Movie or Show of `target` of the Library `library` from the User `user`'s
@@ -98,8 +98,8 @@ impl Browse {
         target: Target,
         hidden: bool,
     ) -> Result<(), Error> {
-        let Targeted { whole, .. } = self.targeted(library, target).await?;
-        Ok(self.watch_states.hide(user, whole, hidden).await?)
+        let Targeted { entry, .. } = self.targeted(library, target).await?;
+        Ok(self.watch_states.hide(user, entry, hidden).await?)
     }
 
     /// What `target` of the Library `library` stands for.
@@ -107,17 +107,17 @@ impl Browse {
         let titles = self.titles(&self.library(library).await?).await?;
         let episode =
             |episode: &LibraryEpisode| MovieOrEpisode::episode(&episode.id).known_as(&episode.ids);
-        let whole = |show: &Show| show.episodes().map(episode).collect();
+        let every_episode = |show: &Show| show.episodes().map(episode).collect();
         Ok(match target {
             Target::Movie(id) => {
                 let movie = titles.movie(&id)?;
-                Targeted::whole(vec![MovieOrEpisode::movie(&movie.id).known_as(&movie.ids)])
+                Targeted::entry(vec![MovieOrEpisode::movie(&movie.id).known_as(&movie.ids)])
             }
             Target::Episode(id) => {
                 let (show, marked) = titles.episode(&id)?;
                 Targeted {
                     titles: vec![episode(&marked)],
-                    whole: whole(&show),
+                    entry: every_episode(&show),
                 }
             }
             Target::Season { show, number } => {
@@ -125,10 +125,10 @@ impl Browse {
                 let season = show.seasons.get(&number).ok_or(Error::NoSuchSeason)?;
                 Targeted {
                     titles: season.episodes.iter().map(episode).collect(),
-                    whole: whole(&show),
+                    entry: every_episode(&show),
                 }
             }
-            Target::Show(id) => Targeted::whole(whole(&titles.show(&id)?)),
+            Target::Show(id) => Targeted::entry(every_episode(&titles.show(&id)?)),
         })
     }
 
@@ -233,17 +233,17 @@ impl Started<LibraryVersion> {
 }
 
 /// The Movie or Episodes a [`Target`] stands for, each by every id, and the whole Movie or Show
-/// they are of, as Continue Watching lists it.
+/// they are of, as its Continue Watching entry: a Show is every one of its Episodes.
 struct Targeted {
     titles: Vec<WatchedTitle>,
-    whole: Vec<WatchedTitle>,
+    entry: Vec<WatchedTitle>,
 }
 
 impl Targeted {
-    /// A whole Movie or Show.
-    fn whole(titles: Vec<WatchedTitle>) -> Self {
+    /// A [`Target`] that stands for the whole of its entry, as a Movie or Show does.
+    fn entry(titles: Vec<WatchedTitle>) -> Self {
         Self {
-            whole: titles.clone(),
+            entry: titles.clone(),
             titles,
         }
     }

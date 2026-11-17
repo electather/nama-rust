@@ -217,6 +217,23 @@ impl WatchStates {
             .await
     }
 
+    /// Marks, as of now, each of `titles` unplayed for the User `user`, as [`WatchStates::mark`]
+    /// does, and where that forgot any Watch State shows each of `entry` again in their
+    /// Continue Watching, in one write. Forgetting writes no Watch State that would show it again,
+    /// as playing it does.
+    pub(crate) async fn mark_unplayed(
+        &self,
+        user: i64,
+        titles: Vec<impl Into<Watched>>,
+        entry: Vec<impl Into<Watched>>,
+    ) -> Result<(), sqlx::Error> {
+        let titles = titles.into_iter().map(Into::into).collect();
+        let entry = entry.into_iter().map(Into::into).collect();
+        self.db
+            .write(move |tx| Box::pin(forget_each(tx, user, titles, entry)))
+            .await
+    }
+
     /// Hides each of `titles` from the User `user`'s Continue Watching, or shows it again, under
     /// every id, in one write. Leaves their Watch State alone; the next change to it shows the
     /// title again.
@@ -409,6 +426,23 @@ async fn mark_each(
     Ok(())
 }
 
+async fn forget_each(
+    conn: &mut SqliteConnection,
+    user: i64,
+    titles: Vec<Watched>,
+    entry: Vec<Watched>,
+) -> Result<(), sqlx::Error> {
+    let mut forgot = false;
+    for title in titles {
+        let (kind, _, ids) = title.key();
+        forgot |= forget(&mut *conn, user, kind, ids).await?;
+    }
+    if forgot {
+        hide_each(conn, user, entry, false).await?;
+    }
+    Ok(())
+}
+
 async fn hide_each(
     conn: &mut SqliteConnection,
     user: i64,
@@ -458,14 +492,15 @@ async fn mark_played(
 }
 
 /// Deleting the rows is how a title becomes unplayed with no position. Its rows under every id
-/// in the JSON array `ids` go, so an older one under another id doesn't come back.
+/// in the JSON array `ids` go, so an older one under another id doesn't come back. Says whether
+/// there were any.
 async fn forget(
     conn: &mut SqliteConnection,
     user: i64,
     kind: &'static str,
     ids: String,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
+) -> Result<bool, sqlx::Error> {
+    let forgot = sqlx::query!(
         "DELETE FROM watch_states
          WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
         user,
@@ -474,7 +509,7 @@ async fn forget(
     )
     .execute(conn)
     .await?;
-    Ok(())
+    Ok(forgot.rows_affected() > 0)
 }
 
 #[cfg(test)]

@@ -69,6 +69,13 @@ impl Knight {
             .unwrap();
     }
 
+    async fn mark_unplayed(&self, episode: Numbered) {
+        let episode = Target::Episode(ExternalId::tmdb(episode_id(episode)));
+        (self.browse.mark(self.user, self.library, episode, false))
+            .await
+            .unwrap();
+    }
+
     async fn mark_played(&self, target: Target) {
         (self.browse.mark(self.user, self.library, target, true))
             .await
@@ -285,14 +292,20 @@ async fn a_hidden_show_comes_back_when_one_of_its_episodes_is_marked_unplayed() 
     knight.play(&[(1, 1), (1, 2)]).await;
     knight.hide(knight_show(), true).await;
 
-    let second = Target::Episode(ExternalId::tmdb(episode_id((1, 2))));
-    (knight
-        .browse
-        .mark(knight.user, knight.library, second, false))
-    .await
-    .unwrap();
+    knight.mark_unplayed((1, 2)).await;
 
     assert_eq!(knight.continuing().await, [((1, 2), None)]);
+}
+
+#[tokio::test]
+async fn marking_an_unstarted_episode_unplayed_leaves_its_show_hidden() {
+    let knight = Knight::with(&EPISODES).await;
+    knight.play(&[(1, 1), (1, 2)]).await;
+    knight.hide(knight_show(), true).await;
+
+    knight.mark_unplayed((1, 4)).await;
+
+    assert_eq!(knight.continuing().await, []);
 }
 
 #[tokio::test]
@@ -321,7 +334,7 @@ async fn showing_a_hidden_show_again_undoes_hiding_it() {
 }
 
 #[tokio::test]
-async fn a_hidden_movie_stays_hidden_when_a_new_file_replaces_its_version() {
+async fn a_hidden_movie_stays_hidden_when_a_new_version_replaces_its_old_one() {
     let (knight, movies) = (Knight::with(&[]).await, tempfile::tempdir().unwrap());
     let alien = hide_started_alien(&knight, &movies).await;
 
