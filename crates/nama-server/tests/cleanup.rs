@@ -13,11 +13,11 @@ use buffa::EnumValue;
 use connectrpc::client::ClientConfig;
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, DeleteUserRequest, EnablePluginRequest, ExternalId, LibraryIds,
-    LibraryKind, LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest, Movie,
-    PluginPermission, PluginServiceClient, ReportProgressRequest, SetPlayedRequest, SettingValue,
-    UpdateLibraryRequest, UpdatePluginSettingsRequest, UserServiceClient, WatchStateServiceClient,
-    event, set_played_request::Target, setting_value::Value,
+    BrowseServiceClient, DeleteUserRequest, EnablePluginRequest, ExternalId, GetMovieRequest,
+    LibraryIds, LibraryKind, LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest,
+    MovieSummary, PluginPermission, PluginServiceClient, ReportProgressRequest, SetPlayedRequest,
+    SettingValue, UpdateLibraryRequest, UpdatePluginSettingsRequest, UserServiceClient,
+    WatchStateServiceClient, event, set_played_request::Target, setting_value::Value,
 };
 use nama_server::plugins::Registry;
 use server::{
@@ -202,7 +202,7 @@ async fn report_progress(who: ClientConfig, version: i64, position_ms: u64) {
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn listed_movies(server: &TestServer, library: &Library) -> Vec<Movie> {
+async fn listed_movies(server: &TestServer, library: &Library) -> Vec<MovieSummary> {
     BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
         .list_movies(ListMoviesRequest {
             library_id: library.id,
@@ -220,9 +220,17 @@ async fn listed_movies(server: &TestServer, library: &Library) -> Vec<Movie> {
     reason = "a test helper fails its test by panicking"
 )]
 async fn version_of(server: &TestServer, library: &Library, tmdb: i64) -> i64 {
-    let listed = listed_movies(server, library).await;
-    let movie = (listed.iter())
-        .find(|movie| movie.id.as_option() == Some(&tmdb_id(tmdb)))
+    let movie = BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .get_movie(GetMovieRequest {
+            library_id: library.id,
+            movie_id: tmdb_id(tmdb).into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .movie
+        .into_option()
         .unwrap();
     assert_eq!(movie.versions.len(), 1, "the Movie has one Version");
     movie.versions.first().unwrap().id

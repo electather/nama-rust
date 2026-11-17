@@ -52,7 +52,12 @@ async fn a_movie_stored_at_an_older_metadata_version_is_fetched_again_by_its_id(
     assert_eq!(media.outcomes(movies).await, [matched(348, "Alien")]);
     assert_eq!(media.searches(), searches);
     assert_eq!(movie_fetches(), before + 1);
-    let alien = media.contents.movies(movies.id).await.unwrap().remove(0);
+    let alien = media
+        .contents
+        .movies(movies.id, None)
+        .await
+        .unwrap()
+        .remove(0);
     assert_eq!(
         (alien.genres, alien.content_rating),
         (
@@ -69,12 +74,22 @@ async fn a_show_stored_at_an_older_metadata_version_gets_its_own_details_on_the_
     shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
     media.scan(shows).await;
     media.contents.stored_by_older_metadata(shows.id).await;
-    let older = media.contents.shows(shows.id).await.unwrap().remove(0);
+    let older = media
+        .contents
+        .shows(shows.id, None)
+        .await
+        .unwrap()
+        .remove(0);
     let searches = media.searches();
 
     media.scan(shows).await;
 
-    let dark = media.contents.shows(shows.id).await.unwrap().remove(0);
+    let dark = media
+        .contents
+        .shows(shows.id, None)
+        .await
+        .unwrap()
+        .remove(0);
     // Until then, it is shown by its first Season's Poster.
     let path = |poster: Option<&ImageRef>| poster.map(|it| it.path.clone());
     assert_eq!(

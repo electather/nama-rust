@@ -119,7 +119,7 @@ async fn a_page_names_a_movie_with_no_id_from_its_librarys_title_sources_by_its_
     matched_movie(&fx, "/media/Alien.mkv", "Alien", ids).await;
 
     let page = page_ids(&fx, None, None).await;
-    let browsed = fx.contents.movies(fx.library).await.unwrap();
+    let browsed = fx.contents.movies(fx.library, None).await.unwrap();
 
     assert_eq!(page, [imdb]);
     assert_eq!(page[0], browsed[0].id);
