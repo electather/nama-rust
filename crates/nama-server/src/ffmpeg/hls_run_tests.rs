@@ -43,7 +43,13 @@ const ZSCALE_TONE_MAP: &str = "setparams=color_primaries=bt2020:colorspace=bt202
 
 /// The arguments for a run of `remux` of `alien.mkv` from `from`, with ffmpeg 7.1.1.
 fn remux_args(remux: Remux, from: Keyframe) -> Vec<String> {
-    let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, Path::new("plan"), from);
+    remux_args_starting_at(remux, from, 0)
+}
+
+/// The arguments for a run of `remux` of `alien.mkv`, as if it started at `file_start_ms`, from
+/// `from`, with ffmpeg 7.1.1.
+fn remux_args_starting_at(remux: Remux, from: Keyframe, file_start_ms: i64) -> Vec<String> {
+    let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, Path::new("plan"), from, file_start_ms);
     args(&run.unwrap())
 }
 
@@ -285,6 +291,35 @@ fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time
     assert_eq!(input_seek(&silent), Some("5.500"));
     assert_eq!(value_of(&silent, "-copypriorss:a"), None);
     assert_eq!(value_of(&silent, "-af"), None);
+}
+
+#[test]
+fn a_remux_of_a_file_starting_late_seeks_by_the_files_own_times_only_to_cut_copied_audio() {
+    let audio = |aac_channels| Remux {
+        audio: Some(RemuxAudio {
+            track: 0,
+            aac_channels,
+        }),
+        hevc: false,
+    };
+    let silent = Remux {
+        audio: None,
+        hevc: false,
+    };
+    let third = keyframe(3, 6000, Some(4000));
+    let late = |remux| remux_args_starting_at(remux, third, 1477);
+    let at_0 = |remux| remux_args_starting_at(remux, third, 0);
+
+    let copied = late(audio(None));
+
+    assert_eq!(value_of(&copied, "-seek_timestamp"), Some("1"));
+    assert_eq!(input_seek(&copied), Some("7.394"));
+    assert_eq!(value_of(&copied, "-copypriorss:a"), Some("0"));
+    assert_eq!(value_of(&at_0(audio(None)), "-seek_timestamp"), None);
+    assert_eq!(input_seek(&at_0(audio(None))), Some("5.917"));
+    for unchanged in [audio(Some(2)), silent] {
+        assert_eq!(late(unchanged), at_0(unchanged));
+    }
 }
 
 #[test]
@@ -780,6 +815,7 @@ fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
             &silent,
             Path::new("plan"),
             keyframe(0, 0, None),
+            0,
         );
         let args = args(&run.unwrap());
         ["-hls_ts_options", "-hls_segment_options"]

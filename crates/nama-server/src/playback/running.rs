@@ -287,15 +287,20 @@ impl RunningPlans {
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
         };
-        let keyframes = match self.inner.probing.keyframes(version).await {
-            Ok(keyframes) => keyframes,
+        let listed = match self.inner.probing.keyframes(version).await {
+            Ok(listed) => listed,
             Err(probing::Error::Probe(err)) => return Err(StartError::Keyframes(err)),
             Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
             Err(probing::Error::Database(err)) => return Err(err.into()),
         };
-        let timeline = Timeline::new(keyframes, duration_ms);
+        let timeline = Timeline::new(listed.keyframes_ms, duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
-        let run = move |dir: &Path, from| ffmpeg.remux(&path, &remux, dir, from)?.spawn();
+        let file_start_ms = listed.file_start_ms;
+        let run = move |dir: &Path, from| {
+            ffmpeg
+                .remux(&path, &remux, dir, from, file_start_ms)?
+                .spawn()
+        };
         let runs = Runs {
             run: Box::new(run),
             fallback: None,
