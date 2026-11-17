@@ -109,3 +109,20 @@ test("choosing a sort or a filter asks for the first page of it", async () => {
   expect(last?.filter?.watched).toBe(WatchedFilter.NOT_STARTED);
   expect(last?.page?.token).toBe("");
 });
+
+test("choosing two genres asks for the titles with either", async () => {
+  const asked: ListMoviesRequest[] = [];
+  openApp("/libraries/1", thousandMovies(asked));
+  await screen.findByText("1,000 Movies");
+
+  fireEvent.click(screen.getByRole("button", { name: "Genre: All" }));
+  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Crime" }));
+  await screen.findByRole("button", { name: "Genre: Crime" });
+  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Horror" }));
+  await screen.findByRole("button", { name: "Genre: Crime +1" });
+
+  await waitFor(() => {
+    expect(asked.at(-1)?.filter?.genres).toEqual(["Crime", "Horror"]);
+  });
+  expect(asked.at(-1)?.page?.token).toBe("");
+});

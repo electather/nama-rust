@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -29,7 +30,7 @@ export interface BarProps {
 }
 
 /**
- * The sort and filter bar over a Library's grid: sort, its direction, a genre of `genres`, a year
+ * The sort and filter bar over a Library's grid: sort, its direction, any of `genres`, a year
  * range and watched state. `change` gets the listing with what the User changed.
  */
 export function TitleListControls({ genres, ...bar }: BarProps & { genres: string[] }) {
@@ -71,14 +72,7 @@ function SortControls({ listing, change }: BarProps) {
 function FilterControls({ listing, change, genres }: BarProps & { genres: string[] }) {
   return (
     <>
-      <ChoiceMenu
-        label="Genre"
-        choices={{ [ANY]: "All", ...Object.fromEntries(genres.map((genre) => [genre, genre])) }}
-        chosen={listing.genre ?? ANY}
-        choose={(genre: string) => {
-          change({ ...listing, genre: genre === ANY ? undefined : genre });
-        }}
-      />
+      <GenreMenu genres={genres} listing={listing} change={change} />
       <ChoiceMenu
         label="Watch State"
         choices={{ [ANY]: "All", ...watchedStates }}
@@ -145,6 +139,52 @@ function ChoiceMenu<T extends string>({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/**
+ * A "Genre: …" button whose menu turns each of `genres` on or off, keeping titles with any genre
+ * that's on, and turns them all off with "All".
+ */
+function GenreMenu({ listing, change, genres }: BarProps & { genres: string[] }) {
+  const chosen = listing.genres ?? [];
+  const choose = (changed: string[]) => {
+    change({ ...listing, genres: changed.length === 0 ? undefined : changed });
+  };
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" />}>
+        Genre: {chosenGenres(chosen)}
+        <ChevronDown aria-hidden className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuCheckboxItem
+          checked={chosen.length === 0}
+          onCheckedChange={() => {
+            choose([]);
+          }}
+        >
+          All
+        </DropdownMenuCheckboxItem>
+        {genres.map((genre) => (
+          <DropdownMenuCheckboxItem
+            key={genre}
+            checked={chosen.includes(genre)}
+            onCheckedChange={(checked) => {
+              choose(checked ? [...chosen, genre] : chosen.filter((named) => named !== genre));
+            }}
+          >
+            {genre}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** "All", "Crime", "Crime +2": the genres turned on, short enough for a phone's bar. */
+function chosenGenres([first, ...more]: string[]) {
+  if (first === undefined) return "All";
+  return more.length === 0 ? first : `${first} +${more.length}`;
 }
 
 /** A year field that changes the listing once it holds a four-digit year, or is cleared. */

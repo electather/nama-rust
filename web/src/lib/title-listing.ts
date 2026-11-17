@@ -20,7 +20,7 @@ export type Watched = keyof typeof watchedStates;
 export interface TitleListing {
   sort?: Sort | undefined;
   order?: "asc" | "desc" | undefined;
-  genre?: string | undefined;
+  genres?: string[] | undefined;
   from?: number | undefined;
   to?: number | undefined;
   watched?: Watched | undefined;
@@ -28,11 +28,11 @@ export interface TitleListing {
 
 /** The listing `search` names, leaving out what it names wrongly, so a bad URL lists as usual. */
 export function listingFromSearch(search: Record<string, unknown>): TitleListing {
-  const { sort, order, genre, from, to, watched } = search;
+  const { sort, order, genres, from, to, watched } = search;
   return {
     sort: keyIn(sorts, sort),
     order: keyIn(orders, order),
-    genre: typeof genre === "string" && genre !== "" ? genre : undefined,
+    genres: genresIn(genres),
     from: yearIn(from),
     to: yearIn(to),
     watched: keyIn(watchedStates, watched),
@@ -49,13 +49,20 @@ function keyIn<T extends object>(record: T, value: unknown) {
   return isKeyOf(record, value) ? value : undefined;
 }
 
+function genresIn(value: unknown) {
+  const named = (Array.isArray(value) ? value : []).filter(
+    (genre): genre is string => typeof genre === "string" && genre !== "",
+  );
+  return named.length === 0 ? undefined : named;
+}
+
 function yearIn(value: unknown) {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 /** Whether `listing` keeps only some titles, rather than sorting them all. */
-export function isFiltered({ genre, from, to, watched }: TitleListing) {
-  return [genre, from, to, watched].some((value) => value !== undefined);
+export function isFiltered({ genres, from, to, watched }: TitleListing) {
+  return [genres, from, to, watched].some((value) => value !== undefined);
 }
 
 /** Which way `listing` runs: as its URL says, else up by title and newest first otherwise. */
@@ -84,10 +91,10 @@ const watchedFilters = {
 // jumps and its top can't be scrolled back to; keep the dropped rows' count, or page backwards,
 // once Libraries grow past it.
 export function firstPageOf(listing: TitleListing, kind: "movies" | "shows") {
-  const { sort = "title", genre, from, to, watched = "any" } = listing;
+  const { sort = "title", genres = [], from, to, watched = "any" } = listing;
   return {
     filter: {
-      genres: [genre].filter((named) => named !== undefined),
+      genres,
       minYear: from,
       maxYear: to,
       watched: watchedFilters[watched],
