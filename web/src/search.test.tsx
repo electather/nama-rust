@@ -1,5 +1,5 @@
 import type { ServiceImpl } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
@@ -124,4 +124,35 @@ test("a blank query in the URL searches for nothing", async () => {
   openApp("/search?query=%20%20", serverToSearch({ searchLibraries }));
 
   expect(await screen.findByRole("heading", { name: "Search" })).toBeDefined();
+});
+
+/** A Movie of the Movies Library a search finds, called `title`, with the TMDB id `tmdb`. */
+function movieFound(tmdb: number, title: string) {
+  return { libraryId: 1n, id: { namespace: "tmdb", value: String(tmdb) }, title };
+}
+
+/** Finds `pages` of Movies in turn, whatever the query, with each page's index as its token. */
+function pagingSearch(
+  pages: ReturnType<typeof movieFound>[][],
+): ServiceImpl<typeof BrowseService>["searchLibraries"] {
+  return ({ page }) => {
+    const index = Number(page?.token ?? "");
+    const next = index + 1 < pages.length ? String(index + 1) : "";
+    return { movies: pages[index] ?? [], page: { nextToken: next } };
+  };
+}
+
+test("Show more lists the next page of what a search found below the first", async () => {
+  const pages = [[movieFound(2000, "The Office Party")], [movieFound(1542, "Office Space")]];
+  openApp("/search?query=office", serverToSearch({ searchLibraries: pagingSearch(pages) }));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
+
+  await screen.findByRole("link", { name: /^Office Space/u });
+  const movies = within(screen.getByRole("region", { name: "Movies" })).getAllByRole("link");
+  expect(movies.map((link) => link.getAttribute("href"))).toStrictEqual([
+    "/libraries/1/movies/tmdb-2000",
+    "/libraries/1/movies/tmdb-1542",
+  ]);
+  expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
 });

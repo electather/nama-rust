@@ -15,6 +15,13 @@ CI counts those headings, so a break passes only with one more than main has: ed
 - None that `buf breaking` reports: in `nama/v1/match.proto`, `ListUnmatchedItemsRequest.library_id` (1) is deleted with its number and name reserved.
 - `ListUnmatchedItems` pages through the shared messages of `nama/v1/page.proto` (ADR 0055): its request takes the Library in `filter` (2), an `UnmatchedItemFilter`, the order in `sort` (3), an `UnmatchedItemSort` of path or when found, and `direction` (5), a `SortDirection`, and the page in `page` (4), a `PageRequest`; its response gives the next token, and on the first page the `total_size`, in `page` (3), a `PageResponse`. `unparsed_paths` is filled on the first page only.
 - A client built before has its Library ignored, so it is refused with `not_found`; it must regenerate and send `filter` and `page`, and read `unparsed_paths` from the first page. The web app is the only client.
+
+## 2026-11-17, #881
+
+- None that `buf breaking` reports: in `nama/v1/browse.proto`, `SearchLibrariesRequest` gains `page` (2), a `PageRequest`, and `SearchLibrariesResponse` gains `page` (4), a `PageResponse`.
+- `SearchLibraries` lists a page of what it found (ADR 0055), its Movies, Shows and Episodes in one order, best fit first, where it listed all of it.
+- A client built before gets only the 50 best fits and finds no next token; it must regenerate and send `page`. The web app is the only client.
+
 ## 2026-11-17, #884
 
 - `FIELD_SAME_TYPE`, `nama/v1/browse.proto`: `ListMoviesResponse.movies` (1) and `ListShowsResponse.shows` (1).
