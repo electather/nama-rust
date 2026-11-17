@@ -127,15 +127,15 @@ impl Running {
             usize::MAX
         };
         let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
-        // A running run writes past where it started even once an earlier segment is asked for.
         let ahead_from_ms = if running {
-            asked.max(self.timeline.keyframe_ms(run.from))
+            self.run_ahead_from_ms(run)
         } else {
             asked
         };
         let keep_from_ms = asked - keep_behind_ms;
         let keep_to_ms = ahead_from_ms + RUN_AHEAD_MS;
         let mut deleted_unwalked = false;
+        let mut saw_walk_end = false;
         let mut entries = tokio::fs::read_dir(&self.dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let name = entry.file_name();
@@ -144,6 +144,7 @@ impl Running {
                 Some(n) => {
                     let far_ahead = self.timeline.keyframe_ms(n) >= keep_to_ms;
                     deleted_unwalked |= far_ahead && n >= still_writing_from;
+                    saw_walk_end |= n == still_writing_from;
                     far_ahead
                         || (n < still_writing_from
                             && self.timeline.keyframe_ms(n + 1) < keep_from_ms)
@@ -160,9 +161,15 @@ impl Running {
             }
         }
         // ffmpeg writes its files in order, so it wrote one deleted past where the walk stopped
-        // only if it has written the file there since. Its walk would then wait at the deleted one
-        // for good, so the run is stopped, and the request for it starts ffmpeg again.
-        if deleted_unwalked && tokio::fs::try_exists(self.keyframe_path(still_writing_from)).await?
+        // only if it has written the file there since, which is still there or was seen and maybe
+        // deleted above. Its walk would then wait at the deleted one for good, so the run is
+        // stopped, and the request for it starts ffmpeg again; so it is too if that can't be told.
+        if deleted_unwalked
+            && (saw_walk_end
+                || !matches!(
+                    tokio::fs::try_exists(self.keyframe_path(still_writing_from)).await,
+                    Ok(false)
+                ))
         {
             task.abort();
             self.note_written(run).await;
@@ -433,13 +440,25 @@ impl Running {
         loop {
             tokio::time::sleep(POLL_EVERY).await;
             let written_to = self.note_written(run).await;
-            let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
-            // An earlier segment asked for just after a seek mustn't stop the run it started.
-            let asked = asked.max(self.timeline.keyframe_ms(run.from));
-            if self.timeline.keyframe_ms(written_to).saturating_sub(asked) >= RUN_AHEAD_MS {
+            let from_ms = self.run_ahead_from_ms(run);
+            if self
+                .timeline
+                .keyframe_ms(written_to)
+                .saturating_sub(from_ms)
+                >= RUN_AHEAD_MS
+            {
                 return;
             }
         }
+    }
+
+    /// Where `run`'s [`RUN_AHEAD_MS`] counts from: the start of the last segment asked for, or
+    /// where it started if later.
+    // An earlier segment asked for just after a seek mustn't stop, or delete what's written by,
+    // the run it started. `delete_unkept` relies on `written_far_ahead` using the same bound.
+    fn run_ahead_from_ms(&self, run: &FfmpegRun) -> i64 {
+        let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
+        asked.max(self.timeline.keyframe_ms(run.from))
     }
 
     /// Notes in `run` how far it has written, and returns it. Walks on from where it last looked,
