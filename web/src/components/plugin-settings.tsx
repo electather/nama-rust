@@ -2,7 +2,8 @@ import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { FormEnd } from "@/components/form-field";
-import { SettingInput, refusedSettings, settingsTyped } from "@/components/setting-fields";
+import { SettingInput, settingsTyped } from "@/components/setting-fields";
+import { refusedSettings } from "@/components/setting-refusals";
 import { TestButton, testPassed, useSettingsTest } from "@/components/settings-test";
 import { PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { onSubmitted } from "@/lib/forms";
