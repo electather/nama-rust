@@ -42,6 +42,8 @@ pub(super) struct ServerServiceHandler {
     pub(super) points: ExtensionPoints,
     /// Where local disk keeps the images.
     pub(super) data_dir: PathBuf,
+    /// Whether the Server exports Diagnostics, so the web app records its own.
+    pub(super) exports_diagnostics: bool,
 }
 
 #[expect(
@@ -61,6 +63,7 @@ impl ServerService for ServerServiceHandler {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_required,
             image_widths: images::WIDTHS.to_vec(),
+            exports_diagnostics: self.exports_diagnostics,
             ..Default::default()
         })
     }

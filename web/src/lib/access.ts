@@ -19,12 +19,16 @@ export interface RouterContext {
 // Both answers stay cached until signing in, signing out or setting up clears the cache.
 
 /** Whether the Server has no Users yet, so the first Admin still has to be created. */
-export async function isSetupRequired({ queryClient, transport }: RouterContext) {
-  const server = await queryClient.query({
+export async function isSetupRequired(context: RouterContext) {
+  return (await serverInfo(context)).setupRequired;
+}
+
+/** What any client can read about the Server, such as its name. */
+export function serverInfo({ queryClient, transport }: RouterContext) {
+  return queryClient.query({
     ...createQueryOptions(ServerService.method.getServerInfo, {}, { transport }),
     staleTime: "static",
   });
-  return server.setupRequired;
 }
 
 /** Who is signed in on this Device, or `null` when nobody is. */

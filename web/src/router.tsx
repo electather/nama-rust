@@ -8,11 +8,13 @@ import type { ReactNode } from "react";
 import { RouteError } from "@/components/route-error";
 import { signedInQuery, whoIsSignedIn } from "@/lib/access";
 import { isCode, retryIfUnreachable } from "@/lib/connect-errors";
+import { traceCalls, traceRouteChanges } from "@/lib/diagnostics";
 
+// oxlint-disable-next-line import/max-dependencies -- the router puts together the transport, the query cache, the routes and their Diagnostics
 import { routeTree } from "./routeTree.gen";
 
 // The Server serves the app, so RPCs go to the page's own origin (ADR 0015).
-const sameOrigin = createConnectTransport({ baseUrl: "/" });
+const sameOrigin = createConnectTransport({ baseUrl: "/", interceptors: [traceCalls] });
 
 /** The app's router. Tests pass a fake `transport`. */
 export function getRouter(transport: Transport = sameOrigin) {
@@ -35,6 +37,7 @@ export function getRouter(transport: Transport = sameOrigin) {
       </TransportProvider>
     ),
   });
+  traceRouteChanges(router);
 
   // An `unauthenticated` may mean the session has ended, or may just be a wrong password. A
   // `permission_denied` may mean an Admin changed your Permissions. Asking again who is signed in

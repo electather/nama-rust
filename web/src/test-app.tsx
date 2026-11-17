@@ -20,8 +20,9 @@ import { PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
+// oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads, through the app's own interceptors
+import { traceCalls } from "@/lib/diagnostics";
 
-// oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads
 import { getRouter } from "./router";
 
 // A file's first `findBy…` waits while the app's route chunks load for the first time, which took
@@ -102,8 +103,11 @@ export function fakeServer(
     // Every signed-in page follows the Server's Events.
     router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });
     more(router);
-  });
+  }, interceptingAsTheApp);
 }
+
+// The app's transport traces calls while the Server exports Diagnostics, so the fake Server's does too.
+const interceptingAsTheApp = { transport: { interceptors: [traceCalls] } };
 
 /** The title of each row on the page, Show titles included, top to bottom. */
 export function rowTitles() {
