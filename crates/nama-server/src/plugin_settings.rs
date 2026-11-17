@@ -415,11 +415,11 @@ impl PluginSettings {
         Ok(Some(with_stored(plugin, &mut self.stored().await?)))
     }
 
-    /// Saves `sent` as the Plugin `id`'s settings, a secret left out keeping its stored value and a
-    /// repeated Library id kept once, then applies them if it is stored as enabled, so a restart
-    /// retries settings that fail to enable it (ADR 0028). One that fails to enable with them is
-    /// put back as it ran, as [`PluginSettings::enable_granting`] does. Returns the Plugin as it is
-    /// now, enabled only if running, with what is stored for it.
+    /// Saves `sent` as the Plugin `id`'s settings, then applies them if it is stored as enabled, so
+    /// a restart retries settings that fail to enable it (ADR 0028). A secret left out keeps its
+    /// stored value unless `forgotten` names it, and a repeated Library id is kept once. One that
+    /// fails to enable with them is put back as it ran, as [`PluginSettings::enable_granting`]
+    /// does. Returns the Plugin as it is now, enabled only if running, with what is stored for it.
     ///
     /// # Errors
     ///
@@ -431,6 +431,7 @@ impl PluginSettings {
         &self,
         id: &PluginId,
         sent: BTreeMap<String, SettingValue>,
+        forgotten: Vec<String>,
     ) -> Result<StoredPlugin, ChangeError> {
         let (this, id) = (self.clone(), id.clone());
         detached(async move {
@@ -439,10 +440,11 @@ impl PluginSettings {
                 manifest,
                 StoredPlugin {
                     plugin,
-                    stored,
+                    mut stored,
                     granted,
                 },
             ) = this.listed(&id).await?;
+            stored.settings.retain(|key, _| !forgotten.contains(key));
             let mut settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
             library_ids::dedupe_library_ids(&manifest.settings, &mut settings);
             check_fits(&manifest.settings, &settings, stored.enabled)

@@ -102,8 +102,12 @@ message UpdatePluginSettingsRequest {
   // The Plugin's id, such as `tmdb`.
   string id = 1;
   // Each setting's new value, by key. A setting left out or blank takes its default, except a
-  // secret, which keeps its stored value. Keys the Plugin's schema doesn't name are ignored.
+  // secret, which keeps its stored value unless `forgotten_secrets` names it. Keys the Plugin's
+  // schema doesn't name are ignored.
   map<string, SettingValue> settings = 2;
+  // The keys of secret settings whose stored value is forgotten. A key also given a value in
+  // `settings` takes that value; a key that isn't a secret of the Plugin is ignored.
+  repeated string forgotten_secrets = 3;
 }
 
 message UpdatePluginSettingsResponse {

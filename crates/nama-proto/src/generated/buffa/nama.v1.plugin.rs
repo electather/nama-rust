@@ -1345,7 +1345,8 @@ pub struct UpdatePluginSettingsRequest {
     )]
     pub id: ::buffa::alloc::string::String,
     /// Each setting's new value, by key. A setting left out or blank takes its default, except a
-    /// secret, which keeps its stored value. Keys the Plugin's schema doesn't name are ignored.
+    /// secret, which keeps its stored value unless `forgotten_secrets` names it. Keys the Plugin's
+    /// schema doesn't name are ignored.
     ///
     /// Field 2: `settings`
     #[serde(
@@ -1357,6 +1358,17 @@ pub struct UpdatePluginSettingsRequest {
         ::buffa::alloc::string::String,
         SettingValue,
     >,
+    /// The keys of secret settings whose stored value is forgotten. A key also given a value in
+    /// `settings` takes that value; a key that isn't a secret of the Plugin is ignored.
+    ///
+    /// Field 3: `forgotten_secrets`
+    #[serde(
+        rename = "forgottenSecrets",
+        alias = "forgotten_secrets",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub forgotten_secrets: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1366,6 +1378,7 @@ impl ::core::fmt::Debug for UpdatePluginSettingsRequest {
         f.debug_struct("UpdatePluginSettingsRequest")
             .field("id", &self.id)
             .field("settings", &self.settings)
+            .field("forgotten_secrets", &self.forgotten_secrets)
             .finish()
     }
 }
@@ -1405,6 +1418,9 @@ impl ::buffa::Message for UpdatePluginSettingsRequest {
                 _,
                 _,
             >(&self.settings, 1u64, __cache);
+        for v in &self.forgotten_secrets {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1423,6 +1439,9 @@ impl ::buffa::Message for UpdatePluginSettingsRequest {
             _,
             _,
         >(&self.settings, 2u32, __cache, buf);
+        for v in &self.forgotten_secrets {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -1454,6 +1473,17 @@ impl ::buffa::Message for UpdatePluginSettingsRequest {
                     _,
                 >(&mut self.settings, buf, ctx)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.forgotten_secrets.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1464,6 +1494,7 @@ impl ::buffa::Message for UpdatePluginSettingsRequest {
     fn clear(&mut self) {
         self.id.clear();
         self.settings.clear();
+        self.forgotten_secrets.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
