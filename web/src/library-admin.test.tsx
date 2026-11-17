@@ -11,6 +11,7 @@ import {
   type UnmatchedItemSchema,
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
 import { admin, eventFeed, fakeServer, fill, openApp } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
@@ -250,10 +251,10 @@ test("a Library that isn't on the Server shows the not-found page, under the app
   expect(screen.getByRole("navigation", { name: "Admin" })).toBeDefined();
 });
 
-/** A fake Server whose Library changes are refused for the request field `field` with `message`. */
-function serverRefusingLibraryField(field: string, message: string) {
+/** A fake Server whose Library changes are refused with `error`. */
+function serverRefusingLibraryChanges(error: ConnectError) {
   const refuse = () => {
-    throw refused(Code.InvalidArgument, message, { field });
+    throw error;
   };
   return adminServer(new ReadableStream(), (router) => {
     router.service(LibraryService, {
@@ -265,20 +266,19 @@ function serverRefusingLibraryField(field: string, message: string) {
   });
 }
 
+const nameTaken = { reason: RefusalReason.LIBRARY_NAME_TAKEN, field: "name" };
+
 describe.each([
   ["/admin/libraries", "Create Library"],
   ["/admin/libraries/1", "Save changes"],
 ])("on %s", (path, action) => {
+  // Each message is already the sentence shown, which the form shows as it is.
   test.each([
-    ["Name", "name", "a Library's name can't be blank", "A Library's name can't be blank."],
-    [
-      "Folders",
-      "folders[2]",
-      "the folder srv is not an absolute path",
-      "The folder srv is not an absolute path.",
-    ],
-  ])("a refused %s shows under its field", async (label, field, message, shown) => {
-    openApp(path, serverRefusingLibraryField(field, message));
+    ["Name", Code.InvalidArgument, { field: "name" }, "A Library's name can't be blank."],
+    ["Name", Code.AlreadyExists, nameTaken, 'The Library "Films" already has this name.'],
+    ["Folders", Code.InvalidArgument, { field: "folders[2]" }, "The folder srv is not absolute."],
+  ] as const)("a refused %s shows under its field", async (label, code, refusal, shown) => {
+    openApp(path, serverRefusingLibraryChanges(refused(code, shown, refusal)));
     await screen.findByRole("button", { name: action });
     fill("Name", "Films");
     fireEvent.change(screen.getByRole("textbox", { name: "Folders" }), {

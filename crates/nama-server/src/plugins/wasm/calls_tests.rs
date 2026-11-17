@@ -6,9 +6,9 @@ use std::{
 use nama_plugin_api::{
     BoxFuture,
     automation::{
-        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, StoreEntry,
-        StoreKey, StoreValue, Stored, Tick, Titles, TitlesAsked, Users, UsersAsked, WatchStates,
-        WatchStatesAsked,
+        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Requesters,
+        RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Tick, Titles, TitlesAsked,
+        Users, UsersAsked, WatchStates, WatchStatesAsked,
     },
 };
 use nama_plugin_proto::{
@@ -90,6 +90,13 @@ impl Kernel for Slow {
         refuse()
     }
 
+    fn list_requesters<'a>(
+        &'a self,
+        _: &'a RequestersAsked,
+    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
+        refuse()
+    }
+
     fn delete_media<'a>(
         &'a self,
         _: &'a DeleteAsked,
@@ -147,6 +154,13 @@ impl Kernel for Gate {
     }
 
     fn list_users<'a>(&'a self, _: &'a UsersAsked) -> BoxFuture<'a, Result<Users, KernelRefused>> {
+        refuse()
+    }
+
+    fn list_requesters<'a>(
+        &'a self,
+        _: &'a RequestersAsked,
+    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
         refuse()
     }
 

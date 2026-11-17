@@ -167,7 +167,7 @@ _Avoid_: plugin database, KV, cache, plugin state
 ## Media
 
 **Library**:
-A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders, whose titles come from its title sources, asked in its own order.
+A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders, whose titles come from its title sources, asked in its own order. Its name is unique on its Server, ignoring case.
 _Avoid_: collection, section
 
 **Item**:

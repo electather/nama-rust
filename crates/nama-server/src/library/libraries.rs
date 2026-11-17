@@ -9,7 +9,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
-use crate::db::Database;
+use crate::{db::Database, users::name_key};
 
 /// The kind of media a Library holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
@@ -66,6 +66,9 @@ pub(crate) enum Error {
     },
     #[error("there is no Library {0}")]
     NotFound(i64),
+    /// Another Library, named `library`, has the name, ignoring case and how accents were typed.
+    #[error("the Library {library:?} already has this name")]
+    NameTaken { library: String },
     /// A folder in the request already belongs to another Library.
     #[error("the folder {folder} already belongs to the Library {library:?}")]
     FolderTaken { folder: String, library: String },
@@ -318,6 +321,7 @@ async fn create(
         mut title_sources,
         recognisers,
     } = order;
+    ensure_name_free(conn, &name).await?;
     ensure_folders_free(conn, &folders, None).await?;
     let id = sqlx::query_scalar!(
         r#"INSERT INTO libraries (name, kind) VALUES (?, ?) RETURNING id AS "id!""#,
@@ -360,15 +364,23 @@ async fn update(
         title_sources,
         recognisers,
     } = order;
+    let current = sqlx::query_scalar!("SELECT name FROM libraries WHERE id = ?", id)
+        .fetch_optional(&mut *conn)
+        .await?
+        .ok_or(Error::NotFound(id))?;
+    // Keeping its name, even in other letter case, lets a Library that shared it before names were
+    // unique keep it.
+    if name_key(&name) != name_key(&current) {
+        ensure_name_free(conn, &name).await?;
+    }
     let row = sqlx::query!(
         r#"UPDATE libraries SET name = ? WHERE id = ?
            RETURNING kind AS "kind: Kind", title_sources, recognisers"#,
         name,
         id,
     )
-    .fetch_optional(&mut *conn)
-    .await?
-    .ok_or(Error::NotFound(id))?;
+    .fetch_one(&mut *conn)
+    .await?;
     ensure_folders_free(conn, &folders, Some(id)).await?;
     // A folder it keeps stays read-only until a scan says otherwise; a new one holds nothing to
     // delete until a scan, which checks it.
@@ -613,6 +625,19 @@ async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
     #[cfg(unix)]
     tokio::fs::metadata(path.join(".")).await?;
     Ok(())
+}
+
+/// Fails if a Library already has `name`, by the key a User's name is unique under. Folded in
+/// Rust, as SQLite's `lower()` and `NOCASE` fold only ASCII.
+async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(), Error> {
+    let key = name_key(name);
+    let names = sqlx::query_scalar!("SELECT name FROM libraries")
+        .fetch_all(&mut *conn)
+        .await?;
+    match names.into_iter().find(|other| name_key(other) == key) {
+        Some(library) => Err(Error::NameTaken { library }),
+        None => Ok(()),
+    }
 }
 
 /// Fails if one of `folders` is, is inside, or holds a folder of a Library other than `except`.

@@ -19,6 +19,7 @@ import "nama/plugin/v1/request.proto";
 //   list_titles:       TitlesAsked      -> Titles         PERMISSION_READ_LIBRARIES
 //   list_watch_states: WatchStatesAsked -> WatchStates    PERMISSION_READ_WATCH_STATES
 //   list_users:        UsersAsked       -> Users          PERMISSION_READ_USERS
+//   list_requesters:   RequestersAsked  -> Requesters     PERMISSION_READ_REQUESTS
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
@@ -66,6 +67,8 @@ enum Permission {
   PERMISSION_DELETE_MEDIA = 4;
   // Every User's id and display name: `list_users`.
   PERMISSION_READ_USERS = 5;
+  // Who Requested each title: `list_requesters`.
+  PERMISSION_READ_REQUESTS = 6;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
@@ -208,6 +211,27 @@ message Users {
 message User {
   int64 id = 1;
   string display_name = 2;
+}
+
+// What `list_requesters` takes.
+message RequestersAsked {
+  repeated TitleRef titles = 1;
+}
+
+// What `list_requesters` answers: each title asked for with who Requested it.
+message Requesters {
+  repeated TitleRequesters titles = 1;
+}
+
+// Who Requested one title. A Movie's Requesters are those of any Request for it that isn't
+// Declined, whatever its state. An Episode's are those of any such Request for its Season, and
+// of the Followed Show that requested that Season unless it was Declined.
+message TitleRequesters {
+  TitleRef title_ref = 1;
+  // Whether any such Request is for the title, even one whose Requesters were all deleted.
+  bool requested = 2;
+  // The ids of its Requesters who are still Users, each once.
+  repeated int64 user_ids = 3;
 }
 
 // What `delete_media` takes: the title whose media files to delete.

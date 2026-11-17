@@ -4,7 +4,7 @@ use std::{
     env,
     future::Future,
     io::{self, IsTerminal},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::ExitCode,
     sync::Arc,
 };
@@ -56,12 +56,8 @@ async fn main() -> ExitCode {
 }
 
 async fn run(args: Args) -> ExitCode {
-    let config = match Config::load(args.config.as_deref()) {
-        Ok(config) => config,
-        Err(err) => {
-            error!("could not load config: {err}");
-            return ExitCode::FAILURE;
-        }
+    let Some(config) = load_config(args.config.as_deref()) else {
+        return ExitCode::FAILURE;
     };
 
     // Listen before announcing startup, so a Ctrl-C right after the log line isn't missed.
@@ -143,6 +139,28 @@ async fn run(args: Args) -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+/// Loads the config, warning about each key in the file it ignores. Returns `None`, having logged
+/// why, if it can't.
+fn load_config(file: Option<&Path>) -> Option<Config> {
+    let (config, unknown_keys) = match Config::load(file) {
+        Ok(loaded) => loaded,
+        Err(err) => {
+            error!("could not load config: {err}");
+            return None;
+        }
+    };
+    let file = file.unwrap_or_else(|| Path::new(config::DEFAULT_FILE));
+    // Only an unknown key's name is logged: its value may be a secret written in the wrong place.
+    for key in unknown_keys {
+        warn!(
+            key,
+            file = %file.display(),
+            "ignoring a config key the Server doesn't know; the file's `#:schema` line lets an editor check it"
+        );
+    }
+    Some(config)
 }
 
 /// Opens the database in the data directory. Returns `None`, having logged why, if it can't.

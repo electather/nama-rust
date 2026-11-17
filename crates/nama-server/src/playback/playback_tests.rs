@@ -116,6 +116,7 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
             gpus: vec![],
         },
         failed: BTreeSet::new(),
+        keyframes_unlisted: false,
         audio: None,
         running_transcodes: RunningTranscodes::default(),
         max_transcodes: None,
@@ -265,6 +266,19 @@ fn a_remux_and_a_transcode_carry_the_versions_length() {
         "{:?}",
         transcode.playing
     );
+}
+
+#[test]
+fn a_remux_whose_keyframes_couldnt_be_listed_transcodes_and_says_why() {
+    let mut facts = Facts {
+        keyframes_unlisted: true,
+        ..in_container(MKV, Some(vec![video("h264"), audio("aac", true)]))
+    };
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.method(), Some(Method::Transcode));
+    assert!(reason_of(&plan, Kind::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED).decided);
 }
 
 fn rules_out_direct_play(_: &Facts, _: Option<&Candidates>) -> Vec<Reason> {

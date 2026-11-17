@@ -5,6 +5,8 @@
 mod browsing;
 #[path = "support/http.rs"]
 mod http;
+#[path = "playback/keyframes.rs"]
+mod keyframes;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -410,7 +412,14 @@ impl Fixture {
         fx.write(ALIEN_1080P, b"video");
         fx.write(ALIEN_2160P, b"video");
         fx.scan_and_match().await;
-        ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        fx.allow_one_transcode().await;
+        let versions = fx.version_ids(ALIEN).await.try_into().unwrap();
+        (fx, versions)
+    }
+
+    /// Lets the Server run one Transcode at once.
+    async fn allow_one_transcode(&self) {
+        ServerServiceClient::new(HttpClient::plaintext(), self.server.client_config())
             .update_playback_settings(UpdatePlaybackSettingsRequest {
                 settings: PlaybackSettings {
                     max_transcodes: Some(1),
@@ -421,8 +430,6 @@ impl Fixture {
             })
             .await
             .unwrap();
-        let versions = fx.version_ids(ALIEN).await.try_into().unwrap();
-        (fx, versions)
     }
 
     /// The Admin's Device's Transcode of the Version `version`.
@@ -977,48 +984,6 @@ fn cuts(durations: &[f64]) -> Vec<f64> {
         Some(*end)
     });
     ends.collect()
-}
-
-/// A Server whose ffprobe, a shell script in `bin`, writes the arguments of each run to `log`
-/// and then runs the ffprobe on `PATH`.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-#[cfg(unix)]
-fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
-    let ffmpeg = system_ffmpeg();
-    let real = ffmpeg.ffprobe.unwrap().path;
-    let ffprobe = format!(
-        "#!/bin/sh\necho \"$*\" >> '{}'\nexec '{}' \"$@\"\n",
-        log.display(),
-        real.display()
-    );
-    Ffmpeg {
-        ffprobe: Ok(script(bin, "ffprobe", &ffprobe)),
-        ..ffmpeg
-    }
-}
-
-// The logging ffprobe is a shell script.
-#[cfg(unix)]
-#[tokio::test]
-async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
-    let bin = tempfile::tempdir().unwrap();
-    let log = bin.path().join("runs.log");
-    let (fx, version) = Fixture::alien_mkv(ffprobe_logging_its_runs(bin.path(), &log), "aac").await;
-
-    let first = fx.plan(version).await.unwrap();
-    let second = fx.plan(version).await.unwrap();
-
-    assert_ne!(first.url, second.url, "each plan runs on its own");
-    assert_eq!(
-        fx.fetch_ok(&first.url).await,
-        fx.fetch_ok(&second.url).await
-    );
-    let runs = fs::read_to_string(&log).unwrap();
-    let listings = runs.lines().filter(|run| run.contains("packet=pts_time"));
-    assert_eq!(listings.count(), 1, "{runs}");
 }
 
 /// As for Direct Play, the session cookie is what lets a browser's HLS player fetch them.

@@ -36,7 +36,10 @@ use nama_server::{
     plugins::Registry, users::SetupCode,
 };
 use tempfile::TempDir;
-use tokio::{net::TcpListener, sync::oneshot};
+use tokio::{
+    net::TcpListener,
+    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, oneshot},
+};
 
 use fulfiller::{FakeFulfiller, Fulfills};
 
@@ -59,6 +62,18 @@ pub(crate) struct TestServer {
     fulfiller: Option<FakeFulfiller>,
     _stop: oneshot::Sender<()>,
     data_dir: TempDir,
+    clock: ClockGuard,
+}
+
+/// What [`Builder::moves_clock`] holds alone: see "One clock" in `crates/nama-server/AGENTS.md`.
+/// Trap: tokio's `RwLock` is fair, so a test that holds a shared guard and starts a second
+/// `TestServer` while a writer waits deadlocks.
+static CLOCK: RwLock<()> = RwLock::const_new(());
+
+/// A [`TestServer`]'s hold on [`CLOCK`], for as long as the Server lives.
+enum ClockGuard {
+    Shared(RwLockReadGuard<'static, ()>),
+    Exclusive(RwLockWriteGuard<'static, ()>),
 }
 
 /// How a [`TestServer`] starts: its config, Plugins, ffmpeg, and whether it has a fake TMDB and
@@ -70,6 +85,7 @@ pub(crate) struct Builder {
     ffmpeg: Ffmpeg,
     tmdb: bool,
     fulfiller: Option<(Fulfills, FakeFulfiller)>,
+    moves_clock: bool,
 }
 
 impl Builder {
@@ -106,6 +122,14 @@ impl Builder {
         self.fake_fulfiller(Fulfills::Shows, profiles)
     }
 
+    /// Has the Server hold the clock alone, so its test may call [`TestServer::advance_clock`].
+    pub(crate) fn moves_clock(self) -> Self {
+        Self {
+            moves_clock: true,
+            ..self
+        }
+    }
+
     fn fake_fulfiller(self, fulfills: Fulfills, profiles: &[&str]) -> Self {
         let fake = FakeFulfiller::default();
         fake.offer_profiles(profiles);
@@ -122,18 +146,25 @@ impl Builder {
         reason = "a test helper fails its test by panicking"
     )]
     pub(crate) async fn start(self) -> TestServer {
-        self.serve(tempfile::tempdir().unwrap(), None).await
+        let clock = if self.moves_clock {
+            ClockGuard::Exclusive(CLOCK.write().await)
+        } else {
+            ClockGuard::Shared(CLOCK.read().await)
+        };
+        self.serve(tempfile::tempdir().unwrap(), None, clock).await
     }
 
     /// Stops `server` and starts serving its data directory again, as a restart does, with its
-    /// Admin still signed in.
+    /// Admin still signed in. The new Server keeps the old one's hold on the clock, since locking
+    /// it again while the test holds it would deadlock.
     pub(crate) async fn restart(self, server: TestServer) -> TestServer {
         let TestServer {
             admin_token,
             data_dir,
+            clock,
             ..
         } = server;
-        self.serve(data_dir, Some(admin_token)).await
+        self.serve(data_dir, Some(admin_token), clock).await
     }
 
     /// Serves `data_dir`, signed in as `admin_token`, or else setting the first Admin up.
@@ -141,13 +172,19 @@ impl Builder {
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    async fn serve(self, data_dir: TempDir, admin_token: Option<String>) -> TestServer {
+    async fn serve(
+        self,
+        data_dir: TempDir,
+        admin_token: Option<String>,
+        clock: ClockGuard,
+    ) -> TestServer {
         let Self {
             config,
             plugins,
             ffmpeg,
             tmdb,
             fulfiller,
+            ..
         } = self;
         plugins.describe_builtin(|| Arc::new(LocalAuth));
         // Every Server has TMDB Built in, and a Library created naming no title source orders it.
@@ -203,6 +240,7 @@ impl Builder {
             fulfiller,
             _stop: stop,
             data_dir,
+            clock,
         }
     }
 }
@@ -336,12 +374,18 @@ impl TestServer {
 
     /// Moves the Server's clock, and so every Plugin's, ahead by `by`, as for a test that ages a
     /// Watch State. The Admin's session lasts `DEVICE_LIFETIME`, 90 days, so stay under it, and do
-    /// what needs Recent Authentication before advancing, or sign in again.
-    #[expect(
-        clippy::unused_self,
-        reason = "the clock is process-wide, but a test moves it as this Server's"
-    )]
+    /// what needs Recent Authentication before advancing, or sign in again. The clock is
+    /// process-wide, so this Server must hold it alone: see "One clock" in
+    /// `crates/nama-server/AGENTS.md`.
+    ///
+    /// # Panics
+    ///
+    /// If the builder didn't call [`Builder::moves_clock`].
     pub(crate) fn advance_clock(&self, by: Duration) {
+        assert!(
+            matches!(self.clock, ClockGuard::Exclusive(_)),
+            "build a Server whose test moves the clock with `Builder::moves_clock()`"
+        );
         nama_server::db::advance_clock(by);
     }
 
@@ -440,12 +484,14 @@ impl TestServer {
         let dir = tempfile::tempdir().unwrap();
         // The Server stores and sends a folder's canonical path, which a temp dir's may not be.
         let folder = dir.path().canonicalize().unwrap();
+        let path = folder.to_str().unwrap();
         let id = self
             .libraries()
             .create_library(CreateLibraryRequest {
-                name: "Media".to_owned(),
+                // Named after its folder, as a test may create more than one.
+                name: path.to_owned(),
                 kind: kind.into(),
-                folders: vec![folder.to_str().unwrap().to_owned()],
+                folders: vec![path.to_owned()],
                 title_sources: title_sources
                     .iter()
                     .map(|&source| source.to_owned())

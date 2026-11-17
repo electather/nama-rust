@@ -1,0 +1,33 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.season AS \"season!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"ids?: String\"\n                       FROM item_match_ids AS named\n                       JOIN item_matches ON item_matches.item_id = named.item_id\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       WHERE named.scope = 'title' AND named.namespace = ? AND named.value = ?\n                         AND library_files.library_id = ?\n                         AND library_items.kind = 'episode'\n                         AND item_matches.state = 'matched'\n                       ORDER BY library_files.path\n                       LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "season!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "ids?: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "b4cd1fbe832637bb57e3496d20d60ed5c364132d5c93a581faf1ff5a62d0db12"
+}

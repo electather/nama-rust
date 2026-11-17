@@ -420,6 +420,40 @@ async fn a_folder_that_already_backs_another_library_is_refused_as_already_exist
 }
 
 #[tokio::test]
+async fn another_librarys_name_in_any_case_is_refused_as_already_existing() {
+    let fx = Fixture::start().await;
+    let (films, tv) = (fx.folder("films"), fx.folder("tv"));
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    let created = fx
+        .create(" movies ", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await;
+    let shows = fx
+        .create("Shows", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await
+        .unwrap();
+    let renamed = fx.update(shows.id, "MOVIES", &[&tv]).await;
+
+    for refused in [created, renamed] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::AlreadyExists,
+            RefusalReason::REFUSAL_REASON_LIBRARY_NAME_TAKEN,
+        );
+        assert_eq!(refusal.field, "name");
+        let library = refusal.params.get("library").map(String::as_str);
+        assert_eq!(library, Some("Movies"));
+    }
+    assert_eq!(
+        fx.list().await,
+        [movies, shows],
+        "a refused change was kept"
+    );
+}
+
+#[tokio::test]
 async fn a_folder_inside_or_holding_another_librarys_is_refused_as_overlapping() {
     let fx = Fixture::start().await;
     let media = fx.folder("media");
@@ -616,6 +650,7 @@ fn sources(names: &[&str]) -> Vec<String> {
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
+    /// Creates a Shows Library named after its one `folder`, so each such Library's name differs.
     async fn create_searching(
         &self,
         folder: &str,
@@ -624,7 +659,7 @@ impl Fixture {
         let response = self
             .client
             .create_library(CreateLibraryRequest {
-                name: "TV".to_owned(),
+                name: folder.to_owned(),
                 kind: LibraryKind::LIBRARY_KIND_SHOWS.into(),
                 folders: vec![folder.to_owned()],
                 title_sources: sources(title_sources),

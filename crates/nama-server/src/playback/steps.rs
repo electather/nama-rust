@@ -464,6 +464,19 @@ pub(super) fn failed_on_device(facts: &Facts, _: Option<&Candidates>) -> Vec<Rea
         .collect()
 }
 
+/// The step for keyframes the Server just couldn't list: it rules out a Remux, which cuts its
+/// segments at them, for now, since the next plan lists them again.
+pub(super) fn keyframes_unlisted(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
+    let unlisted = facts.keyframes_unlisted.then(|| {
+        Reason::new(
+            Kind::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+            "The Version's keyframes couldn't be listed, so it can't be Remuxed",
+        )
+        .ruling_out([Method::Remux])
+    });
+    unlisted.into_iter().collect()
+}
+
 #[cfg(test)]
 #[path = "steps_tests.rs"]
 mod tests;

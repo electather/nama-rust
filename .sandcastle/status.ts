@@ -16,6 +16,7 @@ export type Event = { t: string; run: string } & (
   | { kind: "note"; issue: number; text: string } // e.g. "rebase", "CI fix"
   | { kind: "done"; issue: number; outcome: Outcome; why?: string }
   | { kind: "waiting"; list: Waiting[] }
+  | { kind: "drain" } // a newer run took over; this one finishes what it holds
   | { kind: "run-end"; reason: string }
 );
 type Body = Event extends infer E ? (E extends Event ? Omit<E, "t" | "run"> : never) : never;
@@ -63,11 +64,15 @@ export function render(events: Event[], repoUrl: string, now: Date): string {
       tracks.delete(e.issue);
     }
   }
-  // Only this run's issues are in flight; a killed run's leftovers are not.
-  const claimedThisRun = new Set(
-    events.filter((e) => e.kind === "stage" && e.stage === "claimed" && e.run === run).map((e) => (e as { issue: number }).issue),
-  );
-  const inFlight = end ? [] : [...tracks].filter(([n]) => claimedThisRun.has(n));
+  // Only live runs' issues are in flight: this run's and those of older runs still draining after a handover. A
+  // killed run's leftovers are not. ponytail: a draining run that was killed stays live here.
+  const ended = new Set(events.filter((e) => e.kind === "run-end").map((e) => e.run));
+  const draining = [...new Set(events.filter((e) => e.kind === "drain" && e.run !== run).map((e) => e.run))]
+    .filter((r) => !ended.has(r));
+  const live = new Set([...draining, ...(run && !end ? [run] : [])]);
+  const claimedBy = new Map<number, string>();
+  for (const e of events) if (e.kind === "stage" && e.stage === "claimed") claimedBy.set(e.issue, e.run);
+  const inFlight = [...tracks].filter(([n]) => live.has(claimedBy.get(n) ?? ""));
   const waiting = end ? [] : (events.findLast((e) => e.kind === "waiting" && e.run === run) as { list: Waiting[] } | undefined)?.list ?? [];
 
   const link = (kind: "issues" | "pull", n: string | number) => `[#${n}](${repoUrl}/${kind}/${n})`;
@@ -79,7 +84,9 @@ export function render(events: Event[], repoUrl: string, now: Date): string {
   if (start?.kind === "run-start") {
     // In flight counts PRs waiting for CI or to merge, which hold no slot (see slotPool in main.ts).
     out.push(`**Run:** ${run} · started ${hhmm(start.t)} · ${inFlight.length} in flight · ${start.slots} slots`);
-    out.push(`**Ended:** ${end?.kind === "run-end" ? `${hhmm(end.t)} · ${cell(end.reason)}` : "—"}`, "");
+    out.push(`**Ended:** ${end?.kind === "run-end" ? `${hhmm(end.t)} · ${cell(end.reason)}` : "—"}`);
+    if (draining.length) out.push(`**Draining:** ${draining.join(", ")}`);
+    out.push("");
   }
   out.push("## In flight", "| Issue | Title | Stage | Since | PR | CI |", "|---|---|---|---|---|---|");
   for (const [n, tr] of inFlight) {

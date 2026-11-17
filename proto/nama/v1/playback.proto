@@ -401,6 +401,9 @@ enum PlaybackReasonKind {
   // Rules out Direct Play and Remux: the VobSub subtitles chosen need Burn-in on a Device that
   // draws VobSub, because their Track carries no palette to draw them with (ADR 0033).
   PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE = 32;
+  // Rules out Remux: the Server couldn't list the Version's keyframes, which a Remux cuts its
+  // segments at, as when reading the whole file failed or took too long.
+  PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED = 33;
 
   // The rest rule nothing out.
 

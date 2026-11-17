@@ -7,8 +7,8 @@ use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, Registrar,
     automation::{
         Automation, DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked,
-        Permission, StoreEntry, StoreKey, StoreValue, Stored, Tick, Titles, TitlesAsked, Users,
-        UsersAsked, WatchStates, WatchStatesAsked,
+        Permission, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Tick,
+        Titles, TitlesAsked, Users, UsersAsked, WatchStates, WatchStatesAsked,
     },
     settings::Settings,
 };
@@ -95,6 +95,13 @@ impl Kernel for Fake {
     }
 
     fn list_users<'a>(&'a self, _: &'a UsersAsked) -> BoxFuture<'a, Result<Users, KernelRefused>> {
+        refuse("not faked")
+    }
+
+    fn list_requesters<'a>(
+        &'a self,
+        _: &'a RequestersAsked,
+    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
         refuse("not faked")
     }
 

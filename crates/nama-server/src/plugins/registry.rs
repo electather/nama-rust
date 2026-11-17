@@ -13,8 +13,8 @@ use nama_plugin_api::{
     Registration, Stop,
     automation::{
         DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Permission,
-        StoreEntry, StoreKey, StoreValue, Stored, Titles, TitlesAsked, Users, UsersAsked,
-        WatchStates, WatchStatesAsked,
+        Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Titles, TitlesAsked,
+        Users, UsersAsked, WatchStates, WatchStatesAsked,
     },
     fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsSchema},
@@ -609,6 +609,13 @@ impl Kernel for EnabledKernel {
         asked: &'a UsersAsked,
     ) -> BoxFuture<'a, Result<Users, KernelRefused>> {
         Box::pin(async move { self.resolve()?.list_users(asked).await })
+    }
+
+    fn list_requesters<'a>(
+        &'a self,
+        asked: &'a RequestersAsked,
+    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
+        Box::pin(async move { self.resolve()?.list_requesters(asked).await })
     }
 
     fn delete_media<'a>(
