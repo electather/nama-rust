@@ -3,10 +3,12 @@
 
 use std::{collections::HashMap, fmt};
 
+use nama_plugin_api::metadata::ExternalIds;
 use nama_proto::nama::v1::{RequestState, Requester};
 use sqlx::SqliteConnection;
 
 use super::Error;
+use super::state::ids_json;
 use crate::users::is_requester;
 
 /// Which kind of thing Users asked for.
@@ -197,6 +199,43 @@ pub(super) async fn join(
         };
     }
     Ok(per_kind!(asked, join).rows_affected() > 0)
+}
+
+/// The ids of the Users who Requested the Movie with any of `ids`, or its Season `season` if `ids`
+/// are a Show's, in id order: `None` if nothing Requested it. Any Request for it that isn't
+/// Declined counts, whatever its state, with its Followed Show's Requesters unless that was
+/// Declined.
+pub(crate) async fn who_requested(
+    conn: &mut SqliteConnection,
+    ids: &ExternalIds,
+    season: Option<i64>,
+) -> Result<Option<Vec<i64>>, sqlx::Error> {
+    let ids = ids_json(ids);
+    // Any state, as a Season Request stays Approved while its Episodes arrive before hand-off and a
+    // Failed one may have some (#872). A Request whose Requesters were all deleted gives one NULL
+    // row, so it still counts as Requested.
+    let rows = sqlx::query_scalar!(
+        r#"WITH requested AS (
+               SELECT DISTINCT requests.id, requests.followed_show_id FROM requests
+               JOIN request_title_ids AS title ON title.request_id = requests.id
+               JOIN json_each(?1) AS wanted
+                   ON title.namespace = wanted.key AND title.value = wanted.value
+               WHERE requests.season IS ?2 AND requests.state != 'declined')
+           SELECT requesters.user_id AS "user_id?: i64" FROM requested
+           LEFT JOIN requesters ON requesters.request_id = requested.id
+           UNION
+           SELECT followed.user_id FROM requested
+           JOIN followed_shows ON followed_shows.id = requested.followed_show_id
+           JOIN followed_show_requesters AS followed
+               ON followed.followed_show_id = followed_shows.id
+           WHERE followed_shows.state != 'declined'
+           ORDER BY 1"#,
+        ids,
+        season
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    Ok((!rows.is_empty()).then(|| rows.into_iter().flatten().collect()))
 }
 
 #[cfg(test)]

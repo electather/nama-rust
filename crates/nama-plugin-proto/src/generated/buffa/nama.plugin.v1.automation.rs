@@ -18,6 +18,8 @@ pub enum Permission {
     PERMISSION_DELETE_MEDIA = 4i32,
     /// Every User's id and display name: `list_users`.
     PERMISSION_READ_USERS = 5i32,
+    /// Who Requested each title: `list_requesters`.
+    PERMISSION_READ_REQUESTS = 6i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -38,6 +40,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_READ_USERS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ReadUsers: Self = Self::PERMISSION_READ_USERS;
+    ///Idiomatic alias for [`Self::PERMISSION_READ_REQUESTS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ReadRequests: Self = Self::PERMISSION_READ_REQUESTS;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -139,6 +144,7 @@ impl ::buffa::Enumeration for Permission {
             3i32 => ::core::option::Option::Some(Self::PERMISSION_READ_WATCH_STATES),
             4i32 => ::core::option::Option::Some(Self::PERMISSION_DELETE_MEDIA),
             5i32 => ::core::option::Option::Some(Self::PERMISSION_READ_USERS),
+            6i32 => ::core::option::Option::Some(Self::PERMISSION_READ_REQUESTS),
             _ => ::core::option::Option::None,
         }
     }
@@ -153,6 +159,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_WATCH_STATES => "PERMISSION_READ_WATCH_STATES",
             Self::PERMISSION_DELETE_MEDIA => "PERMISSION_DELETE_MEDIA",
             Self::PERMISSION_READ_USERS => "PERMISSION_READ_USERS",
+            Self::PERMISSION_READ_REQUESTS => "PERMISSION_READ_REQUESTS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -173,6 +180,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_READ_USERS" => {
                 ::core::option::Option::Some(Self::PERMISSION_READ_USERS)
             }
+            "PERMISSION_READ_REQUESTS" => {
+                ::core::option::Option::Some(Self::PERMISSION_READ_REQUESTS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -184,6 +194,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_WATCH_STATES,
             Self::PERMISSION_DELETE_MEDIA,
             Self::PERMISSION_READ_USERS,
+            Self::PERMISSION_READ_REQUESTS,
         ]
     }
 }
@@ -3882,6 +3893,524 @@ pub const __USER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_
     type_url: "type.googleapis.com/nama.plugin.v1.User",
     to_json: ::buffa::type_registry::any_to_json::<User>,
     from_json: ::buffa::type_registry::any_from_json::<User>,
+    is_wkt: false,
+};
+/// What `list_requesters` takes.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct RequestersAsked {
+    /// Field 1: `titles`
+    #[serde(
+        rename = "titles",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub titles: ::buffa::alloc::vec::Vec<TitleRef>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RequestersAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RequestersAsked").field("titles", &self.titles).finish()
+    }
+}
+impl RequestersAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.RequestersAsked";
+}
+::buffa::impl_default_instance!(RequestersAsked);
+impl ::buffa::MessageName for RequestersAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "RequestersAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.RequestersAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.RequestersAsked";
+}
+impl ::buffa::Message for RequestersAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.titles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.titles {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.titles.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.titles.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RequestersAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.RequestersAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for RequestersAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __REQUESTERS_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.RequestersAsked",
+    to_json: ::buffa::type_registry::any_to_json::<RequestersAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<RequestersAsked>,
+    is_wkt: false,
+};
+/// What `list_requesters` answers: each title asked for with who Requested it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Requesters {
+    /// Field 1: `titles`
+    #[serde(
+        rename = "titles",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub titles: ::buffa::alloc::vec::Vec<TitleRequesters>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Requesters {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Requesters").field("titles", &self.titles).finish()
+    }
+}
+impl Requesters {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Requesters";
+}
+::buffa::impl_default_instance!(Requesters);
+impl ::buffa::MessageName for Requesters {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Requesters";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Requesters";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Requesters";
+}
+impl ::buffa::Message for Requesters {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.titles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.titles {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.titles.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.titles.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Requesters {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.Requesters";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Requesters {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __REQUESTERS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.Requesters",
+    to_json: ::buffa::type_registry::any_to_json::<Requesters>,
+    from_json: ::buffa::type_registry::any_from_json::<Requesters>,
+    is_wkt: false,
+};
+/// Who Requested one title. A Movie's Requesters are those of any Request for it that isn't
+/// Declined, whatever its state. An Episode's are those of any such Request for its Season, and
+/// of the Followed Show that requested that Season unless it was Declined.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct TitleRequesters {
+    /// Field 1: `title_ref`
+    #[serde(
+        rename = "titleRef",
+        alias = "title_ref",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub title_ref: ::buffa::MessageField<TitleRef, ::buffa::Inline<TitleRef>>,
+    /// Whether any such Request is for the title, even one whose Requesters were all deleted.
+    ///
+    /// Field 2: `requested`
+    #[serde(
+        rename = "requested",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub requested: bool,
+    /// The ids of its Requesters who are still Users, each once.
+    ///
+    /// Field 3: `user_ids`
+    #[serde(
+        rename = "userIds",
+        alias = "user_ids",
+        with = "::buffa::json_helpers::proto_seq",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub user_ids: ::buffa::alloc::vec::Vec<i64>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for TitleRequesters {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("TitleRequesters")
+            .field("title_ref", &self.title_ref)
+            .field("requested", &self.requested)
+            .field("user_ids", &self.user_ids)
+            .finish()
+    }
+}
+impl TitleRequesters {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.TitleRequesters";
+}
+::buffa::impl_default_instance!(TitleRequesters);
+impl ::buffa::MessageName for TitleRequesters {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "TitleRequesters";
+    const FULL_NAME: &'static str = "nama.plugin.v1.TitleRequesters";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.TitleRequesters";
+}
+impl ::buffa::Message for TitleRequesters {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.title_ref.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.title_ref.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.requested {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.user_ids.is_empty() {
+            let payload: u64 = self
+                .user_ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.title_ref.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.title_ref.write_to(__cache, buf);
+        }
+        if self.requested {
+            ::buffa::types::put_bool_field(2u32, self.requested, buf);
+        }
+        if !self.user_ids.is_empty() {
+            let payload: u64 = self
+                .user_ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(3u32, payload, buf);
+            for &v in &self.user_ids {
+                ::buffa::types::encode_int64(v, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.title_ref.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.requested = ::buffa::types::decode_bool(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_int64(
+                            &buf.chunk()[..len],
+                            &mut self.user_ids,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.user_ids.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.user_ids
+                                .push(::buffa::types::decode_int64_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.user_ids.push(::buffa::types::decode_int64(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.title_ref = ::buffa::MessageField::none();
+        self.requested = false;
+        self.user_ids.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for TitleRequesters {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.TitleRequesters";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for TitleRequesters {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __TITLE_REQUESTERS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.TitleRequesters",
+    to_json: ::buffa::type_registry::any_to_json::<TitleRequesters>,
+    from_json: ::buffa::type_registry::any_from_json::<TitleRequesters>,
     is_wkt: false,
 };
 /// What `delete_media` takes: the title whose media files to delete.

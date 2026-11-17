@@ -66,6 +66,12 @@ pub(super) const FUNCTIONS: &[Function] = &[
         answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::list_users),
     },
     Function {
+        name: "list_requesters",
+        answer: |runtime, kernel, request| {
+            answer(runtime, kernel, request, Kernel::list_requesters)
+        },
+    },
+    Function {
         name: "delete_media",
         answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::delete_media),
     },

@@ -1,8 +1,12 @@
-//! One page of a Library's Matched Movies or Episodes, as an Automation Plugin lists them.
+//! One page of a Library's Matched Movies or Episodes, as an Automation Plugin lists them, and
+//! what it reads of the titles on one.
 
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{Contents, ItemKind};
+use super::{
+    Contents, ItemKind,
+    ids::{ids_from_json, ids_sql},
+};
 
 /// A Matched Movie or Episode on a page [`Contents::titles_page`] reads, with what the Match of
 /// its first Version, by path, stores.
@@ -141,6 +145,41 @@ impl Contents {
             }
         }
         Ok(found)
+    }
+
+    /// Every id the Match gives the Show of the Episode `episode` of the Library `library`, and
+    /// the Episode's Season number, as its first Version, by path, stores them. `None` if the
+    /// Library doesn't have it.
+    pub(crate) async fn season_of(
+        &self,
+        library: i64,
+        episode: &ExternalId,
+    ) -> Result<Option<(ExternalIds, i64)>, sqlx::Error> {
+        let (namespace, value) = (episode.namespace(), episode.value());
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_items.season AS "season!", "#
+                        + $ids
+                        + r#"'show') AS "ids?: String"
+                       FROM item_match_ids AS named
+                       JOIN item_matches ON item_matches.item_id = named.item_id
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE named.scope = 'title' AND named.namespace = ? AND named.value = ?
+                         AND library_files.library_id = ?
+                         AND library_items.kind = 'episode'
+                         AND item_matches.state = 'matched'
+                       ORDER BY library_files.path
+                       LIMIT 1"#,
+                    namespace,
+                    value,
+                    library
+                )
+            };
+        }
+        let found = ids_sql!(select).fetch_optional(self.db.reader()).await?;
+        Ok(found.map(|row| (ids_from_json(row.ids.as_deref()), row.season)))
     }
 }
 
