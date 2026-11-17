@@ -277,7 +277,9 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
   /**
    * The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
    * Unset for the Server to choose by the User's Audio Preference, or else the one the Version
-   * plays by default, which `PlaybackPlan.audio_track` then says.
+   * plays by default, which `PlaybackPlan.audio_track` then says. A place that isn't an audio
+   * Track, as when the Version changed since the caller saw it, plays the one the Version plays
+   * by default, and gets no reason.
    *
    * @generated from field: optional uint32 audio_track = 3;
    */
@@ -288,7 +290,8 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
    * as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
    * styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
    * from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
-   * Preference, which `PlaybackPlan.starting_subtitle` then says.
+   * Preference, which `PlaybackPlan.starting_subtitle` then says. A place that isn't a subtitle
+   * Track, or one the Device draws itself, is the same as `no_subtitles`, and gets no reason.
    *
    * @generated from field: optional uint32 subtitle_track = 4;
    */
@@ -458,8 +461,10 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
   tracks: Track[];
 
   /**
-   * The facts that shaped it, in the order the steps that found them ran. A step that changes
-   * nothing gives none, so a Direct Play nothing stood in the way of has none.
+   * The facts that shaped it, in the order the steps that found them ran. A step gives one only
+   * when it rules a method out, changes what plays, drops a choice or assumes what it couldn't
+   * know, so a Direct Play on a Server that can do everything has none; one on a busy Server, or
+   * one without ffmpeg, says so as context (ADR 0034).
    *
    * @generated from field: repeated nama.v1.PlaybackReason reasons = 13;
    */
@@ -493,15 +498,16 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
   /**
    * The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
    * asked for or the Server chose, or else the one the Version plays by default. Unset when it has
-   * no audio or its Tracks aren't known.
+   * no audio or its Tracks aren't known. A plan that can't be played drops no choice, so it says
+   * the one asked for, if that is one of the Version's audio Tracks.
    *
    * @generated from field: optional uint32 audio_track = 8;
    */
   audioTrack?: number | undefined;
 
   /**
-   * The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
-   * for none, as when the one asked for can't be burned in.
+   * The subtitle Track it burns into the picture, by its place in the Version's `tracks`, or would
+   * if it could be played. Unset for none, as when the one asked for can't be burned in.
    *
    * @generated from field: optional uint32 subtitle_track = 9;
    */
@@ -533,8 +539,8 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
 
   /**
    * The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
-   * burns in, or else, when the request left the choice to the Server, one of `subtitles` that
-   * the player shows itself. Unset for none.
+   * burns in, or would if it could be played, or else, when the request left the choice to the
+   * Server, one of `subtitles` that the player shows itself. Unset for none.
    *
    * @generated from field: optional uint32 starting_subtitle = 14;
    */
@@ -1322,7 +1328,9 @@ export const PlaybackService: GenService<{
   /**
    * Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
    * first if the Server has no current Tracks for it. A choice the caller asks for that the plan
-   * can't honour here is dropped, and a reason says so (ADR 0031). Fails with `not_found` if
+   * can't honour here is dropped if the plan then plays, and a reason says so (ADR 0031); one
+   * naming a Track that isn't there or of its kind, or a subtitle the Device draws itself, is
+   * ignored and gets no reason (`audio_track`, `subtitle_track`). Fails with `not_found` if
    * there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
    * itself needs a Transcode to play it, never for a choice, and the Server is already running as
    * many as it may; one of the caller's own Device's doesn't count, as a new plan replaces the one

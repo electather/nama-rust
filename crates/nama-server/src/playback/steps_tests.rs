@@ -1,16 +1,16 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
-use super::{default_max_transcodes, too_busy_to_play};
+use super::{remux, too_busy_to_play};
 use crate::{
     ffmpeg::{Accel, Hardware, ToneMapper, Transcode, VideoConversion},
     playback::{
-        Facts, Method, build,
+        Facts, Method, Plan, RunningTranscodes, build,
         tests::{
             Given, MKV, MP4, audio, decided, dolby_vision_8, facts, falls_back_to, given,
-            hdr_video, in_container, kind_and_params, kinds, reason_of, transcoded, video,
-            video_hdr, without_ffmpeg,
+            hdr_video, in_container, kind_and_params, kinds, reason_of, text_subtitle, transcoded,
+            video, video_hdr, while_busy, without_ffmpeg,
         },
         tracks::{BaseLayer, Hdr},
     },
@@ -77,11 +77,11 @@ fn a_version_whose_tracks_arent_known_cant_be_played_once_direct_play_failed() {
 
 #[test]
 fn a_version_whose_tracks_arent_known_is_never_too_busy_to_play() {
-    let facts = Facts {
+    let mut facts = Facts {
         failed: BTreeSet::from([Method::DirectPlay, Method::Remux]),
-        transcodes_full: Some(1),
         ..facts(None)
     };
+    while_busy(&mut facts);
 
     assert_eq!(too_busy_to_play(facts), None);
 }
@@ -313,10 +313,8 @@ fn dolby_vision_over_sdr_isnt_tone_mapped_for_a_device_that_cant_show_hdr() {
 
 #[test]
 fn a_busy_server_remuxes_what_the_device_can_play_remuxed_and_says_so_as_context() {
-    let mut facts = Facts {
-        transcodes_full: Some(1),
-        ..in_container(MKV, Some(vec![video("h264"), audio("aac", true)]))
-    };
+    let mut facts = in_container(MKV, Some(vec![video("h264"), audio("aac", true)]));
+    while_busy(&mut facts);
 
     let plan = build(&mut facts);
 
@@ -325,7 +323,7 @@ fn a_busy_server_remuxes_what_the_device_can_play_remuxed_and_says_so_as_context
         given(&plan)[1],
         (
             Kind::PLAYBACK_REASON_KIND_SERVER_BUSY,
-            vec![("maxTranscodes", "1")]
+            vec![("maxTranscodes", "2")]
         )
     );
     assert_eq!(decided(&plan), [true, false], "a Remux would play anyway");
@@ -333,11 +331,19 @@ fn a_busy_server_remuxes_what_the_device_can_play_remuxed_and_says_so_as_context
 }
 
 #[test]
+fn a_remux_of_hevc_video_is_flagged_hevc_and_of_h264_isnt() {
+    let remux_of = |codec| remux(&in_container(MKV, Some(vec![video(codec)])), None);
+
+    assert!(remux_of("hevc").hevc);
+    assert!(!remux_of("h264").hevc);
+}
+
+#[test]
 fn a_plan_only_a_transcode_would_play_is_too_busy_to_play_while_the_server_is_busy() {
     let hevc = || Some(vec![video("hevc"), audio("aac", true)]);
-    let busy = |facts| Facts {
-        transcodes_full: Some(2),
-        ..facts
+    let busy = |mut facts| {
+        while_busy(&mut facts);
+        facts
     };
     let mut without_hls = busy(facts(hevc()));
     without_hls.device.hls = false;
@@ -685,18 +691,102 @@ fn a_software_transcode_has_no_fallback() {
     assert_eq!(falls_back_to(&plan), None);
 }
 
+/// `facts` while other Devices run `all` Transcodes, `cpu_bound` of them on the CPU.
+fn while_running(all: u32, cpu_bound: u32, facts: Facts) -> Facts {
+    Facts {
+        running_transcodes: RunningTranscodes { all, cpu_bound },
+        ..facts
+    }
+}
+
+/// HDR10 that Firefox can't show, on a Server whose ffmpeg found only `hardware`.
+fn hdr_on(hardware: Hardware) -> Facts {
+    hevc_on(HardwareChoice::Automatic, vec![hardware], Some(Hdr::Hdr10))
+}
+
+/// Fails unless the default cap's running Transcodes on the CPU keep `plan` from playing.
+fn assert_busy_by_default(plan: &Plan) {
+    let busy = (
+        Kind::PLAYBACK_REASON_KIND_SERVER_BUSY,
+        vec![("maxTranscodes", "2")],
+    );
+    assert_eq!(plan.method(), None);
+    assert!(given(plan).contains(&busy), "{:?}", given(plan));
+}
+
 #[test]
-fn the_transcode_cap_is_unlimited_by_default_only_with_hardware_in_use() {
-    assert_eq!(
-        default_max_transcodes(&hevc_on(HardwareChoice::Automatic, vec![VAAPI], None)),
-        u32::MAX
+fn by_default_an_hdr_transcode_tone_mapped_on_the_cpu_waits_for_two_cpu_bound_ones() {
+    let mut facts = while_running(2, 2, hdr_on(VAAPI));
+
+    let plan = build(&mut facts);
+
+    assert_busy_by_default(&plan);
+    assert_eq!(too_busy_to_play(facts), Some(2));
+}
+
+#[test]
+fn by_default_an_hdr_transcode_tone_mapped_on_the_gpu_is_never_busy() {
+    let mut facts = while_running(5, 5, hdr_on(QSV));
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.method(), Some(Method::Transcode));
+}
+
+#[test]
+fn by_default_an_sdr_transcode_on_hardware_is_never_busy() {
+    let mut facts = while_running(9, 2, hevc_on(HardwareChoice::Automatic, vec![VAAPI], None));
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.method(), Some(Method::Transcode));
+}
+
+#[test]
+fn by_default_an_hdr_transcode_burning_in_a_subtitle_is_cpu_bound_so_a_busy_server_drops_it() {
+    let burning_in = |running| {
+        let mut facts = while_running(running, running, hdr_on(QSV));
+        if let Some(probe) = &mut facts.probe {
+            probe.tracks.push(text_subtitle("ass"));
+        }
+        facts.subtitle = Some(2);
+        build(&mut facts)
+    };
+
+    let idle = burning_in(0);
+    let busy = burning_in(2);
+
+    let burned_in = transcoded(&idle).video;
+    assert!(burned_in.burn_in.is_some() && burned_in.cpu_bound());
+    assert!(
+        kinds(&busy).contains(&Kind::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED),
+        "{:?}",
+        kinds(&busy)
     );
     assert_eq!(
-        default_max_transcodes(&hevc_on(HardwareChoice::Off, vec![VAAPI], None)),
-        2
+        transcoded(&busy).video.burn_in,
+        None,
+        "with the subtitle dropped it tone-maps on the GPU"
     );
-    assert_eq!(
-        default_max_transcodes(&hevc_on(HardwareChoice::Automatic, vec![], None)),
-        2
-    );
+}
+
+#[test]
+fn by_default_a_third_software_transcode_is_refused() {
+    let mut facts = while_running(2, 2, hevc_on(HardwareChoice::Off, vec![VAAPI], None));
+
+    let plan = build(&mut facts);
+
+    assert_busy_by_default(&plan);
+}
+
+#[test]
+fn a_set_transcode_cap_counts_every_running_transcode() {
+    let capped_at = |max, all| Facts {
+        max_transcodes: NonZeroU32::new(max),
+        ..while_running(all, 0, hdr_on(QSV))
+    };
+
+    assert_eq!(too_busy_to_play(capped_at(3, 3)), Some(3));
+    assert_eq!(too_busy_to_play(capped_at(3, 2)), None);
+    assert_eq!(too_busy_to_play(capped_at(u32::MAX, 3)), None);
 }

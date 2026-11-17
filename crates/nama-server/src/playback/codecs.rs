@@ -136,6 +136,7 @@ pub(super) fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Tr
                             aac_channels: Some(channels),
                             ..
                         }),
+                    ..
                 },
             ..
         }) => converted_to_aac(tracks, *channels),

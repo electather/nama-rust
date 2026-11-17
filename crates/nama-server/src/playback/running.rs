@@ -112,6 +112,14 @@ pub(crate) enum StartError {
     Busy(u32),
 }
 
+/// The Transcodes running, as a Transcode cap counts them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct RunningTranscodes {
+    pub(super) all: u32,
+    /// Those that work the CPU hard, which the default cap counts.
+    pub(super) cpu_bound: u32,
+}
+
 /// The playable plans, by id.
 #[derive(Clone)]
 pub(crate) struct RunningPlans {
@@ -202,28 +210,39 @@ impl RunningPlans {
         Self { inner }
     }
 
-    /// The most Transcodes the Server may run at once, `max`, if that many already run, leaving
-    /// out one of `device`'s own: the plan it asks for replaces the one it plays, which it stops
-    /// only once the new one plays.
+    /// The Transcodes running, leaving out one of `device`'s own: the plan it asks for replaces
+    /// the one it plays, which it stops only once the new one plays.
     // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
     // Device planning in that window finds room and they can pass the cap together until
     // Transcodes end; reserve room under the plans' lock if that ever matters.
-    pub(crate) fn transcodes_full(&self, device: i64, max: u32) -> Option<u32> {
+    pub(super) fn running_transcodes(&self, device: i64) -> RunningTranscodes {
         let plans = lock(&self.inner.plans);
         let (own, others): (Vec<_>, Vec<_>) = (plans.values())
-            .filter(|plan| (plan.hls.as_ref()).is_some_and(|hls| hls.method == Method::Transcode))
-            .partition(|plan| plan.playback.device_id == device);
-        let running = others.len() + own.len().saturating_sub(1);
-        (u32::try_from(running).unwrap_or(u32::MAX) >= max).then_some(max)
+            .filter_map(|plan| {
+                let hls = (plan.hls.as_ref()).filter(|hls| hls.method == Method::Transcode)?;
+                Some((plan.playback.device_id, hls.cpu_bound()))
+            })
+            .partition(|(id, _)| *id == device);
+        let cpu_bound =
+            |transcodes: &[(i64, bool)]| transcodes.iter().filter(|(_, cpu)| *cpu).count();
+        let leaving_one_own_out = |of_own: usize, of_others: usize| {
+            u32::try_from(of_others + of_own.saturating_sub(1)).unwrap_or(u32::MAX)
+        };
+        RunningTranscodes {
+            all: leaving_one_own_out(own.len(), others.len()),
+            cpu_bound: leaving_one_own_out(cpu_bound(&own), cpu_bound(&others)),
+        }
     }
 
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
-    /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file. `None`
-    /// if there is no such Version, it's being deleted, or `plan` can't be played.
+    /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file, from the
+    /// segment playing at `start_ms`. `None` if there is no such Version, it's being deleted, or
+    /// `plan` can't be played.
     pub(crate) async fn start(
         &self,
         caller: &Caller,
         plan: super::Plan,
+        start_ms: i64,
     ) -> Result<Option<StartedPlan>, StartError> {
         let Some(playing) = plan
             .playing
@@ -238,14 +257,14 @@ impl RunningPlans {
                 Some((self.direct_play(playback), direct_play_url(plan.version)))
             }
             Playing::Remux { remux, duration_ms } => {
-                self.remux(playback, remux, duration_ms).await?
+                self.remux(playback, remux, duration_ms, start_ms).await?
             }
             Playing::Transcode {
                 transcode,
                 duration_ms,
                 fallback,
             } => {
-                self.transcode(playback, transcode, duration_ms, fallback)
+                self.transcode(playback, transcode, duration_ms, fallback, start_ms)
                     .await?
             }
         };
@@ -253,13 +272,14 @@ impl RunningPlans {
     }
 
     /// Starts Remuxing the Version `playback` plays, `duration_ms` long, for the Device it plays
-    /// on, converting what `remux` says, and returns its id and its playlist's URL. `None` if
-    /// there is no such Version.
+    /// on, converting what `remux` says, from the segment playing at `start_ms`, and returns its
+    /// id and its playlist's URL. `None` if there is no such Version.
     async fn remux(
         &self,
         playback: Playback,
         remux: Remux,
         duration_ms: i64,
+        start_ms: i64,
     ) -> Result<Option<(u64, String)>, StartError> {
         let version = playback.version_id;
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
@@ -277,25 +297,32 @@ impl RunningPlans {
         let runs = Runs {
             run: Box::new(run),
             fallback: None,
+            cpu_bound: false,
         };
         let id = self
-            .start_hls(playback, Method::Remux, timeline, runs)
+            .start_hls(playback, Method::Remux, timeline, start_ms, runs)
             .await?;
         Ok(Some((id, playlist_url(id))))
     }
 
     /// Starts Transcoding the Version `playback` plays, `duration_ms` long, for the Device it
-    /// plays on, converting what `transcode` says, and returns its id and its playlist's URL. Its
-    /// segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. Once a run on hardware
-    /// fails, it goes on with `fallback`. `None` if there is no such Version.
+    /// plays on, converting what `transcode` says, from the segment playing at `start_ms`, and
+    /// returns its id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces
+    /// a keyframe at each. Once a run on hardware fails, it goes on with `fallback`. `None` if
+    /// there is no such Version.
     ///
     /// [`SEGMENT_MS`]: timeline::SEGMENT_MS
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "`Playing::Transcode`'s fields as `start` unpacks them, and where playing starts"
+    )]
     async fn transcode(
         &self,
         playback: Playback,
         transcode: Transcode,
         duration_ms: i64,
         fallback: Option<super::Fallback>,
+        start_ms: i64,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
             .version_file(playback.version_id)
@@ -324,11 +351,12 @@ impl RunningPlans {
             },
         );
         let runs = Runs {
+            cpu_bound: transcode.video.cpu_bound(),
             run: run(transcode),
             fallback,
         };
         let id = self
-            .start_hls(playback, Method::Transcode, timeline, runs)
+            .start_hls(playback, Method::Transcode, timeline, start_ms, runs)
             .await?;
         Ok(Some((id, playlist_url(id))))
     }
@@ -341,13 +369,23 @@ impl RunningPlans {
     }
 
     /// Starts a plan playing `playback`, cut as `timeline` says, whose files `runs` starts
-    /// ffmpeg writing, and returns the plan's id.
+    /// ffmpeg writing from the segment playing at `start_ms`, and returns the plan's id.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a different part of the plan, and `start_ms` only says where its first \
+                  run starts"
+    )]
     async fn start_hls(
         &self,
         playback: Playback,
         method: Method,
         timeline: Timeline,
-        Runs { run, fallback }: Runs,
+        start_ms: i64,
+        Runs {
+            run,
+            fallback,
+            cpu_bound,
+        }: Runs,
     ) -> io::Result<u64> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         let dir = self
@@ -363,21 +401,26 @@ impl RunningPlans {
             _ => {}
         }
         tokio::fs::create_dir_all(&dir).await?;
+        // Its segment's first keyframe, not the one nearest: a run starting partway into a
+        // segment is restarted as soon as the player asks for that segment.
+        let start_segment = timeline.segment_at(start_ms);
+        let first_keyframe = timeline.keyframes_of(start_segment).start;
         let running = Arc::new(Running {
             id,
             method,
             timeline,
             dir,
             run,
-            last_asked: AtomicUsize::new(0),
+            last_asked: AtomicUsize::new(start_segment),
             closed: AtomicBool::new(false),
             fallback,
             fell_back: AtomicBool::new(false),
+            started_cpu_bound: cpu_bound,
             events: self.inner.events.clone(),
             playback: playback.clone(),
             ffmpeg: tokio::sync::Mutex::default(),
         });
-        *running.ffmpeg.lock().await = Some(running.run_from(0)?);
+        *running.ffmpeg.lock().await = Some(running.run_from(first_keyframe)?);
         self.insert(id, playback, Some(running));
         Ok(id)
     }

@@ -31,6 +31,8 @@ pub(crate) fn hls_init_from(name: &str) -> Option<usize> {
 pub(crate) struct Remux {
     /// The audio Track it plays, or `None` when the Version has none.
     pub(crate) audio: Option<RemuxAudio>,
+    /// Whether the video it copies is HEVC, so it's tagged `hvc1` for Apple's players.
+    pub(crate) hevc: bool,
 }
 
 /// The audio Track a Remux plays.
@@ -109,11 +111,12 @@ fn transcoded_video(
     before: Option<String>,
     burn_in: Option<BurnIn>,
     after: Option<String>,
+    seeks: bool,
 ) -> Vec<String> {
     let drawn = match burn_in {
         None => None,
         Some(BurnIn::Image { subtitle, picture }) => {
-            let graph = overlay_graph(before, subtitle, picture, after);
+            let graph = overlay_graph(before, subtitle, picture, after, seeks);
             return ["-filter_complex", &graph, "-map", "[video]"]
                 .map(str::to_owned)
                 .into();
@@ -126,11 +129,10 @@ fn transcoded_video(
             filter_value(path)
         )),
     };
-    let filters: Vec<String> = [before, drawn, after].into_iter().flatten().collect();
     let mut args: Vec<String> = ["-map", "0:V:0"].map(str::to_owned).into();
-    if !filters.is_empty() {
+    if let Some(filters) = filter_chain([before, drawn, after]) {
         // One `-vf`: a second would replace the first.
-        args.extend(["-vf".to_owned(), filters.join(",")]);
+        args.extend(["-vf".to_owned(), filters]);
     }
     args
 }
@@ -143,7 +145,11 @@ fn overlay_graph(
     subtitle: usize,
     picture: Option<(i64, i64)>,
     after: Option<String>,
+    seeks: bool,
 ) -> String {
+    // The input's `-ss` drops a bitmap that began before it, so a run that seeks reads the
+    // subtitle from a second input, `transcode` opens, that doesn't.
+    let source = usize::from(seeks);
     // A bitmap's canvas can be smaller than the picture, as a 4K Blu-ray's 1080p PGS is, or
     // another shape, as a cropped film's 1080p PGS is: scaled evenly and centred, its text is
     // neither stretched nor cut off.
@@ -154,7 +160,7 @@ fn overlay_graph(
     let (before, fit) = (or_null(before), or_null(fit));
     let after: String = after.map_or_default(|after| format!(",{after}"));
     format!(
-        "[0:V:0]{before}[picture];[0:s:{subtitle}]{fit}[subtitle];\
+        "[0:V:0]{before}[picture];[{source}:s:{subtitle}]{fit}[subtitle];\
          [picture][subtitle]overlay=(W-w)/2:(H-h)/2{after}[video]"
     )
 }
@@ -189,6 +195,13 @@ pub(crate) struct VideoConversion {
     pub(crate) in_band_headers: bool,
 }
 
+impl VideoConversion {
+    /// Whether it works the CPU hard: it runs in software, or tone-maps there.
+    pub(crate) fn cpu_bound(&self) -> bool {
+        self.hardware.is_none() || self.tone_map == Some(ToneMapper::Software)
+    }
+}
+
 /// What tone-maps a Transcode's HDR to SDR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ToneMapper {
@@ -210,7 +223,9 @@ pub(super) struct VideoArgs {
 }
 
 /// The arguments for ffmpeg that convert the first video of the file at `path` as `video` says.
-pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
+///
+/// `seeks` is whether the input is opened at a point past its start.
+pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> VideoArgs {
     let size = video.limit.and_then(|limit| limit.size);
     let accel = video.hardware.as_ref().map(|hardware| hardware.accel);
     let gpu = video
@@ -246,24 +261,29 @@ pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
             codec,
         };
     }
-    // Subtitles are drawn after tone-mapping, which would dim them, and before scaling, so they
-    // shrink with the picture.
-    let before = (video.tone_map.is_some()).then(|| TONE_MAP.to_owned());
+    let tone_map = (video.tone_map.is_some()).then(|| TONE_MAP.to_owned());
     // ponytail: the size is from the stored picture, so a rotated phone clip is stretched; swap
     // its sides once probing reads rotation.
     let scale = size.map(|(width, height)| format!("scale={width}:{height}"));
     let upload = accel.map(|accel| accel.upload().to_owned());
-    let after: Vec<String> = [scale, upload].into_iter().flatten().collect();
+    // Scaling down first spares tone-mapping the pixels it drops. A subtitle instead goes after
+    // tone-mapping, which would dim it, and before scaling, so it shrinks with the picture and an
+    // image subtitle still fits the source size `overlay_graph` is given.
+    let (before, after) = match video.burn_in {
+        None => (filter_chain([scale, tone_map, upload]), None),
+        Some(_) => (tone_map, filter_chain([scale, upload])),
+    };
     VideoArgs {
         input: accel.map_or_default(|accel| accel.input(gpu, false)),
-        video: transcoded_video(
-            path,
-            before,
-            video.burn_in,
-            (!after.is_empty()).then(|| after.join(",")),
-        ),
+        video: transcoded_video(path, before, video.burn_in, after, seeks),
         codec,
     }
+}
+
+/// The `filters` given, comma-joined in order into one chain, or `None` if none is.
+fn filter_chain<const N: usize>(filters: [Option<String>; N]) -> Option<String> {
+    let filters: Vec<String> = filters.into_iter().flatten().collect();
+    (!filters.is_empty()).then(|| filters.join(","))
 }
 
 /// Has `command` take the `audio`th audio Track, if given.

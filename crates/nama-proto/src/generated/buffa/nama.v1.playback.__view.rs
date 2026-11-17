@@ -3324,7 +3324,9 @@ pub struct PlanPlaybackRequestView<'a> {
     pub start_position_ms: u64,
     /// The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
     /// Unset for the Server to choose by the User's Audio Preference, or else the one the Version
-    /// plays by default, which `PlaybackPlan.audio_track` then says.
+    /// plays by default, which `PlaybackPlan.audio_track` then says. A place that isn't an audio
+    /// Track, as when the Version changed since the caller saw it, plays the one the Version plays
+    /// by default, and gets no reason.
     ///
     /// Field 3: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
@@ -3332,7 +3334,8 @@ pub struct PlanPlaybackRequestView<'a> {
     /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
     /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
     /// from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
-    /// Preference, which `PlaybackPlan.starting_subtitle` then says.
+    /// Preference, which `PlaybackPlan.starting_subtitle` then says. A place that isn't a subtitle
+    /// Track, or one the Device draws itself, is the same as `no_subtitles`, and gets no reason.
     ///
     /// Field 4: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
@@ -3806,7 +3809,9 @@ impl PlanPlaybackRequestOwnedView {
     }
     /// The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
     /// Unset for the Server to choose by the User's Audio Preference, or else the one the Version
-    /// plays by default, which `PlaybackPlan.audio_track` then says.
+    /// plays by default, which `PlaybackPlan.audio_track` then says. A place that isn't an audio
+    /// Track, as when the Version changed since the caller saw it, plays the one the Version plays
+    /// by default, and gets no reason.
     ///
     /// Field 3: `audio_track`
     #[must_use]
@@ -3817,7 +3822,8 @@ impl PlanPlaybackRequestOwnedView {
     /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
     /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
     /// from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
-    /// Preference, which `PlaybackPlan.starting_subtitle` then says.
+    /// Preference, which `PlaybackPlan.starting_subtitle` then says. A place that isn't a subtitle
+    /// Track, or one the Device draws itself, is the same as `no_subtitles`, and gets no reason.
     ///
     /// Field 4: `subtitle_track`
     #[must_use]
@@ -4863,8 +4869,10 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 3: `tracks`
     pub tracks: ::buffa::RepeatedView<'a, super::super::__buffa::view::TrackView<'a>>,
-    /// The facts that shaped it, in the order the steps that found them ran. A step that changes
-    /// nothing gives none, so a Direct Play nothing stood in the way of has none.
+    /// The facts that shaped it, in the order the steps that found them ran. A step gives one only
+    /// when it rules a method out, changes what plays, drops a choice or assumes what it couldn't
+    /// know, so a Direct Play on a Server that can do everything has none; one on a busy Server, or
+    /// one without ffmpeg, says so as context (ADR 0034).
     ///
     /// Field 13: `reasons`
     pub reasons: ::buffa::RepeatedView<
@@ -4892,12 +4900,13 @@ pub struct PlaybackPlanView<'a> {
     pub playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
     /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
-    /// no audio or its Tracks aren't known.
+    /// no audio or its Tracks aren't known. A plan that can't be played drops no choice, so it says
+    /// the one asked for, if that is one of the Version's audio Tracks.
     ///
     /// Field 8: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
-    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
-    /// for none, as when the one asked for can't be burned in.
+    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`, or would
+    /// if it could be played. Unset for none, as when the one asked for can't be burned in.
     ///
     /// Field 9: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
@@ -4920,8 +4929,8 @@ pub struct PlaybackPlanView<'a> {
         ::buffa::EnumValue<super::super::PlaybackLimit>,
     >,
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
-    /// burns in, or else, when the request left the choice to the Server, one of `subtitles` that
-    /// the player shows itself. Unset for none.
+    /// burns in, or would if it could be played, or else, when the request left the choice to the
+    /// Server, one of `subtitles` that the player shows itself. Unset for none.
     ///
     /// Field 14: `starting_subtitle`
     pub starting_subtitle: ::core::option::Option<u32>,
@@ -5561,8 +5570,10 @@ impl PlaybackPlanOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrackView<'_>> {
         &self.0.reborrow().tracks
     }
-    /// The facts that shaped it, in the order the steps that found them ran. A step that changes
-    /// nothing gives none, so a Direct Play nothing stood in the way of has none.
+    /// The facts that shaped it, in the order the steps that found them ran. A step gives one only
+    /// when it rules a method out, changes what plays, drops a choice or assumes what it couldn't
+    /// know, so a Direct Play on a Server that can do everything has none; one on a busy Server, or
+    /// one without ffmpeg, says so as context (ADR 0034).
     ///
     /// Field 13: `reasons`
     #[must_use]
@@ -5606,15 +5617,16 @@ impl PlaybackPlanOwnedView {
     }
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
     /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
-    /// no audio or its Tracks aren't known.
+    /// no audio or its Tracks aren't known. A plan that can't be played drops no choice, so it says
+    /// the one asked for, if that is one of the Version's audio Tracks.
     ///
     /// Field 8: `audio_track`
     #[must_use]
     pub fn audio_track(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().audio_track
     }
-    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
-    /// for none, as when the one asked for can't be burned in.
+    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`, or would
+    /// if it could be played. Unset for none, as when the one asked for can't be burned in.
     ///
     /// Field 9: `subtitle_track`
     #[must_use]
@@ -5648,8 +5660,8 @@ impl PlaybackPlanOwnedView {
         &self.0.reborrow().playback_limits
     }
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
-    /// burns in, or else, when the request left the choice to the Server, one of `subtitles` that
-    /// the player shows itself. Unset for none.
+    /// burns in, or would if it could be played, or else, when the request left the choice to the
+    /// Server, one of `subtitles` that the player shows itself. Unset for none.
     ///
     /// Field 14: `starting_subtitle`
     #[must_use]
