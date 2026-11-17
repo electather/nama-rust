@@ -44,7 +44,7 @@ mod title_sources;
 
 use sent::{check_fits, with_stored_secrets};
 pub use stored::{grants, stored};
-use stored::{import, save, set_enabled, set_enabled_granting};
+use stored::{import, never_stored, save, set_enabled, set_enabled_granting, with_stored};
 
 /// The Plugin Permissions granted each stored Plugin, by Plugin id.
 type Grants = BTreeMap<String, HashSet<Permission>>;
@@ -756,32 +756,7 @@ fn lock_ignoring_poison<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// `plugin` with what `stored` holds for it, taken out of `stored`.
-fn with_stored(
-    plugin: Listed,
-    (settings, grants): &mut (BTreeMap<String, PluginConfig>, Grants),
-) -> StoredPlugin {
-    let stored = settings
-        .remove(plugin.id.as_str())
-        .unwrap_or_else(|| never_stored(plugin.kind));
-    let granted = grants.remove(plugin.id.as_str()).unwrap_or_default();
-    StoredPlugin {
-        plugin,
-        stored,
-        granted,
-    }
-}
-
 /// `permission`'s name, such as `PERMISSION_STORE`.
 fn permission_name(permission: Permission) -> &'static str {
     buffa::Enumeration::proto_name(&permission)
-}
-
-/// What a Plugin of `kind` with nothing stored starts as: no settings, and enabled only if it is
-/// Built-in. An Installed Plugin waits for an admin to enable it.
-fn never_stored(kind: PluginKind) -> PluginConfig {
-    PluginConfig {
-        enabled: kind == PluginKind::PLUGIN_KIND_BUILT_IN,
-        settings: BTreeMap::new(),
-    }
 }

@@ -215,3 +215,47 @@ test("marking a Season played marks each of its Episodes played", async () => {
   });
   expect(marked).toBe("season");
 });
+
+/**
+ * A fake Server whose Continue Watching lists `entry` until it's hidden, with each hiding asked of
+ * it: what it hid or showed again, and which.
+ */
+function serverHiding(entry: MessageInitShape<typeof ContinueWatchingEntrySchema>) {
+  let hidden = false;
+  const asked: { case: string | undefined; hidden: boolean }[] = [];
+  const transport = server(
+    { listContinueWatching: () => ({ entries: hidden ? [] : [entry] }) },
+    {
+      setHiddenFromContinueWatching: (request) => {
+        ({ hidden } = request);
+        asked.push({ case: request.target.case, hidden });
+        return {};
+      },
+    },
+  );
+  return { transport, asked };
+}
+
+test("hiding a Show from Continue Watching takes its card away, and Undo brings it back", async () => {
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
+  const { transport, asked } = serverHiding(episodeEntry(dark, 1, 2));
+  openApp("/", transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "More for Dark" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Hide from Continue Watching" }));
+  const undo = await screen.findByRole("button", { name: "Undo" });
+  await waitFor(() => {
+    expect(screen.queryByRole("link", { name: /Dark/u })).toBeNull();
+  });
+  expect(screen.getByRole("status").textContent).toContain(
+    "Dark is hidden until you play it again.",
+  );
+  expect(document.activeElement).toBe(undo);
+
+  fireEvent.click(undo);
+  expect(await screen.findByRole("link", { name: /Dark/u })).toBeDefined();
+  expect(asked).toEqual([
+    { case: "showId", hidden: true },
+    { case: "showId", hidden: false },
+  ]);
+});

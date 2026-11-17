@@ -24,14 +24,14 @@ pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 #[cfg(test)]
 use self::hls::filter_value;
 pub(crate) use self::hls::{
-    BurnIn, FromCut, HlsRun, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
+    BurnIn, FromCut, HlsRun, ImageSubtitle, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
     TranscodeAudio, VideoConversion, VideoLimit, hls_init, hls_init_from,
 };
-use self::hls::{VideoArgs, aac, hls_output, map_audio, seconds, video_args};
+use self::hls::{VideoArgs, aac, hls_output, map_audio, pgs_start_ms, seconds, video_args};
 #[cfg(any(test, feature = "testing"))]
 pub use self::test_media::{
     FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_1080p_h264, write_black_with_pgs,
-    write_h264_with_5_1, write_hevc_with_5_1,
+    write_black_with_pgs_sidecar, write_h264_with_5_1, write_hevc_with_5_1,
 };
 use crate::config::Config;
 
@@ -437,7 +437,7 @@ impl Ffmpeg {
     /// to the end. It cuts a file at each cut, numbered from `from`'s, such as `3.m4s`, and writes
     /// an init segment named by [`hls_init`] that's whole once the first file is. A run started at
     /// any cut writes the same files, so one can pick up where another stopped. Each file appears
-    /// only once it's whole. Fails without ffmpeg.
+    /// only once it's whole. Fails without ffmpeg, or if a PGS sidecar it burns in can't be read.
     pub(crate) fn transcode(
         &self,
         path: &str,
@@ -462,8 +462,27 @@ impl Ffmpeg {
             command.args(["-ss", &seconds(start_ms)]);
         }
         command.arg("-i").arg(path);
-        if seeks && matches!(video.burn_in, Some(BurnIn::Image { .. })) {
-            command.arg("-i").arg(path);
+        match &video.burn_in {
+            Some(BurnIn::Image {
+                subtitle: ImageSubtitle::Sidecar(sidecar),
+                ..
+            }) => {
+                // `-start_at_zero` moves each input back by its own start, a `.sup`'s being its
+                // first picture's time, which `-itsoffset` undoes. No `-ss`: see `overlay_graph`'s
+                // caller.
+                command
+                    .arg("-itsoffset")
+                    .arg(seconds(pgs_start_ms(sidecar)?))
+                    .arg("-i")
+                    .arg(sidecar);
+            }
+            Some(BurnIn::Image {
+                subtitle: ImageSubtitle::Stream(_),
+                ..
+            }) if seeks => {
+                command.arg("-i").arg(path);
+            }
+            _ => {}
         }
         // Times as in the file, so the keyframes forced below fall at the same frames whichever
         // cut a run starts at: `-force_key_frames` expressions time frames from the run's first.

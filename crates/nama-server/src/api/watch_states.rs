@@ -1,9 +1,11 @@
 //! Each signed-in User's progress through what they play: `nama.v1.WatchStateService`.
 
-use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
-    RefusalReason, ReportProgressRequest, ReportProgressResponse, SetPlayedRequest,
-    SetPlayedResponse, WatchStateService, set_played_request::Target,
+    ExternalId, RefusalReason, ReportProgressRequest, ReportProgressResponse,
+    SetHiddenFromContinueWatchingRequest, SetHiddenFromContinueWatchingResponse, SetPlayedRequest,
+    SetPlayedResponse, WatchStateService,
+    set_hidden_from_continue_watching_request::Target as Hide, set_played_request::Target,
 };
 
 use crate::{browse, library::Progress};
@@ -70,14 +72,7 @@ impl WatchStateService for WatchStateServiceHandler {
             .field("target")
         })?;
         let (target, fields) = match target {
-            Target::MovieId(id) => {
-                let fields = Fields {
-                    title: "movie_id",
-                    ..Fields::LIBRARY
-                };
-                let id = required_id(Some(*id), fields.title, "Movie")?;
-                (browse::Target::Movie(id), fields)
-            }
+            Target::MovieId(id) => movie_target(*id)?,
             Target::EpisodeId(id) => {
                 let fields = Fields {
                     title: "episode_id",
@@ -96,17 +91,58 @@ impl WatchStateService for WatchStateServiceHandler {
                 let number = i64::from(season.season_number);
                 (browse::Target::Season { show, number }, fields)
             }
-            Target::ShowId(id) => {
-                let fields = Fields {
-                    title: "show_id",
-                    ..Fields::LIBRARY
-                };
-                let id = required_id(Some(*id), fields.title, "Show")?;
-                (browse::Target::Show(id), fields)
-            }
+            Target::ShowId(id) => show_target(*id)?,
         };
         let marked = self.browse.mark(user, library, target, played).await;
         marked.map_err(refused(fields))?;
         Response::ok(SetPlayedResponse::default())
     }
+
+    async fn set_hidden_from_continue_watching(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetHiddenFromContinueWatchingRequest>,
+    ) -> ServiceResult<SetHiddenFromContinueWatchingResponse> {
+        let user = caller(&ctx)?.user.id;
+        let SetHiddenFromContinueWatchingRequest {
+            library_id: library,
+            target,
+            hidden,
+            ..
+        } = request.to_owned_message();
+        let target = target.ok_or_else(|| {
+            refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "say which Movie or Show to hide",
+            )
+            .field("target")
+        })?;
+        let (target, fields) = match target {
+            Hide::MovieId(id) => movie_target(*id)?,
+            Hide::ShowId(id) => show_target(*id)?,
+        };
+        let hid = self.browse.hide(user, library, target, hidden).await;
+        hid.map_err(refused(fields))?;
+        Response::ok(SetHiddenFromContinueWatchingResponse::default())
+    }
+}
+
+/// A request's `movie_id`, and the fields its refusals name.
+fn movie_target(id: ExternalId) -> Result<(browse::Target, Fields), ConnectError> {
+    let fields = Fields {
+        title: "movie_id",
+        ..Fields::LIBRARY
+    };
+    let id = required_id(Some(id), fields.title, "Movie")?;
+    Ok((browse::Target::Movie(id), fields))
+}
+
+/// A request's `show_id`, and the fields its refusals name.
+fn show_target(id: ExternalId) -> Result<(browse::Target, Fields), ConnectError> {
+    let fields = Fields {
+        title: "show_id",
+        ..Fields::LIBRARY
+    };
+    let id = required_id(Some(id), fields.title, "Show")?;
+    Ok((browse::Target::Show(id), fields))
 }
