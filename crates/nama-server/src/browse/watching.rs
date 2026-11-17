@@ -127,9 +127,9 @@ impl Browse {
     }
 
     /// The Episode that plays after Episode `number` of Season `season` of the Show `show` of the
-    /// Shows Library `library`, with the User `user`'s Watch State of it: the one
-    /// [`unplayed_after`] it of the Show's Episodes in the Library. Fails as browsing to that
-    /// Season does, or with [`Error::NoSuchEpisode`].
+    /// Shows Library `library`, with the User `user`'s Watch State of it: the first of the Show's
+    /// Episodes in the Library after it that they haven't played (see [`unplayed_after`]). Fails as
+    /// browsing to that Season does, or with [`Error::NoSuchEpisode`].
     pub(crate) async fn episode_after(
         &self,
         user: i64,
@@ -319,7 +319,7 @@ fn show_entry<'a, V>(
 const SPECIALS: i64 = 0;
 
 /// The first unplayed Episode of `watched`, in aired order, after the one that became played
-/// most recently: [`unplayed_after`] it.
+/// most recently (see [`unplayed_after`]).
 fn next_episode<'a, V>(watched: &[WatchedEpisode<'a, V>]) -> Option<&'a LibraryEpisode<V>> {
     let played_at = |taken: Option<(WatchState, i64)>| taken?.0.played_at;
     // Of those played in the same second, as when a Season is marked played, the last aired.
@@ -334,8 +334,8 @@ fn next_episode<'a, V>(watched: &[WatchedEpisode<'a, V>]) -> Option<&'a LibraryE
 }
 
 /// The Episode that plays after `from`: the first of the `later` Episodes of its Show, in aired
-/// order, each with the User's Watch State of it, that the User hasn't played, Specials aside.
-/// `None` after a Special, which has no place in aired order.
+/// order, each with the User's Watch State of it, that the User hasn't played. `None` after a
+/// Special, which has no place in aired order.
 fn unplayed_after<'a, V>(
     from: &LibraryEpisode<V>,
     later: impl IntoIterator<Item = (&'a LibraryEpisode<V>, Option<WatchState>)>,
@@ -343,9 +343,8 @@ fn unplayed_after<'a, V>(
     if !is_aired(from) {
         return None;
     }
-    (later.into_iter()).find(|&(episode, state)| {
-        is_aired(episode) && state.is_none_or(|state| state.played_at.is_none())
-    })
+    // No Special is later than an aired Episode: Season 0 sorts before every other Season.
+    (later.into_iter()).find(|&(_, state)| state.is_none_or(|state| state.played_at.is_none()))
 }
 
 /// Whether `episode` is in aired order, which Specials aren't.
