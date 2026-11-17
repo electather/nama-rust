@@ -1,6 +1,9 @@
 //! Fixing Matches by hand through the generated `MatchService` client, over a real socket, with
 //! the TMDB Plugin enabled against a fake TMDB.
 
+#[path = "support/browsing.rs"]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
+mod browsing;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -9,14 +12,15 @@ mod server;
 
 use std::{collections::HashMap, fs, path::Path};
 
+use browsing::movies_in;
 use buffa::EnumValue;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     BrowseServiceClient, ClearMatchRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
-    ExternalId, GetRequestRequest, LibraryKind, ListEpisodesRequest, ListMoviesRequest,
-    ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason,
-    RequestServiceClient, RequestState, SearchTitlesRequest, SetMatchRequest, SetMatchResponse,
-    TitleCandidate, TitleKind, UnmatchedItem, UnmatchedReason,
+    ExternalId, GetRequestRequest, LibraryKind, ListEpisodesRequest, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason, RequestServiceClient,
+    RequestState, SearchTitlesRequest, SetMatchRequest, SetMatchResponse, TitleCandidate,
+    TitleKind, UnmatchedItem, UnmatchedReason,
 };
 use refused::assert_refused;
 use server::{Builder, Library, TestServer};
@@ -77,20 +81,11 @@ impl Fixture {
         self.server.scan_and_match(&self.media).await
     }
 
-    /// The id of the Movie `ListMovies` lists the file at `relative` under, or `None` while it is
-    /// Unmatched.
+    /// The id of the Movie the file at `relative` is a Version of, as `GetMovie` gives each Movie
+    /// `ListMovies` lists, or `None` while it is Unmatched.
     async fn movie_of(&self, relative: &str) -> Option<ExternalId> {
         let file_name = Path::new(relative).file_name().unwrap().to_str().unwrap();
-        let movies = self
-            .browse
-            .list_movies(ListMoviesRequest {
-                library_id: self.library,
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .movies;
+        let movies = movies_in(&self.browse, self.library).await.unwrap();
         let mut holding = movies
             .into_iter()
             .filter(|movie| (movie.versions.iter()).any(|version| version.file_name == file_name));

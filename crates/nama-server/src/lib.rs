@@ -82,6 +82,10 @@ use crate::{
     reason = "each is a separate handle the Server is built from; a struct bundling them would \
               exist only for this call"
 )]
+#[expect(
+    clippy::too_many_lines,
+    reason = "it builds the Server's parts and starts them in order, which reads best in one place"
+)]
 pub fn serve(
     listener: TcpListener,
     config: &Config,
@@ -98,10 +102,11 @@ pub fn serve(
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = SubtitleCache::new(&config.data_dir);
     let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles.clone());
+    let contents = Contents::new(Arc::clone(&db));
     let running = RunningPlans::new(
         settings.playback(),
         Arc::clone(&ffmpeg),
-        Contents::new(Arc::clone(&db)),
+        contents.clone(),
         probing.clone(),
         events.clone(),
     );
@@ -149,6 +154,7 @@ pub fn serve(
         // Before anything can publish an event, so that no notification misses its link, and
         // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;
+        fill_sort_titles(&contents).await;
         scanner.start_all().await;
         // Quiet long enough that a file being copied in is scanned once it's whole; every six hours
         // for the folders whose changes the OS doesn't report, such as network shares.
@@ -179,6 +185,14 @@ pub fn serve(
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);
         served
+    }
+}
+
+/// Stores the sort titles Matches from before them lack, logging a failure: before serving, so no
+/// list sorts those first.
+async fn fill_sort_titles(contents: &Contents) {
+    if let Err(err) = contents.fill_sort_titles().await {
+        tracing::error!("storing sort titles failed, so older titles sort first: {err}");
     }
 }
 

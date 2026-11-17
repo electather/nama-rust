@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT title_id, played AS \"played: bool\" FROM watch_states\n               WHERE user_id = ? AND kind = ? AND (played OR position_ms > 0)",
+  "describe": {
+    "columns": [
+      {
+        "name": "title_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "name": "played: bool",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "played"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "bc93d794a866be7961c6108d64f227e86a5bb1080e2370634b467a33877c41a7"
+}

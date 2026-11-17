@@ -2,6 +2,7 @@
 //! subtitles, over a real socket, with the TMDB Plugin enabled against a fake TMDB.
 
 #[path = "support/browsing.rs"]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod browsing;
 #[path = "support/http.rs"]
 mod http;

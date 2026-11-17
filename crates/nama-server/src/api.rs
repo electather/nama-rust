@@ -281,6 +281,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_GET_MOVIE_SPEC.procedure,              Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_SHOWS_SPEC.procedure,             Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_SHOW_SPEC.procedure,               Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_GENRES_SPEC.procedure,            Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_EPISODES_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
     (proto::BROWSE_SERVICE_SEARCH_LIBRARIES_SPEC.procedure,       Access::SignedIn),

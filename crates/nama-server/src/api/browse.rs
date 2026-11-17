@@ -6,16 +6,17 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetShowRequest,
     GetShowResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
-    ListEpisodesRequest, ListEpisodesResponse, ListMoviesRequest, ListMoviesResponse,
-    ListShowsRequest, ListShowsResponse, Permission, RefusalReason, SearchLibrariesRequest,
-    SearchLibrariesResponse,
+    ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest, ListGenresResponse,
+    ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse, MovieSort,
+    Permission, RefusalReason, SearchLibrariesRequest, SearchLibrariesResponse, ShowSort,
+    SortDirection, WatchedFilter,
 };
 
 use crate::{
-    browse::{self, Browse, Episode, Movie, Show, Started, Version},
+    browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
     library::{
-        FoundEpisode, FoundMovie, FoundShow, ImageRef, LibraryKind, Role, Slot, WatchState,
-        artwork_url,
+        FoundEpisode, FoundMovie, FoundShow, ImageRef, LibraryKind, LibraryMovie, Listing, Role,
+        Slot, TitleSort, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
 };
@@ -44,14 +45,34 @@ impl BrowseService for BrowseServiceHandler {
         request: ServiceRequest<'_, ListMoviesRequest>,
     ) -> ServiceResult<ListMoviesResponse> {
         let user = caller(&ctx)?.user.id;
-        let movies = self.browse.movies(user, request.library_id).await;
-        let movies = movies.map_err(refused(Fields::LIBRARY))?;
+        let request = request.to_owned_message();
+        let sort = match request.sort.as_known() {
+            Some(MovieSort::Added) => TitleSort::Added,
+            Some(MovieSort::Released) => TitleSort::Released,
+            _ => TitleSort::Title,
+        };
+        let filter = request.filter.into_option().unwrap_or_default();
+        let listing = listing(
+            Filter {
+                genres: filter.genres,
+                min_year: filter.min_year,
+                max_year: filter.max_year,
+                watched: filter.watched.as_known(),
+            },
+            sort,
+            request.direction.as_known(),
+        );
+        let page = (self.browse)
+            .movie_page(user, request.library_id, &listing, &request.page)
+            .await;
+        let (movies, page) = page.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await?;
         Response::ok(ListMoviesResponse {
             movies: movies
                 .into_iter()
-                .map(|(movie, state)| movie_to_proto(movie, state, &images))
+                .map(|(movie, state)| movie_summary(movie, state, &images))
                 .collect(),
+            page: page.into(),
             ..Default::default()
         })
     }
@@ -82,17 +103,50 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn list_shows(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ListShowsRequest>,
     ) -> ServiceResult<ListShowsResponse> {
-        let shows = self.browse.shows(request.library_id).await;
-        let shows = shows.map_err(refused(Fields::LIBRARY))?;
+        let user = caller(&ctx)?.user.id;
+        let request = request.to_owned_message();
+        let sort = match request.sort.as_known() {
+            Some(ShowSort::Added) => TitleSort::Added,
+            Some(ShowSort::Released) => TitleSort::Released,
+            _ => TitleSort::Title,
+        };
+        let filter = request.filter.into_option().unwrap_or_default();
+        let listing = listing(
+            Filter {
+                genres: filter.genres,
+                min_year: filter.min_year,
+                max_year: filter.max_year,
+                watched: filter.watched.as_known(),
+            },
+            sort,
+            request.direction.as_known(),
+        );
+        let page = (self.browse)
+            .show_page(user, request.library_id, &listing, &request.page)
+            .await;
+        let (shows, page) = page.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await?;
         Response::ok(ListShowsResponse {
             shows: shows
-                .iter()
-                .map(|show| show_to_proto(show, &images))
+                .into_iter()
+                .map(|listed| show_summary(&listed, &images))
                 .collect(),
+            page: page.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_genres(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListGenresRequest>,
+    ) -> ServiceResult<ListGenresResponse> {
+        let genres = self.browse.genres(request.library_id).await;
+        Response::ok(ListGenresResponse {
+            genres: genres.map_err(refused(Fields::LIBRARY))?,
             ..Default::default()
         })
     }
@@ -195,6 +249,74 @@ impl BrowseService for BrowseServiceHandler {
                 .collect(),
             ..Default::default()
         })
+    }
+}
+
+/// A `MovieFilter` or `ShowFilter`, which differ only in their type.
+struct Filter {
+    genres: Vec<String>,
+    min_year: Option<u32>,
+    max_year: Option<u32>,
+    /// `None` for a value this Server doesn't know, which keeps every title, as unspecified does.
+    watched: Option<WatchedFilter>,
+}
+
+/// What `filter`, `sort` and `direction` ask of a page of Movies or Shows. A direction this
+/// Server doesn't know runs the sort's own way: ascending by title, else most recent first.
+fn listing(filter: Filter, sort: TitleSort, direction: Option<SortDirection>) -> Listing {
+    let descending = match direction {
+        Some(SortDirection::Ascending) => false,
+        Some(SortDirection::Descending) => true,
+        _ => sort != TitleSort::Title,
+    };
+    Listing {
+        genres: filter.genres,
+        min_year: filter.min_year,
+        max_year: filter.max_year,
+        watched: match filter.watched {
+            Some(WatchedFilter::Unwatched) => Some(Watched::Unwatched),
+            Some(WatchedFilter::InProgress) => Some(Watched::InProgress),
+            Some(WatchedFilter::Watched) => Some(Watched::Played),
+            _ => None,
+        },
+        sort,
+        descending,
+    }
+}
+
+/// A Movie as a Library's grid shows it, with its Poster as `images` gives it and the caller's
+/// Watch State of it, if they've started it.
+fn movie_summary(
+    movie: LibraryMovie,
+    watch_state: Option<WatchState>,
+    images: &ShownImages,
+) -> proto::MovieSummary {
+    let poster_url = (images.custom)
+        .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
+        .or_else(|| (movie.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path)));
+    proto::MovieSummary {
+        id: external_id_to_proto(&movie.id).into(),
+        title: movie.title,
+        release_date: movie.release_date,
+        poster_thumbhash: images.thumbhash(poster_url.as_deref()),
+        poster_url,
+        watch_state: watch_state.map(watch_state_to_proto).into(),
+        ..Default::default()
+    }
+}
+
+/// A Show as a Library's grid shows it, with its Poster as `images` gives it.
+fn show_summary(listed: &ListedShow, images: &ShownImages) -> proto::ShowSummary {
+    let show = show_to_proto(&listed.show, images);
+    proto::ShowSummary {
+        id: show.id,
+        title: show.title,
+        poster_url: show.poster_url,
+        poster_thumbhash: show.poster_thumbhash,
+        first_air_date: show.first_air_date,
+        episode_count: listed.episodes,
+        played_episode_count: listed.played,
+        ..Default::default()
     }
 }
 
@@ -467,6 +589,9 @@ pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError 
                 refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
                     .field(fields.library)
                     .param("libraryKind", &kind)
+            }
+            browse::Error::PageTokenInvalid(_) => {
+                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page.token")
             }
             browse::Error::Database(err) => return database_failed(err),
         };

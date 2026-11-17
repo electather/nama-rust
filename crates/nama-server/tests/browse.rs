@@ -14,7 +14,7 @@ mod server;
 
 use std::{collections::BTreeSet, fs, slice, time::Duration};
 
-use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
+use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, movies_in, tmdb_id};
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
@@ -25,9 +25,9 @@ use nama_proto::nama::v1::{
     GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, Movie,
     ProbingFinished, RefusalReason, ReportProgressRequest, SearchLibrariesRequest,
-    SearchLibrariesResponse, Season, SetMatchRequest, SetPlayedRequest, Show, ShowSeason, Track,
-    Version, VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, event,
-    set_played_request::Target,
+    SearchLibrariesResponse, Season, SetMatchRequest, SetPlayedRequest, ShowSeason, ShowSummary,
+    Track, Version, VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry,
+    event, set_played_request::Target,
 };
 use nama_server::{
     config::Config,
@@ -124,18 +124,10 @@ impl Fixture {
     }
 
     async fn list_movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
-        Ok(self
-            .browse
-            .list_movies(ListMoviesRequest {
-                library_id: library,
-                ..Default::default()
-            })
-            .await?
-            .into_owned()
-            .movies)
+        movies_in(&self.browse, library).await
     }
 
-    async fn list_shows(&self, library: i64) -> Result<Vec<Show>, ConnectError> {
+    async fn list_shows(&self, library: i64) -> Result<Vec<ShowSummary>, ConnectError> {
         Ok(self
             .browse
             .list_shows(ListShowsRequest {
@@ -539,7 +531,10 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
         BTreeSet::from(["Dark - S01E01-E02.mkv", "Dark - S01E01.mkv"])
     );
     let show = got.show.into_option().unwrap();
-    assert_eq!(listed, slice::from_ref(&show));
+    assert_eq!(
+        listed_as(&listed),
+        [(show.id.as_option(), show.poster_url.as_deref())]
+    );
     assert_eq!(show.id.as_option(), Some(&tmdb_id(DARK)));
     assert_eq!(show.title, "Dark");
     assert_eq!(show.poster_url.as_deref(), Some(DARK_POSTER));
@@ -557,6 +552,23 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
 }
 
 #[tokio::test]
+async fn a_listed_show_counts_its_episodes_and_those_the_caller_played() {
+    let fx = Fixture::shows().await;
+    let admin = fx.admin();
+    admin
+        .set_played(fx.library, season_of(DARK, 1), true)
+        .await
+        .unwrap();
+
+    let listed = fx.list_shows(fx.library).await.unwrap();
+
+    let dark = (listed.iter())
+        .find(|show| show.id.as_option() == Some(&tmdb_id(DARK)))
+        .unwrap();
+    assert_eq!((dark.episode_count, dark.played_episode_count), (3, 2));
+}
+
+#[tokio::test]
 async fn a_show_with_specials_is_shown_by_its_own_poster() {
     let fx = Fixture::dark_with_specials().await;
 
@@ -564,7 +576,10 @@ async fn a_show_with_specials_is_shown_by_its_own_poster() {
     let got = fx.get_show(fx.library, DARK).await.unwrap();
 
     let show = got.show.into_option().unwrap();
-    assert_eq!(listed, slice::from_ref(&show));
+    assert_eq!(
+        listed_as(&listed),
+        [(show.id.as_option(), show.poster_url.as_deref())]
+    );
     assert_eq!(show.poster_url.as_deref(), Some(DARK_POSTER));
     assert_eq!(
         got.seasons,
@@ -963,6 +978,13 @@ async fn artwork_without_a_session_is_refused() {
 }
 
 /// A Season as `GetShow` gives it.
+/// Each Show of `listed` by its id and poster, which its page has too.
+fn listed_as(listed: &[ShowSummary]) -> Vec<(Option<&ExternalId>, Option<&str>)> {
+    (listed.iter())
+        .map(|show| (show.id.as_option(), show.poster_url.as_deref()))
+        .collect()
+}
+
 fn season(number: u32, poster_url: &str) -> Season {
     Season {
         number,

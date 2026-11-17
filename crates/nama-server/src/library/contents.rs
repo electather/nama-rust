@@ -18,8 +18,10 @@ mod ids;
 mod items;
 mod listed;
 mod matched;
+mod pages;
 mod pins;
 mod search;
+mod sort_titles;
 #[cfg(test)]
 mod testing;
 #[cfg(test)]
@@ -32,13 +34,14 @@ pub(crate) use decisions::{
 };
 pub(crate) use files::{Change, Stored};
 pub(crate) use ids::{DEFAULT_ORDER, parse_hint, primary_id};
-use ids::{ids_from_json, ids_sql, primary_id_in};
+use ids::{ids_from_json, ids_sql, listed_id_sql, primary_id_in};
 use items::ItemRow;
 pub(crate) use items::{Item, ItemKind, Name};
 pub(crate) use matched::{
     Episode, MatchedTo, Movie, Season, Show, TitlesIn, Version, library_with_movie,
     library_with_show, matched_episodes, show_poster,
 };
+pub(crate) use pages::{Listing, TitleSort, Watched};
 pub(crate) use pins::{Named, Pin};
 pub(crate) use search::{Found, FoundEpisode, FoundMovie, FoundShow};
 

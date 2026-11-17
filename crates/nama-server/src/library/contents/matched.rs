@@ -384,8 +384,14 @@ impl Contents {
         library_with_movie(&mut conn, id).await
     }
 
-    /// By title, ignoring case, grouped by [`primary_id`](super::primary_id).
-    pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
+    /// By title, ignoring case, grouped by [`primary_id`](super::primary_id): every Movie, or
+    /// only those with one of `only` among their ids.
+    pub(crate) async fn movies(
+        &self,
+        library: i64,
+        only: Option<&[ExternalId]>,
+    ) -> Result<Vec<Movie>, sqlx::Error> {
+        let only = listed_ids(only);
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
@@ -404,11 +410,18 @@ impl Contents {
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
                        JOIN libraries ON libraries.id = library_files.library_id
-                       WHERE library_files.library_id = ?
+                       WHERE library_files.library_id = ?1
                          AND library_items.kind = 'movie'
                          AND item_matches.state = 'matched'
+                         AND (?2 IS NULL
+                              OR EXISTS (SELECT 1 FROM item_match_ids AS named
+                                         JOIN json_each(?2) AS only
+                                           ON only.value = named.namespace || '-' || named.value
+                                         WHERE named.item_id = item_matches.item_id
+                                           AND named.scope = 'title'))
                        ORDER BY library_files.path"#,
-                    library
+                    library,
+                    only
                 )
             };
         }
@@ -455,12 +468,18 @@ impl Contents {
     }
 
     /// By title, ignoring case, grouped by the Episodes' Show ids'
-    /// [`primary_id`](super::primary_id), each Season's Episodes by their own.
+    /// [`primary_id`](super::primary_id), each Season's Episodes by their own: every Show, or only
+    /// those with one of `only` among their ids.
     #[expect(
         clippy::too_many_lines,
         reason = "one query's columns, and the Show, Season and Episode each row fills"
     )]
-    pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
+    pub(crate) async fn shows(
+        &self,
+        library: i64,
+        only: Option<&[ExternalId]>,
+    ) -> Result<Vec<Show>, sqlx::Error> {
+        let only = listed_ids(only);
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
@@ -483,11 +502,18 @@ impl Contents {
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
                        JOIN libraries ON libraries.id = library_files.library_id
-                       WHERE library_files.library_id = ?
+                       WHERE library_files.library_id = ?1
                          AND library_items.kind = 'episode'
                          AND item_matches.state = 'matched'
+                         AND (?2 IS NULL
+                              OR EXISTS (SELECT 1 FROM item_match_ids AS named
+                                         JOIN json_each(?2) AS only
+                                           ON only.value = named.namespace || '-' || named.value
+                                         WHERE named.item_id = item_matches.item_id
+                                           AND named.scope = 'show'))
                        ORDER BY library_items.season, library_items.episode, library_files.path"#,
-                    library
+                    library,
+                    only
                 )
             };
         }
@@ -702,6 +728,12 @@ pub(crate) async fn matched_episodes(
     .fetch_all(&mut *conn)
     .await?;
     Ok(numbers.into_iter().collect())
+}
+
+/// `ids` as a JSON array of their text forms, as [`Contents::movies`] and [`Contents::shows`]
+/// take them.
+fn listed_ids(ids: Option<&[ExternalId]>) -> Option<String> {
+    ids.map(|ids| serde_json::Value::from_iter(ids.iter().map(ToString::to_string)).to_string())
 }
 
 /// The genres in the `genres` column's JSON, `json`: none where it's NULL, as for a Match stored

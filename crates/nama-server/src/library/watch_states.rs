@@ -272,6 +272,28 @@ impl WatchStates {
         Ok(states)
     }
 
+    /// Every Movie, or Episode, the User `user` has started or played, by the id each Watch State
+    /// is kept under, in its text form, and whether it is played.
+    pub(crate) async fn started(
+        &self,
+        user: i64,
+        kind: Kind,
+    ) -> Result<Vec<(String, bool)>, sqlx::Error> {
+        let kind = kind.stored();
+        let rows = sqlx::query!(
+            r#"SELECT title_id, played AS "played: bool" FROM watch_states
+               WHERE user_id = ? AND kind = ? AND (played OR position_ms > 0)"#,
+            user,
+            kind
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.title_id, row.played))
+            .collect())
+    }
+
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
     /// played, with their Watch State, most recent first. Ones changed in the same second come in
     /// a fixed order, by kind and id, so the list doesn't shuffle between calls.
