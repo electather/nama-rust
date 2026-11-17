@@ -184,7 +184,7 @@ struct Inner {
     queued: Mutex<HashSet<i64>>,
     /// Folders, by Library id, whose next scan removes what's stored under them though they read
     /// empty.
-    // shortcut: kept in memory, so a restart or a failed scan before the removal leaves the folder
+    // ponytail: kept in memory, so a restart or a failed scan before the removal leaves the folder
     // held, and the Admin presses again; store it if that turns out to bother anyone.
     released: Mutex<HashSet<(i64, String)>>,
     /// How many scans of each Library have published `ScanStarted`, so Probing knows whether a
@@ -257,10 +257,13 @@ impl Scanner {
     }
 
     /// Starts scanning the Library `id` in the background, as [`Self::start`] does, removing what's
-    /// stored under its `folder` even if the folder reads empty, that once.
+    /// stored under its `folder` even if the folder reads empty, that once. A `folder` its last
+    /// scan didn't find empty is scanned as [`Self::start`] would.
     pub(crate) async fn remove_missing(&self, id: i64, folder: String) -> Result<(), LibraryError> {
-        self.inner.libraries.get(id).await?;
-        lock(&self.inner.released).insert((id, folder));
+        let library = self.inner.libraries.get(id).await?;
+        if library.empty_folders.contains(&folder) {
+            lock(&self.inner.released).insert((id, folder));
+        }
         self.queue(id);
         Ok(())
     }

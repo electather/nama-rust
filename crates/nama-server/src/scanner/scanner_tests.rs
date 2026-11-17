@@ -430,6 +430,23 @@ async fn removing_missing_items_empties_a_folder_that_looks_empty_once() {
 }
 
 #[tokio::test]
+async fn removing_missing_items_from_a_folder_not_yet_held_keeps_them() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.scan().await;
+    fs::remove_dir_all(media.path("Alien (1979)")).unwrap();
+    let folder = media.root.to_str().unwrap().to_owned();
+
+    (media.scanner.remove_missing(media.library, folder.clone()))
+        .await
+        .unwrap();
+    media.scanner.idle().await;
+
+    assert_eq!(media.files().await.len(), 1);
+    assert_eq!(media.empty_folders().await, [folder]);
+}
+
+#[tokio::test]
 async fn a_folder_left_with_few_files_or_none_ever_doesnt_look_empty() {
     let media = Fixture::new(LibraryKind::Movies).await;
     media.scan().await;
