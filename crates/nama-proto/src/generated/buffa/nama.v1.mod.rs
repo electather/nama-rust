@@ -131,6 +131,9 @@ pub mod __buffa {
         reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__LIST_UNMATCHED_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_UNMATCHED_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNMATCHED_ITEM_SUMMARY_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
@@ -621,6 +624,18 @@ pub use self::__buffa::view::ShowInLibraryOwnedView;
 pub use self::__buffa::view::EpisodeInLibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::EpisodeInLibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnmatchedItemSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::UnmatchedItemSummaryOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetTrackPreferencesRequestView;
 #[doc(inline)]

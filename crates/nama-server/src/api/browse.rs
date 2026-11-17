@@ -8,22 +8,22 @@ use nama_proto::nama::v1::{
     GetNextEpisodeResponse, GetShowRequest, GetShowResponse, ListContinueWatchingRequest,
     ListContinueWatchingResponse, ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest,
     ListGenresResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
-    MovieSort, Permission, RefusalReason, SearchLibrariesRequest, SearchLibrariesResponse,
-    ShowSort, SortDirection, WatchedFilter,
+    ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission, RefusalReason,
+    SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection, WatchedFilter,
 };
 
 use crate::{
     browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
     library::{
         FoundEpisode, FoundMovie, FoundShow, ImageRef, LibraryKind, LibraryMovie, Listing, Role,
-        Slot, TitleSort, WatchState, Watched, artwork_url,
+        Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
 };
 
 use super::{
-    ImageSources, ShownImages, caller, database_failed, external_id_to_proto, proto_number, refuse,
-    required_id,
+    ImageSources, ShownImages, caller, database_failed, external_id_to_proto,
+    matches::unmatched_to_proto, proto_number, refuse, required_id,
 };
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
@@ -282,6 +282,23 @@ impl BrowseService for BrowseServiceHandler {
                 .into_iter()
                 .map(found_episode_to_proto)
                 .collect(),
+            page: page.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_unmatched(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListUnmatchedRequest>,
+    ) -> ServiceResult<ListUnmatchedResponse> {
+        let request = request.to_owned_message();
+        let listed = (self.browse)
+            .unmatched(request.library_id, &request.page)
+            .await;
+        let (unmatched, page) = listed.map_err(refused(Fields::LIBRARY))?;
+        Response::ok(ListUnmatchedResponse {
+            items: unmatched.into_iter().map(unmatched_summary).collect(),
             page: page.into(),
             ..Default::default()
         })
@@ -546,6 +563,21 @@ fn episode_to_proto(
             .and_then(|minutes| u32::try_from(minutes).ok()),
         versions: episode.versions.iter().map(version_to_proto).collect(),
         watch_state: watch_state.map(watch_state_to_proto).into(),
+        ..Default::default()
+    }
+}
+
+/// `unmatched` as any User sees it: what its name was parsed as, not where its file is (ADR 0062).
+fn unmatched_summary(unmatched: Unmatched) -> proto::UnmatchedItemSummary {
+    let version_id = unmatched.file_id;
+    let listed = unmatched_to_proto(unmatched, true);
+    proto::UnmatchedItemSummary {
+        version_id,
+        kind: listed.kind,
+        title: listed.title,
+        year: listed.year,
+        season: listed.season,
+        episode: listed.episode,
         ..Default::default()
     }
 }

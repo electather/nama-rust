@@ -8,11 +8,11 @@ import "nama/v1/watch_state.proto";
 
 // Browsing what a Library holds, and the caller's Continue Watching, for any signed-in User.
 //
-// Only Matched items appear. Movies, Shows, Seasons and Episodes are not stored as such: they are
-// grouped from the items Matched to the same title, and identified by its external id within the
-// Library. A Show is grouped from its Episodes' Show ids, and a Season is the Show's Episodes that
-// share a season number. Items that aren't Matched are in `MatchService.ListUnmatchedItems`
-// instead.
+// Movies, Shows, Seasons and Episodes are not stored as such: they are grouped from the items
+// Matched to the same title, and identified by its external id within the Library. A Show is
+// grouped from its Episodes' Show ids, and a Season is the Show's Episodes that share a season
+// number. Items that aren't Matched appear only in `ListUnmatched`, by what their files' names
+// were parsed as, never by where the files are (ADR 0062).
 service BrowseService {
   // Lists a page of a Movies Library's Movies (ADR 0055), filtered and sorted as asked, each with
   // only what a grid of them shows: `GetMovie` gives the rest. Fails with `not_found` if there is
@@ -77,6 +77,13 @@ service BrowseService {
   // Fails with `invalid_argument` if `page.token` isn't one an earlier call for the same query
   // returned.
   rpc SearchLibraries(SearchLibrariesRequest) returns (SearchLibrariesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Lists a page of a Library's Unmatched Items, the one found most recently first, each by what
+  // its file's name was parsed as and the Version to play it by. Playing one keeps no Watch State
+  // (ADR 0013). Fails with `not_found` if there is no such Library, and with `invalid_argument` if
+  // the page token isn't one this Library's list gave.
+  rpc ListUnmatched(ListUnmatchedRequest) returns (ListUnmatchedResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
 }
@@ -566,4 +573,33 @@ message EpisodeInLibrary {
   uint32 season_number = 5;
   uint32 episode_number = 6;
   string title = 7;
+}
+
+message ListUnmatchedRequest {
+  // The Library whose Unmatched Items to list.
+  int64 library_id = 1;
+  PageRequest page = 2;
+}
+
+message ListUnmatchedResponse {
+  repeated UnmatchedItemSummary items = 1;
+  // The next page's token, and on the first page how many Unmatched Items the Library has.
+  PageResponse page = 2;
+}
+
+// An Unmatched Item as any User sees it: what its file's name was parsed as, not where it is.
+message UnmatchedItemSummary {
+  // The Version that holds it, to play it by. A file holding several Episodes holds an item for
+  // each, so their summaries share it.
+  int64 version_id = 1;
+  // `TITLE_KIND_MOVIE` for a Movie, or `TITLE_KIND_SHOW` for an Episode of a Show.
+  TitleKind kind = 2;
+  // The Movie's title, or the title of the Show the Episode is in.
+  string title = 3;
+  // The year the Movie was released or the Show first aired, if the name says.
+  optional int32 year = 4;
+  // For an Episode, its Season number; 0 holds specials.
+  optional int32 season = 5;
+  // For an Episode, its number within the Season.
+  optional int32 episode = 6;
 }

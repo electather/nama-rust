@@ -8,14 +8,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
-use nama_proto::nama::v1::{PageRequest, PageResponse};
+use nama_proto::nama::v1::{PageRequest, PageResponse, SortDirection, UnmatchedItemSort};
 
 use crate::{
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, Stored, WatchState,
-        WatchStateKind, WatchStates,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, Stored, Unmatched,
+        WatchState, WatchStateKind, WatchStates,
     },
     page::{self, Page},
     playback::{Probe, Sidecars, Track, Tracks},
@@ -244,6 +244,25 @@ impl Browse {
     ) -> Result<(Found, PageResponse), Error> {
         let page = Page::read(asked, format!("SearchLibraries {query}").as_bytes())?;
         Ok(self.contents.search(query, &page).await?)
+    }
+
+    /// The `asked` page of the Unmatched Items of the Library `library`, the one found most
+    /// recently first. Its token holds no path, which a User may not see (ADR 0062).
+    pub(crate) async fn unmatched(
+        &self,
+        library: i64,
+        asked: &PageRequest,
+    ) -> Result<(Vec<Unmatched>, PageResponse), Error> {
+        let library = self.library(library).await?;
+        let page = Page::read(asked, format!("ListUnmatched {}", library.id).as_bytes())?;
+        let newest_first = (
+            UnmatchedItemSort::UNMATCHED_ITEM_SORT_FOUND,
+            SortDirection::SORT_DIRECTION_DESCENDING,
+        );
+        Ok(self
+            .contents
+            .unmatched(library.id, newest_first, &page)
+            .await?)
     }
 
     /// The User `user`'s Watch State of each of `titles`, in the same order, kept under any of

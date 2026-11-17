@@ -1,5 +1,5 @@
-//! Listing a Library's Unmatched Items through the generated `MatchService` client, over a real
-//! socket: which Library, and its pages.
+//! Listing a Library's Unmatched Items through the generated `MatchService` and `BrowseService`
+//! clients, over a real socket: which Library, its pages, and what a User without Permissions sees.
 
 #[path = "support/refused.rs"]
 mod refused;
@@ -7,10 +7,11 @@ mod refused;
 #[path = "support/server.rs"]
 mod server;
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    LibraryKind, ListUnmatchedItemsRequest, MatchServiceClient, PageRequest, RefusalReason,
-    UnmatchedItemFilter,
+    BrowseServiceClient, LibraryKind, ListUnmatchedItemsRequest, ListUnmatchedRequest,
+    MatchServiceClient, PageRequest, RefusalReason, TitleKind, UnmatchedItemFilter,
 };
 use refused::assert_refused;
 use server::TestServer;
@@ -114,4 +115,92 @@ async fn files_whose_names_do_not_parse_come_on_the_first_page_only() {
         second.unwrap().into_owned().unparsed_paths,
         Vec::<String>::new()
     );
+}
+
+#[tokio::test]
+async fn a_user_without_permissions_lists_unmatched_items_by_parsed_name_newest_first() {
+    let server = TestServer::builder().start().await;
+    let names = ["Alien (1979).mkv", "Heat (1995).mkv", "home video.mkv"];
+    let films = (server.matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &names)).await;
+    let ripley = server.user("Ripley", &[]).await;
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), ripley.client_config());
+
+    let listed = browse
+        .list_unmatched(ListUnmatchedRequest {
+            library_id: films.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+
+    let parsed: Vec<_> = (listed.items.iter())
+        .map(|item| (item.kind.as_known(), item.title.as_str(), item.year))
+        .collect();
+    let movie = Some(TitleKind::TITLE_KIND_MOVIE);
+    assert_eq!(
+        parsed,
+        [(movie, "Heat", Some(1995)), (movie, "Alien", Some(1979))]
+    );
+    assert!(listed.items.iter().all(|item| item.version_id > 0));
+    assert_eq!(listed.page.total_size, Some(2));
+}
+
+#[tokio::test]
+async fn listing_the_unmatched_items_of_no_library_as_a_user_is_not_found() {
+    let server = TestServer::builder().start().await;
+    let ripley = server.user("Ripley", &[]).await;
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), ripley.client_config());
+
+    let refused = browse
+        .list_unmatched(ListUnmatchedRequest {
+            library_id: 404,
+            ..Default::default()
+        })
+        .await;
+
+    assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+}
+
+#[tokio::test]
+async fn a_users_page_token_holds_no_path_and_lists_the_next_page() {
+    let server = TestServer::builder().start().await;
+    let names = ["Alien (1979).mkv", "Heat (1995).mkv"];
+    let films = (server.matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &names)).await;
+    let ripley = server.user("Ripley", &[]).await;
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), ripley.client_config());
+    let page = |size, token| ListUnmatchedRequest {
+        library_id: films.id,
+        page: PageRequest {
+            size,
+            token,
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+
+    let first = browse.list_unmatched(page(1, String::new())).await;
+    let token = first
+        .unwrap()
+        .into_owned()
+        .page
+        .into_option()
+        .unwrap()
+        .next_token;
+    let second = browse.list_unmatched(page(0, token.clone())).await;
+
+    let cursor = String::from_utf8(URL_SAFE_NO_PAD.decode(&token).unwrap()).unwrap();
+    assert!(!cursor.contains("Heat"), "{cursor}");
+    let second = second.unwrap().into_owned();
+    let titles: Vec<_> = second
+        .items
+        .iter()
+        .map(|item| item.title.as_str())
+        .collect();
+    assert_eq!(titles, ["Alien"]);
 }

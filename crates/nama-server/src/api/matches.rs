@@ -183,7 +183,7 @@ fn reason_to_proto(
 
 /// `unmatched` as listed, where `searching` says whether some source in its Library's order
 /// searches, without which Matching can't decide it.
-fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::UnmatchedItem {
+pub(super) fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::UnmatchedItem {
     let (kind, title, year, numbers) = match unmatched.item {
         Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
         Item::Episode {
