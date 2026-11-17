@@ -30,6 +30,8 @@ CREATE TABLE item_matches (
     metadata_version INTEGER NOT NULL DEFAULT 0,
     -- For an Episode, its Still: an image path from the Plugin's Provider, as `poster` is.
     still TEXT,
+    -- A Movie's, or for an Episode its Show's, genres (a JSON array of their names) and Content
+    -- Rating.
     genres TEXT,
     content_rating TEXT,
     -- For an Episode, its Show's own Poster (an image path, as `poster` is), overview and first air

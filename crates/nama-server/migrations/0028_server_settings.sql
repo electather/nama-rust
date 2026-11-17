@@ -10,7 +10,8 @@ CREATE TABLE server_settings (
     CHECK (remote_playback_limit IN ('', '1080p', '720p', '480p')),
     -- What Transcodes run on: '' for Automatic, 'off', or an API such as 'vaapi'.
     hardware_acceleration TEXT NOT NULL DEFAULT '',
-    -- The most Transcodes the Server runs at once; Remuxes don't count.
+    -- The most Transcodes the Server runs at once; Remuxes don't count. NULL is the default: no limit
+    -- while Transcodes use hardware acceleration and 2 while they run in software.
     max_transcodes INTEGER,
     -- The GPU `hardware_acceleration` runs on, by its PCI address, or '' for none, and the name it was
     -- last found under, which still names it once it's gone.

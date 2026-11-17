@@ -16,7 +16,10 @@ CREATE TABLE track_preferences (
     language TEXT,
     forced INTEGER NOT NULL CHECK (forced IN (0, 1)),
     sdh INTEGER NOT NULL CHECK (sdh IN (0, 1)),
-    title TEXT, foreign_audio_only INTEGER NOT NULL DEFAULT 0 CHECK (foreign_audio_only IN (0, 1)),
+    title TEXT,
+    -- The User's own Subtitle Preference for full subtitles can ask for them only over audio in
+    -- another language (ADR 0035). Only that row is ever 1: a Show's or Movie's has no such condition.
+    foreign_audio_only INTEGER NOT NULL DEFAULT 0 CHECK (foreign_audio_only IN (0, 1)),
     CHECK (kind = 'subtitle' OR (off = 0 AND forced = 0 AND sdh = 0)),
     PRIMARY KEY (user_id, scope, title_id, kind)
 ) STRICT;

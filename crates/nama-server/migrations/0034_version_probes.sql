@@ -9,7 +9,7 @@ CREATE TABLE version_probes (
     -- Overall, in bits per second.
     bitrate INTEGER,
     -- The size and modified time of the file each Version was probed at, so a file changed since is
-    -- probed again. The default, -1, is no file's size, so a row left at it is probed again too.
+    -- probed again.
     size INTEGER NOT NULL DEFAULT -1,
     modified_ns INTEGER NOT NULL DEFAULT -1,
     -- When each keyframe of a Version's first video falls, in milliseconds, as a JSON array: listed
@@ -24,7 +24,6 @@ CREATE TABLE version_probes (
     -- probed again has them listed again, and listing isn't tried again until then or a bump (#850).
     keyframes_failure_version INTEGER,
     -- When a Version's file starts, in milliseconds, as Probing read it with `keyframes_ms`: a Remux
-    -- cuts copied audio by it in a file that starts late, such as an MPEG-TS (#944). Keyframes kept
-    -- without it are listed again.
+    -- cuts copied audio by it in a file that starts late, such as an MPEG-TS (#944).
     keyframes_start_ms INTEGER
 ) STRICT;

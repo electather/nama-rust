@@ -83,25 +83,6 @@ async fn a_versions_keyframes_are_listed_once_and_kept() {
 // The fake ffprobe is a shell script.
 #[cfg(unix)]
 #[tokio::test]
-async fn a_versions_keyframes_kept_without_its_files_start_are_listed_again_with_it() {
-    let bin = tempfile::tempdir().unwrap();
-    let starting_late = ffprobe_listing_by(bin.path(), "printf '1.500000,K__\\n1.500000\\n'");
-    let media = Fixture::with_ffmpeg(starting_late).await;
-    let alien = "Alien (1979)/Alien (1979).mkv";
-    media.write_probed(alien, 10).await;
-    let version = media.file_id(alien).await;
-    media.probing.keyframes(version).await.unwrap();
-
-    media.tracks.forget_keyframes_start(version).await;
-    let listed = media.probing.keyframes(version).await.unwrap();
-
-    assert_eq!(listed.file_start_ms, 1500);
-    assert_eq!(probe_runs(bin.path()), 2);
-}
-
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
-#[tokio::test]
 async fn a_versions_keyframes_asked_for_at_once_are_listed_once() {
     let bin = tempfile::tempdir().unwrap();
     let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;

@@ -20,7 +20,8 @@ async fn a_fresh_start_creates_the_database_and_restarting_applies_no_migrations
 
     let first_start = Database::open(&data_dir).await.unwrap();
     assert!(data_dir.join(db::FILE_NAME).is_file());
-    assert_ne!(first_start.migrations_applied(), Vec::<i64>::new());
+    let every_version: Vec<i64> = sqlx::migrate!().iter().map(|m| m.version).collect();
+    assert_eq!(first_start.migrations_applied(), every_version);
     insert_rows(&first_start, 0, 1).await.unwrap();
     first_start.close().await;
 
@@ -407,11 +408,10 @@ async fn reader_connections_have_a_busy_timeout_and_foreign_keys_on_and_cannot_w
     );
 }
 
-/// The table files ADR 0059's squash wrote, numbered `0001` onwards and frozen.
-const TABLE_FILES: i64 = 36;
+/// The version of the last table file ADR 0059's squash wrote; those up to it are frozen.
+const LAST_TABLE_FILE: i64 = 36;
 
-// Two PRs that each pick the next sequential number collide without a git conflict and leave main
-// red (#561), so every migration after the table files is named by when it was made.
+// The rule and its reason: crates/nama-server/AGENTS.md.
 // ponytail: checks names only. Add a same-table check if a dev or upgrade database ever breaks on
 // the order parallel migrations ran in.
 #[test]
@@ -420,13 +420,12 @@ fn every_migration_after_the_table_files_is_named_by_utc_timestamp() {
     let timestamped = 10_000_000_000_000..100_000_000_000_000;
     let misnamed: Vec<String> = sqlx::migrate!()
         .iter()
-        .filter(|m| m.version > TABLE_FILES && !timestamped.contains(&m.version))
+        .filter(|m| m.version > LAST_TABLE_FILE && !timestamped.contains(&m.version))
         .map(|m| format!("{:04}_{}.sql", m.version, m.description.replace(' ', "_")))
         .collect();
     assert!(
         misnamed.is_empty(),
-        "{misnamed:?} must be named by UTC time: create it with \
-         `sqlx migrate add --timestamp --source crates/nama-server/migrations <name>` \
-         (crates/nama-server/AGENTS.md)"
+        "{misnamed:?} must be named by UTC creation time: see \
+         crates/nama-server/README.md, \"Adding a migration\""
     );
 }

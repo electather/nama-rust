@@ -45,7 +45,7 @@ A Server has the OS report changes in Library folders and scans a Library 30 s a
 
 ## Adding a migration
 
-The table files `0001` to `0036` hold the schema as it stood when they were squashed, and are never edited (ADR 0059). A change goes in a new migration named by its UTC creation time, from the workspace root:
+A schema change goes in a new migration named by its UTC creation time (rules in `AGENTS.md`), from the workspace root:
 
 ```sh
 sqlx migrate add --timestamp --source crates/nama-server/migrations <name>
