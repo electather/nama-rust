@@ -1089,13 +1089,15 @@ export const PluginService: GenService<{
    * without a restart. Settings that don't fit its schema, such as an integer outside its bounds
    * (`REFUSAL_REASON_SETTING_OUT_OF_RANGE`), are refused with a Refusal naming `settings.<key>`,
    * and nothing changes; so is a `SETTING_KIND_LIBRARIES` setting naming an id no Library has,
-   * with `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. A repeated Library id is
-   * saved once, where it first appears. If a choice setting has a value, the Plugin's settings
-   * check runs on the new settings first, and a check that fails, or doesn't offer that value, is
-   * refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED`
-   * naming the setting, and nothing changes. A Plugin that then refuses to start with them
-   * doesn't fail the call: the settings are saved and it comes back not running
-   * (`plugin.summary.enabled` false); `EnablePlugin` says why with
+   * with `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. A required setting left out
+   * or blank is refused with `REFUSAL_REASON_FIELD_REQUIRED` only while the Plugin is meant to be
+   * enabled: a disabled Plugin's can be cleared, and `EnablePlugin` checks them. A repeated
+   * Library id is saved once, where it first appears. If a choice setting has a value, the
+   * Plugin's settings check runs on the new settings first, and a check that fails, or doesn't
+   * offer that value, is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or
+   * `REFUSAL_REASON_CHOICE_NOT_OFFERED` naming the setting, and nothing changes. A Plugin that
+   * then refuses to start with them doesn't fail the call: the settings are saved and it comes
+   * back not running (`plugin.summary.enabled` false); `EnablePlugin` says why with
    * `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
    *
    * @generated from rpc nama.v1.PluginService.UpdatePluginSettings

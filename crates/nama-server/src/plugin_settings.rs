@@ -13,7 +13,7 @@ use nama_plugin_api::{
     Manifest, PluginId,
     auth::Authenticator,
     automation::Permission,
-    settings::{Choices, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema},
+    settings::{Choices, SettingKind, SettingValue, Settings, SettingsError},
 };
 use nama_proto::nama::v1::{PluginKind, Quality};
 use thiserror::Error;
@@ -38,9 +38,11 @@ mod library_ids;
 mod personal;
 mod put_back;
 mod running;
+mod sent;
 mod stored;
 mod title_sources;
 
+use sent::{check_fits, with_stored_secrets};
 pub use stored::{grants, stored};
 use stored::{import, save, set_enabled, set_enabled_granting};
 
@@ -422,8 +424,9 @@ impl PluginSettings {
     /// # Errors
     ///
     /// If no Plugin has the id or the Server refused it, the settings don't fit its schema (even
-    /// an integer's bounds) or name a Library that doesn't exist, its settings check fails or
-    /// doesn't offer a choice's value, or the database fails. A refused change saves nothing.
+    /// an integer's bounds, and a required setting only if it is stored as enabled) or name a
+    /// Library that doesn't exist, its settings check fails or doesn't offer a choice's value, or
+    /// the database fails. A refused change saves nothing.
     pub async fn update(
         &self,
         id: &PluginId,
@@ -442,8 +445,7 @@ impl PluginSettings {
             ) = this.listed(&id).await?;
             let mut settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
             library_ids::dedupe_library_ids(&manifest.settings, &mut settings);
-            Settings::new(settings.clone())
-                .resolve(&manifest.settings)
+            check_fits(&manifest.settings, &settings, stored.enabled)
                 .map_err(ChangeError::InvalidSettings)?;
             this.check_library_ids(&manifest.settings, &settings)
                 .await?;
@@ -741,26 +743,6 @@ async fn detached<T: Send + 'static>(
         error!("changing a plugin panicked: {err}");
         Err(sqlx::Error::WorkerCrashed.into())
     })
-}
-
-/// The settings `sent` for a Plugin with `schema`: the ones it names, with a secret left out
-/// keeping its `stored` value, so a form can replace a secret without showing it.
-fn with_stored_secrets(
-    schema: &SettingsSchema,
-    mut sent: BTreeMap<String, SettingValue>,
-    stored: &BTreeMap<String, SettingValue>,
-) -> BTreeMap<String, SettingValue> {
-    schema
-        .fields
-        .iter()
-        .filter_map(|field| {
-            let kept = || {
-                let secret = field.kind == SettingKind::Secret;
-                stored.get(&field.key).filter(|_| secret).cloned()
-            };
-            Some((field.key.clone(), sent.remove(&field.key).or_else(kept)?))
-        })
-        .collect()
 }
 
 // No code that could panic runs while it is held, so a poisoned lock's handle is still whole.
