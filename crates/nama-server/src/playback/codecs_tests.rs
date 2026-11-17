@@ -354,3 +354,63 @@ fn audio_the_device_decodes_is_copied_into_a_remux() {
     assert_eq!(plan.playing, Some(remuxing(0, None)));
     assert_eq!(plan.tracks, [video("h264"), audio("aac", true)]);
 }
+
+/// An H.264 video Track `bit_depth` bits deep.
+fn h264_at(bit_depth: Option<i64>) -> Track {
+    let mut track = video("h264");
+    if let TrackKind::Video {
+        bit_depth: depth, ..
+    } = &mut track.kind
+    {
+        *depth = bit_depth;
+    }
+    track
+}
+
+#[test]
+fn ten_bit_h264_a_device_cant_decode_is_transcoded_to_8_bit_and_the_plan_says_why() {
+    let tracks = vec![h264_at(Some(10)), audio("aac", true)];
+
+    let plan = build(&mut in_container(MKV, Some(tracks)));
+
+    assert_eq!(plan.method(), Some(Method::Transcode));
+    assert_eq!(plan.tracks, [video("h264"), audio("aac", true)]);
+    let video_reason = (
+        Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
+        vec![("codec", "h264"), ("bitDepth", "10")],
+    );
+    let given = given(&plan);
+    let place = given.iter().position(|reason| *reason == video_reason);
+    assert!(
+        place.is_some_and(|place| plan.reasons[place].decided),
+        "{given:?}"
+    );
+}
+
+#[test]
+fn ten_bit_h264_a_device_decodes_is_remuxed_or_direct_played() {
+    for (container, method) in [(MKV, Method::Remux), (MP4, Method::DirectPlay)] {
+        let mut facts = in_container(container, Some(vec![h264_at(Some(10)), audio("aac", true)]));
+        facts.device.h264_10bit = true;
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), Some(method), "{container}");
+        assert!(
+            !kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO),
+            "{container}"
+        );
+    }
+}
+
+#[test]
+fn h264_of_unknown_or_8_bit_depth_isnt_ruled_out_for_its_depth() {
+    for bit_depth in [None, Some(8)] {
+        let plan = build(&mut facts(Some(vec![
+            h264_at(bit_depth),
+            audio("aac", true),
+        ])));
+
+        assert_eq!(plan.method(), Some(Method::DirectPlay), "{bit_depth:?}");
+    }
+}

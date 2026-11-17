@@ -85,8 +85,10 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
     "Its length isn’t known, which a Remux or a Transcode needs, so it can only be Direct Played.",
   [PlaybackReasonKind.DEVICE_CANT_DECODE_CONTAINER]: (param) =>
     `This Device can’t open ${param.container()} files, so it can’t be Direct Played.`,
-  [PlaybackReasonKind.DEVICE_CANT_DECODE_VIDEO]: (param) =>
-    `This Device can’t decode ${param.codec()} video, so it can’t be Direct Played or Remuxed.`,
+  [PlaybackReasonKind.DEVICE_CANT_DECODE_VIDEO]: (param) => {
+    const depth = param.has("bitDepth") ? `${param.count("bitDepth")}-bit ` : "";
+    return `This Device can’t decode ${depth}${param.codec()} video, so it can’t be Direct Played or Remuxed.`;
+  },
   [PlaybackReasonKind.DEVICE_CANT_DECODE_AUDIO]: (param) =>
     `This Device can’t decode ${param.codec()} audio, so it can’t be Direct Played.`,
   [PlaybackReasonKind.DEVICE_CANT_SHOW_HDR]: (param) =>
@@ -164,6 +166,7 @@ function named(params: Record<string, string>) {
     method: () => nameOf(PlaybackMethodSchema, methodNames, raw("method")),
     hardware: () => nameOf(HardwareAccelerationSchema, hardwareNames, raw("hardwareAcceleration")),
     count: (key: string) => count(raw(key)),
+    has: (key: string) => key in params,
   };
 }
 

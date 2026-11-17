@@ -10,8 +10,9 @@ const CONTAINERS: Record<Named<typeof Container>, string> = {
   [Container.WEBM]: "video/webm",
   [Container.MATROSKA]: "video/x-matroska",
 };
-// ponytail: one common profile per codec, so a 10-bit or 4K Track may pass on a Device that
-// decodes only the 8-bit HD one; ask about the Track's own profile once probing reads it.
+// ponytail: one common profile per codec, so a 10-bit HEVC, VP9 or AV1 Track, or a 4K one, may
+// pass on a Device that decodes only the 8-bit HD one; ask about that profile too, as about
+// `H264_10BIT`, once a Device is seen failing one.
 const VIDEO_CODECS: Record<Named<typeof VideoCodec>, string> = {
   [VideoCodec.H264]: 'video/mp4; codecs="avc1.640028"',
   [VideoCodec.HEVC]: 'video/mp4; codecs="hvc1.1.6.L120.90"',
@@ -19,6 +20,8 @@ const VIDEO_CODECS: Record<Named<typeof VideoCodec>, string> = {
   [VideoCodec.VP9]: 'video/webm; codecs="vp09.00.40.08"',
   [VideoCodec.AV1]: 'video/mp4; codecs="av01.0.08M.08"',
 };
+/** H.264 High 10, asked about apart from High since most browsers decode only High. */
+const H264_10BIT = 'video/mp4; codecs="avc1.6E0028"';
 const AUDIO_CODECS: Record<Named<typeof AudioCodec>, string> = {
   [AudioCodec.AAC]: 'audio/mp4; codecs="mp4a.40.2"',
   [AudioCodec.MP3]: "audio/mpeg",
@@ -47,9 +50,10 @@ export function stopDrawing(format: SubtitleFormat) {
 /** What this Device decodes, found out afresh: the Server never stores it. */
 export async function findDeviceDecoding() {
   const video = document.createElement("video");
-  const [videoCodecs, audioCodecs] = await Promise.all([
+  const [videoCodecs, audioCodecs, h26410bit] = await Promise.all([
     decodable(VIDEO_CODECS, (contentType) => ({ type: "file", video: { contentType, ...FILM } })),
     decodable(AUDIO_CODECS, (contentType) => ({ type: "file", audio: { contentType } })),
+    decodes({ type: "file", video: { contentType: H264_10BIT, ...FILM } }),
   ]);
   return {
     containers: keysOf(CONTAINERS).filter(
@@ -58,6 +62,7 @@ export async function findDeviceDecoding() {
     videoCodecs,
     audioCodecs,
     hdr: matchMedia("(dynamic-range: high)").matches,
+    h26410bit,
     nativeHls: playsHlsNatively(),
     mse: "MediaSource" in window || "ManagedMediaSource" in window,
     audioChannels: audioChannels(),

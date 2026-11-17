@@ -280,6 +280,11 @@ pub(crate) struct Subtitle {
 
 /// What a Device says it can decode, as it found out just now. The Server never stores it.
 #[derive(Debug, Default, Clone)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each is a separate thing the Device says it can do, as the proto's `DeviceDecoding` \
+              has them"
+)]
 pub(crate) struct DeviceDecoding {
     /// The containers it plays.
     pub(crate) containers: Vec<proto::Container>,
@@ -289,6 +294,8 @@ pub(crate) struct DeviceDecoding {
     pub(crate) audio_codecs: Vec<proto::AudioCodec>,
     /// Whether its display shows HDR.
     pub(crate) hdr: bool,
+    /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
+    pub(crate) h264_10bit: bool,
     /// Whether it plays HLS, natively or through Media Source Extensions, which every method but
     /// Direct Play needs.
     pub(crate) hls: bool,
