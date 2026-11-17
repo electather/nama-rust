@@ -15,6 +15,8 @@ fn schema(fields: &[(&str, SettingKind)]) -> SettingsSchema {
                 kind,
                 required: false,
                 default: None,
+                min: None,
+                max: None,
             })
             .collect(),
     }

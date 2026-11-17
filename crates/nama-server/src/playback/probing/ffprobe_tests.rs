@@ -310,3 +310,46 @@ fn keyframes_are_timed_from_the_files_start() {
 
     assert_eq!(super::parse_keyframes(csv), [23, 2523]);
 }
+
+#[test]
+fn a_subtitle_is_sdh_when_flagged_or_titled_so_but_audio_titled_so_is_not() {
+    let json = r#"{
+            "streams": [
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "English (SDH)"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "SDH"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "English CC"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "Hearing Impaired"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "hearing-impaired"}},
+                {"codec_name": "subrip", "codec_type": "subtitle",
+                 "disposition": {"hearing_impaired": 1}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "Accent"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "Access"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "English"}},
+                {"codec_name": "aac", "codec_type": "audio", "tags": {"title": "SDH"}},
+                {"codec_name": "aac", "codec_type": "audio", "tags": {"title": "CC"}}
+            ],
+            "format": {"format_name": "matroska,webm"}
+        }"#;
+
+    let probe = parse_probe(json.as_bytes()).unwrap();
+
+    let sdh: Vec<_> = (probe.tracks.iter())
+        .map(|track| (track.title.as_deref(), track.sdh))
+        .collect();
+    assert_eq!(
+        sdh,
+        [
+            (Some("English (SDH)"), true),
+            (Some("SDH"), true),
+            (Some("English CC"), true),
+            (Some("Hearing Impaired"), true),
+            (Some("hearing-impaired"), true),
+            (None, true),
+            (Some("Accent"), false),
+            (Some("Access"), false),
+            (Some("English"), false),
+            (Some("SDH"), false),
+            (Some("CC"), false),
+        ]
+    );
+}

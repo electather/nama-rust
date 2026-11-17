@@ -27,6 +27,8 @@ impl Plugin for Keeper {
             kind: SettingKind::Libraries,
             required: false,
             default: None,
+            min: None,
+            max: None,
         };
         Manifest {
             version: "0.0.0".to_owned(),
@@ -128,4 +130,21 @@ async fn a_libraries_setting_naming_an_id_no_library_has_is_refused_and_saves_no
         Some(unknown.to_string().as_str())
     );
     assert_eq!(kept(&server).await, None);
+}
+
+#[tokio::test]
+async fn a_libraries_setting_keeps_a_repeated_id_once_where_it_first_appears() {
+    let server = with_keeper().await;
+    let movies = server
+        .create_library(LibraryKind::LIBRARY_KIND_MOVIES, &[])
+        .await;
+    let shows = server
+        .create_library(LibraryKind::LIBRARY_KIND_SHOWS, &[])
+        .await;
+
+    keep(&server, &[shows.id, movies.id, shows.id])
+        .await
+        .unwrap();
+
+    assert_eq!(kept(&server).await, Some(vec![shows.id, movies.id]));
 }

@@ -1,5 +1,6 @@
-//! Checking that each Library a Plugin's settings name by id exists when they are saved. A Library
-//! deleted later stays in the value: the Kernel just stops listing it, and the Plugin ignores it.
+//! Checking that each Library a Plugin's settings name by id exists when they are saved, and
+//! keeping a repeated one once. A Library deleted later stays in the value: the Kernel just stops
+//! listing it, and the Plugin ignores it.
 
 use std::{
     collections::{BTreeMap, HashSet},
@@ -33,6 +34,20 @@ impl PluginSettings {
         match unknown_library(schema, settings, &known) {
             Some((key, id)) => Err(ChangeError::UnknownLibrary { key, id }),
             None => Ok(()),
+        }
+    }
+}
+
+/// Keeps each id in each Libraries setting `schema` declares once, where it first appears, since
+/// the admin's order is kept (ADR 0053).
+pub(super) fn dedupe_library_ids(
+    schema: &SettingsSchema,
+    settings: &mut BTreeMap<String, SettingValue>,
+) {
+    for field in (schema.fields.iter()).filter(|field| field.kind == SettingKind::Libraries) {
+        if let Some(SettingValue::Libraries(ids)) = settings.get_mut(&field.key) {
+            let mut seen = HashSet::new();
+            ids.retain(|&id| seen.insert(id));
         }
     }
 }

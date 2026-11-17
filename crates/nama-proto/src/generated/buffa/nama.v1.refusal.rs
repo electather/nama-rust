@@ -103,7 +103,7 @@ pub enum RefusalReason {
     REFUSAL_REASON_FOLDER_NOT_READABLE = 34i32,
     /// `invalid_argument`: the segment folder can't be created, or the Server can't write a file in
     /// it. Params: `folder`.
-    REFUSAL_REASON_FOLDER_NOT_WRITABLE = 82i32,
+    REFUSAL_REASON_FOLDER_NOT_WRITABLE = 83i32,
     /// `invalid_argument`: a Library's folder resolves to a path that isn't valid UTF-8. Params:
     /// `folder`, `resolvedPath` (with what isn't UTF-8 replaced).
     REFUSAL_REASON_FOLDER_NOT_UTF8 = 35i32,
@@ -129,6 +129,9 @@ pub enum RefusalReason {
     /// `invalid_argument`: a Plugin setting's value isn't of the kind its schema declares. Params:
     /// `settingKey`, and `settingKind`, the `SettingKind` value's name (`SETTING_KIND_TEXT`).
     REFUSAL_REASON_SETTING_WRONG_KIND = 43i32,
+    /// `invalid_argument`: a Plugin setting's integer is outside the bounds its schema declares.
+    /// Params: `settingKey`, and `min` and `max`, each only if the setting has that bound.
+    REFUSAL_REASON_SETTING_OUT_OF_RANGE = 82i32,
     /// `failed_precondition`: the caller isn't one of the Request's Requesters, so they can't withdraw
     /// from it. Params: `requestId`.
     REFUSAL_REASON_NOT_A_REQUESTER = 44i32,
@@ -385,6 +388,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SETTING_WRONG_KIND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SettingWrongKind: Self = Self::REFUSAL_REASON_SETTING_WRONG_KIND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SETTING_OUT_OF_RANGE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SettingOutOfRange: Self = Self::REFUSAL_REASON_SETTING_OUT_OF_RANGE;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_REQUESTER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NotARequester: Self = Self::REFUSAL_REASON_NOT_A_REQUESTER;
@@ -642,7 +648,7 @@ impl ::buffa::Enumeration for RefusalReason {
             34i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_READABLE)
             }
-            82i32 => {
+            83i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_WRITABLE)
             }
             35i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_UTF8),
@@ -665,6 +671,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             43i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_WRONG_KIND)
+            }
+            82i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_OUT_OF_RANGE)
             }
             44i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_REQUESTER),
             45i32 => {
@@ -841,6 +850,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_SETTING_WRONG_KIND => {
                 "REFUSAL_REASON_SETTING_WRONG_KIND"
+            }
+            Self::REFUSAL_REASON_SETTING_OUT_OF_RANGE => {
+                "REFUSAL_REASON_SETTING_OUT_OF_RANGE"
             }
             Self::REFUSAL_REASON_NOT_A_REQUESTER => "REFUSAL_REASON_NOT_A_REQUESTER",
             Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED => {
@@ -1064,6 +1076,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SETTING_WRONG_KIND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_WRONG_KIND)
             }
+            "REFUSAL_REASON_SETTING_OUT_OF_RANGE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_OUT_OF_RANGE)
+            }
             "REFUSAL_REASON_NOT_A_REQUESTER" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_REQUESTER)
             }
@@ -1231,6 +1246,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PLUGIN_NOT_FOUND,
             Self::REFUSAL_REASON_LAST_AUTHENTICATOR,
             Self::REFUSAL_REASON_SETTING_WRONG_KIND,
+            Self::REFUSAL_REASON_SETTING_OUT_OF_RANGE,
             Self::REFUSAL_REASON_NOT_A_REQUESTER,
             Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
             Self::REFUSAL_REASON_REQUEST_NOT_FAILED,

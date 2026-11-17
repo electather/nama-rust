@@ -64,6 +64,10 @@ impl Blobs for LocalDisk {
         })
     }
 
+    fn local_path(&self, key: &str) -> Option<PathBuf> {
+        self.path(key).ok()
+    }
+
     fn get(&self, key: &str) -> BoxFuture<'_, io::Result<Option<Vec<u8>>>> {
         let path = self.path(key);
         Box::pin(async move {

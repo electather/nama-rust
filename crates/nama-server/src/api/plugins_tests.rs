@@ -12,6 +12,8 @@ fn a_secrets_default_and_stored_value_are_never_sent() {
         kind: SettingKind::Secret,
         required: false,
         default: Some(SettingValue::Text("default-token".to_owned())),
+        min: None,
+        max: None,
     };
     let stored = SettingValue::Text("stored-token".to_owned());
 

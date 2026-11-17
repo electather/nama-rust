@@ -4,6 +4,7 @@
 
 use std::{
     io,
+    path::PathBuf,
     sync::{Arc, MutexGuard, PoisonError},
 };
 
@@ -256,6 +257,10 @@ impl Blobs for Mirror {
             self.new.put(&key, bytes).await?;
             self.old.put_file(&key, file).await
         })
+    }
+
+    fn local_path(&self, key: &str) -> Option<PathBuf> {
+        self.old.local_path(key)
     }
 
     fn get(&self, key: &str) -> BoxFuture<'_, io::Result<Option<Vec<u8>>>> {

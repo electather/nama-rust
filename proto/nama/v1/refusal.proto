@@ -124,7 +124,7 @@ enum RefusalReason {
   REFUSAL_REASON_FOLDER_NOT_READABLE = 34;
   // `invalid_argument`: the segment folder can't be created, or the Server can't write a file in
   // it. Params: `folder`.
-  REFUSAL_REASON_FOLDER_NOT_WRITABLE = 82;
+  REFUSAL_REASON_FOLDER_NOT_WRITABLE = 83;
   // `invalid_argument`: a Library's folder resolves to a path that isn't valid UTF-8. Params:
   // `folder`, `resolvedPath` (with what isn't UTF-8 replaced).
   REFUSAL_REASON_FOLDER_NOT_UTF8 = 35;
@@ -153,6 +153,9 @@ enum RefusalReason {
   // `invalid_argument`: a Plugin setting's value isn't of the kind its schema declares. Params:
   // `settingKey`, and `settingKind`, the `SettingKind` value's name (`SETTING_KIND_TEXT`).
   REFUSAL_REASON_SETTING_WRONG_KIND = 43;
+  // `invalid_argument`: a Plugin setting's integer is outside the bounds its schema declares.
+  // Params: `settingKey`, and `min` and `max`, each only if the setting has that bound.
+  REFUSAL_REASON_SETTING_OUT_OF_RANGE = 82;
 
   // `failed_precondition`: the caller isn't one of the Request's Requesters, so they can't withdraw
   // from it. Params: `requestId`.

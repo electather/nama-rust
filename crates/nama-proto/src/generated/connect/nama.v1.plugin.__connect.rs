@@ -487,13 +487,14 @@ pub trait PluginService: Send + Sync + 'static {
         >,
     > + Send;
     /// Replaces a Plugin's settings and, if it is meant to be enabled, enables it again with them,
-    /// without a restart. Settings that don't fit its schema are refused with a Refusal naming
-    /// `settings.<key>`, and nothing changes; so is a `SETTING_KIND_LIBRARIES` setting naming an id
-    /// no Library has, with `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. If a choice
-    /// setting has a value, the Plugin's settings check runs on the new settings first, and a check
-    /// that fails, or doesn't offer that value, is refused with
-    /// `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED` naming the
-    /// setting, and nothing changes. A Plugin that then refuses to start with them
+    /// without a restart. Settings that don't fit its schema, such as an integer outside its bounds
+    /// (`REFUSAL_REASON_SETTING_OUT_OF_RANGE`), are refused with a Refusal naming `settings.<key>`,
+    /// and nothing changes; so is a `SETTING_KIND_LIBRARIES` setting naming an id no Library has,
+    /// with `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. A repeated Library id is
+    /// saved once, where it first appears. If a choice setting has a value, the Plugin's settings
+    /// check runs on the new settings first, and a check that fails, or doesn't offer that value, is
+    /// refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED`
+    /// naming the setting, and nothing changes. A Plugin that then refuses to start with them
     /// doesn't fail the call: the settings are saved and it comes back not running
     /// (`plugin.summary.enabled` false); `EnablePlugin` says why with
     /// `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
@@ -521,10 +522,11 @@ pub trait PluginService: Send + Sync + 'static {
     > + Send;
     /// Enables a Plugin with its stored settings, without a restart, and saves that it is enabled.
     /// Enabling one that is enabled already only saves that. If its stored settings don't fit its
-    /// schema, fails with `REFUSAL_REASON_FIELD_REQUIRED` or `REFUSAL_REASON_SETTING_WRONG_KIND`,
-    /// naming the setting in `field` as `settings.<key>` and in the `settingKey` param; the Plugin
-    /// stays disabled and nothing is saved. A Plugin that refuses to start with them fails with
-    /// `REFUSAL_REASON_PLUGIN_REFUSED_TO_START` and stays disabled.
+    /// schema, fails with `REFUSAL_REASON_FIELD_REQUIRED`, `REFUSAL_REASON_SETTING_WRONG_KIND` or
+    /// `REFUSAL_REASON_SETTING_OUT_OF_RANGE`, naming the setting in `field` as `settings.<key>` and
+    /// in the `settingKey` param; the Plugin stays disabled and nothing is saved. A Plugin that
+    /// refuses to start with them fails with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START` and stays
+    /// disabled.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
