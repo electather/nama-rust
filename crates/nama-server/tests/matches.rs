@@ -621,9 +621,7 @@ async fn an_item_not_matched_yet_while_its_source_is_down_is_listed_without_a_re
 
     assert_eq!(
         listed.iter().map(|item| item.reason).collect::<Vec<_>>(),
-        [EnumValue::from(
-            UnmatchedReason::UNMATCHED_REASON_UNSPECIFIED
-        )]
+        [UnmatchedReason::UNMATCHED_REASON_UNSPECIFIED]
     );
 }
 
@@ -684,7 +682,6 @@ async fn an_episode_not_matched_yet_is_listed_with_its_season_and_number() {
             year: None,
             season: Some(1),
             episode: Some(2),
-            // The TMDB Built-in Plugin isn't running without an API key.
             reason: UnmatchedReason::UNMATCHED_REASON_NO_SEARCHING_SOURCE.into(),
             ..Default::default()
         }]

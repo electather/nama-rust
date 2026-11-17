@@ -115,15 +115,20 @@ function AddSources({
 }
 
 /**
- * Why the Library's Items wait to be Matched, if no source in `order` is `enabled` and searches.
- * Links to the Plugins only for a User who may enable one there.
+ * Why the Library's Items wait to be Matched, if no source in `order` is `enabled` and searches:
+ * each source in turn, and whether it isn't running or only adds artwork. Links to the Plugins
+ * only for a User who may enable one there.
  */
 function NoSourceSearches({ order, enabled }: { order: string[]; enabled: TitleSource[] }) {
   const { signedIn } = useRouteContext({ from: "/_member" });
-  const searches = order.some(
-    (namespace) => enabled.find((each) => each.namespace === namespace)?.searches === true,
+  const sources = order.map((namespace) => ({
+    namespace,
+    source: enabled.find((each) => each.namespace === namespace),
+  }));
+  if (sources.some(({ source }) => source?.searches === true)) return null;
+  const why = sources.map(({ namespace, source }) =>
+    source === undefined ? `${namespace} isn’t running` : `${sourceName(source)} only adds artwork`,
   );
-  if (searches) return null;
   const plugins = may(signedIn.user, Permission.MANAGE_SETTINGS) ? (
     <Link
       to="/admin/plugins"
@@ -136,11 +141,14 @@ function NoSourceSearches({ order, enabled }: { order: string[]; enabled: TitleS
   );
   return (
     <p className="text-sm text-pretty">
-      No source above can search for titles, so the Library’s Items wait to be Matched until one
-      can. Enable one under {plugins}, or add one here that searches.
+      No source above can search for titles: {names.format(why)}. The Library’s Items wait to be
+      Matched until one can. Enable or set up a Plugin that searches under {plugins}, or add one
+      here.
     </p>
   );
 }
+
+const names = new Intl.ListFormat("en-GB", { type: "conjunction" });
 
 /** The note beside a source that only adds artwork, as it can't search for titles to Match. */
 function ArtworkOnly() {

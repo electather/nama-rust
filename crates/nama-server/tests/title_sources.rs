@@ -248,6 +248,8 @@ async fn a_source_whose_plugin_is_gone_stays_in_its_library_but_no_other_may_nam
 
 #[tokio::test]
 async fn undecided_items_list_no_searching_source_until_their_source_is_enabled_again() {
+    // Not `.tmdb()`: that enables TMDB in memory without a saved key, so `EnablePlugin` couldn't
+    // start it again.
     let fake = FakeTmdb::start().await;
     let plugins = Registry::new();
     let endpoints = fake.endpoints();

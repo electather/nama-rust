@@ -122,7 +122,7 @@ test.each([
   [
     "an Item waiting for a source that searches says so",
     { reason: UnmatchedReason.NO_SEARCHING_SOURCE },
-    "No source in its Library’s title sources can search for titles. Once one can, the next scan tries again.",
+    "None of its Library’s title sources can search for titles. Once one can, the next scan tries again.",
   ],
 ])("%s on Needs a Match", async (_, why, shown) => {
   const item = { itemId: 7n, path: "/srv/shows/The Office/S01E01.mkv", kind: TitleKind.SHOW };
