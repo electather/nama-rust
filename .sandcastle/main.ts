@@ -845,7 +845,7 @@ function noteWaiting(prs: OpenPr[], { ready, waiting } = readyIssues(prs)) {
     : draining ? "the newer run: this one is draining"
     : paused() ? "paused: Claude usage near its limit"
     : pool.busy() >= size ? `waits for a ${what} (${pool.busy()}/${size} busy)`
-    : slowed() && agentsBusy() >= SLOW_PARALLEL ? `slowed: at most ${SLOW_PARALLEL} agents near the usage limit`
+    : agentsBusy() >= slowCap() ? `slowed: at most ${slowCap()} agents near the usage limit`
     : "starts next";
   const fresh = (n: number) => !taken.has(n) && !inFlight.has(n) && !claimedElsewhere.has(n);
   const all: Waiting[] = [
@@ -899,8 +899,8 @@ function pickNext(): Issue | "wait" | "done" {
 // 1-token Haiku call reads them. The OAuth token is only accepted with Claude Code's system prompt.
 const USAGE_PAUSE = Number(process.env.USAGE_PAUSE ?? 0.95);
 const WEEKLY_STOP = Number(process.env.WEEKLY_STOP ?? 0.92);
-// Nearer the limits, fewer issues at once: past SLOW_5H of the 5-hour or SLOW_WEEKLY of the weekly limit, a new
-// issue starts only while fewer than SLOW_PARALLEL run.
+// Nearer the limits, fewer issues at once: past SLOW_5H of the 5-hour limit a new issue starts only while fewer
+// than SLOW_PARALLEL run; past SLOW_WEEKLY of the weekly limit, while fewer than half of MAX_PARALLEL run.
 const SLOW_5H = Number(process.env.SLOW_5H ?? 0.8);
 const SLOW_WEEKLY = Number(process.env.SLOW_WEEKLY ?? 0.85);
 const SLOW_PARALLEL = Number(process.env.SLOW_PARALLEL ?? 1);
@@ -965,7 +965,12 @@ async function refreshUsage() {
     .finally(() => { usageRead = undefined; });
   await usageRead;
 }
-const slowed = () => !!usage && (usage.used >= SLOW_5H || usage.weekly >= SLOW_WEEKLY);
+// How many agents may run while near a usage limit; Infinity when not near one.
+const slowCap = () => Math.min(
+  usage && usage.used >= SLOW_5H ? SLOW_PARALLEL : Infinity,
+  usage && usage.weekly >= SLOW_WEEKLY ? Math.max(1, Math.floor(MAX_PARALLEL / 2)) : Infinity,
+);
+const slowed = () => slowCap() !== Infinity;
 // True while paused.
 let wasSlowed = false;
 async function overUsage(): Promise<boolean> {
@@ -973,7 +978,7 @@ async function overUsage(): Promise<boolean> {
   if (slowed() !== wasSlowed) {
     wasSlowed = slowed();
     log(wasSlowed
-      ? `🐢 Claude usage at ${pct(usage!.used)} (5h), ${pct(usage!.weekly)} (week): at most ${SLOW_PARALLEL} slot(s) busy`
+      ? `🐢 Claude usage at ${pct(usage!.used)} (5h), ${pct(usage!.weekly)} (week): at most ${slowCap()} slot(s) busy`
       : `🐇 Claude usage back under the slow-down: ${MAX_PARALLEL} slots`);
   }
   return paused();
@@ -991,7 +996,7 @@ async function dispatch() {
     }
     let issue: Issue | "wait" | "done" = "wait";
     // busy() includes the slot just taken, hence `>`.
-    if (!(await overUsage()) && !(slowed() && agentsBusy() > SLOW_PARALLEL)) {
+    if (!(await overUsage()) && !(agentsBusy() > slowCap())) {
       try {
         issue = pickNext();
       } catch (e) {
@@ -1095,7 +1100,7 @@ async function triageLoop() {
     }
     let issue: Issue | undefined;
     // agentsBusy() includes the slot just taken, hence `>`.
-    if (!(await overUsage()) && !(slowed() && agentsBusy() > SLOW_PARALLEL)) {
+    if (!(await overUsage()) && !(agentsBusy() > slowCap())) {
       try {
         issue = triageable().find((i) => !triaged.has(i.number));
       } catch (e) {

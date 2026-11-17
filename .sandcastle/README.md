@@ -87,7 +87,7 @@ Logs, all in `.sandcastle/logs/`:
 
 `npm --prefix .sandcastle run check` checks the `status.md` renderer and `git-guard.sh`.
 
-Claude usage: before picking each issue the factory reads the 5-hour and weekly usage from the rate-limit headers of a 1-token Haiku call. At 95% of the 5-hour limit (`USAGE_PAUSE`) or 92% of the weekly limit (`WEEKLY_STOP`) it starts nothing new until that window resets, while running issues carry on. Past 80% of the 5-hour limit (`SLOW_5H`) or 85% of the weekly limit (`SLOW_WEEKLY`) it starts a new build or triage only while fewer than `SLOW_PARALLEL` (default 1) agents run, triages included. `launchd.log` says when it pauses (⏸), resumes (▶), slows down (🐢) and speeds up again (🐇).
+Claude usage: before picking each issue the factory reads the 5-hour and weekly usage from the rate-limit headers of a 1-token Haiku call. At 95% of the 5-hour limit (`USAGE_PAUSE`) or 92% of the weekly limit (`WEEKLY_STOP`) it starts nothing new until that window resets, while running issues carry on. Past 80% of the 5-hour limit (`SLOW_5H`) it starts a new build or triage only while fewer than `SLOW_PARALLEL` (default 1) agents run, triages included; past 85% of the weekly limit (`SLOW_WEEKLY`), only while fewer than half of `MAX_PARALLEL` (at least 1) run. When both apply, the smaller cap wins. `launchd.log` says when it pauses (⏸), resumes (▶), slows down (🐢) and speeds up again (🐇).
 
 Stopping gracefully: `touch .sandcastle/STOP`. Builds already running finish with their PR, PRs already babysat finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
 
