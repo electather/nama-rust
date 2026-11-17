@@ -322,7 +322,7 @@ async fn delete_user(server: &TestServer, who: &SignedIn) {
         .unwrap();
 }
 
-/// Makes Dune due, played by each of its Requesters, whose sessions `everyone` carries, ticks,
+/// Makes Dune due, played by each of its Requesters, whose sessions `requesters` carries, ticks,
 /// and waits until the Library lists Alien alone, so the test can tell Alien was kept without
 /// waiting a set time. Deletes of one Library wait for its scan lock, a `tokio::sync::Mutex`,
 /// which is handed out in the order asked; so a delete of Alien an earlier tick started would have
@@ -334,9 +334,9 @@ async fn delete_user(server: &TestServer, who: &SignedIn) {
 async fn dune_alone_is_deleted_next(
     server: &TestServer,
     library: &Library,
-    everyone: &[ClientConfig],
+    requesters: &[ClientConfig],
 ) {
-    for who in everyone {
+    for who in requesters {
         mark(who.clone(), library, movie(DUNE), true).await;
     }
     past_the_limit(server);
@@ -538,17 +538,18 @@ async fn an_episode_of_a_followed_show_waits_for_its_requesters() {
         .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S01E02])
         .await;
     enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
-    for played in [SECRETS, LIES] {
-        mark(server.client_config(), &library, episode(played), true).await;
-    }
+    mark(server.client_config(), &library, episode(LIES), true).await;
     past_the_limit(&server);
-    // The Admin played both, but didn't ask for Dark.
-    server.tick(CLEANUP).await.unwrap();
+    // Played just now, so not due yet.
     mark(ada.client_config(), &library, episode(SECRETS), true).await;
+    // The Admin played Lies long ago, but didn't ask for Dark.
+    server.tick(CLEANUP).await.unwrap();
     past_the_limit(&server);
 
     server.tick(CLEANUP).await.unwrap();
 
+    // Deletes of one Library run in the order asked, so a delete of Lies the first tick started
+    // would have left Secrets alone, never Lies.
     wait_until_listed(async || dark_episodes(&server, &library).await, &[LIES]).await;
 }
 
