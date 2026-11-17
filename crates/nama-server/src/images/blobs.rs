@@ -1,7 +1,7 @@
 //! Where the image store keeps its originals: one interface, so a store other than the data
 //! directory can hold them.
 
-use std::{fmt, io};
+use std::{fmt, io, path::PathBuf};
 
 use tempfile::NamedTempFile;
 
@@ -26,6 +26,13 @@ pub(crate) trait Blobs: Send + Sync + fmt::Debug {
     /// Stores `file`, already written and synced, at `key`, replacing any object there. A store
     /// that can't rename it into place reads it, refusing one over [`MAX_BYTES`].
     fn put_file(&self, key: &str, file: NamedTempFile) -> BoxFuture<'_, io::Result<()>>;
+
+    /// The file the object at `key` would be in, for a store that keeps its objects as local
+    /// files, so it can be streamed rather than read whole by [`Blobs::get`], whether or not one is
+    /// stored there; `None` for any other store, or for a key no object could have.
+    fn local_path(&self, _key: &str) -> Option<PathBuf> {
+        None
+    }
 
     /// The object at `key`, or `None` if none is stored there.
     fn get(&self, key: &str) -> BoxFuture<'_, io::Result<Option<Vec<u8>>>>;
