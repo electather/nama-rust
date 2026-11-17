@@ -17,11 +17,23 @@ fn system_ffmpeg() -> Ffmpeg {
     ffmpeg
 }
 
-/// Remuxes the file at `path` into `dir` from `from`, as `remux` says, until ffmpeg is done.
-async fn remux_with(ffmpeg: &Ffmpeg, path: &Path, remux: &Remux, dir: &Path, from: Keyframe) {
+/// Remuxes the file at `path`, which starts at `file_start_ms`, into `dir` from `from`, as
+/// `remux` says, until ffmpeg is done.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "forwards `Ffmpeg::remux`'s arguments, and takes the ffmpeg to run them on"
+)]
+async fn remux_with(
+    ffmpeg: &Ffmpeg,
+    path: &Path,
+    remux: &Remux,
+    dir: &Path,
+    from: Keyframe,
+    file_start_ms: i64,
+) {
     fs::create_dir_all(dir).unwrap();
     let path = path.to_str().unwrap();
-    let output = ffmpeg.remux(path, remux, dir, from).unwrap();
+    let output = ffmpeg.remux(path, remux, dir, from, file_start_ms).unwrap();
     let output = output.spawn().unwrap().wait_with_output().await.unwrap();
     assert!(output.status.success(), "{output:?}");
 }
@@ -43,7 +55,7 @@ async fn remux(
         audio: Some(audio),
         hevc: false,
     };
-    remux_with(ffmpeg, path, &remux, dir, from).await;
+    remux_with(ffmpeg, path, &remux, dir, from, 0).await;
 }
 
 /// The fMP4 track ffmpeg writes the video to, mapped first.
@@ -83,6 +95,25 @@ fn boxes<'a>(data: &'a [u8], name: &'a [u8; 4]) -> impl Iterator<Item = &'a [u8]
         }
         None
     })
+}
+
+/// Asserts that a Remux of a 14-second file into `restarted` from keyframe 3 of its 2-second
+/// ones wrote only `3.m4s` to `6.m4s`, each's video starting within `within` of the track's units
+/// of where it does in the Remux from the first into `whole`.
+fn assert_same_video_from_3(whole: &Path, restarted: &Path, within: u64) {
+    assert!(!restarted.join("2.m4s").exists());
+    for n in 3..7 {
+        let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
+        let (expected, actual) = (
+            starts_at(&segment(whole), VIDEO),
+            starts_at(&segment(restarted), VIDEO),
+        );
+        assert!(
+            expected.abs_diff(actual) <= within,
+            "{n}.m4s: {actual} against {expected}"
+        );
+    }
+    assert!(!restarted.join("7.m4s").exists());
 }
 
 /// What Probing reads of the file at `path`: when it starts, in milliseconds, and when each
@@ -326,20 +357,8 @@ async fn a_remux_started_at_a_keyframe_writes_the_same_files_from_there_on() {
     };
     remux(&ffmpeg, &file, &restarted, third, None).await;
 
-    assert!(!restarted.join("2.m4s").exists());
-    for n in 3..7 {
-        let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
-        let (expected, actual) = (
-            starts_at(&segment(&whole), VIDEO),
-            starts_at(&segment(&restarted), VIDEO),
-        );
-        // Within 2 ms, at 12288 units a second: a run's first file can round differently.
-        assert!(
-            expected.abs_diff(actual) <= 25,
-            "{n}.m4s: {actual} against {expected}"
-        );
-    }
-    assert!(!restarted.join("7.m4s").exists());
+    // Within 2 ms, at 12288 units a second: a run's first file can round differently.
+    assert_same_video_from_3(&whole, &restarted, 25);
 }
 
 #[tokio::test]
@@ -359,7 +378,7 @@ async fn an_hevc_remux_writes_its_video_as_hvc1_not_hev1() {
         audio: None,
         hevc: true,
     };
-    remux_with(&ffmpeg, &file, &hevc, &dir, first).await;
+    remux_with(&ffmpeg, &file, &hevc, &dir, first, 0).await;
 
     let init = fs::read(dir.join("init-0.mp4")).unwrap();
     let has = |name: &[u8]| init.windows(4).any(|window| window == name);
@@ -405,4 +424,57 @@ async fn a_remux_started_at_a_keyframe_starts_its_audio_where_a_run_from_the_fir
             "{aac_channels:?}: {actual} against {expected}"
         );
     }
+}
+
+#[tokio::test]
+async fn a_remux_of_a_file_starting_after_0_starts_its_copied_audio_where_a_run_from_the_first_does()
+ {
+    let ffmpeg = system_ffmpeg();
+    let work = tempfile::tempdir().unwrap();
+    let (mkv, ts) = (work.path().join("alien.mkv"), work.path().join("alien.ts"));
+    write_h264_with_5_1(&mkv, "ac3").unwrap();
+    // MPEG-TS starts its times late, here at about 1.5 seconds.
+    write_test_media(&ts, |copying| {
+        copying
+            .arg("-i")
+            .arg(&mkv)
+            .args(["-map", "0", "-c", "copy", "-f", "mpegts"])
+    })
+    .unwrap();
+    let (start_ms, keyframes) = probe(&ffmpeg, &ts);
+    assert!(start_ms > 0, "{start_ms}");
+    let copied = Remux {
+        audio: Some(RemuxAudio {
+            track: 0,
+            aac_channels: None,
+        }),
+        hevc: false,
+    };
+    let first = Keyframe {
+        n: 0,
+        ms: keyframes[0],
+        previous_ms: None,
+    };
+    let third = Keyframe {
+        n: 3,
+        ms: keyframes[3],
+        previous_ms: Some(keyframes[2]),
+    };
+    let (whole, restarted) = (work.path().join("whole"), work.path().join("restarted"));
+    remux_with(&ffmpeg, &ts, &copied, &whole, first, start_ms).await;
+
+    remux_with(&ffmpeg, &ts, &copied, &restarted, third, start_ms).await;
+
+    // Within 2 ms, as a run's first file can round differently: MPEG-TS video is timed at 90000
+    // units a second, and this audio at 44100.
+    assert_same_video_from_3(&whole, &restarted, 180);
+    let segment = |dir: &Path| fs::read(dir.join("3.m4s")).unwrap();
+    let (expected, actual) = (
+        starts_at(&segment(&whole), AUDIO),
+        starts_at(&segment(&restarted), AUDIO),
+    );
+    assert!(
+        expected.abs_diff(actual) <= 88,
+        "{actual} against {expected}"
+    );
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE version_probes\n                         SET keyframes_ms = ?, keyframes_start_ms = ?, keyframes_failure_version = ?\n                         WHERE version_id = ? AND size = ? AND modified_ns = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "9558ee1dff4ea840e5ec91ede6c2877f00154374062017c40d7c3a16897eea0c"
+}

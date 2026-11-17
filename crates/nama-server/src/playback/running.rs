@@ -68,7 +68,7 @@ use super::{
 };
 use crate::{
     events::{EventBus, event},
-    ffmpeg::{BurnIn, Ffmpeg, FromCut, Keyframe, Remux, Transcode},
+    ffmpeg::{BurnIn, Ffmpeg, FromCut, Keyframe, Remux, TextSubtitle, Transcode, sidecar_charset},
     library::{Contents, Stored},
     server_settings::PlaybackSettings,
     users::Caller,
@@ -287,15 +287,20 @@ impl RunningPlans {
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
         };
-        let keyframes = match self.inner.probing.keyframes(version).await {
-            Ok(keyframes) => keyframes,
+        let listed = match self.inner.probing.keyframes(version).await {
+            Ok(listed) => listed,
             Err(probing::Error::Probe(err)) => return Err(StartError::Keyframes(err)),
             Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
             Err(probing::Error::Database(err)) => return Err(err.into()),
         };
-        let timeline = Timeline::new(keyframes, duration_ms);
+        let timeline = Timeline::new(listed.keyframes_ms, duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
-        let run = move |dir: &Path, from| ffmpeg.remux(&path, &remux, dir, from)?.spawn();
+        let file_start_ms = listed.file_start_ms;
+        let run = move |dir: &Path, from| {
+            ffmpeg
+                .remux(&path, &remux, dir, from, file_start_ms)?
+                .spawn()
+        };
         let runs = Runs {
             run: Box::new(run),
             fallback: None,
@@ -331,6 +336,14 @@ impl RunningPlans {
             .await?
         else {
             return Ok(None);
+        };
+        let transcode = in_sidecar_charset(transcode).await;
+        let fallback = match fallback {
+            Some(fallback) => Some(super::Fallback {
+                transcode: in_sidecar_charset(fallback.transcode).await,
+                ..fallback
+            }),
+            None => None,
         };
         let timeline = Timeline::transcoded(duration_ms);
         let cuts = timeline.keyframes.clone();
@@ -599,6 +612,18 @@ impl RunningPlans {
         };
         self.inner.events.publish(vec![event(ended)]);
     }
+}
+
+/// `transcode`, reading the sidecar it burns in, if it burns one in, in the charset it's in.
+/// Found here, once for the plan, rather than as each run starts, which each seek does.
+async fn in_sidecar_charset(mut transcode: Transcode) -> Transcode {
+    if let Some(BurnIn::Text {
+        subtitle: TextSubtitle::Sidecar { path, charset },
+    }) = &mut transcode.video.burn_in
+    {
+        *charset = sidecar_charset(path).await;
+    }
+    transcode
 }
 
 /// `attempt`, burning its text subtitle in from `subtitles` if the Version stored as `file` has

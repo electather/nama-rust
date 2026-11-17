@@ -8,7 +8,7 @@ use serde::Deserialize;
 use super::ProbeError;
 use crate::{
     ffmpeg::Ffmpeg,
-    playback::tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
+    playback::tracks::{BaseLayer, Hdr, ListedKeyframes, Probe, Track, TrackKind},
 };
 
 /// How long ffprobe may take over one file, such as one on a network share that stopped answering.
@@ -59,9 +59,9 @@ async fn video_end(ffmpeg: &Ffmpeg, path: &str) -> Result<Option<i64>, ProbeErro
     Ok(parse_video_end(&String::from_utf8_lossy(&output)))
 }
 
-/// When each keyframe of the first video in the file at `path` falls, in milliseconds from
-/// its start, in order. Reads the whole file.
-pub(super) async fn keyframes(ffmpeg: &Ffmpeg, path: &str) -> Result<Vec<i64>, ProbeError> {
+/// When the file at `path` starts, and when each keyframe of its first video falls. Reads the
+/// whole file.
+pub(super) async fn keyframes(ffmpeg: &Ffmpeg, path: &str) -> Result<ListedKeyframes, ProbeError> {
     // Packets rather than frames, so nothing is decoded. `V` skips cover art.
     let packets = "packet=pts_time,flags:format=start_time";
     let args = [
@@ -101,10 +101,10 @@ async fn run(
     Ok(output.stdout)
 }
 
-/// The keyframes in what `ffprobe -show_entries packet=pts_time,flags:format=start_time -of
-/// csv=p=0` printed, packets such as `2.002000,K__` and then the file's start time, in
-/// milliseconds from that start, in order.
-fn parse_keyframes(csv: &str) -> Vec<i64> {
+/// The file's start and keyframes in what `ffprobe -show_entries
+/// packet=pts_time,flags:format=start_time -of csv=p=0` printed, packets such as `2.002000,K__`
+/// and then the file's start time.
+fn parse_keyframes(csv: &str) -> ListedKeyframes {
     let start = file_start(csv);
     let mut keyframes: Vec<i64> = csv
         .lines()
@@ -116,7 +116,10 @@ fn parse_keyframes(csv: &str) -> Vec<i64> {
         .collect();
     // Packets come in decoding order.
     keyframes.sort_unstable();
-    keyframes
+    ListedKeyframes {
+        file_start_ms: start,
+        keyframes_ms: keyframes,
+    }
 }
 
 /// When the video ends in what `ffprobe -show_entries

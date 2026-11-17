@@ -177,7 +177,11 @@ pub(super) fn burn_in(facts: &Facts) -> Option<BurnIn> {
     let track = (probe.tracks.get(place)).filter(|track| burns_in(&facts.device, probe, track))?;
     if let Some(sidecar) = track.sidecar() {
         return Some(BurnIn::Text {
-            subtitle: TextSubtitle::Sidecar(sidecar.path.clone()),
+            subtitle: TextSubtitle::Sidecar {
+                path: sidecar.path.clone(),
+                // Found once the plan runs, as planning reads no files.
+                charset: None,
+            },
         });
     }
     let subtitle = probe.ffmpeg_index(place)?;
