@@ -399,7 +399,7 @@ fn tagged(tag: Option<&str>) -> Option<&str> {
 }
 
 /// The language the ISO 639-1, 639-2 or 639-3 code `code` names.
-fn language(code: &str) -> Option<Language> {
+pub(super) fn language(code: &str) -> Option<Language> {
     let code = code.to_ascii_lowercase();
     let code = (BIBLIOGRAPHIC.iter())
         .find(|(bibliographic, _)| *bibliographic == code)

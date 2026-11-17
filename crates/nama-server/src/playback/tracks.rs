@@ -705,7 +705,7 @@ pub(super) fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto:
 #[cfg(test)]
 impl Tracks {
     /// The probe version that read the Version `version`, if it has been probed.
-    pub(super) async fn probe_version_of(&self, version: i64) -> Option<i64> {
+    pub(crate) async fn probe_version_of(&self, version: i64) -> Option<i64> {
         sqlx::query_scalar!(
             "SELECT probe_version FROM version_probes WHERE version_id = ?",
             version

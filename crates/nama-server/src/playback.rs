@@ -22,6 +22,7 @@ mod direct_play;
 mod limits;
 mod probing;
 mod running;
+mod sidecars;
 mod steps;
 mod subtitles;
 mod track_preferences;
@@ -31,6 +32,7 @@ pub(crate) use direct_play::router;
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
 pub(crate) use running::{RunningPlans, StartError, router as running_router, sweep_leftovers};
+pub(crate) use sidecars::{Sidecar, Sidecars, VersionSidecars, is_sidecar};
 pub(crate) use subtitles::Cache as SubtitleCache;
 pub(crate) use track_preferences::{
     Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,

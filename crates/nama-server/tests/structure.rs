@@ -169,6 +169,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/images", &["image_thumbhashes"]),
     ("src/library/custom_images", &["custom_images"]),
     ("src/playback/track_preferences", &["track_preferences"]),
+    ("src/playback/sidecars", &["sidecar_subtitles"]),
     ("src/library/watch_states", &["watch_states"]),
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/automation/store", &["plugin_store"]),
