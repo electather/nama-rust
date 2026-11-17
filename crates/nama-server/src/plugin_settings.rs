@@ -39,6 +39,7 @@ mod personal;
 mod put_back;
 mod running;
 mod stored;
+mod title_sources;
 
 pub use stored::{grants, stored};
 use stored::{import, save, set_enabled, set_enabled_granting};

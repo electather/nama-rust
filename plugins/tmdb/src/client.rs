@@ -237,13 +237,18 @@ fn failed(error: impl Into<nama_plugin_api::PluginError>) -> MetadataError {
     MetadataError::Failed(error.into())
 }
 
+/// The namespaces TMDB looks titles up by, which its Manifest declares too.
+pub(crate) fn looks_up() -> Vec<String> {
+    vec![IMDB.to_owned(), TVDB.to_owned()]
+}
+
 impl TitleSource for Client {
     fn namespace(&self) -> &'static str {
         TMDB
     }
 
     fn lookup_namespaces(&self) -> Vec<String> {
-        vec![IMDB.to_owned(), TVDB.to_owned()]
+        looks_up()
     }
 
     fn search<'a>(

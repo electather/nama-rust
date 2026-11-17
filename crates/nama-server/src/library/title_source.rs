@@ -173,18 +173,6 @@ impl TitleSources {
         sources
     }
 
-    /// Whether `order`, a Library's, could ever Match: false only when every namespace in it
-    /// names an enabled source and none of them searches. A namespace no enabled source keeps
-    /// passes, as a disabled source does.
-    pub(crate) async fn searches_any(&self, order: &[String]) -> bool {
-        let sources = self.sources().await;
-        order.iter().any(|namespace| {
-            (sources.iter())
-                .find(|source| source.namespace == *namespace)
-                .is_none_or(Source::searches)
-        })
-    }
-
     /// Whether some source the routing methods ask answers `method` and keeps titles under
     /// `namespace`, such as an ID Hint's, or looks them up by it. Matching routes with
     /// [`TitleSources::by_namespace`] and keeps the route, so only tests ask this.

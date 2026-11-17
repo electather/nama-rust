@@ -20,7 +20,8 @@ use crate::{
     browse::{Browse, Target, ToDelete},
     library::{
         Contents, FolderProblem, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        NewestBackdrop, Order, Role, Slot, TitleSources, artwork_url,
+        NewestBackdrop, Order, Role, Slot, TitleSources, artwork_url, check_known,
+        default_title_sources,
     },
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
@@ -50,7 +51,7 @@ pub(super) struct LibraryServiceHandler {
     pub(super) title_sources: TitleSources,
     /// Names the Plugins serving them.
     pub(super) plugins: ExtensionPoints,
-    /// Says which Plugins a Library may list as Recognisers.
+    /// Says which Plugins a Library may list as Recognisers, and what each title source keeps.
     pub(super) plugin_settings: PluginSettings,
 }
 
@@ -68,21 +69,6 @@ impl LibraryServiceHandler {
             newest: (self.contents.newest_backdrops().await).map_err(database_failed)?,
             images: self.images.shown().await?,
         })
-    }
-
-    /// Refuses a non-empty `order` that could never Match, as no source in it searches; an empty
-    /// one keeps the Library's order, or TMDB alone.
-    async fn check_searches(&self, order: &[String]) -> Result<(), ConnectError> {
-        if order.is_empty() || self.title_sources.searches_any(order).await {
-            return Ok(());
-        }
-        let message =
-            "No source in this order searches for titles; add one that does, such as TMDB";
-        Err(
-            refuse(RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID, message)
-                .field("title_sources")
-                .into(),
-        )
     }
 
     /// Refuses Recogniser `ids`, sent in the request field `field`, that name an id twice or of
@@ -148,10 +134,14 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<CreateLibraryResponse> {
         let request = request.to_owned_message();
         let kind = kind_from_proto(request.kind)?;
-        self.check_searches(&request.title_sources).await?;
+        let mut title_sources = request.title_sources;
+        if title_sources.is_empty() {
+            title_sources = default_title_sources();
+        }
+        check_known(&title_sources, &[], &self.plugin_settings.title_sources())?;
         (self.check_recognisers(&request.recogniser_ids, "recogniser_ids")).await?;
         let order = Order {
-            title_sources: request.title_sources,
+            title_sources,
             recognisers: Some(request.recogniser_ids),
         };
         let library = (self.scanner)
@@ -212,7 +202,11 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, UpdateLibraryRequest>,
     ) -> ServiceResult<UpdateLibraryResponse> {
         let request = request.to_owned_message();
-        self.check_searches(&request.title_sources).await?;
+        if !request.title_sources.is_empty() {
+            let stored = self.libraries.get(request.id).await?.title_sources;
+            let known = self.plugin_settings.title_sources();
+            check_known(&request.title_sources, &stored, &known)?;
+        }
         let recognisers = request
             .recogniser_order
             .into_option()
@@ -571,6 +565,14 @@ impl From<LibraryError> for ConnectError {
                     Some(namespace) => refused.param("namespace", &namespace),
                     None => refused,
                 }
+            }
+            LibraryError::TitleSourceUnknown { namespace } => {
+                refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message)
+                    .field("title_sources")
+                    .param("namespace", &namespace)
+            }
+            LibraryError::NoTitleSourceSearches => {
+                refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message).field("title_sources")
             }
             LibraryError::Database(err) => return database_failed(err),
         };

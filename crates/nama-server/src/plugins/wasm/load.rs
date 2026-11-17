@@ -17,7 +17,7 @@ use extism::{CompiledPlugin, CurrentPlugin, PluginBuilder, UserData, Val, ValTyp
 use nama_plugin_api::{
     Manifest, PluginId,
     automation::Kernel,
-    metadata::{ExternalId, InvalidId},
+    metadata::{ExternalId, InvalidId, SourceManifest},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_proto::{CONTRACT_VERSION, nama::plugin::v1 as wire, services};
@@ -31,7 +31,7 @@ use super::{
     bundled::BUNDLED,
     calls::Calls,
     check_exports, contract, points,
-    services::{CHECK_SETTINGS, known_exports},
+    services::{CHECK_SETTINGS, TITLE_SEARCH, known_exports},
 };
 use crate::plugins::{contain_sync, kept_logo, registry::personal_settings_refusal};
 
@@ -203,12 +203,17 @@ pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<M
     check_title_namespace(package, &points)?;
     check_tick_every(package, &points)?;
     check_exports(&points, |export| exported.contains(&export))?;
-    manifest(package, &points)
+    manifest(package, &points, exported)
 }
 
-/// What `package`, naming `points`, says about its Plugin, as the Kernel reads it. Its logo is
-/// taken out, so the package kept with the Plugin never holds one the Server dropped.
-fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest, Refused> {
+/// What `package`, naming `points` and with the exports `exported`, says about its Plugin, as the
+/// Kernel reads it. Its logo is taken out, so the package kept with the Plugin never holds one
+/// the Server dropped.
+fn manifest(
+    package: &mut wire::Manifest,
+    points: &[&Point],
+    exported: &[&str],
+) -> Result<Manifest, Refused> {
     let settings = settings_schema(package)?;
     let personal_settings = schema(&package.personal_settings)?;
     let permissions = package
@@ -235,6 +240,11 @@ fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest,
         permissions,
         tick_every: names(points, services::AUTOMATION)
             .then(|| Duration::from_secs(package.tick_every_seconds.into())),
+        title_source: names(points, services::TITLE_SOURCE).then(|| SourceManifest {
+            namespace: package.title_namespace.clone(),
+            looks_up: package.title_lookup_namespaces.clone(),
+            searches: exported.contains(&TITLE_SEARCH.export),
+        }),
     };
     match personal_settings_refusal(&manifest) {
         Some(reason) => Err(Refused::PersonalSettings(reason)),
