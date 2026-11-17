@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE version_probes SET keyframes_failure_version = ? - 1\n                         WHERE version_id = ? AND keyframes_failure_version IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "70ed12b07dde03018530085d09de28df0870ca86ba2f191dfe47dbf4e9f68563"
+}

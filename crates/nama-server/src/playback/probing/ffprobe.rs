@@ -16,7 +16,7 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// How long ffprobe may take to read all of a file, as listing its keyframes or finding where its
 /// video ends does, such as a 60 GB file from a slow network share.
-const WHOLE_FILE_TIMEOUT: Duration = Duration::from_mins(10);
+pub(super) const WHOLE_FILE_TIMEOUT: Duration = Duration::from_mins(10);
 
 /// Subtitle codecs, as ffprobe names them, that are bitmaps rather than text.
 const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_subtitle", "xsub"];
@@ -271,6 +271,7 @@ fn track(mut stream: ProbedStream) -> Option<Track> {
             // ponytail: a VobSub header without a `palette:` line passes and draws black; read the
             // extradata itself if one turns up.
             header: stream.extradata_size.is_some_and(|size| size > 0),
+            sidecar: None,
         },
         _ => return None,
     };

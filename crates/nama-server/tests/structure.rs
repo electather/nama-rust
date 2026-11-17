@@ -462,6 +462,7 @@ const ROWS: &[&[&str]] = &[
         "page",
         "config",
         "diagnostics",
+        "log_capture",
     ],
 ];
 

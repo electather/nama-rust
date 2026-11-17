@@ -154,7 +154,7 @@ pub(super) fn fallback(
             video: VideoConversion {
                 hardware: None,
                 tone_map,
-                ..transcode.video
+                ..transcode.video.clone()
             },
             ..*transcode
         },
@@ -464,8 +464,9 @@ pub(super) fn failed_on_device(facts: &Facts, _: Option<&Candidates>) -> Vec<Rea
         .collect()
 }
 
-/// The step for keyframes the Server just couldn't list: it rules out a Remux, which cuts its
-/// segments at them, for now, since the next plan lists them again.
+/// The step for keyframes the Server couldn't list: it rules out a Remux, which cuts its
+/// segments at them. A failure kept for the file rules it out until the file changes (#850), and
+/// any other only for this plan.
 pub(super) fn keyframes_unlisted(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
     let unlisted = facts.keyframes_unlisted.then(|| {
         Reason::new(

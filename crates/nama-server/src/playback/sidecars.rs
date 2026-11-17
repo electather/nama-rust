@@ -2,16 +2,18 @@
 //!
 //! [`Sidecars`] owns `sidecar_subtitles` (see the area's `AGENTS.md`). A scan finds the files and
 //! says which Version each is beside; their rows go when the Version goes. Only their names and
-//! metadata are read, never the files.
+//! metadata are read, never the files. Readers of a Version's Tracks append the text ones with
+//! [`Sidecars::append_to`] (see the area's `AGENTS.md`).
 
 use std::{collections::HashMap, ffi::OsStr, path::Path, sync::Arc};
 
 use sqlx::SqliteConnection;
 
-use super::{Track, TrackKind, track_preferences::language};
+use super::{Probe, Track, TrackKind, track_preferences::language};
 use crate::db::Database;
 
-/// A sidecar as a scan finds it, all a scan compares with what's stored.
+/// A sidecar as a scan finds it, all a scan compares with what's stored, and the file its Track
+/// is read from.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Sidecar {
     pub(crate) path: String,
@@ -62,6 +64,50 @@ impl Sidecars {
             });
         }
         Ok(stored)
+    }
+
+    /// Appends to the Tracks of each of `probes`, by Version id, the text sidecars stored beside
+    /// it, in path order, after the file's own, so those keep their places.
+    pub(crate) async fn append_to(
+        &self,
+        probes: impl IntoIterator<Item = (i64, &mut Probe)>,
+    ) -> Result<(), sqlx::Error> {
+        let mut probes: HashMap<i64, &mut Probe> = probes.into_iter().collect();
+        let versions: Vec<i64> = probes.keys().copied().collect();
+        let versions = serde_json::Value::from(versions).to_string();
+        let rows = sqlx::query!(
+            r#"SELECT version_id, path, size, modified_ns, codec, language, title,
+                      is_default AS "is_default: bool", forced AS "forced: bool", sdh AS "sdh: bool"
+               FROM sidecar_subtitles
+               WHERE version_id IN (SELECT value FROM json_each(?))
+               ORDER BY path"#,
+            versions
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        for row in rows {
+            let sidecar = Sidecar {
+                path: row.path,
+                size: row.size,
+                modified_ns: row.modified_ns,
+            };
+            let track = Track {
+                kind: subtitle(&row.codec, Some(sidecar)),
+                codec: row.codec,
+                language: row.language,
+                title: row.title,
+                default: row.is_default,
+                forced: row.forced,
+                sdh: row.sdh,
+            };
+            // `.sup` ones wait until they're served as PGS (#938).
+            if let Some(probe) = probes.get_mut(&row.version_id)
+                && track.is_text_subtitle()
+            {
+                probe.tracks.push(track);
+            }
+        }
+        Ok(())
     }
 
     /// Replaces the stored sidecars of each Version in `found` with those found beside it, in
@@ -138,10 +184,21 @@ fn codec_of(extension: &str) -> Option<&'static str> {
 }
 
 /// The kind of Track a sidecar of `codec` is: only `.sup`'s is an image.
-fn subtitle(codec: &str) -> TrackKind {
+fn subtitle(codec: &str, sidecar: Option<Sidecar>) -> TrackKind {
     TrackKind::Subtitle {
         image: codec == "hdmv_pgs_subtitle",
         header: false,
+        sidecar,
+    }
+}
+
+impl Track {
+    /// The sidecar it's read from, or `None` for one inside the Version's file.
+    pub(super) const fn sidecar(&self) -> Option<&Sidecar> {
+        match &self.kind {
+            TrackKind::Subtitle { sidecar, .. } => sidecar.as_ref(),
+            TrackKind::Video { .. } | TrackKind::Audio { .. } => None,
+        }
     }
 }
 
@@ -158,7 +215,7 @@ fn track_named(stem: &str, name: &str) -> Option<Track> {
         default: false,
         forced: false,
         sdh: false,
-        kind: subtitle(codec),
+        kind: subtitle(codec, None),
     };
     let tags = rest.strip_prefix(stem).unwrap_or_default();
     let mut title = Vec::new();
@@ -210,7 +267,7 @@ impl Sidecars {
         (rows.into_iter())
             .map(|row| {
                 let track = Track {
-                    kind: subtitle(&row.codec),
+                    kind: subtitle(&row.codec, None),
                     codec: row.codec,
                     language: row.language,
                     title: row.title,

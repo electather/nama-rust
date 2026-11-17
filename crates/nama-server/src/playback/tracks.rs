@@ -14,15 +14,16 @@ use std::{
 use nama_proto::nama::v1 as proto;
 use sqlx::SqliteConnection;
 
+use super::sidecars::Sidecar;
 use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::Stored};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
 pub(super) const PROBE_VERSION: i64 = 9;
 
-/// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
-/// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
-/// [`PROBE_VERSION`] bump retries them too.
+/// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on, or failed to list the
+/// keyframes of, at an older one is tried again, and those it read are left alone; when to bump
+/// it is in `AGENTS.md`. A [`PROBE_VERSION`] bump retries them too.
 pub(super) const PROBE_FAILURE_VERSION: i64 = 1;
 
 /// How many times in a row the probe pass tries a file that fails for a passing reason, such as a
@@ -85,6 +86,13 @@ impl PassingReason {
     }
 }
 
+/// When a Version's keyframes fall, in milliseconds, or that listing them failed in a kept way.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum Keyframes {
+    Listed(Vec<i64>),
+    Unlisted,
+}
+
 /// What probing a Version found.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Probe {
@@ -103,9 +111,14 @@ pub(crate) struct Probe {
 impl Probe {
     /// The place of the Track at `place` among the file's Tracks of its kind, counting from 0,
     /// which is how ffmpeg picks out an audio or subtitle stream. `None` if there's no Track there.
-    /// A video Track's can fall short of ffmpeg's, since probing leaves out cover art.
+    /// A video Track's can fall short of ffmpeg's, since probing leaves out cover art. `None` for
+    /// a sidecar, which isn't in the file; sidecars follow the file's own Tracks, so none counts.
     pub(super) fn ffmpeg_index(&self, place: usize) -> Option<usize> {
-        let kind = discriminant(&self.tracks.get(place)?.kind);
+        let track = self
+            .tracks
+            .get(place)
+            .filter(|track| track.sidecar().is_none())?;
+        let kind = discriminant(&track.kind);
         // Probing keeps every audio and subtitle stream, so ffmpeg's are these, in order.
         Some(
             (self.tracks.iter().take(place))
@@ -157,6 +170,8 @@ pub(crate) enum TrackKind {
         /// Whether the file carries the Track's codec header, such as VobSub's `.idx` with its
         /// palette and size.
         header: bool,
+        /// The file beside the Version it's read from, or `None` for one inside its file.
+        sidecar: Option<Sidecar>,
     },
 }
 
@@ -335,21 +350,26 @@ impl Tracks {
         ignore_removed(stored)
     }
 
-    /// When each keyframe of the stored file `file`'s first video falls, in milliseconds, if
-    /// they've been kept since it was last probed at `file`'s size and modified time.
-    pub(super) async fn keyframes(&self, file: Stored) -> Result<Option<Vec<i64>>, sqlx::Error> {
-        let keyframes = sqlx::query_scalar!(
-            "SELECT keyframes_ms FROM version_probes
+    /// The stored file `file`'s keyframes, kept or failed to list at the current
+    /// [`PROBE_FAILURE_VERSION`] since it was last probed at `file`'s size and modified time.
+    pub(super) async fn keyframes(&self, file: Stored) -> Result<Option<Keyframes>, sqlx::Error> {
+        let row = sqlx::query!(
+            "SELECT keyframes_ms, keyframes_failure_version FROM version_probes
              WHERE version_id = ? AND size = ? AND modified_ns = ?",
             file.id,
             file.size,
             file.modified_ns
         )
         .fetch_optional(self.db.reader())
-        .await?
-        .flatten();
-        // Only `store_keyframes` writes them, as JSON it made.
-        Ok(keyframes.and_then(|json| serde_json::from_str(&json).ok()))
+        .await?;
+        Ok(row.and_then(|row| match row.keyframes_failure_version {
+            Some(PROBE_FAILURE_VERSION) => Some(Keyframes::Unlisted),
+            // A failure at an older failure version left no keyframes, so they're listed again.
+            // Only `store_keyframes` writes them, as JSON it made.
+            _ => Some(Keyframes::Listed(
+                serde_json::from_str(&row.keyframes_ms?).ok()?,
+            )),
+        }))
     }
 
     /// Keeps `keyframes` as the Version `file`'s until it's next probed. A Version not last probed
@@ -357,16 +377,20 @@ impl Tracks {
     pub(super) async fn store_keyframes(
         &self,
         file: Stored,
-        keyframes: &[i64],
+        keyframes: &Keyframes,
     ) -> Result<(), sqlx::Error> {
-        let keyframes = json_array(keyframes);
+        let (keyframes_ms, failure_version) = match keyframes {
+            Keyframes::Listed(keyframes) => (Some(json_array(keyframes)), None),
+            Keyframes::Unlisted => (None, Some(PROBE_FAILURE_VERSION)),
+        };
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE version_probes SET keyframes_ms = ?
+                        "UPDATE version_probes SET keyframes_ms = ?, keyframes_failure_version = ?
                          WHERE version_id = ? AND size = ? AND modified_ns = ?",
-                        keyframes,
+                        keyframes_ms,
+                        failure_version,
                         file.id,
                         file.size,
                         file.modified_ns
@@ -418,8 +442,7 @@ impl Tracks {
         let tracks = sqlx::query!(
             r#"SELECT version_id, kind, codec, language, title, is_default AS "default: bool",
                       forced AS "forced: bool", sdh AS "sdh: bool", width, height, frame_rate, bit_depth, hdr,
-                      dolby_vision_profile,
-                      dolby_vision_base_layer,
+                      dolby_vision_profile, dolby_vision_base_layer,
                       channels, image AS "image: bool", header AS "header: bool"
                FROM tracks
                WHERE version_id IN (SELECT value FROM json_each(?))
@@ -448,6 +471,7 @@ impl Tracks {
                     image: row.image.unwrap_or_default(),
                     // Unknown for a file probed before it was recorded.
                     header: row.header.unwrap_or_default(),
+                    sidecar: None,
                 },
             };
             let track = Track {
@@ -536,7 +560,7 @@ async fn store_track(
             TrackKind::Audio { channels } => {
                 ("audio", None, None, None, None, None, channels, None, None)
             }
-            TrackKind::Subtitle { image, header } => (
+            TrackKind::Subtitle { image, header, .. } => (
                 "subtitle",
                 None,
                 None,
@@ -699,85 +723,6 @@ pub(super) fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto:
                 Some(dolby_vision),
             )
         }
-    }
-}
-
-#[cfg(test)]
-impl Tracks {
-    /// The probe version that read the Version `version`, if it has been probed.
-    pub(crate) async fn probe_version_of(&self, version: i64) -> Option<i64> {
-        sqlx::query_scalar!(
-            "SELECT probe_version FROM version_probes WHERE version_id = ?",
-            version
-        )
-        .fetch_optional(self.db.reader())
-        .await
-        .unwrap()
-    }
-
-    /// Why probing the Version `version` last failed, as stored, if it did.
-    pub(super) async fn failure_reason_of(&self, version: i64) -> Option<String> {
-        sqlx::query_scalar!(
-            "SELECT reason FROM probe_failures WHERE version_id = ?",
-            version
-        )
-        .fetch_optional(self.db.reader())
-        .await
-        .unwrap()
-    }
-
-    /// Marks the Version `version` as failed at the failure version before the current one.
-    pub(super) async fn failed_by_older_failure_version(&self, version: i64) {
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "UPDATE probe_failures SET failure_version = ? - 1 WHERE version_id = ?",
-                        PROBE_FAILURE_VERSION,
-                        version
-                    )
-                    .execute(&mut **tx)
-                    .await
-                })
-            })
-            .await
-            .unwrap();
-    }
-
-    /// Marks the Version `version` as failed by the version before the current one.
-    pub(super) async fn failed_by_older_probe(&self, version: i64) {
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "UPDATE probe_failures SET probe_version = ? - 1 WHERE version_id = ?",
-                        PROBE_VERSION,
-                        version
-                    )
-                    .execute(&mut **tx)
-                    .await
-                })
-            })
-            .await
-            .unwrap();
-    }
-
-    /// Marks the Version `version` as probed by the version before the current one.
-    pub(super) async fn read_by_older_probe(&self, version: i64) {
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "UPDATE version_probes SET probe_version = ? - 1 WHERE version_id = ?",
-                        PROBE_VERSION,
-                        version
-                    )
-                    .execute(&mut **tx)
-                    .await
-                })
-            })
-            .await
-            .unwrap();
     }
 }
 

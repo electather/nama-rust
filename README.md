@@ -74,7 +74,7 @@ An Admin sees which ffmpeg the Server found, and its version, on the Playback pa
 
 ## Diagnostics
 
-A Server logs to stdout and sends nothing anywhere else (ADR 0054). To see where its time goes, set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OpenTelemetry Collector's OTLP/HTTP address, such as `http://otel-collector:4318`. The Server then also exports its logs, and a trace for each API call, Scan, probe, image resize and ffmpeg launch, with a span for each SQL query and Plugin call in it. Spans carry ids, counts and durations, never titles, file paths or names; the logs are those on stdout. The standard `OTEL_*` variables configure the rest, such as `OTEL_SERVICE_NAME` and `OTEL_TRACES_SAMPLER`. The Server exports over plain HTTP only, so an HTTPS backend needs a Collector in front of it.
+A Server logs to stdout and sends nothing anywhere else (ADR 0054). To see where its time goes, set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OpenTelemetry Collector's OTLP/HTTP address, such as `http://otel-collector:4318`. The Server then also exports its logs, and a trace for each API call, Scan, probe, image resize and ffmpeg launch, with a span for each SQL query and Plugin call in it. Spans carry ids, counts and durations, never titles, file paths or names; the logs are those on stdout. The standard `OTEL_*` variables configure the rest, such as `OTEL_SERVICE_NAME` and `OTEL_TRACES_SAMPLER`. The Server exports over plain HTTP only, so an HTTPS backend needs a Collector in front of it. The web app then records its own spans too, for each API call, page change and playback start, and sends them through its Server, which forwards them to the same endpoint; with the variable unset, the web app doesn't even download the code that records them.
 
 ## Checks
 

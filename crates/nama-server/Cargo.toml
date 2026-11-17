@@ -49,6 +49,8 @@ opentelemetry-http = { version = "0.33.1", default-features = false }
 opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
 regex = "1"
+# Forwards the web app's Diagnostics to the OTLP endpoint; already built for opentelemetry-otlp.
+reqwest = { version = "0.13.5", default-features = false }
 schemars = "1"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
@@ -72,7 +74,8 @@ walkdir = "2"
 wasmtime = { version = "49.0.5", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
-# Only `access`, which sees a read-only mount as well as a folder's mode.
+# Only `access`, which sees a read-only mount as well as a folder's mode, and `statvfs`, for a
+# full segment folder's free space.
 rustix = { version = "1", features = ["fs"] }
 
 [dev-dependencies]

@@ -24,10 +24,15 @@ fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
     ffprobe_after(bin, &format!("echo \"$*\" >> '{}'", log.display()))
 }
 
+/// An ffprobe that fails to list keyframes, logging each listing to `bin/runs.log`.
 #[cfg(unix)]
 fn ffprobe_failing_keyframes(bin: &Path) -> Ffmpeg {
-    let fail = "case \"$*\" in *packet=pts_time,flags*) echo 'read failed' >&2; exit 1;; esac";
-    ffprobe_after(bin, fail)
+    let fail = format!(
+        "case \"$*\" in *packet=pts_time,flags*) echo list >> '{}'; echo 'read failed' >&2; \
+         exit 1;; esac",
+        bin.join("runs.log").display()
+    );
+    ffprobe_after(bin, &fail)
 }
 
 // The failing ffprobe is a shell script.
@@ -62,6 +67,24 @@ async fn a_remux_whose_keyframes_cant_be_listed_is_refused_as_busy_at_the_transc
         ErrorCode::ResourceExhausted,
         RefusalReason::REFUSAL_REASON_SERVER_BUSY,
     );
+}
+
+// The failing ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_version_whose_keyframes_couldnt_be_listed_transcodes_next_time_without_listing_them() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, version) = Fixture::alien_mkv(ffprobe_failing_keyframes(bin.path()), "aac").await;
+    fx.transcode(version).await;
+
+    let plan = fx.transcode(version).await;
+
+    reason_of(
+        &plan,
+        PlaybackReasonKind::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+    );
+    let runs = fs::read_to_string(bin.path().join("runs.log")).unwrap();
+    assert_eq!(runs.lines().count(), 1, "{runs}");
 }
 
 // The logging ffprobe is a shell script.
