@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use crate::db::Database;
 
+mod backdrops;
 mod decisions;
 mod files;
 #[cfg(test)]
@@ -24,6 +25,7 @@ mod testing;
 #[cfg(test)]
 pub(crate) use testing::{File, FileItem, Recorded};
 
+pub(crate) use backdrops::NewestBackdrop;
 use decisions::insert_decisions;
 pub(crate) use decisions::{
     Decided, Decisions, ImageRef, Metadata, TiedTitle, Unmatched, UnmatchedReason,
@@ -34,7 +36,7 @@ use ids::{ids_from_json, ids_sql, primary_id_in};
 use items::ItemRow;
 pub(crate) use items::{Item, ItemKind, Name};
 pub(crate) use matched::{
-    Episode, MatchedTo, Movie, NewestBackdrop, Season, Show, TitlesIn, Version, library_with_movie,
+    Episode, MatchedTo, Movie, Season, Show, TitlesIn, Version, library_with_movie,
     library_with_show, matched_episodes, show_poster,
 };
 pub(crate) use pins::{Named, Pin};
