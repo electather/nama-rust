@@ -1,8 +1,11 @@
 use std::path::Path;
 
+use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
+
 use super::{
-    Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe, Remux, RemuxAudio,
-    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
+    Accel, BurnIn, FRENCH_SRT, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe,
+    PERSIAN_SRT, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode, TranscodeAudio,
+    VideoConversion, VideoLimit, sidecar_charset,
 };
 
 /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
@@ -458,7 +461,10 @@ fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
 fn a_sidecar_text_subtitle_is_burned_in_from_its_own_file_by_libass() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Text {
-            subtitle: TextSubtitle::Sidecar("Alien.en.ass".to_owned()),
+            subtitle: TextSubtitle::Sidecar {
+                path: "Alien.en.ass".to_owned(),
+                charset: None,
+            },
         }),
         ..SOFTWARE
     };
@@ -469,6 +475,43 @@ fn a_sidecar_text_subtitle_is_burned_in_from_its_own_file_by_libass() {
         value_of(&args, "-vf"),
         Some(r"subtitles=filename=\'Alien.en.ass\'")
     );
+}
+
+/// The filters a Transcode burns in a sidecar holding `bytes` with, in the charset it's found in.
+async fn sidecar_burn_in_filters(bytes: &[u8]) -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let sidecar = dir.path().join("Alien.en.srt");
+    std::fs::write(&sidecar, bytes).unwrap();
+    let path = sidecar.to_str().unwrap().to_owned();
+    let charset = sidecar_charset(&path).await;
+    let burned = VideoConversion {
+        burn_in: Some(BurnIn::Text {
+            subtitle: TextSubtitle::Sidecar { path, charset },
+        }),
+        ..SOFTWARE
+    };
+
+    let args = transcode_args(burned);
+
+    value_of(&args, "-vf").unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn a_sidecar_not_in_utf8_is_burned_in_read_in_the_charset_its_bytes_are_in() {
+    let persian = sidecar_burn_in_filters(&WINDOWS_1256.encode(PERSIAN_SRT).0).await;
+    let french = sidecar_burn_in_filters(&WINDOWS_1252.encode(FRENCH_SRT).0).await;
+
+    assert!(persian.ends_with(r":charenc=\'windows-1256\'"), "{persian}");
+    assert!(french.ends_with(r":charenc=\'windows-1252\'"), "{french}");
+}
+
+#[tokio::test]
+async fn a_utf8_sidecar_with_or_without_a_bom_is_burned_in_with_no_charset() {
+    let plain = sidecar_burn_in_filters(PERSIAN_SRT.as_bytes()).await;
+    let with_bom = sidecar_burn_in_filters(format!("\u{feff}{PERSIAN_SRT}").as_bytes()).await;
+
+    assert!(!plain.contains("charenc"), "{plain}");
+    assert!(!with_bom.contains("charenc"), "{with_bom}");
 }
 
 #[test]
