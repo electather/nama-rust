@@ -46,8 +46,21 @@ pub(crate) struct Keyframe {
     pub(crate) previous_ms: Option<i64>,
 }
 
-/// How far before its first keyframe a Remux keeps packets at most, in milliseconds.
+/// How far before its first keyframe a Remux keeps the video's packets at most, in milliseconds.
+/// Its audio starts at [`REMUX_AUDIO_BACK_MS`] instead, unless the run starts the file.
 const REMUX_BACK_AT_MOST_MS: i64 = 500;
+
+/// How far before its first keyframe a Remux that doesn't start the file starts its audio, in
+/// milliseconds: at the keyframe's decode time, where a run that wrote the file before ended its
+/// audio. That's two frames before the keyframe shows at 24 fps, as most films' H.264 and HEVC are.
+// ponytail: at other frame rates or reorderings, runs that meet overlap or skip up to a few tens
+// of ms of audio; read the keyframe's decode time when Probing if that's heard.
+const REMUX_AUDIO_BACK_MS: i64 = 83;
+
+/// How much later a Remux starts its audio when converting it to AAC than when copying it, in
+/// milliseconds: the encoder starts its first packet a frame of 1024 samples, 21 to 23 ms at 48 or
+/// 44.1 kHz, before its first sample.
+const AAC_PRIMING_MS: i64 = 24;
 
 /// How much later than in its file a Remux times everything, in milliseconds: more than
 /// [`REMUX_BACK_AT_MOST_MS`], since ffmpeg shifts the times of a run that would start before 0,
@@ -344,6 +357,9 @@ impl Ffmpeg {
     /// number such as `3.m4s`, and an init segment named by [`hls_init`] that's whole once
     /// `from`'s file is. A run started at any keyframe writes the same files, so one can pick up
     /// where another stopped. Each file appears only once it's whole. Fails without ffmpeg.
+    ///
+    /// The video starts up to [`REMUX_BACK_AT_MOST_MS`] before `from`, the audio as
+    /// [`REMUX_AUDIO_BACK_MS`] says, so it doesn't step back where this run picks up another's.
     pub(crate) fn remux(
         &self,
         path: &str,
@@ -360,9 +376,12 @@ impl Ffmpeg {
             .previous_ms
             .map_or(REMUX_BACK_AT_MOST_MS, |previous| (from.ms - previous) / 2);
         let start_ms = from.ms - back_ms.min(REMUX_BACK_AT_MOST_MS);
-        if start_ms > 0 {
+        let audio_start_ms = (remux.audio.is_some() && from.n > 0)
+            .then(|| (from.ms - REMUX_AUDIO_BACK_MS).max(start_ms));
+        let seek_ms = audio_start_ms.unwrap_or(start_ms);
+        if seek_ms > 0 {
             // Jumps to a keyframe at or before it, which in Matroska can be a few before.
-            command.args(["-ss", &seconds(start_ms)]);
+            command.args(["-ss", &seconds(seek_ms)]);
         }
         command.args(["-itsoffset", &seconds(REMUX_LATER_BY_MS)]);
         command.arg("-i").arg(path);
@@ -381,10 +400,11 @@ impl Ffmpeg {
         command.args(["-map", "0:V:0"]);
         map_audio(&mut command, remux.audio.map(|audio| audio.track));
         command.args(["-c", "copy"]);
-        aac(
-            &mut command,
-            remux.audio.and_then(|audio| audio.aac_channels),
-        );
+        let aac_channels = remux.audio.and_then(|audio| audio.aac_channels);
+        aac(&mut command, aac_channels);
+        if let Some(audio_start_ms) = audio_start_ms {
+            start_audio_at(&mut command, audio_start_ms, aac_channels.is_some());
+        }
         Ok(hls_output(command, &ffmpeg.version, dir, from.n))
     }
 
@@ -504,6 +524,24 @@ impl Ffmpeg {
 fn failed(output: &std::process::Output) -> SubtitleError {
     let stderr = String::from_utf8_lossy(&output.stderr);
     SubtitleError::Failed(stderr.trim().to_owned())
+}
+
+/// Has a Remux's `command`, whose input seeks to `start_ms`, drop the audio from before it,
+/// which it's converting to AAC if `converted`.
+fn start_audio_at(command: &mut tokio::process::Command, start_ms: i64, converted: bool) {
+    if converted {
+        // Under `-copyts` the input's `-ss` trims decoded audio without its `-itsoffset`, so
+        // too early; this trims in the output's times.
+        let start = seconds(start_ms + REMUX_LATER_BY_MS + AAC_PRIMING_MS);
+        command.arg("-af").arg(format!("atrim=start={start}"));
+    } else {
+        // Copied packets from before the input's `-ss` are kept under `-copyts` unless told.
+        // ponytail: ffmpeg drops them by the input's `-ss` without the file's start time, so this
+        // lands right only in a file that starts at 0. An MPEG-TS's copied audio can still start
+        // up to the video's back-off early, and before ffmpeg 8 a Matroska file starting at its
+        // AAC's priming, before 0, skips a frame. Pass the start Probing reads if either is heard.
+        command.args(["-copypriorss:a", "0"]);
+    }
 }
 
 // The fakes are shell scripts.
