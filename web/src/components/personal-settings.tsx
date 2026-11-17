@@ -56,7 +56,12 @@ function PluginCard({ plugin, listedAt }: { plugin: Personal; listedAt: number }
       >
         {plugin.settings.map((setting) => (
           // No choices: the Kernel refuses a CHOICE Personal setting (ADR 0046).
-          <SettingInput key={setting.key} setting={setting} error={errors[setting.key]} />
+          <SettingInput
+            key={setting.key}
+            setting={setting}
+            error={errors[setting.key]}
+            checksRequired
+          />
         ))}
         <FormEnd
           action={update.isPending ? "Saving…" : "Save"}

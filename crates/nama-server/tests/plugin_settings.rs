@@ -1,8 +1,11 @@
-//! Starting the Server's Plugins with the settings stored in the database, which come from the
-//! config's `[plugins.*]` tables once, on the first start, and changing them in the order
-//! ADR 0028 sets, against a real database and fake Plugins, without HTTP; `library_ids` saves a
-//! setting naming Libraries over the API.
+//! Starting the Server's Plugins with the settings the database stores (from the config's
+//! `[plugins.*]` tables on the first start) and changing them in ADR 0028's order, with fake
+//! Plugins and no HTTP; the submodules save settings over the API.
 
+#[path = "plugin_settings/clearing.rs"]
+mod clearing;
+#[path = "plugin_settings/integer_bounds.rs"]
+mod integer_bounds;
 #[path = "plugin_settings/library_ids.rs"]
 mod library_ids;
 #[path = "support/log.rs"]
@@ -60,6 +63,8 @@ impl Plugin for Fake {
             kind: SettingKind::Text,
             required: false,
             default: None,
+            min: None,
+            max: None,
         };
         Manifest {
             version: "0.0.0".to_owned(),
@@ -464,8 +469,7 @@ impl Flakiness {
     }
 }
 
-/// The Built-in Plugin `flaky`, with [`Fake`]'s settings, which keeps the greeting it is enabled
-/// with.
+/// The Built-in Plugin `flaky`, with [`Fake`]'s settings, keeping the greeting it's enabled with.
 struct Flaky(&'static Flakiness);
 
 impl Plugin for Flaky {

@@ -1222,6 +1222,15 @@ pub struct SettingFieldView<'a> {
     pub default_value: ::buffa::MessageFieldView<
         super::super::__buffa::view::SettingValueView<'a>,
     >,
+    /// The least and most a `SETTING_KIND_INTEGER` setting may be, inclusive, each unset if it has
+    /// none. A Server refuses a Plugin setting them on another kind, with `min_value` over
+    /// `max_value`, or with a default outside them, and refuses a value outside them when saving or
+    /// enabling.
+    ///
+    /// Field 7: `min_value`
+    pub min_value: ::core::option::Option<i64>,
+    /// Field 8: `max_value`
+    pub max_value: ::core::option::Option<i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SettingFieldView<'a> {
@@ -1312,6 +1321,20 @@ impl<'a> ::buffa::MessageView<'a> for SettingFieldView<'a> {
                     }
                 }
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.min_value = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.max_value = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1348,6 +1371,8 @@ impl<'a> ::buffa::MessageView<'a> for SettingFieldView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            min_value: self.min_value,
+            max_value: self.max_value,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1385,6 +1410,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SettingFieldView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.min_value {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.max_value {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1421,6 +1452,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SettingFieldView<'a> {
                 buf,
             );
             self.default_value.write_to(__cache, buf);
+        }
+        if let Some(v) = self.min_value {
+            ::buffa::types::put_int64_field(7u32, v, buf);
+        }
+        if let Some(v) = self.max_value {
+            ::buffa::types::put_int64_field(8u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1462,6 +1499,12 @@ impl<'__a> ::serde::Serialize for SettingFieldView<'__a> {
             if let ::core::option::Option::Some(__v) = self.default_value.as_option() {
                 __map.serialize_entry("defaultValue", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.min_value {
+            __map.serialize_entry("minValue", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.max_value {
+            __map.serialize_entry("maxValue", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         __map.end()
     }
@@ -1597,6 +1640,21 @@ impl SettingFieldOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::SettingValueView<'_>> {
         &self.0.reborrow().default_value
+    }
+    /// The least and most a `SETTING_KIND_INTEGER` setting may be, inclusive, each unset if it has
+    /// none. A Server refuses a Plugin setting them on another kind, with `min_value` over
+    /// `max_value`, or with a default outside them, and refuses a value outside them when saving or
+    /// enabling.
+    ///
+    /// Field 7: `min_value`
+    #[must_use]
+    pub fn min_value(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().min_value
+    }
+    /// Field 8: `max_value`
+    #[must_use]
+    pub fn max_value(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().max_value
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SettingFieldView<'static>>>

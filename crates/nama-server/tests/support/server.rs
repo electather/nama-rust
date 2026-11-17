@@ -22,7 +22,7 @@ use connectrpc::{
 };
 use nama_plugin_api::PluginId;
 use nama_plugin_local_auth::LocalAuth;
-use nama_plugin_tmdb::testing::FakeTmdb;
+use nama_plugin_tmdb::{Tmdb, testing::FakeTmdb};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
     EventServiceClient, EventType, ImageSettings, LibraryKind, LibraryServiceClient, Permission,
@@ -115,8 +115,8 @@ impl Builder {
         }
     }
 
-    /// Starts serving on a free port, with a fresh database and the Built-in `local-auth` among
-    /// its Plugins, and signs an Admin in.
+    /// Starts serving on a free port, with a fresh database and the Built-ins `local-auth` and TMDB
+    /// among its Plugins, and signs an Admin in.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
@@ -150,6 +150,10 @@ impl Builder {
             fulfiller,
         } = self;
         plugins.describe_builtin(|| Arc::new(LocalAuth));
+        // Every Server has TMDB Built in, and a Library created naming no title source orders it.
+        if plugins.plugin(&Tmdb::ID).is_none() {
+            plugins.describe_builtin(|| Arc::new(Tmdb::new()));
+        }
         let fulfiller = fulfiller.map(|(fulfills, fake)| {
             fulfiller::enable(&plugins, fulfills, &fake);
             fake
@@ -218,8 +222,8 @@ impl SignedIn {
 }
 
 impl TestServer {
-    /// A builder for a Server with the default config, no Plugins but the Built-in `local-auth`,
-    /// no ffmpeg, no TMDB and no fake Fulfiller.
+    /// A builder for a Server with the default config, no Plugins but the Built-in `local-auth`
+    /// and a disabled TMDB, no ffmpeg, no fake TMDB and no fake Fulfiller.
     pub(crate) fn builder() -> Builder {
         Builder::default()
     }

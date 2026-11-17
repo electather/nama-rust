@@ -75,6 +75,8 @@ impl Plugin for Grantee {
             kind: SettingKind::Text,
             required: false,
             default: None,
+            min: None,
+            max: None,
         };
         Manifest {
             version: "0.0.0".to_owned(),

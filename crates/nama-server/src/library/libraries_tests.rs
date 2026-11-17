@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use nama_plugin_api::metadata::SourceManifest;
 use tempfile::TempDir;
 
-use super::{Kind, Libraries, Order};
+use super::{Error, Kind, Libraries, Order, check_known};
 use crate::db::Database;
 
 /// A fresh database (its folder is the first `TempDir`) and a folder a Library can hold.
@@ -177,4 +178,39 @@ async fn recording_the_recognisers_read_says_whether_they_changed_since_the_last
         (none_yet, listed, again, reordered),
         (false, true, false, true)
     );
+}
+
+/// A title source keeping `namespace`, searching or not.
+fn known(namespace: &str, searches: bool) -> SourceManifest {
+    SourceManifest {
+        namespace: namespace.to_owned(),
+        looks_up: Vec::new(),
+        searches,
+    }
+}
+
+#[test]
+fn an_order_may_drop_sources_beside_one_whose_plugin_is_gone() {
+    let known = [known("fanart", false), known("tmdb", true)];
+    let stored = order(&["gone", "fanart"]);
+
+    let dropped = check_known(&order(&["gone"]), &stored, &known);
+    let reordered = check_known(&order(&["fanart", "gone"]), &stored, &known);
+    let left_unsearching = check_known(&order(&["fanart"]), &stored, &known);
+
+    dropped.unwrap();
+    reordered.unwrap();
+    assert!(matches!(
+        left_unsearching,
+        Err(Error::NoTitleSourceSearches)
+    ));
+}
+
+#[test]
+fn a_known_stored_source_that_cannot_search_still_counts_as_not_searching() {
+    let known = [known("fanart", false), known("tmdb", true)];
+
+    let dropped_tmdb = check_known(&order(&["fanart"]), &order(&["fanart", "tmdb"]), &known);
+
+    assert!(matches!(dropped_tmdb, Err(Error::NoTitleSourceSearches)));
 }

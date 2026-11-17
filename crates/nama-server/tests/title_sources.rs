@@ -7,14 +7,22 @@ mod refused;
 #[path = "support/server.rs"]
 mod server;
 
-use connectrpc::{ErrorCode, client::HttpClient};
+use std::sync::Arc;
+
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use nama_plugin_api::{
+    Manifest, Plugin, PluginError, PluginId, PointKey, Registrar,
+    metadata::{SourceManifest, TitleSource},
+};
 use nama_proto::nama::v1::{
     BrowseServiceClient, CreateLibraryRequest, EnablePluginRequest, ExternalId, LibraryKind,
     LibraryServiceClient, ListMoviesRequest, ListTitleSourcesRequest, PluginServiceClient,
     RefusalReason, SettingValue, UpdateLibraryRequest, UpdatePluginSettingsRequest, setting_value,
 };
+use nama_server::plugins::Registry;
 use refused::assert_refused;
 use server::{Library, TestServer};
+use tempfile::TempDir;
 
 /// A file naming a Movie the fake TMDB finds by searching.
 const ALIEN: &str = "Alien (1979)/Alien (1979).mkv";
@@ -88,8 +96,13 @@ async fn a_curly_tag_no_title_source_looks_up_by_is_searched_for() {
 }
 
 #[tokio::test]
-async fn an_order_where_no_source_searches_is_refused() {
+async fn an_order_where_no_source_searches_is_refused_whether_it_is_enabled_or_not() {
     let server = TestServer::builder().start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let while_disabled = libraries
+        .create_library(library_in(&dir, "Disabled", &["fanart"]))
+        .await;
     let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
     // fanart.tv fetches nothing until artwork is asked for, so any key does.
     let key = SettingValue {
@@ -111,23 +124,12 @@ async fn an_order_where_no_source_searches_is_refused() {
         })
         .await
         .unwrap();
-    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
-    let dir = tempfile::tempdir().unwrap();
-    let create = |name: &str, order: &[&str]| CreateLibraryRequest {
-        name: name.to_owned(),
-        kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
-        folders: vec![dir.path().join(name).to_str().unwrap().to_owned()],
-        title_sources: order.iter().map(|&n| n.to_owned()).collect(),
-        ..Default::default()
-    };
-    std::fs::create_dir(dir.path().join("Fanart")).unwrap();
-    std::fs::create_dir(dir.path().join("Both")).unwrap();
 
     let fanart_alone = libraries
-        .create_library(create("Fanart", &["fanart"]))
+        .create_library(library_in(&dir, "Fanart", &["fanart"]))
         .await;
     let with_tmdb = libraries
-        .create_library(create("Both", &["fanart", "tmdb"]))
+        .create_library(library_in(&dir, "Both", &["fanart", "tmdb"]))
         .await;
     let listed = libraries
         .list_title_sources(ListTitleSourcesRequest::default())
@@ -136,15 +138,157 @@ async fn an_order_where_no_source_searches_is_refused() {
         .into_owned()
         .title_sources;
 
-    let refusal = assert_refused(
-        fanart_alone,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID,
-    );
-    assert_eq!(refusal.field, "title_sources");
+    for refused in [while_disabled, fanart_alone] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID,
+        );
+        assert_eq!(refusal.field, "title_sources");
+    }
     with_tmdb.unwrap();
     let searches: Vec<_> = (listed.iter())
         .map(|source| (source.namespace.as_str(), source.searches))
         .collect();
     assert_eq!(searches, [("fanart", false)]);
+}
+
+#[tokio::test]
+async fn an_order_naming_a_namespace_no_plugin_keeps_is_refused() {
+    let server = TestServer::builder().start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let created = libraries
+        .create_library(library_in(&dir, "Typo", &["zzzz", "tmdb"]))
+        .await;
+
+    assert_unknown(created, "zzzz");
+}
+
+#[tokio::test]
+async fn an_order_may_name_an_installed_source_before_it_is_enabled() {
+    let server = TestServer::builder().start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let created = libraries
+        .create_library(library_in(&dir, "Shows", &["tvdb"]))
+        .await;
+
+    let created = created.unwrap().into_owned().library.into_option().unwrap();
+    assert_eq!(created.title_sources, ["tvdb"]);
+}
+
+#[tokio::test]
+async fn an_empty_order_is_refused_while_no_source_searching_keeps_the_default() {
+    let plugins = Registry::new();
+    plugins.describe_builtin(|| Arc::new(Declares("tmdb", None)));
+    let server = TestServer::builder().plugins(plugins).start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let created = libraries
+        .create_library(library_in(&dir, "Default", &[]))
+        .await;
+
+    // fanart.tv and TVDB look titles up by `tmdb`, so it is known, but no source keeping it
+    // searches.
+    let refusal = assert_refused(
+        created,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID,
+    );
+    assert_eq!(refusal.field, "title_sources");
+}
+
+#[tokio::test]
+async fn a_source_whose_plugin_is_gone_stays_in_its_library_but_no_other_may_name_it() {
+    let plugins = Registry::new();
+    let gone = SourceManifest {
+        namespace: "gone".to_owned(),
+        looks_up: Vec::new(),
+        searches: true,
+    };
+    plugins.describe_builtin(move || Arc::new(Declares("gone", Some(gone.clone()))));
+    let server = TestServer::builder().plugins(plugins).start().await;
+    let library = server
+        .create_library_searching(LibraryKind::LIBRARY_KIND_MOVIES, &[], &["gone"])
+        .await;
+    let server = TestServer::builder().restart(server).await;
+    let dir = tempfile::tempdir().unwrap();
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let mut folders = vec![library.folder().to_str().unwrap().to_owned()];
+    folders.extend(library_in(&dir, "Added", &[]).folders);
+
+    let renamed = libraries
+        .update_library(UpdateLibraryRequest {
+            id: library.id,
+            name: "Renamed".to_owned(),
+            folders,
+            title_sources: vec!["gone".to_owned()],
+            ..Default::default()
+        })
+        .await;
+    let other = libraries
+        .create_library(library_in(&dir, "Other", &["gone", "tmdb"]))
+        .await;
+
+    let renamed = renamed.unwrap().into_owned().library.into_option().unwrap();
+    assert_eq!(
+        (renamed.name.as_str(), renamed.title_sources),
+        ("Renamed", vec!["gone".to_owned()])
+    );
+    assert_unknown(other, "gone");
+}
+
+/// A request creating the Movies Library `name`, in a new folder of `dir`, ordering
+/// `title_sources`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn library_in(dir: &TempDir, name: &str, title_sources: &[&str]) -> CreateLibraryRequest {
+    let folder = dir.path().join(name);
+    std::fs::create_dir(&folder).unwrap();
+    CreateLibraryRequest {
+        name: name.to_owned(),
+        kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
+        folders: vec![folder.canonicalize().unwrap().to_str().unwrap().to_owned()],
+        title_sources: title_sources.iter().map(|&n| n.to_owned()).collect(),
+        ..Default::default()
+    }
+}
+
+/// Asserts that `result` was refused for naming `namespace`, which no Plugin keeps or looks titles
+/// up by.
+fn assert_unknown<T>(result: Result<T, ConnectError>, namespace: &str) {
+    let refusal = assert_refused(
+        result,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID,
+    );
+    assert_eq!(refusal.field, "title_sources");
+    assert_eq!(
+        refusal.params.get("namespace").map(String::as_str),
+        Some(namespace)
+    );
+}
+
+/// A Built-in Plugin with the id `.0` whose Manifest declares `.1` as its title source. It is
+/// never enabled, so provides nothing.
+struct Declares(&'static str, Option<SourceManifest>);
+
+impl Plugin for Declares {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
+            title_source: self.1.clone(),
+            ..Manifest::new(PluginId::from_static(self.0))
+        }
+    }
+
+    fn register(&self, _registrar: &mut Registrar) -> Result<(), PluginError> {
+        Ok(())
+    }
 }

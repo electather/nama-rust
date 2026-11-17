@@ -51,6 +51,8 @@ fn field(key: &str, kind: SettingKind) -> SettingField {
         kind,
         required: false,
         default: None,
+        min: None,
+        max: None,
     }
 }
 
@@ -210,6 +212,8 @@ fn a_manifests_settings_become_its_settings_schema() {
         kind: SettingKind::Secret,
         required: true,
         default: Some(SettingValue::Text("none".to_owned())),
+        min: None,
+        max: None,
     };
     assert_eq!(schema.map(|schema| schema.fields), Some(vec![expected]));
 }

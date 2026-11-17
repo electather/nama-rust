@@ -21,8 +21,9 @@ pub enum SettingKind {
     /// An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its host,
     /// as if `Manifest.allowed_hosts` named it.
     SETTING_KIND_URL = 6i32,
-    /// The ids of Libraries, which an admin picks from the Server's Library list. A Library deleted
-    /// later stays in the value, and the Plugin ignores an id the Kernel no longer lists.
+    /// The ids of Libraries, which an admin picks from the Server's Library list. A repeated id is
+    /// kept once. A Library deleted later stays in the value, and the Plugin ignores an id the Kernel
+    /// no longer lists.
     SETTING_KIND_LIBRARIES = 7i32,
 }
 impl SettingKind {
@@ -1080,6 +1081,27 @@ pub struct SettingField {
         SettingValue,
         ::buffa::Inline<SettingValue>,
     >,
+    /// The least and most a `SETTING_KIND_INTEGER` setting may be, inclusive, each unset if it has
+    /// none. A Server refuses a Plugin setting them on another kind, with `min_value` over
+    /// `max_value`, or with a default outside them, and refuses a value outside them when saving or
+    /// enabling.
+    ///
+    /// Field 7: `min_value`
+    #[serde(
+        rename = "minValue",
+        alias = "min_value",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub min_value: ::core::option::Option<i64>,
+    /// Field 8: `max_value`
+    #[serde(
+        rename = "maxValue",
+        alias = "max_value",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub max_value: ::core::option::Option<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1093,6 +1115,8 @@ impl ::core::fmt::Debug for SettingField {
             .field("kind", &self.kind)
             .field("required", &self.required)
             .field("default_value", &self.default_value)
+            .field("min_value", &self.min_value)
+            .field("max_value", &self.max_value)
             .finish()
     }
 }
@@ -1102,6 +1126,22 @@ impl SettingField {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.SettingField";
+}
+impl SettingField {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::min_value`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_min_value(mut self, value: i64) -> Self {
+        self.min_value = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::max_value`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_max_value(mut self, value: i64) -> Self {
+        self.max_value = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(SettingField);
 impl ::buffa::MessageName for SettingField {
@@ -1149,6 +1189,12 @@ impl ::buffa::Message for SettingField {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.min_value {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.max_value {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1184,6 +1230,12 @@ impl ::buffa::Message for SettingField {
                 buf,
             );
             self.default_value.write_to(__cache, buf);
+        }
+        if let Some(v) = self.min_value {
+            ::buffa::types::put_int64_field(7u32, v, buf);
+        }
+        if let Some(v) = self.max_value {
+            ::buffa::types::put_int64_field(8u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1244,6 +1296,24 @@ impl ::buffa::Message for SettingField {
                     ctx,
                 )?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.min_value = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.max_value = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1258,6 +1328,8 @@ impl ::buffa::Message for SettingField {
         self.kind = ::buffa::EnumValue::from(0);
         self.required = false;
         self.default_value = ::buffa::MessageField::none();
+        self.min_value = ::core::option::Option::None;
+        self.max_value = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
