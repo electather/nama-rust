@@ -11,7 +11,7 @@ use axum::{
 use buffa::MessageName;
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
 
 use crate::{
@@ -26,7 +26,8 @@ use crate::{
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
         Artwork, Contents, CustomImageUrls, CustomImages, Libraries, LocalImageUrls, LocalImages,
-        TitleKind, TitleSources, artwork_router, custom_images_router, local_images_router,
+        Role, Slot, TitleKind, TitleSources, artwork_router, custom_images_router,
+        local_images_router,
     },
     playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, Tracks, running_router},
     plugin_settings::PluginSettings,
@@ -726,6 +727,13 @@ struct ShownImages {
 }
 
 impl ShownImages {
+    /// The URL of the image the Movie `id`, with every id `ids`, shows in place of its downloaded
+    /// `role`: its Custom Image, or else the image beside its media (`src/library/AGENTS.md`).
+    fn movie_image(&self, id: &ExternalId, ids: &ExternalIds, role: Role) -> Option<String> {
+        (self.custom.of_title(id, ids, |id| Slot::movie(id, role)))
+            .or_else(|| self.local.of_movie(id, ids, role))
+    }
+
     /// The thumbhash to send beside `url`, if the image there has one.
     fn thumbhash(&self, url: Option<&str>) -> Option<Vec<u8>> {
         self.thumbhashes.get(url?).cloned()

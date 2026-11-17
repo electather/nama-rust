@@ -482,9 +482,7 @@ impl RequestServiceHandler {
             library,
             request,
         } = found;
-        let shown = (images.custom)
-            .of_title(&id, &movie.ids, |id| movie_slot(id, Role::Poster))
-            .or_else(|| (images.local).of_movie(&id, &movie.ids, Role::Poster));
+        let shown = images.movie_image(&id, &movie.ids, Role::Poster);
         let (poster_url, poster_thumbhash) = self.image(images, shown, &plugin, movie.poster);
         proto::MovieHit {
             id: external_id_to_proto(&id).into(),
@@ -512,9 +510,7 @@ impl RequestServiceHandler {
             request,
         } = found;
         let image = |role, image: Option<ImageRef>| {
-            let custom = (images.custom)
-                .of_title(&id, &movie.ids, |id| movie_slot(id, role))
-                .or_else(|| (images.local).of_movie(&id, &movie.ids, role));
+            let custom = images.movie_image(&id, &movie.ids, role);
             match image {
                 Some(ImageRef { plugin: by, path }) => self.image(images, custom, &by, Some(path)),
                 None => self.image(images, custom, &plugin, None),
@@ -592,11 +588,6 @@ impl RequestServiceHandler {
             ..Default::default()
         }
     }
-}
-
-/// The slot of the Movie `id`, as browsing identifies it.
-fn movie_slot(id: &ExternalId, role: Role) -> Slot {
-    Slot::movie(id, role)
 }
 
 /// The slot of the Show `id`, as browsing identifies it.

@@ -303,8 +303,8 @@ impl Scanner {
 
     /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
     /// probes, the images only its Matches stored, its Custom Image and its copies of the images
-    /// beside its media, and stops watching its
-    /// folders, even if the caller stops waiting (ADR 0029).
+    /// beside its media, and stops watching its folders, even if the caller stops waiting
+    /// (ADR 0029).
     pub(crate) async fn delete_library(&self, id: i64) -> Result<(), LibraryError> {
         let scanner = self.clone();
         detached(async move {

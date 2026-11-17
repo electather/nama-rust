@@ -200,10 +200,7 @@ impl BrowseService for BrowseServiceHandler {
 
 fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::MovieInLibrary {
     let downloaded = (movie.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
-    let poster_url = (images.custom)
-        .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
-        .or_else(|| (images.local).of_movie(&movie.id, &movie.ids, Role::Poster))
-        .or(downloaded);
+    let poster_url = (images.movie_image(&movie.id, &movie.ids, Role::Poster)).or(downloaded);
     proto::MovieInLibrary {
         library_id: movie.library,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),

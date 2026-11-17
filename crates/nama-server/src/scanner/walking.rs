@@ -321,11 +321,11 @@ fn image_role(image: &Path, video: &OsStr, in_library_folder: bool) -> Option<(N
     let video = video.to_str()?.to_lowercase();
     let after_video = (name.strip_prefix(&video))
         .and_then(|rest| rest.strip_prefix('-'))
-        .and_then(role_named);
+        .and_then(role_in_name);
     match after_video {
         Some(role) => Some((Naming::AfterVideo, role)),
         None if in_library_folder => None,
-        None => role_named(&name).map(|role| (Naming::Alone, role)),
+        None => role_in_name(&name).map(|role| (Naming::Alone, role)),
     }
 }
 
@@ -337,13 +337,13 @@ fn image_name(path: &Path) -> Option<String> {
         return None;
     }
     let name = path.file_stem()?.to_str()?.to_lowercase();
-    let named = |role: &str| role_named(role).is_some();
+    let named = |role: &str| role_in_name(role).is_some();
     let tied = named(&name) || name.rsplit_once('-').is_some_and(|(_, role)| named(role));
     tied.then_some(name)
 }
 
 /// The role an image named `name`, alone or after its video, stands in for.
-fn role_named(name: &str) -> Option<Role> {
+fn role_in_name(name: &str) -> Option<Role> {
     if POSTER_NAMES.contains(&name) {
         Some(Role::Poster)
     } else if BACKDROP_NAMES.contains(&name) {
