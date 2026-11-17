@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs, path::Path, sync::Arc};
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 use buffa::Message;
 
@@ -24,6 +24,7 @@ use super::{
     points,
     services::POINTS,
 };
+use crate::log_capture::CapturedLog;
 
 // The errors as Extism 1.41 gives them for the test Plugin's Observer.
 #[test]
@@ -263,15 +264,9 @@ fn notifier() -> Manifest {
 
 /// `package` judged as from a Package exporting `deliver`, with what it logged.
 fn judged(mut package: Manifest) -> (Result<nama_plugin_api::Manifest, String>, String) {
-    let log = tempfile::NamedTempFile::new().unwrap();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(Arc::new(log.reopen().unwrap()))
-        .with_ansi(false)
-        .finish();
-    let judged = tracing::subscriber::with_default(subscriber, || {
-        judge(&mut package, &["deliver"]).map_err(|refused| refused.to_string())
-    });
-    (judged, fs::read_to_string(log.path()).unwrap())
+    let log = CapturedLog::start();
+    let judged = judge(&mut package, &["deliver"]).map_err(|refused| refused.to_string());
+    (judged, log.finish())
 }
 
 #[test]

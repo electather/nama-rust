@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT keyframes_ms, keyframes_failure_version FROM version_probes\n             WHERE version_id = ? AND size = ? AND modified_ns = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "keyframes_ms",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "keyframes_ms"
+          }
+        }
+      },
+      {
+        "name": "keyframes_failure_version",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "keyframes_failure_version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "4793952b8fd07e87c46283f9288be5ab97ddac9f03dc18f42f1de5f7c1bbb022"
+}

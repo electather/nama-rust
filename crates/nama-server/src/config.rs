@@ -57,6 +57,12 @@ pub struct Config {
     /// Whether the OS reports changes in Library folders so they're scanned soon after. On by
     /// default; off, folders are scanned every six hours and when asked.
     pub watch_folders: bool,
+    /// Where the Server exports Diagnostics: the standard `OTEL_EXPORTER_OTLP_ENDPOINT`, which
+    /// `nama-server` sets here once exporting has started, never a key in the file (ADR 0054).
+    /// Unset, nothing is exported, and the web app records nothing.
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub otlp_endpoint: Option<String>,
 }
 
 /// The `[plugins.<id>]` tables in the file, by Plugin id, as written.
@@ -158,6 +164,7 @@ impl Default for Config {
             ffmpeg: None,
             ffprobe: None,
             watch_folders: true,
+            otlp_endpoint: None,
         }
     }
 }

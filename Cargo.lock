@@ -2364,6 +2364,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "regex",
+ "reqwest",
  "rustix",
  "schemars",
  "semver",

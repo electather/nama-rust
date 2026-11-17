@@ -335,34 +335,25 @@ fn tick_every_is_ignored_unless_the_manifest_names_an_automation() {
 #[cfg(feature = "testing")]
 #[test]
 fn an_installed_plugins_clock_follows_the_servers_advanced_clock() {
-    use std::sync::Arc;
-
     use super::{compile, write_cache_config};
-    use crate::db;
+    use crate::{db, log_capture::CapturedLog};
 
     let data_dir = tempfile::tempdir().unwrap();
     let cache_config = write_cache_config(data_dir.path()).unwrap();
     // The test Plugin's Observer logs what `nama_pdk::now` reads when its `observer` is `clock`.
     let config = vec![("observer".to_owned(), "clock".to_owned())];
     let compiled = compile(&test_plugin::build(""), &cache_config, Vec::new(), config).unwrap();
-    let log = tempfile::NamedTempFile::new().unwrap();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(Arc::new(log.reopen().unwrap()))
-        .with_ansi(false)
-        .finish();
 
     db::advance_clock(Duration::from_hours(30 * 24));
     let before = db::now_ms();
-    tracing::subscriber::with_default(subscriber, || {
-        extism::Plugin::new_from_compiled(&compiled)
-            .unwrap()
-            .call::<&[u8], &[u8]>("observe_events", &[])
-            .map(<[u8]>::to_vec)
-    })
-    .unwrap();
+    let log = CapturedLog::start();
+    extism::Plugin::new_from_compiled(&compiled)
+        .unwrap()
+        .call::<&[u8], &[u8]>("observe_events", &[])
+        .unwrap();
+    let logged = log.finish();
     let after = db::now_ms();
 
-    let logged = std::fs::read_to_string(log.path()).unwrap();
     let (_, read) = logged.split_once("test-plugin's clock reads ").unwrap();
     let read: i64 = read
         .split(|c: char| !c.is_ascii_digit())
