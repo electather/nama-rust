@@ -1,6 +1,6 @@
 # Reaching a Server from outside the home
 
-Until the Hub gives each Server its own HTTPS name (ADR 0041), an Admin opens a Server to the internet themselves. Pick one of the two setups below. Never forward port 7980 straight to the internet: without HTTPS, passwords and session cookies cross it in plain text.
+Until the Hub gives each Server its own HTTPS name (ADR 0057), an Admin opens a Server to the internet themselves. Pick one of the two setups below. Never forward port 7980 straight to the internet: without HTTPS, passwords and session cookies cross it in plain text.
 
 | | Caddy | Tailscale |
 |---|---|---|
