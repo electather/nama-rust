@@ -1,10 +1,13 @@
-//! The Plugin settings as the database stores them, in `plugin_settings` and `schema_meta`.
+//! The Plugin settings as the database stores them, in `plugin_settings` and `schema_meta`, and
+//! what a Plugin holds when nothing is stored.
 
 use std::collections::{BTreeMap, HashSet};
 
 use nama_plugin_api::{automation::Permission, settings::SettingValue};
+use nama_proto::nama::v1::PluginKind;
 
-use crate::{config::PluginConfig, db::Database};
+use super::{Grants, StoredPlugin};
+use crate::{config::PluginConfig, db::Database, plugins::Listed};
 
 /// The `schema_meta` key whose presence records that the config was imported.
 const IMPORTED_KEY: &str = "plugin_settings_imported";
@@ -179,4 +182,29 @@ pub(super) async fn set_enabled_granting(
         })
     })
     .await
+}
+
+/// `plugin` with what `stored` holds for it, taken out of `stored`.
+pub(super) fn with_stored(
+    plugin: Listed,
+    (settings, grants): &mut (BTreeMap<String, PluginConfig>, Grants),
+) -> StoredPlugin {
+    let stored = settings
+        .remove(plugin.id.as_str())
+        .unwrap_or_else(|| never_stored(plugin.kind));
+    let granted = grants.remove(plugin.id.as_str()).unwrap_or_default();
+    StoredPlugin {
+        plugin,
+        stored,
+        granted,
+    }
+}
+
+/// What a Plugin of `kind` with nothing stored starts as: no settings, and enabled only if it is
+/// Built-in. An Installed Plugin waits for an admin to enable it.
+pub(super) fn never_stored(kind: PluginKind) -> PluginConfig {
+    PluginConfig {
+        enabled: kind == PluginKind::PLUGIN_KIND_BUILT_IN,
+        settings: BTreeMap::new(),
+    }
 }
