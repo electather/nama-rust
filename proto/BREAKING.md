@@ -10,6 +10,13 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-17, #1007
+
+- `MESSAGE_NO_DELETE`, `nama/v1/plugin.proto`: `RecogniserFailure`.
+- Not reported by `buf breaking`: in `nama/v1/plugin.proto`, `Plugin.recogniser_failure` (13) is deleted with its number and name reserved.
+- A Plugin's failures are kept per Extension Point: `Plugin.failures` (14) lists an `ExtensionPointFailure` for each point whose last call failed, naming the `point` with the same last error, time and calls in a row `RecogniserFailure` held.
+- A client built before finds no Recogniser failure; it must regenerate and read `failures`. The web app is the only client.
+
 ## 2026-11-17, #879
 
 - None that `buf breaking` reports: in `nama/v1/request.proto`, `ListRequestsRequest.state` (1), `page_size` (2) and `page_token` (3), and `ListRequestsResponse.next_page_token` (3), are deleted with their numbers and names reserved.

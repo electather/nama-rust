@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 use nama_plugin_api::{
-    Manifest, Plugin, PluginError, PluginId, PointKey, Registrar, recogniser::Recogniser,
+    Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, recogniser::Recogniser,
 };
 
-use crate::plugins::{ExtensionPoints, Registry};
+use crate::plugins::{ExtensionPoints, Failing, Registry};
 
 const PLUGIN: PluginId = PluginId::from_static("flaky");
 
@@ -80,6 +80,62 @@ impl Plugin for Idle {
     fn register(&self, _registrar: &mut Registrar) -> Result<(), PluginError> {
         Ok(())
     }
+}
+
+/// A Provider that is only ever told, whose call alone decides whether it fails.
+trait Told: Send + Sync {}
+
+/// A Plugin that provides a [`Told`].
+struct Listens;
+
+impl Told for Listens {}
+
+impl Plugin for Listens {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            extension_points: vec![PointKey::provide::<dyn Told>()],
+            ..Idle.manifest()
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn Told>(Priority::DEFAULT, Arc::new(Self));
+        Ok(())
+    }
+}
+
+/// Tells `points`' [`Told`]s, each call ending in `result`, and gives the call a while to end.
+async fn tell(points: &ExtensionPoints, result: Result<(), &'static str>) -> Option<Failing> {
+    let told = PointKey::provide::<dyn Told>();
+    let before = points.failing(&PLUGIN, told);
+    points.tell_each(move |_, _: Arc<dyn Told>| async move {
+        result.map_err(Box::<dyn Error + Send + Sync>::from)
+    });
+    // The call runs as its own task, which records its outcome when it ends.
+    for _ in 0..100 {
+        tokio::task::yield_now().await;
+        let now = points.failing(&PLUGIN, told);
+        if now != before {
+            return now;
+        }
+    }
+    points.failing(&PLUGIN, told)
+}
+
+#[tokio::test]
+async fn a_told_providers_failure_is_recorded_until_a_call_answers() {
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(Listens)).unwrap();
+    let points = plugins.extension_points();
+
+    let failed = (tell(&points, Err("the topic is gone")).await).expect("the failure is recorded");
+    let answered = tell(&points, Ok(())).await;
+
+    assert_eq!(
+        (failed.last_error.as_str(), failed.in_a_row),
+        ("the topic is gone", 1)
+    );
+    assert_eq!(answered, None);
 }
 
 #[test]
