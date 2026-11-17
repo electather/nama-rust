@@ -424,7 +424,8 @@ pub(crate) async fn plan(
                 "could not list a Version's keyframes, so planning it without a Remux: {err}"
             );
             facts.keyframes_unlisted = true;
-            // Listing them may have taken minutes, so the Transcode limit is checked again (#827).
+            // Waiting for them may have taken half a minute, so the Transcode limit is checked
+            // again (#827).
             facts.running_transcodes = running.running_transcodes();
             start_built(running, caller, facts, start_ms).await
         }
