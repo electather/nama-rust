@@ -457,11 +457,6 @@ async fn segment_folder(client: &ServerServiceClient<HttpClient>) -> String {
         .clone()
 }
 
-/// A segment folder inside `server`'s data folder, which saving it creates.
-fn folder_in(server: &TestServer) -> String {
-    server.data_dir().join("segments").display().to_string()
-}
-
 fn set_segment_folder(folder: &str) -> UpdatePlaybackSettingsRequest {
     UpdatePlaybackSettingsRequest {
         settings: PlaybackSettings {
@@ -478,7 +473,7 @@ async fn the_segment_folder_is_empty_until_an_admin_sets_it() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
     let unset = segment_folder(&client).await;
-    let folder = folder_in(&server);
+    let folder = server.segment_folder();
 
     client
         .update_playback_settings(set_segment_folder(&format!(" {folder} ")))
@@ -558,7 +553,7 @@ async fn a_transcode_cap_set_to_0_is_refused_naming_it_and_nothing_changes() {
     let updated = client
         .update_playback_settings(UpdatePlaybackSettingsRequest {
             settings: PlaybackSettings {
-                segment_folder: folder_in(&server),
+                segment_folder: server.segment_folder(),
                 max_transcodes: Some(0),
                 ..Default::default()
             }
@@ -702,7 +697,7 @@ async fn keep_for_skipping_back_set_to_0_is_refused_naming_it_and_nothing_change
 async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_nothing_changes() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
-    let folder = folder_in(&server);
+    let folder = server.segment_folder();
     client
         .update_playback_settings(set_segment_folder(&folder))
         .await

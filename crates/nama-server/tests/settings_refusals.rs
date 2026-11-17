@@ -19,10 +19,10 @@ use refused::assert_refused;
 use server::TestServer;
 
 /// Playback settings with every field but `gpu` away from its default, so a reset would show:
-/// a GPU is refused with Off. The segment folder is inside `server`'s data folder.
+/// a GPU is refused with Off.
 fn saved_playback(server: &TestServer) -> PlaybackSettings {
     PlaybackSettings {
-        segment_folder: server.data_dir().join("segments").display().to_string(),
+        segment_folder: server.segment_folder(),
         max_transcodes: Some(2),
         keep_behind_minutes: Some(30),
         hardware_acceleration: HardwareAcceleration::HARDWARE_ACCELERATION_OFF.into(),
