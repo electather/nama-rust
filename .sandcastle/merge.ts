@@ -9,15 +9,30 @@ export function mergeStep({ conflicts, behind }: { conflicts: boolean; behind: b
   return "merge";
 }
 
-// What one of main's push runs says about main, from its jobs. PRs test on Linux only, so main counts as red only
-// when a job a PR also runs failed: a macOS- or Windows-only failure can't be what failed a PR, and waiting on it
-// held every red PR while main stayed red on those for days. "unknown": a counted job is unfinished or cancelled
-// (superseded), so ask the run before it.
-export type MainVerdict = "red" | "green" | "unknown";
-export function mainVerdict(jobs: { name: string; conclusion: string }[]): MainVerdict {
-  const counted = jobs.filter((j) => j.name !== "ci-ok" && !/macos|windows/.test(j.name));
-  if (counted.some((j) => j.conclusion === "" || j.conclusion === "cancelled")) return "unknown";
-  return counted.some((j) => j.conclusion === "failure" || j.conclusion === "timed_out") ? "red" : "green";
+// What one of main's push runs says about main. PRs test on Linux only, so main counts as red only when a job a PR
+// also runs failed: a macOS- or Windows-only failure can't be what failed a PR, and waiting on it held every red PR
+// while main stayed red on those for days. The main monitor gets those fixed instead (see mainAction).
+// "unknown": a counted job is unfinished or cancelled (superseded), so ask the run before it.
+export type Verdict = "red" | "green" | "unknown";
+type Job = { name: string; conclusion: string };
+const failed = (j: Job) => j.conclusion === "failure" || j.conclusion === "timed_out";
+const verdict = (counted: Job[]): Verdict =>
+  counted.some((j) => j.conclusion === "" || j.conclusion === "cancelled") ? "unknown"
+  : counted.some(failed) ? "red" : "green";
+export const mainVerdict = (jobs: Job[]) => verdict(jobs.filter((j) => j.name !== "ci-ok" && !/macos|windows/.test(j.name)));
+// What a PR's run says: every job counts, ci-ok included, which main's ruleset requires to merge.
+export const prVerdict = (jobs: Job[]) => verdict(jobs);
+
+// The jobs that failed, on every OS. ci-ok only sums up the others.
+export const failedJobs = (jobs: Job[]) =>
+  jobs.filter((j) => j.name !== "ci-ok" && failed(j)).map((j) => j.name);
+
+// What the main monitor does about the finished push run of main's tip. A first failure is rerun, so a flaky test
+// files nothing; a second files a main-red issue, unless one is open already: its fix is on the way.
+export type MainAction = "none" | "rerun" | "file";
+export function mainAction({ attempt, failed }: { attempt: number; failed: string[] }, fixOpen: boolean): MainAction {
+  if (!failed.length || fixOpen) return "none";
+  return attempt < 2 ? "rerun" : "file";
 }
 
 // Self-check: `npm --prefix .sandcastle run check`.
@@ -35,5 +50,13 @@ if (import.meta.main) {
   assert.equal(mainVerdict([job("test (ubuntu-latest, 2/2)", "timed_out")]), "red");
   assert.equal(mainVerdict([job("rust-check", "success"), job("test (ubuntu-latest, 1/2)", "")]), "unknown");
   assert.equal(mainVerdict([job("rust-check", "cancelled")]), "unknown", "a superseded run says nothing");
+  assert.equal(prVerdict([job("test (ubuntu-latest, 1/2)", "success"), job("ci-ok", "")]), "unknown", "a PR waits for ci-ok");
+  assert.equal(prVerdict([job("test (windows-latest, 1/2)", "failure"), job("ci-ok", "failure")]), "red");
+  assert.deepEqual(failedJobs([job("test (windows-latest, 2/2)", "failure"), job("lint", "success"), job("ci-ok", "failure")]),
+    ["test (windows-latest, 2/2)"], "the monitor counts Windows and macOS");
+  assert.equal(mainAction({ attempt: 1, failed: [] }, false), "none");
+  assert.equal(mainAction({ attempt: 1, failed: ["lint"] }, false), "rerun", "a first failure may be flaky");
+  assert.equal(mainAction({ attempt: 2, failed: ["lint"] }, false), "file");
+  assert.equal(mainAction({ attempt: 2, failed: ["lint"] }, true), "none", "one main-red issue at a time");
   console.log("merge.ts: ok");
 }
