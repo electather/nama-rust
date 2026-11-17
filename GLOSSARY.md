@@ -168,6 +168,9 @@ _Avoid_: scope, capability, Permission (alone, which is a User's)
 The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through the Automation lane.
 _Avoid_: plugin database, KV, cache, plugin state
 
+**Cleanup**:
+An Automation that deletes a Requested title once each of its Requesters has watched it and a set number of days have passed, or hasn't watched it within a longer set number of days. A title nobody Requested is kept.
+
 ## Media
 
 **Library**:

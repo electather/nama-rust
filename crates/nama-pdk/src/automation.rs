@@ -2,8 +2,8 @@
 
 use extism_pdk::Error;
 pub use nama_plugin_proto::nama::plugin::v1::{
-    Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind, TitleWatchStates,
-    Titles, User, WatchState,
+    Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind, TitleRequesters,
+    TitleWatchStates, Titles, User, WatchState,
 };
 
 /// An Automation Plugin: the Kernel calls [`Automation::tick`] every `tick_every_seconds` its
@@ -185,7 +185,7 @@ pub mod kernel {
     }
 
     /// Every User, with their id and display name only. Every User sees every Library, so these
-    /// are every User a title is for, including those without any Watch State. Needs
+    /// are every User who can watch a title, including those without any Watch State. Needs
     /// `PERMISSION_READ_USERS`.
     ///
     /// # Errors

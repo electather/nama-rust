@@ -29,7 +29,7 @@ mod recogniser;
 
 pub use automation::{
     Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
-    TitleWatchStates, Titles, User, WatchState, kernel,
+    TitleRequesters, TitleWatchStates, Titles, User, WatchState, kernel,
 };
 pub use blob_store::{BLOB_MAX_BYTES, BlobPage, BlobStore};
 pub use recogniser::{
