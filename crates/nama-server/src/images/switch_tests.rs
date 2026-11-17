@@ -15,8 +15,10 @@ use tokio::sync::oneshot;
 
 use crate::{
     db::{BoxFuture, Database},
-    images::{Blobs, ImageStore, ORIGINAL_DIRS, Persist, SwitchRefused, Switching},
+    images::{Blobs, ImageStore, MAX_BYTES, ORIGINAL_DIRS, Persist, SwitchRefused, Switching},
 };
+
+use super::Mirror;
 
 /// A store that keeps its objects in memory, refusing to put a key `refused` matches.
 #[derive(Debug)]
@@ -365,6 +367,48 @@ async fn a_failed_copy_keeps_the_old_store_and_never_saves_the_new_one() {
     store.write(&["artwork", "after"], b"x").await.unwrap();
     assert!(old.objects().contains_key("artwork/after"));
     assert!(!target.objects().contains_key("artwork/after"));
+}
+
+#[tokio::test]
+async fn a_mirror_refuses_a_file_over_the_object_limit_and_stores_it_in_neither() {
+    let (old, new) = (Arc::new(InMemory::default()), Arc::new(InMemory::default()));
+    let mirror = Mirror {
+        old: as_blobs(&old),
+        new: as_blobs(&new),
+    };
+
+    let refused = mirror
+        .put_file("artwork/big", temp_file(&vec![0; MAX_BYTES + 1]))
+        .await
+        .unwrap_err();
+
+    assert_eq!(refused.kind(), io::ErrorKind::FileTooLarge);
+    assert!(refused.to_string().contains("artwork/big"), "{refused}");
+    assert_eq!(old.keys(), Vec::<String>::new());
+    assert_eq!(new.keys(), Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn a_mirror_stores_a_file_at_the_object_limit_in_both_stores() {
+    let (old, new) = (Arc::new(InMemory::default()), Arc::new(InMemory::default()));
+    let mirror = Mirror {
+        old: as_blobs(&old),
+        new: as_blobs(&new),
+    };
+
+    mirror
+        .put_file("artwork/full", temp_file(&vec![7; MAX_BYTES]))
+        .await
+        .unwrap();
+
+    assert_eq!(old.objects()["artwork/full"].len(), MAX_BYTES);
+    assert_eq!(new.objects()["artwork/full"].len(), MAX_BYTES);
+}
+
+fn temp_file(bytes: &[u8]) -> NamedTempFile {
+    let file = NamedTempFile::new().unwrap();
+    std::fs::write(file.path(), bytes).unwrap();
+    file
 }
 
 fn mark(persisted: &AtomicBool) -> BoxFuture<'static, io::Result<()>> {
