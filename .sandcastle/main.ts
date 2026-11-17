@@ -13,7 +13,7 @@ import { inspect, parseEnv, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
-import { failedJobs, mainAction, mergeStep, runVerdict } from "./merge.ts";
+import { failedJobs, mainAction, mainVerdict, mergeStep, prVerdict } from "./merge.ts";
 import { blockedCounts } from "./priority.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
@@ -548,7 +548,7 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
   const url = `${REPO_URL}/actions/runs/${run}`;
   log(`#${issue.number} CI running on ${sha.slice(0, 7)}: ${url}`);
   record({ kind: "ci", issue: issue.number, url });
-  // The verdict comes from the run's jobs (see runVerdict), not from watch's exit code: watch also fails when gh
+  // The verdict comes from the run's jobs (see prVerdict), not from watch's exit code: watch also fails when gh
   // does, and a rate limit once read as red CI on eight PRs at once.
   for (;;) {
     // Async, not spawnSync: the other issue's agents keep running while this one waits.
@@ -567,7 +567,7 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
     }
     const { status, jobs } = JSON.parse(gh("run", "view", run, "--json", "status,jobs",
       "--jq", "{status, jobs: [.jobs[] | {name, conclusion}]}"));
-    const verdict = runVerdict(jobs);
+    const verdict = prVerdict(jobs);
     if (verdict !== "unknown") return verdict === "red" ? "fail" : "pass";
     if (status === "completed") return "fail"; // cancelled
     await sleep(60_000); // watch stopped before the run ended, so gh failed: watch it again
@@ -595,12 +595,12 @@ async function updateBranch(job: Job) {
   await job.box?.exec(`git reset --hard origin/${branchOf(job.issue)}`);
 }
 
-// Whether main's newest push run with a verdict (see runVerdict) is red.
+// Whether main's newest push run with a verdict (see mainVerdict) is red.
 const mainRed = () => {
   const runs = gh("run", "list", "--branch", BASE, "--workflow", "CI", "--event", "push", "--limit", "10",
     "--json", "databaseId", "--jq", ".[].databaseId").split("\n").filter(Boolean);
   for (const run of runs) {
-    const verdict = runVerdict(JSON.parse(gh("run", "view", run, "--json", "jobs", "--jq", "[.jobs[] | {name, conclusion}]")));
+    const verdict = mainVerdict(JSON.parse(gh("run", "view", run, "--json", "jobs", "--jq", "[.jobs[] | {name, conclusion}]")));
     if (verdict !== "unknown") return verdict === "red";
   }
   return false;

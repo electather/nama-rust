@@ -9,19 +9,22 @@ export function mergeStep({ conflicts, behind }: { conflicts: boolean; behind: b
   return "merge";
 }
 
-// What a CI run, a PR's or main's, says from its jobs. PRs test on Linux only, so only the jobs a PR also runs
-// count: a macOS- or Windows-only failure never stops a PR (on main it held every red PR for days); the main
-// monitor gets it fixed instead (see mainAction). "unknown": a counted job is unfinished or cancelled (superseded).
+// What one of main's push runs says about main. PRs test on Linux only, so main counts as red only when a job a PR
+// also runs failed: a macOS- or Windows-only failure can't be what failed a PR, and waiting on it held every red PR
+// while main stayed red on those for days. The main monitor gets those fixed instead (see mainAction).
+// "unknown": a counted job is unfinished or cancelled (superseded), so ask the run before it.
 export type Verdict = "red" | "green" | "unknown";
-const failed = (j: { conclusion: string }) => j.conclusion === "failure" || j.conclusion === "timed_out";
-export function runVerdict(jobs: { name: string; conclusion: string }[]): Verdict {
-  const counted = jobs.filter((j) => j.name !== "ci-ok" && !/macos|windows/.test(j.name));
-  if (counted.some((j) => j.conclusion === "" || j.conclusion === "cancelled")) return "unknown";
-  return counted.some(failed) ? "red" : "green";
-}
+type Job = { name: string; conclusion: string };
+const failed = (j: Job) => j.conclusion === "failure" || j.conclusion === "timed_out";
+const verdict = (counted: Job[]): Verdict =>
+  counted.some((j) => j.conclusion === "" || j.conclusion === "cancelled") ? "unknown"
+  : counted.some(failed) ? "red" : "green";
+export const mainVerdict = (jobs: Job[]) => verdict(jobs.filter((j) => j.name !== "ci-ok" && !/macos|windows/.test(j.name)));
+// What a PR's run says: every job counts, ci-ok included, which main's ruleset requires to merge.
+export const prVerdict = (jobs: Job[]) => verdict(jobs);
 
 // The jobs that failed, on every OS. ci-ok only sums up the others.
-export const failedJobs = (jobs: { name: string; conclusion: string }[]) =>
+export const failedJobs = (jobs: Job[]) =>
   jobs.filter((j) => j.name !== "ci-ok" && failed(j)).map((j) => j.name);
 
 // What the main monitor does about the finished push run of main's tip. A first failure is rerun, so a flaky test
@@ -39,14 +42,16 @@ if (import.meta.main) {
   assert.equal(mergeStep({ conflicts: false, behind: true }), "update", "behind but clean still runs CI again");
   assert.equal(mergeStep({ conflicts: false, behind: false }), "merge");
   const job = (name: string, conclusion: string) => ({ name, conclusion });
-  assert.equal(runVerdict([job("test (ubuntu-latest, 1/2)", "success"), job("test (windows-latest, 1/2)", "failure"),
+  assert.equal(mainVerdict([job("test (ubuntu-latest, 1/2)", "success"), job("test (windows-latest, 1/2)", "failure"),
     job("ci-ok", "failure")]), "green", "a Windows-only failure leaves main green for PRs");
-  assert.equal(runVerdict([job("test (ubuntu-latest, 1/2)", "success"), job("test (macos-latest, 2/2)", "")]),
+  assert.equal(mainVerdict([job("test (ubuntu-latest, 1/2)", "success"), job("test (macos-latest, 2/2)", "")]),
     "green", "an unfinished macOS job doesn't hold the verdict");
-  assert.equal(runVerdict([job("rust-check", "failure"), job("test (ubuntu-latest, 1/2)", "success")]), "red");
-  assert.equal(runVerdict([job("test (ubuntu-latest, 2/2)", "timed_out")]), "red");
-  assert.equal(runVerdict([job("rust-check", "success"), job("test (ubuntu-latest, 1/2)", "")]), "unknown");
-  assert.equal(runVerdict([job("rust-check", "cancelled")]), "unknown", "a superseded run says nothing");
+  assert.equal(mainVerdict([job("rust-check", "failure"), job("test (ubuntu-latest, 1/2)", "success")]), "red");
+  assert.equal(mainVerdict([job("test (ubuntu-latest, 2/2)", "timed_out")]), "red");
+  assert.equal(mainVerdict([job("rust-check", "success"), job("test (ubuntu-latest, 1/2)", "")]), "unknown");
+  assert.equal(mainVerdict([job("rust-check", "cancelled")]), "unknown", "a superseded run says nothing");
+  assert.equal(prVerdict([job("test (ubuntu-latest, 1/2)", "success"), job("ci-ok", "")]), "unknown", "a PR waits for ci-ok");
+  assert.equal(prVerdict([job("test (windows-latest, 1/2)", "failure"), job("ci-ok", "failure")]), "red");
   assert.deepEqual(failedJobs([job("test (windows-latest, 2/2)", "failure"), job("lint", "success"), job("ci-ok", "failure")]),
     ["test (windows-latest, 2/2)"], "the monitor counts Windows and macOS");
   assert.equal(mainAction({ attempt: 1, failed: [] }, false), "none");
