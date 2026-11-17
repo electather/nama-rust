@@ -9,8 +9,10 @@
 //! a file found. Changes are written in batches of [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
 //! Once the Server is serving, a Library is also scanned when its folders change (see [`watch`]).
 //!
-//! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
-//! are ignored, except that deleting media deletes them too (see [`deleting`]).
+//! Files are only listed and their metadata read, never opened. A scan also stores the sidecar
+//! subtitles beside each Version, such as `Movie.en.srt`, replacing a Version's only when they
+//! changed, so its file isn't probed again; other sidecars, such as `.nfo` files, are ignored.
+//! Deleting media deletes every sidecar too (see [`deleting`]).
 //! A scan also records which of the Library's folders the Server can't write to, so a delete from
 //! one is refused before anyone tries (ADR 0038).
 //!
@@ -37,7 +39,7 @@ mod watch;
 
 pub(crate) use deleting::{Deleted, Doomed, File as DoomedFile, read_only_folder};
 use recognised::{Planned, read_again_if_changed, recognise};
-use walking::{is_video, plan, walk};
+use walking::{FoundSidecars, after_stem, is_video, plan, walk};
 
 use std::{
     collections::{HashMap, HashSet},
@@ -62,7 +64,7 @@ use crate::{
         Order, ScanLock, ScanLocks, check_title_sources,
     },
     matching::{self, Matcher, count},
-    playback::{Probing, RunningPlans},
+    playback::{Probing, RunningPlans, Sidecars},
     plugins::{ExtensionPoints, Failure},
     requests::{self, RequestTitle, Requests},
 };
@@ -149,6 +151,7 @@ struct Inner {
     /// Where a scan starts by checking its Library's Recognisers (ADR 0050).
     db: Arc<Database>,
     contents: Contents,
+    sidecars: Sidecars,
     /// Downloads the images Matches store, and deletes those none does.
     artwork: Artwork,
     /// Deletes a deleted Library's Custom Image.
@@ -216,6 +219,7 @@ impl Scanner {
                 running,
                 requests,
                 contents: Contents::new(Arc::clone(&db)),
+                sidecars: Sidecars::new(Arc::clone(&db)),
                 db,
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -550,7 +554,9 @@ impl Scanner {
         read_again_if_changed(&self.inner.db, &self.inner.plugins, &library).await?;
         let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
-        let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
+        let mut found =
+            tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
+        let sidecars = found.take_sidecars();
         if found.read_only != library.read_only {
             let read_only = found.read_only.clone();
             self.inner.libraries.set_read_only(id, read_only).await?;
@@ -583,6 +589,7 @@ impl Scanner {
                 .events
                 .publish(std::iter::once(progress).chain(items).collect());
         }
+        self.store_sidecars(id, sidecars).await?;
         tracing::info!(library = id, ?summary, "scanned a Library");
         if let Some(probing) = &self.inner.probing {
             // Before `ScanFinished`, so a client that waited for the scan isn't served a gone or
@@ -626,6 +633,18 @@ impl Scanner {
         self.inner.artwork.drop_unused(contents).await;
         self.inner.artwork.download_missing(contents.clone(), id);
         Ok(summary)
+    }
+
+    /// Replaces the stored sidecars of each of the Library `id`'s Versions whose found ones differ,
+    /// in batches. After the scan's files are stored, so new Versions have ids.
+    async fn store_sidecars(&self, id: i64, found: FoundSidecars) -> Result<(), Error> {
+        let versions = self.inner.contents.stored(id).await?;
+        let ids: Vec<i64> = versions.values().map(|version| version.id).collect();
+        let stored = self.inner.sidecars.stored(&ids).await?;
+        for batch in found.changed(&versions, stored).chunks(BATCH_SIZE) {
+            self.inner.sidecars.replace(batch.to_vec()).await?;
+        }
+        Ok(())
     }
 
     /// Publishes that a scan of the Library `library` started, and returns which scan of it this
@@ -689,6 +708,10 @@ impl Scanner {
 #[cfg(test)]
 #[path = "scanner/shutdown_tests.rs"]
 mod shutdown_tests;
+
+#[cfg(test)]
+#[path = "scanner/sidecars_tests.rs"]
+mod sidecars_tests;
 
 #[cfg(test)]
 #[path = "scanner/scanner_tests.rs"]
