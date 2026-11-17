@@ -50,10 +50,10 @@ export function useVideo() {
     onVolumeChange: sync,
     onPlaying: firstFramePlayed,
   };
-  /** Runs `action` on the `<video>`, from an event handler. */
-  const control = (action: (video: HTMLVideoElement) => void) => {
+  /** Runs `action` on the `<video>`, from an event handler or an effect. */
+  const control = useCallback((action: (video: HTMLVideoElement) => void) => {
     if (ref.current) action(ref.current);
-  };
+  }, []);
   return { ref, state, events, control };
 }
 

@@ -13,11 +13,18 @@ import {
 } from "react";
 
 import { DroppedChoice } from "@/components/dropped-choice";
+import {
+  type Autoplay,
+  type NextEpisode,
+  NextEpisodeOverlay,
+  useAutoplay,
+  useNextEpisode,
+} from "@/components/next-episode";
 import { FullscreenButton, VolumeControls } from "@/components/player-controls";
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
+// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Tracks, Watch State, playback info and autoplay
 import { SubtitleTracks } from "@/components/subtitles-menu";
-// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Tracks, Watch State and playback info
 import { TrackMenus } from "@/components/track-menus";
 import { Slider } from "@/components/ui/slider";
 import type { Track } from "@/gen/nama/v1/browse_pb";
@@ -40,6 +47,7 @@ export interface PlayerProps {
   watchState: WatchState | undefined;
   /** The title page to go back to. */
   back: LinkOptions;
+  next?: NextEpisode | undefined;
 }
 
 /**
@@ -49,16 +57,19 @@ export interface PlayerProps {
  */
 export function Player(props: PlayerProps) {
   useEffect(playerOpened, []);
+  const autoplay = useAutoplay(props.next);
   // Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it mounted, and
   // React keeps the Tracks and Playback Limit it asked for.
   return (
     <Suspense fallback={<GettingReady title={props.title} back={props.back} />}>
-      <PlannedPlayer {...props} />
+      <PlannedPlayer {...props} autoplay={autoplay} />
     </Suspense>
   );
 }
 
-function PlannedPlayer(props: PlayerProps) {
+type PlannedProps = PlayerProps & { autoplay: Autoplay };
+
+function PlannedPlayer(props: PlannedProps) {
   const planned = usePlaybackPlan(props);
   const { plan } = planned;
   if (plan.url === "")
@@ -84,28 +95,31 @@ function clickToToggle(event: PointerEvent<HTMLVideoElement>) {
   if (event.pointerType === "mouse") togglePlay(event.currentTarget);
 }
 
+// oxlint-disable-next-line eslint/max-lines-per-function -- it wires the video to its controls, Watch State and autoplay
 function VideoPlayer({
   title,
   versionId,
   tracks,
   back,
+  autoplay,
   planned,
   topBar,
-}: PlayerProps & { planned: ReturnType<typeof usePlaybackPlan>; topBar: ReactNode }) {
+}: PlannedProps & { planned: ReturnType<typeof usePlaybackPlan>; topBar: ReactNode }) {
   const { plan, startPositionMs, onCantPlay } = planned;
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   const src = usePlaybackSource(videoRef, plan, onCantPlay);
   useWatchState(videoRef, versionId, startPositionMs);
   const [awake, wake] = useAwake();
-  useShortcuts(videoRef, playerRef, back, wake);
+  const nextEpisode = useNextEpisode(autoplay, video, wake);
+  useShortcuts(videoRef, playerRef, back, nextEpisode.onInput);
 
   return (
     <div
       ref={playerRef}
       data-controls-hidden={(video.state.playing && !awake) || undefined}
-      onPointerMove={wake}
-      onPointerDown={wake}
+      onPointerMove={nextEpisode.onInput}
+      onPointerDown={nextEpisode.onInput}
       className="group fixed inset-0 bg-background data-controls-hidden:cursor-none"
     >
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- a Version may have no subtitles. */}
@@ -119,6 +133,7 @@ function VideoPlayer({
           onCantPlay(event.currentTarget);
         }}
         onPointerUp={clickToToggle}
+        onEnded={nextEpisode.playNext}
         className="size-full object-contain"
         {...events}
       >
@@ -131,6 +146,7 @@ function VideoPlayer({
           <TrackMenus tracks={tracks} planned={planned} videoRef={videoRef} container={playerRef} />
         </BottomBar>
       </div>
+      <NextEpisodeOverlay nextEpisode={nextEpisode} back={back} />
     </div>
   );
 }
