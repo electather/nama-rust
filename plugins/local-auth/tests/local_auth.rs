@@ -101,29 +101,28 @@ fn a_credential_local_auth_did_not_make_is_an_error() {
     assert!(checked.is_err(), "{checked:?}");
 }
 
-/// How long `check` takes at the least, out of a few runs, since a busy machine only slows a run.
-fn fastest(check: impl Fn()) -> Duration {
-    (0..3)
-        .map(|_| {
-            let started = Instant::now();
-            check();
-            started.elapsed()
-        })
-        .min()
-        .unwrap_or_default()
+fn timed(check: impl Fn()) -> Duration {
+    let started = Instant::now();
+    check();
+    started.elapsed()
 }
 
-/// Timing varies too much to show the two checks cost the same, but a busy machine only slows
-/// them down, so a check that skipped the argon2 verification would be far faster than a real one.
+/// Timing varies too much to show the two checks cost the same, but a check that skipped the
+/// argon2 verification costs microseconds against a real one's milliseconds. Each round times the
+/// two back to back, so load must slow every real run yet miss every unknown run to fail the test:
+/// timing all the real runs before all the unknown ones failed under load (#961).
 #[test]
 fn the_unknown_user_check_takes_as_long_as_a_real_verification() {
     let auth = authenticator();
     let credential = auth.hash_password("correct horse").unwrap();
 
-    let real = fastest(|| {
-        auth.verify_password("battery staple", &credential).unwrap();
-    });
-    let unknown = fastest(|| auth.verify_unknown_user("battery staple"));
+    let (mut real, mut unknown) = (Duration::MAX, Duration::MAX);
+    for _ in 0..5 {
+        real = real.min(timed(|| {
+            auth.verify_password("battery staple", &credential).unwrap();
+        }));
+        unknown = unknown.min(timed(|| auth.verify_unknown_user("battery staple")));
+    }
 
-    assert!(unknown >= real / 2, "unknown {unknown:?}, real {real:?}");
+    assert!(unknown >= real / 10, "unknown {unknown:?}, real {real:?}");
 }
