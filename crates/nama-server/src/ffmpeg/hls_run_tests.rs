@@ -3,8 +3,8 @@ use std::path::Path;
 use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
 
 use super::{
-    Accel, BurnIn, FRENCH_SRT, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe,
-    PERSIAN_SRT, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode, TranscodeAudio,
+    Accel, BurnIn, FRENCH_SRT, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, ImageSubtitle,
+    Keyframe, PERSIAN_SRT, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode, TranscodeAudio,
     VideoConversion, VideoLimit, sidecar_charset,
 };
 
@@ -387,7 +387,7 @@ fn a_limited_tone_map_with_a_burn_in_scales_down_after_the_subtitle() {
     };
 
     let image = transcode_args(burned(BurnIn::Image {
-        subtitle: 1,
+        subtitle: ImageSubtitle::Stream(1),
         picture: None,
     }));
     let text = transcode_args(burned(BurnIn::Text {
@@ -430,7 +430,7 @@ fn a_playback_limit_scales_the_picture_and_caps_the_bitrate() {
 fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Image {
-            subtitle: 1,
+            subtitle: ImageSubtitle::Stream(1),
             picture: Some((1920, 1080)),
         }),
         ..SOFTWARE
@@ -449,7 +449,7 @@ fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
 fn a_run_that_seeks_reads_its_image_subtitle_from_an_input_that_doesnt() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Image {
-            subtitle: 1,
+            subtitle: ImageSubtitle::Stream(1),
             picture: None,
         }),
         ..SOFTWARE
@@ -791,3 +791,6 @@ fn a_path_in_a_filter_option_survives_both_of_ffmpegs_unescapings() {
         r"\'/films/it\'\\\'\'s: a \[test\]\, x\; y\\z.mkv\'"
     );
 }
+
+#[path = "hls_sidecar_tests.rs"]
+mod sidecar;

@@ -1,6 +1,6 @@
-//! Text sidecar subtitles beside a Version: listed after its file's own Tracks, served as WebVTT
-//! in their own characters whatever charset they're in, and matched by Subtitle Preferences like
-//! them.
+//! Sidecar subtitles beside a Version: listed after its file's own Tracks, served as WebVTT in
+//! their own characters whatever charset they're in, burned in and matched by Subtitle
+//! Preferences like them.
 
 use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
 use ffmpeg::{FRENCH_SRT, PERSIAN_SRT};
@@ -171,4 +171,73 @@ async fn an_english_preference_starts_a_sidecar_and_a_picked_one_keeps_what_its_
     // the forced one with notes after it.
     let started = fx.plan(version).await.unwrap().starting_subtitle;
     assert_eq!(started, Some(SDH_WITH_NOTES));
+}
+
+#[tokio::test]
+async fn a_sup_sidecar_follows_the_files_own_tracks_and_is_served_as_pgs_unchanged() {
+    let sup = "PG as the sidecar holds it";
+    let (fx, version) = Fixture::alien_with_sidecars(&[("Alien (1979) - 1080p.en.sup", sup)]).await;
+    let drawing_pgs = DeviceDecoding {
+        subtitle_formats: vec![SubtitleFormat::SUBTITLE_FORMAT_PGS.into()],
+        ..chrome()
+    };
+
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            device_decoding: drawing_pgs.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    assert_eq!(
+        codecs_and_languages(&movie.versions[0].tracks),
+        [
+            ("mpeg4", None),
+            ("subrip", None),
+            ("hdmv_pgs_subtitle", Some("en"))
+        ]
+    );
+    let sidecar = &plan.subtitles[1];
+    assert_eq!(
+        (sidecar.track.language.as_deref(), sidecar.format),
+        (Some("en"), SubtitleFormat::SUBTITLE_FORMAT_PGS.into())
+    );
+    let served = fetch(&fx.server, &sidecar.url, Some(&fx.server.admin_token)).await;
+    assert_eq!(served.header("content-type"), "application/octet-stream");
+    assert_eq!(served.body, sup.as_bytes());
+}
+
+#[tokio::test]
+async fn a_sup_sidecar_is_burned_in_in_step_from_the_start_and_after_a_seek() {
+    let (fx, version) =
+        Fixture::alien_written(system_ffmpeg(), ffmpeg::write_black_with_pgs_sidecar).await;
+    let plan_from = |start_position_ms| PlanPlaybackRequest {
+        version_id: version,
+        start_position_ms,
+        subtitle_track: Some(1),
+        device_decoding: chrome().into(),
+        ..Default::default()
+    };
+
+    let from_start = fx.ask_for_plan(plan_from(0)).await.unwrap();
+    let seeking = fx.ask_for_plan(plan_from(7000)).await.unwrap();
+
+    assert_eq!(from_start.burn_in_tracks, vec![1]);
+    // The square shows from 5 seconds to 15, and the segments are 6 seconds long. The second
+    // segment's last frame catches a square shown 5 seconds early, and the run from it starts
+    // after the square began, so it shows only if that run's sidecar input doesn't seek.
+    let first = last_frame(&fx, &from_start.url, "0.m4s").await;
+    assert!(first[108 * 320 + 108] > 200, "the square is burned in");
+    let second = last_frame(&fx, &seeking.url, "1.m4s").await;
+    assert!(
+        second[108 * 320 + 108] > 200,
+        "the square is burned in after a seek"
+    );
+    assert!(
+        second[10 * 320 + 10] < 50,
+        "the picture around it stays black"
+    );
 }
