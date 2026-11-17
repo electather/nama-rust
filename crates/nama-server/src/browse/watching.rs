@@ -1,6 +1,9 @@
 //! Watch State through Browse: what a User reports, marks and has started.
 
-use std::{cmp::Reverse, collections::HashMap};
+use std::{
+    cmp::Reverse,
+    collections::{HashMap, HashSet},
+};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{PageRequest, PageResponse};
@@ -9,7 +12,7 @@ use super::{Browse, Error, Show, Target, Titles, Version, finding_failed, with_t
 use crate::{
     library::{
         LibraryEpisode, LibraryMovie, LibraryVersion, MovieOrEpisode, Progress, TitlesIn,
-        WatchState,
+        WatchState, WatchedTitle,
     },
     page::Page,
     playback::Probe,
@@ -66,7 +69,8 @@ impl Browse {
 
     /// Marks, as of now, `target` of the Library `library` played or unplayed for the User
     /// `user`: a Season or Show is each of its Episodes. Played is written under each one's
-    /// preferred id; unplayed forgets it under every id. Fails as browsing to it does if the
+    /// preferred id; unplayed forgets it under every id. Either, where it changes a Watch State,
+    /// shows the Movie or Show again in Continue Watching. Fails as browsing to it does if the
     /// Library has no such title.
     pub(crate) async fn mark(
         &self,
@@ -75,21 +79,57 @@ impl Browse {
         target: Target,
         played: bool,
     ) -> Result<(), Error> {
+        let Targeted { titles, entry } = self.targeted(library, target).await?;
+        if played {
+            Ok(self.watch_states.mark(user, titles, true).await?)
+        } else {
+            Ok(self.watch_states.mark_unplayed(user, titles, entry).await?)
+        }
+    }
+
+    /// Hides the Movie or Show of `target` of the Library `library` from the User `user`'s
+    /// Continue Watching, or shows it again, without changing its Watch State. It stays hidden
+    /// until the User's Watch State of the Movie, or of any of the Show's Episodes, next changes.
+    /// Fails as browsing to it does if the Library has no such title.
+    pub(crate) async fn hide(
+        &self,
+        user: i64,
+        library: i64,
+        target: Target,
+        hidden: bool,
+    ) -> Result<(), Error> {
+        let Targeted { entry, .. } = self.targeted(library, target).await?;
+        Ok(self.watch_states.hide(user, entry, hidden).await?)
+    }
+
+    /// What `target` of the Library `library` stands for.
+    async fn targeted(&self, library: i64, target: Target) -> Result<Targeted, Error> {
         let titles = self.titles(&self.library(library).await?).await?;
         let episode =
             |episode: &LibraryEpisode| MovieOrEpisode::episode(&episode.id).known_as(&episode.ids);
-        let marked = match target {
+        let every_episode = |show: &Show| show.episodes().map(episode).collect();
+        Ok(match target {
             Target::Movie(id) => {
                 let movie = titles.movie(&id)?;
-                vec![MovieOrEpisode::movie(&movie.id).known_as(&movie.ids)]
+                Targeted::entry(vec![MovieOrEpisode::movie(&movie.id).known_as(&movie.ids)])
             }
-            Target::Episode(id) => vec![episode(&titles.episode(&id)?)],
-            Target::Season { show, number } => (titles.season(&show, number)?.episodes.iter())
-                .map(episode)
-                .collect(),
-            Target::Show(id) => titles.show(&id)?.episodes().map(episode).collect(),
-        };
-        Ok(self.watch_states.mark(user, marked, played).await?)
+            Target::Episode(id) => {
+                let (show, marked) = titles.episode(&id)?;
+                Targeted {
+                    titles: vec![episode(&marked)],
+                    entry: every_episode(&show),
+                }
+            }
+            Target::Season { show, number } => {
+                let show = titles.show(&show)?;
+                let season = show.seasons.get(&number).ok_or(Error::NoSuchSeason)?;
+                Targeted {
+                    titles: season.episodes.iter().map(episode).collect(),
+                    entry: every_episode(&show),
+                }
+            }
+            Target::Show(id) => Targeted::entry(every_episode(&titles.show(&id)?)),
+        })
     }
 
     /// A page of the User `user`'s Continue Watching, most recent first: the Movies they've
@@ -133,9 +173,12 @@ impl Browse {
         if states.is_empty() {
             return Ok(Vec::new());
         }
+        let hidden: HashSet<i64> = (states.iter())
+            .filter_map(|&(_, _, row, hidden)| hidden.then_some(row))
+            .collect();
         let mut found = Found {
             unfound: (states.into_iter())
-                .map(|(watched, state, row)| (watched, (state, row)))
+                .map(|(watched, state, row, _)| (watched, (state, row)))
                 .collect(),
             listed: Vec::new(),
         };
@@ -146,6 +189,9 @@ impl Browse {
                 Titles::Shows(shows) => found.shows(library.id, shows),
             }
         }
+        // Hidden while the Watch State that dates it is: a newer change to any of a Show's
+        // Episodes dates it instead.
+        (found.listed).retain(|(_, (_, row))| !hidden.contains(row));
         found.listed.sort_by_key(|&(_, recency)| Reverse(recency));
         Ok(found.listed)
     }
@@ -182,6 +228,23 @@ impl Started<LibraryVersion> {
                 episode: episode.map_versions(with_tracks(probes)),
                 state,
             },
+        }
+    }
+}
+
+/// The Movie or Episodes a [`Target`] stands for, each by every id, and the whole Movie or Show
+/// they are of, as its Continue Watching entry: a Show is every one of its Episodes.
+struct Targeted {
+    titles: Vec<WatchedTitle>,
+    entry: Vec<WatchedTitle>,
+}
+
+impl Targeted {
+    /// A [`Target`] that stands for the whole of its entry, as a Movie or Show does.
+    fn entry(titles: Vec<WatchedTitle>) -> Self {
+        Self {
+            entry: titles.clone(),
+            titles,
         }
     }
 }

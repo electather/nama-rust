@@ -262,7 +262,7 @@ A User's progress through a Movie or Episode: whether it's been played, how far 
 _Avoid_: watched status, play state, progress
 
 **Continue Watching**:
-A User's Movies and Episodes whose Watch State says they've started and not played, and the next Episode of each Show they're partway through, most recent first, leaving out what they've hidden from it. Hiding a title lasts until the User plays it, or for a Show any of its Episodes, again, and never changes its Watch State.
+A User's Movies and Episodes whose Watch State says they've started and not played, and the next Episode of each Show they're partway through, most recent first, leaving out what they've hidden from it. Hiding a title lasts until the User's Watch State of it, or for a Show of any of its Episodes, next changes, as when they play it or mark it played or unplayed, and never changes its Watch State.
 _Avoid_: on deck, in progress, resume list, Next Up
 
 **Home row**:

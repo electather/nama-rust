@@ -14,6 +14,18 @@ pub type OwnedSetPlayedRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetPlayedResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetPlayedResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetHiddenFromContinueWatchingRequestView<'static>>`.
+pub type OwnedSetHiddenFromContinueWatchingRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetHiddenFromContinueWatchingRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<SetHiddenFromContinueWatchingResponseView<'static>>`.
+pub type OwnedSetHiddenFromContinueWatchingResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetHiddenFromContinueWatchingResponseView<
+        'static,
+    >,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ReportProgressResponse>
 for crate::messages::nama::v1::__buffa::view::ReportProgressResponseView<'_> {
     fn encode(
@@ -82,6 +94,48 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<
+    crate::messages::nama::v1::SetHiddenFromContinueWatchingResponse,
+>
+for crate::messages::nama::v1::__buffa::view::SetHiddenFromContinueWatchingResponseView<
+    '_,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::v1::SetHiddenFromContinueWatchingResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetHiddenFromContinueWatchingResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const WATCH_STATE_SERVICE_SERVICE_NAME: &str = "nama.v1.WatchStateService";
 /// Static [`Spec`](::connectrpc::Spec) for the `ReportProgress` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -93,6 +147,12 @@ pub const WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC: ::connectrpc::Spec = ::conne
 /// Static [`Spec`](::connectrpc::Spec) for the `SetPlayed` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const WATCH_STATE_SERVICE_SET_PLAYED_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.WatchStateService/SetPlayed",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetHiddenFromContinueWatching` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.WatchStateService/SetHiddenFromContinueWatching",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -211,6 +271,32 @@ pub trait WatchStateService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Hides a Movie or Show that is Matched in a Library from the caller's Continue Watching, or
+    /// shows it again, without changing its Watch State. It stays hidden until the caller's Watch
+    /// State of the Movie, or of any of the Show's Episodes, next changes, as when they play it; a
+    /// new Episode doesn't show it again. Fails as `SetPlayed` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_hidden_from_continue_watching<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetHiddenFromContinueWatchingRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetHiddenFromContinueWatchingResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -301,6 +387,35 @@ impl<S: WatchStateService> WatchStateServiceExt for S {
                 },
             )
             .with_spec(WATCH_STATE_SERVICE_SET_PLAYED_SPEC)
+            .route_view(
+                WATCH_STATE_SERVICE_SERVICE_NAME,
+                "SetHiddenFromContinueWatching",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetHiddenFromContinueWatchingRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetHiddenFromContinueWatchingRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_hidden_from_continue_watching(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetHiddenFromContinueWatchingResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -367,6 +482,14 @@ impl<T: WatchStateService> ::connectrpc::Dispatcher for WatchStateServiceServer<
                         .with_spec(WATCH_STATE_SERVICE_SET_PLAYED_SPEC),
                 )
             }
+            "SetHiddenFromContinueWatching" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(
+                            WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC,
+                        ),
+                )
+            }
             _ => None,
         }
     }
@@ -422,6 +545,28 @@ impl<T: WatchStateService> ::connectrpc::Dispatcher for WatchStateServiceServer<
                     svc.set_played(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::SetPlayedResponse>(format)
+                })
+            }
+            "SetHiddenFromContinueWatching" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetHiddenFromContinueWatchingRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetHiddenFromContinueWatchingRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetHiddenFromContinueWatchingRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_hidden_from_continue_watching(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetHiddenFromContinueWatchingResponse,
+                        >(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -632,6 +777,51 @@ where
                 &self.transport,
                 &self.config,
                 WATCH_STATE_SERVICE_SET_PLAYED_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetHiddenFromContinueWatching RPC. Sends a request to /nama.v1.WatchStateService/SetHiddenFromContinueWatching.
+    pub async fn set_hidden_from_continue_watching(
+        &self,
+        request: crate::messages::nama::v1::SetHiddenFromContinueWatchingRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetHiddenFromContinueWatchingResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_hidden_from_continue_watching_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetHiddenFromContinueWatching RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_hidden_from_continue_watching_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetHiddenFromContinueWatchingRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetHiddenFromContinueWatchingResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

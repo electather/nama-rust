@@ -48,3 +48,32 @@ pub mod set_played_request {
         }
     }
 }
+pub mod set_hidden_from_continue_watching_request {
+    #[allow(unused_imports)]
+    use super::*;
+    /// What to hide, identified as browsing identifies it.
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum Target {
+        MovieId(::buffa::alloc::boxed::Box<super::super::super::ExternalId>),
+        ShowId(::buffa::alloc::boxed::Box<super::super::super::ExternalId>),
+    }
+    impl ::buffa::Oneof for Target {}
+    impl ::serde::Serialize for Target {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::MovieId(v) => {
+                    map.serialize_entry("movieId", &**v)?;
+                }
+                Self::ShowId(v) => {
+                    map.serialize_entry("showId", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
