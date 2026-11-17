@@ -200,9 +200,7 @@ impl BrowseService for BrowseServiceHandler {
 
 fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::MovieInLibrary {
     let downloaded = (movie.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
-    let poster_url = (images.custom)
-        .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
-        .or(downloaded);
+    let poster_url = (images.movie_image(&movie.id, &movie.ids, Role::Poster)).or(downloaded);
     proto::MovieInLibrary {
         library_id: movie.library,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
@@ -242,8 +240,8 @@ fn found_episode_to_proto(episode: FoundEpisode) -> proto::EpisodeInLibrary {
     }
 }
 
-/// A Movie as clients see it, with its images as URLs on this Server and their thumbhashes, its
-/// Custom Images in `images` in place of the downloaded ones, and the caller's Watch State of it,
+/// A Movie as clients see it, with its images as URLs on this Server and their thumbhashes, the
+/// ones `images` shows in place of the downloaded ones, and the caller's Watch State of it,
 /// if they've started it.
 fn movie_to_proto(
     movie: Movie,
@@ -251,20 +249,20 @@ fn movie_to_proto(
     images: &ShownImages,
 ) -> proto::Movie {
     let artwork_url = |image: ImageRef| artwork_url(image.plugin.as_str(), &image.path);
-    let custom_poster =
-        (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster));
-    let custom_backdrop =
-        (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Backdrop));
-    let (poster_is_custom, backdrop_is_custom) =
-        (custom_poster.is_some(), custom_backdrop.is_some());
-    let poster_url = custom_poster.or_else(|| movie.poster.map(artwork_url));
-    let backdrop_url = custom_backdrop.or_else(|| movie.backdrop.map(artwork_url));
+    let is_custom = |role| {
+        (images.custom)
+            .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, role))
+            .is_some()
+    };
+    let shown = |role| images.movie_image(&movie.id, &movie.ids, role);
+    let poster_url = shown(Role::Poster).or_else(|| movie.poster.map(artwork_url));
+    let backdrop_url = shown(Role::Backdrop).or_else(|| movie.backdrop.map(artwork_url));
     proto::Movie {
         title_logo_url: movie.logo.map(artwork_url),
         genres: movie.genres,
         content_rating: movie.content_rating,
-        custom_poster: poster_is_custom,
-        custom_backdrop: backdrop_is_custom,
+        custom_poster: is_custom(Role::Poster),
+        custom_backdrop: is_custom(Role::Backdrop),
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
         poster_url,

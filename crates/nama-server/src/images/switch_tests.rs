@@ -258,7 +258,13 @@ async fn a_switch_copies_every_original_and_nothing_else_then_uses_the_new_store
 async fn every_original_dir_is_a_folder_an_image_is_written_to() {
     assert_eq!(
         ORIGINAL_DIRS,
-        ["artwork", "artwork-cache", "custom-images", "plugin-logos"]
+        [
+            "artwork",
+            "artwork-cache",
+            "custom-images",
+            "local-images",
+            "plugin-logos"
+        ]
     );
 }
 

@@ -458,8 +458,9 @@ impl RequestService for RequestServiceHandler {
 }
 
 impl RequestServiceHandler {
-    /// The URL and thumbhash of an image a title shows: `custom`, its Custom Image's URL, or else
-    /// the one at `path` from `plugin`'s Provider, offered to clients.
+    /// The URL and thumbhash of an image a title shows: `custom`, its Custom Image's URL or else
+    /// that of the image beside its media, or else the one at `path` from `plugin`'s Provider,
+    /// offered to clients.
     fn image(
         &self,
         images: &ShownImages,
@@ -481,12 +482,8 @@ impl RequestServiceHandler {
             library,
             request,
         } = found;
-        let (poster_url, poster_thumbhash) = self.image(
-            images,
-            (images.custom).of_title(&id, &movie.ids, |id| movie_slot(id, Role::Poster)),
-            &plugin,
-            movie.poster,
-        );
+        let shown = images.movie_image(&id, &movie.ids, Role::Poster);
+        let (poster_url, poster_thumbhash) = self.image(images, shown, &plugin, movie.poster);
         proto::MovieHit {
             id: external_id_to_proto(&id).into(),
             title: movie.title,
@@ -513,7 +510,7 @@ impl RequestServiceHandler {
             request,
         } = found;
         let image = |role, image: Option<ImageRef>| {
-            let custom = (images.custom).of_title(&id, &movie.ids, |id| movie_slot(id, role));
+            let custom = images.movie_image(&id, &movie.ids, role);
             match image {
                 Some(ImageRef { plugin: by, path }) => self.image(images, custom, &by, Some(path)),
                 None => self.image(images, custom, &plugin, None),
@@ -591,11 +588,6 @@ impl RequestServiceHandler {
             ..Default::default()
         }
     }
-}
-
-/// The slot of the Movie `id`, as browsing identifies it.
-fn movie_slot(id: &ExternalId, role: Role) -> Slot {
-    Slot::movie(id, role)
 }
 
 /// The slot of the Show `id`, as browsing identifies it.

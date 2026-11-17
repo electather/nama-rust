@@ -1,0 +1,57 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_files.library_id AS \"library!\", local_images.role,\n                              local_images.stored, (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\"\n                       FROM local_images\n                       JOIN library_files ON library_files.id = local_images.version_id\n                       JOIN library_items ON library_items.file_id = local_images.version_id\n                       JOIN item_matches ON item_matches.item_id = library_items.id\n                       WHERE library_items.kind = 'movie' AND item_matches.state = 'matched'\n                       ORDER BY library_items.added_at, library_items.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "library!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "role",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "name": "stored",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "stored"
+          }
+        }
+      },
+      {
+        "name": "ids?: String",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "d7f8997d116399df3105f261883b597f5e01a8a7fd0780bd640cb12055f6f2a3"
+}

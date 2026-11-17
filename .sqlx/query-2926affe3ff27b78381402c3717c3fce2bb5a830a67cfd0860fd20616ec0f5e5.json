@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO local_images (version_id, role, path, size, modified_ns, stored,\n                                       content_type)\n             VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "2926affe3ff27b78381402c3717c3fce2bb5a830a67cfd0860fd20616ec0f5e5"
+}
