@@ -2,11 +2,11 @@
 //! VobSub and ASS ones as the Track's own `.sup`, `.mks` or `.ass` for a Device that draws them,
 //! with the fonts an ASS one's file carries (ADR 0033).
 //!
-//! Where a subtitle comes from is kept apart from how it's served. [`Embedded`] is the one source
-//! so far, a subtitle Track inside a Version's file. [`Cache`] serves any source's subtitle: it
-//! has the source make it the first time it's asked for, keeps it under `subtitles/` in the data
-//! directory, and answers from there after. Subtitle files next to a video would be another source
-//! served by the same [`Cache`]. The fonts are cached beside the subtitles, and go with them.
+//! Where a subtitle comes from is kept apart from how it's served. A [`Source`] is a subtitle
+//! Track inside a Version's file, or a sidecar, a subtitle file beside it. [`Cache`] serves any
+//! source's subtitle: it has the source make it the first time it's asked for, keeps it under
+//! `subtitles/` in the data directory, and answers from there after. The fonts are cached beside
+//! the subtitles, and go with them; a sidecar carries none (ADR 0033).
 //!
 //! As WebVTT, ASS and SSA are plain cues ([`ass`]); drawing or burning them in is what keeps
 //! their styling.
@@ -38,7 +38,10 @@ use proto::SubtitleFormat::{
 
 mod ass;
 
-use super::tracks::{PROBE_VERSION, Probe, Track, TrackKind, Tracks};
+use super::{
+    Sidecars,
+    tracks::{PROBE_VERSION, Probe, Track, TrackKind, Tracks},
+};
 use crate::{
     ffmpeg::{Ffmpeg, SubtitleError},
     images::write_atomically,
@@ -95,6 +98,7 @@ fn served_with_styling(track: &Track) -> Option<proto::SubtitleFormat> {
 pub(super) struct Subtitles {
     pub(super) contents: Contents,
     pub(super) tracks: Tracks,
+    pub(super) sidecars: Sidecars,
     pub(super) ffmpeg: Arc<Ffmpeg>,
     pub(super) cache: Cache,
 }
@@ -123,7 +127,7 @@ async fn serve(
     format_of: fn(&Track) -> Option<proto::SubtitleFormat>,
 ) -> Response {
     let source = match probed(&subtitles, version).await {
-        Ok(probed) => probed.and_then(|probed| Embedded::find(probed, track, format_of)),
+        Ok(probed) => probed.and_then(|probed| Source::find(probed, track, format_of)),
         Err(err) => {
             tracing::error!("could not look up the Version {version}'s Track {track}: {err}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -192,8 +196,13 @@ async fn probed(
     };
     // `of` leaves out what was read from what the file held before, which would pick the wrong
     // stream out of it now.
-    let probe = subtitles.tracks.of(&[file]).await?.remove(&version);
-    Ok(probe.map(|probe| (path, file, probe)))
+    let Some(mut probe) = subtitles.tracks.of(&[file]).await?.remove(&version) else {
+        return Ok(None);
+    };
+    (subtitles.sidecars)
+        .append_to([(version, &mut probe)])
+        .await?;
+    Ok(Some((path, file, probe)))
 }
 
 /// Why a subtitle couldn't be served.
@@ -205,21 +214,22 @@ enum Error {
     Read(#[from] SubtitleError),
 }
 
-/// A subtitle Track inside a Version's file.
-struct Embedded {
-    /// The file as stored now, which its Tracks were read from.
+/// A subtitle Track, inside a Version's file or in a sidecar beside it.
+struct Source {
+    /// The Version's file as stored now, which its Tracks were read from.
     file: Stored,
-    /// Its place in the Version's Tracks.
-    track: usize,
+    /// Its name in the cache, which changes when what it's read from does.
+    name: String,
+    /// The file it's read from.
     path: String,
-    /// Its place among the file's subtitle Tracks, which is how ffmpeg picks it out.
+    /// Its place among that file's subtitle Tracks, which is how ffmpeg picks it out.
     subtitle: usize,
     served_as: proto::SubtitleFormat,
     /// ASS or SSA, whose dialogue ffmpeg would make WebVTT with their styling and drawings in.
     ass: bool,
 }
 
-impl Embedded {
+impl Source {
     /// The Track `track` of the Version at `path`, stored as `file`, which probing read as
     /// `probe`, in the format `format_of` gives it: `None` if there's no such Track or it gives
     /// none.
@@ -229,23 +239,36 @@ impl Embedded {
         format_of: fn(&Track) -> Option<proto::SubtitleFormat>,
     ) -> Option<Self> {
         let found = probe.tracks.get(track)?;
+        let (name, path, subtitle) = match found.sidecar() {
+            // A sidecar holds just its one subtitle, and changes apart from its video, so it's
+            // cached by its own size and time. ponytail: what an edited sidecar's older copy made
+            // stays cached until its video changes or goes; have `keep_only` throw it away if that
+            // adds up.
+            Some(sidecar) => (
+                format!("{track}.{}.{}", sidecar.size, sidecar.modified_ns),
+                sidecar.path.clone(),
+                0,
+            ),
+            None => (track.to_string(), path, probe.ffmpeg_index(track)?),
+        };
         Some(Self {
             served_as: format_of(found)?,
-            subtitle: probe.ffmpeg_index(track)?,
             ass: found.is_ass_subtitle(),
             file,
-            track,
+            name,
             path,
+            subtitle,
         })
     }
 
     fn cache_key(&self) -> PathBuf {
+        let name = &self.name;
         let name = match self.served_as {
             // Read out as they are, so how WebVTT is made doesn't change them.
-            PGS => format!("{}.sup", self.track),
-            VOBSUB => format!("{}.mks", self.track),
-            ASS => format!("{}.ass", self.track),
-            UNSPECIFIED | WEBVTT => format!("{}.v{WEBVTT_VERSION}.vtt", self.track),
+            PGS => format!("{name}.sup"),
+            VOBSUB => format!("{name}.mks"),
+            ASS => format!("{name}.ass"),
+            UNSPECIFIED | WEBVTT => format!("{name}.v{WEBVTT_VERSION}.vtt"),
         };
         cache_key(self.file, &name)
     }
@@ -260,7 +283,7 @@ impl Embedded {
         }
     }
 
-    /// Reads it out of the file: a PGS Track copied into `.sup`, the framing a Device's renderer
+    /// Reads it out of its file: a PGS Track copied into `.sup`, the framing a Device's renderer
     /// reads, a VobSub one into Matroska, which carries its palette and size beside it, an ASS or
     /// SSA one as ASS for a Device that draws it, and any other as WebVTT.
     async fn read(&self, ffmpeg: &Ffmpeg) -> Result<Vec<u8>, Error> {

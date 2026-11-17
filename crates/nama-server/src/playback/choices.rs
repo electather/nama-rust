@@ -14,7 +14,7 @@ use super::{
     track_preferences::{Description, Preferred, SubtitlePreference, same_language},
     tracks::{Probe, Track, TrackKind},
 };
-use crate::ffmpeg::BurnIn;
+use crate::ffmpeg::{BurnIn, TextSubtitle};
 
 /// The audio Track `asked` asks for, by its place in `probe`'s Tracks. One the Server chose by the
 /// User's Audio Preference is then as if they chose it, so a plan that can't play it drops it
@@ -175,6 +175,11 @@ pub(super) fn burn_in(facts: &Facts) -> Option<BurnIn> {
         .subtitle
         .filter(|_| !facts.dropped.contains(&Choice::Subtitle))?;
     let track = (probe.tracks.get(place)).filter(|track| burns_in(&facts.device, probe, track))?;
+    if let Some(sidecar) = track.sidecar() {
+        return Some(BurnIn::Text {
+            subtitle: TextSubtitle::Sidecar(sidecar.path.clone()),
+        });
+    }
     let subtitle = probe.ffmpeg_index(place)?;
     Some(
         if matches!(track.kind, TrackKind::Subtitle { image: true, .. }) {
@@ -183,7 +188,9 @@ pub(super) fn burn_in(facts: &Facts) -> Option<BurnIn> {
                 picture: picture(facts),
             }
         } else {
-            BurnIn::Text { subtitle }
+            BurnIn::Text {
+                subtitle: TextSubtitle::Stream(subtitle),
+            }
         },
     )
 }
@@ -278,12 +285,16 @@ fn shown_as(
 }
 
 /// Whether `device` draws `track`, in the file `probe` read, as ASS with its styling: only an ASS
-/// or SSA one, on a Device that lists ASS, in a file that carries fonts. A renderer on the Device
-/// sees only the fonts it's handed and one fallback for Latin, Greek and Cyrillic, so a Track in
-/// Persian, Arabic, Chinese or Japanese with no fonts of its own would draw as empty boxes, where
-/// its WebVTT shows in the Device's own fonts.
+/// or SSA one, on a Device that lists ASS, in a file that carries fonts, which a sidecar's never
+/// does (ADR 0033), whatever its video's carries. A renderer on the Device sees only the fonts it's
+/// handed and one fallback for Latin, Greek and Cyrillic, so a Track in Persian, Arabic, Chinese or
+/// Japanese with no fonts of its own would draw as empty boxes, where its WebVTT shows in the
+/// Device's own fonts.
 fn draws_with_styling(device: &DeviceDecoding, probe: &Probe, track: &Track) -> bool {
-    track.is_ass_subtitle() && lists(device, ASS) && !probe.font_attachments.is_empty()
+    track.is_ass_subtitle()
+        && lists(device, ASS)
+        && track.sidecar().is_none()
+        && !probe.font_attachments.is_empty()
 }
 
 /// Whether `device` says it draws `format` itself.

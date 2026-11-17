@@ -12,6 +12,8 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
+#[path = "playback/sidecars.rs"]
+mod sidecars;
 
 use std::{
     fs,

@@ -24,8 +24,8 @@ pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 #[cfg(test)]
 use self::hls::filter_value;
 pub(crate) use self::hls::{
-    BurnIn, FromCut, HlsRun, Remux, RemuxAudio, ToneMapper, Transcode, TranscodeAudio,
-    VideoConversion, VideoLimit, hls_init, hls_init_from,
+    BurnIn, FromCut, HlsRun, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
+    TranscodeAudio, VideoConversion, VideoLimit, hls_init, hls_init_from,
 };
 use self::hls::{VideoArgs, aac, hls_output, map_audio, seconds, video_args};
 #[cfg(any(test, feature = "testing"))]

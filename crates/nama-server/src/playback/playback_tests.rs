@@ -175,6 +175,7 @@ pub(super) fn text_subtitle(codec: &str) -> Track {
         TrackKind::Subtitle {
             image: false,
             header: false,
+            sidecar: None,
         },
     )
 }
@@ -428,6 +429,7 @@ fn direct_played() -> Facts {
         TrackKind::Subtitle {
             image: true,
             header: false,
+            sidecar: None,
         },
     );
     facts(Some(vec![

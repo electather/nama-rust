@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::{
     Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe, Remux, RemuxAudio,
-    ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
+    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
 };
 
 /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
@@ -327,7 +327,7 @@ fn a_limited_tone_map_with_nothing_burned_in_scales_down_first() {
     };
     let on_vaapi = VideoConversion {
         hardware: Some(on_default_gpu(Accel::Vaapi)),
-        ..tone_mapped
+        ..tone_mapped.clone()
     };
 
     let args = transcode_args(tone_mapped);
@@ -352,7 +352,9 @@ fn a_limited_tone_map_with_a_burn_in_scales_down_after_the_subtitle() {
         subtitle: 1,
         picture: None,
     }));
-    let text = transcode_args(burned(BurnIn::Text { subtitle: 2 }));
+    let text = transcode_args(burned(BurnIn::Text {
+        subtitle: TextSubtitle::Stream(2),
+    }));
 
     let graph = format!(
         "[0:V:0]{ZSCALE_TONE_MAP}[picture];[0:s:1]null[subtitle];\
@@ -430,7 +432,9 @@ fn a_run_that_seeks_reads_its_image_subtitle_from_an_input_that_doesnt() {
 #[test]
 fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
     let burned = VideoConversion {
-        burn_in: Some(BurnIn::Text { subtitle: 2 }),
+        burn_in: Some(BurnIn::Text {
+            subtitle: TextSubtitle::Stream(2),
+        }),
         ..SOFTWARE
     };
 
@@ -439,6 +443,23 @@ fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
     assert_eq!(
         value_of(&args, "-vf"),
         Some(r"subtitles=filename=\'alien.mkv\':si=2")
+    );
+}
+
+#[test]
+fn a_sidecar_text_subtitle_is_burned_in_from_its_own_file_by_libass() {
+    let burned = VideoConversion {
+        burn_in: Some(BurnIn::Text {
+            subtitle: TextSubtitle::Sidecar("Alien.en.ass".to_owned()),
+        }),
+        ..SOFTWARE
+    };
+
+    let args = transcode_args(burned);
+
+    assert_eq!(
+        value_of(&args, "-vf"),
+        Some(r"subtitles=filename=\'Alien.en.ass\'")
     );
 }
 
