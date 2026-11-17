@@ -8,7 +8,7 @@ use std::{collections::HashMap, ffi::OsStr, path::Path, sync::Arc};
 
 use sqlx::SqliteConnection;
 
-use super::{Track, TrackKind, is_language};
+use super::{Track, TrackKind, track_preferences::language};
 use crate::db::Database;
 
 /// A sidecar as a scan finds it, all a scan compares with what's stored.
@@ -20,7 +20,7 @@ pub(crate) struct Sidecar {
 }
 
 /// The sidecars a scan found beside one Version.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct VersionSidecars {
     pub(crate) version: i64,
     /// The Version's file name without its extension, which each sidecar's name starts with.
@@ -180,12 +180,13 @@ fn track_named(stem: &str, name: &str) -> Option<Track> {
 }
 
 /// Whether `tag` names a language: an ISO 639 code, or one joined by `-` to a region, such as
-/// `pt-BR` or `es-419`.
+/// `pt-BR` or `es-419`. Unlike a Preference's, `und` counts, as it does in a file's own Tracks.
 fn names_language(tag: &str) -> bool {
     let is_region = |region: &str| {
         (region.len() == 2 && region.bytes().all(|b| b.is_ascii_alphabetic()))
             || (region.len() == 3 && region.bytes().all(|b| b.is_ascii_digit()))
     };
+    let is_language = |code: &str| language(code).is_some();
     is_language(tag)
         || tag
             .split_once('-')

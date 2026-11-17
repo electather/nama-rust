@@ -41,12 +41,14 @@ async fn stored(media: &Fixture) -> Vec<(String, i64)> {
         .collect()
 }
 
-/// What probing found in the stored file at `relative`, if it has been probed.
-async fn probe(media: &Fixture, relative: &str) -> Option<Probe> {
+/// What probing found in the stored file at `relative`, and the probe version that read it, if
+/// it has been probed.
+async fn probe(media: &Fixture, relative: &str) -> (Option<Probe>, Option<i64>) {
     let stored = media.contents.stored(media.library).await.unwrap();
     let file = stored[media.path(relative).to_str().unwrap()];
     let tracks = Tracks::new(Arc::clone(&media.db));
-    tracks.of(&[file]).await.unwrap().remove(&file.id)
+    let probe = tracks.of(&[file]).await.unwrap().remove(&file.id);
+    (probe, tracks.probe_version_of(file.id).await)
 }
 
 #[tokio::test]
@@ -105,7 +107,7 @@ async fn a_scan_follows_sidecars_added_edited_and_removed_without_probing_the_vi
     media.write(ENGLISH, 3);
     scan().await;
     let probed = probe(&media, VIDEO).await;
-    assert!(probed.is_some(), "the video was never probed");
+    assert!(probed.0.is_some(), "the video was never probed");
     let ffprobe_runs = runs();
 
     media.write(FRENCH, 4);
