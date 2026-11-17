@@ -26,7 +26,9 @@ fn advance_clock_moves_now_and_now_ms_ahead_by_what_it_adds() {
 fn a_network_share_is_a_network_risk() {
     use super::{FilesystemRisk, filesystem_risk};
 
-    for filesystem in ["nfs", "cifs", "smb2", "smbfs"] {
+    for filesystem in [
+        "nfs", "cifs", "smb2", "smbfs", "9p", "ceph", "afs", "afpfs", "webdav",
+    ] {
         assert_eq!(
             filesystem_risk(filesystem),
             Some(FilesystemRisk::Network),
@@ -66,6 +68,9 @@ fn linux_names_the_magic_numbers_of_risky_filesystems_only() {
         (0x6969, Some("nfs")),
         (0xFF53_4D42, Some("cifs")),
         (0xFE53_4D42, Some("smb2")),
+        (0x0102_1997, Some("9p")),
+        (0x00C3_6400, Some("ceph")),
+        (0x5346_414F, Some("afs")),
         (0x2FC1_2FC1, Some("zfs")),
         (0x9123_683E, Some("btrfs")),
         (0xEF53, None),      // ext4

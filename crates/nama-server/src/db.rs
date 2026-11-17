@@ -371,10 +371,12 @@ enum FilesystemRisk {
     CopyOnWrite,
 }
 
-/// The risk of the filesystem `filesystem_name` names.
+/// `filesystem` is spelled as macOS's `statfs` names it, or as `linux_filesystem_name` does.
 fn filesystem_risk(filesystem: &str) -> Option<FilesystemRisk> {
     match filesystem {
-        "nfs" | "cifs" | "smb2" | "smbfs" => Some(FilesystemRisk::Network),
+        "nfs" | "cifs" | "smb2" | "smbfs" | "9p" | "ceph" | "afs" | "afpfs" | "webdav" => {
+            Some(FilesystemRisk::Network)
+        }
         "zfs" | "btrfs" => Some(FilesystemRisk::CopyOnWrite),
         _ => None,
     }
@@ -404,7 +406,7 @@ fn filesystem_name(dir: &Path) -> Option<String> {
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
-        reason = "magic numbers are 32 bits, which a 32-bit `long` holds as negative"
+        reason = "magic numbers fit in 32 bits, and a 32-bit `long` holds some as negative"
     )]
     let magic = stat.f_type as u32;
     linux_filesystem_name(magic).map(str::to_owned)
@@ -417,6 +419,9 @@ fn linux_filesystem_name(magic: u32) -> Option<&'static str> {
         0x6969 => Some("nfs"),
         0xFF53_4D42 => Some("cifs"),
         0xFE53_4D42 => Some("smb2"),
+        0x0102_1997 => Some("9p"),
+        0x00C3_6400 => Some("ceph"),
+        0x5346_414F => Some("afs"),
         0x2FC1_2FC1 => Some("zfs"),
         0x9123_683E => Some("btrfs"),
         _ => None,
