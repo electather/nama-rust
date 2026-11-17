@@ -1204,7 +1204,7 @@ pub struct TrackView<'a> {
     /// Field 5: `forced`
     pub forced: bool,
     /// Whether the file marks it for the deaf and hard of hearing (SDH), as subtitles that also
-    /// describe sounds.
+    /// describe sounds. A subtitle whose title says so, such as "English (SDH)", counts too.
     ///
     /// Field 9: `sdh`
     pub sdh: bool,
@@ -1725,7 +1725,7 @@ impl TrackOwnedView {
         self.0.reborrow().forced
     }
     /// Whether the file marks it for the deaf and hard of hearing (SDH), as subtitles that also
-    /// describe sounds.
+    /// describe sounds. A subtitle whose title says so, such as "English (SDH)", counts too.
     ///
     /// Field 9: `sdh`
     #[must_use]

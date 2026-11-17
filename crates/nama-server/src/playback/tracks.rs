@@ -18,7 +18,7 @@ use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::Stored};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(super) const PROBE_VERSION: i64 = 8;
+pub(super) const PROBE_VERSION: i64 = 9;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
 /// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
@@ -129,7 +129,8 @@ pub(crate) struct Track {
     pub(crate) title: Option<String>,
     pub(crate) default: bool,
     pub(crate) forced: bool,
-    /// Marked for the deaf and hard of hearing, as subtitles that also describe sounds.
+    /// Marked for the deaf and hard of hearing, as subtitles that also describe sounds, by the
+    /// file's flag or, for a subtitle, by its title.
     pub(crate) sdh: bool,
     pub(crate) kind: TrackKind,
 }

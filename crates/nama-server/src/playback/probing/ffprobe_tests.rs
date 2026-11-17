@@ -310,3 +310,34 @@ fn keyframes_are_timed_from_the_files_start() {
 
     assert_eq!(super::parse_keyframes(csv), [23, 2523]);
 }
+
+#[test]
+fn a_subtitle_is_sdh_when_flagged_or_titled_so_and_audio_only_when_flagged() {
+    let json = r#"{
+            "streams": [
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "English (SDH)"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "SDH"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "English CC"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "Hearing Impaired"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "hearing-impaired"}},
+                {"codec_name": "subrip", "codec_type": "subtitle",
+                 "disposition": {"hearing_impaired": 1}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "Accent"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "Access"}},
+                {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"title": "English"}},
+                {"codec_name": "aac", "codec_type": "audio", "tags": {"title": "SDH"}},
+                {"codec_name": "aac", "codec_type": "audio", "tags": {"title": "CC"}}
+            ],
+            "format": {"format_name": "matroska,webm"}
+        }"#;
+
+    let probe = parse_probe(json.as_bytes()).unwrap();
+
+    let sdh: Vec<_> = probe.tracks.iter().map(|track| track.sdh).collect();
+    assert_eq!(
+        sdh,
+        [
+            true, true, true, true, true, true, false, false, false, false, false
+        ]
+    );
+}

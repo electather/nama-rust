@@ -274,16 +274,32 @@ fn track(mut stream: ProbedStream) -> Option<Track> {
         },
         _ => return None,
     };
-    let (default, forced, sdh) = (flag("default"), flag("forced"), flag("hearing_impaired"));
+    let (default, forced, flagged_sdh) =
+        (flag("default"), flag("forced"), flag("hearing_impaired"));
+    let title = stream.tags.remove("title");
+    // Only a subtitle's title is read: "CC" or "SDH" on an audio title means something else.
+    let titled_sdh =
+        matches!(kind, TrackKind::Subtitle { .. }) && title.as_deref().is_some_and(title_says_sdh);
     Some(Track {
         codec: stream.codec_name,
         language: stream.tags.remove("language"),
-        title: stream.tags.remove("title"),
+        title,
         default,
         forced,
-        sdh,
+        sdh: flagged_sdh || titled_sdh,
         kind,
     })
+}
+
+/// Whether `title` names a subtitle for the deaf and hard of hearing, such as "English (SDH)",
+/// "English CC" or "hearing-impaired". Only whole words count, so "Accent" doesn't.
+fn title_says_sdh(title: &str) -> bool {
+    let words: Vec<String> = (title.split(|c: char| !c.is_alphanumeric()))
+        .filter(|word| !word.is_empty())
+        .map(str::to_lowercase)
+        .collect();
+    words.iter().any(|word| word == "sdh" || word == "cc")
+        || words.windows(2).any(|pair| pair == ["hearing", "impaired"])
 }
 
 /// Frames per second from a fraction such as `24000/1001`, or `None` for `0/0`.
