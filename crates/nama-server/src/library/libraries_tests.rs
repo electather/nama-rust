@@ -231,7 +231,31 @@ async fn a_library_sharing_its_name_from_before_names_were_unique_keeps_it_on_up
         .await
         .unwrap();
 
-    assert_eq!(updated.folders, [cinema]);
+    assert_eq!(
+        (updated.name.as_str(), updated.folders),
+        ("Movies", vec![cinema])
+    );
+}
+
+#[tokio::test]
+async fn a_name_another_library_has_with_its_accent_typed_apart_is_taken() {
+    let (_data, media, libraries, _folder) = setup().await;
+    let [films, tv] = ["films", "tv"].map(|name| {
+        let path = media.path().canonicalize().unwrap().join(name);
+        std::fs::create_dir(&path).unwrap();
+        path.to_str().unwrap().to_owned()
+    });
+    libraries
+        .create("Café", Kind::Movies, vec![films])
+        .await
+        .unwrap();
+
+    let created = libraries.create("CAFE\u{301}", Kind::Shows, vec![tv]).await;
+
+    assert!(
+        matches!(&created, Err(Error::NameTaken { library }) if library == "Café"),
+        "{created:?}"
+    );
 }
 
 /// A title source keeping `namespace`, searching or not.

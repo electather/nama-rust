@@ -6,6 +6,7 @@
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
+use icu_normalizer::ComposingNormalizerBorrowed;
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
@@ -66,7 +67,7 @@ pub(crate) enum Error {
     },
     #[error("there is no Library {0}")]
     NotFound(i64),
-    /// Another Library, named `library`, has the name, ignoring case.
+    /// Another Library, named `library`, has the name, ignoring case and how accents were typed.
     #[error("the Library {library:?} already has this name")]
     NameTaken { library: String },
     /// A folder in the request already belongs to another Library.
@@ -370,7 +371,7 @@ async fn update(
         .ok_or(Error::NotFound(id))?;
     // Keeping its name, in any case, lets a Library that shared it before names were unique keep
     // it.
-    if name.to_lowercase() != current.to_lowercase() {
+    if name_key(&name) != name_key(&current) {
         ensure_name_free(conn, &name).await?;
     }
     let row = sqlx::query!(
@@ -379,9 +380,8 @@ async fn update(
         name,
         id,
     )
-    .fetch_optional(&mut *conn)
-    .await?
-    .ok_or(Error::NotFound(id))?;
+    .fetch_one(&mut *conn)
+    .await?;
     ensure_folders_free(conn, &folders, Some(id)).await?;
     // A folder it keeps stays read-only until a scan says otherwise; a new one holds nothing to
     // delete until a scan, which checks it.
@@ -628,17 +628,25 @@ async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Fails if a Library already has `name`, ignoring case.
+/// Fails if a Library already has `name`, by [`name_key`].
 async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(), Error> {
-    // Lowercased in Rust, as SQLite's `lower()` and `NOCASE` fold only ASCII.
-    let name = name.to_lowercase();
+    let key = name_key(name);
     let names = sqlx::query_scalar!("SELECT name FROM libraries")
         .fetch_all(&mut *conn)
         .await?;
-    match names.into_iter().find(|other| other.to_lowercase() == name) {
+    match names.into_iter().find(|other| name_key(other) == key) {
         Some(library) => Err(Error::NameTaken { library }),
         None => Ok(()),
     }
+}
+
+/// What a Library's name is unique under: lowercase and in NFC, so names that differ only in case,
+/// or in an accent typed as one character or two, clash, as Users' do. Folded in Rust, as SQLite's
+/// `lower()` and `NOCASE` fold only ASCII.
+fn name_key(name: &str) -> String {
+    (ComposingNormalizerBorrowed::new_nfc())
+        .normalize(&name.to_lowercase())
+        .into_owned()
 }
 
 /// Fails if one of `folders` is, is inside, or holds a folder of a Library other than `except`.
