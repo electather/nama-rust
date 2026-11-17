@@ -426,7 +426,7 @@ async fn a_settings_change_that_fails_to_enable_still_saves_them_and_keeps_it_st
     )]);
 
     let updated = plugins
-        .update(&never_enables(), hello.clone())
+        .update(&never_enables(), hello.clone(), Vec::new())
         .await
         .unwrap();
 
@@ -479,7 +479,10 @@ async fn a_settings_change_that_fails_to_enable_runs_on_with_the_old_settings_an
     let (_data_dir, plugins) = with_flaky(&FAILS_ONCE, toml).await;
     FAILS_ONCE.panic_next(1);
 
-    let updated = plugins.update(&flaky(), greeting("hello")).await.unwrap();
+    let updated = plugins
+        .update(&flaky(), greeting("hello"), Vec::new())
+        .await
+        .unwrap();
 
     assert!(updated.plugin.enabled);
     assert!(plugins.registry().enabled().contains(&flaky()));
@@ -500,7 +503,10 @@ async fn a_settings_change_that_fails_to_enable_nor_put_back_is_saved_disabled()
     let (_data_dir, plugins) = with_flaky(&FAILS_TWICE, toml).await;
     FAILS_TWICE.panic_next(2);
 
-    let updated = plugins.update(&flaky(), greeting("hello")).await.unwrap();
+    let updated = plugins
+        .update(&flaky(), greeting("hello"), Vec::new())
+        .await
+        .unwrap();
 
     assert!(!updated.plugin.enabled);
     assert!(!updated.stored.enabled);
@@ -556,7 +562,7 @@ async fn changes_at_once_leave_the_stored_state_as_what_is_running() {
         let (disabled, enabled, updated) = tokio::join!(
             plugins.disable(&greeter),
             plugins.enable(&greeter),
-            plugins.update(&greeter, hello.clone()),
+            plugins.update(&greeter, hello.clone(), Vec::new()),
         );
         disabled.unwrap();
         enabled.unwrap();

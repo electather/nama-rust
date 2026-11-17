@@ -126,6 +126,23 @@ test("Replace lets a set secret be typed again, and sends it", async () => {
   expect((await sent).settings["api_key"]?.value).toEqual({ case: "textValue", value: "new-key" });
 });
 
+test("Forget lets a set secret be left blank to forget it, and sends its key", async () => {
+  const { sent, submit } = openToSave("tmdb");
+  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Forget API key" }));
+
+  expect((await input("TMDB", "API key")).value).toBe("");
+  expect(
+    (await plugin("TMDB")).getByText("Leave it blank to forget the one that’s set.", {
+      exact: false,
+    }),
+  ).toBeDefined();
+  await submit();
+
+  const { settings, forgottenSecrets } = await sent;
+  expect(forgottenSecrets).toEqual(["api_key"]);
+  expect(settings["api_key"]).toBeUndefined();
+});
+
 test("a bool and a number, however it is written, are sent as their kind", async () => {
   const { sent, submit } = openToSave("log-events");
   fireEvent.click(await input("log-events", "Verbose"));

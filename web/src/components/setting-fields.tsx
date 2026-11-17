@@ -23,6 +23,7 @@ export function SettingInput({
   choices,
   error,
   checksRequired,
+  forgettable = false,
 }: {
   setting: Setting;
   /** A CHOICE setting's options, once a settings test offers them. Never for Personal settings. */
@@ -30,6 +31,8 @@ export function SettingInput({
   error: string | undefined;
   /** Whether a required setting must be filled in. Not for a disabled Plugin, checked when enabled. */
   checksRequired: boolean;
+  /** Whether a set secret can be forgotten on its own. Personal settings forget all of theirs at once. */
+  forgettable?: boolean;
 }) {
   if (setting.kind === SettingKind.CHOICE) {
     const required = checksRequired && setting.required;
@@ -41,7 +44,7 @@ export function SettingInput({
   if (setting.kind === SettingKind.LIBRARIES) {
     return <LibraryPicker setting={setting} hint={hint(setting)} error={error} />;
   }
-  return <OwnInput setting={setting} error={error} checksRequired={checksRequired} />;
+  return <OwnInput {...{ setting, error, checksRequired, forgettable }} />;
 }
 
 /** The input of a setting whose value is typed or ticked on its own, with no list to pick from. */
@@ -49,13 +52,15 @@ function OwnInput({
   setting,
   error,
   checksRequired,
+  forgettable,
 }: {
   setting: Setting;
   error: string | undefined;
   checksRequired: boolean;
+  forgettable: boolean;
 }) {
   if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;
-  if (setting.secretSet) return <SetSecret setting={setting} error={error} />;
+  if (setting.secretSet) return <SetSecret {...{ setting, error, forgettable }} />;
   const required = checksRequired && blankIsMissing(setting);
   return <TypedInput setting={setting} error={error} required={required} />;
 }
@@ -66,12 +71,15 @@ function TypedInput({
   error,
   required,
   focused,
+  forgetting = false,
 }: {
   setting: Setting;
   error: string | undefined;
   required: boolean;
   /** Whether it takes the focus as it appears, in place of the button that was pressed. */
   focused?: boolean;
+  /** Whether leaving a set secret blank forgets it, rather than keeping it. */
+  forgetting?: boolean;
 }) {
   return (
     <FormField
@@ -82,11 +90,11 @@ function TypedInput({
       max={setting.maxValue?.toString()}
       autoComplete="off"
       spellCheck={false}
-      // oxlint-disable-next-line jsx-a11y/no-autofocus -- only set when pressing Replace swaps it in for the button, whose focus would otherwise be lost
+      // oxlint-disable-next-line jsx-a11y/no-autofocus -- only set when pressing Replace or Forget swaps it in for the button, whose focus would otherwise be lost
       autoFocus={focused}
       defaultValue={valueText(setting.value)}
       required={required}
-      hint={hint(setting)}
+      hint={hint(setting, forgetting ? "forget" : "keep")}
       error={error}
     />
   );
@@ -104,13 +112,50 @@ function blankIsMissing({ required, defaultValue, secretSet }: Setting) {
   return required && !defaultValue && !secretSet;
 }
 
-/** A secret that is set: said to be set, with a button to type a new one in its place. */
-function SetSecret({ setting, error }: { setting: Setting; error: string | undefined }) {
-  const [replacing, setReplacing] = useState(false);
+/** The form field naming each secret Forget was pressed for, which `forgottenTyped` reads. */
+const forgottenField = "forgottenSecrets";
+
+/** What a set secret's buttons do: type a new one in its place, or forget it. */
+type SecretAction = "Replace" | "Forget";
+
+/** A secret that is set: said to be set, until a button swaps in an input to type in its place. */
+function SetSecret({
+  setting,
+  error,
+  forgettable,
+}: {
+  setting: Setting;
+  error: string | undefined;
+  forgettable: boolean;
+}) {
+  const [pressed, setPressed] = useState<SecretAction>();
   // A refusal naming the secret needs its input to show under.
-  if (replacing || error !== undefined) {
-    return <TypedInput setting={setting} error={error} required={false} focused={replacing} />;
+  if (pressed === undefined && error === undefined) {
+    return <SecretIsSet setting={setting} forgettable={forgettable} onPress={setPressed} />;
   }
+  const forgetting = pressed === "Forget";
+  return (
+    <>
+      {forgetting && <input type="hidden" name={forgottenField} value={setting.key} />}
+      <TypedInput
+        {...{ setting, error, forgetting }}
+        required={false}
+        focused={pressed !== undefined}
+      />
+    </>
+  );
+}
+
+function SecretIsSet({
+  setting,
+  forgettable,
+  onPress,
+}: {
+  setting: Setting;
+  forgettable: boolean;
+  onPress: (action: SecretAction) => void;
+}) {
+  const actions: SecretAction[] = forgettable ? ["Replace", "Forget"] : ["Replace"];
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
@@ -122,16 +167,19 @@ function SetSecret({ setting, error }: { setting: Setting; error: string | undef
       {/* A ghost button is pulled back by its own padding, so its words line up with the inputs. */}
       <div className="-me-4 flex shrink-0 items-center gap-2">
         <span className="text-sm">Set</span>
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={`Replace ${setting.label}`}
-          onClick={() => {
-            setReplacing(true);
-          }}
-        >
-          Replace
-        </Button>
+        {actions.map((action) => (
+          <Button
+            key={action}
+            type="button"
+            variant="ghost"
+            aria-label={`${action} ${setting.label}`}
+            onClick={() => {
+              onPress(action);
+            }}
+          >
+            {action}
+          </Button>
+        ))}
       </div>
     </div>
   );
@@ -159,12 +207,15 @@ function BoolInput({ setting }: { setting: Setting }) {
   );
 }
 
-/** What a setting is for, then what leaving it blank does. */
-function hint({ description, required, defaultValue, secretSet }: Setting) {
+/** What a setting is for, then what leaving it blank does: to a set secret, `secretBlank`. */
+function hint(
+  { description, required, defaultValue, secretSet }: Setting,
+  secretBlank: "keep" | "forget" = "keep",
+) {
   const blank = defaultValue
     ? `Blank uses ${valueText(defaultValue)}.`
     : secretSet
-      ? "Leave it blank to keep the one that’s set."
+      ? `Leave it blank to ${secretBlank} the one that’s set.`
       : required && "Required.";
   return [description, blank].filter(Boolean).join(" ");
 }
@@ -182,6 +233,11 @@ export function settingsTyped(typed: FormData, settings: Setting[]) {
       .map(({ key, kind }) => [key, { value: valueTyped(typed, key, kind) }] as const)
       .filter(([, { value }]) => value.case !== undefined),
   );
+}
+
+/** The keys of the set secrets Forget was pressed for. */
+export function forgottenTyped(typed: FormData) {
+  return typed.getAll(forgottenField).filter((key) => typeof key === "string");
 }
 
 function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingValue["value"] {

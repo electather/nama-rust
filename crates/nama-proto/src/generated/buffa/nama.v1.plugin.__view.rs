@@ -1056,7 +1056,8 @@ pub struct UpdatePluginSettingsRequestView<'a> {
     /// Field 1: `id`
     pub id: &'a str,
     /// Each setting's new value, by key. A setting left out or blank takes its default, except a
-    /// secret, which keeps its stored value. Keys the Plugin's schema doesn't name are ignored.
+    /// secret, which keeps its stored value unless `forgotten_secrets` names it. Keys the Plugin's
+    /// schema doesn't name are ignored.
     ///
     /// Field 2: `settings` (map)
     pub settings: ::buffa::MapView<
@@ -1064,6 +1065,11 @@ pub struct UpdatePluginSettingsRequestView<'a> {
         &'a str,
         super::super::__buffa::view::SettingValueView<'a>,
     >,
+    /// The keys of secret settings whose stored value is forgotten. A key also given a value in
+    /// `settings` takes that value; a key that isn't a secret of the Plugin is ignored.
+    ///
+    /// Field 3: `forgotten_secrets`
+    pub forgotten_secrets: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UpdatePluginSettingsRequestView<'a> {
@@ -1102,6 +1108,17 @@ impl<'a> ::buffa::MessageView<'a> for UpdatePluginSettingsRequestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.forgotten_secrets.push(__elem);
             }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -1189,6 +1206,11 @@ impl<'a> ::buffa::MessageView<'a> for UpdatePluginSettingsRequestView<'a> {
                     >::Ok((k.to_string(), v.to_owned_from_source(__buffa_src)?))
                 })
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            forgotten_secrets: self
+                .forgotten_secrets
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1214,6 +1236,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UpdatePluginSettingsRequestView<'a> {
                     ::buffa::encoding::varint_len(inner as u64) as u64 + inner as u64
                 };
             size += 1u64 + ::buffa::encoding::varint_len(entry_size) as u64 + entry_size;
+        }
+        for v in &self.forgotten_secrets {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -1254,6 +1279,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UpdatePluginSettingsRequestView<'a> {
                 .encode(buf);
             ::buffa::encoding::encode_varint(__v_len as u64, buf);
             v.write_to(__cache, buf);
+        }
+        for v in &self.forgotten_secrets {
+            ::buffa::types::put_string_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1302,6 +1330,9 @@ impl<'__a> ::serde::Serialize for UpdatePluginSettingsRequestView<'__a> {
                 }
             }
             __map.serialize_entry("settings", &_WM(&self.settings))?;
+        }
+        if !self.forgotten_secrets.is_empty() {
+            __map.serialize_entry("forgottenSecrets", &*self.forgotten_secrets)?;
         }
         __map.end()
     }
@@ -1406,7 +1437,8 @@ impl UpdatePluginSettingsRequestOwnedView {
         self.0.reborrow().id
     }
     /// Each setting's new value, by key. A setting left out or blank takes its default, except a
-    /// secret, which keeps its stored value. Keys the Plugin's schema doesn't name are ignored.
+    /// secret, which keeps its stored value unless `forgotten_secrets` names it. Keys the Plugin's
+    /// schema doesn't name are ignored.
     ///
     /// Field 2: `settings` (map)
     #[must_use]
@@ -1418,6 +1450,14 @@ impl UpdatePluginSettingsRequestOwnedView {
         super::super::__buffa::view::SettingValueView<'_>,
     > {
         &self.0.reborrow().settings
+    }
+    /// The keys of secret settings whose stored value is forgotten. A key also given a value in
+    /// `settings` takes that value; a key that isn't a secret of the Plugin is ignored.
+    ///
+    /// Field 3: `forgotten_secrets`
+    #[must_use]
+    pub fn forgotten_secrets(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().forgotten_secrets
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UpdatePluginSettingsRequestView<'static>>>
