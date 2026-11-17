@@ -56,6 +56,29 @@ test("the form checks the schema: a required setting is required and a number is
   expect((await input("log-events", "Verbose")).checked).toBe(true);
 });
 
+test("the form checks the schema: a number takes only its bounds", async () => {
+  openPlugin("cleanup");
+
+  const days = await input("cleanup", "Days");
+  expect([days.min, days.max]).toEqual(["0", ""]);
+});
+
+test("a number out of its bounds is refused under it, saying the bound", async () => {
+  openPlugin("cleanup", {
+    updatePluginSettings: () => {
+      throw refused(Code.InvalidArgument, "the setting days must be at least 0", {
+        reason: RefusalReason.SETTING_OUT_OF_RANGE,
+        field: "settings.days",
+        params: { settingKey: "days", min: "0" },
+      });
+    },
+  });
+
+  fireEvent.click((await plugin("cleanup")).getByRole("button", { name: "Save" }));
+
+  await expectUnderField("Days", "This must be at least 0.");
+});
+
 test("the form checks the schema: a setting with a default isn't required and a URL is a URL", async () => {
   openPlugin("test-plugin");
 

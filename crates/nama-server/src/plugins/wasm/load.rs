@@ -489,37 +489,65 @@ pub(super) fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema
 
 /// `fields` as the Kernel reads them, or why it refuses the Plugin they are from.
 fn schema(fields: &[wire::SettingField]) -> Result<SettingsSchema, Refused> {
-    let fields = fields
-        .iter()
-        .map(|field| {
-            let kind = field
-                .kind
-                .as_known()
-                .and_then(contract::setting_kind)
-                .ok_or_else(|| Refused::UnknownSettingKind {
-                    key: field.key.clone(),
-                })?;
-            let default = field
-                .default_value
-                .as_option()
-                .and_then(contract::setting_value);
-            if default.as_ref().is_some_and(|default| !default.is(kind)) {
-                return Err(Refused::DefaultWrongKind {
-                    key: field.key.clone(),
-                    kind,
-                });
-            }
-            Ok(SettingField {
-                key: field.key.clone(),
-                label: field.label.clone(),
-                description: field.description.clone(),
-                kind,
-                required: field.required,
-                default,
-            })
-        })
-        .collect::<Result<_, _>>()?;
+    let fields = fields.iter().map(setting_field).collect::<Result<_, _>>()?;
     Ok(SettingsSchema { fields })
+}
+
+/// `field` as the Kernel reads it, or why it refuses the Plugin it is from.
+fn setting_field(field: &wire::SettingField) -> Result<SettingField, Refused> {
+    let kind = field
+        .kind
+        .as_known()
+        .and_then(contract::setting_kind)
+        .ok_or_else(|| Refused::UnknownSettingKind {
+            key: field.key.clone(),
+        })?;
+    let default = field
+        .default_value
+        .as_option()
+        .and_then(contract::setting_value);
+    if default.as_ref().is_some_and(|default| !default.is(kind)) {
+        return Err(Refused::DefaultWrongKind {
+            key: field.key.clone(),
+            kind,
+        });
+    }
+    let field = SettingField {
+        key: field.key.clone(),
+        label: field.label.clone(),
+        description: field.description.clone(),
+        kind,
+        required: field.required,
+        default,
+        min: field.min_value,
+        max: field.max_value,
+    };
+    check_bounds(&field)?;
+    Ok(field)
+}
+
+/// Refuses bounds on a setting that isn't [`SettingKind::Integer`], a `min` over its `max`, or a
+/// default outside them.
+fn check_bounds(field: &SettingField) -> Result<(), Refused> {
+    let key = || field.key.clone();
+    if field.kind != SettingKind::Integer && (field.min.is_some() || field.max.is_some()) {
+        return Err(Refused::BoundsOnAnotherKind { key: key() });
+    }
+    if let (Some(min), Some(max)) = (field.min, field.max)
+        && min > max
+    {
+        return Err(Refused::BoundsCrossed {
+            key: key(),
+            min,
+            max,
+        });
+    }
+    if let Some(SettingValue::Integer(default)) = field.default
+        && !field.within_bounds(default)
+    {
+        return Err(Refused::DefaultOutOfBounds { key: key() });
+    }
+    Ok(())
 }
 
 #[cfg(test)]

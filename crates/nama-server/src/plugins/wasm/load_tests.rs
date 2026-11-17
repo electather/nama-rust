@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use nama_plugin_proto::{
     CONTRACT_VERSION,
-    nama::plugin::v1::{Manifest, Permission, Point, SettingField, SettingKind},
+    nama::plugin::v1::{
+        Manifest, Permission, Point, SettingField, SettingKind, SettingValue, setting_value,
+    },
     services,
 };
 
@@ -167,6 +169,68 @@ fn personal_settings_a_user_could_widen_hosts_by_or_whose_keys_clash_are_refused
         .map(|refusal| Some(refusal.to_owned()))
     );
     assert_eq!(taken, None);
+}
+
+fn days(min_value: Option<i64>, max_value: Option<i64>, default: Option<i64>) -> SettingField {
+    SettingField {
+        min_value,
+        max_value,
+        default_value: default
+            .map(|days| SettingValue {
+                value: Some(setting_value::Value::IntegerValue(days)),
+                ..Default::default()
+            })
+            .into(),
+        ..personal("days", SettingKind::SETTING_KIND_INTEGER)
+    }
+}
+
+fn judged_settings(
+    setting: SettingField,
+) -> Result<Vec<nama_plugin_api::settings::SettingField>, String> {
+    let mut package = Manifest {
+        settings: vec![setting],
+        ..title_source("cleanup")
+    };
+    judge(&mut package, &[])
+        .map(|manifest| manifest.settings.fields)
+        .map_err(|refused| refused.to_string())
+}
+
+#[test]
+fn bounds_that_cross_sit_on_another_kind_or_leave_out_the_default_are_refused() {
+    let refusals = [
+        days(Some(10), Some(1), None),
+        SettingField {
+            min_value: Some(0),
+            ..personal("api_key", SettingKind::SETTING_KIND_TEXT)
+        },
+        days(Some(0), None, Some(-1)),
+    ]
+    .map(|setting| judged_settings(setting).err());
+
+    assert_eq!(
+        refusals,
+        [
+            "its setting days's min_value 10 is over its max_value 1",
+            "its setting api_key has min_value or max_value, which only an Integer setting may",
+            "its setting days's default is outside its bounds",
+        ]
+        .map(|refusal| Some(refusal.to_owned()))
+    );
+}
+
+#[test]
+fn an_integer_settings_bounds_reach_its_schema() {
+    let fields = judged_settings(days(Some(0), Some(365), Some(30))).unwrap();
+
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| (field.min, field.max))
+            .collect::<Vec<_>>(),
+        [(Some(0), Some(365))]
+    );
 }
 
 fn automation(tick_every_seconds: u32, permissions: Vec<buffa::EnumValue<Permission>>) -> Manifest {
