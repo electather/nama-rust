@@ -42,7 +42,7 @@ mod timeline;
 use std::{
     collections::HashMap,
     fmt, io,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
@@ -109,6 +109,9 @@ pub(crate) enum StartError {
     Keyframes(Arc<ProbeError>),
     #[error("ffmpeg couldn't be started: {0}")]
     Run(#[from] io::Error),
+    /// The plan's folder couldn't be created in the segment folder, `folder`.
+    #[error("the plan's folder couldn't be created in {}: {source}", folder.display())]
+    SegmentFolder { folder: PathBuf, source: io::Error },
     /// Only a Transcode would play it, and the Server runs as many as it may at once, this many.
     #[error("the Server is running as many Transcodes as it may at once, {0}")]
     Busy(u32),
@@ -386,22 +389,19 @@ impl RunningPlans {
             fallback,
             cpu_bound,
         }: Runs,
-    ) -> io::Result<u64> {
+    ) -> Result<u64, StartError> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         playback.plan_id = id;
-        let dir = self
-            .inner
-            .settings
-            .path()
-            .join(format!("{PLAN_FOLDER}{id}"));
+        let folder = self.inner.settings.path();
+        let dir = folder.join(format!("{PLAN_FOLDER}{id}"));
         // Ids start again with each run, and the sweep at startup misses a segment folder an
         // earlier run that didn't shut down cleanly had set but this one doesn't, so its segments
         // may be there.
-        match tokio::fs::remove_dir_all(&dir).await {
-            Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err),
-            _ => {}
-        }
-        tokio::fs::create_dir_all(&dir).await?;
+        let made = match tokio::fs::remove_dir_all(&dir).await {
+            Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
+            _ => tokio::fs::create_dir_all(&dir).await,
+        };
+        made.map_err(|source| StartError::SegmentFolder { folder, source })?;
         // Its segment's first keyframe, not the one nearest: a run starting partway into a
         // segment is restarted as soon as the player asks for that segment.
         let start_segment = timeline.segment_at(start_ms);
@@ -419,6 +419,7 @@ impl RunningPlans {
             started_cpu_bound: cpu_bound,
             events: self.inner.events.clone(),
             playback: playback.clone(),
+            settings: self.inner.settings.clone(),
             ffmpeg: tokio::sync::Mutex::default(),
         });
         *running.ffmpeg.lock().await = Some(running.run_from(first_keyframe)?);

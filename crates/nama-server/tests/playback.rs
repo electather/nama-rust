@@ -319,6 +319,32 @@ async fn a_remux_writes_its_segments_to_the_segment_folder_an_admin_set() {
     ffmpegs_own_playlist(tmpfs.path(), &plan.url).await;
 }
 
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_plan_whose_segment_folder_cant_be_created_is_refused_naming_the_folder() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [_, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
+    let segment_folder = fx.server.data_dir().join("transcodes");
+    if segment_folder.exists() {
+        fs::remove_dir_all(&segment_folder).unwrap();
+    }
+    // A file in its place, as a tmpfs gone read-only since it was set can't be made unprivileged.
+    fs::write(&segment_folder, b"").unwrap();
+
+    let planned = fx.plan(hevc).await;
+
+    let refusal = assert_refused(
+        planned,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE,
+    );
+    assert_eq!(
+        refusal.params.get("folder").map(String::as_str),
+        segment_folder.to_str()
+    );
+}
+
 /// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 + AAC MP4.
 #[cfg(unix)]
 fn ffprobe_reading_h264_and_aac(bin: &Path) -> Ffmpeg {

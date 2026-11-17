@@ -72,7 +72,8 @@ walkdir = "2"
 wasmtime = { version = "49.0.5", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
-# Only `access`, which sees a read-only mount as well as a folder's mode.
+# Only `access`, which sees a read-only mount as well as a folder's mode, and `statvfs`, for a
+# full segment folder's free space.
 rustix = { version = "1", features = ["fs"] }
 
 [dev-dependencies]

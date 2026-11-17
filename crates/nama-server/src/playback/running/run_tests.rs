@@ -729,3 +729,62 @@ async fn a_transcode_whose_hardware_fails_carries_on_in_software_and_says_so() {
         "ends as it played"
     );
 }
+
+// The fake ffmpeg is `sh`, failing as ffmpeg does on a full disk.
+#[cfg(unix)]
+#[tokio::test]
+async fn ffmpeg_failing_on_a_full_disk_warns_naming_the_segment_folder_and_time_kept_behind() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let log = tempfile::NamedTempFile::new().unwrap();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(Arc::new(log.reopen().unwrap()))
+        .with_ansi(false)
+        .finish();
+    // This test's runtime runs on this thread alone, so the task watching ffmpeg logs here too.
+    let _logging = tracing::subscriber::set_default(subscriber);
+    let disk_full = |_: &Path, _: Keyframe| {
+        tokio::process::Command::new("sh")
+            .args([
+                "-c",
+                "echo '[mp4] 0.m4s: No space left on device' >&2; exit 1",
+            ])
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+    };
+    plans
+        .start_hls(
+            playback(7),
+            Method::Remux,
+            every_two_seconds(),
+            0,
+            Runs {
+                run: Box::new(disk_full),
+                fallback: None,
+                cpu_bound: false,
+            },
+        )
+        .await
+        .unwrap();
+
+    let logged = || fs::read_to_string(log.path()).unwrap();
+    let warned = async {
+        while !logged().contains("is full") {
+            tokio::time::sleep(POLL_EVERY).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), warned)
+        .await
+        .unwrap();
+
+    let logged = logged();
+    let warning = logged
+        .lines()
+        .find(|line| line.contains("is full"))
+        .unwrap();
+    assert!(warning.contains("WARN"), "{warning}");
+    let folder = data.path().join("transcodes");
+    assert!(warning.contains(folder.to_str().unwrap()), "{warning}");
+    assert!(warning.contains("MiB free"), "{warning}");
+    assert!(warning.contains("5 minutes"), "{warning}");
+}
