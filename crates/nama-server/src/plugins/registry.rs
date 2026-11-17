@@ -25,7 +25,7 @@ use tracing::{error, info};
 
 use super::{
     CheckError, CheckTimedOut, EnableError, ExtensionPoints, LastProvider, Listed,
-    SETTINGS_CHECK_TIMEOUT, contain, contain_sync, scope::Scope, secret_values, tick,
+    SETTINGS_CHECK_TIMEOUT, contain_call, contain_sync, scope::Scope, secret_values, tick,
     without_secrets,
 };
 /// Every Plugin enabled on this Server and everything they registered.
@@ -733,9 +733,9 @@ async fn check_fresh<A: Sync, T>(
     };
     let plugin = contain_sync(|| make()).map_err(panicked)?;
     let fresh: &dyn Plugin = &*plugin;
-    // The timeout is inside `contain`, so dropping a check it gave up on (Plugin code) is
+    // The timeout is inside `contain_call`, so dropping a check it gave up on (Plugin code) is
     // contained too, as are formatting and dropping the Plugin's error.
-    let checking = contain(|| async move {
+    let checking = contain_call(id, "settings check", || async move {
         let checking = check(fresh, asked)?;
         let checked = tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, checking)
             .await

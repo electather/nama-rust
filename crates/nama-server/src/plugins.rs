@@ -27,9 +27,12 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::PluginKind;
 use thiserror::Error;
-use tracing::{error, warn};
+use tracing::{Instrument as _, Span, error, warn};
 
-use crate::images::{MAX_SVG_BYTES, clean_svg};
+use crate::{
+    diagnostics,
+    images::{MAX_SVG_BYTES, clean_svg},
+};
 
 pub(crate) use blob_store::PluginBlobs;
 pub(crate) use contract::{download, notification, observed, request};
@@ -282,11 +285,15 @@ fn kept_logo(plugin: &PluginId, logo: &str) -> Option<String> {
     None
 }
 
-/// `answer`, its error turned into a [`Failure`] once it is ready, for [`contain`] to await.
+/// `answer`, its error turned into a [`Failure`] once it is ready, for [`contain_call`] to await
+/// and mark its span failed.
 async fn formatted<R, K, E: ProviderError<K>>(
     answer: impl Future<Output = Result<R, E>>,
 ) -> Result<R, Failure<K>> {
-    answer.await.map_err(ProviderError::failure)
+    answer.await.map_err(|err| {
+        diagnostics::failed(&Span::current(), "failed");
+        err.failure()
+    })
 }
 
 pub(crate) fn contain_sync<T>(call: impl FnOnce() -> T) -> Result<T, String> {
@@ -300,6 +307,29 @@ async fn contain<F: Future>(call: impl FnOnce() -> F) -> Result<F::Output, Strin
         .catch_unwind()
         .await
         .map_err(|payload| panic_message(&*payload))
+}
+
+/// [`contain`]s a call into the Plugin `plugin` at `point`, an Extension Point or its settings
+/// check, in a span naming both, marked failed if it panicked.
+async fn contain_call<F: Future>(
+    plugin: &PluginId,
+    point: &str,
+    call: impl FnOnce() -> F,
+) -> Result<F::Output, String> {
+    // A Provider's point is named after its trait's path, such as
+    // `dyn nama_plugin_api::auth::Authenticator`.
+    let point = point.rsplit("::").next().unwrap_or(point);
+    let span = tracing::info_span!(
+        "plugin call",
+        otel.name = format!("plugin {point}"),
+        plugin.id = %plugin,
+        plugin.point = point,
+    );
+    let contained = contain(call).instrument(span.clone()).await;
+    if contained.is_err() {
+        diagnostics::failed(&span, "panicked");
+    }
+    contained
 }
 
 fn panic_message(payload: &(dyn Any + Send)) -> String {

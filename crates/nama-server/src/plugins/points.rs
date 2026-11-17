@@ -12,7 +12,7 @@ use nama_proto::nama::v1::PluginKind;
 use tracing::{error, info, warn};
 
 use super::{
-    Answer, ProviderError, contain, contain_sync,
+    Answer, ProviderError, contain_call, contain_sync,
     failing::{Failing, Failures},
     formatted,
     registry::{Enabled, Entry, MakeKernel, State},
@@ -60,7 +60,9 @@ impl ExtensionPoints {
         if !self.is_current(&entry) {
             return;
         }
-        if let Err(message) = contain(|| observer.observe(&event)).await {
+        if let Err(message) =
+            contain_call(&entry.plugin, P::NAME, || observer.observe(&event)).await
+        {
             self.disable_after_panic(&entry, P::NAME, &message);
         }
     }
@@ -135,7 +137,7 @@ impl ExtensionPoints {
             if !self.is_current(&entry) {
                 continue;
             }
-            match contain(|| formatted(call(provider))).await {
+            match contain_call(&entry.plugin, point.name(), || formatted(call(provider))).await {
                 Ok(result) => {
                     let result = result.map_err(|failure| failure.blanked(&entry.secrets));
                     return Asked::Answered(Answer {
@@ -207,7 +209,9 @@ impl ExtensionPoints {
             return;
         }
         let point = entry.registration.point().name();
-        let called = contain(|| formatted(call(entry.plugin.clone(), provider)));
+        let called = contain_call(&entry.plugin, point, || {
+            formatted(call(entry.plugin.clone(), provider))
+        });
         match called.await {
             Ok(Ok(())) => {}
             Ok(Err(failure)) => {

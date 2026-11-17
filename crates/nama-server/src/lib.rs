@@ -7,6 +7,7 @@ mod browse;
 pub mod config;
 mod connections;
 pub mod db;
+pub mod diagnostics;
 mod events;
 pub mod ffmpeg;
 mod forwarded;
