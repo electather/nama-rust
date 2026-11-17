@@ -1,7 +1,7 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
 //! [`super::tracks`]), and decides what a failure to probe one means for trying it again. It also
-//! lists a Version's keyframes when first asked for them, and keeps them for its file as it is
-//! ([`Probing::keyframes`]).
+//! lists a Version's keyframes when first asked for them, and keeps them, or that listing them
+//! failed, for its file as it is ([`Probing::keyframes`]).
 //!
 //! After a Library's files change, those without current Tracks, never probed or changed or read
 //! by an older probe version since, are probed in the background, a few at a time
@@ -27,8 +27,9 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use super::{
+    sidecars::Sidecars,
     subtitles,
-    tracks::{LastingReason, PassingReason, Probe, ProbeFailure, Tracks},
+    tracks::{Keyframes, LastingReason, PassingReason, Probe, ProbeFailure, Tracks},
 };
 use crate::{
     db::Database,
@@ -54,6 +55,10 @@ pub(crate) enum ProbeError {
     Failed(String),
     #[error("ffprobe's output couldn't be read: {0}")]
     Output(#[from] serde_json::Error),
+    /// Kept from an earlier listing of the keyframes, which isn't tried again until the file
+    /// changes or [`super::tracks::PROBE_FAILURE_VERSION`] is bumped (#850).
+    #[error("listing the keyframes failed or timed out before, and the file hasn't changed since")]
+    UnlistedBefore,
 }
 
 /// Why probing a Version right away failed.
@@ -111,6 +116,7 @@ pub(crate) struct Probing {
 struct Inner {
     contents: Contents,
     tracks: Tracks,
+    sidecars: Sidecars,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
     /// Background passes, so shutting down can wait for them.
@@ -134,6 +140,7 @@ impl Probing {
         Self {
             inner: Arc::new(Inner {
                 tracks: Tracks::new(Arc::clone(&db)),
+                sidecars: Sidecars::new(Arc::clone(&db)),
                 contents: Contents::new(db),
                 ffmpeg,
                 subtitles,
@@ -151,6 +158,16 @@ impl Probing {
     /// that and returns what it found instead, or probes it itself if that gave up without finding
     /// anything.
     pub(crate) async fn current(&self, version: i64) -> Result<Probe, Error> {
+        let mut probe = self.probed(version).await?;
+        (self.inner.sidecars)
+            .append_to([(version, &mut probe)])
+            .await?;
+        Ok(probe)
+    }
+
+    /// What probing read from the Version `version`'s file, as [`Self::current`] has it, without
+    /// its sidecars, which are never stored with it.
+    async fn probed(&self, version: i64) -> Result<Probe, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
         // ponytail: not held to PROBES_AT_ONCE, so a play press never queues; limit it apart if
@@ -406,20 +423,35 @@ impl Probing {
     }
 
     /// The keyframes of the file at `path`, stored as the file `claim` is for, as kept, or else
-    /// listed, sent to whoever waited for them, and kept.
+    /// listed, sent to whoever waited for them, and kept. A listing that failed for a reason
+    /// that says something about the file is kept too, and returned as
+    /// [`ProbeError::UnlistedBefore`] until the file changes or the probe failure version is
+    /// bumped. Unlike a probe, a timeout isn't tried again: each try reads the whole file for up
+    /// to `WHOLE_FILE_TIMEOUT` while a Play waits (#850).
     async fn list_claimed(&self, path: &str, claim: Claim<'_, Listed>) -> Result<Vec<i64>, Error> {
-        if let Some(kept) = self.inner.tracks.keyframes(claim.file).await? {
-            return Ok(kept);
+        match self.inner.tracks.keyframes(claim.file).await? {
+            Some(Keyframes::Listed(keyframes)) => return Ok(keyframes),
+            Some(Keyframes::Unlisted) => {
+                return Err(Error::Probe(Arc::new(ProbeError::UnlistedBefore)));
+            }
+            None => {}
         }
         let listed = ffprobe::keyframes(&self.inner.ffmpeg, path)
             .await
             .map_err(Arc::new);
         claim.found.send_replace(Some(listed.clone()));
-        let keyframes = listed.map_err(Error::Probe)?;
-        (self.inner.tracks)
-            .store_keyframes(claim.file, &keyframes)
-            .await?;
-        Ok(keyframes)
+        let kept = match &listed {
+            Ok(keyframes) => Some(Keyframes::Listed(keyframes.clone())),
+            Err(err) => matches!(
+                failure(err, path).await,
+                ProbeFailure::Lasting(_) | ProbeFailure::Passing(_)
+            )
+            .then_some(Keyframes::Unlisted),
+        };
+        if let Some(kept) = kept {
+            self.inner.tracks.store_keyframes(claim.file, &kept).await?;
+        }
+        listed.map_err(Error::Probe)
     }
 }
 
@@ -436,7 +468,11 @@ async fn failure(err: &ProbeError, path: &str) -> ProbeFailure {
         // gone stale since the scan, which may read fine once it's back unchanged.
         ProbeError::Failed(_) if !readable(path).await => ProbeFailure::Retried,
         // ffprobe read the file and refused it, or said something it can't parse: it will again.
-        ProbeError::Failed(_) => ProbeFailure::Lasting(LastingReason::Failed),
+        // Only a kept listing returns `UnlistedBefore`, never ffprobe, so no probe or listing gets
+        // here with it; it lasts until the file changes, as a lasting failure does.
+        ProbeError::Failed(_) | ProbeError::UnlistedBefore => {
+            ProbeFailure::Lasting(LastingReason::Failed)
+        }
         ProbeError::Output(_) => ProbeFailure::Lasting(LastingReason::UnreadableOutput),
         // A slow or unmounted share, or a busy disk, may not be slow next time.
         ProbeError::TimedOut(_) => ProbeFailure::Passing(PassingReason::TimedOut),

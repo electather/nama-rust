@@ -27,6 +27,7 @@ fn subtitle_in(
             TrackKind::Subtitle {
                 image,
                 header: false,
+                sidecar: None,
             },
         )
     }

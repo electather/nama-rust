@@ -19,7 +19,7 @@ use crate::{
     config::Config,
     connections::Connections,
     db::{Database, now},
-    diagnostics::{self, RecordFailures},
+    diagnostics::{self, BrowserSpans, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
@@ -28,7 +28,7 @@ use crate::{
         Artwork, Contents, CustomImageUrls, CustomImages, Libraries, TitleKind, TitleSources,
         artwork_router, custom_images_router,
     },
-    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, Tracks, running_router},
+    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, running_router},
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
@@ -40,6 +40,7 @@ use crate::{
 };
 
 mod browse;
+mod browser_spans;
 mod events;
 mod libraries;
 mod matches;
@@ -101,7 +102,7 @@ pub(crate) fn router(
     let media = crate::playback::router(
         contents,
         running.clone(),
-        Tracks::new(Arc::clone(&db)),
+        &db,
         Arc::clone(&ffmpeg),
         subtitles,
     )
@@ -124,6 +125,7 @@ pub(crate) fn router(
             images: image_store,
             points: plugins.clone(),
             data_dir: config.data_dir.clone(),
+            exports_diagnostics: config.otlp_endpoint.is_some(),
         }))
         .add_service(Arc::new(SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
@@ -193,6 +195,9 @@ pub(crate) fn router(
         ))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
+        .merge(browser_spans::router(
+            config.otlp_endpoint.as_deref().map(BrowserSpans::new),
+        ))
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(
@@ -341,10 +346,11 @@ const ACCESS: &[(&str, Access)] = &[
 ];
 
 /// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
-/// routes share, and uploading or removing a Plugin's, a title's or a Library's Custom Image. The
-/// first prefix a path starts with decides.
-const PREFIXES: [(&str, Access); 3] = [
+/// routes share, uploading or removing a Plugin's, a title's or a Library's Custom Image, and
+/// posting the web app's Diagnostics. The first prefix a path starts with decides.
+const PREFIXES: [(&str, Access); 4] = [
     ("/media/", Access::SignedIn),
+    ("/diagnostics/", Access::SignedIn),
     ("/custom-images/plugin/", MANAGE_SETTINGS),
     ("/custom-images/", MANAGE_LIBRARIES),
 ];
@@ -629,7 +635,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_IMAGE_STORE_IN_USE
         | R::REFUSAL_REASON_IMAGE_STORE_SWITCHING
         | R::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK
-        | R::REFUSAL_REASON_FOLDER_OVERLAPS => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_FOLDER_OVERLAPS
+        | R::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND

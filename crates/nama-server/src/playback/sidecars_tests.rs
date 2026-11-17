@@ -78,14 +78,16 @@ fn only_an_image_sidecar_is_an_image_subtitle() {
         image("Movie.sup"),
         TrackKind::Subtitle {
             image: true,
-            header: false
+            header: false,
+            sidecar: None,
         }
     );
     assert_eq!(
         image("Movie.srt"),
         TrackKind::Subtitle {
             image: false,
-            header: false
+            header: false,
+            sidecar: None,
         }
     );
 }

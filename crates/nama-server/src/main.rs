@@ -48,17 +48,21 @@ struct Args {
 async fn main() -> ExitCode {
     let args = Args::parse();
     let exporting = init_tracing();
-    let exit = run(args).await;
+    let exit = run(args, exporting.is_some()).await;
     if let Some(exporting) = exporting {
         exporting.shutdown();
     }
     exit
 }
 
-async fn run(args: Args) -> ExitCode {
-    let Some(config) = load_config(args.config.as_deref()) else {
+/// Runs the Server until it is told to stop. `exporting` says whether Diagnostics are exported.
+async fn run(args: Args, exporting: bool) -> ExitCode {
+    let Some(mut config) = load_config(args.config.as_deref()) else {
         return ExitCode::FAILURE;
     };
+    if exporting {
+        config.otlp_endpoint = env::var(OTLP_ENDPOINT).ok();
+    }
 
     // Listen before announcing startup, so a Ctrl-C right after the log line isn't missed.
     let shutdown = match shutdown_signal() {

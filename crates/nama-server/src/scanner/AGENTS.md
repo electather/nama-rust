@@ -11,5 +11,5 @@ Walking each Library's folders, storing the video files in them and what their n
 
 ### Neighbours
 
-- Uses: `db`, `events`, `library` (`Contents`, `Libraries`, `ScanLocks`, `PARSER_VERSION`, `Artwork`, `CustomImages`), `matching` (`Matcher`, `count`), `playback` (`Probing`, `RunningPlans`, `Sidecars` with `Sidecar`, `VersionSidecars` and `is_sidecar`, and `SubtitleCache` and `Tracks` in tests), `requests`, `plugins`, `server_settings` (`ServerUrl`), and `images` and `ffmpeg` in tests.
+- Uses: `db`, `events`, `library` (`Contents`, `Libraries`, `ScanLocks`, `PARSER_VERSION`, `Artwork`, `CustomImages`), `matching` (`Matcher`, `count`), `playback` (`Probing`, `RunningPlans`, `Sidecars` with `Sidecar`, `VersionSidecars` and `is_sidecar`, and `SubtitleCache` and `Tracks` in tests), `requests`, `plugins`, `server_settings` (`ServerUrl`), and `images`, `ffmpeg` and `log_capture` in tests.
 - Used by: `api` (libraries), `automation`, `browse` (`Doomed`, `read_only_folder`), and startup in `lib.rs`.

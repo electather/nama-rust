@@ -4,6 +4,7 @@ import { AppChrome } from "@/components/app-chrome";
 import { ConfirmItsYou } from "@/components/confirm-its-you";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { adminPagesFor, isSetupRequired, whoIsSignedIn } from "@/lib/access";
+import { recordDiagnosticsIfExported } from "@/lib/diagnostics";
 import { useEvents } from "@/lib/events";
 import { may } from "@/lib/permissions";
 
@@ -13,6 +14,8 @@ export const Route = createFileRoute("/_member")({
     if (await isSetupRequired(context)) throw redirect({ to: "/setup" });
     const signedIn = await whoIsSignedIn(context);
     if (!signedIn) throw redirect({ to: "/sign-in", search: { redirect: location.href } });
+    // Awaited, so the page's own calls are traced too.
+    await recordDiagnosticsIfExported(context);
     return { signedIn };
   },
   component: MemberLayout,
