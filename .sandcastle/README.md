@@ -91,6 +91,8 @@ Claude usage: before picking each issue the factory reads the 5-hour and weekly 
 
 Stopping gracefully: `touch .sandcastle/STOP`. Builds already running finish with their PR, PRs already babysat finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
 
+Replacing a running factory with new code, without waiting for it to drain: `git pull` in the checkout, then `.sandcastle/handover.sh`. The supervisor tells the running factory to drain (SIGUSR1) and starts a new one at once. The old run finishes what it holds, its builds and triages and its PRs through to their merge, and starts nothing new; the new run takes everything else and starts the moment the old one lets go of `factory.pid`. Until the old run ends the two share the machine's slots (`~/.cache/nama-sandcastle/slots/`), so `MAX_PARALLEL` and the other pools count both, and `status.md` lists the old run's issues as in flight with a **Draining** line. Env such as `MAX_PARALLEL` stays the supervisor's; changing it still takes a restart. A run from before handover existed has no SIGUSR1 handler, which would kill it: switch to this code once with STOP and a restart.
+
 Stopping and resuming: Ctrl-C keeps branches, commits and worktrees. The next run continues on the same `agent/issue-N` branch, or babysits its PR if it had one.
 
 A run that is killed outright (a reboot, `kill -9`, the unit stopped) leaves its sandboxes behind, so each run first sweeps the machine (`sweep.ts`). It removes:

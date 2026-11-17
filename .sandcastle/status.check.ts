@@ -49,4 +49,22 @@ const ended = render([...events, { t: at(40), run, kind: "run-end", reason: "que
 assert.match(ended, /\*\*Ended:\*\* \d\d:\d\d · queue empty/);
 assert.doesNotMatch(ended, /\[#105\]\(.*\) \| Auth schema \| ci/, "nothing is in flight once the run ended");
 assert.doesNotMatch(ended, /#108/, "waiting is cleared once the run ended");
+// A handover: an older run drains while this one runs, so its issue is still in flight.
+const drained = "3@c";
+const handover: Event[] = [
+  { t: at(0), run: drained, kind: "run-start", slots: 3 },
+  { t: at(1), run: drained, kind: "stage", issue: 95, title: "Draining", stage: "claimed" },
+  { t: at(2), run: drained, kind: "stage", issue: 95, title: "Draining", stage: "ci" },
+  { t: at(9), run: drained, kind: "drain" },
+  ...events.filter((e) => e.run === run),
+];
+const both = render(handover, repo, new Date(at(30)));
+assert.match(both, /2 in flight · 3 slots/);
+assert.match(both, /\*\*Draining:\*\* 3@c/);
+assert.match(both, /\| \[#95\]\(.*\) \| Draining \| ci \|/, "a draining run's issue is in flight");
+const newerEnded = render([...handover, { t: at(40), run, kind: "run-end", reason: "queue empty" }], repo, new Date(at(41)));
+assert.match(newerEnded, /\| \[#95\]\(.*\) \| Draining \| ci \|/, "until the draining run ends, whatever the newer one does");
+const allEnded = render([...handover, { t: at(42), run: drained, kind: "run-end", reason: "drained" }], repo, new Date(at(43)));
+assert.doesNotMatch(allEnded, /Draining:/);
+assert.doesNotMatch(allEnded, /\| \[#95\]\(.*\) \| Draining \| ci \|/);
 console.log("status.ts: ok");
