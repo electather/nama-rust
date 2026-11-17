@@ -162,7 +162,8 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ListContinueWatchingRequest>,
     ) -> ServiceResult<ListContinueWatchingResponse> {
-        let (user, asked) = (caller(&ctx)?.user.id, request.to_owned_message().page);
+        let user = caller(&ctx)?.user.id;
+        let asked = request.to_owned_message().page;
         let listed = self.browse.continue_watching(user, &asked).await;
         let (started, page) = listed.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await?;
