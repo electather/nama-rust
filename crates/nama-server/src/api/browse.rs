@@ -5,9 +5,10 @@ use std::{ffi::OsStr, path::Path};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
-    GetNextEpisodeResponse, GetShowRequest, GetShowResponse, ListContinueWatchingRequest,
-    ListContinueWatchingResponse, ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest,
-    ListGenresResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
+    GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
+    GetUnmatchedVersionResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
+    ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest, ListGenresResponse,
+    ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
     ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission, RefusalReason,
     SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection, WatchedFilter,
 };
@@ -303,6 +304,25 @@ impl BrowseService for BrowseServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn get_unmatched_version(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, GetUnmatchedVersionRequest>,
+    ) -> ServiceResult<GetUnmatchedVersionResponse> {
+        let found = (self.browse)
+            .unmatched_version(request.library_id, request.version_id)
+            .await;
+        let (unmatched, version) = found.map_err(refused(Fields {
+            version: "version_id",
+            ..Fields::LIBRARY
+        }))?;
+        Response::ok(GetUnmatchedVersionResponse {
+            item: unmatched_summary(unmatched).into(),
+            version: version_to_proto(&version).into(),
+            ..Default::default()
+        })
+    }
 }
 
 /// A `MovieFilter` or `ShowFilter`, which differ only in their type.
@@ -569,10 +589,9 @@ fn episode_to_proto(
 
 /// `unmatched` as any User sees it: what its name was parsed as, not where its file is (ADR 0062).
 fn unmatched_summary(unmatched: Unmatched) -> proto::UnmatchedItemSummary {
-    let version_id = unmatched.file_id;
     let listed = unmatched_to_proto(unmatched, true);
     proto::UnmatchedItemSummary {
-        version_id,
+        version_id: listed.version_id,
         kind: listed.kind,
         title: listed.title,
         year: listed.year,

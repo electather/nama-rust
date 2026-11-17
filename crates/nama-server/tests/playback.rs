@@ -265,9 +265,9 @@ async fn an_unknown_version_is_not_found() {
     assert_eq!(reply.status, 404);
 }
 
-/// A stored file is a Version only while it is Matched.
+/// Every User may play an Unmatched Item (ADR 0062).
 #[tokio::test]
-async fn a_file_whose_match_was_cleared_is_not_found() {
+async fn a_file_whose_match_was_cleared_is_still_served() {
     let fx = Fixture::alien().await;
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     let item = fx.item(ALIEN_1080P);
@@ -286,7 +286,7 @@ async fn a_file_whose_match_was_cleared_is_not_found() {
     )
     .await;
 
-    assert_eq!(reply.status, 404);
+    assert_eq!(reply.status, 200);
 }
 
 /// Versions are served by id, so a client can't name a file by its path.

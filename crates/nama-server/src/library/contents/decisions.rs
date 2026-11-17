@@ -461,6 +461,29 @@ impl Contents {
         Ok((unmatched, paging))
     }
 
+    /// The first Unmatched Item, by id, of the Library `library`'s Version `version`, or `None` if
+    /// the Library has no such Version or it holds no Unmatched Item.
+    pub(crate) async fn unmatched_in_version(
+        &self,
+        library: i64,
+        version: i64,
+    ) -> Result<Option<Unmatched>, sqlx::Error> {
+        macro_rules! in_version {
+            ($unmatched:literal) => {
+                sqlx::query_as!(
+                    UnmatchedRow,
+                    $unmatched + " AND library_files.id = ?2 ORDER BY library_items.id LIMIT 1",
+                    library,
+                    version,
+                )
+            };
+        }
+        let row = unmatched_sql!(in_version)
+            .fetch_optional(self.db.reader())
+            .await?;
+        row.and_then(UnmatchedRow::into_unmatched).transpose()
+    }
+
     /// Forgets what Matching left Unmatched in the Library `library`, so it decides those Items
     /// again and asks the Library's Recognisers. An Item whose name an admin pinned keeps its
     /// decision, and a Matched one its Match. Part of the write a scan starts with when the

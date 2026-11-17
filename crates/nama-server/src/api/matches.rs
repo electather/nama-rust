@@ -214,6 +214,7 @@ pub(super) fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto
     };
     proto::UnmatchedItem {
         item_id: unmatched.id,
+        version_id: unmatched.file_id,
         path: unmatched.path,
         kind: kind.into(),
         title,

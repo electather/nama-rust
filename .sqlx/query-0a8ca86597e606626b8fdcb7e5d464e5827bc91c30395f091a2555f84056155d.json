@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT path, size, modified_ns, parser_version FROM library_files\n             WHERE id = ?\n               AND EXISTS (SELECT 1 FROM library_items\n                           JOIN item_matches ON item_matches.item_id = library_items.id\n                           WHERE library_items.file_id = library_files.id\n                             AND item_matches.state = 'matched')",
+  "query": "SELECT path, size, modified_ns, parser_version FROM library_files\n             WHERE id = ?\n               AND EXISTS (SELECT 1 FROM library_items\n                           WHERE library_items.file_id = library_files.id)",
   "describe": {
     "columns": [
       {
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "1abe096b9581e26e675e7d7a316797250edcf7a01bf1d35eba163f125a07a740"
+  "hash": "0a8ca86597e606626b8fdcb7e5d464e5827bc91c30395f091a2555f84056155d"
 }

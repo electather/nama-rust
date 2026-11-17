@@ -86,6 +86,12 @@ service BrowseService {
   rpc ListUnmatched(ListUnmatchedRequest) returns (ListUnmatchedResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Returns a Version of a Library that holds an Unmatched Item, to play it by, with its first
+  // such Item. Fails with `not_found` if there is no such Library, or the Library has no such
+  // Version holding an Unmatched Item.
+  rpc GetUnmatchedVersion(GetUnmatchedVersionRequest) returns (GetUnmatchedVersionResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -602,4 +608,17 @@ message UnmatchedItemSummary {
   optional int32 season = 5;
   // For an Episode, its number within the Season.
   optional int32 episode = 6;
+}
+
+message GetUnmatchedVersionRequest {
+  // The Library the Version is in.
+  int64 library_id = 1;
+  // The Version, as `ListUnmatched` or `MatchService.ListUnmatchedItems` gave it.
+  int64 version_id = 2;
+}
+
+message GetUnmatchedVersionResponse {
+  // The Version's first Unmatched Item: a file holding several Episodes holds one for each.
+  UnmatchedItemSummary item = 1;
+  Version version = 2;
 }

@@ -134,6 +134,8 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_UNMATCHED_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_UNMATCHED_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNMATCHED_ITEM_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__GET_UNMATCHED_VERSION_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_UNMATCHED_VERSION_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
@@ -636,6 +638,14 @@ pub use self::__buffa::view::ListUnmatchedResponseOwnedView;
 pub use self::__buffa::view::UnmatchedItemSummaryView;
 #[doc(inline)]
 pub use self::__buffa::view::UnmatchedItemSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetTrackPreferencesRequestView;
 #[doc(inline)]

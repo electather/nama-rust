@@ -3529,6 +3529,10 @@ pub struct UnmatchedItemView<'a> {
         'a,
         super::super::__buffa::view::TitleCandidateView<'a>,
     >,
+    /// The Version that holds it, to play it by.
+    ///
+    /// Field 10: `version_id`
+    pub version_id: i64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UnmatchedItemView<'a> {
@@ -3621,6 +3625,13 @@ impl<'a> ::buffa::MessageView<'a> for UnmatchedItemView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.version_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
             9u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -3676,6 +3687,7 @@ impl<'a> ::buffa::MessageView<'a> for UnmatchedItemView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            version_id: self.version_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3725,6 +3737,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.version_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.version_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3773,6 +3788,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.version_id != 0i64 {
+            ::buffa::types::put_int64_field(10u32, self.version_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3825,6 +3843,13 @@ impl<'__a> ::serde::Serialize for UnmatchedItemView<'__a> {
         }
         if !self.tied_titles.is_empty() {
             __map.serialize_entry("tiedTitles", &*self.tied_titles)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.version_id) {
+            __map
+                .serialize_entry(
+                    "versionId",
+                    &::buffa::json_helpers::ProtoJson(&self.version_id),
+                )?;
         }
         __map.end()
     }
@@ -3985,6 +4010,13 @@ impl UnmatchedItemOwnedView {
         super::super::__buffa::view::TitleCandidateView<'_>,
     > {
         &self.0.reborrow().tied_titles
+    }
+    /// The Version that holds it, to play it by.
+    ///
+    /// Field 10: `version_id`
+    #[must_use]
+    pub fn version_id(&self) -> i64 {
+        self.0.reborrow().version_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UnmatchedItemView<'static>>>

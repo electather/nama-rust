@@ -265,6 +265,26 @@ impl Browse {
             .await?)
     }
 
+    /// The Version `version` of the Library `library`, with its Tracks and its first Unmatched
+    /// Item, for playing it. [`Error::NoSuchVersion`] unless it holds one.
+    pub(crate) async fn unmatched_version(
+        &self,
+        library: i64,
+        version: i64,
+    ) -> Result<(Unmatched, Version), Error> {
+        let library = self.library(library).await?;
+        let unmatched = (self
+            .contents
+            .unmatched_in_version(library.id, version)
+            .await?)
+            .ok_or(Error::NoSuchVersion)?;
+        let (path, file) =
+            (self.contents.version_file(version).await?).ok_or(Error::NoSuchVersion)?;
+        let found = LibraryVersion { file, path };
+        let probes = self.probes(std::iter::once(&found)).await?;
+        Ok((unmatched, with_tracks(&probes)(found)))
+    }
+
     /// The User `user`'s Watch State of each of `titles`, in the same order, kept under any of
     /// its ids (ADR 0042): `None` for one they haven't started.
     async fn states_of(

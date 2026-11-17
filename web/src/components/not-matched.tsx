@@ -1,5 +1,5 @@
 import { ShowMore } from "@/components/show-more";
-import { parsedAs } from "@/components/unmatched-item";
+import { PlayUnmatched, parsedAs } from "@/components/unmatched-item";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { usePaged } from "@/lib/paged";
 
@@ -31,8 +31,12 @@ export function NotMatched({ libraryId }: { libraryId: bigint }) {
       <ul className="mt-2 flex flex-col">
         {items.map((item) => (
           // A file holding two Episodes lists each, under the same Version.
-          <li key={`${item.versionId}:${item.episode}`} className="border-b py-3 last:border-b-0">
-            {parsedAs(item)}
+          <li
+            key={`${item.versionId}:${item.episode}`}
+            className="flex items-center gap-3 border-b py-2 last:border-b-0"
+          >
+            <span className="min-w-0 flex-1">{parsedAs(item)}</span>
+            <PlayUnmatched libraryId={libraryId} versionId={item.versionId} name={parsedAs(item)} />
           </li>
         ))}
       </ul>

@@ -632,7 +632,7 @@ async fn an_unmatched_item_is_listed_with_what_its_name_was_parsed_as_and_a_matc
     fx.write(HOME_MOVIES, VIDEO);
     let home_movies = fx.scan_and_match().await[HOME_MOVIES];
 
-    let listed = fx.listed().await;
+    let listed = without_versions(fx.listed().await);
 
     assert_eq!(
         (fx.movie_of(alien).await, fx.movie_of(HOME_MOVIES).await),
@@ -669,7 +669,7 @@ async fn an_episode_not_matched_yet_is_listed_with_its_season_and_number() {
     fx.write(episode, VIDEO);
     let item = fx.scan_and_match().await[episode];
 
-    let listed = fx.listed().await;
+    let listed = without_versions(fx.listed().await);
 
     assert_eq!(
         listed,
@@ -685,6 +685,16 @@ async fn an_episode_not_matched_yet_is_listed_with_its_season_and_number() {
             ..Default::default()
         }]
     );
+}
+
+/// `listed` with no `version_id`s, which `tests/unmatched_items.rs` checks against the files.
+fn without_versions(listed: Vec<UnmatchedItem>) -> Vec<UnmatchedItem> {
+    (listed.into_iter())
+        .map(|item| UnmatchedItem {
+            version_id: 0,
+            ..item
+        })
+        .collect()
 }
 
 /// Each listed item's id, reason and number of tied titles.
