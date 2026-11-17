@@ -2,7 +2,7 @@
 
 use std::{io, path::Path, process::Stdio};
 
-use super::{Hardware, finding::is_release_before, sidecar_charset};
+use super::{Hardware, finding::is_release_before};
 
 /// The software filters a Transcode tone-maps HDR to SDR with: to linear light, to BT.709's
 /// primaries, Hable's curve from HDR's brightness to SDR's 100 nits, then back to BT.709 video.
@@ -115,8 +115,12 @@ pub(crate) enum TextSubtitle {
         track: usize,
         fonts: usize,
     },
-    /// The one in this file beside it.
-    Sidecar(String),
+    /// The one in the file `path` beside it, read in `charset` if it isn't UTF-8, which running
+    /// the plan finds with [`super::sidecar_charset`].
+    Sidecar {
+        path: String,
+        charset: Option<&'static str>,
+    },
     /// A [`Self::Stream`] read out of the file into the ASS file `ass`, drawn with the fonts in
     /// the folder `fonts`.
     Cached { ass: String, fonts: String },
@@ -148,11 +152,12 @@ fn transcoded_video(
             filter_value(path)
         )),
         Some(BurnIn::Text {
-            subtitle: TextSubtitle::Sidecar(sidecar),
+            subtitle:
+                TextSubtitle::Sidecar {
+                    path: sidecar,
+                    charset,
+                },
         }) => {
-            // Blocks on the disk, briefly, as each run's start already does for the cache. One
-            // that can't be read gets no `charenc`, as in `Ffmpeg::subtitle`.
-            let charset = (std::fs::read(sidecar).ok()).and_then(|bytes| sidecar_charset(&bytes));
             let charenc =
                 charset.map_or_default(|charset| format!(":charenc={}", filter_value(charset)));
             Some(format!(

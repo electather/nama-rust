@@ -496,8 +496,7 @@ impl Ffmpeg {
         let charset = match subtitle {
             // Matroska and MP4 store text subtitles as UTF-8.
             Some(_) => None,
-            // One that can't be read gets none, and ffmpeg says why it can't read it either.
-            None => (tokio::fs::read(path).await.ok()).and_then(|bytes| sidecar_charset(&bytes)),
+            None => sidecar_charset(path).await,
         };
         let mut args = charset.map_or_default(|charset| vec!["-sub_charenc", charset]);
         let map = format!("0:s:{}", subtitle.unwrap_or_default());
@@ -570,9 +569,16 @@ async fn all_there(written: &[(usize, PathBuf)]) -> io::Result<bool> {
     Ok(true)
 }
 
-/// The charset a sidecar holding `bytes` is in, as ffmpeg's `-sub_charenc` or the `subtitles`
-/// filter's `charenc` names it, if it isn't UTF-8, which ffmpeg reads by default.
-fn sidecar_charset(bytes: &[u8]) -> Option<&'static str> {
+/// The charset the sidecar at `path` is in, as ffmpeg's `-sub_charenc` or the `subtitles` filter's
+/// `charenc` names it, if it isn't UTF-8, which ffmpeg reads by default.
+pub(crate) async fn sidecar_charset(path: &str) -> Option<&'static str> {
+    // One that can't be read gets none, and ffmpeg says why it can't read it either.
+    let bytes = tokio::fs::read(path).await.ok()?;
+    charset_of(&bytes)
+}
+
+/// [`sidecar_charset`] for a sidecar holding `bytes`.
+fn charset_of(bytes: &[u8]) -> Option<&'static str> {
     // ffmpeg reads UTF-8, with or without a BOM, and UTF-16 by its BOM, on its own.
     if str::from_utf8(bytes).is_ok() || encoding_rs::Encoding::for_bom(bytes).is_some() {
         return None;

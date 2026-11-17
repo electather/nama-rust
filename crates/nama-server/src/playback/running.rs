@@ -68,7 +68,7 @@ use super::{
 };
 use crate::{
     events::{EventBus, event},
-    ffmpeg::{BurnIn, Ffmpeg, FromCut, Keyframe, Remux, Transcode},
+    ffmpeg::{BurnIn, Ffmpeg, FromCut, Keyframe, Remux, TextSubtitle, Transcode, sidecar_charset},
     library::{Contents, Stored},
     server_settings::PlaybackSettings,
     users::Caller,
@@ -331,6 +331,14 @@ impl RunningPlans {
             .await?
         else {
             return Ok(None);
+        };
+        let transcode = in_sidecar_charset(transcode).await;
+        let fallback = match fallback {
+            Some(fallback) => Some(super::Fallback {
+                transcode: in_sidecar_charset(fallback.transcode).await,
+                ..fallback
+            }),
+            None => None,
         };
         let timeline = Timeline::transcoded(duration_ms);
         let cuts = timeline.keyframes.clone();
@@ -599,6 +607,18 @@ impl RunningPlans {
         };
         self.inner.events.publish(vec![event(ended)]);
     }
+}
+
+/// `transcode`, reading the sidecar it burns in, if it burns one in, in the charset it's in.
+/// Found here, once for the plan, rather than as each run starts, which each seek does.
+async fn in_sidecar_charset(mut transcode: Transcode) -> Transcode {
+    if let Some(BurnIn::Text {
+        subtitle: TextSubtitle::Sidecar { path, charset },
+    }) = &mut transcode.video.burn_in
+    {
+        *charset = sidecar_charset(path).await;
+    }
+    transcode
 }
 
 /// `attempt`, burning its text subtitle in from `subtitles` if the Version stored as `file` has

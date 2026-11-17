@@ -1,4 +1,5 @@
-//! Writing short media files with the ffmpeg on `PATH`, for tests to probe, Remux and Transcode.
+//! Writing short media files with the ffmpeg on `PATH`, for tests to probe, Remux and Transcode,
+//! and the text of subtitles for tests to write in a charset.
 
 use std::{io, path::Path, process::Command};
 
