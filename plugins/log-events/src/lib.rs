@@ -36,6 +36,7 @@ impl Plugin for LogEvents {
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: Vec::new(),
             tick_every: None,
+            title_source: None,
         }
     }
 

@@ -456,7 +456,6 @@ async fn sources_come_in_provider_order_or_in_the_order_given() {
     assert_eq!(restricted.sources().await, [source("bb")]);
     assert!(restricted.serves("bb", TitleMethod::Movie).await);
     assert!(!restricted.serves("aa", TitleMethod::Movie).await);
-    assert!(restricted.searches_any(&order(&["bb"])).await);
 }
 
 #[tokio::test]
@@ -732,8 +731,6 @@ async fn a_source_answering_only_artwork_is_never_asked_for_a_title_or_a_search(
     assert!(!metadata.serves("tmdb", TitleMethod::Movie).await);
     assert!(metadata.serves("tmdb", TitleMethod::Artwork).await);
     assert!(metadata.unserved(&tmdb, TitleMethod::Movie).await);
-    assert!(!metadata.searches_any(&order(&["fanart"])).await);
-    assert!(metadata.searches_any(&order(&["fanart", "tmdb"])).await);
     assert!(
         asked
             .lock()

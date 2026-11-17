@@ -116,6 +116,10 @@ pub struct Manifest {
     pub permissions: Vec<Permission>,
     /// How often the Kernel ticks its [`Automation`](automation::Automation), if it provides one.
     pub tick_every: Option<Duration>,
+    /// What its [`TitleSource`](metadata::TitleSource) keeps titles under and whether it searches,
+    /// if it provides one. A Library's title source order may add only a namespace some Plugin
+    /// keeps or looks titles up by here, enabled or not.
+    pub title_source: Option<metadata::SourceManifest>,
 }
 
 impl Manifest {
@@ -134,6 +138,7 @@ impl Manifest {
             logo_svg: None,
             permissions: Vec::new(),
             tick_every: None,
+            title_source: None,
         }
     }
 }
