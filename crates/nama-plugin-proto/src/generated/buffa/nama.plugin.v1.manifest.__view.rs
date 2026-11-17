@@ -6,8 +6,16 @@
 ///
 /// A Plugin may also export `check_settings()`, which takes no input and checks its settings, read
 /// from its Extism config as for any call, against the outside service they are for. It returns
-/// `CheckedSettings`, or fails with an error an admin can act on. The Server calls it only when an
-/// admin tests settings, which may be unsaved, so the hosts of the URL settings tested are allowed
+/// `CheckedSettings`, or fails with an error an admin can act on. The Server calls it on three
+/// occasions:
+///
+/// - when an admin tests settings, with the settings tested, which may be unsaved;
+/// - when an admin saves settings in which they set a choice setting, with the settings being
+///   saved, refusing the save if the check fails or doesn't offer that value;
+/// - when an admin replaces a Fulfiller's Qualities with a non-empty list, with its stored
+///   settings, refusing the replace if the check fails or doesn't offer a Quality's profile.
+///
+/// A slow check holds up the save or replace. The hosts of the URL settings it is given are allowed
 /// for that call alone.
 ///
 /// A Plugin with `personal_settings` may also export `check_personal_settings()`, which takes

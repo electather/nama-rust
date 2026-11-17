@@ -99,6 +99,13 @@ pub(crate) enum Invalid {
         /// As trimmed.
         folder: String,
     },
+    /// The segment folder can't be created, or a file can't be written in it, so every plan would
+    /// fail to start.
+    #[error("the segment folder {folder} can't be created or written to")]
+    FolderNotWritable {
+        /// As trimmed.
+        folder: String,
+    },
     /// The Transcode cap is 0, which would refuse every Transcode; a client asks for the default
     /// by leaving it out.
     #[error("the most Transcodes at once must be at least 1")]
@@ -230,8 +237,9 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// [`Invalid::FolderNotAbsolute`], [`Invalid::NoTranscodes`], [`Invalid::NothingKeptBehind`]
-    /// or [`Invalid::GpuNotOffered`], in that order, or if storing them fails.
+    /// [`Invalid::FolderNotAbsolute`], [`Invalid::NoTranscodes`], [`Invalid::NothingKeptBehind`],
+    /// [`Invalid::GpuNotOffered`] or [`Invalid::FolderNotWritable`], in that order, or if storing
+    /// them fails. A folder given is created before it's stored, even if storing then fails.
     pub(crate) async fn change_playback(
         &self,
         change: PlaybackChange<'_>,
@@ -255,6 +263,12 @@ impl Settings {
         let mut hardware = change.hardware;
         if let HardwareChoice::Api(accel, Some(gpu)) = &mut hardware {
             *gpu = self.offered_gpu(*accel, &gpu.id, passed)?;
+        }
+        if !folder.is_empty() && writable(Path::new(folder)).await.is_err() {
+            return Err(Invalid::FolderNotWritable {
+                folder: folder.to_owned(),
+            }
+            .into());
         }
         let playback = PlaybackValues {
             segment_folder: folder.to_owned(),
@@ -445,6 +459,17 @@ fn is_server_url(url: &str) -> bool {
 /// The Plugin `stored` names, or `None` for an empty one.
 fn plugin_named(stored: String) -> Option<PluginId> {
     (!stored.is_empty()).then(|| PluginId::from(stored))
+}
+
+/// Creates `folder`, then writes and deletes a file in it, as a plan starting there would.
+async fn writable(folder: &Path) -> std::io::Result<()> {
+    // Not `nama-plan-…`: startup deletes those as a stopped plan's leftovers.
+    // ponytail: two saves of one folder at once can delete each other's file and be refused; name
+    // it uniquely if Admins ever hit that.
+    let test_file = folder.join(".nama-write-test");
+    tokio::fs::create_dir_all(folder).await?;
+    tokio::fs::write(&test_file, b"").await?;
+    tokio::fs::remove_file(&test_file).await
 }
 
 /// A stored count this Server can read, `None` for one out of range.

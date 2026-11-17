@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use super::*;
 
@@ -20,6 +20,49 @@ fn attempts_are_admitted_again_once_old_failures_leave_the_window() {
 
     assert_eq!(blocked.retry_after_secs(), 60);
     assert!(admitted.is_ok(), "the first failure is still counted");
+}
+
+/// An address in the /64 `2001:db8:0:<subnet>::/64`.
+fn in_subnet(subnet: u16, host: u16) -> IpAddr {
+    IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, subnet, 0, 0, 0, host))
+}
+
+#[test]
+fn failures_from_one_ipv6_64_are_counted_together() {
+    let limits = SignInLimits::default();
+    let now = Instant::now();
+    for host in 0..50 {
+        limits
+            .admit(in_subnet(1, host), None, now)
+            .expect("admitted");
+    }
+
+    let same_64 = limits.admit(in_subnet(1, 0xffff), None, now);
+    let other_64 = limits.admit(in_subnet(2, 1), None, now);
+
+    assert!(same_64.is_err(), "another address in the /64 was admitted");
+    assert!(
+        other_64.is_ok(),
+        "another /64's failures are counted together"
+    );
+}
+
+#[test]
+fn a_succeeded_attempt_frees_its_slot_for_any_address_in_its_ipv6_64() {
+    let limits = SignInLimits::default();
+    let now = Instant::now();
+    for host in 0..49 {
+        limits
+            .admit(in_subnet(1, host), None, now)
+            .expect("admitted");
+    }
+    let attempt = limits.admit(in_subnet(1, 49), None, now).expect("admitted");
+
+    limits.succeeded(&attempt);
+
+    limits
+        .admit(in_subnet(1, 0xffff), None, now)
+        .expect("admitted after the success was un-counted");
 }
 
 #[test]
@@ -101,4 +144,22 @@ fn code_starts_are_counted_per_ip_and_admitted_again_once_old_starts_leave_the_w
     assert_eq!(blocked.retry_after_secs(), 60);
     assert!(other.is_ok(), "another IP's starts are counted together");
     assert!(admitted.is_ok(), "the first start is still counted");
+}
+
+#[test]
+fn code_starts_from_one_ipv6_64_are_counted_together() {
+    let limits = SignInCodeStartLimits::default();
+    let now = Instant::now();
+    for host in 0..20 {
+        limits.admit(in_subnet(1, host), now).expect("admitted");
+    }
+
+    let same_64 = limits.admit(in_subnet(1, 0xffff), now);
+    let other_64 = limits.admit(in_subnet(2, 1), now);
+
+    assert!(same_64.is_err(), "another address in the /64 was admitted");
+    assert!(
+        other_64.is_ok(),
+        "another /64's starts are counted together"
+    );
 }

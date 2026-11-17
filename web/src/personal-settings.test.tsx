@@ -72,12 +72,19 @@ test("Settings shows no Personal settings while no Plugin declares any", async (
   expect(screen.queryByRole("heading", { name: "Personal settings" })).toBeNull();
 });
 
-test("a set secret is said to be set, never filled in", async () => {
+test("a required Personal setting is required", async () => {
+  openWithNtfy();
+
+  expect((await card()).getByLabelText<HTMLInputElement>("Topic").required).toBe(true);
+});
+
+test("a set secret is said to be set, never filled in, and has no Forget of its own", async () => {
   openWithNtfy();
 
   const ntfyCard = await card();
   expect(ntfyCard.getByText("Set")).toBeDefined();
   expect(ntfyCard.queryByLabelText("Access token")).toBeNull();
+  expect(ntfyCard.queryByRole("button", { name: "Forget Access token" })).toBeNull();
   fireEvent.click(ntfyCard.getByRole("button", { name: "Replace Access token" }));
   const token = ntfyCard.getByLabelText<HTMLInputElement>("Access token");
   expect([token.type, token.value]).toEqual(["password", ""]);

@@ -12,8 +12,7 @@ import {
   SettingKind,
   type SettingValue,
 } from "@/gen/nama/v1/plugin_pb";
-import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { formText, refusal, refusalOf, serverMessage } from "@/lib/forms";
+import { formText } from "@/lib/forms";
 
 /**
  * One setting's input, by its kind. Shared by the Admin's Plugin settings and a User's Personal
@@ -23,39 +22,64 @@ export function SettingInput({
   setting,
   choices,
   error,
+  checksRequired,
+  forgettable = false,
 }: {
   setting: Setting;
   /** A CHOICE setting's options, once a settings test offers them. Never for Personal settings. */
   choices?: Choice[] | undefined;
   error: string | undefined;
+  /** Whether a required setting must be filled in. Not for a disabled Plugin, checked when enabled. */
+  checksRequired: boolean;
+  /** Whether a set secret can be forgotten on its own. Personal settings forget all of theirs at once. */
+  forgettable?: boolean;
 }) {
   if (setting.kind === SettingKind.CHOICE) {
+    const required = checksRequired && setting.required;
     // A new element once the choices come, so it starts on the stored one.
-    return <ChoiceInput key={String(choices !== undefined)} {...{ setting, choices, error }} />;
+    return (
+      <ChoiceInput key={String(choices !== undefined)} {...{ setting, choices, error, required }} />
+    );
   }
   if (setting.kind === SettingKind.LIBRARIES) {
     return <LibraryPicker setting={setting} hint={hint(setting)} error={error} />;
   }
-  return <OwnInput setting={setting} error={error} />;
+  return <OwnInput {...{ setting, error, checksRequired, forgettable }} />;
 }
 
 /** The input of a setting whose value is typed or ticked on its own, with no list to pick from. */
-function OwnInput({ setting, error }: { setting: Setting; error: string | undefined }) {
+function OwnInput({
+  setting,
+  error,
+  checksRequired,
+  forgettable,
+}: {
+  setting: Setting;
+  error: string | undefined;
+  checksRequired: boolean;
+  forgettable: boolean;
+}) {
   if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;
-  if (setting.secretSet) return <SetSecret setting={setting} error={error} />;
-  return <TypedInput setting={setting} error={error} />;
+  if (setting.secretSet) return <SetSecret {...{ setting, error, forgettable }} />;
+  const required = checksRequired && blankIsMissing(setting);
+  return <TypedInput setting={setting} error={error} required={required} />;
 }
 
 /** A text, secret, number or URL setting's input. A secret's value never comes back, so it starts blank. */
 function TypedInput({
   setting,
   error,
+  required,
   focused,
+  forgetting = false,
 }: {
   setting: Setting;
   error: string | undefined;
+  required: boolean;
   /** Whether it takes the focus as it appears, in place of the button that was pressed. */
   focused?: boolean;
+  /** Whether leaving a set secret blank forgets it, rather than keeping it. */
+  forgetting?: boolean;
 }) {
   return (
     <FormField
@@ -66,11 +90,11 @@ function TypedInput({
       max={setting.maxValue?.toString()}
       autoComplete="off"
       spellCheck={false}
-      // oxlint-disable-next-line jsx-a11y/no-autofocus -- only set when pressing Replace swaps it in for the button, whose focus would otherwise be lost
+      // oxlint-disable-next-line jsx-a11y/no-autofocus -- only set when pressing Replace or Forget swaps it in for the button, whose focus would otherwise be lost
       autoFocus={focused}
       defaultValue={valueText(setting.value)}
-      required={blankIsMissing(setting)}
-      hint={hint(setting)}
+      required={required}
+      hint={hint(setting, forgetting ? "forget" : "keep")}
       error={error}
     />
   );
@@ -88,13 +112,50 @@ function blankIsMissing({ required, defaultValue, secretSet }: Setting) {
   return required && !defaultValue && !secretSet;
 }
 
-/** A secret that is set: said to be set, with a button to type a new one in its place. */
-function SetSecret({ setting, error }: { setting: Setting; error: string | undefined }) {
-  const [replacing, setReplacing] = useState(false);
+/** The form field naming each secret Forget was pressed for, which `forgottenTyped` reads. */
+const forgottenField = "forgottenSecrets";
+
+/** What a set secret's buttons do: type a new one in its place, or forget it. */
+type SecretAction = "Replace" | "Forget";
+
+/** A secret that is set: said to be set, until a button swaps in an input to type in its place. */
+function SetSecret({
+  setting,
+  error,
+  forgettable,
+}: {
+  setting: Setting;
+  error: string | undefined;
+  forgettable: boolean;
+}) {
+  const [pressed, setPressed] = useState<SecretAction>();
   // A refusal naming the secret needs its input to show under.
-  if (replacing || error !== undefined) {
-    return <TypedInput setting={setting} error={error} focused={replacing} />;
+  if (pressed === undefined && error === undefined) {
+    return <SecretIsSet setting={setting} forgettable={forgettable} onPress={setPressed} />;
   }
+  const forgetting = pressed === "Forget";
+  return (
+    <>
+      {forgetting && <input type="hidden" name={forgottenField} value={setting.key} />}
+      <TypedInput
+        {...{ setting, error, forgetting }}
+        required={false}
+        focused={pressed !== undefined}
+      />
+    </>
+  );
+}
+
+function SecretIsSet({
+  setting,
+  forgettable,
+  onPress,
+}: {
+  setting: Setting;
+  forgettable: boolean;
+  onPress: (action: SecretAction) => void;
+}) {
+  const actions: SecretAction[] = forgettable ? ["Replace", "Forget"] : ["Replace"];
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
@@ -106,16 +167,19 @@ function SetSecret({ setting, error }: { setting: Setting; error: string | undef
       {/* A ghost button is pulled back by its own padding, so its words line up with the inputs. */}
       <div className="-me-4 flex shrink-0 items-center gap-2">
         <span className="text-sm">Set</span>
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={`Replace ${setting.label}`}
-          onClick={() => {
-            setReplacing(true);
-          }}
-        >
-          Replace
-        </Button>
+        {actions.map((action) => (
+          <Button
+            key={action}
+            type="button"
+            variant="ghost"
+            aria-label={`${action} ${setting.label}`}
+            onClick={() => {
+              onPress(action);
+            }}
+          >
+            {action}
+          </Button>
+        ))}
       </div>
     </div>
   );
@@ -143,12 +207,15 @@ function BoolInput({ setting }: { setting: Setting }) {
   );
 }
 
-/** What a setting is for, then what leaving it blank does. */
-function hint({ description, required, defaultValue, secretSet }: Setting) {
+/** What a setting is for, then what leaving it blank does: to a set secret, `secretBlank`. */
+function hint(
+  { description, required, defaultValue, secretSet }: Setting,
+  secretBlank: "keep" | "forget" = "keep",
+) {
   const blank = defaultValue
     ? `Blank uses ${valueText(defaultValue)}.`
     : secretSet
-      ? "Leave it blank to keep the one that’s set."
+      ? `Leave it blank to ${secretBlank} the one that’s set.`
       : required && "Required.";
   return [description, blank].filter(Boolean).join(" ");
 }
@@ -166,6 +233,11 @@ export function settingsTyped(typed: FormData, settings: Setting[]) {
       .map(({ key, kind }) => [key, { value: valueTyped(typed, key, kind) }] as const)
       .filter(([, { value }]) => value.case !== undefined),
   );
+}
+
+/** The keys of the set secrets Forget was pressed for. */
+export function forgottenTyped(typed: FormData) {
+  return typed.getAll(forgottenField).filter((key) => typeof key === "string");
 }
 
 function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingValue["value"] {
@@ -193,48 +265,3 @@ function librariesTyped(typed: FormData, key: string): SettingValue["value"] {
     ? { case: undefined }
     : { case: "libraryIds", value: create(LibraryIdsSchema, { ids }) };
 }
-
-/** Why the Server refused the `attempt`: next to the setting its Refusal names, or for the form. */
-export function refusedSettings(
-  error: unknown,
-  attempt: string,
-): Record<string, string | undefined> {
-  const { reason, field, params } = refusalOf(error);
-  const key = field.replace(/^settings\./u, "");
-  if (key === field) {
-    const { form } = refusal(
-      error,
-      attempt,
-      {},
-      {
-        [RefusalReason.PLUGIN_NOT_FOUND]: { form: "This Plugin isn’t on the Server any more." },
-        // The Plugin's own words.
-        [RefusalReason.SETTINGS_CHECK_FAILED]: { form: serverMessage(error) },
-      },
-    );
-    return { form };
-  }
-  // A failed check is in the Plugin's own words.
-  if (reason === RefusalReason.SETTINGS_CHECK_FAILED) return { [key]: serverMessage(error) };
-  return { [key]: settingRefusal(reason, params) };
-}
-
-/** Why the Server refused a setting: an out-of-range one says its bounds, the rest go by reason. */
-function settingRefusal(reason: RefusalReason, params: Record<string, string | undefined>) {
-  if (reason === RefusalReason.SETTING_OUT_OF_RANGE) return outOfRange(params);
-  return settingRefused[reason] ?? "This setting can’t take that value.";
-}
-
-/** The bounds a number must keep to, from its Refusal's `min` and `max`, at least one of which the Server sends. */
-function outOfRange({ min, max }: Record<string, string | undefined>) {
-  if (max === undefined) return `This must be at least ${min}.`;
-  return min === undefined ? `This must be at most ${max}.` : `This must be from ${min} to ${max}.`;
-}
-
-/** Why the Server refused a setting, by its Refusal's reason. */
-const settingRefused: Partial<Record<RefusalReason, string>> = {
-  [RefusalReason.FIELD_REQUIRED]: "This setting is required.",
-  [RefusalReason.CHOICE_NOT_OFFERED]:
-    "The Plugin doesn’t offer this choice now. Test the settings and pick again.",
-  [RefusalReason.LIBRARY_NOT_FOUND]: "A Library picked here isn’t on the Server any more.",
-};

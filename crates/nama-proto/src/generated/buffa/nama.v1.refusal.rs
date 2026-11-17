@@ -59,7 +59,7 @@ pub enum RefusalReason {
     REFUSAL_REASON_LIBRARY_NOT_FOUND = 20i32,
     /// `already_exists`: another Library already has the name, ignoring case. `field` is `name`.
     /// Params: `library` (the other Library's name).
-    REFUSAL_REASON_LIBRARY_NAME_TAKEN = 83i32,
+    REFUSAL_REASON_LIBRARY_NAME_TAKEN = 84i32,
     /// `already_exists`: a folder already belongs to another Library. Params: `folder`, `library`
     /// (the other Library's name).
     REFUSAL_REASON_FOLDER_TAKEN = 21i32,
@@ -104,6 +104,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_FOLDER_NOT_FOUND = 33i32,
     /// `invalid_argument`: a Library's folder isn't a directory the Server can read. Params: `folder`.
     REFUSAL_REASON_FOLDER_NOT_READABLE = 34i32,
+    /// `invalid_argument`: the segment folder can't be created, or the Server can't write a file in
+    /// it. Params: `folder`.
+    REFUSAL_REASON_FOLDER_NOT_WRITABLE = 83i32,
     /// `invalid_argument`: a Library's folder resolves to a path that isn't valid UTF-8. Params:
     /// `folder`, `resolvedPath` (with what isn't UTF-8 replaced).
     REFUSAL_REASON_FOLDER_NOT_UTF8 = 35i32,
@@ -361,6 +364,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_NOT_READABLE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FolderNotReadable: Self = Self::REFUSAL_REASON_FOLDER_NOT_READABLE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_NOT_WRITABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderNotWritable: Self = Self::REFUSAL_REASON_FOLDER_NOT_WRITABLE;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_NOT_UTF8`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FolderNotUtf8: Self = Self::REFUSAL_REASON_FOLDER_NOT_UTF8;
@@ -624,7 +630,7 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_ENUM_VALUE)
             }
             20i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_LIBRARY_NOT_FOUND),
-            83i32 => {
+            84i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LIBRARY_NAME_TAKEN)
             }
             21i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_TAKEN),
@@ -650,6 +656,9 @@ impl ::buffa::Enumeration for RefusalReason {
             33i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_FOUND),
             34i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_READABLE)
+            }
+            83i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_WRITABLE)
             }
             35i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_UTF8),
             36i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_REPEATED),
@@ -831,6 +840,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLDER_NOT_FOUND => "REFUSAL_REASON_FOLDER_NOT_FOUND",
             Self::REFUSAL_REASON_FOLDER_NOT_READABLE => {
                 "REFUSAL_REASON_FOLDER_NOT_READABLE"
+            }
+            Self::REFUSAL_REASON_FOLDER_NOT_WRITABLE => {
+                "REFUSAL_REASON_FOLDER_NOT_WRITABLE"
             }
             Self::REFUSAL_REASON_FOLDER_NOT_UTF8 => "REFUSAL_REASON_FOLDER_NOT_UTF8",
             Self::REFUSAL_REASON_FOLDER_REPEATED => "REFUSAL_REASON_FOLDER_REPEATED",
@@ -1047,6 +1059,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_FOLDER_NOT_READABLE" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_READABLE)
             }
+            "REFUSAL_REASON_FOLDER_NOT_WRITABLE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_WRITABLE)
+            }
             "REFUSAL_REASON_FOLDER_NOT_UTF8" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_UTF8)
             }
@@ -1237,6 +1252,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
             Self::REFUSAL_REASON_FOLDER_NOT_FOUND,
             Self::REFUSAL_REASON_FOLDER_NOT_READABLE,
+            Self::REFUSAL_REASON_FOLDER_NOT_WRITABLE,
             Self::REFUSAL_REASON_FOLDER_NOT_UTF8,
             Self::REFUSAL_REASON_FOLDER_REPEATED,
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,

@@ -358,6 +358,12 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
         )
         .field("settings.segment_folder")
         .param("folder", &folder),
+        Refused(Invalid::FolderNotWritable { folder }) => refuse(
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_WRITABLE,
+            "the Server can't create the segment folder or write files in it",
+        )
+        .field("settings.segment_folder")
+        .param("folder", &folder),
         Refused(Invalid::NoTranscodes) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the most Transcodes at once must be at least 1",

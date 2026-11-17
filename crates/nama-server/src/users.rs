@@ -8,6 +8,7 @@ use std::{net::IpAddr, ops::RangeInclusive, sync::Arc};
 use sha2::{Digest, Sha256};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::sync::broadcast;
+use tracing::Instrument as _;
 
 use crate::{
     db::{BoxFuture, Database, now},
@@ -447,13 +448,16 @@ impl Users {
             + 'static,
     {
         let users = self.clone();
-        let written = tokio::spawn(async move {
-            for device in users.db.write(write).await? {
-                // Fails only when nobody is waiting, which is fine.
-                let _: Result<usize, _> = users.sign_outs.send(device);
+        let written = tokio::spawn(
+            async move {
+                for device in users.db.write(write).await? {
+                    // Fails only when nobody is waiting, which is fine.
+                    let _: Result<usize, _> = users.sign_outs.send(device);
+                }
+                Ok(())
             }
-            Ok(())
-        });
+            .in_current_span(),
+        );
         // The task is never aborted, so it only fails if it panicked.
         written
             .await

@@ -18,7 +18,7 @@ use crate::{
     matching::{
         Miss, PendingEpisode,
         recognisers::Recognisers,
-        tests::{Fixture, matched},
+        testing::{Fixture, episode, matched},
     },
     plugins::Registry,
 };
@@ -48,7 +48,9 @@ async fn an_episode_only_one_tied_show_has_matches_that_show() {
     let media = Fixture::new().await;
     let shows = &media.shows;
     // No year, so the US and the UK Office tie; only the US one has a Season 3.
-    shows.write(SEASON_3);
+    shows
+        .write(SEASON_3, &[episode("The Office", None, 3, 1)])
+        .await;
 
     media.scan(shows).await;
 
@@ -64,7 +66,11 @@ async fn an_episode_no_tied_show_has_stays_ambiguous_with_every_tied_show() {
     // Both Offices' Season 1 has 2 Episodes.
     media
         .shows
-        .write("The Office/Season 01/The Office - S01E05.mkv");
+        .write(
+            "The Office/Season 01/The Office - S01E05.mkv",
+            &[episode("The Office", None, 1, 5)],
+        )
+        .await;
 
     media.scan(&media.shows).await;
 
@@ -77,10 +83,18 @@ async fn a_show_whose_episodes_no_tied_show_has_all_of_stays_ambiguous() {
     // Both Offices have S01E01; the UK one has no Season 3, the US one's has only Episode 1.
     media
         .shows
-        .write("The Office/Season 01/The Office - S01E01.mkv");
+        .write(
+            "The Office/Season 01/The Office - S01E01.mkv",
+            &[episode("The Office", None, 1, 1)],
+        )
+        .await;
     media
         .shows
-        .write("The Office/Season 03/The Office - S03E02.mkv");
+        .write(
+            "The Office/Season 03/The Office - S03E02.mkv",
+            &[episode("The Office", None, 3, 2)],
+        )
+        .await;
 
     media.scan(&media.shows).await;
 
@@ -94,7 +108,8 @@ async fn a_show_whose_episodes_no_tied_show_has_all_of_stays_ambiguous() {
 async fn a_newer_name_parser_matches_an_episode_only_one_tied_show_has() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    shows.write(SEASON_3);
+    let season_3 = [episode("The Office", None, 3, 1)];
+    shows.write(SEASON_3, &season_3).await;
     media.scan(shows).await;
     // Before the tie-break, both Offices left this file Ambiguous.
     let item = media.item(shows, SEASON_3).await;
@@ -109,7 +124,7 @@ async fn a_newer_name_parser_matches_an_episode_only_one_tied_show_has() {
     media.contents.record(decided).await.unwrap();
     assert_eq!(tied(&media).await, [Some(both_offices())]);
 
-    media.contents.read_by_older_parser(shows.id).await;
+    shows.reparse(SEASON_3, &season_3).await;
     media.scan(shows).await;
 
     assert_eq!(

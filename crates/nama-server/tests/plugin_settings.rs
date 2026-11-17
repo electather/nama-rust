@@ -1,8 +1,11 @@
-//! Starting the Server's Plugins with the settings stored in the database, which come from the
-//! config's `[plugins.*]` tables once, on the first start, and changing them in the order
-//! ADR 0028 sets, against a real database and fake Plugins, without HTTP; `library_ids` and
-//! `integer_bounds` save a setting naming Libraries, and a bounded one, over the API.
+//! Starting the Server's Plugins with the settings the database stores (from the config's
+//! `[plugins.*]` tables on the first start) and changing them in ADR 0028's order, with fake
+//! Plugins and no HTTP; the submodules save settings over the API.
 
+#[path = "plugin_settings/clearing.rs"]
+mod clearing;
+#[path = "plugin_settings/flaky.rs"]
+mod flaky;
 #[path = "plugin_settings/integer_bounds.rs"]
 mod integer_bounds;
 #[path = "plugin_settings/library_ids.rs"]
@@ -19,10 +22,7 @@ mod server;
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
-    sync::{
-        Arc, Mutex, PoisonError,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -30,6 +30,7 @@ use figment::{
     Figment,
     providers::{Format, Serialized, Toml},
 };
+use flaky::{Flakiness, with_flaky};
 use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
@@ -425,7 +426,7 @@ async fn a_settings_change_that_fails_to_enable_still_saves_them_and_keeps_it_st
     )]);
 
     let updated = plugins
-        .update(&never_enables(), hello.clone())
+        .update(&never_enables(), hello.clone(), Vec::new())
         .await
         .unwrap();
 
@@ -439,80 +440,6 @@ async fn a_settings_change_that_fails_to_enable_still_saves_them_and_keeps_it_st
         }
     );
     assert!(!plugins.registry().enabled().contains(&never_enables()));
-}
-
-/// What one test shares with its [`Flaky`] Plugin: how many more times making it panics, and the
-/// greeting its last enable handed it.
-struct Flakiness {
-    panics: AtomicUsize,
-    greeting: Mutex<Option<String>>,
-}
-
-impl Flakiness {
-    const fn new() -> Self {
-        Self {
-            panics: AtomicUsize::new(0),
-            greeting: Mutex::new(None),
-        }
-    }
-
-    fn panic_next(&self, makes: usize) {
-        self.panics.store(makes, Ordering::SeqCst);
-    }
-
-    fn greeting(&self) -> Option<String> {
-        self.greeting
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-    }
-}
-
-/// The Built-in Plugin `flaky`, with [`Fake`]'s settings, which keeps the greeting it is enabled
-/// with.
-struct Flaky(&'static Flakiness);
-
-impl Plugin for Flaky {
-    fn manifest(&self) -> Manifest {
-        let fake = Fake {
-            id: "flaky",
-            panics: false,
-        };
-        fake.manifest()
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        let greeting = registrar.settings().text("greeting").map(str::to_owned);
-        *self
-            .0
-            .greeting
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = greeting;
-        Ok(())
-    }
-}
-
-/// Starts the Plugins of [`registry`] with `flaky` beside them, whose making panics as
-/// `flakiness` says, and the config's `[plugins.*]` tables in `toml`.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn with_flaky(flakiness: &'static Flakiness, toml: &str) -> (TempDir, PluginSettings) {
-    let (data_dir, db) = open().await;
-    let registry = registry();
-    registry.describe_builtin(move || {
-        let panicking = flakiness
-            .panics
-            .try_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
-                left.checked_sub(1)
-            });
-        assert!(panicking.is_err(), "make bug");
-        Arc::new(Flaky(flakiness))
-    });
-    let config = config(data_dir.path(), toml);
-    let plugins = PluginSettings::start(db, registry, &config).await.unwrap();
-    (data_dir, plugins)
 }
 
 fn flaky() -> PluginId {
@@ -552,7 +479,10 @@ async fn a_settings_change_that_fails_to_enable_runs_on_with_the_old_settings_an
     let (_data_dir, plugins) = with_flaky(&FAILS_ONCE, toml).await;
     FAILS_ONCE.panic_next(1);
 
-    let updated = plugins.update(&flaky(), greeting("hello")).await.unwrap();
+    let updated = plugins
+        .update(&flaky(), greeting("hello"), Vec::new())
+        .await
+        .unwrap();
 
     assert!(updated.plugin.enabled);
     assert!(plugins.registry().enabled().contains(&flaky()));
@@ -573,7 +503,10 @@ async fn a_settings_change_that_fails_to_enable_nor_put_back_is_saved_disabled()
     let (_data_dir, plugins) = with_flaky(&FAILS_TWICE, toml).await;
     FAILS_TWICE.panic_next(2);
 
-    let updated = plugins.update(&flaky(), greeting("hello")).await.unwrap();
+    let updated = plugins
+        .update(&flaky(), greeting("hello"), Vec::new())
+        .await
+        .unwrap();
 
     assert!(!updated.plugin.enabled);
     assert!(!updated.stored.enabled);
@@ -629,7 +562,7 @@ async fn changes_at_once_leave_the_stored_state_as_what_is_running() {
         let (disabled, enabled, updated) = tokio::join!(
             plugins.disable(&greeter),
             plugins.enable(&greeter),
-            plugins.update(&greeter, hello.clone()),
+            plugins.update(&greeter, hello.clone(), Vec::new()),
         );
         disabled.unwrap();
         enabled.unwrap();

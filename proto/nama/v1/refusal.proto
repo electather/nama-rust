@@ -78,7 +78,7 @@ enum RefusalReason {
   REFUSAL_REASON_LIBRARY_NOT_FOUND = 20;
   // `already_exists`: another Library already has the name, ignoring case. `field` is `name`.
   // Params: `library` (the other Library's name).
-  REFUSAL_REASON_LIBRARY_NAME_TAKEN = 83;
+  REFUSAL_REASON_LIBRARY_NAME_TAKEN = 84;
   // `already_exists`: a folder already belongs to another Library. Params: `folder`, `library`
   // (the other Library's name).
   REFUSAL_REASON_FOLDER_TAKEN = 21;
@@ -125,6 +125,9 @@ enum RefusalReason {
   REFUSAL_REASON_FOLDER_NOT_FOUND = 33;
   // `invalid_argument`: a Library's folder isn't a directory the Server can read. Params: `folder`.
   REFUSAL_REASON_FOLDER_NOT_READABLE = 34;
+  // `invalid_argument`: the segment folder can't be created, or the Server can't write a file in
+  // it. Params: `folder`.
+  REFUSAL_REASON_FOLDER_NOT_WRITABLE = 83;
   // `invalid_argument`: a Library's folder resolves to a path that isn't valid UTF-8. Params:
   // `folder`, `resolvedPath` (with what isn't UTF-8 replaced).
   REFUSAL_REASON_FOLDER_NOT_UTF8 = 35;

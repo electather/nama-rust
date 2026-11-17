@@ -358,6 +358,12 @@ impl TestServer {
         self.data_dir.path()
     }
 
+    /// A segment folder inside the data directory, so saving it, which creates it, leaves nothing
+    /// on the host.
+    pub(crate) fn segment_folder(&self) -> String {
+        self.data_dir().join("segments").display().to_string()
+    }
+
     /// Client settings that point at this Server and call it as the Admin.
     pub(crate) fn client_config(&self) -> ClientConfig {
         self.client_config_as(&self.admin_token)

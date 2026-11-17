@@ -3,7 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { FormEnd } from "@/components/form-field";
 import { PluginLogo } from "@/components/plugin-at-a-glance";
-import { SettingInput, refusedSettings, settingsTyped } from "@/components/setting-fields";
+import { SettingInput, settingsTyped } from "@/components/setting-fields";
+import { refusedSettings } from "@/components/setting-refusals";
 import { Button } from "@/components/ui/button";
 import { type PersonalSettings as Personal, UserService } from "@/gen/nama/v1/user_pb";
 import { onSubmitted } from "@/lib/forms";
@@ -56,7 +57,12 @@ function PluginCard({ plugin, listedAt }: { plugin: Personal; listedAt: number }
       >
         {plugin.settings.map((setting) => (
           // No choices: the Kernel refuses a CHOICE Personal setting (ADR 0046).
-          <SettingInput key={setting.key} setting={setting} error={errors[setting.key]} />
+          <SettingInput
+            key={setting.key}
+            setting={setting}
+            error={errors[setting.key]}
+            checksRequired
+          />
         ))}
         <FormEnd
           action={update.isPending ? "Saving…" : "Save"}
