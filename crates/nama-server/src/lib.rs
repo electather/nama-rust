@@ -143,7 +143,7 @@ pub fn serve(
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
         // Before anything can publish an event, so that no notification misses its link, and
-        // before serving, so the sweep deletes no plan's files but an earlier run's.
+        // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;
         scanner.start_all().await;
         // Quiet long enough that a file being copied in is scanned once it's whole; every six hours

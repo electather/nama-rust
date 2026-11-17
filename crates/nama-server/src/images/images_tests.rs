@@ -6,7 +6,7 @@ use tempfile::TempDir;
 
 use axum::http::{HeaderMap, HeaderValue, header};
 
-use super::{Format, ImageStore, file_name, serving::format_asked, unescape};
+use super::{Format, ImageStore, UPLOADS_DIR, file_name, serving::format_asked, unescape};
 use crate::db::Database;
 
 const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
@@ -134,7 +134,7 @@ async fn sweeping_uploads_deletes_every_leftover_and_keeps_stored_images() {
     let data = tempfile::tempdir().unwrap();
     let store = store_in(&data).await;
     store.write(KEY, b"\xff\xd8").await.unwrap();
-    let uploads = data.path().join("uploads");
+    let uploads = data.path().join(UPLOADS_DIR);
     std::fs::create_dir_all(&uploads).unwrap();
     std::fs::write(uploads.join(".tmpAbC123"), b"half an upload").unwrap();
     std::fs::write(uploads.join("poster.jpg"), b"\xff\xd8").unwrap();
