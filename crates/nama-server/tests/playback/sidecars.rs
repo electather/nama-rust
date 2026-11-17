@@ -134,7 +134,6 @@ async fn a_sup_sidecar_follows_the_files_own_tracks_and_is_served_as_pgs_unchang
         ..chrome()
     };
 
-    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     let plan = fx
         .ask_for_plan(PlanPlaybackRequest {
             version_id: version,
@@ -143,6 +142,7 @@ async fn a_sup_sidecar_follows_the_files_own_tracks_and_is_served_as_pgs_unchang
         })
         .await
         .unwrap();
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
 
     assert_eq!(
         codecs_and_languages(&movie.versions[0].tracks),
