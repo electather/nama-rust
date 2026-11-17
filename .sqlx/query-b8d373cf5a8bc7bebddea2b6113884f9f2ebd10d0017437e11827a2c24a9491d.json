@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT MIN(added_at) AS \"first: i64\" FROM library_items WHERE file_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "first: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b8d373cf5a8bc7bebddea2b6113884f9f2ebd10d0017437e11827a2c24a9491d"
+}

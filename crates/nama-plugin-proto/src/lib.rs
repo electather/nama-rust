@@ -71,7 +71,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::CONNECTOR, "1.0.0"),
     (services::EVENT_OBSERVER, "1.0.0"),
     (services::TITLE_SOURCE, "1.2.0"),
-    (services::AUTOMATION, "1.1.0"),
+    (services::AUTOMATION, "1.2.0"),
     (services::RECOGNISER, "1.0.0"),
     (services::BLOB_STORE, "1.0.0"),
 ];

@@ -6,7 +6,7 @@ use nama_proto::nama::v1::{Event, LibraryItemAdded, LibraryItemRemoved};
 use sqlx::SqliteConnection;
 
 use super::{Contents, Item, ItemKind, ItemRow};
-use crate::{events::event, library::versions::PARSER_VERSION};
+use crate::{db, events::event, library::versions::PARSER_VERSION};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Stored {
@@ -172,8 +172,11 @@ async fn apply(
                 )
                 .fetch_one(&mut *conn)
                 .await?;
+                // A file changed in place, such as remuxed or retagged, is no newer media, and
+                // Cleanup counts days unwatched from when it was added (#837).
+                let added_at = first_added(conn, file).await?.unwrap_or_else(db::now);
                 let removed = remove_items(conn, file).await?;
-                let added = insert_items(conn, file, &items).await?;
+                let added = insert_items(conn, file, &items, added_at).await?;
                 events.extend(removed.into_iter().map(|item| item_removed(library, item)));
                 events.extend(
                     added
@@ -246,7 +249,7 @@ async fn reparse(
             .await?;
         events.push(item_removed(library, gone.id));
     }
-    let added = insert_items(conn, file, &unpaired).await?;
+    let added = insert_items(conn, file, &unpaired, db::now()).await?;
     events.extend(
         added
             .into_iter()
@@ -334,17 +337,29 @@ async fn remove_items(conn: &mut SqliteConnection, file: i64) -> Result<Vec<i64>
     .await
 }
 
+/// When the file `file`'s earliest stored Item was added, or `None` if it has none.
+async fn first_added(conn: &mut SqliteConnection, file: i64) -> Result<Option<i64>, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT MIN(added_at) AS "first: i64" FROM library_items WHERE file_id = ?"#,
+        file
+    )
+    .fetch_one(conn)
+    .await
+}
+
 async fn insert_items(
     conn: &mut SqliteConnection,
     file: i64,
     items: &[Item],
+    added_at: i64,
 ) -> Result<Vec<i64>, sqlx::Error> {
     let mut ids = Vec::with_capacity(items.len());
     for item in items {
         let row = ItemRow::from(item);
         let id = sqlx::query_scalar!(
-            r#"INSERT INTO library_items (file_id, kind, title, year, hint, season, episode)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+            r#"INSERT INTO library_items (file_id, kind, title, year, hint, season, episode,
+                                          added_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                RETURNING id AS "id!""#,
             file,
             row.kind,
@@ -353,6 +368,7 @@ async fn insert_items(
             row.hint,
             row.season,
             row.episode,
+            added_at,
         )
         .fetch_one(&mut *conn)
         .await?;

@@ -147,6 +147,10 @@ message Title {
   optional uint32 season_number = 4;
   // Unset for a Movie.
   optional uint32 episode_number = 5;
+  // When a Scan first stored the Movie's newest Version, or the Episode's, in milliseconds since
+  // the Unix epoch. A rescan or a new Match keeps it, even of a file changed in place. Items
+  // stored before Servers recorded it have the time the Server upgraded.
+  int64 added_at_ms = 6;
 }
 
 // Which Movie or Episode, in which Library.

@@ -216,6 +216,7 @@ impl PluginKernel {
                 show_title: listed.show_title,
                 season_number: listed.season.and_then(|season| u32::try_from(season).ok()),
                 episode_number: (listed.episode).and_then(|number| u32::try_from(number).ok()),
+                added_at_ms: listed.added_at.saturating_mul(1000),
                 ..Title::default()
             })
             .collect();

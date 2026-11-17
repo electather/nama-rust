@@ -18,6 +18,8 @@ pub(crate) struct Listed {
     pub(crate) season: Option<i64>,
     /// An Episode's number within its Season; `None` for a Movie.
     pub(crate) episode: Option<i64>,
+    /// When a scan stored its newest Version, in seconds since the Unix epoch.
+    pub(crate) added_at: i64,
 }
 
 impl Contents {
@@ -40,7 +42,8 @@ impl Contents {
         let rows = sqlx::query!(
             r#"WITH preferred AS (
                    SELECT ids.namespace, ids.value, item_matches.title, item_matches.show_title,
-                          library_items.season, library_items.episode, library_files.path,
+                          library_items.season, library_items.episode, library_items.added_at,
+                          library_files.path,
                           ROW_NUMBER() OVER (
                               PARTITION BY ids.item_id
                               ORDER BY instr(',' || libraries.title_sources || ',',
@@ -63,13 +66,14 @@ impl Contents {
                                        AND show.scope = 'show'))),
                listed AS (
                    SELECT *, ROW_NUMBER() OVER (PARTITION BY namespace, value ORDER BY path)
-                                 AS version
+                                 AS version,
+                             MAX(added_at) OVER (PARTITION BY namespace, value) AS newest_added_at
                    FROM preferred
                    WHERE rank = 1
                      AND (?3 IS NULL
                           OR (namespace, length(value), value) > (?3, length(?4), ?4)))
                SELECT namespace AS "namespace!", value AS "value!", title AS "title!",
-                      show_title, season, episode
+                      show_title, season, episode, newest_added_at AS "newest_added_at!"
                FROM listed
                WHERE version = 1
                ORDER BY namespace, length(value), value
@@ -92,6 +96,7 @@ impl Contents {
                     show_title: row.show_title.filter(|_| episode),
                     season: row.season.filter(|_| episode),
                     episode: row.episode.filter(|_| episode),
+                    added_at: row.newest_added_at,
                 })
             })
             .collect())

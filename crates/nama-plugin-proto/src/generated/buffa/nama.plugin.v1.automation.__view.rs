@@ -3265,6 +3265,12 @@ pub struct TitleView<'a> {
     ///
     /// Field 5: `episode_number`
     pub episode_number: ::core::option::Option<u32>,
+    /// When a Scan first stored the Movie's newest Version, or the Episode's, in milliseconds since
+    /// the Unix epoch. A rescan or a new Match keeps it, even of a file changed in place. Items
+    /// stored before Servers recorded it have the time the Server upgraded.
+    ///
+    /// Field 6: `added_at_ms`
+    pub added_at_ms: i64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
@@ -3346,6 +3352,13 @@ impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
                 )?;
                 view.episode_number = Some(::buffa::types::decode_uint32(&mut cur)?);
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.added_at_ms = ::buffa::types::decode_int64(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3381,6 +3394,7 @@ impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
             show_title: self.show_title.map(|s| s.to_string()),
             season_number: self.season_number,
             episode_number: self.episode_number,
+            added_at_ms: self.added_at_ms,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3412,6 +3426,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleView<'a> {
         if let Some(v) = self.episode_number {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if self.added_at_ms != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.added_at_ms) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3442,6 +3459,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleView<'a> {
         }
         if let Some(v) = self.episode_number {
             ::buffa::types::put_uint32_field(5u32, v, buf);
+        }
+        if self.added_at_ms != 0i64 {
+            ::buffa::types::put_int64_field(6u32, self.added_at_ms, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3487,6 +3507,13 @@ impl<'__a> ::serde::Serialize for TitleView<'__a> {
                 .serialize_entry(
                     "episodeNumber",
                     &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.added_at_ms) {
+            __map
+                .serialize_entry(
+                    "addedAtMs",
+                    &::buffa::json_helpers::ProtoJson(&self.added_at_ms),
                 )?;
         }
         __map.end()
@@ -3610,6 +3637,15 @@ impl TitleOwnedView {
     #[must_use]
     pub fn episode_number(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().episode_number
+    }
+    /// When a Scan first stored the Movie's newest Version, or the Episode's, in milliseconds since
+    /// the Unix epoch. A rescan or a new Match keeps it, even of a file changed in place. Items
+    /// stored before Servers recorded it have the time the Server upgraded.
+    ///
+    /// Field 6: `added_at_ms`
+    #[must_use]
+    pub fn added_at_ms(&self) -> i64 {
+        self.0.reborrow().added_at_ms
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TitleView<'static>>> for TitleOwnedView {
