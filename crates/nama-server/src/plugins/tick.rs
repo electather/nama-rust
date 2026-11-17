@@ -13,15 +13,16 @@ use tracing::warn;
 use super::{ExtensionPoints, Failure, points::Asked, scope::Scope};
 
 /// A new scope for an enablement of `manifest`'s Plugin, ticking its Automation every
-/// `tick_every` if it has one, `registrations` provide one and it isn't `on_demand`: a Registry
-/// set to tick on demand never starts the loop. The first tick comes once the
-/// Kernel serves: at once for a Plugin enabled after that, so an Admin enabling it sees it act
-/// without waiting an interval and tests need no wait, and once serving starts for one enabled at
-/// startup, whose tick the Kernel would otherwise refuse.
+/// `tick_every` if it has one and `registrations` provide one, unless its Registry is set to tick
+/// on demand. The first tick comes once the Kernel serves: at once for a Plugin enabled after
+/// that, so an Admin enabling it sees it act without waiting an interval and tests need no wait,
+/// and once serving starts for one enabled at startup, whose tick the Kernel would otherwise
+/// refuse.
 ///
 /// The Registry calls it under its lock, so the loop is in the enablement's scope before a
-/// disable can find it, and reads `on_demand` from the state it holds: reading it through the
-/// Registry would retake that lock. Starts nothing outside a Tokio runtime, where no task can run.
+/// disable can find it, and passes `on_demand` from the state it holds: reading it through
+/// the Registry would retake that lock. Starts nothing outside a Tokio runtime, where no task can
+/// run.
 pub(super) fn scope(
     points: &ExtensionPoints,
     manifest: &Manifest,
