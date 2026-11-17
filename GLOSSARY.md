@@ -21,7 +21,7 @@ One way a client might reach a Server, such as a LAN address, a public URL or a 
 _Avoid_: endpoint, connection, URI
 
 **Server URL**:
-The one address an admin sets for people to reach a Server's web app at, such as `https://nama.example.com`. Notifiers' messages link to Requests there; with none set, they have no links.
+The one address people reach a Server's web app at, such as `https://nama.example.com`: the one an admin sets, else a Linked Server's public name from the Hub. Notifiers' messages and Invites link there; with none, they have no links.
 _Avoid_: base URL, public URL
 
 ## People
@@ -53,6 +53,10 @@ _Avoid_: claim token, bootstrap code
 **Permission**:
 One thing a User is allowed to do on a Server, such as Request or manage Libraries. Each User has their own set, and new Users get the Server's default set. A User with the Admin Permission may do everything.
 _Avoid_: role, scope, right, group
+
+**Invite**:
+A single-use link that lets one person create a User on a Server, with the Permissions chosen when it was made.
+_Avoid_: invitation code, share, referral
 
 **Account**:
 A person's identity on the Hub, which can be linked to Users on many Servers.
