@@ -84,11 +84,16 @@ fn build_bundled() -> Result<(), Box<dyn Error>> {
             workspace.join(source).display()
         );
     }
-    // A target directory of its own: this build holds the lock on the Server's.
-    // ponytail: one per OUT_DIR, so each profile and feature set builds them again; share one if
-    // that gets slow.
+    // A target directory of its own, since this build holds the lock on the Server's. It sits in the
+    // profile's folder, three up from `OUT_DIR` (`<profile>/build/nama-server-<hash>/out`), so
+    // `cargo build`, `clippy`, `nextest` and each feature set share one Plugin build instead of
+    // each building them again.
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
-    let target_dir = out_dir.join("plugins");
+    let target_dir = out_dir
+        .ancestors()
+        .nth(3)
+        .unwrap_or(&out_dir)
+        .join("bundled-plugins");
     let mut cargo = Command::new(env::var("CARGO")?);
     cargo.args(["build", "--release", "--locked"]);
     for name in &names {
