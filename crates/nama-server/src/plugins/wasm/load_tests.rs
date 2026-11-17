@@ -335,14 +335,32 @@ fn tick_every_is_ignored_unless_the_manifest_names_an_automation() {
 #[cfg(feature = "testing")]
 #[test]
 fn an_installed_plugins_clock_follows_the_servers_advanced_clock() {
-    use super::{compile, write_cache_config};
-    use crate::{db, log_capture::CapturedLog};
+    use std::sync::Arc;
+
+    use nama_plugin_api::PluginId;
+
+    use super::{compile_with_kernel, write_cache_config};
+    use crate::{
+        db,
+        log_capture::CapturedLog,
+        plugins::wasm::{calls::Calls, plugin_log::PluginLog},
+    };
 
     let data_dir = tempfile::tempdir().unwrap();
     let cache_config = write_cache_config(data_dir.path()).unwrap();
     // The test Plugin's Observer logs what `nama_pdk::now` reads when its `observer` is `clock`.
     let config = vec![("observer".to_owned(), "clock".to_owned())];
-    let compiled = compile(&test_plugin::build(""), &cache_config, Vec::new(), config).unwrap();
+    let plugin_log = PluginLog::new(PluginId::from("test-plugin".to_owned()), Arc::default());
+    let compiled = compile_with_kernel(
+        &test_plugin::build(""),
+        &cache_config,
+        Vec::new(),
+        config,
+        None,
+        Arc::new(plugin_log),
+        Calls::default(),
+    )
+    .unwrap();
 
     db::advance_clock(Duration::from_hours(30 * 24));
     let before = db::now_ms();
@@ -365,4 +383,26 @@ fn an_installed_plugins_clock_follows_the_servers_advanced_clock() {
         (before..=after).contains(&read),
         "{before} <= {read} <= {after}"
     );
+}
+
+#[cfg(feature = "testing")]
+#[test]
+fn a_call_with_no_enablement_logs_nothing() {
+    use super::{compile, write_cache_config};
+    use crate::log_capture::CapturedLog;
+
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    // The test Plugin's Observer logs what `nama_pdk::now` reads when its `observer` is `clock`.
+    let config = vec![("observer".to_owned(), "clock".to_owned())];
+    let compiled = compile(&test_plugin::build(""), &cache_config, Vec::new(), config).unwrap();
+
+    let log = CapturedLog::start();
+    extism::Plugin::new_from_compiled(&compiled)
+        .unwrap()
+        .call::<&[u8], &[u8]>("observe_events", &[])
+        .unwrap();
+    let logged = log.finish();
+
+    assert!(!logged.contains("test-plugin's clock reads"), "{logged}");
 }

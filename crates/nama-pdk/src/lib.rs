@@ -9,7 +9,7 @@ struct ReadmeExamples;
 
 use std::{collections::HashMap, fmt, time::Duration};
 
-pub use extism_pdk::{self, FnResult, plugin_fn};
+pub use ::extism_pdk::{FnResult, plugin_fn};
 pub use nama_plugin_proto::{
     self,
     nama::plugin::v1::{
@@ -24,6 +24,7 @@ pub use nama_plugin_proto::{
 
 mod automation;
 mod blob_store;
+mod log;
 mod notification_text;
 mod recogniser;
 
@@ -37,10 +38,43 @@ pub use recogniser::{
     TitleRecognised, TitleToRecognise,
 };
 
+#[doc(hidden)]
+pub use log::write_log_line;
+
+/// Extism's PDK, as `plugin_fn` and the Plugins use it, without its log macros: a Plugin logs
+/// with [`info!`] and the others, which the Server names its Plugin in, blanks its secrets in and
+/// bounds (ADR 0061).
+///
+/// ```compile_fail
+/// nama_pdk::extism_pdk::info!("Extism's own log is closed");
+/// ```
+pub mod extism_pdk {
+    pub use ::extism_pdk::*;
+
+    // Named, these shadow the glob's macros of the same names.
+    #[doc(hidden)]
+    pub use crate::{
+        __extism_log_is_closed as debug, __extism_log_is_closed as error,
+        __extism_log_is_closed as info, __extism_log_is_closed as log,
+        __extism_log_is_closed as trace, __extism_log_is_closed as warn,
+    };
+}
+
+/// Stands in for each of Extism's log macros in [`extism_pdk`], so calling one fails to build.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __extism_log_is_closed {
+    ($($arg:tt)*) => {
+        ::std::compile_error!(
+            "log with nama_pdk::{debug!, info!, warn!, error!}, not Extism's macros"
+        )
+    };
+}
+
 /// What a notification says happened, in the Glossary's words, or `None` for what isn't told.
 pub use notification_text::what_happened;
 
-use extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
+use ::extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
 use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices};
 
 /// The value of the id in `namespace` among a title's `ids`, such as its `tmdb` id, if it has one.

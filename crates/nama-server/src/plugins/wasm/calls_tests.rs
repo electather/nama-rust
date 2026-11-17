@@ -25,6 +25,7 @@ use super::{
     load::{
         BLOB_TIMEOUT, CALL_TIMEOUT, TICK_TIMEOUT, compile_with_kernel, load, write_cache_config,
     },
+    plugin_log::PluginLog,
     services::{Method, OBSERVE_EVENTS, POINTS, TICK},
 };
 
@@ -206,6 +207,7 @@ fn running_with(
         Vec::new(),
         config,
         kernel,
+        Arc::new(PluginLog::new(plugin.manifest.id.clone(), Arc::default())),
         Calls::default(),
     )
     .unwrap();
@@ -235,7 +237,7 @@ async fn a_call_waiting_in_a_kernel_function_past_its_limit_still_succeeds() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_looping_tick_past_its_limit_times_out_and_counts_as_a_crash() {
+async fn a_tick_logging_in_a_loop_times_out_at_its_limit_and_counts_as_a_crash() {
     let data_dir = tempfile::tempdir().unwrap();
     let running = running("looping-tick", &data_dir, None);
     let tick = Method {

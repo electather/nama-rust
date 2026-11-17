@@ -76,10 +76,10 @@ where
 #[must_use]
 pub fn exported_filter() -> EnvFilter {
     let asked = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_owned());
-    // Extism logs an Installed Plugin's error as it is, which may quote a secret setting; the
-    // Server logs it itself with secrets blanked. Forced here, unlike stdout, since this leaves
-    // the machine.
-    EnvFilter::builder().parse_lossy(format!("{asked},extism::plugin=off"))
+    // Extism logs an Installed Plugin's error, and the lines it writes through Extism's own log
+    // functions, as they are, which may quote a secret setting; the Server logs both itself with
+    // secrets blanked (ADR 0061). Forced here, unlike stdout, since this leaves the machine.
+    EnvFilter::builder().parse_lossy(format!("{asked},extism::plugin=off,extism::pdk=off"))
 }
 
 /// Runs a ConnectRPC call in a span named after its service and method, continuing the trace a
