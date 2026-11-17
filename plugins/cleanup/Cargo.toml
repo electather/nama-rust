@@ -1,7 +1,7 @@
 [package]
 name = "nama-plugin-cleanup"
 version = "0.1.0"
-description = "Installed Plugin deleting the Movies and Episodes every User watched long ago, bundled in the Server"
+description = "Installed Plugin deleting the Requested Movies and Episodes their Requesters are done with, bundled in the Server"
 license = "AGPL-3.0-only"
 edition.workspace = true
 repository.workspace = true
