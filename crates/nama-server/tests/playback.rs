@@ -434,7 +434,6 @@ impl Fixture {
 }
 
 /// `who`'s Playback Plan for the Version `version`, on their own Device, which is [`chrome`].
-#[cfg(unix)]
 async fn plan_as(who: &SignedIn, version: i64) -> Result<PlaybackPlan, ConnectError> {
     let request = PlanPlaybackRequest {
         version_id: version,
