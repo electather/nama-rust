@@ -40,14 +40,19 @@ impl Drop for RemoveOnDrop {
 }
 
 /// Returns the first log line containing `needle`, skipping earlier lines.
+fn wait_for_line(lines: &mpsc::Receiver<String>, needle: &str) -> String {
+    wait_for_line_within(lines, needle, TIMEOUT)
+}
+
+/// [`wait_for_line`], waiting up to `timeout` for each line.
 #[expect(
     clippy::panic,
     reason = "a missing log line fails the test that waits for it"
 )]
-fn wait_for_line(lines: &mpsc::Receiver<String>, needle: &str) -> String {
+fn wait_for_line_within(lines: &mpsc::Receiver<String>, needle: &str, timeout: Duration) -> String {
     loop {
         let line = lines
-            .recv_timeout(TIMEOUT)
+            .recv_timeout(timeout)
             .unwrap_or_else(|err| panic!("server never logged {needle:?}: {err}"));
         if line.contains(needle) {
             return line;
@@ -234,8 +239,10 @@ fn server_logs_installed_plugins_enables_the_stored_ones_and_skips_the_ones_it_r
     let mut server = spawn_server(&config_file);
     let lines = log_lines(server.0.as_mut().unwrap());
 
-    // The Server reads the files in name order.
-    let corrupt = wait_for_line(&lines, "corrupt.wasm");
+    // The Server reads the files in name order, and logs them only once it has compiled every
+    // Plugin, the bundled ones too, into an empty cache: a busy CI runner took over 30 s (#1066).
+    // Under nextest's 90 s in CI.
+    let corrupt = wait_for_line_within(&lines, "corrupt.wasm", Duration::from_secs(75));
     assert!(corrupt.contains("could not load it"), "{corrupt}");
     let no_manifest = wait_for_line(&lines, "no-manifest.wasm");
     assert!(no_manifest.contains("manifest()"), "{no_manifest}");
