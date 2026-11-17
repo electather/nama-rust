@@ -16,6 +16,7 @@
 //! files a scan stored for a Library and Matched, are served, by id, so a client can never name a
 //! path. The subtitles a plan offers are served beside it ([`subtitles`]).
 
+mod autoplay;
 mod choices;
 mod codecs;
 mod direct_play;
@@ -28,6 +29,7 @@ mod subtitles;
 mod track_preferences;
 mod tracks;
 
+pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;

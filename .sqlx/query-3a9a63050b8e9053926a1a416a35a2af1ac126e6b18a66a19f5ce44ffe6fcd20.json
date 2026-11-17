@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO autoplay_off (user_id) VALUES (?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "3a9a63050b8e9053926a1a416a35a2af1ac126e6b18a66a19f5ce44ffe6fcd20"
+}

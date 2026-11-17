@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM autoplay_off WHERE user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "cf517b9b8d365fbc7b64a53307ee9c9a4831b2a01d9707963296b051bc299ddd"
+}

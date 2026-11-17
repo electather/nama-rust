@@ -55,6 +55,15 @@ service PlaybackService {
   rpc SetAudioPreference(SetAudioPreferenceRequest) returns (SetAudioPreferenceResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns whether the next Episode plays by itself when one ends for the caller, on every
+  // Device.
+  rpc GetAutoplay(GetAutoplayRequest) returns (GetAutoplayResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Turns playing the next Episode by itself on or off for the caller, on every Device.
+  rpc SetAutoplay(SetAutoplayRequest) returns (SetAutoplayResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message GetTrackPreferencesRequest {}
@@ -79,6 +88,20 @@ message SetAudioPreferenceRequest {
 }
 
 message SetAudioPreferenceResponse {}
+
+message GetAutoplayRequest {}
+
+message GetAutoplayResponse {
+  // Whether the next Episode plays by itself: true until the caller turns it off.
+  bool on = 1;
+}
+
+message SetAutoplayRequest {
+  // Whether the next Episode plays by itself for the caller from now on.
+  bool on = 1;
+}
+
+message SetAutoplayResponse {}
 
 // What a User wants audio to start as in everything they play, unless the Show or Movie has an
 // Audio Preference of its own.

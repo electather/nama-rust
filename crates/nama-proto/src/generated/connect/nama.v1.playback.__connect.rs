@@ -46,6 +46,22 @@ pub type OwnedSetAudioPreferenceRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetAudioPreferenceResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetAudioPreferenceResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetAutoplayRequestView<'static>>`.
+pub type OwnedGetAutoplayRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetAutoplayRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetAutoplayResponseView<'static>>`.
+pub type OwnedGetAutoplayResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetAutoplayResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetAutoplayRequestView<'static>>`.
+pub type OwnedSetAutoplayRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetAutoplayRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetAutoplayResponseView<'static>>`.
+pub type OwnedSetAutoplayResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetAutoplayResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::PlanPlaybackResponse>
 for crate::messages::nama::v1::__buffa::view::PlanPlaybackResponseView<'_> {
     fn encode(
@@ -250,6 +266,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetAutoplayResponse>
+for crate::messages::nama::v1::__buffa::view::GetAutoplayResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetAutoplayResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetAutoplayResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetAutoplayResponse>
+for crate::messages::nama::v1::__buffa::view::SetAutoplayResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetAutoplayResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetAutoplayResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const PLAYBACK_SERVICE_SERVICE_NAME: &str = "nama.v1.PlaybackService";
 /// Static [`Spec`](::connectrpc::Spec) for the `PlanPlayback` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -285,6 +369,18 @@ pub const PLAYBACK_SERVICE_SET_SUBTITLE_PREFERENCE_SPEC: ::connectrpc::Spec = ::
 /// Static [`Spec`](::connectrpc::Spec) for the `SetAudioPreference` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.PlaybackService/SetAudioPreference",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetAutoplay` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_GET_AUTOPLAY_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/GetAutoplay",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetAutoplay` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/SetAutoplay",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -502,6 +598,53 @@ pub trait PlaybackService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Returns whether the next Episode plays by itself when one ends for the caller, on every
+    /// Device.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_autoplay<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetAutoplayRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetAutoplayResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Turns playing the next Episode by itself on or off for the caller, on every Device.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_autoplay<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetAutoplayRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetAutoplayResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -708,6 +851,64 @@ impl<S: PlaybackService> PlaybackServiceExt for S {
                 },
             )
             .with_spec(PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC)
+            .route_view_idempotent(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "GetAutoplay",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetAutoplayRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetAutoplayRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_autoplay(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetAutoplayResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_GET_AUTOPLAY_SPEC)
+            .route_view(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "SetAutoplay",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetAutoplayRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetAutoplayRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_autoplay(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetAutoplayResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -796,6 +997,18 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC),
+                )
+            }
+            "GetAutoplay" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(PLAYBACK_SERVICE_GET_AUTOPLAY_SPEC),
+                )
+            }
+            "SetAutoplay" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC),
                 )
             }
             _ => None,
@@ -943,6 +1156,46 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                         .encode::<
                             crate::messages::nama::v1::SetAudioPreferenceResponse,
                         >(format)
+                })
+            }
+            "GetAutoplay" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetAutoplayRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetAutoplayRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetAutoplayRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_autoplay(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::GetAutoplayResponse>(format)
+                })
+            }
+            "SetAutoplay" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetAutoplayRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetAutoplayRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetAutoplayRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_autoplay(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::SetAutoplayResponse>(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -1337,6 +1590,96 @@ where
                 &self.transport,
                 &self.config,
                 PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetAutoplay RPC. Sends a request to /nama.v1.PlaybackService/GetAutoplay.
+    pub async fn get_autoplay(
+        &self,
+        request: crate::messages::nama::v1::GetAutoplayRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetAutoplayResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_autoplay_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetAutoplay RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_autoplay_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetAutoplayRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetAutoplayResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_GET_AUTOPLAY_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetAutoplay RPC. Sends a request to /nama.v1.PlaybackService/SetAutoplay.
+    pub async fn set_autoplay(
+        &self,
+        request: crate::messages::nama::v1::SetAutoplayRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetAutoplayResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_autoplay_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetAutoplay RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_autoplay_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetAutoplayRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetAutoplayResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
