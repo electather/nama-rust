@@ -72,6 +72,12 @@ test("Settings shows no Personal settings while no Plugin declares any", async (
   expect(screen.queryByRole("heading", { name: "Personal settings" })).toBeNull();
 });
 
+test("a required Personal setting is required", async () => {
+  openWithNtfy();
+
+  expect((await card()).getByLabelText<HTMLInputElement>("Topic").required).toBe(true);
+});
+
 test("a set secret is said to be set, never filled in", async () => {
   openWithNtfy();
 
