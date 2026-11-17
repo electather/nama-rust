@@ -344,7 +344,9 @@ pub const PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC: ::connectrpc::Spec = ::con
 pub trait PlaybackService: Send + Sync + 'static {
     /// Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
     /// first if the Server has no current Tracks for it. A choice the caller asks for that the plan
-    /// can't honour here is dropped, and a reason says so (ADR 0031). Fails with `not_found` if
+    /// can't honour here is dropped if the plan then plays, and a reason says so (ADR 0031); one
+    /// naming a Track that isn't there or of its kind, or a subtitle the Device draws itself, is
+    /// ignored and gets no reason (`audio_track`, `subtitle_track`). Fails with `not_found` if
     /// there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
     /// itself needs a Transcode to play it, never for a choice, and the Server is already running as
     /// many as it may; one of the caller's own Device's doesn't count, as a new plan replaces the one

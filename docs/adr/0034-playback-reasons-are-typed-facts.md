@@ -2,7 +2,7 @@
 
 ADR 0027 had every step record why in an English sentence, even a step that ruled nothing out. A client couldn't translate the sentences, couldn't tell the two that decided a plan from the nine that didn't, and showed whatever wording the Server had. Now a plan carries Playback Reasons. Each is one fact: a `PlaybackReasonKind` with the values it mentions in `params`, shaped as a Refusal is (ADR 0019). The client owns the wording, and the Server's English `text` rides beside each for a client that doesn't know the kind.
 
-A step gives a reason only when it rules a method out, changes what plays, drops a choice (ADR 0031) or assumes what it couldn't know, so a plain Direct Play has none. The Server marks each reason as having decided the plan or not. One decided it if it ruled out a method the plan would rather have used than the one it plays (Direct Play before Remux before Transcode), whether or not another reason ruled that method out too, or if it says what the method it plays changes, or that a choice was dropped. The rest is context, such as a busy Server on a plan that Remuxes anyway.
+A step gives a reason only when it rules a method out, changes what plays, drops a choice (ADR 0031) or assumes what it couldn't know, so a Direct Play on a Server that can do everything has none. The Server marks each reason as having decided the plan or not. One decided it if it ruled out a method the plan would rather have used than the one it plays (Direct Play before Remux before Transcode), whether or not another reason ruled that method out too, or if it says what the method it plays changes, or that a choice was dropped. The rest is context, such as a busy Server on a plan that Remuxes anyway.
 
 ## Considered Options
 

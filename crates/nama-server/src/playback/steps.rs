@@ -430,7 +430,8 @@ pub(super) fn server_busy(facts: &Facts, candidates: Option<&Candidates>) -> Vec
 /// The most Transcodes the Server may run at once, if running that many is all that keeps the
 /// plan for `facts` from playing: a Transcode would play it otherwise. A plan nothing else plays
 /// is refused as busy rather than shown as unplayable, since trying again later may play it. Only
-/// what the Device needs counts: a choice that needs a Transcode is dropped first.
+/// what the Device needs counts: `build` keeps a choice only when nothing plays without it either,
+/// so a Transcode the choice needs is one the Device needs too.
 pub(super) fn too_busy_to_play(facts: Facts) -> Option<u32> {
     let running_transcodes = facts.running_transcodes;
     if running_transcodes == RunningTranscodes::default() {
