@@ -155,3 +155,52 @@ test("a switch that stopped shows why, with the old store still in use", async (
     ),
   ).toBeDefined();
 });
+
+test("a disabled store Plugin in use is named by its name, and isn't offered", async () => {
+  openSettings({ getImageSettings: () => ({ settings: { storePluginId: "old-store" } }) });
+
+  const store = await imageStore();
+  expect(await store.findByText("Old store", { selector: "span" })).toBeDefined();
+  const options = store.getAllByRole("option").map((option) => option.textContent);
+  expect(options).toEqual(["Local disk", "S3"]);
+});
+
+test("a stopped switch to a disabled store Plugin names it, with one full stop", async () => {
+  openSettings({
+    getImageSettings: () => ({
+      settings: {},
+      switching: { toPluginId: "old-store", copied: 1, total: 3, failure: "it went away." },
+    }),
+  });
+
+  const store = await imageStore();
+
+  expect(
+    await store.findByText(
+      "Moving the images to Old store stopped, so they stay on Local disk: it went away.",
+    ),
+  ).toBeDefined();
+});
+
+test("a failed check whose reason ends its sentence shows one full stop", async () => {
+  openSettings({
+    switchImageStore: () => {
+      throw refused(Code.FailedPrecondition, "the new image store failed its check", {
+        reason: RefusalReason.IMAGE_STORE_FAILED_CHECK,
+        field: "plugin_id",
+        params: { pluginId: "s3", reason: "Access denied." },
+      });
+    },
+  });
+
+  const store = await imageStore();
+  await store.findByRole("option", { name: "S3" });
+  fireEvent.change(store.getByLabelText("Keep images on"), { target: { value: "s3" } });
+  fireEvent.click(store.getByRole("button", { name: "Switch image store" }));
+
+  expect(
+    await store.findByText(
+      "S3 failed its check, so the images stay where they are: Access denied.",
+    ),
+  ).toBeDefined();
+});
