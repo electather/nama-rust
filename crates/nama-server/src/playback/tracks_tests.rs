@@ -50,24 +50,6 @@ impl Tracks {
             .unwrap();
     }
 
-    /// Leaves the Version `version`'s kept keyframes without their file's start, as a row kept
-    /// before migration 0083 has them.
-    pub(in crate::playback) async fn forget_keyframes_start(&self, version: i64) {
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "UPDATE version_probes SET keyframes_start_ms = NULL WHERE version_id = ?",
-                        version
-                    )
-                    .execute(&mut **tx)
-                    .await
-                })
-            })
-            .await
-            .unwrap();
-    }
-
     /// Marks the Version `version` as failed by the version before the current one.
     pub(in crate::playback) async fn failed_by_older_probe(&self, version: i64) {
         self.db

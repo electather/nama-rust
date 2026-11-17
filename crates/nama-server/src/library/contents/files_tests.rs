@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use tempfile::TempDir;
 
@@ -208,40 +208,4 @@ async fn reading_unparsed_files_again_marks_only_that_librarys_unparsed_files() 
         ),
         (true, PARSER_VERSION, PARSER_VERSION)
     );
-}
-
-#[tokio::test]
-async fn items_stored_before_upgrading_were_added_when_the_server_upgraded_not_when_modified() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let options = sqlx::sqlite::SqliteConnectOptions::new()
-        .filename(data_dir.path().join(db::FILE_NAME))
-        .create_if_missing(true);
-    // A raw connection, not `Database::write`: `Database::open` would run every migration.
-    let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
-    // The last migration before Items recorded when they were added.
-    sqlx::migrate!().run_to(78, &mut before).await.unwrap();
-    sqlx::query(
-        "INSERT INTO libraries (id, name, kind) VALUES (1, 'Movies', 'movies');
-         INSERT INTO library_files (id, library_id, path, size, modified_ns)
-         VALUES (1, 1, '/media/Alien.mkv', 10, 0);
-         INSERT INTO library_items (file_id, kind, title) VALUES (1, 'movie', 'Alien')",
-    )
-    .execute(&mut before)
-    .await
-    .unwrap();
-
-    // The migration reads SQLite's clock, which `db::advance_clock` doesn't move.
-    let unix_seconds = || {
-        let since = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        i64::try_from(since.as_secs()).unwrap()
-    };
-    let upgrading = unix_seconds();
-    sqlx::migrate!().run_to(79, &mut before).await.unwrap();
-    let upgraded = unix_seconds();
-    let added: i64 = sqlx::query_scalar("SELECT added_at FROM library_items")
-        .fetch_one(&mut before)
-        .await
-        .unwrap();
-
-    assert!((upgrading..=upgraded).contains(&added), "{added}");
 }

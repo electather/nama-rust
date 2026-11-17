@@ -364,39 +364,6 @@ async fn following_a_show_asked_by_tmdb_stores_the_tvdb_id_its_source_gave_and_f
 }
 
 #[tokio::test]
-async fn a_followed_show_opened_before_its_ids_were_stored_keeps_the_id_it_was_kept_under() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let options = sqlx::sqlite::SqliteConnectOptions::new()
-        .filename(data_dir.path().join(crate::db::FILE_NAME))
-        .create_if_missing(true);
-    // A raw connection, not `Database::write`: `Database::open` would run every migration.
-    let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
-    sqlx::migrate!().run_to(63, &mut before).await.unwrap();
-    sqlx::query(
-        "INSERT INTO followed_shows (id, show_id, title, state, created_at)
-         VALUES (1, 'tmdb-70523', 'Dark', 'approved', 0), (2, 'tvdb-5', 'Five', 'declined', 0)",
-    )
-    .execute(&mut before)
-    .await
-    .unwrap();
-
-    sqlx::migrate!().run_to(64, &mut before).await.unwrap();
-    let ids: Vec<(i64, String, String)> =
-        sqlx::query_as("SELECT * FROM followed_show_ids ORDER BY followed_show_id")
-            .fetch_all(&mut before)
-            .await
-            .unwrap();
-
-    assert_eq!(
-        ids,
-        [
-            (1, "tmdb".to_owned(), "70523".to_owned()),
-            (2, "tvdb".to_owned(), "5".to_owned())
-        ]
-    );
-}
-
-#[tokio::test]
 async fn joining_an_open_followed_show_with_an_id_it_lacks_stores_it_and_a_later_ask_finds_it() {
     let (_data, db) = ada_and_bob().await;
     let tvdb = ExternalId::new("tvdb", "334824").unwrap();

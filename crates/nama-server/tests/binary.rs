@@ -1,8 +1,6 @@
 //! Runs the real `nama-server` binary.
 #![cfg(unix)]
 
-#[path = "support/migrations.rs"]
-mod migrations;
 #[path = "support/test_plugin.rs"]
 mod test_plugin;
 
@@ -138,10 +136,10 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
         "{config_line}"
     );
 
-    // A fresh data directory gets a new database with every migration applied.
     let database_line = wait_for_line(&lines, "opened database");
+    let every_version: Vec<i64> = sqlx::migrate!().iter().map(|m| m.version).collect();
     assert!(
-        database_line.contains(&format!("migrations_applied={:?}", migrations::numbers())),
+        database_line.contains(&format!("migrations_applied={every_version:?}")),
         "{database_line}"
     );
     assert!(data_dir.join("nama.db").is_file());

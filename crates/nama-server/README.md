@@ -43,6 +43,16 @@ Tests make the media they probe with ffmpeg rather than commit sample files, so 
 
 A Server has the OS report changes in Library folders and scans a Library 30 s after its folders go quiet, and every Library every six hours for changes the OS doesn't report. `watch_folders = false` in `nama.toml` (or `NAMA_WATCH_FOLDERS=false`) turns the OS watch off, leaving the six-hourly and requested scans.
 
+## Adding a migration
+
+A schema change goes in a new migration named by its UTC creation time (rules in `AGENTS.md`), from the workspace root:
+
+```sh
+sqlx migrate add --timestamp --source crates/nama-server/migrations <name>
+```
+
+Without `--timestamp`, sqlx-cli continues the table files' sequence, and a test fails. Then regenerate `.sqlx/` as below.
+
 ## Regenerating `.sqlx/` after a query or migration change
 
 Queries use `sqlx::query!` and friends, which check them at compile time against the query data checked in under `.sqlx/` at the workspace root. Builds need no database. After adding or changing a query or a migration, regenerate that data against a scratch database, from the workspace root:

@@ -1,8 +1,5 @@
 //! The Server's SQLite database: opening, migrating, and reading while the single writer works.
 
-#[path = "support/migrations.rs"]
-mod migrations;
-
 use std::{
     path::Path,
     sync::{
@@ -23,7 +20,8 @@ async fn a_fresh_start_creates_the_database_and_restarting_applies_no_migrations
 
     let first_start = Database::open(&data_dir).await.unwrap();
     assert!(data_dir.join(db::FILE_NAME).is_file());
-    assert_eq!(first_start.migrations_applied(), migrations::numbers());
+    let every_version: Vec<i64> = sqlx::migrate!().iter().map(|m| m.version).collect();
+    assert_eq!(first_start.migrations_applied(), every_version);
     insert_rows(&first_start, 0, 1).await.unwrap();
     first_start.close().await;
 
@@ -101,7 +99,7 @@ async fn a_copy_that_cannot_be_written_stops_the_upgrade_says_where_and_how_much
 /// an upgrade left it, and returns the latest one it has.
 #[expect(clippy::unwrap_used, reason = "a failed setup fails the test")]
 async fn create_database_one_migration_behind(data_dir: &Path) -> i64 {
-    let previous = *migrations::numbers().iter().rev().nth(1).unwrap();
+    let previous = sqlx::migrate!().iter().rev().nth(1).unwrap().version;
     let options = SqliteConnectOptions::new()
         .filename(data_dir.join(db::FILE_NAME))
         .create_if_missing(true);
@@ -410,20 +408,24 @@ async fn reader_connections_have_a_busy_timeout_and_foreign_keys_on_and_cannot_w
     );
 }
 
-// Two PRs that each add a migration with the same number don't conflict in git, since their files
-// differ (#561). Listing every file in one place makes both PRs append a different last line, which does.
+/// The version of the last table file ADR 0059's squash wrote; those up to it are frozen.
+const LAST_TABLE_FILE: i64 = 36;
+
+// The rule and its reason: crates/nama-server/AGENTS.md.
+// ponytail: checks names only. Add a same-table check if a dev or upgrade database ever breaks on
+// the order parallel migrations ran in.
 #[test]
-fn migrations_txt_lists_every_migration_in_order() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut files: Vec<String> = std::fs::read_dir(dir.join("migrations"))
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+fn every_migration_after_the_table_files_is_named_by_utc_timestamp() {
+    // 14 digits, as `YYYYMMDDHHMMSS` has.
+    let timestamped = 10_000_000_000_000..100_000_000_000_000;
+    let misnamed: Vec<String> = sqlx::migrate!()
+        .iter()
+        .filter(|m| m.version > LAST_TABLE_FILE && !timestamped.contains(&m.version))
+        .map(|m| format!("{:04}_{}.sql", m.version, m.description.replace(' ', "_")))
         .collect();
-    files.sort();
-    let listed = std::fs::read_to_string(dir.join("migrations.txt")).unwrap();
-    let listed: Vec<&str> = listed.lines().collect();
-    assert_eq!(
-        listed, files,
-        "add the new migration's file name as the last line of crates/nama-server/migrations.txt"
+    assert!(
+        misnamed.is_empty(),
+        "{misnamed:?} must be named by UTC creation time: see \
+         crates/nama-server/README.md, \"Adding a migration\""
     );
 }

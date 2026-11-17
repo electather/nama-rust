@@ -374,9 +374,9 @@ impl Tracks {
         .await?;
         Ok(row.and_then(|row| match row.keyframes_failure_version {
             Some(PROBE_FAILURE_VERSION) => Some(Keyframes::Unlisted),
-            // A failure at an older failure version left no keyframes, and keyframes kept before
-            // migration 0083 have no file start, so either is listed again. Only
-            // `store_keyframes` writes them, as JSON it made.
+            // A failure at an older failure version left no keyframes, so they're listed again.
+            // `store_keyframes` writes the keyframes and their file's start together, as JSON it
+            // made; a row missing either is listed again rather than trusted.
             _ => Some(Keyframes::Listed(ListedKeyframes {
                 file_start_ms: row.keyframes_start_ms?,
                 keyframes_ms: serde_json::from_str(&row.keyframes_ms?).ok()?,
