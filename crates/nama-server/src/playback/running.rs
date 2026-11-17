@@ -24,8 +24,9 @@
 //! A plan is stopped, and its folder deleted, when its player says it stopped, [`STOP_UNUSED_AFTER`]
 //! after it was last asked for, or as the Server shuts down. A Direct Play is asked for through
 //! its file at `/media/versions/<id>`, which marks every Direct Play of that Version on the Device
-//! asked for. [`sweep_leftovers`] deletes the folders of plans a run left behind when the next
-//! starts.
+//! asked for as the request arrives and again with each part of the file sent, so one being
+//! downloaded in a single request isn't stopped. [`sweep_leftovers`] deletes the folders of plans
+//! a run left behind when the next starts.
 //!
 //! Deleting a Version ends its plans first and cuts off each response serving its file
 //! ([`RunningPlans::end_for_deleting`]): a file open for reading can still be read once it's
@@ -49,6 +50,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use futures_util::{Stream, StreamExt as _};
 use nama_proto::nama::v1::{Playback, PlaybackEnded, PlaybackStarted};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
@@ -464,6 +466,23 @@ impl RunningPlans {
         for plan in direct_plays {
             *lock(&plan.last_used) = Instant::now();
         }
+    }
+
+    /// `file`, the parts of the Version `version`'s file being sent to the Device `device`, which
+    /// marks that Device's Direct Plays of it asked for with each part, so they're kept while it's
+    /// sent. With no Device it marks nothing.
+    pub(super) fn ask_direct_plays_while_sending<S: Stream>(
+        &self,
+        version: i64,
+        device: Option<i64>,
+        file: S,
+    ) -> impl Stream<Item = S::Item> + use<S> {
+        let plans = self.clone();
+        file.inspect(move |_| {
+            if let Some(device) = device {
+                plans.ask_direct_plays(version, device);
+            }
+        })
     }
 
     /// Stops the plan `id`, if it's the Device `device`'s, and deletes its files.

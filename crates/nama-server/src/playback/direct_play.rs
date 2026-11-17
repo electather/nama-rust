@@ -21,9 +21,10 @@ pub(super) fn direct_play_url(version: i64) -> String {
 }
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `contents`, and 404 if
-/// there is none, marking the caller's Direct Plays of it in `running` asked for, and the
-/// subtitles plans offer, read with `ffmpeg` and cached in `subtitles`. Whether the caller has a
-/// session is up to the layers the router is put behind.
+/// there is none, marking the caller's Direct Plays of it in `running` asked for as the request
+/// arrives and with each part of the file sent, and the subtitles plans offer, read with `ffmpeg`
+/// and cached in `subtitles`. Whether the caller has a session is up to the layers the router is
+/// put behind.
 pub(crate) fn router(
     contents: Contents,
     running: RunningPlans,
@@ -48,8 +49,9 @@ async fn serve(
     Path(id): Path<i64>,
     request: Request,
 ) -> Response {
-    if let Some(caller) = request.extensions().get::<Caller>() {
-        running.ask_direct_plays(id, caller.device.id);
+    let device = (request.extensions().get::<Caller>()).map(|caller| caller.device.id);
+    if let Some(device) = device {
+        running.ask_direct_plays(id, device);
     }
     let path = match contents.version_file(id).await {
         Ok(Some((path, _))) => path,
@@ -67,7 +69,8 @@ async fn serve(
     match ServeFile::new(&path).try_call(request).await {
         Ok(response) => {
             let (parts, body) = response.into_response().into_parts();
-            let cut_off = (body.into_data_stream()).take_until(deleted.cancelled_owned());
+            let sent = running.ask_direct_plays_while_sending(id, device, body.into_data_stream());
+            let cut_off = sent.take_until(deleted.cancelled_owned());
             Response::from_parts(parts, Body::from_stream(cut_off))
         }
         Err(err) => {

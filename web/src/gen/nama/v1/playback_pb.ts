@@ -439,7 +439,11 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
   method: PlaybackMethod;
 
   /**
-   * Where to play it from, on this Server. Empty when it can't be played.
+   * Where to play it from, on this Server. Empty when it can't be played. The Server ends the
+   * plan, publishing `PlaybackEnded`, about a minute after it was last asked for anything; for a
+   * Direct Play, each part of its file sent counts as asked for. So while nothing is being
+   * fetched, as when the player is paused, a client keeps the plan by asking for `url` (`HEAD` is
+   * enough) at least every 30 seconds, and calls `StopPlayback` when it closes.
    *
    * @generated from field: string url = 2;
    */
