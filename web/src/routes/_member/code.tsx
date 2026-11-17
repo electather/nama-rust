@@ -23,7 +23,7 @@ function EnterCode() {
   const { code: scanned } = Route.useSearch();
   const navigate = Route.useNavigate();
   const lookUp = useMutation(SignInService.method.lookUpSignInCode);
-  // `mutate` keeps its identity across renders, unlike `lookUp`, so a scanned code is looked up once.
+  // `mutate` keeps its identity across renders, unlike `lookUp`, so a re-render doesn't look the scanned code up again.
   const { mutate } = lookUp;
   useEffect(() => {
     if (scanned !== undefined) mutate({ code: scanned });
