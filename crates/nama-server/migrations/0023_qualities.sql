@@ -15,9 +15,3 @@ CREATE TABLE qualities (
 ) STRICT;
 
 CREATE UNIQUE INDEX one_default_quality_per_plugin ON qualities (plugin_id) WHERE is_default;
-
--- A copy of the Quality a Request took when it opened, NULL if its Fulfiller had none. Kept as it
--- was, so the Quality's renaming or removal changes neither what it reads nor its hand-off.
-ALTER TABLE requests ADD COLUMN quality_id INTEGER;
-ALTER TABLE requests ADD COLUMN quality_name TEXT;
-ALTER TABLE requests ADD COLUMN quality_profile_id TEXT;

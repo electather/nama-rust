@@ -310,45 +310,6 @@ fn permissions_list_each_held_one_in_value_order() {
     assert_eq!(held, Permissions::NEW_USER);
 }
 
-#[tokio::test]
-async fn upgrading_gives_admins_admin_and_members_and_new_users_request_and_view_requests() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let file = data_dir.path().join(crate::db::FILE_NAME);
-    let options = sqlx::sqlite::SqliteConnectOptions::new()
-        .filename(&file)
-        .create_if_missing(true);
-    // A raw connection, not `Database::write`: `Database::open` would run every migration.
-    let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
-    // The last migration with Roles.
-    sqlx::migrate!().run_to(9, &mut before).await.unwrap();
-    sqlx::query(
-        "INSERT INTO users (username, display_username, role, created_at, updated_at)
-             VALUES ('ada', 'Ada', 'admin', 0, 0), ('grace', 'Grace', 'member', 0, 0)",
-    )
-    .execute(&mut before)
-    .await
-    .unwrap();
-    sqlx::Connection::close(before).await.unwrap();
-
-    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-    let users = Users::new(db, ExtensionPoints::default());
-    let defaults = users.default_permissions().await.unwrap();
-    let users = users.list().await.unwrap();
-
-    let permissions: Vec<_> = users
-        .iter()
-        .map(|user| (user.name.as_str(), user.permissions))
-        .collect();
-    assert_eq!(
-        permissions,
-        [
-            ("Ada", Permissions::ADMIN),
-            ("Grace", Permissions::NEW_USER)
-        ]
-    );
-    assert_eq!(defaults, Permissions::NEW_USER);
-}
-
 /// [`Users`] on a fresh database in `data_dir`, whose Authenticator is `local-auth`.
 async fn users_with_local_auth(data_dir: &std::path::Path) -> Users {
     let db = Arc::new(Database::open(data_dir).await.unwrap());

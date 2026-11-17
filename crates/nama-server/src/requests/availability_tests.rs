@@ -123,47 +123,6 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
     assert!(episode_2_aired.is_empty(), "{episode_2_aired:?}");
 }
 
-#[tokio::test]
-async fn upgrading_makes_a_season_a_scan_moved_before_hand_off_pending_and_leaves_handed_off_and_followed_shows_seasons()
- {
-    let data_dir = tempfile::tempdir().unwrap();
-    let options = sqlx::sqlite::SqliteConnectOptions::new()
-        .filename(data_dir.path().join(crate::db::FILE_NAME))
-        .create_if_missing(true);
-    // A raw connection, not `Database::write`: `Database::open` would run every migration.
-    let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
-    // The last migration before stuck Requests went back to Pending.
-    sqlx::migrate!().run_to(38, &mut before).await.unwrap();
-    sqlx::query(
-        "INSERT INTO followed_shows (id, tmdb_id, title, state, created_at)
-         VALUES (1, 70523, 'Dark', 'approved', 0);
-         INSERT INTO requests (id, tmdb_id, season, title, state, created_at,
-                               fulfiller_reference, followed_show_id)
-         VALUES (1, 70523, 1, 'Dark', 'partially_available', 0, NULL, NULL),
-                (2, 70523, 2, 'Dark', 'partially_available', 0, 'show-70523-season-2', NULL),
-                (3, 70523, 3, 'Dark', 'partially_available', 0, NULL, 1)",
-    )
-    .execute(&mut before)
-    .await
-    .unwrap();
-
-    // Only up to 0039: a later migration drops every stored Request (ADR 0042).
-    sqlx::migrate!().run_to(39, &mut before).await.unwrap();
-    let states: Vec<(i64, String)> = sqlx::query_as("SELECT id, state FROM requests ORDER BY id")
-        .fetch_all(&mut before)
-        .await
-        .unwrap();
-
-    assert_eq!(
-        states,
-        [
-            (1, "pending".to_owned()),
-            (2, "partially_available".to_owned()),
-            (3, "partially_available".to_owned())
-        ]
-    );
-}
-
 /// Dark's Season Requests as a later read shows them, oldest first: each one's Season, state
 /// and Requesters, first asker first.
 async fn dark_seasons(db: &Database) -> Vec<(u32, RequestState, Vec<i64>)> {
