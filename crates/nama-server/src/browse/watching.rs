@@ -32,6 +32,10 @@ pub(crate) enum Started<V = Version> {
     },
 }
 
+/// Where a title sits in Continue Watching, newest first: when the Watch State it's listed by
+/// changed, and that state's row id, which breaks ties within a second.
+type Recency = (i64, i64);
+
 impl Browse {
     /// Records, as of now, that the User `user` has got as far as `progress` through the Version
     /// `version`: through its Movie, or split across each Episode its file holds, under each one's
@@ -102,9 +106,9 @@ impl Browse {
         let all = self.all_started(user).await?;
         let total = all.len();
         let mut listed: Vec<_> = (all.into_iter())
-            .filter(|&(_, place)| page.after.is_none_or(|after| place < after))
+            .filter(|&(_, recency)| page.after.is_none_or(|after| recency < after))
             .collect();
-        let mut paging = page.finish(&mut listed, |&(_, place)| place);
+        let mut paging = page.finish(&mut listed, |&(_, recency)| recency);
         if page.is_first() {
             paging.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
         }
@@ -117,12 +121,11 @@ impl Browse {
         Ok((listed, paging))
     }
 
-    /// The whole of [`Self::continue_watching`], without Tracks, each title with its place in the
-    /// order: when the Watch State it's listed by changed, and that state's row id.
+    /// The whole of [`Self::continue_watching`], without Tracks, each title with its recency.
     async fn all_started(
         &self,
         user: i64,
-    ) -> Result<Vec<(Started<LibraryVersion>, (i64, i64))>, Error> {
+    ) -> Result<Vec<(Started<LibraryVersion>, Recency)>, Error> {
         let started = self.watch_states.continue_watching(user).await?;
         if started.is_empty() {
             return Ok(Vec::new());
@@ -146,13 +149,13 @@ impl Browse {
             .unzip();
         let newest = self.watch_states.of_titles(Some(user), &asked).await?;
         Ok((started.into_iter())
-            .filter_map(|(watched, started, row)| {
+            .filter_map(|(watched, WatchState { updated_at, .. }, row)| {
                 let place = *found.place.get(&watched)?;
                 // Taken under the first of its ids listed, so a title is listed once.
                 let title = titles.get_mut(place)?.take()?;
                 let &(_, state) = newest.get(place)?.first()?;
                 (state.position_ms > 0 && !state.played)
-                    .then(|| (title.with_state(state), (started.updated_at, row)))
+                    .then(|| (title.with_state(state), (updated_at, row)))
             })
             .collect())
     }
