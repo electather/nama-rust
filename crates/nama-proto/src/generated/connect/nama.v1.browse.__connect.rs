@@ -519,8 +519,8 @@ pub trait BrowseService: Send + Sync + 'static {
     /// last changed: the Movies whose position is past 0 and that they haven't played, and one
     /// Episode of each Show they've watched, listed by its latest Watch State of any Episode. That
     /// Episode is the one they most recently started and haven't played, or else the Show's next
-    /// Episode: the first unplayed one after the one they played most recently, in aired order,
-    /// Specials aside, which has no Watch State. Only those Matched in some Library are listed,
+    /// Episode, which has no Watch State: the first unplayed one after the one they played most
+    /// recently, in aired order, Specials aside. Only those Matched in some Library are listed,
     /// each in the oldest Library that has it. The Watch State of the rest is kept, so they are
     /// listed again once a rescan Matches them.
     /// Fails with `invalid_argument` if `page.token` isn't one an earlier call returned.

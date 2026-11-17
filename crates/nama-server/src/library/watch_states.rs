@@ -276,8 +276,9 @@ impl WatchStates {
         Ok(states)
     }
 
-    /// Every Watch State of the User `user`, with the Movie or Episode it's kept under and its row
-    /// id, which orders Continue Watching within a second, so it pages by `(updated_at, row id)`.
+    /// Every Watch State of the User `user`, unordered, with the Movie or Episode it's kept under
+    /// and its row id, which breaks ties within a second so Continue Watching pages by
+    /// `(updated_at, row id)`.
     pub(crate) async fn of_user(
         &self,
         user: i64,
