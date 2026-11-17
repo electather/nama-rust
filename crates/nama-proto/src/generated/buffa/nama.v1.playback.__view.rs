@@ -3925,6 +3925,10 @@ pub struct DeviceDecodingView<'a> {
     ///
     /// Field 2: `hdr`
     pub hdr: bool,
+    /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
+    ///
+    /// Field 10: `h264_10bit`
+    pub h264_10bit: bool,
     /// Whether it plays HLS without a script's help.
     ///
     /// Field 3: `native_hls`
@@ -3984,6 +3988,13 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.hdr = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.h264_10bit = ::buffa::types::decode_bool(&mut cur)?;
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -4149,6 +4160,7 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
             video_codecs: self.video_codecs.to_vec(),
             audio_codecs: self.audio_codecs.to_vec(),
             hdr: self.hdr,
+            h264_10bit: self.h264_10bit,
             native_hls: self.native_hls,
             mse: self.mse,
             audio_channels: self.audio_channels,
@@ -4208,6 +4220,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if self.h264_10bit {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -4276,6 +4291,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
+        if self.h264_10bit {
+            ::buffa::types::put_bool_field(10u32, self.h264_10bit, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -4320,6 +4338,9 @@ impl<'__a> ::serde::Serialize for DeviceDecodingView<'__a> {
         }
         if self.hdr {
             __map.serialize_entry("hdr", &self.hdr)?;
+        }
+        if self.h264_10bit {
+            __map.serialize_entry("h26410bit", &self.h264_10bit)?;
         }
         if self.native_hls {
             __map.serialize_entry("nativeHls", &self.native_hls)?;
@@ -4467,6 +4488,13 @@ impl DeviceDecodingOwnedView {
     #[must_use]
     pub fn hdr(&self) -> bool {
         self.0.reborrow().hdr
+    }
+    /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
+    ///
+    /// Field 10: `h264_10bit`
+    #[must_use]
+    pub fn h264_10bit(&self) -> bool {
+        self.0.reborrow().h264_10bit
     }
     /// Whether it plays HLS without a script's help.
     ///

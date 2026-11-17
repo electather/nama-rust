@@ -36,6 +36,7 @@ impl Plugin for LogEvents {
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: Vec::new(),
             tick_every: None,
+            title_source: None,
         }
     }
 
@@ -89,6 +90,7 @@ fn log_playback(what: &str, playback: &Playback) {
         device = playback.device_id,
         version = playback.version_id,
         method = %playback.method,
+        plan = playback.plan_id,
         "observed playback {what}"
     );
 }
@@ -145,6 +147,7 @@ mod tests {
             device_id: 3,
             version_id: 4,
             method: PlaybackMethod::PLAYBACK_METHOD_REMUX.into(),
+            plan_id: 5,
             ..Default::default()
         };
         let started = PlaybackStarted {
@@ -171,7 +174,7 @@ mod tests {
                 "{line}"
             );
             assert!(
-                line.contains("user=2 device=3 version=4 method=PLAYBACK_METHOD_REMUX"),
+                line.contains("user=2 device=3 version=4 method=PLAYBACK_METHOD_REMUX plan=5"),
                 "{line}"
             );
         }

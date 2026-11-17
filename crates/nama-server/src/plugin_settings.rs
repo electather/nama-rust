@@ -39,6 +39,7 @@ mod personal;
 mod put_back;
 mod running;
 mod stored;
+mod title_sources;
 
 pub use stored::{grants, stored};
 use stored::{import, save, set_enabled, set_enabled_granting};
@@ -412,17 +413,17 @@ impl PluginSettings {
         Ok(Some(with_stored(plugin, &mut self.stored().await?)))
     }
 
-    /// Saves `sent` as the Plugin `id`'s settings, a secret left out keeping its stored value, then
-    /// applies them if it is stored as enabled, so a restart retries settings that fail to enable
-    /// it (ADR 0028). One that fails to enable with them is put back as it ran, as
-    /// [`PluginSettings::enable_granting`] puts one back. Returns the Plugin as it is now, enabled
-    /// only if running, with what is stored for it.
+    /// Saves `sent` as the Plugin `id`'s settings, a secret left out keeping its stored value and a
+    /// repeated Library id kept once, then applies them if it is stored as enabled, so a restart
+    /// retries settings that fail to enable it (ADR 0028). One that fails to enable with them is
+    /// put back as it ran, as [`PluginSettings::enable_granting`] does. Returns the Plugin as it is
+    /// now, enabled only if running, with what is stored for it.
     ///
     /// # Errors
     ///
-    /// If no Plugin has the id or the Server refused it, the settings don't fit its schema or
-    /// name a Library that doesn't exist, its settings check fails or doesn't offer a choice
-    /// setting's value, or the database can't be read or written. A refused change saves nothing.
+    /// If no Plugin has the id or the Server refused it, the settings don't fit its schema (even
+    /// an integer's bounds) or name a Library that doesn't exist, its settings check fails or
+    /// doesn't offer a choice's value, or the database fails. A refused change saves nothing.
     pub async fn update(
         &self,
         id: &PluginId,
@@ -439,7 +440,8 @@ impl PluginSettings {
                     granted,
                 },
             ) = this.listed(&id).await?;
-            let settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
+            let mut settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
+            library_ids::dedupe_library_ids(&manifest.settings, &mut settings);
             Settings::new(settings.clone())
                 .resolve(&manifest.settings)
                 .map_err(ChangeError::InvalidSettings)?;

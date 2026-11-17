@@ -150,6 +150,9 @@ enum RefusalReason {
   // `invalid_argument`: a Plugin setting's value isn't of the kind its schema declares. Params:
   // `settingKey`, and `settingKind`, the `SettingKind` value's name (`SETTING_KIND_TEXT`).
   REFUSAL_REASON_SETTING_WRONG_KIND = 43;
+  // `invalid_argument`: a Plugin setting's integer is outside the bounds its schema declares.
+  // Params: `settingKey`, and `min` and `max`, each only if the setting has that bound.
+  REFUSAL_REASON_SETTING_OUT_OF_RANGE = 82;
 
   // `failed_precondition`: the caller isn't one of the Request's Requesters, so they can't withdraw
   // from it. Params: `requestId`.

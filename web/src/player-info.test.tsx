@@ -203,6 +203,12 @@ test("a plan that can't play lists the reasons that decided it, in this app's wo
       text: serverText,
       decided: true,
     },
+    {
+      kind: PlaybackReasonKind.DEVICE_CANT_DECODE_VIDEO,
+      params: { codec: "h264", bitDepth: "10" },
+      text: serverText,
+      decided: true,
+    },
     { kind: PlaybackReasonKind.UNSPECIFIED, text: "Something new stood in the way", decided: true },
     { kind: PlaybackReasonKind.HARDWARE_ACCELERATION_OFF, text: serverText },
   ];
@@ -211,6 +217,7 @@ test("a plan that can't play lists the reasons that decided it, in this app's wo
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
     "This Device can’t decode HEVC video, so it can’t be Direct Played or Remuxed.",
+    "This Device can’t decode 10-bit H.264 video, so it can’t be Direct Played or Remuxed.",
     "Something new stood in the way",
   ]);
 });

@@ -262,16 +262,20 @@ async fn a_plan_gone_unused_tells_its_playback_ended() {
         &events,
     );
     let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
-    start_sleeping(&plans, 7).await;
+    let id = start_sleeping(&plans, 7).await;
 
     plans.stop_unused(Duration::ZERO).await;
 
+    let playback = Playback {
+        plan_id: id,
+        ..playback(7)
+    };
     let started = event(PlaybackStarted {
-        playback: playback(7).into(),
+        playback: playback.clone().into(),
         ..Default::default()
     });
     let ended = event(PlaybackEnded {
-        playback: playback(7).into(),
+        playback: playback.into(),
         ..Default::default()
     });
     for told in [started, ended] {
@@ -304,7 +308,11 @@ async fn a_plan_its_device_stops_ends_at_once_and_another_device_cant_stop_it() 
     assert!(plans.ask(id, device).is_none());
     assert!(!dir.exists());
     let ended = event(PlaybackEnded {
-        playback: playback(device).into(),
+        playback: Playback {
+            plan_id: id,
+            ..playback(device)
+        }
+        .into(),
         ..Default::default()
     });
     let next = subscription.next().await.unwrap();

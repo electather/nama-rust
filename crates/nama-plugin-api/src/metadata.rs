@@ -106,6 +106,19 @@ pub trait TitleSource: Send + Sync + 'static {
     }
 }
 
+/// What a Plugin's [`Manifest`](crate::Manifest) says of the title source it provides, so the
+/// Kernel can judge a Library's title source order while the Plugin isn't enabled. It must agree
+/// with the [`TitleSource`] the Plugin registers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceManifest {
+    /// The namespace it keeps titles under, as [`TitleSource::namespace`] gives it.
+    pub namespace: String,
+    /// The namespaces it looks titles up by, as [`TitleSource::lookup_namespaces`] gives them.
+    pub looks_up: Vec<String>,
+    /// Whether it answers [`TitleMethod::Search`].
+    pub searches: bool,
+}
+
 /// A [`TitleSource`] method the Kernel may ask, for [`TitleSource::answers`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitleMethod {

@@ -21,7 +21,9 @@ mod exports {
     use nama_pdk::{
         Buffa, FnResult, Manifest, Notification, Notifier, Recipient, RecipientGone,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
-        nama_plugin_proto::nama::plugin::v1::UserRecipient,
+        nama_plugin_proto::nama::plugin::v1::{
+            PersonalSettingsCheck, PersonalSettingsChecked, UserRecipient,
+        },
         plugin_fn,
     };
     use serde::{Deserialize, Serialize};
@@ -31,6 +33,16 @@ mod exports {
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         Ok(Buffa(super::manifest()))
+    }
+
+    /// Refuses a webhook [`super::webhook`] would refuse, so the User learns on saving it, not by
+    /// never being notified.
+    #[plugin_fn]
+    pub fn check_personal_settings(
+        Buffa(asked): Buffa<PersonalSettingsCheck>,
+    ) -> FnResult<Buffa<PersonalSettingsChecked>> {
+        super::webhook(asked.personal_settings.get(WEBHOOK).map(String::as_str))?;
+        Ok(Buffa(PersonalSettingsChecked::default()))
     }
 
     /// Posts each notification for a User to the webhook they set.

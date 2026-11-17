@@ -361,8 +361,9 @@ impl RunningPlans {
     }
 
     /// Keeps a plan playing `playback` that runs nothing, a Direct Play, and returns its id.
-    fn direct_play(&self, playback: Playback) -> u64 {
+    fn direct_play(&self, mut playback: Playback) -> u64 {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
+        playback.plan_id = id;
         self.insert(id, playback, None);
         id
     }
@@ -376,7 +377,7 @@ impl RunningPlans {
     )]
     async fn start_hls(
         &self,
-        playback: Playback,
+        mut playback: Playback,
         method: Method,
         timeline: Timeline,
         start_ms: i64,
@@ -387,6 +388,7 @@ impl RunningPlans {
         }: Runs,
     ) -> io::Result<u64> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
+        playback.plan_id = id;
         let dir = self
             .inner
             .settings

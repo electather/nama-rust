@@ -108,6 +108,12 @@ message SettingField {
   bool required = 5;
   // The value used when none is given. Unset if there is none.
   SettingValue default_value = 6;
+  // The least and most a `SETTING_KIND_INTEGER` setting may be, inclusive, each unset if it has
+  // none. A Server refuses a Plugin setting them on another kind, with `min_value` over
+  // `max_value`, or with a default outside them, and refuses a value outside them when saving or
+  // enabling.
+  optional int64 min_value = 7;
+  optional int64 max_value = 8;
 }
 
 // What an Installed Plugin's `check_settings()` returns when its settings work.
@@ -144,8 +150,9 @@ enum SettingKind {
   // An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its host,
   // as if `Manifest.allowed_hosts` named it.
   SETTING_KIND_URL = 6;
-  // The ids of Libraries, which an admin picks from the Server's Library list. A Library deleted
-  // later stays in the value, and the Plugin ignores an id the Kernel no longer lists.
+  // The ids of Libraries, which an admin picks from the Server's Library list. A repeated id is
+  // kept once. A Library deleted later stays in the value, and the Plugin ignores an id the Kernel
+  // no longer lists.
   SETTING_KIND_LIBRARIES = 7;
 }
 

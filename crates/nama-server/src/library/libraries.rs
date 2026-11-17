@@ -6,7 +6,7 @@
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use nama_plugin_api::metadata::{ExternalId, InvalidId};
+use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
 use crate::db::Database;
@@ -86,6 +86,13 @@ pub(crate) enum Error {
         "a Library's title sources must be one or more well-formed namespaces, each named once"
     )]
     TitleSources { namespace: Option<String> },
+    /// The title sources name `namespace`, which no Plugin the Server has keeps or looks titles
+    /// up by.
+    #[error("no Plugin keeps or looks titles up by {namespace:?}")]
+    TitleSourceUnknown { namespace: String },
+    /// No source the title sources name searches, so the Library could never Match (ADR 0045).
+    #[error("no source in this order searches for titles; add one that does, such as TMDB")]
+    NoTitleSourceSearches,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -293,6 +300,11 @@ impl Libraries {
     }
 }
 
+/// The title sources of a Library created naming none, as the column's default stores them.
+pub(crate) fn default_title_sources() -> Vec<String> {
+    vec![TMDB.to_owned()]
+}
+
 /// `name`, `folders` and `order` must already be checked; what `order` leaves empty keeps the
 /// column's default.
 async fn create(
@@ -316,7 +328,7 @@ async fn create(
     .await?;
     insert_folders(conn, id, &folders).await?;
     if title_sources.is_empty() {
-        title_sources = vec!["tmdb".to_owned()];
+        title_sources = default_title_sources();
     } else {
         set_title_sources(conn, id, title_sources.join(",")).await?;
     }
@@ -484,6 +496,45 @@ pub(crate) fn check_title_sources(order: &[String]) -> Result<(), Error> {
                 namespace: Some(namespace.clone()),
             });
         }
+    }
+    Ok(())
+}
+
+/// Fails unless `order`, sent in place of a Library's `stored` one, is well formed, names only
+/// namespaces some source in `known` (every Plugin's, enabled or not) keeps or looks titles up by,
+/// and names one a source that searches keeps. A namespace only looked up by, such as `imdb`, may
+/// be named to prefer its ids (ADR 0042). What `stored` already names isn't judged, and a stored
+/// namespace no source in `known` keeps may be the one that searches, so a Library whose Plugin
+/// went away stays editable.
+pub(crate) fn check_known(
+    order: &[String],
+    stored: &[String],
+    known: &[SourceManifest],
+) -> Result<(), Error> {
+    if order == stored {
+        return Ok(());
+    }
+    // First, so a malformed or repeated namespace is refused as that.
+    check_title_sources(order)?;
+    let is_known = |namespace: &String| {
+        (known.iter())
+            .any(|source| source.namespace == *namespace || source.looks_up.contains(namespace))
+    };
+    let searches = |namespace: &String| {
+        let mut keeping = (known.iter()).filter(|source| source.namespace == *namespace);
+        match keeping.next() {
+            Some(first) => first.searches || keeping.any(|source| source.searches),
+            None => stored.contains(namespace),
+        }
+    };
+    let mut added = order.iter().filter(|namespace| !stored.contains(namespace));
+    if let Some(namespace) = added.find(|namespace| !is_known(namespace)) {
+        return Err(Error::TitleSourceUnknown {
+            namespace: namespace.clone(),
+        });
+    }
+    if !order.iter().any(searches) {
+        return Err(Error::NoTitleSourceSearches);
     }
     Ok(())
 }

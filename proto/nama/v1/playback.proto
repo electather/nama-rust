@@ -189,6 +189,8 @@ message DeviceDecoding {
   repeated AudioCodec audio_codecs = 8;
   // Whether its display shows HDR.
   bool hdr = 2;
+  // Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
+  bool h264_10bit = 10;
   // Whether it plays HLS without a script's help.
   bool native_hls = 3;
   // Whether it has Media Source Extensions, through which a script can play HLS.
@@ -363,7 +365,8 @@ enum PlaybackReasonKind {
   // `Container` value's name (`CONTAINER_MATROSKA`), or else ffprobe's name for it (`avi`).
   PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER = 3;
   // Rules out Direct Play and Remux: the Device doesn't decode the video Track. Params: `codec`,
-  // as ffprobe names it (`hevc`), as in `Track.codec`.
+  // as ffprobe names it (`hevc`), as in `Track.codec`; `bitDepth` (`10`), only when the Device
+  // decodes the codec but not at the Track's bit depth.
   PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO = 4;
   // Rules out Direct Play: the Device doesn't decode the audio Track the plan plays. Params:
   // `codec`, as for the video.

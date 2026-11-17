@@ -579,6 +579,8 @@ impl Plugin for Configurable {
             kind,
             required,
             default,
+            min: None,
+            max: None,
         };
         let settings = SettingsSchema {
             fields: vec![
@@ -826,6 +828,8 @@ impl Plugin for PersonalKind {
                     kind: self.1,
                     required: false,
                     default: None,
+                    min: None,
+                    max: None,
                 }],
             },
             ..Manifest::new(PluginId::from_static(self.0))

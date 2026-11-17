@@ -1395,7 +1395,8 @@ pub enum PlaybackReasonKind {
     /// `Container` value's name (`CONTAINER_MATROSKA`), or else ffprobe's name for it (`avi`).
     PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER = 3i32,
     /// Rules out Direct Play and Remux: the Device doesn't decode the video Track. Params: `codec`,
-    /// as ffprobe names it (`hevc`), as in `Track.codec`.
+    /// as ffprobe names it (`hevc`), as in `Track.codec`; `bitDepth` (`10`), only when the Device
+    /// decodes the codec but not at the Track's bit depth.
     PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO = 4i32,
     /// Rules out Direct Play: the Device doesn't decode the audio Track the plan plays. Params:
     /// `codec`, as for the video.
@@ -4245,6 +4246,16 @@ pub struct DeviceDecoding {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub hdr: bool,
+    /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
+    ///
+    /// Field 10: `h264_10bit`
+    #[serde(
+        rename = "h26410bit",
+        alias = "h264_10bit",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub h264_10bit: bool,
     /// Whether it plays HLS without a script's help.
     ///
     /// Field 3: `native_hls`
@@ -4297,6 +4308,7 @@ impl ::core::fmt::Debug for DeviceDecoding {
             .field("video_codecs", &self.video_codecs)
             .field("audio_codecs", &self.audio_codecs)
             .field("hdr", &self.hdr)
+            .field("h264_10bit", &self.h264_10bit)
             .field("native_hls", &self.native_hls)
             .field("mse", &self.mse)
             .field("audio_channels", &self.audio_channels)
@@ -4376,6 +4388,9 @@ impl ::buffa::Message for DeviceDecoding {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if self.h264_10bit {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4441,6 +4456,9 @@ impl ::buffa::Message for DeviceDecoding {
             for v in &self.subtitle_formats {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if self.h264_10bit {
+            ::buffa::types::put_bool_field(10u32, self.h264_10bit, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4635,6 +4653,13 @@ impl ::buffa::Message for DeviceDecoding {
                     );
                 }
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.h264_10bit = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4651,6 +4676,7 @@ impl ::buffa::Message for DeviceDecoding {
         self.video_codecs.clear();
         self.audio_codecs.clear();
         self.subtitle_formats.clear();
+        self.h264_10bit = false;
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -405,6 +405,17 @@ pub(super) fn settings_refused(err: SettingsError) -> ConnectError {
                 .setting(&key)
                 .param("settingKind", &setting_kind_to_proto(expected).proto_name())
         }
+        SettingsError::OutOfRange { key, min, max } => {
+            let mut refused =
+                refuse(RefusalReason::REFUSAL_REASON_SETTING_OUT_OF_RANGE, message).setting(&key);
+            if let Some(min) = min {
+                refused = refused.param("min", &min);
+            }
+            if let Some(max) = max {
+                refused = refused.param("max", &max);
+            }
+            refused
+        }
     };
     refused.into()
 }
@@ -604,6 +615,8 @@ pub(super) fn setting_to_proto(
         default_value: shown(field.default.as_ref()),
         value: shown(stored),
         secret_set: secret && stored.is_some(),
+        min_value: field.min,
+        max_value: field.max,
         ..Default::default()
     }
 }

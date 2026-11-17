@@ -317,4 +317,7 @@ message Playback {
   reserved 6;
   // Why it plays this way, as its plan says.
   repeated PlaybackReason reasons = 7;
+  // The plan's `PlaybackPlan.id`, the same in every event about that plan, which pairs its
+  // `PlaybackStarted` with its `PlaybackEnded`. Ids start again when the Server restarts.
+  uint64 plan_id = 8;
 }

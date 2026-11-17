@@ -132,6 +132,14 @@ const plugins = [
     extensionPoints: [ExtensionPoint.AUTOMATION],
     settings: [
       {
+        key: "days",
+        label: "Days",
+        description: "",
+        kind: SettingKind.INTEGER,
+        minValue: 0n,
+        defaultValue: { value: { case: "integerValue" as const, value: 30n } },
+      },
+      {
         key: "libraries",
         label: "Libraries to clean",
         description: "Where watched titles are deleted.",

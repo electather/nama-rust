@@ -262,6 +262,7 @@ fn playback(playback: &api::Playback) -> wire::Playback {
         device_id: playback.device_id,
         version_id: playback.version_id,
         method: method.into(),
+        plan_id: playback.plan_id,
         ..Default::default()
     }
 }
