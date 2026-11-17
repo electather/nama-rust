@@ -21,7 +21,7 @@ pub(crate) struct Sidecar {
 
 /// The sidecars a scan found beside one Version.
 #[derive(Debug, Clone)]
-pub(crate) struct Beside {
+pub(crate) struct VersionSidecars {
     pub(crate) version: i64,
     /// The Version's file name without its extension, which each sidecar's name starts with.
     pub(crate) stem: String,
@@ -66,19 +66,25 @@ impl Sidecars {
 
     /// Replaces the stored sidecars of each Version in `found` with those found beside it, in
     /// one write.
-    pub(crate) async fn replace(&self, found: Vec<Beside>) -> Result<(), sqlx::Error> {
+    pub(crate) async fn replace(&self, found: Vec<VersionSidecars>) -> Result<(), sqlx::Error> {
         self.db.write(move |tx| Box::pin(replace(tx, found))).await
     }
 }
 
-async fn replace(conn: &mut SqliteConnection, found: Vec<Beside>) -> Result<(), sqlx::Error> {
+async fn replace(
+    conn: &mut SqliteConnection,
+    found: Vec<VersionSidecars>,
+) -> Result<(), sqlx::Error> {
     for beside in found {
         replace_beside(conn, beside).await?;
     }
     Ok(())
 }
 
-async fn replace_beside(conn: &mut SqliteConnection, beside: Beside) -> Result<(), sqlx::Error> {
+async fn replace_beside(
+    conn: &mut SqliteConnection,
+    beside: VersionSidecars,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "DELETE FROM sidecar_subtitles WHERE version_id = ?",
         beside.version
@@ -131,6 +137,14 @@ fn codec_of(extension: &str) -> Option<&'static str> {
     }
 }
 
+/// The kind of Track a sidecar of `codec` is: only `.sup`'s is an image.
+fn subtitle(codec: &str) -> TrackKind {
+    TrackKind::Subtitle {
+        image: codec == "hdmv_pgs_subtitle",
+        header: false,
+    }
+}
+
 /// The Track the sidecar named `name` is, beside a video whose name without its extension is
 /// `stem`: its codec from its extension, and its language, flags and title from the `.`-separated
 /// tags between the two, as Bazarr writes them. `None` if `name` isn't a sidecar's.
@@ -144,10 +158,7 @@ fn track_named(stem: &str, name: &str) -> Option<Track> {
         default: false,
         forced: false,
         sdh: false,
-        kind: TrackKind::Subtitle {
-            image: codec == "hdmv_pgs_subtitle",
-            header: false,
-        },
+        kind: subtitle(codec),
     };
     let tags = rest.strip_prefix(stem).unwrap_or_default();
     let mut title = Vec::new();
@@ -197,18 +208,14 @@ impl Sidecars {
         .unwrap();
         (rows.into_iter())
             .map(|row| {
-                let image = row.codec == "hdmv_pgs_subtitle";
                 let track = Track {
+                    kind: subtitle(&row.codec),
                     codec: row.codec,
                     language: row.language,
                     title: row.title,
                     default: row.is_default,
                     forced: row.forced,
                     sdh: row.sdh,
-                    kind: TrackKind::Subtitle {
-                        image,
-                        header: false,
-                    },
                 };
                 let sidecar = Sidecar {
                     path: row.path,

@@ -123,7 +123,7 @@ async fn a_scan_follows_sidecars_added_edited_and_removed_without_probing_the_vi
         .unwrap()
         .set_modified(edited)
         .unwrap();
-    scan().await;
+    assert_eq!(scan().await, summary(0, 0, 0, 1));
     assert_eq!(
         stored(&media).await,
         [(ENGLISH.to_owned(), 5), (FRENCH.to_owned(), 4)]
@@ -135,7 +135,7 @@ async fn a_scan_follows_sidecars_added_edited_and_removed_without_probing_the_vi
     assert_eq!(modified[0], 1_000_000_000_000);
 
     fs::remove_file(media.path(FRENCH)).unwrap();
-    scan().await;
+    assert_eq!(scan().await, summary(0, 0, 0, 1));
     assert_eq!(stored(&media).await, [(ENGLISH.to_owned(), 5)]);
 
     assert_eq!(runs(), ffprobe_runs, "the video was probed again");
@@ -169,5 +169,23 @@ async fn sidecars_in_a_folder_that_cant_be_read_are_kept() {
     fs::rename(&media.root, &parked).unwrap();
     media.scan().await;
 
+    assert_eq!(stored(&media).await, [(ENGLISH.to_owned(), 3)]);
+}
+
+// Permissions are how a test makes a folder unreadable.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_folder_that_cant_be_read_beside_a_video_doesnt_keep_its_sidecars_from_changing() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write(VIDEO, 10);
+    media.write("Alien (1979)/locked/note.txt", 1);
+    let locked = media.path("Alien (1979)/locked");
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    media.write(ENGLISH, 3);
+
+    media.scan().await;
+
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
     assert_eq!(stored(&media).await, [(ENGLISH.to_owned(), 3)]);
 }

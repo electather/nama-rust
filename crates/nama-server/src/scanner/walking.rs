@@ -15,7 +15,7 @@ use walkdir::{DirEntry, WalkDir};
 use super::{Error, Planned, Summary, names};
 use crate::{
     library::{Change, LibraryKind, PARSER_VERSION, Stored},
-    playback::{Beside, Sidecar, is_sidecar},
+    playback::{Sidecar, VersionSidecars, is_sidecar},
 };
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
@@ -231,13 +231,13 @@ impl Walked {
 
 impl FoundSidecars {
     /// The sidecars found beside each of `versions`, stored files by path, whose found set
-    /// differs from the one `stored` holds by Version id. A Version in or beside a folder or file
-    /// the walk couldn't read is left out, so its sidecars stay as stored, as its file does.
+    /// differs from the one `stored` holds by Version id. A Version in a folder the walk couldn't
+    /// read, or beside a sidecar it couldn't, is left out, so its sidecars stay as stored.
     pub(super) fn changed(
         self,
         versions: &HashMap<String, Stored>,
         mut stored: HashMap<i64, Vec<Sidecar>>,
-    ) -> Vec<Beside> {
+    ) -> Vec<VersionSidecars> {
         let mut found = by_version(self.sidecars, versions);
         let mut changed = Vec::new();
         for (path, version) in versions {
@@ -245,7 +245,10 @@ impl FoundSidecars {
             let (Some(folder), Some(stem)) = (path.parent(), path.file_stem()) else {
                 continue;
             };
-            let unread = |dir: &PathBuf| folder.starts_with(dir) || dir.parent() == Some(folder);
+            let unread = |missed: &PathBuf| {
+                folder.starts_with(missed)
+                    || (missed.parent() == Some(folder) && is_sidecar(missed))
+            };
             if self.unreadable.iter().any(unread) {
                 continue;
             }
@@ -254,7 +257,7 @@ impl FoundSidecars {
             // A sidecar under two of the Library's folders, one inside the other, is found twice.
             sidecars.dedup();
             if stored.remove(&version.id).unwrap_or_default() != sidecars {
-                changed.push(Beside {
+                changed.push(VersionSidecars {
                     version: version.id,
                     stem: stem.to_string_lossy().into_owned(),
                     sidecars,
