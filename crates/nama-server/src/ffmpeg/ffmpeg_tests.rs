@@ -416,7 +416,7 @@ fn opened(hardware: &Hardware) -> Vec<String> {
         burn_in: None,
         in_band_headers: true,
     };
-    let input = video_args("alien.mkv", &video).input;
+    let input = video_args("alien.mkv", &video, false).input;
     (input.windows(2))
         .filter_map(|pair| match pair {
             [option, value] if option == "-init_hw_device" => Some(value.clone()),

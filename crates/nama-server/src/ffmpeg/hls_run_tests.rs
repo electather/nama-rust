@@ -84,6 +84,7 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
             track: 1,
             aac_channels: Some(2),
         }),
+        hevc: false,
     };
 
     let args = remux_args(remux, keyframe(3, 6000, Some(4000)));
@@ -210,8 +211,31 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
 }
 
 #[test]
+fn an_hevc_remux_tags_its_copied_video_hvc1() {
+    let hevc = Remux {
+        audio: None,
+        hevc: true,
+    };
+
+    let args = remux_args(hevc, keyframe(0, 0, None));
+
+    let copy = args.windows(2).position(|pair| pair == ["-c", "copy"]);
+    let after_copy = copy.map(|at| &args[at + 2..at + 4]);
+    assert_eq!(after_copy, Some(&["-tag:v", "hvc1"].map(str::to_owned)[..]));
+}
+
+#[test]
 fn a_remux_without_audio_seeks_halfway_back_to_the_keyframe_before_and_at_most_half_a_second() {
-    let seek_from = |from| input_seek(&remux_args(Remux { audio: None }, from)).map(str::to_owned);
+    let seek_from = |from| {
+        input_seek(&remux_args(
+            Remux {
+                audio: None,
+                hevc: false,
+            },
+            from,
+        ))
+        .map(str::to_owned)
+    };
 
     assert_eq!(
         seek_from(keyframe(3, 6000, Some(5600))).as_deref(),
@@ -235,12 +259,19 @@ fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time
             track: 0,
             aac_channels,
         }),
+        hevc: false,
     };
     let third = keyframe(3, 6000, Some(4000));
 
     let copied = remux_args(audio(None), third);
     let converted = remux_args(audio(Some(2)), third);
-    let silent = remux_args(Remux { audio: None }, third);
+    let silent = remux_args(
+        Remux {
+            audio: None,
+            hevc: false,
+        },
+        third,
+    );
 
     assert_eq!(input_seek(&copied), Some("5.917"));
     assert_eq!(value_of(&copied, "-copypriorss:a"), Some("0"));
@@ -260,6 +291,7 @@ fn a_remux_from_the_first_keyframe_keeps_the_audio_from_the_files_start() {
             track: 0,
             aac_channels: None,
         }),
+        hevc: false,
     };
 
     let args = remux_args(remux, keyframe(0, 0, None));
@@ -370,6 +402,32 @@ fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
 }
 
 #[test]
+fn a_run_that_seeks_reads_its_image_subtitle_from_an_input_that_doesnt() {
+    let burned = VideoConversion {
+        burn_in: Some(BurnIn::Image {
+            subtitle: 1,
+            picture: None,
+        }),
+        ..SOFTWARE
+    };
+    let transcode = Transcode {
+        audio: None,
+        video: burned,
+    };
+    let from = FromCut {
+        n: 1,
+        cuts: &[6000, 12_000],
+    };
+    let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+    let args = args(&run.unwrap());
+
+    let graph = value_of(&args, "-filter_complex").unwrap();
+    assert!(graph.contains("[1:s:1]"), "{graph}");
+    assert_eq!(args.iter().filter(|arg| *arg == "-i").count(), 2);
+    assert_eq!(input_seek(&args), Some("6.000"));
+}
+
+#[test]
 fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Text { subtitle: 2 }),
@@ -391,6 +449,7 @@ fn audio_is_converted_to_aac_with_its_channels_or_else_copied() {
             track: 0,
             aac_channels,
         }),
+        hevc: false,
     };
     let first = keyframe(0, 0, None);
 
@@ -570,7 +629,10 @@ fn a_playback_limit_on_hardware_scales_the_picture_on_its_gpu_if_it_can() {
 #[test]
 fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
     let segment_options = |version| {
-        let silent = Remux { audio: None };
+        let silent = Remux {
+            audio: None,
+            hevc: false,
+        };
         let run = ffmpeg(version).remux(
             "alien.mkv",
             &silent,
