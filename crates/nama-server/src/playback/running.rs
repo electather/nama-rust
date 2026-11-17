@@ -218,7 +218,11 @@ impl RunningPlans {
     pub(super) fn running_transcodes(&self) -> RunningTranscodes {
         let plans = lock(&self.inner.plans);
         let transcodes: Vec<_> = (plans.values())
-            .filter_map(|plan| plan.hls.as_ref().filter(|hls| hls.method == Method::Transcode))
+            .filter_map(|plan| {
+                plan.hls
+                    .as_ref()
+                    .filter(|hls| hls.method == Method::Transcode)
+            })
             .collect();
         let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
         RunningTranscodes {
