@@ -83,6 +83,8 @@ impl Plugin for Tmdb {
                     kind: SettingKind::Secret,
                     required: true,
                     default: None,
+                    min: None,
+                    max: None,
                 },
                 SettingField {
                     key: LANGUAGE.to_owned(),
@@ -93,6 +95,8 @@ impl Plugin for Tmdb {
                     kind: SettingKind::Text,
                     required: false,
                     default: Some(SettingValue::Text(DEFAULT_LANGUAGE.to_owned())),
+                    min: None,
+                    max: None,
                 },
             ],
         };

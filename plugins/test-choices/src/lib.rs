@@ -42,6 +42,8 @@ impl Plugin for TestChoices {
             kind,
             required,
             default: None,
+            min: None,
+            max: None,
         };
         let settings = SettingsSchema {
             fields: vec![

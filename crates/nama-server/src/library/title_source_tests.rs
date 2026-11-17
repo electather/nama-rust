@@ -86,6 +86,8 @@ impl Plugin for FailingPlugin {
                     kind: SettingKind::Secret,
                     required: false,
                     default: None,
+                    min: None,
+                    max: None,
                 }],
             },
             extension_points: vec![PointKey::provide::<dyn TitleSource>()],

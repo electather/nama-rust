@@ -62,6 +62,8 @@ function TypedInput({
       label={setting.label}
       name={setting.key}
       {...inputs[setting.kind]}
+      min={setting.minValue?.toString()}
+      max={setting.maxValue?.toString()}
       autoComplete="off"
       spellCheck={false}
       // oxlint-disable-next-line jsx-a11y/no-autofocus -- only set when pressing Replace swaps it in for the button, whose focus would otherwise be lost
@@ -197,7 +199,7 @@ export function refusedSettings(
   error: unknown,
   attempt: string,
 ): Record<string, string | undefined> {
-  const { reason, field } = refusalOf(error);
+  const { reason, field, params } = refusalOf(error);
   const key = field.replace(/^settings\./u, "");
   if (key === field) {
     const { form } = refusal(
@@ -214,7 +216,19 @@ export function refusedSettings(
   }
   // A failed check is in the Plugin's own words.
   if (reason === RefusalReason.SETTINGS_CHECK_FAILED) return { [key]: serverMessage(error) };
-  return { [key]: settingRefused[reason] ?? "This setting can’t take that value." };
+  return { [key]: settingRefusal(reason, params) };
+}
+
+/** Why the Server refused a setting: an out-of-range one says its bounds, the rest go by reason. */
+function settingRefusal(reason: RefusalReason, params: Record<string, string | undefined>) {
+  if (reason === RefusalReason.SETTING_OUT_OF_RANGE) return outOfRange(params);
+  return settingRefused[reason] ?? "This setting can’t take that value.";
+}
+
+/** The bounds a number must keep to, from its Refusal's `min` and `max`, at least one of which the Server sends. */
+function outOfRange({ min, max }: Record<string, string | undefined>) {
+  if (max === undefined) return `This must be at least ${min}.`;
+  return min === undefined ? `This must be at most ${max}.` : `This must be from ${min} to ${max}.`;
 }
 
 /** Why the Server refused a setting, by its Refusal's reason. */

@@ -98,6 +98,12 @@ pub(super) enum Refused {
     UnknownSettingKind { key: String },
     #[error("its setting {key}'s default isn't {kind}")]
     DefaultWrongKind { key: String, kind: SettingKind },
+    #[error("its setting {key} has min_value or max_value, which only an Integer setting may")]
+    BoundsOnAnotherKind { key: String },
+    #[error("its setting {key}'s min_value {min} is over its max_value {max}")]
+    BoundsCrossed { key: String, min: i64, max: i64 },
+    #[error("its setting {key}'s default is outside its bounds")]
+    DefaultOutOfBounds { key: String },
     #[error("its allowed host {0} has a port, and allowed hosts are matched without one")]
     HostWithPort(String),
     #[error("its id {0} is another Plugin's")]

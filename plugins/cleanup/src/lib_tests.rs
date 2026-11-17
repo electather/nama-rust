@@ -382,6 +382,7 @@ fn manifest_declares_days_defaulting_to_30_and_libraries() {
                 field.kind.as_known(),
                 field.required,
                 default.and_then(|default| default.value.clone()),
+                (field.min_value, field.max_value),
             )
         })
         .collect();
@@ -394,12 +395,14 @@ fn manifest_declares_days_defaulting_to_30_and_libraries() {
                 Some(SettingKind::SETTING_KIND_INTEGER),
                 true,
                 Some(Value::IntegerValue(30)),
+                (Some(0), None),
             ),
             (
                 "libraries",
                 Some(SettingKind::SETTING_KIND_LIBRARIES),
                 false,
-                None
+                None,
+                (None, None),
             ),
         ]
     );
