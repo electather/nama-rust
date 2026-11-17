@@ -3,6 +3,8 @@ use std::{collections::BTreeSet, num::NonZeroU32};
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
 use super::{remux, too_busy_to_play};
+#[cfg(unix)]
+use crate::ffmpeg::fake::vaapi_on_two_gpus_at;
 use crate::{
     ffmpeg::{Accel, Hardware, ToneMapper, Transcode, VideoConversion},
     playback::{
@@ -441,35 +443,10 @@ const QSV: Hardware = Hardware {
     tone_maps: true,
 };
 
-/// VAAPI on a dedicated AMD Radeon RX 9070 XT, then on an integrated AMD GPU, as Automatic
-/// orders them, with the integrated one on `renderD128`.
+/// [`vaapi_on_two_gpus_at`] with the integrated GPU on `renderD128`.
 #[cfg(unix)]
 fn vaapi_on_two_gpus(root: &std::path::Path) -> Vec<Hardware> {
     vaapi_on_two_gpus_at(root, ["renderD128", "renderD129"])
-}
-
-/// As [`vaapi_on_two_gpus`], with the integrated GPU and the dedicated one on `nodes`.
-#[cfg(unix)]
-fn vaapi_on_two_gpus_at(root: &std::path::Path, nodes: [&str; 2]) -> Vec<Hardware> {
-    use crate::ffmpeg::{fake, find_gpus};
-
-    let (sys, dri) = (root.join("sys"), root.join("dri"));
-    let [integrated, dedicated] = nodes;
-    fake::gpu(&sys, &dri, integrated, "0000:18:00.0", "0x1002");
-    fake::pci_function(&sys, "0000:18:00.2", "0x1022");
-    fake::gpu(&sys, &dri, dedicated, "0000:03:00.0", "0x1002");
-    let mesa = "VAAPI driver: Mesa Gallium driver 26.2.6 for AMD Radeon RX 9070 XT (radeonsi)";
-    find_gpus(&dri, &sys.join("class/drm"))
-        .into_iter()
-        .map(|gpu| Hardware {
-            gpu: Some(if gpu.id() == "0000:03:00.0" {
-                gpu.with_model(mesa)
-            } else {
-                gpu
-            }),
-            ..VAAPI
-        })
-        .collect()
 }
 
 #[cfg(unix)]
