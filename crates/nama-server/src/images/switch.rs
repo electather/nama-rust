@@ -10,7 +10,7 @@ use std::{
 
 use tempfile::NamedTempFile;
 
-use super::{Blobs, ImageStore, MAX_BYTES, ORIGINAL_DIRS};
+use super::{Blobs, ImageStore, MAX_BYTES, ORIGINAL_DIRS, blobs};
 use crate::db::BoxFuture;
 
 /// The key a probe writes and deletes: outside every folder of originals, so no copy or listing
@@ -248,10 +248,7 @@ impl Blobs for Mirror {
             // Read into the new store first: the old one may rename `file` away.
             let size = tokio::fs::metadata(file.path()).await?.len();
             if size > MAX_BYTES as u64 {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!("{key} is over the store's object size limit"),
-                ));
+                return Err(blobs::too_large(&key));
             }
             let bytes = tokio::fs::read(file.path()).await?;
             self.new.put(&key, bytes).await?;

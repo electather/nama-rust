@@ -94,9 +94,20 @@ pub fn pci_function(sys: &Path, address: &str, vendor: &str) -> std::path::PathB
     function
 }
 
-/// VAAPI on a dedicated AMD Radeon RX 9070 XT, then on an integrated AMD GPU, as Automatic
-/// orders them, with the integrated GPU and the dedicated one on the render nodes `nodes`, in a
-/// fake `/sys` and `/dev/dri` in `root`.
+/// [`vaapi_on_two_gpus_at`] with the integrated GPU on `renderD128`.
+///
+/// # Panics
+///
+/// If writing them fails.
+#[cfg(unix)]
+#[must_use]
+pub fn vaapi_on_two_gpus(root: &Path) -> Vec<super::Hardware> {
+    vaapi_on_two_gpus_at(root, ["renderD128", "renderD129"])
+}
+
+/// VAAPI on a dedicated AMD Radeon RX 9070 XT at `0000:03:00.0`, then on an integrated AMD GPU
+/// at `0000:18:00.0`, as Automatic orders them, with the integrated GPU and the dedicated one on
+/// the render nodes `nodes`, in a fake `/sys` and `/dev/dri` in `root`.
 ///
 /// # Panics
 ///
