@@ -40,6 +40,7 @@ function serverWithAMovie() {
     {},
     (router) => {
       router.service(BrowseService, {
+        listUnmatched: () => ({}),
         listMovies: () => ({
           movies: [
             { id: alien, title: "Alien", posterUrl: poster, posterThumbhash: thumbhash },

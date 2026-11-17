@@ -71,7 +71,7 @@ export function UnmatchedRow({
  * What an Item's file name was parsed as, such as "Alien (1979)", "Severance · Season 1, Episode 2"
  * or "Severance · Specials, Episode 2".
  */
-function parsedAs(item: UnmatchedItem) {
+export function parsedAs(item: Pick<UnmatchedItem, "title" | "year" | "season" | "episode">) {
   const title = withYear(item.title, item.year);
   if (item.season === undefined || item.episode === undefined) return title;
   return `${title} · ${episodeName(item.season, item.episode, "full")}`;
