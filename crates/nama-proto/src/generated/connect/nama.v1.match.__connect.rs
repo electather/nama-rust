@@ -329,7 +329,7 @@ pub trait MatchService: Send + Sync + 'static {
         >,
     > + Send;
     /// Lists a page of the items of a Library that need a Match, in `sort`'s order: those Matching
-    /// left Unmatched, those it hasn't Matched yet, such as when no title source was enabled, and
+    /// left Unmatched, those it hasn't Matched yet, such as when no title source in its order searches, and
     /// those pinned Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. The first
     /// page also lists the Library's files whose names didn't parse, which an Admin fixes by
     /// renaming. Fails with `not_found` if there is no such Library, and with `invalid_argument` if

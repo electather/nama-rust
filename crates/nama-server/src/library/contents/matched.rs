@@ -1,23 +1,11 @@
 //! What the Items of a Library are Matched to, as browsing, playback, Requests and artwork read it.
 
-use std::collections::{BTreeMap, HashMap, HashSet, btree_map::Entry};
+use std::collections::{BTreeMap, HashSet, btree_map::Entry};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
 use super::{Contents, ImageRef, ItemKind, Stored, ids_from_json, ids_sql, primary_id_in};
-
-/// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
-#[derive(Debug)]
-pub(crate) struct NewestBackdrop {
-    /// The Plugin whose title source serves the path, which may differ from the Match's.
-    pub(crate) plugin: String,
-    pub(crate) path: String,
-    /// The Movie's id, or for an Episode its Show's, whose own Custom Backdrop goes first.
-    pub(crate) title: ExternalId,
-    /// Every id of that title, any of which a Custom Backdrop may be kept under.
-    pub(crate) ids: ExternalIds,
-}
 
 /// A Movie some Items of a Library are Matched to, with the metadata the Match of its first
 /// Version stores. Browse hands it out with Versions of its own, which have Tracks.
@@ -387,51 +375,6 @@ impl Contents {
         Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
     }
 
-    /// The downloaded Backdrop of the Matched title most recently added to each Library, of
-    /// those with one, by Library id. A Library with no such title has none.
-    pub(crate) async fn newest_backdrops(
-        &self,
-    ) -> Result<HashMap<i64, NewestBackdrop>, sqlx::Error> {
-        // Item ids are AUTOINCREMENT, so the highest is the Item added last.
-        macro_rules! select {
-            ($ids:literal) => {
-                sqlx::query!(
-                    r#"SELECT library_id AS "library!", plugin AS "plugin!",
-                              backdrop AS "backdrop!", ids AS "ids?: String",
-                              title_sources AS "title_sources!"
-                       FROM (SELECT library_files.library_id,
-                                    item_matches.backdrop_plugin AS plugin,
-                                    item_matches.backdrop, libraries.title_sources, "#
-                        + $ids
-                        + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS ids,
-                                    ROW_NUMBER() OVER (PARTITION BY library_files.library_id
-                                                       ORDER BY library_items.id DESC) AS newest
-                             FROM item_matches
-                             JOIN library_items ON library_items.id = item_matches.item_id
-                             JOIN library_files ON library_files.id = library_items.file_id
-                             JOIN libraries ON libraries.id = library_files.library_id
-                             WHERE item_matches.state = 'matched'
-                               AND item_matches.backdrop IS NOT NULL)
-                       WHERE newest = 1"#
-                )
-            };
-        }
-        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
-        Ok(rows
-            .into_iter()
-            .filter_map(|row| {
-                let ids = ids_from_json(row.ids.as_deref());
-                let backdrop = NewestBackdrop {
-                    title: primary_id_in(&ids, &row.title_sources)?,
-                    ids,
-                    plugin: row.plugin,
-                    path: row.backdrop,
-                };
-                Some((row.library, backdrop))
-            })
-            .collect())
-    }
-
     /// The oldest Library with an Item Matched to the Movie `id`, by any of its ids, if any.
     pub(crate) async fn library_with_movie(
         &self,
@@ -441,8 +384,14 @@ impl Contents {
         library_with_movie(&mut conn, id).await
     }
 
-    /// By title, ignoring case, grouped by [`primary_id`](super::primary_id).
-    pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
+    /// By title, ignoring case, grouped by [`primary_id`](super::primary_id): every Movie, or
+    /// only those with one of `only` among their ids.
+    pub(crate) async fn movies(
+        &self,
+        library: i64,
+        only: Option<&[ExternalId]>,
+    ) -> Result<Vec<Movie>, sqlx::Error> {
+        let only = listed_ids(only);
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
@@ -461,11 +410,18 @@ impl Contents {
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
                        JOIN libraries ON libraries.id = library_files.library_id
-                       WHERE library_files.library_id = ?
+                       WHERE library_files.library_id = ?1
                          AND library_items.kind = 'movie'
                          AND item_matches.state = 'matched'
+                         AND (?2 IS NULL
+                              OR EXISTS (SELECT 1 FROM item_match_ids AS named
+                                         JOIN json_each(?2) AS only
+                                           ON only.value = named.namespace || '-' || named.value
+                                         WHERE named.item_id = item_matches.item_id
+                                           AND named.scope = 'title'))
                        ORDER BY library_files.path"#,
-                    library
+                    library,
+                    only
                 )
             };
         }
@@ -512,12 +468,18 @@ impl Contents {
     }
 
     /// By title, ignoring case, grouped by the Episodes' Show ids'
-    /// [`primary_id`](super::primary_id), each Season's Episodes by their own.
+    /// [`primary_id`](super::primary_id), each Season's Episodes by their own: every Show, or only
+    /// those with one of `only` among their ids.
     #[expect(
         clippy::too_many_lines,
         reason = "one query's columns, and the Show, Season and Episode each row fills"
     )]
-    pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
+    pub(crate) async fn shows(
+        &self,
+        library: i64,
+        only: Option<&[ExternalId]>,
+    ) -> Result<Vec<Show>, sqlx::Error> {
+        let only = listed_ids(only);
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
@@ -540,11 +502,18 @@ impl Contents {
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
                        JOIN libraries ON libraries.id = library_files.library_id
-                       WHERE library_files.library_id = ?
+                       WHERE library_files.library_id = ?1
                          AND library_items.kind = 'episode'
                          AND item_matches.state = 'matched'
+                         AND (?2 IS NULL
+                              OR EXISTS (SELECT 1 FROM item_match_ids AS named
+                                         JOIN json_each(?2) AS only
+                                           ON only.value = named.namespace || '-' || named.value
+                                         WHERE named.item_id = item_matches.item_id
+                                           AND named.scope = 'show'))
                        ORDER BY library_items.season, library_items.episode, library_files.path"#,
-                    library
+                    library,
+                    only
                 )
             };
         }
@@ -759,6 +728,12 @@ pub(crate) async fn matched_episodes(
     .fetch_all(&mut *conn)
     .await?;
     Ok(numbers.into_iter().collect())
+}
+
+/// `ids` as a JSON array of their text forms, as [`Contents::movies`] and [`Contents::shows`]
+/// take them.
+fn listed_ids(ids: Option<&[ExternalId]>) -> Option<String> {
+    ids.map(|ids| serde_json::Value::from_iter(ids.iter().map(ToString::to_string)).to_string())
 }
 
 /// The genres in the `genres` column's JSON, `json`: none where it's NULL, as for a Match stored

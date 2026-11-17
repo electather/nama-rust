@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT CAST(genre.value AS TEXT) AS \"genre!: String\"\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               JOIN json_each(item_matches.genres) AS genre\n               WHERE library_files.library_id = ? AND item_matches.state = 'matched'\n               ORDER BY genre.value",
+  "describe": {
+    "columns": [
+      {
+        "name": "genre!: String",
+        "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6637af66a6f0656ed0843396b5a72bc0d65ca9e7e54cd6d0278f132a016da39c"
+}

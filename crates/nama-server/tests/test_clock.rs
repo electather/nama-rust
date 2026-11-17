@@ -59,6 +59,7 @@ async fn a_watch_state_reported_after_the_clock_moves_is_dated_by_the_moved_cloc
         })
         .await
         .unwrap();
+    let after = unix_seconds();
 
     let state = fx
         .get_movie(fx.library, ALIEN)
@@ -67,14 +68,13 @@ async fn a_watch_state_reported_after_the_clock_moves_is_dated_by_the_moved_cloc
         .watch_state
         .into_option()
         .unwrap();
-    // At least: under `cargo test` this binary's other test may have moved the clock first. Once
-    // #868 starts each clock-moving test on the real clock, bound it above again.
     let moved = i64::try_from(THIRTY_DAYS.as_secs()).unwrap();
     assert!(
-        state.updated_at >= before + moved,
-        "{} >= {}",
+        (before + moved..=after + moved).contains(&state.updated_at),
+        "{} <= {} <= {}",
+        before + moved,
         state.updated_at,
-        before + moved
+        after + moved
     );
 }
 

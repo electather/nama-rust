@@ -307,8 +307,8 @@ impl ::buffa::Enumeration for UnmatchedItemSort {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
 pub enum UnmatchedReason {
-    /// Matching hasn't decided about the item yet, or left it Unmatched for a reason it doesn't
-    /// store.
+    /// Matching hasn't decided about the item yet, such as when a title source failed, or left it
+    /// Unmatched for a reason it doesn't store.
     UNMATCHED_REASON_UNSPECIFIED = 0i32,
     /// More than one title fits about as well, so picking one of `tied_titles` fixes it.
     UNMATCHED_REASON_AMBIGUOUS = 1i32,
@@ -321,6 +321,10 @@ pub enum UnmatchedReason {
     UNMATCHED_REASON_NOT_IN_SHOW = 4i32,
     /// An admin cleared its Match with `ClearMatch`; `SetMatch` Matches it again.
     UNMATCHED_REASON_CLEARED_BY_HAND = 5i32,
+    /// Matching hasn't decided about the item because no title source in its Library's
+    /// `title_sources` is enabled, running and searches. Enabling one, or adding one to the order,
+    /// lets the next scan decide it.
+    UNMATCHED_REASON_NO_SEARCHING_SOURCE = 6i32,
 }
 impl UnmatchedReason {
     ///Idiomatic alias for [`Self::UNMATCHED_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -341,6 +345,9 @@ impl UnmatchedReason {
     ///Idiomatic alias for [`Self::UNMATCHED_REASON_CLEARED_BY_HAND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ClearedByHand: Self = Self::UNMATCHED_REASON_CLEARED_BY_HAND;
+    ///Idiomatic alias for [`Self::UNMATCHED_REASON_NO_SEARCHING_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NoSearchingSource: Self = Self::UNMATCHED_REASON_NO_SEARCHING_SOURCE;
 }
 impl ::core::default::Default for UnmatchedReason {
     fn default() -> Self {
@@ -444,6 +451,9 @@ impl ::buffa::Enumeration for UnmatchedReason {
             3i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_UNKNOWN_ID_HINT),
             4i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_NOT_IN_SHOW),
             5i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_CLEARED_BY_HAND),
+            6i32 => {
+                ::core::option::Option::Some(Self::UNMATCHED_REASON_NO_SEARCHING_SOURCE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -458,6 +468,9 @@ impl ::buffa::Enumeration for UnmatchedReason {
             Self::UNMATCHED_REASON_UNKNOWN_ID_HINT => "UNMATCHED_REASON_UNKNOWN_ID_HINT",
             Self::UNMATCHED_REASON_NOT_IN_SHOW => "UNMATCHED_REASON_NOT_IN_SHOW",
             Self::UNMATCHED_REASON_CLEARED_BY_HAND => "UNMATCHED_REASON_CLEARED_BY_HAND",
+            Self::UNMATCHED_REASON_NO_SEARCHING_SOURCE => {
+                "UNMATCHED_REASON_NO_SEARCHING_SOURCE"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -480,6 +493,9 @@ impl ::buffa::Enumeration for UnmatchedReason {
             "UNMATCHED_REASON_CLEARED_BY_HAND" => {
                 ::core::option::Option::Some(Self::UNMATCHED_REASON_CLEARED_BY_HAND)
             }
+            "UNMATCHED_REASON_NO_SEARCHING_SOURCE" => {
+                ::core::option::Option::Some(Self::UNMATCHED_REASON_NO_SEARCHING_SOURCE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -491,6 +507,7 @@ impl ::buffa::Enumeration for UnmatchedReason {
             Self::UNMATCHED_REASON_UNKNOWN_ID_HINT,
             Self::UNMATCHED_REASON_NOT_IN_SHOW,
             Self::UNMATCHED_REASON_CLEARED_BY_HAND,
+            Self::UNMATCHED_REASON_NO_SEARCHING_SOURCE,
         ]
     }
 }

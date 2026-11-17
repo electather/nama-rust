@@ -1,11 +1,12 @@
-//! The Cleanup Installed Plugin: on each tick, deletes the Movies and Episodes every User played at
-//! least `days` days ago from the Libraries the Admin chooses, through the Kernel's `delete_media`
-//! only (ADR 0048). The Server builds it for wasm32 and bundles it in its binary.
+//! The Cleanup Installed Plugin: on each tick, deletes from the Libraries the Admin chooses the
+//! Requested Movies and Episodes each of whose Requesters is done with them, through the Kernel's
+//! `delete_media` only (ADR 0048). A title nobody Requested is kept. The Server builds it for
+//! wasm32 and bundles it in its binary.
 
 use std::collections::HashSet;
 
 use nama_pdk::{
-    Library, Manifest, Permission, Tick, TitleRef, TitleWatchStates, WatchState,
+    Library, Manifest, Permission, Tick, TitleRef, TitleRequesters, TitleWatchStates,
     extism_pdk::{Error, config},
     kernel,
     nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
@@ -13,9 +14,10 @@ use nama_pdk::{
 };
 
 const DAYS: &str = "days";
+const DAYS_UNWATCHED: &str = "days_unwatched";
 const LIBRARIES: &str = "libraries";
 
-/// How many titles the tick reads, and asks the Watch States of, at a time.
+/// How many titles the tick reads, and asks the Requesters and Watch States of, at a time.
 const PAGE_SIZE: u32 = 200;
 /// The largest value the Kernel's Store keeps.
 const MAX_STORED: usize = 64 * 1024;
@@ -38,7 +40,7 @@ mod exports {
         Ok(Buffa(super::manifest()))
     }
 
-    /// Deletes, on each tick, what every User watched long ago.
+    /// Deletes, on each tick, what each of its Requesters is done with.
     struct Cleanup;
 
     impl Automation for Cleanup {
@@ -66,27 +68,32 @@ fn manifest() -> Manifest {
             Permission::PERMISSION_STORE.into(),
             Permission::PERMISSION_READ_LIBRARIES.into(),
             Permission::PERMISSION_READ_WATCH_STATES.into(),
-            Permission::PERMISSION_READ_USERS.into(),
+            Permission::PERMISSION_READ_REQUESTS.into(),
             Permission::PERMISSION_DELETE_MEDIA.into(),
         ],
         tick_every_seconds: 3600,
         settings: vec![
-            SettingField {
-                required: true,
-                min_value: Some(0),
-                default_value: SettingValue {
-                    value: Some(setting_value::Value::IntegerValue(30)),
-                    ..SettingValue::default()
-                }
-                .into(),
-                ..setting(
+            days_setting(
+                setting(
                     DAYS,
-                    "Days",
-                    "Delete a Movie or Episode once every User watched it at least this many \
-                     days ago.",
+                    "Days after the Requester watched it",
+                    "A Requester is done with a Movie or Episode this many days after they \
+                     watched it. It's deleted once all its Requesters are done, and a title \
+                     nobody Requested is kept.",
                     SettingKind::SETTING_KIND_INTEGER,
-                )
-            },
+                ),
+                30,
+            ),
+            days_setting(
+                setting(
+                    DAYS_UNWATCHED,
+                    "Days a Requester has to start watching",
+                    "A Requester who hasn't watched a Movie or Episode is done with it this many \
+                     days after it was added.",
+                    SettingKind::SETTING_KIND_INTEGER,
+                ),
+                90,
+            ),
             setting(
                 LIBRARIES,
                 "Libraries",
@@ -95,8 +102,24 @@ fn manifest() -> Manifest {
             ),
         ],
         name: "Cleanup".to_owned(),
-        description: "Deletes the Movies and Episodes every User watched long ago.".to_owned(),
+        description: "Deletes the Requested Movies and Episodes each of their Requesters watched \
+                      long ago, or didn't watch in time. Keeps what nobody Requested."
+            .to_owned(),
         ..nama_pdk::manifest("cleanup", env!("CARGO_PKG_VERSION"))
+    }
+}
+
+/// `field`, required, as a number of days of at least 0 defaulting to `default`.
+fn days_setting(field: SettingField, default: i64) -> SettingField {
+    SettingField {
+        required: true,
+        min_value: Some(0),
+        default_value: SettingValue {
+            value: Some(setting_value::Value::IntegerValue(default)),
+            ..SettingValue::default()
+        }
+        .into(),
+        ..field
     }
 }
 
@@ -110,15 +133,15 @@ fn tick(tick: &Tick) -> Result<(), Error> {
     if ids.is_empty() {
         return Ok(());
     }
-    let cutoff_ms = cutoff_ms(tick.now_ms, days(config::get(DAYS)?.as_deref())?);
-    let users: Vec<i64> = kernel::users()?.into_iter().map(|user| user.id).collect();
-    if users.is_empty() {
-        return Ok(());
-    }
+    let cutoffs = Cutoffs::at(
+        tick.now_ms,
+        days(DAYS, config::get(DAYS)?.as_deref())?,
+        days(DAYS_UNWATCHED, config::get(DAYS_UNWATCHED)?.as_deref())?,
+    );
     let libraries = kernel::libraries()?;
     let mut refused = Vec::new();
     for library in chosen_libraries(&ids, &libraries) {
-        refused.extend(clean(library, &users, cutoff_ms, tick.now_ms)?);
+        refused.extend(clean(library, cutoffs, tick.now_ms)?);
     }
     match refusal(&refused) {
         None => Ok(()),
@@ -128,12 +151,7 @@ fn tick(tick: &Tick) -> Result<(), Error> {
 
 /// Deletes the due titles of `library` at `now_ms`, returning the Kernel's words for each delete it
 /// refused.
-fn clean(
-    library: &Library,
-    users: &[i64],
-    cutoff_ms: i64,
-    now_ms: i64,
-) -> Result<Vec<String>, Error> {
+fn clean(library: &Library, cutoffs: Cutoffs, now_ms: i64) -> Result<Vec<String>, Error> {
     let key = format!("deleting/{}", library.id);
     let recorded = decode(&kernel::store_get(&key, None)?.unwrap_or_default());
     let mut listed = HashSet::new();
@@ -141,14 +159,19 @@ fn clean(
     let mut token = String::new();
     loop {
         let page = kernel::titles_page(library.id, PAGE_SIZE, &token)?;
-        let titles: Vec<TitleRef> = (page.titles.iter())
-            .filter_map(|title| title.title_ref.as_option().cloned())
-            .collect();
+        let (titles, added): (Vec<TitleRef>, Vec<i64>) = (page.titles.iter())
+            .filter_map(|title| Some((title.title_ref.as_option()?.clone(), title.added_at_ms)))
+            .unzip();
         listed.extend(titles.iter().map(Key::of));
-        for watched in kernel::watch_states(&titles)? {
-            if is_due(&watched, users, cutoff_ms)
-                && let Some(title) = watched.title_ref.into_option()
-            {
+        // The contract promises an answer for each title asked, not that it comes in the order
+        // asked, so a pair naming another title is kept rather than judged.
+        let judged = (kernel::requesters(&titles)?.into_iter()).zip(kernel::watch_states(&titles)?);
+        for ((title, added_at_ms), (requesters, watched)) in
+            titles.into_iter().zip(added).zip(judged)
+        {
+            let answers_name_it = requesters.title_ref.as_option() == Some(&title)
+                && watched.title_ref.as_option() == Some(&title);
+            if answers_name_it && cutoffs.is_due(added_at_ms, &requesters, &watched) {
                 due.push(title);
             }
         }
@@ -212,38 +235,65 @@ fn chosen_libraries<'a>(ids: &[i64], libraries: &'a [Library]) -> Vec<&'a Librar
         .collect()
 }
 
-/// The `days` setting as a number of days, at least 0. A failure names the setting. The Kernel
-/// refuses saving one under 0, but one saved before the Manifest said so may still be stored.
-fn days(setting: Option<&str>) -> Result<i64, Error> {
-    let setting = setting.ok_or_else(|| Error::msg(format!("the setting {DAYS} isn't set")))?;
+/// The setting `key`, read as `setting`, as a number of days, at least 0. A failure names the
+/// setting. The Kernel refuses saving one under 0, but one saved before the Manifest said so may
+/// still be stored.
+fn days(key: &str, setting: Option<&str>) -> Result<i64, Error> {
+    let setting = setting.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))?;
     match setting.trim().parse::<i64>() {
         Ok(days) if days >= 0 => Ok(days),
         _ => Err(Error::msg(format!(
-            "the setting {DAYS} must be a whole number of 0 or more, not {setting}"
+            "the setting {key} must be a whole number of 0 or more, not {setting}"
         ))),
     }
 }
 
-/// The latest time a Watch State may have changed for its title to be due, `days` before `now_ms`.
-const fn cutoff_ms(now_ms: i64, days: i64) -> i64 {
+const fn days_before(now_ms: i64, days: i64) -> i64 {
     now_ms.saturating_sub(days.saturating_mul(DAY_MS))
 }
 
-/// Whether `title` is due: every one of `users` played it no later than `cutoff_ms`, and nobody
-/// has it in progress. With no `users`, nothing is due.
-fn is_due(title: &TitleWatchStates, users: &[i64], cutoff_ms: i64) -> bool {
-    let played_by = |user: i64| {
-        (title.states.iter())
-            .any(|state| state.user_id == user && state.played && state.updated_at_ms <= cutoff_ms)
-    };
-    !users.is_empty()
-        && !title.states.iter().any(in_progress)
-        && users.iter().all(|&user| played_by(user))
+/// The latest times at which a Requester is done with a title.
+#[derive(Debug, Clone, Copy)]
+struct Cutoffs {
+    /// For one who played it: when their Watch State last changed.
+    watched_ms: i64,
+    /// For one who didn't: when the title was added.
+    unwatched_ms: i64,
 }
 
-/// Whether `state` is started and not played, as Continue Watching shows it.
-const fn in_progress(state: &WatchState) -> bool {
-    state.position_ms > 0 && !state.played
+impl Cutoffs {
+    /// The cutoffs `days` and `days_unwatched` days before `now_ms`.
+    const fn at(now_ms: i64, days: i64, days_unwatched: i64) -> Self {
+        Self {
+            watched_ms: days_before(now_ms, days),
+            unwatched_ms: days_before(now_ms, days_unwatched),
+        }
+    }
+
+    /// Whether a title added at `added_at_ms` is due: it was Requested, and each of its
+    /// `requesters` is done with it, judged by their own Watch State in `watched` alone. One whose
+    /// Requesters were all deleted is due once the unwatched cutoff passed since it was added.
+    fn is_due(
+        self,
+        added_at_ms: i64,
+        requesters: &TitleRequesters,
+        watched: &TitleWatchStates,
+    ) -> bool {
+        let unwatched_long_enough = added_at_ms <= self.unwatched_ms;
+        let is_done = |&user: &i64| {
+            let played =
+                (watched.states.iter()).find(|state| state.user_id == user && state.played);
+            played.map_or(unwatched_long_enough, |played| {
+                played.updated_at_ms <= self.watched_ms
+            })
+        };
+        requesters.requested
+            && if requesters.user_ids.is_empty() {
+                unwatched_long_enough
+            } else {
+                requesters.user_ids.iter().all(is_done)
+            }
+    }
 }
 
 /// What [`delete_due`] did.

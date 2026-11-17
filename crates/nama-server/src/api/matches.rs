@@ -103,7 +103,11 @@ impl MatchService for MatchServiceHandler {
     ) -> ServiceResult<ListUnmatchedItemsResponse> {
         let request = request.to_owned_message();
         let library = request.filter.library_id;
-        self.libraries.get(library).await?;
+        let searching = self
+            .metadata
+            .in_order(self.libraries.get(library).await?.title_sources)
+            .can_search()
+            .await;
         let order = unmatched_order(&request);
         let list = format!("ListUnmatchedItems {library} {order:?}");
         let page = Page::read(&request.page, list.as_bytes()).map_err(|invalid| {
@@ -125,7 +129,9 @@ impl MatchService for MatchServiceHandler {
             Vec::new()
         };
         Response::ok(ListUnmatchedItemsResponse {
-            items: unmatched.into_iter().map(unmatched_to_proto).collect(),
+            items: (unmatched.into_iter())
+                .map(|item| unmatched_to_proto(item, searching))
+                .collect(),
             unparsed_paths,
             page: paging.into(),
             ..Default::default()
@@ -175,7 +181,9 @@ fn reason_to_proto(
     }
 }
 
-fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
+/// `unmatched` as listed, where `searching` says whether some source in its Library's order
+/// searches, without which Matching can't decide it.
+fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::UnmatchedItem {
     let (kind, title, year, numbers) = match unmatched.item {
         Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
         Item::Episode {
@@ -194,6 +202,11 @@ fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
     let (reason, tied_titles) = if unmatched.cleared {
         (
             proto::UnmatchedReason::UNMATCHED_REASON_CLEARED_BY_HAND,
+            Vec::new(),
+        )
+    } else if unmatched.undecided && !searching {
+        (
+            proto::UnmatchedReason::UNMATCHED_REASON_NO_SEARCHING_SOURCE,
             Vec::new(),
         )
     } else {

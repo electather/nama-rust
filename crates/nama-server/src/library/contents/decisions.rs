@@ -11,6 +11,7 @@ use sqlx::SqliteConnection;
 
 use super::{
     Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
+    sort_titles::sort_title,
 };
 use crate::{
     db::now,
@@ -27,6 +28,8 @@ pub(crate) struct Unmatched {
     pub(crate) item: Item,
     /// `None` while Matching hasn't decided, or for an Unmatched reason not stored.
     pub(crate) reason: Option<UnmatchedReason>,
+    /// Whether Matching hasn't decided about it yet, so the next scan tries it again.
+    pub(crate) undecided: bool,
     /// Whether an admin pinned it Unmatched with `ClearMatch`. Read from the pin, not stored as
     /// a reason, since `clear_match` stores none.
     pub(crate) cleared: bool,
@@ -47,6 +50,7 @@ macro_rules! unmatched_sql {
                       library_items.season, library_items.episode,
                       item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
                       item_matches.tied_titles AS "tied_titles?",
+                      item_matches.item_id IS NULL AS "undecided!: bool",
                       EXISTS (SELECT 1 FROM match_pins
                               WHERE match_pins.library_id = library_files.library_id
                                 AND match_pins.kind = library_items.kind
@@ -76,6 +80,7 @@ struct UnmatchedRow {
     episode: Option<i64>,
     unmatched_reason: Option<ReasonColumn>,
     tied_titles: Option<String>,
+    undecided: bool,
     cleared: bool,
 }
 
@@ -97,6 +102,7 @@ impl UnmatchedRow {
         }
         .into_item()?;
         Some(reason.map(|reason| Unmatched {
+            undecided: self.undecided,
             id: self.id,
             path: self.path,
             item,
@@ -486,8 +492,8 @@ pub(super) async fn insert_decisions(
                  overview, release_date, runtime_minutes, poster, poster_plugin, backdrop,
                  backdrop_plugin, logo, logo_plugin, still, genres, content_rating, show_poster,
                  show_poster_plugin, show_overview, show_first_air_date, unmatched_reason,
-                 tied_titles, metadata_version, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 tied_titles, metadata_version, decided_at, sort_title)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -515,6 +521,7 @@ pub(super) async fn insert_decisions(
             row.tied_titles,
             METADATA_VERSION,
             now,
+            row.metadata.sort_title,
             item,
         )
         .execute(&mut *conn)
@@ -640,6 +647,8 @@ struct MetadataColumns<'a> {
     show_poster: Option<ImageColumns<'a>>,
     show_overview: Option<&'a str>,
     show_first_air_date: Option<&'a str>,
+    /// As [`sort_title`] makes it from the Show's title for an Episode, else from `title`.
+    sort_title: Option<String>,
 }
 
 /// An [`ImageRef`] as the columns of `item_matches` that store it.
@@ -699,6 +708,9 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     show_poster: metadata.show_poster.as_ref().map(ImageColumns::from),
                     show_overview: metadata.show_overview.as_deref(),
                     show_first_air_date: metadata.show_first_air_date.as_deref(),
+                    sort_title: Some(sort_title(
+                        metadata.show_title.as_deref().unwrap_or(&metadata.title),
+                    )),
                 },
                 unmatched_reason: None,
                 tied_titles: None,

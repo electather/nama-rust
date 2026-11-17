@@ -43,7 +43,7 @@ use super::{
     tracks::{PROBE_VERSION, Probe, Track, TrackKind, Tracks},
 };
 use crate::{
-    ffmpeg::{Ffmpeg, SubtitleError},
+    ffmpeg::{Ffmpeg, SubtitleError, TextSubtitle},
     images::write_atomically,
     library::{Contents, Stored},
 };
@@ -166,7 +166,7 @@ async fn serve_font(
     let Some(&attachment) = probe.font_attachments.get(font) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let key = cache_key(file, &format!("font-{font}"));
+    let key = fonts_key(file).join(font.to_string());
     let read = async { Ok::<_, Error>(subtitles.ffmpeg.attachment(&path, attachment).await?) };
     match subtitles.cache.get_or_make(&key, read).await {
         // The renderer reads a font's bytes whatever its type, and nothing should guess one.
@@ -306,6 +306,12 @@ fn cache_key(file: Stored, name: &str) -> PathBuf {
     Path::new("versions").join(cache_folder(file)).join(name)
 }
 
+/// Where the fonts cached for the Version stored as `file` go in the [`Cache`]: a folder apart from
+/// its subtitles, as libass's `fontsdir` reads every file in the one it's given.
+fn fonts_key(file: Stored) -> PathBuf {
+    cache_key(file, "fonts")
+}
+
 /// The folder the subtitles cached for the Version stored as `file` go in, named so it changes
 /// when the file or how it's probed does, and they're never served for any other.
 fn cache_folder(file: Stored) -> String {
@@ -361,6 +367,32 @@ impl Cache {
         self.making_locks()
             .retain(|_, lock| Arc::strong_count(lock) > 1);
         subtitle
+    }
+
+    /// `subtitle`, a Track of the Version stored as `file`, as a burn-in reads it from here, if
+    /// its ASS and every font the file carries are cached; otherwise `None`, and the burn-in reads
+    /// the whole file for them. Blocks on the disk, briefly, as it's asked each time ffmpeg starts.
+    pub(super) fn cached_burn_in(
+        &self,
+        file: Stored,
+        subtitle: &TextSubtitle,
+    ) -> Option<TextSubtitle> {
+        let &TextSubtitle::Stream { track, fonts, .. } = subtitle else {
+            return None;
+        };
+        // As `Source::cache_key` names a Track of the file served as ASS.
+        let ass = self.dir.join(cache_key(file, &format!("{track}.ass")));
+        let fonts_dir = self.dir.join(fonts_key(file));
+        let all_cached =
+            ass.is_file() && (0..fonts).all(|font| fonts_dir.join(font.to_string()).is_file());
+        if !all_cached {
+            return None;
+        }
+        // A data directory that isn't UTF-8 can't go in a filtergraph.
+        Some(TextSubtitle::Cached {
+            ass: ass.into_os_string().into_string().ok()?,
+            fonts: fonts_dir.into_os_string().into_string().ok()?,
+        })
     }
 
     /// Throws away the subtitles cached for every Version but `stored`, at its file as stored

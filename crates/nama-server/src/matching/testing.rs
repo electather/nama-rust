@@ -297,7 +297,7 @@ impl Fixture {
 
     /// The Still of each Episode Matched in `library`, by Season and Episode.
     pub(super) async fn stills(&self, library: &Library) -> Vec<Option<String>> {
-        let shows = self.contents.shows(library.id).await.unwrap();
+        let shows = self.contents.shows(library.id, None).await.unwrap();
         (shows.iter().flat_map(LibraryShow::episodes))
             .map(|episode| episode.still.clone())
             .collect()

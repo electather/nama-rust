@@ -1,14 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_proto::nama::v1::PageRequest;
 use tempfile::TempDir;
 
 use super::{Browse, Error, Started, Target};
 use crate::{
     db::{self, Database},
     library::{
-        Change, Contents, Decided, Item, Libraries, LibraryKind, Metadata, MovieOrEpisode,
-        Progress, Stored, WatchState, WatchStates,
+        Change, Contents, Decided, Item, Libraries, LibraryKind, Listing, Metadata, MovieOrEpisode,
+        Progress, Stored, TitleSort, WatchState, WatchStates,
         fixture::{MatchedMovie, decide, tmdb_movie},
     },
     playback::{Probe, Sidecars, Track, TrackKind, Tracks},
@@ -235,7 +236,12 @@ async fn an_episode_has_the_same_tracks_however_it_is_reached() {
         .remove(0);
     let Started::Episode {
         episode: started, ..
-    } = browse.continue_watching(user).await.unwrap().remove(0)
+    } = browse
+        .continue_watching(user, &PageRequest::default())
+        .await
+        .unwrap()
+        .0
+        .remove(0)
     else {
         panic!("the pilot is an Episode");
     };
@@ -312,7 +318,10 @@ async fn a_movie_matched_in_two_libraries_is_listed_in_continue_watching_under_t
     let halfway = Progress::new(1_000, 2_000).unwrap();
     browse.report(user, older.version, halfway).await.unwrap();
 
-    let started = browse.continue_watching(user).await.unwrap();
+    let (started, _) = browse
+        .continue_watching(user, &PageRequest::default())
+        .await
+        .unwrap();
 
     let listed: Vec<_> = started
         .iter()
@@ -338,7 +347,10 @@ async fn continue_watching_reads_no_library_for_a_user_who_started_nothing() {
         watch_states: WatchStates::new(db),
     };
 
-    let started = browse.continue_watching(1).await.unwrap();
+    let (started, _) = browse
+        .continue_watching(1, &PageRequest::default())
+        .await
+        .unwrap();
 
     assert!(started.is_empty(), "{started:?}");
 }
@@ -587,6 +599,18 @@ fn position(state: Option<WatchState>) -> Option<(i64, bool)> {
     state.map(|state| (state.position_ms, state.played))
 }
 
+const BY_TITLE: Listing = Listing {
+    genres: Vec::new(),
+    min_year: None,
+    max_year: None,
+    watched: None,
+    sort: TitleSort::Title,
+    descending: false,
+};
+
+#[path = "paging_tests.rs"]
+mod paging;
+
 #[tokio::test]
 async fn a_movies_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
     let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
@@ -600,7 +624,9 @@ async fn a_movies_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
     let (movie, state, _) = (browse.movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID)))
         .await
         .unwrap();
-    let listed = browse.movies(user, library).await.unwrap();
+    let (listed, _) = (browse.movie_page(user, library, &BY_TITLE, &PageRequest::default()))
+        .await
+        .unwrap();
 
     assert_eq!(movie.id, ExternalId::tmdb(ALIEN_TMDB_ID));
     assert_eq!(position(state), Some((1_000, false)));
@@ -645,7 +671,10 @@ async fn an_episodes_watch_state_under_an_id_its_library_doesnt_prefer_is_shown(
 
 /// The Movies the User `user` has in Continue Watching, by id, with how far in they are.
 async fn continuing_movies(browse: &Browse, user: i64) -> Vec<(ExternalId, i64)> {
-    let started = browse.continue_watching(user).await.unwrap();
+    let (started, _) = browse
+        .continue_watching(user, &PageRequest::default())
+        .await
+        .unwrap();
     (started.into_iter())
         .map(|started| match started {
             Started::Movie { movie, state, .. } => (movie.id, state.position_ms),

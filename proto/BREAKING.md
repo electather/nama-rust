@@ -15,6 +15,17 @@ CI counts those headings, so a break passes only with one more than main has: ed
 - None that `buf breaking` reports: in `nama/v1/match.proto`, `ListUnmatchedItemsRequest.library_id` (1) is deleted with its number and name reserved.
 - `ListUnmatchedItems` pages through the shared messages of `nama/v1/page.proto` (ADR 0055): its request takes the Library in `filter` (2), an `UnmatchedItemFilter`, the order in `sort` (3), an `UnmatchedItemSort` of path or when found, and `direction` (5), a `SortDirection`, and the page in `page` (4), a `PageRequest`; its response gives the next token, and on the first page the `total_size`, in `page` (3), a `PageResponse`. `unparsed_paths` is filled on the first page only.
 - A client built before has its Library ignored, so it is refused with `not_found`; it must regenerate and send `filter` and `page`, and read `unparsed_paths` from the first page. The web app is the only client.
+## 2026-11-17, #884
+
+- `FIELD_SAME_TYPE`, `nama/v1/browse.proto`: `ListMoviesResponse.movies` (1) and `ListShowsResponse.shows` (1).
+- `ListMovies` and `ListShows` page through the shared messages of `nama/v1/page.proto` (ADR 0055): each request takes a `MovieFilter` or `ShowFilter` in `filter` (2), a `MovieSort` or `ShowSort` in `sort` (3), a `SortDirection` in `direction` (4) and a `PageRequest` in `page` (5), and each response gives a `PageResponse` in `page` (2). A listed title is a `MovieSummary` or `ShowSummary`, with only what a grid shows, each field under the number it has in `Movie` or `Show`; `GetMovie` and `GetShow` give the rest, Versions and Tracks among it. The new `ListGenres` lists a Library's genres to filter by.
+- A client built before gets the first 50 titles by title, each with its id, title, poster and date, and for a Movie the caller's Watch State, but no Versions or other details; it must regenerate, page with `page`, and read the rest from `GetMovie` or `GetShow`. The web app is the only client.
+
+## 2026-11-17, #882
+
+- None that `buf breaking` reports: in `nama/v1/browse.proto`, `ListContinueWatchingRequest` gains `page` (1), a `PageRequest`, and `ListContinueWatchingResponse` gains `page` (2), a `PageResponse`.
+- `ListContinueWatching` lists a page of Continue Watching (ADR 0055), most recent first, where it listed all of it.
+- A client built before gets only the 50 most recent entries and finds no next token; it must regenerate and send `page`. The web app is the only client.
 
 ## 2026-11-17, #1007
 

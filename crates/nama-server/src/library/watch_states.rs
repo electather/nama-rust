@@ -272,18 +272,41 @@ impl WatchStates {
         Ok(states)
     }
 
+    /// Every Movie, or Episode, the User `user` has started or played, by the id each Watch State
+    /// is kept under, in its text form, and whether it is played.
+    pub(crate) async fn started(
+        &self,
+        user: i64,
+        kind: Kind,
+    ) -> Result<Vec<(String, bool)>, sqlx::Error> {
+        let kind = kind.stored();
+        let rows = sqlx::query!(
+            r#"SELECT title_id, played AS "played: bool" FROM watch_states
+               WHERE user_id = ? AND kind = ? AND (played OR position_ms > 0)"#,
+            user,
+            kind
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.title_id, row.played))
+            .collect())
+    }
+
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
-    /// played, with their Watch State, most recent first. Ones changed in the same second come in
-    /// a fixed order, by kind and id, so the list doesn't shuffle between calls.
+    /// played, with their Watch State and its row id, most recent first. Ones changed in the same
+    /// second come newest row first, so the list doesn't shuffle between calls and pages by
+    /// `(updated_at, row id)`.
     pub(crate) async fn continue_watching(
         &self,
         user: i64,
-    ) -> Result<Vec<(MovieOrEpisode, WatchState)>, sqlx::Error> {
+    ) -> Result<Vec<(MovieOrEpisode, WatchState, i64)>, sqlx::Error> {
         let rows = sqlx::query!(
-            "SELECT kind, title_id, position_ms, duration_ms, updated_at
+            r#"SELECT rowid AS "row!: i64", kind, title_id, position_ms, duration_ms, updated_at
              FROM watch_states
              WHERE user_id = ? AND position_ms > 0 AND NOT played
-             ORDER BY updated_at DESC, kind, title_id",
+             ORDER BY updated_at DESC, rowid DESC"#,
             user
         )
         .fetch_all(self.db.reader())
@@ -298,7 +321,7 @@ impl WatchStates {
                     played: false,
                     updated_at: row.updated_at,
                 };
-                (watched, state)
+                (watched, state, row.row)
             })
             .collect())
     }

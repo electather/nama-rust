@@ -16,10 +16,11 @@ pub use artwork::{Artwork, Error as ArtworkError};
 pub(crate) use artwork::{Picked, router as artwork_router, url as artwork_url};
 pub(crate) use contents::{
     Change, Contents, DEFAULT_ORDER, Decided, Decisions, Episode as LibraryEpisode, Found,
-    FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, ItemKind, LocalImageFile, MatchedTo,
-    Metadata, Movie as LibraryMovie, Name, Named, NewestBackdrop, Pin, Season as LibrarySeason,
-    Show as LibraryShow, Stored, TiedTitle, TitlesIn, Unmatched, UnmatchedReason,
-    Version as LibraryVersion, library_with_movie, matched_episodes, primary_id,
+    FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, ItemKind, Listing, LocalImageFile,
+    MatchedTo, Metadata, Movie as LibraryMovie, Name, Named, NewestBackdrop, Pin,
+    Season as LibrarySeason, Show as LibraryShow, Stored, TiedTitle, TitleSort, TitlesIn,
+    Unmatched, UnmatchedReason, Version as LibraryVersion, Watched, library_with_movie,
+    matched_episodes, primary_id,
 };
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};
