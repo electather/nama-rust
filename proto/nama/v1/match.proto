@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/page.proto";
+
 // Fixing Matches by hand: finding titles in the title sources, and Matching items to them.
 //
 // A Match set or cleared here is pinned to what the item's file names: the title and year (and
@@ -32,11 +34,12 @@ service MatchService {
   rpc ClearMatch(ClearMatchRequest) returns (ClearMatchResponse) {
     option idempotency_level = IDEMPOTENT;
   }
-  // Lists the items of a Library that need a Match, by path: those Matching left Unmatched,
-  // those it hasn't Matched yet, such as when no title source in its order searches, and those
-  // pinned Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. Also lists the
-  // Library's files whose names didn't parse, which an Admin fixes by renaming. Fails with
-  // `not_found` if there is no such Library.
+  // Lists a page of the items of a Library that need a Match, in `sort`'s order: those Matching
+  // left Unmatched, those it hasn't Matched yet, such as when no title source in its order searches, and
+  // those pinned Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. The first
+  // page also lists the Library's files whose names didn't parse, which an Admin fixes by
+  // renaming. Fails with `not_found` if there is no such Library, and with `invalid_argument` if
+  // `page.token` isn't one a call with the same `filter`, `sort` and `direction` returned.
   rpc ListUnmatchedItems(ListUnmatchedItemsRequest) returns (ListUnmatchedItemsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -110,16 +113,45 @@ message ClearMatchResponse {
 }
 
 message ListUnmatchedItemsRequest {
+  reserved 1;
+  reserved "library_id";
+  // Which items to list.
+  UnmatchedItemFilter filter = 2;
+  // The order to list them in.
+  UnmatchedItemSort sort = 3;
+  // Which way `sort` runs. Unspecified lists by path from A, and the item found most recently
+  // first.
+  SortDirection direction = 5;
+  // The page of items to list.
+  PageRequest page = 4;
+}
+
+// Which items `ListUnmatchedItems` lists.
+message UnmatchedItemFilter {
   // The Library whose items to list.
   int64 library_id = 1;
 }
 
+// The order `ListUnmatchedItems` lists items in, each tie broken by item id.
+enum UnmatchedItemSort {
+  // `UNMATCHED_ITEM_SORT_PATH`.
+  UNMATCHED_ITEM_SORT_UNSPECIFIED = 0;
+  // By the path of the file that holds the item.
+  UNMATCHED_ITEM_SORT_PATH = 1;
+  // By when a scan found the item.
+  UNMATCHED_ITEM_SORT_FOUND = 2;
+}
+
 message ListUnmatchedItemsResponse {
+  // The page's items.
   repeated UnmatchedItem items = 1;
-  // The absolute paths of the Library's files whose names don't follow the naming conventions,
-  // by path. They hold no items, so nothing can Match them and there's no item to pass to
-  // `SetMatch`: renaming the file and rescanning the Library is the fix.
+  // On the first page only, the absolute paths of the Library's files whose names don't follow
+  // the naming conventions, by path. They hold no items, so nothing can Match them and there's no
+  // item to pass to `SetMatch`: renaming the file and rescanning the Library is the fix.
   repeated string unparsed_paths = 2;
+  // The next page's token, and on the first page how many items the Library has that need a
+  // Match.
+  PageResponse page = 3;
 }
 
 // An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`

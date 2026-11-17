@@ -4,7 +4,7 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, ListUnmatchedItemsRequest,
     ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchTitlesRequest,
-    SearchTitlesResponse, SetMatchRequest, SetMatchResponse,
+    SearchTitlesResponse, SetMatchRequest, SetMatchResponse, SortDirection, UnmatchedItemSort,
 };
 
 use crate::{
@@ -13,6 +13,7 @@ use crate::{
         UnmatchedReason,
     },
     matching::{ManualError, Matcher},
+    page::Page,
 };
 
 use super::{database_failed, external_id_to_proto, refuse, required_id, title_kind_from_proto};
@@ -100,30 +101,58 @@ impl MatchService for MatchServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ListUnmatchedItemsRequest>,
     ) -> ServiceResult<ListUnmatchedItemsResponse> {
-        let library = self.libraries.get(request.library_id).await?;
+        let request = request.to_owned_message();
+        let library = request.filter.library_id;
         let searching = self
             .metadata
-            .in_order(library.title_sources)
+            .in_order(self.libraries.get(library).await?.title_sources)
             .can_search()
             .await;
-        let unmatched = self
-            .contents
-            .unmatched(request.library_id)
+        let order = unmatched_order(&request);
+        let list = format!("ListUnmatchedItems {library} {order:?}");
+        let page = Page::read(&request.page, list.as_bytes()).map_err(|invalid| {
+            ConnectError::from(
+                refuse(
+                    RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
+                    invalid.to_string(),
+                )
+                .field("page.token"),
+            )
+        })?;
+        let (unmatched, paging) = (self.contents)
+            .unmatched(library, order, &page)
             .await
             .map_err(database_failed)?;
-        let unparsed_paths = self
-            .contents
-            .unparsed(request.library_id)
-            .await
-            .map_err(database_failed)?;
+        let unparsed_paths = if page.is_first() {
+            (self.contents.unparsed(library).await).map_err(database_failed)?
+        } else {
+            Vec::new()
+        };
         Response::ok(ListUnmatchedItemsResponse {
             items: (unmatched.into_iter())
                 .map(|item| unmatched_to_proto(item, searching))
                 .collect(),
             unparsed_paths,
+            page: paging.into(),
             ..Default::default()
         })
     }
+}
+
+/// The order `request` asks for, with each sort's natural direction when it names none: by path
+/// from A, and the Item found most recently first.
+fn unmatched_order(request: &ListUnmatchedItemsRequest) -> (UnmatchedItemSort, SortDirection) {
+    use {SortDirection as D, UnmatchedItemSort as S};
+    let sort = match request.sort.as_known() {
+        Some(S::UNMATCHED_ITEM_SORT_FOUND) => S::UNMATCHED_ITEM_SORT_FOUND,
+        _ => S::UNMATCHED_ITEM_SORT_PATH,
+    };
+    let direction = match request.direction.as_known() {
+        Some(direction @ (D::SORT_DIRECTION_ASCENDING | D::SORT_DIRECTION_DESCENDING)) => direction,
+        _ if sort == S::UNMATCHED_ITEM_SORT_FOUND => D::SORT_DIRECTION_DESCENDING,
+        _ => D::SORT_DIRECTION_ASCENDING,
+    };
+    (sort, direction)
 }
 
 fn title_to_proto(title: TiedTitle) -> proto::TitleCandidate {

@@ -22,8 +22,8 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, CreateLibraryRequest, EnablePluginRequest, Episode, ExtensionPoint,
     ExternalId, GetLibraryRequest, GetPluginRequest, LibraryKind, LibraryServiceClient,
     ListEpisodesRequest, ListLibrariesRequest, ListPluginsRequest, ListUnmatchedItemsRequest,
-    MatchServiceClient, PluginServiceClient, RecogniserOrder, RefusalReason, UpdateLibraryRequest,
-    UpdateLibraryResponse, event,
+    MatchServiceClient, PluginServiceClient, RecogniserOrder, RefusalReason, UnmatchedItemFilter,
+    UpdateLibraryRequest, UpdateLibraryResponse, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -157,7 +157,11 @@ async fn scanned(recogniser: Recogniser) -> (TestServer, Library) {
 async fn unparsed(server: &TestServer, library: &Library) -> Vec<String> {
     MatchServiceClient::new(HttpClient::plaintext(), server.client_config())
         .list_unmatched_items(ListUnmatchedItemsRequest {
-            library_id: library.id,
+            filter: UnmatchedItemFilter {
+                library_id: library.id,
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         })
         .await
