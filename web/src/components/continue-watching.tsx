@@ -75,10 +75,14 @@ function movieCard(library: bigint, movie: Movie): Card[] {
   if (!movie.id) return [];
   const libraryId = String(library);
   const movieId = titleParam(movie.id);
-  const hiding = { libraryId: library, target: { case: "movieId", value: movie.id } } as const;
   return [
     {
-      hiding: { key: `${libraryId}/${movieId}`, title: movie.title, ...hiding },
+      hiding: {
+        key: `${libraryId}/${movieId}`,
+        title: movie.title,
+        libraryId: library,
+        target: { case: "movieId", value: movie.id },
+      },
       link: {
         to: "/libraries/$libraryId/movies/$movieId/play",
         params: { libraryId, movieId },
@@ -103,10 +107,14 @@ function episodeCard(library: bigint, { show, episode }: ContinueWatchingEpisode
   const showId = titleParam(show.id);
   const season = String(episode.seasonNumber);
   const number = String(episode.episodeNumber);
-  const hiding = { libraryId: library, target: { case: "showId", value: show.id } } as const;
   return [
     {
-      hiding: { key: `${libraryId}/${showId}/${season}/${number}`, title: show.title, ...hiding },
+      hiding: {
+        key: `${libraryId}/${showId}/${season}/${number}`,
+        title: show.title,
+        libraryId: library,
+        target: { case: "showId", value: show.id },
+      },
       link: {
         to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
         params: { libraryId, showId, season, episode: number },
