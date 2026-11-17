@@ -21,10 +21,10 @@ import { ChangeImage, type ImageRules } from "@/components/change-image";
 import { type Shown, StateLabel } from "@/components/state-label";
 import {
   ExtensionPoint,
+  type ExtensionPointFailure,
   PluginPermission,
   PluginService,
   type PluginSummary,
-  type RecogniserFailure,
 } from "@/gen/nama/v1/plugin_pb";
 import { pluginName } from "@/lib/plugins";
 
@@ -62,27 +62,39 @@ export function ExtensionPoints({ extensionPoints }: { extensionPoints: Extensio
   );
 }
 
+/** What a point's failing calls leave undone, for the points where that isn't plain. */
+const failureMeans: Partial<Record<ExtensionPoint, string>> = {
+  [ExtensionPoint.RECOGNISER]:
+    "Until it answers, the Items it is asked about stay undecided and are tried again at the next Scan; the rest of Matching goes on.",
+};
+
 /**
- * That the Plugin's Recogniser keeps failing: how many calls in a row failed, when the last one did
- * and what it said. Nothing while its calls answer.
+ * Each of the Plugin's Extension Points that keeps failing: how many calls in a row failed, when
+ * the last one did and what it said. Nothing while its calls answer, and nothing for a point from a
+ * newer Server than this app knows.
  */
-export function RecogniserFailing({ failure }: { failure: RecogniserFailure | undefined }) {
-  if (failure === undefined) return null;
-  const { lastError, atMs, failedInARow } = failure;
+export function PointFailures({ failures }: { failures: ExtensionPointFailure[] }) {
+  return failures.map((failure) => <PointFailing key={failure.point} failure={failure} />);
+}
+
+function PointFailing({ failure }: { failure: ExtensionPointFailure }) {
+  const { point, lastError, atMs, failedInARow } = failure;
+  const shown = points[point];
+  if (shown === undefined) return null;
   const at = new Date(Number(atMs));
   const calls = failedInARow === 1 ? "Its last call" : `Its last ${failedInARow} calls`;
+  const heading = `failing-${point}`;
   return (
-    <section aria-labelledby="recogniser-failing" className="mt-6 max-w-prose">
-      <h2 id="recogniser-failing">
-        <StateLabel label="Recogniser failing" Icon={TriangleAlert} />
+    <section aria-labelledby={heading} className="mt-6 max-w-prose">
+      <h2 id={heading}>
+        <StateLabel label={`${shown.label} failing`} Icon={TriangleAlert} />
       </h2>
       <p className="mt-2 text-sm text-pretty text-muted-foreground">
         {calls} failed, the latest on{" "}
         <time dateTime={at.toISOString()}>
           {at.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
         </time>
-        . Until it answers, the Items it is asked about stay undecided and are tried again at the
-        next Scan; the rest of Matching goes on.
+        . {failureMeans[point]}
       </p>
       <p className="mt-1 text-sm text-pretty wrap-break-word">Last error: {lastError}</p>
     </section>

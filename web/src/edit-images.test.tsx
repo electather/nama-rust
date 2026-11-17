@@ -188,6 +188,68 @@ test("a Show's page edits the Show's images and the Season shown's Poster", asyn
   });
 });
 
+/** Dark's page showing Season 2, whose title sources list `seasonPosters` for that Season. */
+async function openDarkSeason2(seasonPosters: string[]) {
+  const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
+  let listedSeason: (() => void) | undefined;
+  const seasonListed = new Promise<void>((resolve) => {
+    listedSeason = resolve;
+  });
+  const libraryService = {
+    // The Show's lists answer only after the Season's, so once the Show's picks show, the
+    // Season's list has arrived too, empty or not.
+    listArtwork: async ({ season }: { season?: number | undefined }) => {
+      if (season === 2) {
+        listedSeason?.();
+        return { posterUrls: seasonPosters };
+      }
+      await seasonListed;
+      return { posterUrls: [OTHER], backdropUrls: [OTHER] };
+    },
+  };
+  const transport = fakeServer(
+    { signedIn: managesLibraries, libraries, libraryService },
+    {},
+    {},
+    (router) => {
+      router.service(BrowseService, {
+        getShow: () => ({ show: { title: "Dark" }, seasons: [{ number: 1 }, { number: 2 }] }),
+        listEpisodes: () => ({ episodes: [] }),
+      });
+    },
+  );
+  openApp("/libraries/2/shows/tmdb-70523?season=2", transport);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit images" }));
+  return screen.findByRole("dialog", { name: "Images of Dark" });
+}
+
+test("a Season's Poster is picked from that Season's artwork", async () => {
+  const fetched = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(new Response(null, { status: 204 }));
+  const dialog = await openDarkSeason2([DOWNLOADED, OTHER]);
+
+  fireEvent.click(
+    await within(dialog).findByRole("button", { name: "Pick Season 2 Poster 2 of 2" }),
+  );
+
+  await waitFor(() => {
+    expect(fetched).toHaveBeenCalledWith(
+      `/custom-images/show/tmdb-70523/season/2/poster?artwork=${encodeURIComponent(OTHER)}`,
+      { method: "PUT" },
+    );
+  });
+});
+
+test("a Season no title source lists artwork for offers only the upload", async () => {
+  const dialog = await openDarkSeason2([]);
+
+  await within(dialog).findByRole("button", { name: "Pick Poster 1 of 1" });
+
+  expect(within(dialog).getByLabelText("Upload a Season 2 Poster")).toBeDefined();
+  expect(within(dialog).queryByRole("button", { name: /^Pick Season 2 Poster/u })).toBeNull();
+});
+
 test("a file over 20 MiB is refused before it's sent", async () => {
   const fetched = vi.spyOn(globalThis, "fetch");
   openAlien(managesLibraries, () => ({ posterUrl: DOWNLOADED }));

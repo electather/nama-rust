@@ -15,7 +15,7 @@ use super::{
     Running,
     services::{
         Method, TITLE_ARTWORK, TITLE_EPISODE, TITLE_IMAGE, TITLE_MOVIE, TITLE_SEARCH, TITLE_SEASON,
-        TITLE_SHOW,
+        TITLE_SEASON_ARTWORK, TITLE_SHOW,
     },
 };
 
@@ -96,6 +96,13 @@ impl TitleSource for Running {
         self.ask(&TITLE_ARTWORK, asked)
     }
 
+    fn season_artwork<'a>(
+        &'a self,
+        asked: &'a SeasonAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
+        self.ask(&TITLE_SEASON_ARTWORK, asked)
+    }
+
     fn answers(&self, method: TitleMethod) -> bool {
         self.serves(match method {
             TitleMethod::Search => &TITLE_SEARCH,
@@ -105,6 +112,7 @@ impl TitleSource for Running {
             TitleMethod::Episode => &TITLE_EPISODE,
             TitleMethod::Image => &TITLE_IMAGE,
             TitleMethod::Artwork => &TITLE_ARTWORK,
+            TitleMethod::SeasonArtwork => &TITLE_SEASON_ARTWORK,
         })
     }
 }

@@ -772,7 +772,8 @@ pub trait LibraryService: Send + Sync + 'static {
     /// Show, best first, for an admin to pick one as its Custom Image: `PUT` to the image's
     /// `/custom-images/` path with `?artwork=` and the URL given here, and the Server downloads it
     /// through its title source. The lists are asked each call and never stored. Empty for a title
-    /// no source lists artwork for. Fails with `invalid_argument` if the kind or id is missing.
+    /// no source lists artwork for. With `season` set, lists only that Season's Posters instead, and
+    /// none for a Movie. Fails with `invalid_argument` if the kind or id is missing.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

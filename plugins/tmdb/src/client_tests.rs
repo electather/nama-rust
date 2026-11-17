@@ -1,6 +1,6 @@
 use nama_plugin_api::{
     Plugin,
-    contract::{ArtworkAsked, TitleId, TitleKind},
+    contract::{ArtworkAsked, SeasonAsked, TitleId, TitleKind},
     metadata::{SourceManifest, TitleMethod, TitleSource},
 };
 
@@ -35,6 +35,20 @@ async fn artwork_by_a_foreign_namespace_answers_unsupported_id_without_asking_tm
         .artwork(&asked("fanart", "348"))
         .await
         .unwrap();
+
+    assert!(answer.unsupported_id);
+    assert_eq!(answer.artwork, []);
+}
+
+#[tokio::test]
+async fn a_seasons_artwork_by_a_foreign_namespace_answers_unsupported_id_without_asking_tmdb() {
+    let asked = SeasonAsked {
+        show: asked("fanart", "348").id,
+        season: 1,
+        ..Default::default()
+    };
+
+    let answer = unreachable().season_artwork(&asked).await.unwrap();
 
     assert!(answer.unsupported_id);
     assert_eq!(answer.artwork, []);

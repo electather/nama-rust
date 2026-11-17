@@ -9295,6 +9295,11 @@ pub struct ListArtworkRequestView<'a> {
     ///
     /// Field 2: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
+    /// A Season's number, to list that Season of the Show's Posters for its Season Poster. Season 0
+    /// holds specials.
+    ///
+    /// Field 3: `season`
+    pub season: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListArtworkRequestView<'a> {
@@ -9357,6 +9362,13 @@ impl<'a> ::buffa::MessageView<'a> for ListArtworkRequestView<'a> {
                     }
                 }
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.season = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -9389,6 +9401,7 @@ impl<'a> ::buffa::MessageView<'a> for ListArtworkRequestView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            season: self.season,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -9414,6 +9427,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ListArtworkRequestView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.season {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9438,6 +9454,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ListArtworkRequestView<'a> {
                 buf,
             );
             self.id.write_to(__cache, buf);
+        }
+        if let Some(v) = self.season {
+            ::buffa::types::put_uint32_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9467,6 +9486,9 @@ impl<'__a> ::serde::Serialize for ListArtworkRequestView<'__a> {
             if let ::core::option::Option::Some(__v) = self.id.as_option() {
                 __map.serialize_entry("id", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.season {
+            __map.serialize_entry("season", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         __map.end()
     }
@@ -9578,6 +9600,14 @@ impl ListArtworkRequestOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
+    }
+    /// A Season's number, to list that Season of the Show's Posters for its Season Poster. Season 0
+    /// holds specials.
+    ///
+    /// Field 3: `season`
+    #[must_use]
+    pub fn season(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().season
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListArtworkRequestView<'static>>>
