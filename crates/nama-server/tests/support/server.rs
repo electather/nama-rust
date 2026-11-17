@@ -434,12 +434,14 @@ impl TestServer {
         let dir = tempfile::tempdir().unwrap();
         // The Server stores and sends a folder's canonical path, which a temp dir's may not be.
         let folder = dir.path().canonicalize().unwrap();
+        let path = folder.to_str().unwrap();
         let id = self
             .libraries()
             .create_library(CreateLibraryRequest {
-                name: "Media".to_owned(),
+                // Named after its folder, as a test may create more than one.
+                name: path.to_owned(),
                 kind: kind.into(),
-                folders: vec![folder.to_str().unwrap().to_owned()],
+                folders: vec![path.to_owned()],
                 title_sources: title_sources
                     .iter()
                     .map(|&source| source.to_owned())

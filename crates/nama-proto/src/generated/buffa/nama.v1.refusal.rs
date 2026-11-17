@@ -57,6 +57,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_UNKNOWN_ENUM_VALUE = 19i32,
     /// `not_found`: there is no Library with the ID. Params: `libraryId`.
     REFUSAL_REASON_LIBRARY_NOT_FOUND = 20i32,
+    /// `already_exists`: another Library already has the name, ignoring case. `field` is `name`.
+    /// Params: `library` (the other Library's name).
+    REFUSAL_REASON_LIBRARY_NAME_TAKEN = 83i32,
     /// `already_exists`: a folder already belongs to another Library. Params: `folder`, `library`
     /// (the other Library's name).
     REFUSAL_REASON_FOLDER_TAKEN = 21i32,
@@ -307,6 +310,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_LIBRARY_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const LibraryNotFound: Self = Self::REFUSAL_REASON_LIBRARY_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_LIBRARY_NAME_TAKEN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LibraryNameTaken: Self = Self::REFUSAL_REASON_LIBRARY_NAME_TAKEN;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_TAKEN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FolderTaken: Self = Self::REFUSAL_REASON_FOLDER_TAKEN;
@@ -618,6 +624,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_ENUM_VALUE)
             }
             20i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_LIBRARY_NOT_FOUND),
+            83i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LIBRARY_NAME_TAKEN)
+            }
             21i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_TAKEN),
             81i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS),
             22i32 => {
@@ -796,6 +805,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_UNKNOWN_ENUM_VALUE"
             }
             Self::REFUSAL_REASON_LIBRARY_NOT_FOUND => "REFUSAL_REASON_LIBRARY_NOT_FOUND",
+            Self::REFUSAL_REASON_LIBRARY_NAME_TAKEN => {
+                "REFUSAL_REASON_LIBRARY_NAME_TAKEN"
+            }
             Self::REFUSAL_REASON_FOLDER_TAKEN => "REFUSAL_REASON_FOLDER_TAKEN",
             Self::REFUSAL_REASON_FOLDER_OVERLAPS => "REFUSAL_REASON_FOLDER_OVERLAPS",
             Self::REFUSAL_REASON_WRONG_LIBRARY_KIND => {
@@ -983,6 +995,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             "REFUSAL_REASON_LIBRARY_NOT_FOUND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LIBRARY_NOT_FOUND)
+            }
+            "REFUSAL_REASON_LIBRARY_NAME_TAKEN" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LIBRARY_NAME_TAKEN)
             }
             "REFUSAL_REASON_FOLDER_TAKEN" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_TAKEN)
@@ -1205,6 +1220,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FIELD_REQUIRED,
             Self::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
             Self::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            Self::REFUSAL_REASON_LIBRARY_NAME_TAKEN,
             Self::REFUSAL_REASON_FOLDER_TAKEN,
             Self::REFUSAL_REASON_FOLDER_OVERLAPS,
             Self::REFUSAL_REASON_WRONG_LIBRARY_KIND,

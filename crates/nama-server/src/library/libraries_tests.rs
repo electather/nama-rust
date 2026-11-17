@@ -180,6 +180,60 @@ async fn recording_the_recognisers_read_says_whether_they_changed_since_the_last
     );
 }
 
+#[tokio::test]
+async fn renaming_a_library_to_another_case_of_its_own_name_is_kept() {
+    let (_data, _media, libraries, folder) = setup().await;
+    let id = libraries
+        .create("Movies", Kind::Movies, vec![folder.clone()])
+        .await
+        .unwrap()
+        .id;
+
+    let renamed = libraries
+        .update(id, "MOVIES", vec![folder], Order::default())
+        .await
+        .unwrap();
+
+    assert_eq!(renamed.name, "MOVIES");
+}
+
+#[tokio::test]
+async fn a_library_sharing_its_name_from_before_names_were_unique_keeps_it_on_update() {
+    let (_data, media, libraries, _folder) = setup().await;
+    let [films, cinema, tv] = ["films", "cinema", "tv"].map(|name| {
+        let path = media.path().canonicalize().unwrap().join(name);
+        std::fs::create_dir(&path).unwrap();
+        path.to_str().unwrap().to_owned()
+    });
+    libraries
+        .create("Movies", Kind::Movies, vec![films])
+        .await
+        .unwrap();
+    let id = libraries
+        .create("Shows", Kind::Shows, vec![tv])
+        .await
+        .unwrap()
+        .id;
+    (libraries.db)
+        .write(move |tx| {
+            Box::pin(async move {
+                sqlx::query("UPDATE libraries SET name = 'Movies' WHERE id = ?")
+                    .bind(id)
+                    .execute(&mut **tx)
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+
+    let updated = libraries
+        .update(id, "Movies", vec![cinema.clone()], Order::default())
+        .await
+        .unwrap();
+
+    assert_eq!(updated.folders, [cinema]);
+}
+
 /// A title source keeping `namespace`, searching or not.
 fn known(namespace: &str, searches: bool) -> SourceManifest {
     SourceManifest {

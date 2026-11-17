@@ -66,6 +66,9 @@ pub(crate) enum Error {
     },
     #[error("there is no Library {0}")]
     NotFound(i64),
+    /// Another Library, named `library`, has the name, ignoring case.
+    #[error("the Library {library:?} already has this name")]
+    NameTaken { library: String },
     /// A folder in the request already belongs to another Library.
     #[error("the folder {folder} already belongs to the Library {library:?}")]
     FolderTaken { folder: String, library: String },
@@ -318,6 +321,7 @@ async fn create(
         mut title_sources,
         recognisers,
     } = order;
+    ensure_name_free(conn, &name).await?;
     ensure_folders_free(conn, &folders, None).await?;
     let id = sqlx::query_scalar!(
         r#"INSERT INTO libraries (name, kind) VALUES (?, ?) RETURNING id AS "id!""#,
@@ -360,6 +364,15 @@ async fn update(
         title_sources,
         recognisers,
     } = order;
+    let current = sqlx::query_scalar!("SELECT name FROM libraries WHERE id = ?", id)
+        .fetch_optional(&mut *conn)
+        .await?
+        .ok_or(Error::NotFound(id))?;
+    // Keeping its name, in any case, lets a Library that shared it before names were unique keep
+    // it.
+    if name.to_lowercase() != current.to_lowercase() {
+        ensure_name_free(conn, &name).await?;
+    }
     let row = sqlx::query!(
         r#"UPDATE libraries SET name = ? WHERE id = ?
            RETURNING kind AS "kind: Kind", title_sources, recognisers"#,
@@ -613,6 +626,19 @@ async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
     #[cfg(unix)]
     tokio::fs::metadata(path.join(".")).await?;
     Ok(())
+}
+
+/// Fails if a Library already has `name`, ignoring case.
+async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(), Error> {
+    // Lowercased in Rust, as SQLite's `lower()` and `NOCASE` fold only ASCII.
+    let name = name.to_lowercase();
+    let names = sqlx::query_scalar!("SELECT name FROM libraries")
+        .fetch_all(&mut *conn)
+        .await?;
+    match names.into_iter().find(|other| other.to_lowercase() == name) {
+        Some(library) => Err(Error::NameTaken { library }),
+        None => Ok(()),
+    }
 }
 
 /// Fails if one of `folders` is, is inside, or holds a folder of a Library other than `except`.

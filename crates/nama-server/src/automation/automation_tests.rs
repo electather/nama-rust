@@ -234,9 +234,14 @@ async fn list_libraries_lists_each_library() {
     let [library] = listed.libraries.as_slice() else {
         panic!("{listed:?}");
     };
+    let name = media.path().canonicalize().unwrap();
     assert_eq!(
         (library.id, library.name.as_str(), library.kind),
-        (id, "Movies", LibraryKind::LIBRARY_KIND_MOVIES.into())
+        (
+            id,
+            name.to_str().unwrap(),
+            LibraryKind::LIBRARY_KIND_MOVIES.into()
+        )
     );
 }
 
