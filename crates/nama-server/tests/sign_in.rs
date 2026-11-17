@@ -1062,6 +1062,20 @@ async fn through_a_trusted_proxy_failures_count_against_the_forwarded_ip() {
 }
 
 #[tokio::test]
+async fn through_a_trusted_proxy_failures_count_against_the_forwarded_ipv6_64() {
+    let server = start_behind_proxy().await;
+    fail_setup(&server, 50, |i| format!("2001:db8::{i:x}")).await;
+
+    let setup = setup_request(&server, "SESSION_DELIVERY_TOKEN");
+    let from = |ip| [("x-forwarded-for", ip)];
+    let blocked = call(&server, "Setup", &setup, &from("2001:db8::ffff")).await;
+    let set_up = call(&server, "Setup", &setup, &from("2001:db8:0:1::1")).await;
+
+    assert_blocked(&blocked, RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS);
+    assert_eq!(set_up.status, 200, "{}", set_up.body);
+}
+
+#[tokio::test]
 async fn a_forged_x_forwarded_for_chain_counts_against_the_ip_the_trusted_proxies_saw() {
     let server = start_behind_proxy().await;
     // The client claims an address of its choosing; the proxies append the one they saw.
