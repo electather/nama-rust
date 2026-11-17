@@ -157,3 +157,22 @@ async fn show_titles_names_each_asked_episodes_show_and_none_for_one_not_stored(
 
     assert_eq!(titles, [None, Some("Dark".to_owned())]);
 }
+
+#[tokio::test]
+async fn season_of_gives_an_episodes_show_ids_and_season_and_none_for_one_not_stored() {
+    let fx = Fixture::new().await;
+    let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523), "tvdb-121361".parse().unwrap()]);
+    matched_episode(&fx, "/media/Dark - S01E02.mkv", 2, "Lies", dark.clone()).await;
+
+    let lies = fx
+        .contents
+        .season_of(fx.library, &ExternalId::tmdb(1002))
+        .await;
+    let unknown = fx
+        .contents
+        .season_of(fx.library, &ExternalId::tmdb(9))
+        .await;
+
+    assert_eq!(lies.unwrap(), Some((dark, 1)));
+    assert_eq!(unknown.unwrap(), None);
+}

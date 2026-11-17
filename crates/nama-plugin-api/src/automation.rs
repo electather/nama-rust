@@ -12,9 +12,9 @@ use std::{error::Error, fmt};
 
 pub use nama_plugin_proto::nama::plugin::v1::{
     DeleteAsked, DeleteStarted, Libraries, LibrariesAsked, Library, LibraryKind, Permission,
-    StoreEntry, StoreKey, StoreValue, Stored, Tick, Title, TitleRef, TitleRefKind,
-    TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
-    WatchStatesAsked,
+    Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Tick, Title, TitleRef,
+    TitleRefKind, TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
+    WatchState, WatchStates, WatchStatesAsked,
 };
 
 use crate::{BoxFuture, PluginError};
@@ -87,6 +87,12 @@ pub trait Kernel: Send + Sync + 'static {
         &'a self,
         asked: &'a UsersAsked,
     ) -> BoxFuture<'a, Result<Users, KernelRefused>>;
+
+    /// Who Requested each title asked for, as ids only. Needs `PERMISSION_READ_REQUESTS`.
+    fn list_requesters<'a>(
+        &'a self,
+        asked: &'a RequestersAsked,
+    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>>;
 
     /// Starts deleting a title's media files, once the Kernel checked the delete, and answers the
     /// other titles its files take along. Refuses, deleting nothing, one taking along an Episode

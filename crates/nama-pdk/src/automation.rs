@@ -67,9 +67,10 @@ pub mod kernel {
     use buffa::Message;
     use extism_pdk::Error;
     use nama_plugin_proto::nama::plugin::v1::{
-        DeleteAsked, DeleteStarted, KernelAnswer, Libraries, LibrariesAsked, Library, StoreEntry,
-        StoreKey, StoreValue, Stored, Title, TitleRef, TitleWatchStates, Titles, TitlesAsked, User,
-        Users, UsersAsked, WatchStates, WatchStatesAsked, kernel_answer,
+        DeleteAsked, DeleteStarted, KernelAnswer, Libraries, LibrariesAsked, Library, Requesters,
+        RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
+        TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
+        WatchStates, WatchStatesAsked, kernel_answer,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -194,6 +195,21 @@ pub mod kernel {
         Ok(call::<Users>("list_users", &UsersAsked::default())?.users)
     }
 
+    /// Each of `titles` with the ids of the Users who Requested it, and whether anything did, so
+    /// a title whose Requesters were all deleted is told from one nobody Requested. Needs
+    /// `PERMISSION_READ_REQUESTS`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused or couldn't be called.
+    pub fn requesters(titles: &[TitleRef]) -> Result<Vec<TitleRequesters>, Error> {
+        let asked = RequestersAsked {
+            titles: titles.to_vec(),
+            ..RequestersAsked::default()
+        };
+        Ok(call::<Requesters>("list_requesters", &asked)?.titles)
+    }
+
     /// Deletes the media files of `title`, as an Admin's delete does. It returns once the Kernel
     /// checked the delete, which goes on in the background, with the other titles that go with
     /// it: Episodes a file of `title` holds too, each of which `also` must name. Needs
@@ -245,6 +261,7 @@ pub mod kernel {
             safe fn list_titles(request: u64) -> u64;
             safe fn list_watch_states(request: u64) -> u64;
             safe fn list_users(request: u64) -> u64;
+            safe fn list_requesters(request: u64) -> u64;
             safe fn delete_media(request: u64) -> u64;
         }
 
@@ -256,6 +273,7 @@ pub mod kernel {
             "list_titles" => list_titles,
             "list_watch_states" => list_watch_states,
             "list_users" => list_users,
+            "list_requesters" => list_requesters,
             "delete_media" => delete_media,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };

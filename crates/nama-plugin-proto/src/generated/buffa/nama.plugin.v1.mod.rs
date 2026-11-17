@@ -90,6 +90,9 @@ pub mod __buffa {
         reg.register_json_any(super::__USERS_ASKED_JSON_ANY);
         reg.register_json_any(super::__USERS_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
+        reg.register_json_any(super::__REQUESTERS_ASKED_JSON_ANY);
+        reg.register_json_any(super::__REQUESTERS_JSON_ANY);
+        reg.register_json_any(super::__TITLE_REQUESTERS_JSON_ANY);
         reg.register_json_any(super::__DELETE_ASKED_JSON_ANY);
         reg.register_json_any(super::__DELETE_STARTED_JSON_ANY);
         reg.register_json_any(super::__BLOB_TO_PUT_JSON_ANY);
@@ -292,6 +295,18 @@ pub use self::__buffa::view::UsersOwnedView;
 pub use self::__buffa::view::UserView;
 #[doc(inline)]
 pub use self::__buffa::view::UserOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestersAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestersAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestersView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestersOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleRequestersView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleRequestersOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DeleteAskedView;
 #[doc(inline)]

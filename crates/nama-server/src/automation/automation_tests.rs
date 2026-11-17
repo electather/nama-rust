@@ -1,14 +1,25 @@
-use std::{collections::HashSet, fs, path::Path, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fs,
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
 
 use buffa::MessageField;
 use nama_plugin_api::{
     PluginId,
     automation::{
-        DeleteAsked, Kernel, LibrariesAsked, LibraryKind, Permission, StoreKey, TitleRef,
-        TitleRefKind, Titles, TitlesAsked, UsersAsked, WatchStatesAsked,
+        DeleteAsked, Kernel, LibrariesAsked, LibraryKind, Permission, Requesters, RequestersAsked,
+        StoreKey, TitleRef, TitleRefKind, Titles, TitlesAsked, UsersAsked, WatchStatesAsked,
     },
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
+    settings::{SettingValue, Settings},
+};
+use nama_plugin_tmdb::{
+    Tmdb,
+    testing::{API_KEY, FakeTmdb},
 };
 
 use super::Automation;
@@ -22,6 +33,7 @@ use crate::{
         fixture::{self, MatchedMovie, tmdb_movie},
     },
     plugins::{ExtensionPoints, Registry},
+    requests::Requests,
     scanner::Scanner,
     server_settings::ServerUrl,
     users::{Permissions, User, Users},
@@ -627,4 +639,119 @@ async fn a_function_refuses_once_the_server_is_stopping() {
 
     let refused = kernel.store_get(&StoreKey::default()).await;
     assert_eq!(refused.unwrap_err().0, "the Server is stopping");
+}
+
+#[tokio::test]
+async fn list_requesters_without_its_permission_is_refused_naming_it() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_USERS);
+
+    let refused = kernel.list_requesters(&RequestersAsked::default()).await;
+
+    assert_eq!(
+        refused.unwrap_err().0,
+        "the Admin hasn't granted cleanup the Read Requests Permission"
+    );
+}
+
+/// Requests on `db` looking titles up in `tmdb`, and the Plugins they need kept enabled.
+fn requests(db: &Arc<Database>, tmdb: &FakeTmdb) -> (Registry, Requests) {
+    let plugins = Registry::new();
+    let settings = Settings::new(BTreeMap::from([(
+        "api_key".to_owned(),
+        SettingValue::Text(API_KEY.to_owned()),
+    )]));
+    let tmdb = Tmdb::with_endpoints(tmdb.endpoints());
+    (plugins.enable_with_settings(Arc::new(tmdb), settings)).unwrap();
+    let points = plugins.extension_points();
+    let events = EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default());
+    (plugins, Requests::new(Arc::clone(db), events, points))
+}
+
+/// The User `id`, as Requests sees them asking.
+fn asker(id: i64) -> User {
+    User {
+        id,
+        name: String::new(),
+        permissions: Permissions::NEW_USER,
+        created_at: 0,
+    }
+}
+
+/// Whether each title `listed` gives was Requested, and by whom.
+fn requested(listed: &Requesters) -> Vec<(bool, Vec<i64>)> {
+    (listed.titles.iter())
+        .map(|title| (title.requested, title.user_ids.clone()))
+        .collect()
+}
+
+#[tokio::test]
+async fn list_requesters_gives_who_requested_each_movie_and_episode() {
+    let data = tempfile::tempdir().unwrap();
+    let movie_folder = tempfile::tempdir().unwrap();
+    let show_folder = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
+    let tmdb = FakeTmdb::start().await;
+    let (_plugins, requests) = requests(&db, &tmdb);
+    let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
+    requests.create(&asker(ada), &alien, None).await.unwrap();
+    requests.create(&asker(bo), &alien, None).await.unwrap();
+    let dark = ExternalId::tmdb(70_523);
+    requests.follow(&asker(bo), &dark, None).await.unwrap();
+    let movies = movies(&db, movie_folder.path(), &[ALIEN_TMDB_ID, 1]).await;
+    let (shows, _path) = two_episodes_in_one_file(&db, show_folder.path()).await;
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_REQUESTS);
+
+    let asked = RequestersAsked {
+        titles: vec![
+            movie_ref(movies, ALIEN_TMDB_ID),
+            movie_ref(movies, 1),
+            episode_ref(shows, LIES_TMDB_ID),
+        ],
+        ..RequestersAsked::default()
+    };
+    let listed = kernel.list_requesters(&asked).await.unwrap();
+
+    assert_eq!(
+        requested(&listed),
+        [(true, vec![ada, bo]), (false, vec![]), (true, vec![bo])]
+    );
+    assert_eq!(
+        *listed.titles[2].title_ref,
+        episode_ref(shows, LIES_TMDB_ID)
+    );
+}
+
+#[tokio::test]
+async fn list_requesters_gives_a_title_whose_only_requester_was_deleted_as_requested() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [admin, ada] = users(&db, ["Admin", "Ada"]).await;
+    let tmdb = FakeTmdb::start().await;
+    let (_plugins, requests) = requests(&db, &tmdb);
+    let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
+    requests.create(&asker(ada), &alien, None).await.unwrap();
+    let library = movies(&db, media.path(), &[ALIEN_TMDB_ID]).await;
+    let root = User {
+        permissions: Permissions::ADMIN,
+        ..asker(0)
+    };
+    let users = Users::new(Arc::clone(&db), ExtensionPoints::default());
+    // An Admin must be left once Ada goes.
+    (users.set_permissions(&root, admin, Permissions::ADMIN))
+        .await
+        .unwrap();
+    users.delete(&root, ada).await.unwrap();
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_REQUESTS);
+
+    let asked = RequestersAsked {
+        titles: vec![movie_ref(library, ALIEN_TMDB_ID)],
+        ..RequestersAsked::default()
+    };
+    let listed = kernel.list_requesters(&asked).await.unwrap();
+
+    assert_eq!(requested(&listed), [(true, vec![])]);
 }
