@@ -5,7 +5,7 @@ import { useCallback, useEffect, useId, useReducer, useRef } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { episodeName } from "@/lib/browse";
-import { type Video, clock } from "@/lib/playback";
+import { type Video, clock, play } from "@/lib/playback";
 
 const COUNTDOWN_SECONDS = 20;
 /** How many Episodes in a row autoplay starts with no input before the player asks instead. */
@@ -65,7 +65,8 @@ export function useNextEpisode(autoplay: Autoplay, video: Video, wake: () => voi
   return {
     onInput,
     playNext: () => {
-      if (next && !cancelled) void navigate(next.link(touched ? 1 : next.streak + 1));
+      // The question still waits for an answer if the video ends under it.
+      if (next && !cancelled && !asking) void navigate(next.link(streakAfter(next, touched)));
     },
     cancel: autoplay.cancel,
     countdown: asking ? undefined : due,
@@ -73,8 +74,7 @@ export function useNextEpisode(autoplay: Autoplay, video: Video, wake: () => voi
     asking,
     keepWatching: () => {
       touch();
-      // A refused play leaves it paused with Play showing, as `togglePlay` does.
-      control((element) => void element.play().catch(() => {}));
+      control(play);
     },
   };
 }
@@ -82,6 +82,11 @@ export function useNextEpisode(autoplay: Autoplay, video: Video, wake: () => voi
 /** `next` while the countdown to it runs, near the end of the video. */
 function dueNext(next: NextEpisode | undefined, { time, duration }: Video["state"]) {
   return duration > 0 && duration - time <= COUNTDOWN_SECONDS ? next : undefined;
+}
+
+/** The streak autoplay opens `next` with: input during this Episode starts the count again. */
+function streakAfter({ streak }: NextEpisode, touched: boolean) {
+  return touched ? 1 : streak + 1;
 }
 
 function isStillWatchingDue(due: NextEpisode | undefined, touched: boolean) {
@@ -104,7 +109,8 @@ export function NextEpisodeOverlay({
     secondsLeft,
   } = nextEpisode;
   return (
-    // Outside the controls, so it stays while they're hidden.
+    // Outside the controls, so it stays while they're hidden. It floats over the video, so it gets a
+    // shadow (DESIGN.md, "Elevation").
     <aside
       aria-label="Next Episode"
       className="absolute inset-x-4 bottom-32 z-30 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg sm:inset-x-auto sm:end-6 sm:w-80"
@@ -136,13 +142,15 @@ function StillWatching({
   back: LinkOptions;
   onKeepWatching: () => void;
 }) {
+  const navigate = useNavigate();
   const titleId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
   return (
-    // A modal `<dialog>` keeps focus, and so keys, off the paused controls until it's answered.
+    // A modal `<dialog>` keeps the pointer and focus off the paused controls until it's answered,
+    // and the player's shortcuts leave keys to it.
     <dialog
       ref={dialog}
       role="alertdialog"
@@ -150,8 +158,9 @@ function StillWatching({
       // Esc goes Back, as the player's shortcut does, and doesn't just close it.
       onCancel={(event) => {
         event.preventDefault();
+        void navigate(back);
       }}
-      // Floats above the player, so it alone gets a shadow (DESIGN.md, "Elevation").
+      // Floats above the player, so it gets a shadow (DESIGN.md, "Elevation").
       className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-sm"
     >
       <h2 id={titleId} className="text-lg font-semibold tracking-tight">

@@ -250,3 +250,39 @@ test("nothing plays while the question waits for an answer", async () => {
   });
   expect(screen.getByRole("alertdialog")).toBeDefined();
 });
+
+test("keys go to the question, not the player, so it can't be skipped", async () => {
+  const { router, video } = await playEpisode3("?streak=3");
+  playUntilLeft(video, 20);
+  await screen.findByRole("alertdialog", { name: "Are you still watching?" });
+
+  fireEvent.keyDown(document, { key: "ArrowRight" });
+  expect(video.currentTime).toBe(DURATION_S - 20);
+  fireEvent.keyDown(document, { key: " " });
+  expect(video.paused).toBe(true);
+
+  playToEnd(video);
+  expect(await pathAfterNavigating(router)).toBe(`${SHOW}/seasons/1/episodes/3/play`);
+  expect(screen.getByRole("alertdialog")).toBeDefined();
+});
+
+test("Esc on the question opens the Show", async () => {
+  const { router, video } = await playEpisode3("?streak=3");
+  playUntilLeft(video, 20);
+  const question = await screen.findByRole("alertdialog", { name: "Are you still watching?" });
+
+  fireEvent(question, new Event("cancel", { cancelable: true }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe(SHOW);
+  });
+});
+
+test("Keep watching counts as input, so the count starts again", async () => {
+  const { router, video } = await playEpisode3("?streak=3");
+  playUntilLeft(video, 20);
+  const question = await screen.findByRole("alertdialog", { name: "Are you still watching?" });
+  fireEvent.click(within(question).getByRole("button", { name: "Keep watching" }));
+
+  playToEnd(video);
+  expect(await openedEpisode4(router)).toMatchObject({ search: { streak: 1 } });
+});

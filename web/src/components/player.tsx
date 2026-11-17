@@ -47,6 +47,7 @@ export interface PlayerProps {
   watchState: WatchState | undefined;
   /** The title page to go back to. */
   back: LinkOptions;
+  /** The Episode to count down to and play after this one, if there is one. */
   next?: NextEpisode | undefined;
 }
 
@@ -57,12 +58,11 @@ export interface PlayerProps {
  */
 export function Player(props: PlayerProps) {
   useEffect(playerOpened, []);
-  const autoplay = useAutoplay(props.next);
   // Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it mounted, and
   // React keeps the Tracks and Playback Limit it asked for.
   return (
     <Suspense fallback={<GettingReady title={props.title} back={props.back} />}>
-      <PlannedPlayer {...props} autoplay={autoplay} />
+      <PlannedPlayer {...props} autoplay={useAutoplay(props.next)} />
     </Suspense>
   );
 }
