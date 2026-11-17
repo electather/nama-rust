@@ -94,6 +94,8 @@ pub mod __buffa {
         reg.register_json_any(super::__DOLBY_VISION_JSON_ANY);
         reg.register_json_any(super::__AUDIO_TRACK_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_FILTER_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_MOVIE_REQUEST_JSON_ANY);
@@ -101,8 +103,12 @@ pub mod __buffa {
         reg.register_json_any(super::__SHOW_JSON_ANY);
         reg.register_json_any(super::__SEASON_JSON_ANY);
         reg.register_json_any(super::__EPISODE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__SHOW_FILTER_JSON_ANY);
         reg.register_json_any(super::__LIST_SHOWS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_SHOWS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_GENRES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_GENRES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_EPISODES_REQUEST_JSON_ANY);
@@ -475,6 +481,14 @@ pub use self::__buffa::view::SubtitleTrackView;
 #[doc(inline)]
 pub use self::__buffa::view::SubtitleTrackOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::MovieSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieFilterView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieFilterOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ListMoviesRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListMoviesRequestOwnedView;
@@ -503,6 +517,14 @@ pub use self::__buffa::view::EpisodeView;
 #[doc(inline)]
 pub use self::__buffa::view::EpisodeOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::ShowSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowFilterView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowFilterOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ListShowsRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListShowsRequestOwnedView;
@@ -510,6 +532,14 @@ pub use self::__buffa::view::ListShowsRequestOwnedView;
 pub use self::__buffa::view::ListShowsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListShowsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListGenresRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListGenresRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListGenresResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListGenresResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetShowRequestView;
 #[doc(inline)]

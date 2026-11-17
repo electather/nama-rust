@@ -13,7 +13,9 @@ mod server;
 
 use connectrpc::client::HttpClient;
 use fake_fanart::FakeFanart;
-use nama_proto::nama::v1::{BrowseServiceClient, LibraryKind, ListMoviesRequest, Movie};
+use nama_proto::nama::v1::{
+    BrowseServiceClient, GetMovieRequest, LibraryKind, ListMoviesRequest, Movie,
+};
 use server::{TestServer, tmdb::HEAT};
 
 /// Heat, tagged with its TMDB id since the fake TMDB finds no Heat by search; its TMDB images
@@ -34,7 +36,8 @@ async fn heat_searching(title_sources: &[&str]) -> (TestServer, FakeFanart, Movi
         )
         .await;
     server.scan_and_match(&library).await;
-    let movies = BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let movies = browse
         .list_movies(ListMoviesRequest {
             library_id: library.id,
             ..Default::default()
@@ -44,7 +47,18 @@ async fn heat_searching(title_sources: &[&str]) -> (TestServer, FakeFanart, Movi
         .into_owned()
         .movies;
     assert_eq!(movies.len(), 1, "{movies:?}");
-    let heat = movies.into_iter().next().unwrap();
+    let heat = browse
+        .get_movie(GetMovieRequest {
+            library_id: library.id,
+            movie_id: movies.into_iter().next().unwrap().id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .movie
+        .into_option()
+        .unwrap();
     assert_eq!(heat.id.value, HEAT.to_string());
     (server, fanart, heat)
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                              library_files.modified_ns, library_files.parser_version,\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", item_matches.title AS \"title!\",\n                              item_matches.original_title, item_matches.overview,\n                              item_matches.release_date, item_matches.runtime_minutes,\n                              item_matches.poster, item_matches.poster_plugin,\n                              item_matches.backdrop, item_matches.backdrop_plugin,\n                              item_matches.logo, item_matches.logo_plugin, item_matches.genres,\n                              item_matches.content_rating, libraries.title_sources\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       WHERE library_files.library_id = ?\n                         AND library_items.kind = 'movie'\n                         AND item_matches.state = 'matched'\n                       ORDER BY library_files.path",
+  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                              library_files.modified_ns, library_files.parser_version,\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", item_matches.title AS \"title!\",\n                              item_matches.original_title, item_matches.overview,\n                              item_matches.release_date, item_matches.runtime_minutes,\n                              item_matches.poster, item_matches.poster_plugin,\n                              item_matches.backdrop, item_matches.backdrop_plugin,\n                              item_matches.logo, item_matches.logo_plugin, item_matches.genres,\n                              item_matches.content_rating, libraries.title_sources\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       WHERE library_files.library_id = ?1\n                         AND library_items.kind = 'movie'\n                         AND item_matches.state = 'matched'\n                         AND (?2 IS NULL\n                              OR EXISTS (SELECT 1 FROM item_match_ids AS named\n                                         JOIN json_each(?2) AS only\n                                           ON only.value = named.namespace || '-' || named.value\n                                         WHERE named.item_id = item_matches.item_id\n                                           AND named.scope = 'title'))\n                       ORDER BY library_files.path",
   "describe": {
     "columns": [
       {
@@ -231,7 +231,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -257,5 +257,5 @@
       false
     ]
   },
-  "hash": "f6af9304654b7f5072bd8168f0b74569592aa06ebbe48360bda89df330a3e384"
+  "hash": "8af68c7b0467919d1054eb99448d79321b61b68eb800ef400baede3142902c31"
 }

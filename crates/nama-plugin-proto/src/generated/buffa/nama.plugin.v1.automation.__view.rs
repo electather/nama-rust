@@ -5503,8 +5503,8 @@ impl ::serde::Serialize for UsersAskedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `list_users` answers: every User. Every User sees every Library, so these are every User a
-/// title is for, including those without any Watch State.
+/// What `list_users` answers: every User. Every User sees every Library, so these are every User who
+/// can watch a title, including those without any Watch State.
 #[derive(Clone, Debug, Default)]
 pub struct UsersView<'a> {
     /// Field 1: `users`

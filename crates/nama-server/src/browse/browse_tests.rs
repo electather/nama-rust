@@ -8,8 +8,8 @@ use super::{Browse, Error, Started, Target};
 use crate::{
     db::{self, Database},
     library::{
-        Change, Contents, Decided, Item, Libraries, LibraryKind, Metadata, MovieOrEpisode,
-        Progress, Stored, WatchState, WatchStates,
+        Change, Contents, Decided, Item, Libraries, LibraryKind, Listing, Metadata, MovieOrEpisode,
+        Progress, Stored, TitleSort, WatchState, WatchStates,
         fixture::{MatchedMovie, decide, tmdb_movie},
     },
     playback::{Probe, Sidecars, Track, TrackKind, Tracks},
@@ -604,6 +604,18 @@ fn position(state: Option<WatchState>) -> Option<(i64, bool)> {
     state.map(|state| (state.position_ms, state.played))
 }
 
+const BY_TITLE: Listing = Listing {
+    genres: Vec::new(),
+    min_year: None,
+    max_year: None,
+    watched: None,
+    sort: TitleSort::Title,
+    descending: false,
+};
+
+#[path = "paging_tests.rs"]
+mod paging;
+
 #[tokio::test]
 async fn a_movies_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
     let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
@@ -617,7 +629,9 @@ async fn a_movies_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
     let (movie, state, _) = (browse.movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID)))
         .await
         .unwrap();
-    let listed = browse.movies(user, library).await.unwrap();
+    let (listed, _) = (browse.movie_page(user, library, &BY_TITLE, &PageRequest::default()))
+        .await
+        .unwrap();
 
     assert_eq!(movie.id, ExternalId::tmdb(ALIEN_TMDB_ID));
     assert_eq!(position(state), Some((1_000, false)));

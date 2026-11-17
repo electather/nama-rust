@@ -8,15 +8,16 @@
 use std::{collections::HashMap, sync::Arc};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_proto::nama::v1::{PageRequest, PageResponse};
 
 use crate::{
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Stored, WatchState,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, Stored, WatchState,
         WatchStateKind, WatchStates,
     },
-    page,
+    page::{self, Page},
     playback::{Probe, Sidecars, Track, Tracks},
     scanner::read_only_folder,
 };
@@ -80,6 +81,16 @@ pub(crate) enum Target {
     Show(ExternalId),
 }
 
+/// A Show as a page of a Library's Shows lists it.
+#[derive(Debug)]
+pub(crate) struct ListedShow {
+    pub(crate) show: Show,
+    /// How many Episodes the Library has of it.
+    pub(crate) episodes: u32,
+    /// How many of those the User has played.
+    pub(crate) played: u32,
+}
+
 /// A Library's titles, read whole, without Tracks.
 enum Titles {
     Movies(Vec<LibraryMovie>),
@@ -107,23 +118,22 @@ impl Browse {
         }
     }
 
-    /// The Movies of the Movies Library `library`, each with the User `user`'s Watch State of
-    /// it, if they've started it.
-    pub(crate) async fn movies(
+    /// A page of the Movies of the Movies Library `library` that `listing` keeps, in its order,
+    /// each without Tracks and with the User `user`'s Watch State of it, if they've started it.
+    pub(crate) async fn movie_page(
         &self,
         user: i64,
         library: i64,
-    ) -> Result<Vec<(Movie, Option<WatchState>)>, Error> {
-        let movies = self.titles(&self.library(library).await?).await?.movies()?;
-        let probes = self
-            .probes(movies.iter().flat_map(|movie| &movie.versions))
-            .await?;
+        listing: &Listing,
+        asked: &PageRequest,
+    ) -> Result<(Vec<(LibraryMovie, Option<WatchState>)>, PageResponse), Error> {
+        let (ids, paged) =
+            (self.title_page(user, (library, LibraryKind::Movies), listing, asked)).await?;
+        let movies = self.contents.movies(library, Some(&ids)).await?;
+        let movies = in_order_of(&ids, movies, |movie| &movie.id);
         let titles = movies.iter().map(movie_ids).collect();
         let states = self.states_of(user, titles).await?;
-        let movies = movies
-            .into_iter()
-            .map(|movie| movie.map_versions(with_tracks(&probes)));
-        Ok(movies.zip(states).collect())
+        Ok((movies.into_iter().zip(states).collect(), paged))
     }
 
     /// The Movie `id` of the Movies Library `library`, with the User `user`'s Watch State of it,
@@ -160,9 +170,42 @@ impl Browse {
         Ok(episodes.into_iter().zip(states).collect())
     }
 
-    /// The Shows of the Shows Library `library`.
-    pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, Error> {
-        self.titles(&self.library(library).await?).await?.shows()
+    /// A page of the Shows of the Shows Library `library` that `listing` keeps, in its order, each
+    /// with how many of its Episodes the User `user` has played.
+    pub(crate) async fn show_page(
+        &self,
+        user: i64,
+        library: i64,
+        listing: &Listing,
+        asked: &PageRequest,
+    ) -> Result<(Vec<ListedShow>, PageResponse), Error> {
+        let (ids, paged) =
+            (self.title_page(user, (library, LibraryKind::Shows), listing, asked)).await?;
+        let shows = self.contents.shows(library, Some(&ids)).await?;
+        let shows = in_order_of(&ids, shows, |show| &show.id);
+        let every_episode = shows.iter().flat_map(Show::episodes);
+        let states = self
+            .states_of(user, every_episode.map(episode_ids).collect())
+            .await?;
+        let mut states = states.into_iter();
+        let listed = shows.into_iter().map(|show| {
+            let episodes = show.episodes().count();
+            let played = (states.by_ref().take(episodes))
+                .filter(|state| state.is_some_and(|state| state.played))
+                .count();
+            ListedShow {
+                show,
+                episodes: u32::try_from(episodes).unwrap_or(u32::MAX),
+                played: u32::try_from(played).unwrap_or(u32::MAX),
+            }
+        });
+        Ok((listed.collect(), paged))
+    }
+
+    /// The genres of the titles of the Library `library`, by name.
+    pub(crate) async fn genres(&self, library: i64) -> Result<Vec<String>, Error> {
+        let library = self.library(library).await?;
+        Ok(self.contents.genres(library.id).await?)
     }
 
     /// The Show `id` of the Shows Library `library`.
@@ -214,9 +257,44 @@ impl Browse {
     // ponytail: whole-Library read (see AGENTS.md).
     async fn titles(&self, library: &Library) -> Result<Titles, Error> {
         Ok(match library.kind {
-            LibraryKind::Movies => Titles::Movies(self.contents.movies(library.id).await?),
-            LibraryKind::Shows => Titles::Shows(self.contents.shows(library.id).await?),
+            LibraryKind::Movies => Titles::Movies(self.contents.movies(library.id, None).await?),
+            LibraryKind::Shows => Titles::Shows(self.contents.shows(library.id, None).await?),
         })
+    }
+
+    /// The ids of a page of the titles of the `kind` Library `library` that `listing` keeps, as
+    /// [`Contents::title_page`] lists them for the User `user`.
+    async fn title_page(
+        &self,
+        user: i64,
+        (library, kind): (i64, LibraryKind),
+        listing: &Listing,
+        asked: &PageRequest,
+    ) -> Result<(Vec<ExternalId>, PageResponse), Error> {
+        let library = self.library(library).await?;
+        if library.kind != kind {
+            return Err(Error::WrongKind { wanted: kind });
+        }
+        let list = format!("{kind:?} of Library {} {listing:?}", library.id);
+        let page = Page::read(asked, list.as_bytes())?;
+        // Only the watched filter reads them, and a User may have thousands.
+        let started = match (listing.watched, kind) {
+            (None, _) => Vec::new(),
+            (Some(_), LibraryKind::Movies) => {
+                self.watch_states
+                    .started(user, WatchStateKind::Movie)
+                    .await?
+            }
+            (Some(_), LibraryKind::Shows) => {
+                self.watch_states
+                    .started(user, WatchStateKind::Episode)
+                    .await?
+            }
+        };
+        let page = (self.contents)
+            .title_page(library.id, listing, &started, &page)
+            .await?;
+        Ok(page)
     }
 
     /// What probing read from the files of `versions` as they are now, with their sidecars, by
@@ -286,6 +364,15 @@ impl Titles {
             .find(|episode| &episode.id == id)
             .ok_or(Error::NothingMatched)
     }
+}
+
+/// The titles of `titles` named by `ids`, in that order, each title's id as `id_of` reads it. A
+/// title gone since `ids` were read is left out.
+fn in_order_of<T>(ids: &[ExternalId], titles: Vec<T>, id_of: impl Fn(&T) -> &ExternalId) -> Vec<T> {
+    let mut by_id: HashMap<ExternalId, T> = (titles.into_iter())
+        .map(|title| (id_of(&title).clone(), title))
+        .collect();
+    ids.iter().filter_map(|id| by_id.remove(id)).collect()
 }
 
 /// A Movie as Watch State reads it: by any of its ids.

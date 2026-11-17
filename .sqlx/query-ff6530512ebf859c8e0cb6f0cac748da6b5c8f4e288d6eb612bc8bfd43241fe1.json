@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_items.id AS \"id!\", library_files.path,\n                      library_items.kind AS \"kind: ItemKind\", library_items.title,\n                      library_items.year, library_items.hint, library_items.season,\n                      library_items.episode,\n                      item_matches.unmatched_reason AS \"unmatched_reason?: ReasonColumn\",\n                      item_matches.tied_titles AS \"tied_titles?\",\n                      EXISTS (SELECT 1 FROM match_pins\n                              WHERE match_pins.library_id = library_files.library_id\n                                AND match_pins.kind = library_items.kind\n                                AND match_pins.title = library_items.title\n                                AND match_pins.year IS library_items.year\n                                AND match_pins.hint IS library_items.hint\n                                AND match_pins.pinned_id IS NULL) AS \"cleared!: bool\"\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?\n                 AND item_matches.state IS NOT 'matched'\n               ORDER BY library_files.path, library_items.id",
+  "query": "SELECT library_items.id AS \"id!\", library_files.path,\n                      library_items.kind AS \"kind: ItemKind\", library_items.title,\n                      library_items.year, library_items.hint, library_items.season,\n                      library_items.episode,\n                      item_matches.unmatched_reason AS \"unmatched_reason?: ReasonColumn\",\n                      item_matches.tied_titles AS \"tied_titles?\",\n                      item_matches.item_id IS NULL AS \"undecided!: bool\",\n                      EXISTS (SELECT 1 FROM match_pins\n                              WHERE match_pins.library_id = library_files.library_id\n                                AND match_pins.kind = library_items.kind\n                                AND match_pins.title = library_items.title\n                                AND match_pins.year IS library_items.year\n                                AND match_pins.hint IS library_items.hint\n                                AND match_pins.pinned_id IS NULL) AS \"cleared!: bool\"\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?\n                 AND item_matches.state IS NOT 'matched'\n               ORDER BY library_files.path, library_items.id",
   "describe": {
     "columns": [
       {
@@ -114,9 +114,15 @@
         }
       },
       {
-        "name": "cleared!: bool",
+        "name": "undecided!: bool",
         "ordinal": 10,
-        "type_info": "Integer",
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "cleared!: bool",
+        "ordinal": 11,
+        "type_info": "Null",
         "origin": "Expression"
       }
     ],
@@ -124,18 +130,19 @@
       "Right": 1
     },
     "nullable": [
+      null,
       false,
       false,
       false,
-      false,
       true,
       true,
       true,
       true,
       true,
       true,
-      false
+      null,
+      null
     ]
   },
-  "hash": "90b9b702ee27dbe5acbc1b2c59131284ef59779bf42cb5411fa18f206619c01d"
+  "hash": "ff6530512ebf859c8e0cb6f0cac748da6b5c8f4e288d6eb612bc8bfd43241fe1"
 }

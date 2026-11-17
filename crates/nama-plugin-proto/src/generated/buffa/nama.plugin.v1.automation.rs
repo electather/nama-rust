@@ -3631,8 +3631,8 @@ pub const __USERS_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
     from_json: ::buffa::type_registry::any_from_json::<UsersAsked>,
     is_wkt: false,
 };
-/// What `list_users` answers: every User. Every User sees every Library, so these are every User a
-/// title is for, including those without any Watch State.
+/// What `list_users` answers: every User. Every User sees every Library, so these are every User who
+/// can watch a title, including those without any Watch State.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

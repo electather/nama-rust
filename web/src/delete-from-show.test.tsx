@@ -71,6 +71,7 @@ function openDark(
         }),
         listEpisodes: () => ({ episodes: [secrets, lies] }),
         listShows: () => ({ shows: [] }),
+        listGenres: () => ({}),
         ...browse,
       });
     },

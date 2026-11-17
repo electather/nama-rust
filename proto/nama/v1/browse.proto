@@ -14,9 +14,10 @@ import "nama/v1/watch_state.proto";
 // share a season number. Items that aren't Matched are in `MatchService.ListUnmatchedItems`
 // instead.
 service BrowseService {
-  // Lists a Movies Library's Movies, by title, each with its Versions and the caller's Watch
-  // State. Fails with `not_found` if there is no such Library, and with `invalid_argument` if it
-  // is a Shows Library.
+  // Lists a page of a Movies Library's Movies (ADR 0055), filtered and sorted as asked, each with
+  // only what a grid of them shows: `GetMovie` gives the rest. Fails with `not_found` if there is
+  // no such Library, and with `invalid_argument` if it is a Shows Library or the page token isn't
+  // one this filter and sort gave.
   rpc ListMovies(ListMoviesRequest) returns (ListMoviesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -25,14 +26,19 @@ service BrowseService {
   rpc GetMovie(GetMovieRequest) returns (GetMovieResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Lists a Shows Library's Shows, by title. Fails with `not_found` if there is no such Library,
-  // and with `invalid_argument` if it is a Movies Library.
+  // Lists a page of a Shows Library's Shows, as `ListMovies` lists Movies: `GetShow` gives the
+  // rest. Fails like `ListMovies`, a Movies Library being the wrong kind.
   rpc ListShows(ListShowsRequest) returns (ListShowsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Returns one Show of a Shows Library, with its Seasons. Fails like `ListShows`, or with
   // `not_found` if nothing in the Library is Matched to an Episode of that Show.
   rpc GetShow(GetShowRequest) returns (GetShowResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Lists the genres a Library's Movies or Shows have, by name, to filter `ListMovies` or
+  // `ListShows` by. Fails with `not_found` if there is no such Library.
+  rpc ListGenres(ListGenresRequest) returns (ListGenresResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Lists one Season's Episodes, by episode number, each with its Versions and the caller's Watch
@@ -198,13 +204,72 @@ message SubtitleTrack {
   bool image = 1;
 }
 
+// A Movie as a Library's grid shows it. Each field keeps the number it has in `Movie`.
+message MovieSummary {
+  // As `Movie.id`.
+  ExternalId id = 1;
+  string title = 2;
+  // When it was released, as `YYYY-MM-DD`.
+  optional string release_date = 5;
+  // As `Movie.poster_url`: its Custom Image, if it has one.
+  optional string poster_url = 7;
+  // The caller's progress through it. Unset if they haven't started it.
+  WatchState watch_state = 10;
+  // As `Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 13;
+}
+
+// What `ListMovies` sorts by, tie-broken by the Movie's id.
+enum MovieSort {
+  // As `MOVIE_SORT_TITLE`.
+  MOVIE_SORT_UNSPECIFIED = 0;
+  // By title, ignoring case, accents and a leading English "The", "A" or "An". Ascending by
+  // default.
+  MOVIE_SORT_TITLE = 1;
+  // By when its first Version was added to the Library, so a second copy doesn't move it. Most
+  // recent first by default.
+  MOVIE_SORT_ADDED = 2;
+  // By release date, those without one first when ascending. Most recent first by default.
+  MOVIE_SORT_RELEASED = 3;
+}
+
+// Which titles a list keeps, by the caller's Watch State of them.
+enum WatchedFilter {
+  // All of them.
+  WATCHED_FILTER_UNSPECIFIED = 0;
+  // Those they haven't started: for a Show, one with no Episode started or played.
+  WATCHED_FILTER_NOT_STARTED = 1;
+  // Those they've started and not played: for a Show, one with some Episodes started or played,
+  // but not all played.
+  WATCHED_FILTER_STARTED = 2;
+  // Those they've played: for a Show, one with every Episode played.
+  WATCHED_FILTER_PLAYED = 3;
+}
+
+// Which Movies `ListMovies` lists: those that pass every filter set.
+message MovieFilter {
+  // Those with any of these genres, by name as `ListGenres` gives them. Empty for any.
+  repeated string genres = 1;
+  // Those released in this year or later.
+  optional uint32 min_year = 2;
+  // Those released in this year or earlier.
+  optional uint32 max_year = 3;
+  WatchedFilter watched = 4;
+}
+
 message ListMoviesRequest {
   // The Movies Library whose Movies to list.
   int64 library_id = 1;
+  MovieFilter filter = 2;
+  MovieSort sort = 3;
+  // Which way `sort` runs, `SORT_DIRECTION_UNSPECIFIED` being the way it names.
+  SortDirection direction = 4;
+  PageRequest page = 5;
 }
 
 message ListMoviesResponse {
-  repeated Movie movies = 1;
+  repeated MovieSummary movies = 1;
+  PageResponse page = 2;
 }
 
 message GetMovieRequest {
@@ -291,13 +356,70 @@ message Episode {
   optional bytes still_thumbhash = 11;
 }
 
+// A Show as a Library's grid shows it. Each field keeps the number it has in `Show`.
+message ShowSummary {
+  // As `Show.id`.
+  ExternalId id = 1;
+  string title = 2;
+  // As `Show.poster_url`.
+  optional string poster_url = 3;
+  // As `Show.poster_thumbhash`.
+  optional bytes poster_thumbhash = 7;
+  // When it first aired, as `YYYY-MM-DD`.
+  optional string first_air_date = 13;
+  // How many of its Episodes the Library has.
+  uint32 episode_count = 14;
+  // How many of those the caller has played.
+  uint32 played_episode_count = 15;
+}
+
+// What `ListShows` sorts by, tie-broken by the Show's id.
+enum ShowSort {
+  // As `SHOW_SORT_TITLE`.
+  SHOW_SORT_UNSPECIFIED = 0;
+  // As `MOVIE_SORT_TITLE`.
+  SHOW_SORT_TITLE = 1;
+  // By when its newest Episode was added to the Library, so a new Episode moves it up. Most
+  // recent first by default.
+  SHOW_SORT_ADDED = 2;
+  // By first air date, those without one first when ascending. Most recent first by default.
+  SHOW_SORT_RELEASED = 3;
+}
+
+// Which Shows `ListShows` lists: those that pass every filter set.
+message ShowFilter {
+  // As `MovieFilter.genres`.
+  repeated string genres = 1;
+  // Those that first aired in this year or later.
+  optional uint32 min_year = 2;
+  // Those that first aired in this year or earlier.
+  optional uint32 max_year = 3;
+  WatchedFilter watched = 4;
+}
+
 message ListShowsRequest {
   // The Shows Library whose Shows to list.
   int64 library_id = 1;
+  ShowFilter filter = 2;
+  ShowSort sort = 3;
+  // As `ListMoviesRequest.direction`.
+  SortDirection direction = 4;
+  PageRequest page = 5;
 }
 
 message ListShowsResponse {
-  repeated Show shows = 1;
+  repeated ShowSummary shows = 1;
+  PageResponse page = 2;
+}
+
+message ListGenresRequest {
+  // The Library whose genres to list.
+  int64 library_id = 1;
+}
+
+message ListGenresResponse {
+  // By name.
+  repeated string genres = 1;
 }
 
 message GetShowRequest {
