@@ -1,10 +1,11 @@
 use nama_proto::nama::v1::{PlaybackReasonKind as Kind, SubtitleFormat};
 
+use crate::ffmpeg::{BurnIn, TextSubtitle};
 use crate::playback::{
-    DeviceDecoding, Facts, Method, Subtitle, build,
+    DeviceDecoding, Facts, Method, Sidecar, Subtitle, build,
     tests::{
         MKV, MP4, audio, decided, facts, firefox, in_container, kinds, reason_of, remuxing,
-        subtitle, text_subtitle, track, video,
+        subtitle, text_subtitle, track, transcoded, video,
     },
     tracks::{Track, TrackKind},
 };
@@ -76,6 +77,7 @@ fn a_direct_play_or_remux_offers_the_text_subtitles_by_their_place_but_not_image
         TrackKind::Subtitle {
             image: true,
             header: false,
+            sidecar: None,
         },
     );
     let teletext = text_subtitle("dvb_teletext");
@@ -128,6 +130,7 @@ fn image_subtitle(codec: &str) -> Track {
         TrackKind::Subtitle {
             image: true,
             header: false,
+            sidecar: None,
         },
     )
 }
@@ -235,6 +238,7 @@ fn vobsub() -> Track {
         TrackKind::Subtitle {
             image: true,
             header: true,
+            sidecar: None,
         },
     )
 }
@@ -397,6 +401,53 @@ fn an_ass_track_in_a_file_with_fonts_keeps_both_entries_on_a_device_that_doesnt_
         }]
     );
     assert_eq!(plan.offers.burn_in, vec![2]);
+}
+
+#[test]
+fn an_ass_sidecar_beside_a_file_with_fonts_is_burned_in_from_its_path_on_a_device_that_lists_ass() {
+    let sidecar = Track {
+        kind: TrackKind::Subtitle {
+            image: false,
+            header: false,
+            sidecar: Some(Sidecar {
+                path: "/media/Alien.en.ass".to_owned(),
+                size: 1,
+                modified_ns: 2,
+            }),
+        },
+        ..ass()
+    };
+    let mut facts = with_ass(vec![1], drawing_ass(), Some(3));
+    if let Some(probe) = &mut facts.probe {
+        probe.tracks.push(sidecar);
+    }
+
+    let plan = build(&mut facts);
+
+    assert!(
+        reason_of(
+            &plan,
+            Kind::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS
+        )
+        .decided
+    );
+    assert_eq!(plan.burn_in, Some(3));
+    let shown: Vec<_> = (plan.subtitles.iter())
+        .map(|subtitle| (subtitle.place, subtitle.format, subtitle.font_urls.len()))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            (2, SubtitleFormat::SUBTITLE_FORMAT_ASS, 1),
+            (3, SubtitleFormat::SUBTITLE_FORMAT_WEBVTT, 0)
+        ]
+    );
+    assert_eq!(
+        transcoded(&plan).video.burn_in,
+        Some(BurnIn::Text {
+            subtitle: TextSubtitle::Sidecar("/media/Alien.en.ass".to_owned())
+        })
+    );
 }
 
 #[test]

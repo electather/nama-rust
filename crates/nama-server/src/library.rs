@@ -6,6 +6,7 @@ mod contents;
 mod country_tags;
 mod custom_images;
 mod libraries;
+mod local_images;
 mod scan_locks;
 mod title_source;
 mod versions;
@@ -15,10 +16,11 @@ pub use artwork::{Artwork, Error as ArtworkError};
 pub(crate) use artwork::{Picked, router as artwork_router, url as artwork_url};
 pub(crate) use contents::{
     Change, Contents, DEFAULT_ORDER, Decided, Decisions, Episode as LibraryEpisode, Found,
-    FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, ItemKind, Listing, MatchedTo, Metadata,
-    Movie as LibraryMovie, Name, Named, NewestBackdrop, Pin, Season as LibrarySeason,
-    Show as LibraryShow, Stored, TiedTitle, TitleSort, TitlesIn, Unmatched, UnmatchedReason,
-    Version as LibraryVersion, Watched, library_with_movie, matched_episodes, primary_id,
+    FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, ItemKind, Listing, LocalImageFile,
+    MatchedTo, Metadata, Movie as LibraryMovie, Name, Named, NewestBackdrop, Pin,
+    Season as LibrarySeason, Show as LibraryShow, Stored, TiedTitle, TitleSort, TitlesIn,
+    Unmatched, UnmatchedReason, Version as LibraryVersion, Watched, library_with_movie,
+    matched_episodes, primary_id,
 };
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};
@@ -29,6 +31,9 @@ pub(crate) use custom_images::{
 pub(crate) use libraries::{
     Error as LibraryError, FolderProblem, Kind as LibraryKind, Libraries, Library, Order,
     check_known, check_title_sources, default_title_sources,
+};
+pub(crate) use local_images::{
+    FoundImages, LocalImageUrls, LocalImages, router as local_images_router,
 };
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
 pub(crate) use title_source::{

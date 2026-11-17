@@ -673,6 +673,14 @@ async fn a_providers_failure_comes_without_its_plugins_secret_settings_from_ever
     log.wait_for(&["configurable", "provider failed", blanked], 1)
         .await;
     assert!(!log.contents().contains("s3cr3t"), "{}", log.contents());
+    let recorded = (registry.extension_points()).failing(
+        &PluginId::from_static("configurable"),
+        PointKey::provide::<dyn Fetcher>(),
+    );
+    assert_eq!(
+        recorded.map(|failing| failing.last_error),
+        Some(blanked.to_owned())
+    );
 }
 
 #[tokio::test]

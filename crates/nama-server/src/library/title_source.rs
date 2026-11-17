@@ -67,7 +67,7 @@ impl Source {
 }
 
 /// Every [`TitleMethod`], for reading which a source answers.
-const METHODS: [TitleMethod; 7] = [
+const METHODS: [TitleMethod; 8] = [
     TitleMethod::Search,
     TitleMethod::Movie,
     TitleMethod::Show,
@@ -75,6 +75,7 @@ const METHODS: [TitleMethod; 7] = [
     TitleMethod::Episode,
     TitleMethod::Image,
     TitleMethod::Artwork,
+    TitleMethod::SeasonArtwork,
 ];
 
 impl TitleSources {
@@ -285,18 +286,63 @@ impl TitleSources {
     }
 
     /// The artwork list of each source in order that answers [`TitleMethod::Artwork`] and has a
-    /// list for the title of `kind` with the ids `ids`, asked by the title's id in the source's own
-    /// namespace, or else in the first namespace it looks titles up by that the title has an id in.
-    /// A source with no such id isn't asked; one that fails is logged and left out, so artwork
-    /// never leaves a title undecided.
+    /// list for the title of `kind` with the ids `ids`, asked as [`TitleSources::lists_by`] asks.
     pub(crate) async fn artwork_lists(
         &self,
         kind: TitleKind,
         ids: &ExternalIds,
     ) -> Vec<(Source, Vec<Artwork>)> {
+        let kind = titles::title_kind(kind);
+        self.lists_by(TitleMethod::Artwork, ids, |metadata, id| async move {
+            let asked = ArtworkAsked {
+                kind: kind.into(),
+                id: id.into(),
+                ..Default::default()
+            };
+            artwork(metadata.artwork(&asked).await?)
+        })
+        .await
+    }
+
+    /// The artwork list of each source in order that answers [`TitleMethod::SeasonArtwork`] and
+    /// has a list for the Season `season` of the Show with the ids `ids`, asked as
+    /// [`TitleSources::lists_by`] asks.
+    pub(crate) async fn season_artwork_lists(
+        &self,
+        ids: &ExternalIds,
+        season: u32,
+    ) -> Vec<(Source, Vec<Artwork>)> {
+        self.lists_by(
+            TitleMethod::SeasonArtwork,
+            ids,
+            |metadata, show| async move {
+                let asked = SeasonAsked {
+                    show: show.into(),
+                    season,
+                    ..Default::default()
+                };
+                artwork(metadata.season_artwork(&asked).await?)
+            },
+        )
+        .await
+    }
+
+    /// The non-empty artwork list `ask` gets from each source in order that answers `method`,
+    /// asked by the title's id in the source's own namespace, or else in the first namespace it
+    /// looks titles up by that the title has an id in. A source with no such id isn't asked; one
+    /// that fails is logged and left out, so artwork never leaves a title undecided.
+    async fn lists_by<F>(
+        &self,
+        method: TitleMethod,
+        ids: &ExternalIds,
+        ask: impl Fn(Arc<dyn TitleSource>, wire::TitleId) -> F,
+    ) -> Vec<(Source, Vec<Artwork>)>
+    where
+        F: Future<Output = Result<Vec<Artwork>, Refusal>>,
+    {
         let mut lists = Vec::new();
         for source in self.sources().await {
-            if !source.answers.contains(&TitleMethod::Artwork) {
+            if !source.answers.contains(&method) {
                 continue;
             }
             let id = (ids.get(&source.namespace)).or_else(|| {
@@ -308,19 +354,10 @@ impl TitleSources {
             let Some(id) = id else {
                 continue;
             };
-            let asked = &ArtworkAsked {
-                kind: titles::title_kind(kind).into(),
-                id: titles::title_id(&id).into(),
-                ..Default::default()
-            };
+            let id = &titles::title_id(&id);
             let answered = self
                 .plugins
-                .ask(
-                    &source.plugin,
-                    |metadata: Arc<dyn TitleSource>| async move {
-                        artwork(metadata.artwork(asked).await?)
-                    },
-                )
+                .ask(&source.plugin, |metadata| ask(metadata, id.clone()))
                 .await;
             // `meaning` logs a failure, without the Plugin's secrets.
             if let Ok((_, list)) = meaning(answered)
@@ -552,3 +589,7 @@ impl Metadata {
 #[cfg(test)]
 #[path = "title_source_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "title_source/failures_tests.rs"]
+mod failures_tests;

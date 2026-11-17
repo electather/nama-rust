@@ -154,7 +154,7 @@ pub(super) fn fallback(
             video: VideoConversion {
                 hardware: None,
                 tone_map,
-                ..transcode.video
+                ..transcode.video.clone()
             },
             ..*transcode
         },

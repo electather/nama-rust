@@ -18,7 +18,7 @@ use crate::{
         WatchStateKind, WatchStates,
     },
     page::{self, Page},
-    playback::{Probe, Track, Tracks},
+    playback::{Probe, Sidecars, Track, Tracks},
     scanner::read_only_folder,
 };
 
@@ -103,6 +103,7 @@ pub(crate) struct Browse {
     libraries: Libraries,
     contents: Contents,
     tracks: Tracks,
+    sidecars: Sidecars,
     watch_states: WatchStates,
 }
 
@@ -112,6 +113,7 @@ impl Browse {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(Arc::clone(&db)),
             tracks: Tracks::new(Arc::clone(&db)),
+            sidecars: Sidecars::new(Arc::clone(&db)),
             watch_states: WatchStates::new(db),
         }
     }
@@ -295,13 +297,21 @@ impl Browse {
         Ok(page)
     }
 
-    /// What probing read from the files of `versions` as they are now, by file id.
+    /// What probing read from the files of `versions` as they are now, with their sidecars, by
+    /// file id.
     async fn probes(
         &self,
         versions: impl Iterator<Item = &LibraryVersion>,
     ) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let files: Vec<Stored> = versions.map(|version| version.file).collect();
-        self.tracks.of(&files).await
+        if files.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let mut probes = self.tracks.of(&files).await?;
+        (self.sidecars)
+            .append_to(probes.iter_mut().map(|(&id, probe)| (id, probe)))
+            .await?;
+        Ok(probes)
     }
 
     async fn library(&self, library: i64) -> Result<Library, Error> {

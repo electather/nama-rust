@@ -3,185 +3,15 @@ use std::sync::{Arc, Mutex, PoisonError};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     contract::{
-        Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, EpisodeAnswer, EpisodeAsked,
-        ImageAnswer, ImageAsked, Movie, MovieAnswer, SearchQuery, SearchResults, Season,
-        SeasonAnswer, SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId,
+        Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, Movie, MovieAnswer,
+        SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
+        TitleAsked, TitleId,
     },
-    metadata::{ExternalId, MetadataError, TitleMethod, TitleSource},
-    settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
+    metadata::{ExternalId, ExternalIds, MetadataError, TitleMethod, TitleSource},
 };
 
 use super::{METHODS, Source, TitleSources, Unanswered};
-use crate::plugins::{Failure, Registry};
-
-/// A title source that answers every question with the error `.0` makes, or with the title unset
-/// where it makes none.
-struct Failing(fn() -> Option<MetadataError>);
-
-impl Failing {
-    fn refuse<T: Default>(&self) -> Result<T, MetadataError> {
-        self.0().map_or_else(|| Ok(T::default()), Err)
-    }
-}
-
-impl TitleSource for Failing {
-    fn namespace(&self) -> &'static str {
-        "tmdb"
-    }
-
-    fn search<'a>(
-        &'a self,
-        _query: &'a SearchQuery,
-    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
-        Box::pin(async { self.refuse() })
-    }
-
-    fn movie<'a>(
-        &'a self,
-        _asked: &'a TitleAsked,
-    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
-        Box::pin(async { self.refuse() })
-    }
-
-    fn show<'a>(
-        &'a self,
-        _asked: &'a TitleAsked,
-    ) -> BoxFuture<'a, Result<ShowAnswer, MetadataError>> {
-        Box::pin(async { self.refuse() })
-    }
-
-    fn season<'a>(
-        &'a self,
-        _asked: &'a SeasonAsked,
-    ) -> BoxFuture<'a, Result<SeasonAnswer, MetadataError>> {
-        Box::pin(async { self.refuse() })
-    }
-
-    fn episode<'a>(
-        &'a self,
-        _asked: &'a EpisodeAsked,
-    ) -> BoxFuture<'a, Result<EpisodeAnswer, MetadataError>> {
-        Box::pin(async { self.refuse() })
-    }
-
-    fn image<'a>(
-        &'a self,
-        _asked: &'a ImageAsked,
-    ) -> BoxFuture<'a, Result<ImageAnswer, MetadataError>> {
-        Box::pin(async { self.refuse() })
-    }
-}
-
-struct FailingPlugin(fn() -> Option<MetadataError>);
-
-impl Plugin for FailingPlugin {
-    fn manifest(&self) -> Manifest {
-        Manifest {
-            version: "0.0.0".to_owned(),
-            settings: SettingsSchema {
-                fields: vec![SettingField {
-                    key: "api_key".to_owned(),
-                    label: String::new(),
-                    description: String::new(),
-                    kind: SettingKind::Secret,
-                    required: false,
-                    default: None,
-                    min: None,
-                    max: None,
-                }],
-            },
-            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
-            ..Manifest::new(PluginId::from_static("failing"))
-        }
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(Failing(self.0)));
-        Ok(())
-    }
-}
-
-/// What asking for a Show, then for an image from the Plugin `failing`, fails with when its
-/// Provider fails with `failure`, or when there is no Provider.
-async fn asking(failure: Option<fn() -> Option<MetadataError>>) -> (Unanswered, Unanswered) {
-    let plugins = Registry::new();
-    if let Some(failure) = failure {
-        plugins.enable(Arc::new(FailingPlugin(failure))).unwrap();
-    }
-    let source = TitleSources::new(plugins.extension_points());
-    let show = source.show_by(&ExternalId::tmdb(1399)).await.unwrap_err();
-    let image = source
-        .image(&PluginId::from_static("failing"), "/poster.jpg")
-        .await
-        .unwrap_err();
-    (show, image)
-}
-
-#[tokio::test]
-async fn without_a_provider_the_source_is_unavailable() {
-    assert_eq!(
-        asking(None).await,
-        (Unanswered::Unavailable, Unanswered::Unavailable)
-    );
-}
-
-#[tokio::test]
-async fn a_title_the_provider_does_not_have_is_not_found() {
-    let failure = || None;
-
-    assert_eq!(
-        asking(Some(failure)).await,
-        (Unanswered::NotFound, Unanswered::NotFound)
-    );
-}
-
-#[tokio::test]
-async fn a_method_the_source_does_not_serve_is_not_found() {
-    let failure = || Some(MetadataError::Unsupported);
-
-    assert_eq!(
-        asking(Some(failure)).await,
-        (Unanswered::NotFound, Unanswered::NotFound)
-    );
-}
-
-#[tokio::test]
-async fn a_provider_that_fails_is_unavailable() {
-    let failure = || Some(MetadataError::Failed("TMDB is unreachable".into()));
-
-    assert_eq!(
-        asking(Some(failure)).await,
-        (Unanswered::Unavailable, Unanswered::Unavailable)
-    );
-}
-
-#[tokio::test]
-async fn a_providers_failure_comes_without_its_plugins_secret_settings() {
-    let plugins = Registry::new();
-    let failure = || {
-        Some(MetadataError::Failed(
-            "GET /tv/1399?api_key=s3cr3t failed".into(),
-        ))
-    };
-    let api_key = SettingValue::Text("s3cr3t".to_owned());
-    let settings = Settings::new([("api_key".to_owned(), api_key)].into());
-    plugins
-        .enable_with_settings(Arc::new(FailingPlugin(failure)), settings)
-        .unwrap();
-
-    let answer = plugins
-        .ask_first(|metadata: Arc<dyn TitleSource>| async move {
-            metadata.show(&TitleAsked::default()).await
-        })
-        .await
-        .unwrap();
-
-    let blanked = Failure {
-        kind: Unanswered::Unavailable,
-        message: "GET /tv/1399?api_key=… failed".to_owned(),
-    };
-    assert_eq!(answer.result.unwrap_err(), blanked);
-}
+use crate::plugins::Registry;
 
 /// How a [`Fake`] title source answers.
 #[derive(Clone, Copy)]
@@ -195,8 +25,12 @@ enum Answers {
     UnsupportedId,
     Unsupported,
     Fails,
-    /// As [`Answers::Has`], but without serving [`TitleMethod::Artwork`].
+    /// As [`Answers::Has`], but without serving [`TitleMethod::Artwork`] or
+    /// [`TitleMethod::SeasonArtwork`].
     NoArtwork,
+    /// As [`Answers::Has`], but without serving [`TitleMethod::SeasonArtwork`], as a Plugin built
+    /// before it.
+    NoSeasonArtwork,
 }
 
 /// The namespaces of the sources asked for a title or Season, in the order they were asked.
@@ -222,7 +56,9 @@ impl Fake {
             .unwrap_or_else(PoisonError::into_inner)
             .push(self.namespace);
         match self.answers {
-            Answers::Has | Answers::Empty | Answers::NoArtwork => Ok(found(vec![self.id()])),
+            Answers::Has | Answers::Empty | Answers::NoArtwork | Answers::NoSeasonArtwork => {
+                Ok(found(vec![self.id()]))
+            }
             Answers::NotFound | Answers::UnsupportedId => Ok(T::default()),
             Answers::Unsupported => Err(MetadataError::Unsupported),
             Answers::Fails => Err(MetadataError::Failed("unreachable".into())),
@@ -241,6 +77,26 @@ impl Fake {
 
     fn unsupported_id(&self) -> bool {
         matches!(self.answers, Answers::UnsupportedId)
+    }
+
+    /// Its artwork list: one poster at `path`.
+    fn poster(&self, path: String) -> Result<ArtworkAnswer, MetadataError> {
+        let empty = matches!(self.answers, Answers::Empty);
+        let found = self.answer(|_| {
+            let poster = Artwork {
+                kind: ArtworkKind::ARTWORK_KIND_POSTER.into(),
+                path,
+                ..Default::default()
+            };
+            ArtworkAnswer {
+                artwork: if empty { vec![] } else { vec![poster] },
+                ..Default::default()
+            }
+        });
+        found.map(|found| ArtworkAnswer {
+            unsupported_id: self.unsupported_id(),
+            ..found
+        })
     }
 }
 
@@ -343,28 +199,34 @@ impl TitleSource for Fake {
         &'a self,
         asked: &'a ArtworkAsked,
     ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
-        let empty = matches!(self.answers, Answers::Empty);
-        let found = self.answer(|_| {
-            let id = asked.id.as_option().cloned().unwrap_or_default();
-            let poster = Artwork {
-                kind: ArtworkKind::ARTWORK_KIND_POSTER.into(),
-                path: format!("/{}-{}.jpg", id.namespace, id.value),
-                ..Default::default()
-            };
-            ArtworkAnswer {
-                artwork: if empty { vec![] } else { vec![poster] },
-                ..Default::default()
-            }
-        });
-        let found = found.map(|found| ArtworkAnswer {
-            unsupported_id: self.unsupported_id(),
-            ..found
-        });
+        let id = asked.id.as_option().cloned().unwrap_or_default();
+        let found = self.poster(format!("/{}-{}.jpg", id.namespace, id.value));
+        Box::pin(async { found })
+    }
+
+    /// One poster, whose path names the Show's id it was asked by and the Season.
+    fn season_artwork<'a>(
+        &'a self,
+        asked: &'a SeasonAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
+        let show = asked.show.as_option().cloned().unwrap_or_default();
+        let path = format!("/{}-{}-s{}.jpg", show.namespace, show.value, asked.season);
+        let found = self.poster(path);
         Box::pin(async { found })
     }
 
     fn answers(&self, method: TitleMethod) -> bool {
-        !(method == TitleMethod::Artwork && matches!(self.answers, Answers::NoArtwork))
+        let unserved: &[_] = match self.answers {
+            Answers::NoArtwork => &[TitleMethod::Artwork, TitleMethod::SeasonArtwork],
+            Answers::NoSeasonArtwork => &[TitleMethod::SeasonArtwork],
+            Answers::Has
+            | Answers::Empty
+            | Answers::NotFound
+            | Answers::UnsupportedId
+            | Answers::Unsupported
+            | Answers::Fails => &[],
+        };
+        !unserved.contains(&method)
     }
 }
 
@@ -741,18 +603,30 @@ async fn a_source_answering_only_artwork_is_never_asked_for_a_title_or_a_search(
     );
 }
 
-/// Each image [`TitleSources::artwork_lists`] lists, as `namespace:path`.
-async fn artwork_from(metadata: &TitleSources, ids: &[(&str, &str)]) -> Vec<String> {
-    let ids = (ids.iter())
+/// The ids `ids` name a title by.
+fn ids(ids: &[(&str, &str)]) -> ExternalIds {
+    (ids.iter())
         .map(|&(namespace, value)| ExternalId::new(namespace, value).unwrap())
-        .collect();
-    let lists = metadata.artwork_lists(super::TitleKind::Movie, &ids).await;
+        .collect()
+}
+
+/// Each image in `lists`, as `namespace:path`.
+fn listed(lists: Vec<(Source, Vec<super::Artwork>)>) -> Vec<String> {
     (lists.into_iter())
         .flat_map(|(source, list)| {
             list.into_iter()
                 .map(move |art| format!("{}:{}", source.namespace, art.path))
         })
         .collect()
+}
+
+/// Each image [`TitleSources::artwork_lists`] lists, as `namespace:path`.
+async fn artwork_from(metadata: &TitleSources, title: &[(&str, &str)]) -> Vec<String> {
+    listed(
+        metadata
+            .artwork_lists(super::TitleKind::Movie, &ids(title))
+            .await,
+    )
 }
 
 #[tokio::test]
@@ -793,4 +667,39 @@ async fn a_source_with_no_artwork_list_gives_no_entry_while_the_others_answer() 
         assert_eq!(lists, ["bb:/bb-1.jpg"]);
         assert_eq!(asked(&sources_asked), ["aa", "bb"]);
     }
+}
+
+/// Each image [`TitleSources::season_artwork_lists`] lists for Season 2, as `namespace:path`.
+async fn season_artwork_from(metadata: &TitleSources, show: &[(&str, &str)]) -> Vec<String> {
+    listed(metadata.season_artwork_lists(&ids(show), 2).await)
+}
+
+#[tokio::test]
+async fn season_artwork_is_never_asked_of_a_source_serving_only_a_titles_artwork() {
+    let (metadata, sources_asked) = two(Answers::NoSeasonArtwork, Answers::Has);
+
+    let lists = season_artwork_from(&metadata, &[("aa", "1"), ("bb", "1")]).await;
+
+    assert_eq!(lists, ["bb:/bb-1-s2.jpg"]);
+    assert_eq!(asked(&sources_asked), ["bb"]);
+}
+
+#[tokio::test]
+async fn season_artwork_is_asked_by_a_lookup_namespace_id_when_the_show_lacks_the_sources_own() {
+    let (metadata, sources_asked) = two(Answers::Has, Answers::Has);
+
+    let lists = season_artwork_from(&metadata, &[("bb", "7")]).await;
+
+    assert_eq!(lists, ["aa:/bb-7-s2.jpg", "bb:/bb-7-s2.jpg"]);
+    assert_eq!(asked(&sources_asked), ["aa", "bb"]);
+}
+
+#[tokio::test]
+async fn a_failing_source_is_left_out_of_the_season_artwork_lists() {
+    let (metadata, sources_asked) = two(Answers::Fails, Answers::Has);
+
+    let lists = season_artwork_from(&metadata, &[("aa", "1"), ("bb", "1")]).await;
+
+    assert_eq!(lists, ["bb:/bb-1-s2.jpg"]);
+    assert_eq!(asked(&sources_asked), ["aa", "bb"]);
 }

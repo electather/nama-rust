@@ -121,6 +121,7 @@ fn every_images_fixture_picks_its_titles_own_poster_and_backdrop() {
         ("movie-348-images.json", "movie-348.json"),
         ("movie-949-images.json", "movie-949.json"),
         ("tv-70523-images.json", "tv-70523.json"),
+        ("tv-70523-season-1-images.json", "tv-70523-season-1.json"),
     ] {
         let artwork = artwork(images);
         let details: serde_json::Value = serde_json::from_slice(&fixture(details)).unwrap();

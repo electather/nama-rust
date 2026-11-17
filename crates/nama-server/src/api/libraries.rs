@@ -107,15 +107,14 @@ impl Backdrops {
             return (Some(url), true);
         }
         let newest = self.newest.get(&library.id).map(|newest| {
-            let slot = |id: &_| match library.kind {
-                LibraryKind::Movies => Slot::movie(id, Role::Backdrop),
-                LibraryKind::Shows => Slot::show(id, Role::Backdrop),
+            let (title, ids) = (&newest.title, &newest.ids);
+            let shown = match library.kind {
+                LibraryKind::Movies => self.images.movie_image(title, ids, Role::Backdrop),
+                LibraryKind::Shows => {
+                    (self.images.custom).of_title(title, ids, |id| Slot::show(id, Role::Backdrop))
+                }
             };
-            (self
-                .images
-                .custom
-                .of_title(&newest.title, &newest.ids, slot))
-            .unwrap_or_else(|| artwork_url(&newest.plugin, &newest.path))
+            shown.unwrap_or_else(|| artwork_url(&newest.plugin, &newest.path))
         });
         (newest, false)
     }
@@ -294,7 +293,7 @@ impl LibraryService for LibraryServiceHandler {
         let request = request.to_owned_message();
         let kind = title_kind_from_proto(request.kind)?;
         let id = required_id(request.id.into_option(), "id", "title")?;
-        let listed = self.images.artwork.listed(kind, &id).await;
+        let listed = self.images.artwork.listed(kind, &id, request.season).await;
         Response::ok(ListArtworkResponse {
             poster_urls: listed.posters,
             backdrop_urls: listed.backdrops,

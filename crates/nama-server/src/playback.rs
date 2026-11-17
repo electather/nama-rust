@@ -424,7 +424,8 @@ pub(crate) async fn plan(
                 "could not list a Version's keyframes, so planning it without a Remux: {err}"
             );
             facts.keyframes_unlisted = true;
-            // Listing them may have taken minutes, so the Transcode limit is checked again (#827).
+            // Waiting for them may have taken half a minute, so the Transcode limit is checked
+            // again (#827).
             facts.running_transcodes = running.running_transcodes();
             start_built(running, caller, facts, start_ms).await
         }
@@ -522,7 +523,7 @@ struct Facts {
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
     /// Whether listing the Version's keyframes failed or timed out, now or for its file as it is
-    /// (#850), which a Remux needs.
+    /// (#850), or isn't done yet (#866), which a Remux needs.
     keyframes_unlisted: bool,
     /// The audio Track the User chose, or the Server chose by their Audio Preference, by its place
     /// in the Version's Tracks, if one was.

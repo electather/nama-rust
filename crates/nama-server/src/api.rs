@@ -11,7 +11,7 @@ use axum::{
 use buffa::MessageName;
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
 
 use crate::{
@@ -25,10 +25,11 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImageUrls, CustomImages, Libraries, TitleKind, TitleSources,
-        artwork_router, custom_images_router,
+        Artwork, Contents, CustomImageUrls, CustomImages, Libraries, LocalImageUrls, LocalImages,
+        Role, Slot, TitleKind, TitleSources, artwork_router, custom_images_router,
+        local_images_router,
     },
-    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, Tracks, running_router},
+    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, running_router},
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
@@ -98,20 +99,22 @@ pub(crate) fn router(
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let image_settings = settings.images();
+    let local_images = LocalImages::new(Arc::clone(&db), image_store.clone());
     let artwork_router = artwork_router(artwork.clone(), contents.clone(), image_settings.clone());
     let media = crate::playback::router(
         contents,
         running.clone(),
-        Tracks::new(Arc::clone(&db)),
+        &db,
         Arc::clone(&ffmpeg),
         subtitles,
     )
     .merge(running_router(running.clone()));
-    let images = ImageSources::new(
-        custom_images.clone(),
-        artwork.clone(),
-        image_settings.clone(),
-    );
+    let images = ImageSources {
+        custom_images: custom_images.clone(),
+        local_images: local_images.clone(),
+        artwork: artwork.clone(),
+        settings: image_settings.clone(),
+    };
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
@@ -190,9 +193,10 @@ pub(crate) fn router(
         .merge(custom_images_router(
             custom_images,
             artwork,
-            image_settings,
+            image_settings.clone(),
             move |id| plugin_settings.has(id),
         ))
+        .merge(local_images_router(local_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .merge(browser_spans::router(
@@ -722,14 +726,22 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
     }
 }
 
-/// What a response shows of images: the Custom Images in place of the downloaded ones, and the
-/// thumbhash of each image resized so far, by URL.
+/// What a response shows of images: the Custom Images, and else the images beside a Movie's media,
+/// in place of the downloaded ones, and the thumbhash of each image resized so far, by URL.
 struct ShownImages {
     custom: CustomImageUrls,
+    local: LocalImageUrls,
     thumbhashes: HashMap<String, Vec<u8>>,
 }
 
 impl ShownImages {
+    /// The URL of the image the Movie `id`, with every id `ids`, shows in place of its downloaded
+    /// `role`: its Custom Image, or else the image beside its media (`src/library/AGENTS.md`).
+    fn movie_image(&self, id: &ExternalId, ids: &ExternalIds, role: Role) -> Option<String> {
+        (self.custom.of_title(id, ids, |id| Slot::movie(id, role)))
+            .or_else(|| self.local.of_movie(id, ids, role))
+    }
+
     /// The thumbhash to send beside `url`, if the image there has one.
     fn thumbhash(&self, url: Option<&str>) -> Option<Vec<u8>> {
         self.thumbhashes.get(url?).cloned()
@@ -740,31 +752,28 @@ impl ShownImages {
 #[derive(Clone)]
 struct ImageSources {
     custom_images: CustomImages,
+    local_images: LocalImages,
     artwork: Artwork,
     settings: ImageSettings,
 }
 
 impl ImageSources {
-    const fn new(custom_images: CustomImages, artwork: Artwork, settings: ImageSettings) -> Self {
-        Self {
-            custom_images,
-            artwork,
-            settings,
-        }
-    }
-
     /// What a response shows of images, with no thumbhashes while resizing is off (ADR 0039).
     async fn shown(&self) -> Result<ShownImages, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
+        let local = self.local_images.urls().await.map_err(database_failed)?;
         let mut thumbhashes = HashMap::new();
         if self.settings.resizing().is_some() {
             let artwork = self.artwork.thumbhashes().await.map_err(database_failed)?;
             let custom_images = self.custom_images.thumbhashes().await;
+            let local_images = self.local_images.thumbhashes().await;
             thumbhashes.extend(artwork);
             thumbhashes.extend(custom_images.map_err(database_failed)?);
+            thumbhashes.extend(local_images.map_err(database_failed)?);
         }
         Ok(ShownImages {
             custom,
+            local,
             thumbhashes,
         })
     }

@@ -72,7 +72,8 @@ service LibraryService {
   // Show, best first, for an admin to pick one as its Custom Image: `PUT` to the image's
   // `/custom-images/` path with `?artwork=` and the URL given here, and the Server downloads it
   // through its title source. The lists are asked each call and never stored. Empty for a title
-  // no source lists artwork for. Fails with `invalid_argument` if the kind or id is missing.
+  // no source lists artwork for. With `season` set, lists only that Season's Posters instead, and
+  // none for a Movie. Fails with `invalid_argument` if the kind or id is missing.
   rpc ListArtwork(ListArtworkRequest) returns (ListArtworkResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -330,6 +331,9 @@ message ListArtworkRequest {
   TitleKind kind = 1;
   // The title's id, as Browse gave it.
   ExternalId id = 2;
+  // A Season's number, to list that Season of the Show's Posters for its Season Poster. Season 0
+  // holds specials.
+  optional uint32 season = 3;
 }
 
 message ListArtworkResponse {

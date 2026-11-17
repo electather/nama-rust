@@ -1,11 +1,22 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT kind, title_id, position_ms, duration_ms, updated_at\n             FROM watch_states\n             WHERE user_id = ? AND position_ms > 0 AND NOT played\n             ORDER BY updated_at DESC, kind, title_id",
+  "query": "SELECT rowid AS \"row!: i64\", kind, title_id, position_ms, duration_ms, updated_at\n             FROM watch_states\n             WHERE user_id = ? AND position_ms > 0 AND NOT played\n             ORDER BY updated_at DESC, rowid DESC",
   "describe": {
     "columns": [
       {
-        "name": "kind",
+        "name": "row!: i64",
         "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "rowid"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -16,7 +27,7 @@
       },
       {
         "name": "title_id",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "position_ms",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "duration_ms",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -67,8 +78,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "666f8b50ce51f9bb14447188907e7341942b57a1a7f7c3efed7231eb74d6d151"
+  "hash": "36f8065e6e3de2f9cdbddb2b30e7a61f4d81bcdf8616f7581b8b72498d0079a2"
 }

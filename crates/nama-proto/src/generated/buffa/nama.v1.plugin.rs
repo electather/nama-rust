@@ -4224,18 +4224,17 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub checks_settings: bool,
-    /// Set while its Recogniser's last call failed, so the Admin sees one that keeps failing.
+    /// Each Extension Point it serves whose last call failed, so the Admin sees one that keeps
+    /// failing. Only points whose calls the Server records are listed, such as a Recogniser or a
+    /// Notifier; the rest show their failures only in the log.
     ///
-    /// Field 13: `recogniser_failure`
+    /// Field 14: `failures`
     #[serde(
-        rename = "recogniserFailure",
-        alias = "recogniser_failure",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+        rename = "failures",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
-    pub recogniser_failure: ::buffa::MessageField<
-        RecogniserFailure,
-        ::buffa::Inline<RecogniserFailure>,
-    >,
+    pub failures: ::buffa::alloc::vec::Vec<ExtensionPointFailure>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4246,7 +4245,7 @@ impl ::core::fmt::Debug for Plugin {
             .field("summary", &self.summary)
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
-            .field("recogniser_failure", &self.recogniser_failure)
+            .field("failures", &self.failures)
             .finish()
     }
 }
@@ -4296,9 +4295,9 @@ impl ::buffa::Message for Plugin {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        if self.recogniser_failure.is_set() {
+        for v in &self.failures {
             let __slot = __cache.reserve();
-            let inner_size = self.recogniser_failure.compute_size(__cache);
+            let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -4333,13 +4332,13 @@ impl ::buffa::Message for Plugin {
             );
             self.summary.write_to(__cache, buf);
         }
-        if self.recogniser_failure.is_set() {
+        for v in &self.failures {
             ::buffa::types::put_len_delimited_header(
-                13u32,
+                14u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
-            self.recogniser_failure.write_to(__cache, buf);
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4384,16 +4383,17 @@ impl ::buffa::Message for Plugin {
                     ctx,
                 )?;
             }
-            13u32 => {
+            14u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                ::buffa::Message::merge_length_delimited(
-                    self.recogniser_failure.get_or_insert_default(),
-                    buf,
-                    ctx,
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
                 )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.failures.push(elem);
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -4406,7 +4406,7 @@ impl ::buffa::Message for Plugin {
         self.settings.clear();
         self.checks_settings = false;
         self.summary = ::buffa::MessageField::none();
-        self.recogniser_failure = ::buffa::MessageField::none();
+        self.failures.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4439,15 +4439,24 @@ pub const __PLUGIN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::typ
     from_json: ::buffa::type_registry::any_from_json::<Plugin>,
     is_wkt: false,
 };
-/// A Recogniser whose last call failed (ADR 0050). The Server keeps it in memory only: a call that
-/// answers clears it, and so do disabling the Plugin and a restart.
+/// An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call
+/// that answers clears it, and so do disabling the Plugin and a restart.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
-pub struct RecogniserFailure {
-    /// What the last failure said.
+pub struct ExtensionPointFailure {
+    /// The point that failed.
     ///
-    /// Field 1: `last_error`
+    /// Field 1: `point`
+    #[serde(
+        rename = "point",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub point: ::buffa::EnumValue<ExtensionPoint>,
+    /// What the last failure said, with the Plugin's secret settings blanked.
+    ///
+    /// Field 2: `last_error`
     #[serde(
         rename = "lastError",
         alias = "last_error",
@@ -4457,7 +4466,7 @@ pub struct RecogniserFailure {
     pub last_error: ::buffa::alloc::string::String,
     /// When it failed, in milliseconds since the Unix epoch.
     ///
-    /// Field 2: `at_ms`
+    /// Field 3: `at_ms`
     #[serde(
         rename = "atMs",
         alias = "at_ms",
@@ -4467,7 +4476,7 @@ pub struct RecogniserFailure {
     pub at_ms: i64,
     /// How many calls in a row have failed, the last included.
     ///
-    /// Field 3: `failed_in_a_row`
+    /// Field 4: `failed_in_a_row`
     #[serde(
         rename = "failedInARow",
         alias = "failed_in_a_row",
@@ -4479,30 +4488,31 @@ pub struct RecogniserFailure {
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
-impl ::core::fmt::Debug for RecogniserFailure {
+impl ::core::fmt::Debug for ExtensionPointFailure {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("RecogniserFailure")
+        f.debug_struct("ExtensionPointFailure")
+            .field("point", &self.point)
             .field("last_error", &self.last_error)
             .field("at_ms", &self.at_ms)
             .field("failed_in_a_row", &self.failed_in_a_row)
             .finish()
     }
 }
-impl RecogniserFailure {
+impl ExtensionPointFailure {
     /// Protobuf type URL for this message, for use with `Any::pack` and
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RecogniserFailure";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ExtensionPointFailure";
 }
-::buffa::impl_default_instance!(RecogniserFailure);
-impl ::buffa::MessageName for RecogniserFailure {
+::buffa::impl_default_instance!(ExtensionPointFailure);
+impl ::buffa::MessageName for ExtensionPointFailure {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "RecogniserFailure";
-    const FULL_NAME: &'static str = "nama.v1.RecogniserFailure";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RecogniserFailure";
+    const NAME: &'static str = "ExtensionPointFailure";
+    const FULL_NAME: &'static str = "nama.v1.ExtensionPointFailure";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ExtensionPointFailure";
 }
-impl ::buffa::Message for RecogniserFailure {
+impl ::buffa::Message for ExtensionPointFailure {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -4515,6 +4525,12 @@ impl ::buffa::Message for RecogniserFailure {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        {
+            let val = self.point.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         if !self.last_error.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.last_error) as u64;
         }
@@ -4536,14 +4552,20 @@ impl ::buffa::Message for RecogniserFailure {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        {
+            let val = self.point.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
         if !self.last_error.is_empty() {
-            ::buffa::types::put_string_field(1u32, &self.last_error, buf);
+            ::buffa::types::put_string_field(2u32, &self.last_error, buf);
         }
         if self.at_ms != 0i64 {
-            ::buffa::types::put_int64_field(2u32, self.at_ms, buf);
+            ::buffa::types::put_int64_field(3u32, self.at_ms, buf);
         }
         if self.failed_in_a_row != 0u32 {
-            ::buffa::types::put_uint32_field(3u32, self.failed_in_a_row, buf);
+            ::buffa::types::put_uint32_field(4u32, self.failed_in_a_row, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4561,18 +4583,27 @@ impl ::buffa::Message for RecogniserFailure {
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.point = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 ::buffa::types::merge_string(&mut self.last_error, buf)?;
             }
-            2u32 => {
+            3u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 self.at_ms = ::buffa::types::decode_int64(buf)?;
             }
-            3u32 => {
+            4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
@@ -4587,14 +4618,15 @@ impl ::buffa::Message for RecogniserFailure {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.point = ::buffa::EnumValue::from(0);
         self.last_error.clear();
         self.at_ms = 0i64;
         self.failed_in_a_row = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for RecogniserFailure {
-    const PROTO_FQN: &'static str = "nama.v1.RecogniserFailure";
+impl ::buffa::ExtensionSet for ExtensionPointFailure {
+    const PROTO_FQN: &'static str = "nama.v1.ExtensionPointFailure";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4602,7 +4634,7 @@ impl ::buffa::ExtensionSet for RecogniserFailure {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for RecogniserFailure {
+impl ::buffa::json_helpers::ProtoElemJson for ExtensionPointFailure {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -4616,10 +4648,10 @@ impl ::buffa::json_helpers::ProtoElemJson for RecogniserFailure {
     }
 }
 #[doc(hidden)]
-pub const __RECOGNISER_FAILURE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.RecogniserFailure",
-    to_json: ::buffa::type_registry::any_to_json::<RecogniserFailure>,
-    from_json: ::buffa::type_registry::any_from_json::<RecogniserFailure>,
+pub const __EXTENSION_POINT_FAILURE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.ExtensionPointFailure",
+    to_json: ::buffa::type_registry::any_to_json::<ExtensionPointFailure>,
+    from_json: ::buffa::type_registry::any_from_json::<ExtensionPointFailure>,
     is_wkt: false,
 };
 /// One setting a Plugin takes, as its schema declares it, and its stored value.

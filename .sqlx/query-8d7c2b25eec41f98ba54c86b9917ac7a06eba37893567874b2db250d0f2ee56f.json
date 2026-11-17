@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT local_images.version_id, local_images.role, local_images.path,\n                    local_images.size, local_images.modified_ns, local_images.stored,\n                    local_images.content_type\n             FROM local_images\n             JOIN library_files ON library_files.id = local_images.version_id\n             WHERE library_files.library_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "version_id"
+          }
+        }
+      },
+      {
+        "name": "role",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "stored",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "stored"
+          }
+        }
+      },
+      {
+        "name": "content_type",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "local_images",
+            "name": "content_type"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8d7c2b25eec41f98ba54c86b9917ac7a06eba37893567874b2db250d0f2ee56f"
+}

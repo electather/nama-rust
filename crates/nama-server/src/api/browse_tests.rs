@@ -8,7 +8,11 @@ use nama_plugin_api::{
 use connectrpc::ErrorCode;
 use nama_proto::nama::v1::{Refusal, RefusalReason};
 
-use crate::{browse, library::CustomImageUrls, page::TokenInvalid};
+use crate::{
+    browse,
+    library::{CustomImageUrls, LocalImageUrls},
+    page::TokenInvalid,
+};
 
 use super::{
     Fields, ImageRef, Movie, Show, ShownImages, artwork_url, movie_to_proto, refused, show_to_proto,
@@ -24,6 +28,7 @@ fn logo() -> ImageRef {
 fn a_movie_and_a_show_carry_their_title_logo_url() {
     let images = ShownImages {
         custom: CustomImageUrls::default(),
+        local: LocalImageUrls::default(),
         thumbhashes: HashMap::new(),
     };
     let id = ExternalId::tmdb(348);

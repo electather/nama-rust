@@ -78,4 +78,5 @@
 0078_sidecar_subtitles.sql
 0079_library_items_added_at.sql
 0080_keyframes_failure_version.sql
-0081_match_sort_title.sql
+0081_local_images.sql
+0082_match_sort_title.sql

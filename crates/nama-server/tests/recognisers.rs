@@ -504,7 +504,10 @@ async fn a_recogniser_failing_in_a_scan_shows_its_failure_on_the_plugin() {
         .plugin
         .into_option()
         .unwrap();
-    let failure = plugin.recogniser_failure.into_option().unwrap();
+    let [failure] = plugin.failures.as_slice() else {
+        panic!("{:?}", plugin.failures);
+    };
+    assert_eq!(failure.point, ExtensionPoint::EXTENSION_POINT_RECOGNISER);
     assert_eq!(failure.last_error, DOWN_ERROR);
     // Both files fail in each scan: the one updating the order queued, and this one.
     assert!(failure.failed_in_a_row >= 2, "{}", failure.failed_in_a_row);

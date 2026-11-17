@@ -271,6 +271,7 @@ fn track(mut stream: ProbedStream) -> Option<Track> {
             // ponytail: a VobSub header without a `palette:` line passes and draws black; read the
             // extradata itself if one turns up.
             header: stream.extradata_size.is_some_and(|size| size > 0),
+            sidecar: None,
         },
         _ => return None,
     };

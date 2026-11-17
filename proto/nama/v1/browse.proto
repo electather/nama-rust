@@ -47,10 +47,11 @@ service BrowseService {
   rpc ListEpisodes(ListEpisodesRequest) returns (ListEpisodesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Lists the caller's Continue Watching: the Movies and Episodes whose position is past 0 and
-  // that they haven't played, most recent first by when their Watch State last changed. Only
-  // those Matched in some Library are listed, each in the oldest Library that has it. The Watch
-  // State of the rest is kept, so they are listed again once a rescan Matches them.
+  // Lists a page of the caller's Continue Watching: the Movies and Episodes whose position is
+  // past 0 and that they haven't played, most recent first by when their Watch State last
+  // changed. Only those Matched in some Library are listed, each in the oldest Library that has
+  // it. The Watch State of the rest is kept, so they are listed again once a rescan Matches them.
+  // Fails with `invalid_argument` if `page.token` isn't one an earlier call returned.
   rpc ListContinueWatching(ListContinueWatchingRequest) returns (ListContinueWatchingResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -463,11 +464,16 @@ message ContinueWatchingEpisode {
   Show show = 2;
 }
 
-message ListContinueWatchingRequest {}
+message ListContinueWatchingRequest {
+  // The page of Continue Watching to list.
+  PageRequest page = 1;
+}
 
 message ListContinueWatchingResponse {
-  // Most recent first.
+  // The page's entries, most recent first, those changed in the same second newest-started first.
   repeated ContinueWatchingEntry entries = 1;
+  // The rest of the list: the next page's token, and on the first page how many entries it has.
+  PageResponse page = 2;
 }
 
 message SearchLibrariesRequest {
