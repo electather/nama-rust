@@ -52,6 +52,18 @@ Start a Server (it listens on `http://localhost:7980` by default), then run `vp 
 
 Tests never need a Server. They fake RPCs with Connect's `createRouterTransport`, built from the same generated descriptors.
 
+## Installing as an app
+
+`public/` holds the web app manifest and icons, which the build copies as they are and the Server serves. Chrome installs the app in a window of its own only from a secure origin, HTTPS or `localhost`: from a Server on plain `http://` on the LAN it adds a shortcut that opens in a browser tab. iOS "Add to Home Screen" works either way. Per-Server certificates, which fix that, come through the Hub (ADR 0010, ADR 0057).
+
+The icon is `public/icon.svg`, a Geist SemiBold "N" as a path, which is also the favicon. After changing it, render the PNGs again from `web/`:
+
+```sh
+playwright screenshot --viewport-size 192,192 "file://$PWD/public/icon.svg" public/icon-192.png
+playwright screenshot --viewport-size 512,512 "file://$PWD/public/icon.svg" public/icon-512.png
+playwright screenshot --viewport-size 180,180 "file://$PWD/public/icon.svg" public/apple-touch-icon.png
+```
+
 ## How the app is put together
 
 - **Data**: all server state goes through connect-query and TanStack Query. Route loaders prefetch with `queryClient.query({ …, staleTime: "static" })`, which only fetches what isn’t cached yet. One app-wide `Subscribe` stream turns Events into query invalidations. There's no client-state library and no form library: forms are native `<form>`s with mutations, the Server validates, and Connect error details are shown next to the field.

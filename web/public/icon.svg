@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Geist SemiBold "N" as a path, so no font is needed, kept inside the maskable safe zone. -->
+  <rect width="512" height="512" fill="#0a0a0a"/>
+  <path fill="#fafafa" d="M150 384L150 128L204.8 128L315.1 320.5L315.1 128L362 128L362 384L305.8 384L196.9 196.9L196.9 384Z"/>
+</svg>

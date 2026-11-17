@@ -63,6 +63,17 @@ async fn the_app_s_webassembly_is_served_as_such() {
     assert_eq!(content_type, "application/wasm");
 }
 
+/// The manifest the app links to is served as one, so a browser can install the app.
+#[tokio::test]
+async fn the_app_s_manifest_is_served_as_such() {
+    let server = TestServer::builder().start().await;
+
+    let (status, content_type, _) = http1_get(server.addr, "/manifest.webmanifest").await;
+
+    assert_eq!(status, 200);
+    assert_eq!(content_type, "application/manifest+json");
+}
+
 /// The ASS renderer ships with the notices of what it bundles, and without its asm.js worker for
 /// browsers without WebAssembly, which the app never lists ASS on.
 #[tokio::test]
