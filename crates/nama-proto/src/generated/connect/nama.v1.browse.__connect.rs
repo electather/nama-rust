@@ -621,7 +621,9 @@ pub trait BrowseService: Send + Sync + 'static {
     /// as the User types. A last word of four digits after others is a year, which keeps only those
     /// released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
     /// Show counts as of every year one of its Episodes aired. A Show is found by its own title,
-    /// and an Episode by its own, not its Show's.
+    /// and an Episode by its own, not its Show's. Lists a page of what it found, best fit first.
+    /// Fails with `invalid_argument` if `page.token` isn't one an earlier call for the same query
+    /// returned.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
