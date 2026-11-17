@@ -4,7 +4,7 @@
 
 use nama_pdk::{
     Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Image, ImageAnswer, ImageAsked, Manifest,
-    TitleKind, TitleSource,
+    SeasonAsked, TitleKind, TitleSource,
     extism_pdk::{Error, HttpRequest, HttpResponse, config, json},
     nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
     services,
@@ -102,19 +102,24 @@ impl TitleSource for Fanart {
         let Some((path, lists)) = lookup(&asked)? else {
             return Ok(unsupported_id());
         };
-        let mut url = format!(
-            "{}/{path}?api_key={}",
-            setting(API_URL)?.trim_end_matches('/'),
-            encoded(&setting(API_KEY)?),
-        );
-        if let Some(client_key) = config::get(CLIENT_KEY)?.filter(|key| !key.trim().is_empty()) {
-            url = format!("{url}&client_key={}", encoded(client_key.trim()));
-        }
-        let Some(response) = accepted(send(&HttpRequest::new(url))?, "fanart.tv")? else {
+        let Some(body) = fetched(&path)? else {
             return Ok(ArtworkAnswer::default());
         };
         Ok(ArtworkAnswer {
-            artwork: artwork(lists, &response.body())?,
+            artwork: artwork(lists, &body)?,
+            ..ArtworkAnswer::default()
+        })
+    }
+
+    fn season_artwork(asked: SeasonAsked) -> Result<ArtworkAnswer, Error> {
+        let Some(path) = show_path(&asked)? else {
+            return Ok(unsupported_id());
+        };
+        let Some(body) = fetched(&path)? else {
+            return Ok(ArtworkAnswer::default());
+        };
+        Ok(ArtworkAnswer {
+            artwork: season_posters(&body, asked.season)?,
             ..ArtworkAnswer::default()
         })
     }
@@ -146,7 +151,7 @@ impl TitleSource for Fanart {
     }
 }
 
-nama_pdk::title_source!(Fanart, [artwork, image]);
+nama_pdk::title_source!(Fanart, [artwork, season_artwork, image]);
 
 /// One of fanart.tv's lists: its field, the kind of artwork in it, and the fixed width and height
 /// fanart.tv documents for it, if any.
@@ -171,7 +176,7 @@ const MOVIE: &[List] = &[
     ("moviedisc", DISC, Some((1000, 1000))),
 ];
 
-/// A Show's lists, ordered as [`MOVIE`]'s. Its Seasons' lists are left out.
+/// A Show's lists, ordered as [`MOVIE`]'s. Its Seasons' Posters come from `season_artwork` instead.
 const SHOW: &[List] = &[
     ("hdtvlogo", LOGO, Some((800, 310))),
     ("clearlogo", LOGO, Some((400, 155))),
@@ -182,6 +187,9 @@ const SHOW: &[List] = &[
     ("tvbanner", BANNER, Some((1000, 185))),
     ("tvthumb", THUMB, Some((500, 281))),
 ];
+
+/// The list a Show's Season Posters are in, each item naming its Season.
+const SEASON_POSTERS: &[List] = &[("seasonposter", POSTER, Some((1000, 1426)))];
 
 /// The API path and lists of the title `asked` names, such as `movies/949`, `None` if fanart.tv
 /// can't look it up by that id.
@@ -201,7 +209,37 @@ fn lookup(asked: &ArtworkAsked) -> Result<Option<(String, &'static [List])>, Err
     Ok(found.map(|(section, lists)| (format!("{section}/{}", encoded(&id.value)), lists)))
 }
 
-/// What the `artwork` export answers when [`lookup`] can't look the title up.
+/// The API path of the Show `asked` names a Season of, such as `tv/371980`, `None` if fanart.tv
+/// can't look it up by that id.
+///
+/// # Errors
+/// If there is no id.
+fn show_path(asked: &SeasonAsked) -> Result<Option<String>, Error> {
+    let id = asked
+        .show
+        .as_option()
+        .ok_or_else(|| Error::msg("fanart.tv was asked for no Show id"))?;
+    Ok((id.namespace == "tvdb").then(|| format!("tv/{}", encoded(&id.value))))
+}
+
+/// The body of fanart.tv's answer at the API `path`, `None` if it has nothing there.
+///
+/// # Errors
+/// If a setting it needs isn't set, or fanart.tv didn't answer or refused the request.
+fn fetched(path: &str) -> Result<Option<Vec<u8>>, Error> {
+    let mut url = format!(
+        "{}/{path}?api_key={}",
+        setting(API_URL)?.trim_end_matches('/'),
+        encoded(&setting(API_KEY)?),
+    );
+    if let Some(client_key) = config::get(CLIENT_KEY)?.filter(|key| !key.trim().is_empty()) {
+        url = format!("{url}&client_key={}", encoded(client_key.trim()));
+    }
+    let response = accepted(send(&HttpRequest::new(url))?, "fanart.tv")?;
+    Ok(response.map(|response| response.body()))
+}
+
+/// What the `artwork` and `season_artwork` exports answer when the title can't be looked up.
 fn unsupported_id() -> ArtworkAnswer {
     ArtworkAnswer {
         unsupported_id: true,
@@ -224,6 +262,30 @@ struct Listed {
 /// # Errors
 /// If `body` isn't a JSON object.
 fn artwork(lists: &[List], body: &[u8]) -> Result<Vec<Artwork>, Error> {
+    kept_artwork(lists, body, |_| true)
+}
+
+/// Season `season`'s own Posters in fanart.tv's answer `body` for its Show. One for `"all"`
+/// Seasons is left out: it isn't that Season's, and the Show's Poster has its own picker.
+///
+/// # Errors
+/// If `body` isn't a JSON object.
+fn season_posters(body: &[u8], season: u32) -> Result<Vec<Artwork>, Error> {
+    let season = season.to_string();
+    kept_artwork(SEASON_POSTERS, body, |image| {
+        image.get("season").and_then(json::Value::as_str) == Some(&season)
+    })
+}
+
+/// The artwork in fanart.tv's answer `body`, in the order of `lists`, of each image `keep` keeps.
+///
+/// # Errors
+/// If `body` isn't a JSON object.
+fn kept_artwork(
+    lists: &[List],
+    body: &[u8],
+    keep: impl Fn(&json::Value) -> bool,
+) -> Result<Vec<Artwork>, Error> {
     let answer: json::Map<String, json::Value> =
         json::from_slice(body).map_err(|err| unexpected(&err))?;
     let mut artwork = Vec::new();
@@ -232,18 +294,23 @@ fn artwork(lists: &[List], body: &[u8]) -> Result<Vec<Artwork>, Error> {
         let Some(listed) = answer.get(field).and_then(json::Value::as_array) else {
             continue;
         };
-        artwork.extend(listed.iter().filter_map(|image| {
-            let image: Listed = json::from_value(image.clone()).ok()?;
-            Some(Artwork {
-                kind: kind.into(),
-                path: asset_path(&image.url)?,
-                language: Some(image.lang).filter(|lang| !lang.is_empty() && lang != "00"),
-                width: size.map(|(width, _)| width),
-                height: size.map(|(_, height)| height),
-                votes: image.likes.parse().ok(),
-                ..Artwork::default()
-            })
-        }));
+        artwork.extend(
+            listed
+                .iter()
+                .filter(|image| keep(image))
+                .filter_map(|image| {
+                    let image: Listed = json::from_value(image.clone()).ok()?;
+                    Some(Artwork {
+                        kind: kind.into(),
+                        path: asset_path(&image.url)?,
+                        language: Some(image.lang).filter(|lang| !lang.is_empty() && lang != "00"),
+                        width: size.map(|(width, _)| width),
+                        height: size.map(|(_, height)| height),
+                        votes: image.likes.parse().ok(),
+                        ..Artwork::default()
+                    })
+                }),
+        );
     }
     Ok(artwork)
 }

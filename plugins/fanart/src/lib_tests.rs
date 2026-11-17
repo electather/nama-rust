@@ -1,5 +1,5 @@
 use nama_pdk::{
-    ArtworkAnswer, ArtworkAsked, TitleId, TitleKind,
+    ArtworkAnswer, ArtworkAsked, SeasonAsked, TitleId, TitleKind,
     nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
     services,
 };
@@ -9,7 +9,9 @@ use nama_pdk::ArtworkKind::{
     ARTWORK_KIND_POSTER, ARTWORK_KIND_THUMB,
 };
 
-use super::{MOVIE, SHOW, artwork, asset_path, lookup, manifest, unsupported_id};
+use super::{
+    MOVIE, SHOW, artwork, asset_path, lookup, manifest, season_posters, show_path, unsupported_id,
+};
 
 fn id(namespace: &str, value: &str) -> TitleId {
     TitleId {
@@ -155,6 +157,60 @@ fn a_shows_lists_map_to_kinds_leaving_out_its_seasons() {
         (artwork[3].width, artwork[3].height),
         (Some(500), Some(281))
     );
+}
+
+#[test]
+fn a_season_lists_only_its_own_season_posters_never_those_for_all() {
+    let body = include_bytes!("../fixtures/tv.json");
+    let listed = |season| {
+        season_posters(body, season)
+            .unwrap()
+            .into_iter()
+            .map(|art| {
+                (
+                    art.kind.as_known(),
+                    art.path,
+                    art.language,
+                    art.votes,
+                    (art.width, art.height),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let poster = |file: &str, language: Option<&str>, votes| {
+        (
+            Some(ARTWORK_KIND_POSTER),
+            format!("/fanart/tv/371980/seasonposter/{file}"),
+            language.map(str::to_owned),
+            Some(votes),
+            (Some(1000), Some(1426)),
+        )
+    };
+
+    assert_eq!(listed(1), [poster("severance-61e.jpg", Some("en"), 1)]);
+    assert_eq!(listed(2), [poster("severance-61f.jpg", None, 3)]);
+    assert_eq!(listed(3), []);
+}
+
+fn season_looked_up(namespace: &str, value: &str) -> Option<String> {
+    let asked = SeasonAsked {
+        show: id(namespace, value).into(),
+        season: 1,
+        ..SeasonAsked::default()
+    };
+    show_path(&asked).unwrap()
+}
+
+// `None` is what the `season_artwork` export answers `unsupported_id` for, before any request.
+#[test]
+fn a_seasons_show_is_looked_up_by_tvdb_id_alone() {
+    assert_eq!(
+        season_looked_up("tvdb", "371980").as_deref(),
+        Some("tv/371980")
+    );
+    assert_eq!(season_looked_up("tvdb", "a/b").as_deref(), Some("tv/a%2Fb"));
+    assert_eq!(season_looked_up("tmdb", "95396"), None);
+    assert_eq!(season_looked_up("imdb", "tt11280740"), None);
 }
 
 fn looked_up(kind: TitleKind, namespace: &str, value: &str) -> Option<String> {

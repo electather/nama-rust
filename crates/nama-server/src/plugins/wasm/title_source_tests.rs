@@ -204,3 +204,33 @@ async fn a_title_source_exporting_only_artwork_and_image_loads_and_is_asked_for_
     assert!(!running.answers(TitleMethod::SeasonArtwork));
     assert!(failed.contains("title_artwork"), "{failed}");
 }
+
+#[tokio::test]
+async fn fanart_once_enabled_answers_season_artwork() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    let (_, wasm) = BUNDLED
+        .iter()
+        .find(|(file, _)| *file == "fanart.wasm")
+        .unwrap();
+    let fanart = load(wasm.to_vec(), &cache_config).unwrap();
+    let plugins = Registry::new();
+    let api_key = SettingValue::Text("key".to_owned());
+    let settings = Settings::new([("api_key".to_owned(), api_key)].into());
+    plugins
+        .enable_with_settings(Arc::new(fanart), settings)
+        .unwrap();
+
+    let points = plugins.extension_points();
+    let fanart_plugin = points.ranked::<dyn TitleSource>().remove(0);
+    let answers = points
+        .ask(&fanart_plugin, |source: Arc<dyn TitleSource>| async move {
+            Ok::<_, Box<dyn Error + Send + Sync>>(source.answers(TitleMethod::SeasonArtwork))
+        })
+        .await
+        .unwrap()
+        .result
+        .unwrap();
+
+    assert!(answers);
+}

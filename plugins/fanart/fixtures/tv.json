@@ -14,6 +14,8 @@
     {"id": "2004", "url": "https://assets.fanart.tv/fanart/tv/371980/tvthumb/severance-61d.jpg", "lang": "en", "likes": "0"}
   ],
   "seasonposter": [
-    {"id": "2005", "url": "https://assets.fanart.tv/fanart/tv/371980/seasonposter/severance-61e.jpg", "lang": "en", "likes": "1", "season": "1"}
+    {"id": "2005", "url": "https://assets.fanart.tv/fanart/tv/371980/seasonposter/severance-61e.jpg", "lang": "en", "likes": "1", "season": "1"},
+    {"id": "2006", "url": "https://assets.fanart.tv/fanart/tv/371980/seasonposter/severance-61f.jpg", "lang": "", "likes": "3", "season": "2"},
+    {"id": "2007", "url": "https://assets.fanart.tv/fanart/tv/371980/seasonposter/severance-620.jpg", "lang": "en", "likes": "4", "season": "all"}
   ]
 }
