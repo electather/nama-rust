@@ -90,6 +90,56 @@ test("a Season the Show doesn't have falls back to its first, after the Specials
   expect(screen.queryByText(/Opener of Season (0|9)/u)).toBeNull();
 });
 
+/** A fake Server with a Show of `seasons`, each holding one Episode titled after its Season. */
+function serverWithSeasons(...seasons: number[]) {
+  return serverToBrowse({
+    getShow: () => ({
+      show: { title: "Severance" },
+      seasons: seasons.map((number) => ({ number })),
+    }),
+    listEpisodes: ({ seasonNumber }) => ({
+      episodes: [
+        {
+          seasonNumber,
+          episodeNumber: 1,
+          title: `Opener of Season ${seasonNumber}`,
+          versions: [{ id: 1n }],
+        },
+      ],
+    }),
+  });
+}
+
+test("a Show with one Season lists its Episodes without Season links", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(1));
+
+  expect(await screen.findByText("Opener of Season 1")).toBeDefined();
+  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
+});
+
+test("a Show with one Season and Specials lists the Season's Episodes, then the Specials", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(0, 1));
+
+  const specials = await screen.findByRole("region", { name: "Specials" });
+  expect(within(specials).getByText("Opener of Season 0")).toBeDefined();
+  const season = screen.getByText("Opener of Season 1");
+  expect(season.compareDocumentPosition(specials) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
+});
+
+test("a Show with two Seasons links to each and lists one at a time", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(0, 1, 2));
+
+  const seasons = await screen.findByRole("navigation", { name: "Seasons" });
+  expect(
+    within(seasons)
+      .getAllByRole("link")
+      .map((link) => link.textContent),
+  ).toStrictEqual(["Specials", "Season 1", "Season 2"]);
+  expect(await screen.findByText("Opener of Season 1")).toBeDefined();
+  expect(screen.queryByRole("region", { name: "Specials" })).toBeNull();
+});
+
 test("a Library's page shows a Movie as soon as it's Matched", async () => {
   const listed: MessageInitShape<typeof MovieSummarySchema>[] = [];
   let match: (() => void) | undefined;
