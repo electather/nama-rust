@@ -38,12 +38,15 @@ function openHome(...entries: MessageInitShape<typeof ContinueWatchingEntrySchem
   openApp("/", server({ listContinueWatching: () => ({ entries }) }));
 }
 
-/** A Continue Watching entry for Season `seasonNumber`'s Episode `episodeNumber` of `show`, in TV (2). */
+/**
+ * A Continue Watching entry for Season `seasonNumber`'s Episode `episodeNumber` of `show`, in TV
+ * (2), without a `watchState` when it's the Show's next Episode.
+ */
 function episodeEntry(
   show: MessageInitShape<typeof ShowSchema>,
   seasonNumber: number,
   episodeNumber: number,
-  watchState: MessageInitShape<typeof WatchStateSchema>,
+  watchState?: MessageInitShape<typeof WatchStateSchema>,
 ) {
   return {
     libraryId: 2n,
@@ -109,6 +112,16 @@ test("a Season 2 Episode's card shows its Show's Backdrop, not a Season's Poster
   );
   expect(within(card).getByText("S2, E3 · 33m left")).toBeDefined();
   expect(within(card).getByRole("progressbar", { name: "Watched" })).toBeDefined();
+});
+
+test("a Show's next Episode's card says which it is, with no progress", async () => {
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" } as const;
+  openHome(episodeEntry(dark, 1, 4));
+
+  const card = await screen.findByRole("link", { name: /Dark/u });
+  expect(card.getAttribute("href")).toBe("/libraries/2/shows/tmdb-70523/seasons/1/episodes/4/play");
+  expect(within(card).getByText("S1, E4")).toBeDefined();
+  expect(within(card).queryByRole("progressbar")).toBeNull();
 });
 
 test("a Special without a Backdrop shows the placeholder with its Show's title", async () => {

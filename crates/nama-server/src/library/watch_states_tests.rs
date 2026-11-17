@@ -71,6 +71,31 @@ async fn a_movie_once_played_stays_played_when_played_again_from_the_start() {
 }
 
 #[tokio::test]
+async fn a_movie_played_again_keeps_when_it_first_became_played() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let near_the_end = Progress::new(1_950, 2_000).unwrap();
+    watch_states
+        .report(user, vec![Some(alien())], near_the_end)
+        .await
+        .unwrap();
+    let first = movie_state(&watch_states, user, alien_id()).await.unwrap();
+
+    db::advance_clock(Duration::from_secs(2));
+    watch_states
+        .report(user, vec![Some(alien())], near_the_end)
+        .await
+        .unwrap();
+    db::advance_clock(Duration::from_secs(2));
+    watch_states.mark(user, vec![alien()], true).await.unwrap();
+
+    let again = movie_state(&watch_states, user, alien_id()).await.unwrap();
+    assert_eq!(first.played_at, Some(first.updated_at));
+    assert_eq!(again.played_at, first.played_at);
+    assert!(again.updated_at > first.updated_at, "{again:?}");
+}
+
+#[tokio::test]
 async fn marking_a_movie_unplayed_forgets_its_position() {
     let data = tempfile::tempdir().unwrap();
     let (watch_states, user) = watch_states(&data).await;

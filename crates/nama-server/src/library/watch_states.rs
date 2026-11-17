@@ -126,6 +126,8 @@ pub(crate) struct WatchState {
     pub(crate) duration_ms: i64,
     /// Whether the position has ever passed 90% of the duration, or it was marked played.
     pub(crate) played: bool,
+    /// When it became played, in seconds since the Unix epoch, if it has: rewatching keeps it.
+    pub(crate) played_at: Option<i64>,
     /// When it last changed, in seconds since the Unix epoch.
     pub(crate) updated_at: i64,
 }
@@ -235,7 +237,8 @@ impl WatchStates {
         // User is the one kept.
         let rows = sqlx::query!(
             r#"SELECT CAST(title.key AS INTEGER) AS "position!: i64", user_id AS "user_id!",
-                      position_ms, duration_ms, played AS "played: bool", updated_at
+                      position_ms, duration_ms, played AS "played: bool", played_at,
+                      updated_at
                FROM json_each(?) AS title
                JOIN json_each(title.value, '$[1]') AS id
                JOIN watch_states ON watch_states.kind = json_extract(title.value, '$[0]')
@@ -265,6 +268,7 @@ impl WatchStates {
                 position_ms: row.position_ms,
                 duration_ms: row.duration_ms,
                 played: row.played,
+                played_at: row.played_at,
                 updated_at: row.updated_at,
             };
             of_title.push((row.user_id, state));
@@ -294,19 +298,18 @@ impl WatchStates {
             .collect())
     }
 
-    /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
-    /// played, with their Watch State and its row id, most recent first. Ones changed in the same
-    /// second come newest row first, so the list doesn't shuffle between calls and pages by
+    /// Every Watch State of the User `user`, unordered, with the Movie or Episode it's kept under
+    /// and its row id, which breaks ties within a second so Continue Watching pages by
     /// `(updated_at, row id)`.
-    pub(crate) async fn continue_watching(
+    pub(crate) async fn of_user(
         &self,
         user: i64,
     ) -> Result<Vec<(MovieOrEpisode, WatchState, i64)>, sqlx::Error> {
         let rows = sqlx::query!(
-            r#"SELECT rowid AS "row!: i64", kind, title_id, position_ms, duration_ms, updated_at
+            r#"SELECT rowid AS "row!: i64", kind, title_id, position_ms, duration_ms,
+                      played AS "played: bool", played_at, updated_at
              FROM watch_states
-             WHERE user_id = ? AND position_ms > 0 AND NOT played
-             ORDER BY updated_at DESC, rowid DESC"#,
+             WHERE user_id = ?"#,
             user
         )
         .fetch_all(self.db.reader())
@@ -318,7 +321,8 @@ impl WatchStates {
                 let state = WatchState {
                     position_ms: row.position_ms,
                     duration_ms: row.duration_ms,
-                    played: false,
+                    played: row.played,
+                    played_at: row.played_at,
                     updated_at: row.updated_at,
                 };
                 (watched, state, row.row)
@@ -327,7 +331,7 @@ impl WatchStates {
     }
 }
 
-/// One once played under any of its ids stays played.
+/// One once played under any of its ids stays played, as of when it first was.
 async fn upsert(
     conn: &mut SqliteConnection,
     user: i64,
@@ -339,17 +343,23 @@ async fn upsert(
         let played = progress.is_played();
         sqlx::query!(
             "INSERT INTO watch_states
-                 (user_id, kind, title_id, position_ms, duration_ms, played, updated_at)
+                 (user_id, kind, title_id, position_ms, duration_ms, played, updated_at,
+                  played_at)
              VALUES (?1, ?2, ?3, ?4, ?5,
                      ?6 OR EXISTS (SELECT 1 FROM watch_states
                                    WHERE user_id = ?1 AND kind = ?2 AND played
                                      AND title_id IN (SELECT value FROM json_each(?8))),
-                     ?7)
+                     ?7,
+                     coalesce((SELECT max(played_at) FROM watch_states
+                               WHERE user_id = ?1 AND kind = ?2
+                                 AND title_id IN (SELECT value FROM json_each(?8))),
+                              CASE WHEN ?6 THEN ?7 END))
              ON CONFLICT (user_id, kind, title_id) DO UPDATE
              SET position_ms = excluded.position_ms,
                  duration_ms = excluded.duration_ms,
                  played = watch_states.played OR excluded.played,
-                 updated_at = excluded.updated_at",
+                 updated_at = excluded.updated_at,
+                 played_at = coalesce(watch_states.played_at, excluded.played_at)",
             user,
             kind,
             title,
@@ -383,7 +393,8 @@ async fn mark_each(
     Ok(())
 }
 
-/// Keeps any position. One the User hasn't started is at 0 of an unknown duration, 0.
+/// Keeps any position, and when it became played if it already was. One the User hasn't started
+/// is at 0 of an unknown duration, 0.
 async fn mark_played(
     conn: &mut SqliteConnection,
     user: i64,
@@ -393,10 +404,11 @@ async fn mark_played(
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "INSERT INTO watch_states
-             (user_id, kind, title_id, position_ms, duration_ms, played, updated_at)
-         VALUES (?, ?, ?, 0, 0, 1, ?)
+             (user_id, kind, title_id, position_ms, duration_ms, played, updated_at, played_at)
+         VALUES (?1, ?2, ?3, 0, 0, 1, ?4, ?4)
          ON CONFLICT (user_id, kind, title_id) DO UPDATE
-         SET played = 1, updated_at = excluded.updated_at",
+         SET played = 1, updated_at = excluded.updated_at,
+             played_at = coalesce(watch_states.played_at, excluded.played_at)",
         user,
         kind,
         title,

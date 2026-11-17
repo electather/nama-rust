@@ -80,3 +80,4 @@
 0080_keyframes_failure_version.sql
 0081_local_images.sql
 0082_match_sort_title.sql
+0083_watch_states_played_at.sql
