@@ -553,7 +553,6 @@ impl Ffmpeg {
     }
 }
 
-/// Whether each of `written`'s files is there.
 async fn all_there(written: &[(usize, PathBuf)]) -> io::Result<bool> {
     for (_, path) in written {
         if !tokio::fs::try_exists(path).await? {

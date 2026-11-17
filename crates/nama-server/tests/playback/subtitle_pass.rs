@@ -202,3 +202,18 @@ async fn a_failed_pass_is_not_tried_again_until_the_file_changes() {
     assert_eq!(runs_before_the_change, 1);
     assert_eq!(ffmpeg_runs(bin.path()).len(), 2);
 }
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_pass_that_couldnt_write_its_cache_is_tried_again() {
+    let bin = tempfile::tempdir().unwrap();
+    let full = "echo 'Error writing trailer: No space left on device' >&2; exit 1";
+    let (fx, version) = alien_with(ffmpeg_reading_text_subtitles_after(bin.path(), full)).await;
+
+    let first = fx.fetched(&subtitle_url(version, SRT)).await;
+    let again = fx.fetched(&subtitle_url(version, SRT)).await;
+
+    assert_eq!([first.0, again.0], [500; 2]);
+    assert_eq!(ffmpeg_runs(bin.path()).len(), 2);
+}

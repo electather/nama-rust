@@ -23,6 +23,16 @@ use crate::{
 /// tried again until the file changes, and its cache folder with it.
 const FAILED: &str = "failed";
 
+/// What ffmpeg says when it couldn't write into the cache, which says nothing about the file it
+/// reads, as each is an error only writing gives.
+// shortcut: matches the C library's English messages, as in the Docker image; read ffmpeg's exit
+// code instead if a Server in another locale remembers a full disk.
+const CACHE_UNWRITABLE: &[&str] = &[
+    "No space left on device",
+    "Disk quota exceeded",
+    "Read-only file system",
+];
+
 /// The folder in the Version's cache folder that ffmpeg writes into, as what it writes is whole
 /// only once it's done. Its name starts with `.`, which no cached file's does.
 const PARTIAL: &str = ".pass";
@@ -79,9 +89,7 @@ async fn failed_before(folder: &Path) -> Result<(), Error> {
     }
 }
 
-/// A text pass over one Version's file.
 struct TextPass {
-    /// The Version's file.
     path: String,
     /// Where what it reads out is cached.
     folder: PathBuf,
@@ -247,6 +255,9 @@ async fn fails_again(err: &SubtitleError, path: &str) -> bool {
     match err {
         // ffmpeg never reached the file.
         SubtitleError::Unavailable | SubtitleError::Run(_) => false,
+        SubtitleError::Failed(why) if CACHE_UNWRITABLE.iter().any(|error| why.contains(error)) => {
+            false
+        }
         // ffmpeg fails fast on a file it can't open, as on a share that dropped, which may read
         // fine once it's back.
         SubtitleError::Failed(_) => readable(path).await,
@@ -255,7 +266,6 @@ async fn fails_again(err: &SubtitleError, path: &str) -> bool {
     }
 }
 
-/// Moves the whole file at `from` to `to`.
 async fn keep(from: &Path, to: &Path) -> io::Result<()> {
     let (from, to) = (from.to_owned(), to.to_owned());
     tokio::task::spawn_blocking(move || {
