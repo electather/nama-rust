@@ -45,6 +45,7 @@ mod calls;
 mod contract;
 mod listing;
 mod load;
+mod plugin_log;
 mod recogniser;
 mod services;
 mod title_source;
@@ -61,6 +62,7 @@ use load::{
     CALL_TIMEOUT, Compiled, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel,
     extism_config,
 };
+use plugin_log::PluginLog;
 use services::{
     CHECK_PERSONAL_SETTINGS, CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION,
     Point, START_CONNECTION, TICK,
@@ -335,6 +337,12 @@ impl Plugin for Installed {
             let calls = calls.clone();
             move || calls.stop()
         });
+        let secrets: Arc<[String]> = secret_values(schema, settings).into();
+        // One for every compile, so the Plugin's rate counts all its calls.
+        let log = Arc::new(PluginLog::new(
+            self.manifest.id.clone(),
+            Arc::clone(&secrets),
+        ));
         let compile = || {
             let (hosts, config, kernel) = (hosts.clone(), config.clone(), kernel.clone());
             compile_with_kernel(
@@ -343,12 +351,12 @@ impl Plugin for Installed {
                 hosts,
                 config,
                 kernel,
+                Arc::clone(&log),
                 calls.clone(),
             )
             .map(Arc::new)
             .map_err(|err| format!("could not compile it with its settings: {err:#}"))
         };
-        let secrets: Arc<[String]> = secret_values(schema, settings).into();
         // The Kernel refuses a Plugin registering at a point its Manifest doesn't name, so read
         // them from the same list the Kernel checks.
         let declared = &self.manifest.extension_points;
