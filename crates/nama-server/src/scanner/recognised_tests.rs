@@ -20,6 +20,7 @@ use tokio_util::sync::CancellationToken;
 use super::{super::tests::Fixture, Planned, items, listed, recognise};
 use crate::{
     library::{Change, Item, LibraryKind},
+    log_capture::CapturedLog,
     plugins::Registry,
 };
 
@@ -380,14 +381,8 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
         added: true,
     };
     let planned = ["Show - 1.mkv", "Show - 2.mkv", "Show - 3.mkv"].map(unread);
-    let log = tempfile::NamedTempFile::new().unwrap();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(Arc::new(log.reopen().unwrap()))
-        .with_ansi(false)
-        .finish();
-    // The test's runtime has one thread, so the scan logs to it. A thread-local subscriber, as in
-    // `scanner_tests.rs`: nextest runs each test in a process of its own.
-    let logging = tracing::subscriber::set_default(subscriber);
+    // The test's runtime has one thread, so the scan logs to it.
+    let log = CapturedLog::start();
 
     let (_, dropped) = recognise(
         &points,
@@ -399,7 +394,7 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
     .await
     .unwrap();
 
-    drop(logging);
+    let log = log.finish();
     assert_eq!(dropped.len(), 3);
     let failing = points
         .failing(
@@ -411,7 +406,6 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
         (failing.in_a_row, failing.last_error.as_str()),
         (3, "the Recogniser is down")
     );
-    let log = std::fs::read_to_string(log.path()).unwrap();
     let warned: Vec<&str> = log.lines().filter(|line| line.contains("WARN")).collect();
     assert_eq!(warned.len(), 1, "{log}");
     assert!(warned[0].contains("files=3"), "{log}");

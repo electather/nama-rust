@@ -13,6 +13,8 @@ pub mod ffmpeg;
 mod forwarded;
 pub mod images;
 mod library;
+#[cfg(test)]
+mod log_capture;
 mod matching;
 mod playback;
 pub mod plugin_settings;

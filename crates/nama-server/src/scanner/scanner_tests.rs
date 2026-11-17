@@ -15,6 +15,7 @@ use crate::{
         Artwork, Change, Contents, CustomImages, File, Item, Libraries, LibraryError, LibraryKind,
         LibraryVersion, Order,
     },
+    log_capture::CapturedLog,
     playback::{Probing, SubtitleCache},
     plugins::ExtensionPoints,
     requests::Requests,
@@ -271,25 +272,17 @@ async fn writes_failing_once_the_files_are_gone_are_logged_and_the_delete_still_
     media.scan().await;
     let doomed = media.doomed().await;
     media.stop_writes().await;
-    let log = tempfile::NamedTempFile::new().unwrap();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(Arc::new(log.reopen().unwrap()))
-        .with_ansi(false)
-        .finish();
-    // The test's runtime has one thread, so the delete's tasks log to it too. A thread-local
-    // subscriber is safe here, unlike in `tests/support/log.rs`: only this test reaches the
-    // error lines it reads, so no other test races it over whether they're enabled.
-    let logging = tracing::subscriber::set_default(subscriber);
+    // The test's runtime has one thread, so the delete's tasks log to it too.
+    let log = CapturedLog::start();
 
     let deleted = media.scanner.delete_media(doomed, "ada".to_owned()).await;
 
-    drop(logging);
+    let log = log.finish();
     let deleted = deleted.unwrap();
     let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
     assert_eq!(files, [&media.path("Alien (1979)/Alien (1979).mkv")]);
     assert_eq!(deleted.bytes_freed(), 10);
     assert!(!media.path("Alien (1979)").exists());
-    let log = fs::read_to_string(log.path()).unwrap();
     let logged = |step: &str| {
         log.lines()
             .any(|line| line.contains("ERROR") && line.contains(step))
