@@ -62,20 +62,18 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
   component: Show,
 });
 
-/** A Show's one Season that isn't Specials, if that's all it has, which its page lists itself. */
+/** A Show's one Season that isn't Specials, if it has exactly one. */
 function onlySeason(seasons: Season[]) {
   const numbered = seasons.filter(({ number }) => number > 0);
   return numbered.length === 1 ? numbered[0] : undefined;
 }
 
 /**
- * The Season the Show's page lists. Its only one whatever's asked, as a link to its Specials finds
- * them below it. Else a Season the Show doesn't have, or none asked for, means its first, and
- * Specials (0) come first only when they're all there is.
+ * A Season the Show doesn't have, or none asked for, means its first. Specials (0) come first only
+ * when they're all there is, so a one-Season Show opens on that Season with the Specials below.
  */
 function seasonToShow(seasons: Season[], asked: number | undefined) {
   return (
-    onlySeason(seasons) ??
     seasons.find(({ number }) => number === asked) ??
     seasons.find(({ number }) => number > 0) ??
     seasons[0]
@@ -90,7 +88,6 @@ function listsOnlySeason(seasons: Season[], shown: number) {
   return onlySeason(seasons)?.number === shown;
 }
 
-/** Whether the page lists the Show's Specials below its only Season. */
 function specialsBelow(seasons: Season[], shown: number) {
   return listsOnlySeason(seasons, shown) && seasons.some(({ number }) => number === 0);
 }
@@ -146,8 +143,8 @@ function Show() {
 }
 
 /**
- * Links to the Show's Seasons, one shown at a time. None for a Show with one Season besides
- * Specials, whose page lists them all; with only Specials, it names them.
+ * Links to the Show's Seasons, one shown at a time. None while the page lists a Show's only Season
+ * besides Specials, with the Specials below; with only Specials, it names them.
  */
 function Seasons({ seasons, current }: { seasons: Season[]; current: number }) {
   if (listsOnlySeason(seasons, current)) return null;
@@ -191,11 +188,21 @@ function SeasonShown({ seasons, current }: { seasons: Season[]; current: number 
   );
 }
 
+/**
+ * The Specials below a Show's only Season. Its heading links to their own page, which still offers
+ * marking, deleting and the Poster of the Specials as a whole.
+ */
 function Specials() {
   return (
     <section aria-labelledby="specials" className="mt-10">
       <h2 id="specials" className="font-medium">
-        Specials
+        <Link
+          from={Route.fullPath}
+          search={{ season: 0 }}
+          className="rounded-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          {seasonName(0)}
+        </Link>
       </h2>
       <Episodes seasonNumber={0} />
     </section>

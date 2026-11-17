@@ -109,6 +109,25 @@ test("a Show with one Season and Specials lists the Season's Episodes, then the 
   const season = screen.getByText("Opener of Season 1");
   expect(season.compareDocumentPosition(specials) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
+  expect(
+    within(specials).getByRole("link", { name: "Specials" }).getAttribute("href"),
+  ).toStrictEqual("/libraries/2/shows/tmdb-95396?season=0");
+});
+
+test("a one-Season Show's Specials keep their own page, with Season links", async () => {
+  openApp("/libraries/2/shows/tmdb-95396?season=0", serverWithSeasons(0, 1));
+
+  const seasons = await screen.findByRole("navigation", { name: "Seasons" });
+  expect(within(seasons).getByRole("link", { name: "Season 1" })).toBeDefined();
+  expect(await screen.findByText("Opener of Season 0")).toBeDefined();
+  expect(screen.queryByText("Opener of Season 1")).toBeNull();
+});
+
+test("a Show whose one Season isn't Season 1 lists it without Season links", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(3));
+
+  expect(await screen.findByText("Opener of Season 3")).toBeDefined();
+  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
 });
 
 test("a Show with two Seasons links to each and lists one at a time", async () => {
