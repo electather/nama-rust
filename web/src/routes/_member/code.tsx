@@ -1,6 +1,7 @@
 import { Code, type ConnectError } from "@connectrpc/connect";
 import { useMutation } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { FormEnd, FormField } from "@/components/form-field";
@@ -9,16 +10,35 @@ import { Button } from "@/components/ui/button";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { type FormErrors, formText, onSubmitted, refusal } from "@/lib/forms";
 
-export const Route = createFileRoute("/_member/code")({ component: EnterCode });
+export const Route = createFileRoute("/_member/code")({
+  // `?code=` is what a phone opens by scanning the QR code a signing-in Device shows.
+  validateSearch: (search): { code?: string | undefined } => ({
+    code: typeof search["code"] === "string" ? search["code"] : undefined,
+  }),
+  component: EnterCode,
+});
 
 /** Signing in another Device: look up the Sign-in Code it shows, check its name, then approve. */
 function EnterCode() {
+  const { code: scanned } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const lookUp = useMutation(SignInService.method.lookUpSignInCode);
+  // `mutate` keeps its identity across renders, unlike `lookUp`, so a scanned code is looked up once.
+  const { mutate } = lookUp;
+  useEffect(() => {
+    if (scanned !== undefined) mutate({ code: scanned });
+  }, [scanned, mutate]);
+  const startOver = () => {
+    lookUp.reset();
+    // Otherwise the next code's field would start with this one.
+    void navigate({ search: {} });
+  };
   return (
     <Page heading="Sign in a Device">
       <section className="mt-2 max-w-sm">
         {lookUp.data === undefined ? (
           <LookUp
+            scanned={scanned}
             onSubmit={(code) => {
               lookUp.mutate({ code });
             }}
@@ -29,7 +49,7 @@ function EnterCode() {
           <Approve
             code={lookUp.variables?.code ?? ""}
             deviceName={lookUp.data.deviceName}
-            onDone={lookUp.reset}
+            onDone={startOver}
           />
         )}
       </section>
@@ -38,10 +58,12 @@ function EnterCode() {
 }
 
 function LookUp({
+  scanned,
   onSubmit,
   pending,
   error,
 }: {
+  scanned: string | undefined;
   onSubmit: (code: string) => void;
   pending: boolean;
   error: ConnectError | null;
@@ -62,6 +84,7 @@ function LookUp({
           label="Sign-in Code"
           name="signInCode"
           placeholder="XXXX-XXXX"
+          defaultValue={scanned}
           autoComplete="off"
           autoCapitalize="characters"
           spellCheck={false}
