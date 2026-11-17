@@ -21,6 +21,7 @@ import { TrackMenus } from "@/components/track-menus";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { playerOpened } from "@/lib/diagnostics";
+import { useMediaSession } from "@/lib/media-session";
 import { togglePlay, useAwake, useShortcuts, useVideo } from "@/lib/playback";
 import { usePlaybackPlan } from "@/lib/playback-plan";
 import { usePlaybackSource } from "@/lib/playback-source";
@@ -40,6 +41,10 @@ export interface PlayerProps {
   back: LinkOptions;
   /** The Episode to count down to and play after this one, if there is one. */
   next?: NextEpisode | undefined;
+  /** For an Episode, its Show and which Episode it is, which the lock screen shows under `title`. */
+  artist?: string | undefined;
+  /** The Poster the lock screen shows. */
+  artworkUrl?: string | undefined;
 }
 
 /**
@@ -92,6 +97,8 @@ function VideoPlayer({
   versionId,
   tracks,
   back,
+  artist,
+  artworkUrl,
   autoplay,
   planned,
   topBar,
@@ -104,6 +111,7 @@ function VideoPlayer({
   const [awake, wake] = useAwake();
   const nextEpisode = useNextEpisode(autoplay, video, wake);
   useShortcuts(videoRef, playerRef, back, nextEpisode.onInput);
+  useMediaSession(videoRef, { title, artist, artworkUrl });
 
   return (
     <div
