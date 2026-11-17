@@ -318,8 +318,8 @@ async fn migrate(conn: &mut SqliteConnection) -> Result<Vec<i64>, MigrateError> 
 static OFFSET_MS: AtomicI64 = AtomicI64::new(0);
 
 /// Moves the Server's clock, which [`now`], [`now_ms`] and so a Plugin's `nama.now` read, ahead by
-/// `by`. Testing only. Process-wide, which is safe because nextest runs each test in its own
-/// process.
+/// `by`. Testing only. Process-wide, so `TestServer` tests sharing a process take turns: see "One
+/// clock" in `crates/nama-server/AGENTS.md`.
 #[cfg(feature = "testing")]
 pub fn advance_clock(by: Duration) {
     let by = i64::try_from(by.as_millis()).unwrap_or(i64::MAX);
