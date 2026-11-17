@@ -1,12 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc};
-
 use futures_util::{FutureExt, StreamExt};
 use nama_plugin_api::{
     PluginId,
     metadata::{ExternalId, ExternalIds, IMDB},
-    settings::{SettingValue, Settings},
 };
-use nama_plugin_tmdb::Tmdb;
 use nama_proto::nama::v1::{EventType, ItemMatched, subscribe_response};
 
 use super::testing::{Fixture, Outcome, episode, hinted, matched, movie};
@@ -14,6 +10,7 @@ use crate::{
     events::{Filter, event},
     library::{Decided, UnmatchedReason},
 };
+
 #[tokio::test]
 async fn a_scan_matches_movies_confidently_and_leaves_the_rest_unmatched() {
     let media = Fixture::new().await;
@@ -469,17 +466,7 @@ async fn a_year_off_by_one_still_matches_though_tmdb_filters_by_exact_year() {
 #[tokio::test]
 async fn a_failing_metadata_provider_stops_the_pass_and_leaves_items_undecided() {
     let media = Fixture::without_tmdb().await;
-    let settings = Settings::new(BTreeMap::from([(
-        "api_key".to_owned(),
-        SettingValue::Text("rejected".to_owned()),
-    )]));
-    media
-        .plugins
-        .enable_with_settings(
-            Arc::new(Tmdb::with_endpoints(media.tmdb.endpoints())),
-            settings,
-        )
-        .unwrap();
+    media.enable_tmdb_rejecting();
     media
         .movies
         .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])

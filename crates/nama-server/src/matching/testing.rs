@@ -185,9 +185,18 @@ impl Fixture {
     }
 
     pub(super) fn enable_tmdb(&self) {
+        self.enable_tmdb_with_key(API_KEY);
+    }
+
+    /// Enables TMDB with a key it rejects, so every fetch fails.
+    pub(super) fn enable_tmdb_rejecting(&self) {
+        self.enable_tmdb_with_key("rejected");
+    }
+
+    fn enable_tmdb_with_key(&self, key: &str) {
         let settings = Settings::new(BTreeMap::from([(
             "api_key".to_owned(),
-            SettingValue::Text(API_KEY.to_owned()),
+            SettingValue::Text(key.to_owned()),
         )]));
         self.plugins
             .enable_with_settings(
@@ -280,20 +289,6 @@ impl Fixture {
         (shows.iter().flat_map(LibraryShow::episodes))
             .map(|episode| episode.still.clone())
             .collect()
-    }
-
-    /// Enables TMDB with a key it rejects, so every fetch fails.
-    pub(super) fn enable_tmdb_rejecting(&self) {
-        let settings = Settings::new(BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text("rejected".to_owned()),
-        )]));
-        self.plugins
-            .enable_with_settings(
-                Arc::new(Tmdb::with_endpoints(self.tmdb.endpoints())),
-                settings,
-            )
-            .unwrap();
     }
 
     pub(super) fn searches(&self) -> usize {
