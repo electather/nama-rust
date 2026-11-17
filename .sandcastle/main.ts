@@ -6,7 +6,7 @@
 // - main: watches main's CI and files a main-red issue when it fails, then builds it in a lane of its own.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
 import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
 import { inspect, parseEnv, promisify } from "node:util";
@@ -23,6 +23,9 @@ const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per r
 const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
 // `touch .sandcastle/STOP`: running issues finish, nothing new starts, later runs exit at once. `rm` it to resume.
 const STOP_FILE = ".sandcastle/STOP";
+// SIGUSR1 (see handover.sh) does the same for this run alone, so a newer run can start beside it: it drains.
+let draining = false;
+const stopping = () => draining || existsSync(STOP_FILE);
 // Opus for implement and review; fix (merge main, mend CI) is narrow enough for Sonnet, with Opus as fallback.
 const OPUS = sandcastle.claudeCode("claude-opus-5-5", { effort: "high" });
 const SONNET = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" });
@@ -73,7 +76,8 @@ const teMounts = process.env.TE !== "off" && existsSync(`${teClone}/plugin/scrip
   : [];
 if (teMounts.length) mkdirSync(teState, { recursive: true });
 
-// One factory per machine: they'd share the caches above and race on the same local branches.
+// One active factory per machine: they'd share the caches above and race on the same local branches. A draining
+// run (see SIGUSR1) lets go of the file, so the run that replaces it can start; it starts nothing new itself.
 const PID_FILE = `${cacheRoot}/factory.pid`;
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 try {
@@ -86,7 +90,12 @@ try {
   }
   writeFileSync(PID_FILE, String(process.pid)); // stale: its run was killed
 }
-process.on("exit", () => rmSync(PID_FILE, { force: true }));
+const releasePidFile = () => {
+  try {
+    if (Number(readFileSync(PID_FILE, "utf8")) === process.pid) rmSync(PID_FILE);
+  } catch {} // gone already
+};
+process.on("exit", releasePidFile);
 
 // launchd.log gets one timestamped line per thing that happens; status.md (see status.ts) the state of every issue.
 const LOGS = ".sandcastle/logs";
@@ -220,15 +229,43 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
   return result;
 }
 
-const slots = slotPool(MAX_PARALLEL);
+// Each run on the machine publishes its busy slots here, so a run being handed over and its successor share the
+// pools' sizes (see slotPool) instead of each running a full set: memory is the machine's.
+type Busy = { build: number; triage: number; fix: number };
+const SLOTS_DIR = `${cacheRoot}/slots`;
+mkdirSync(SLOTS_DIR, { recursive: true });
+const SLOTS_FILE = `${SLOTS_DIR}/${process.pid}.json`;
+const otherRuns = (): Busy[] =>
+  readdirSync(SLOTS_DIR).flatMap((f) => {
+    const pid = Number(f.replace(".json", ""));
+    if (pid === process.pid) return [];
+    if (!alive(pid)) {
+      rmSync(`${SLOTS_DIR}/${f}`, { force: true }); // a killed run's
+      return [];
+    }
+    try {
+      return [JSON.parse(readFileSync(`${SLOTS_DIR}/${f}`, "utf8")) as Busy];
+    } catch {
+      return []; // caught mid-write: the next wake reads it
+    }
+  });
+const elsewhere = (pool: keyof Busy) => () => otherRuns().reduce((n, b) => n + b[pool], 0);
+const publish = () =>
+  writeFileSync(SLOTS_FILE, JSON.stringify({ build: slots.busy(), triage: triageSlots.busy(), fix: fixSlots.busy() }));
+process.on("exit", () => rmSync(SLOTS_FILE, { force: true }));
+const slots = slotPool(MAX_PARALLEL, elsewhere("build"), publish);
 // Triage has its own pool so it never holds up a build or a fix; it compiles little, so more fit at once.
 const TRIAGE_PARALLEL = Number(process.env.TRIAGE_PARALLEL ?? 10);
-const triageSlots = slotPool(TRIAGE_PARALLEL);
+const triageSlots = slotPool(TRIAGE_PARALLEL, elsewhere("triage"), publish);
 // Rebases and CI fixes have their own pool too, so finishing an open PR never waits behind new builds.
 const FIX_PARALLEL = Number(process.env.FIX_PARALLEL ?? 10);
-const fixSlots = slotPool(FIX_PARALLEL);
-// Every agent running, for the usage slow-down, which counts them all.
-const agentsBusy = () => slots.busy() + triageSlots.busy() + fixSlots.busy();
+const fixSlots = slotPool(FIX_PARALLEL, elsewhere("fix"), publish);
+publish();
+// Another run's release can't wake this run's waiters.
+setInterval(() => { slots.wake(); triageSlots.wake(); fixSlots.wake(); }, 30_000);
+// Every agent running on the machine, for the usage slow-down, which counts them all.
+const agentsBusy = () =>
+  slots.busy() + triageSlots.busy() + fixSlots.busy() + otherRuns().reduce((n, b) => n + b.build + b.triage + b.fix, 0);
 
 // Makes the branch mergeable: Sonnet first, then Opus from the last commit if Sonnet gives up.
 async function fix(box: Box, issue: Issue, problem: string, what: string) {
@@ -444,10 +481,32 @@ function queue() {
   };
 }
 const serially = queue(); // merges
-// Concurrent `git worktree add`s race on .git/worktrees (one reads another's half-written commondir).
+// Concurrent `git worktree add`s race on .git/worktrees (one reads another's half-written commondir), and during
+// a handover two runs add them. The lock is a directory, which mkdir creates atomically on macOS and Linux alike;
+// it names its holder, so a killed run's lock is broken.
 const oneSandboxAtATime = queue();
+const WORKTREE_LOCK = `${cacheRoot}/worktree-add.lock`;
+async function onMachine<T>(fn: () => Promise<T>): Promise<T> {
+  for (;;) {
+    try {
+      mkdirSync(WORKTREE_LOCK);
+      writeFileSync(`${WORKTREE_LOCK}/pid`, String(process.pid));
+      break;
+    } catch {
+      let holder = 0;
+      try { holder = Number(readFileSync(`${WORKTREE_LOCK}/pid`, "utf8")); } catch {} // not written yet, or released
+      if (holder && !alive(holder)) rmSync(WORKTREE_LOCK, { recursive: true, force: true });
+      else await sleep(1_000);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    rmSync(WORKTREE_LOCK, { recursive: true, force: true });
+  }
+}
 async function newBox(branch: string): Promise<Box> {
-  const box = await oneSandboxAtATime(() =>
+  const box = await oneSandboxAtATime(() => onMachine(() =>
     sandcastle.createSandbox({
       branch,
       baseBranch: `origin/${BASE}`,
@@ -455,7 +514,7 @@ async function newBox(branch: string): Promise<Box> {
       // Each box.run's git setup uses these, not run's own: the 10s default ran out on `git rev-parse` while five
       // builds loaded the host, crashing the run.
       timeouts: { gitSetupMs: 120_000 },
-    }),
+    })),
   );
   // Agents share the host's .git, and in a container every other sandbox's worktree path looks missing, so an
   // agent's `git worktree prune` wiped them all (then sandcastle's next prune deleted their folders). Prune skips
@@ -783,6 +842,7 @@ function noteWaiting(prs: OpenPr[], { ready, waiting } = readyIssues(prs)) {
   const held = (pool: typeof slots, size: number, what: string) =>
     crashed ? "next run: this one crashed"
     : existsSync(STOP_FILE) ? "next run: STOP is set"
+    : draining ? "the newer run: this one is draining"
     : paused() ? "paused: Claude usage near its limit"
     : pool.busy() >= size ? `waits for a ${what} (${pool.busy()}/${size} busy)`
     : slowed() && agentsBusy() >= SLOW_PARALLEL ? `slowed: at most ${SLOW_PARALLEL} agents near the usage limit`
@@ -925,7 +985,7 @@ async function dispatch() {
   for (;;) {
     await ghWait();
     await slots.acquire();
-    if (crashed || taken.size >= MAX_ISSUES || existsSync(STOP_FILE)) {
+    if (crashed || taken.size >= MAX_ISSUES || stopping()) {
       slots.release();
       break;
     }
@@ -974,7 +1034,7 @@ let mainDone = false; // the main loop may still open a PR until then
 async function babysitLoop() {
   const running = new Set<Promise<void>>();
   for (;;) {
-    if (existsSync(STOP_FILE)) break;
+    if (stopping()) break; // its PRs in flight finish here; the rest are the newer run's
     await ghWait();
     let jobs: Job[] = [];
     let prs: OpenPr[] = [];
@@ -1029,7 +1089,7 @@ async function triageLoop() {
   for (;;) {
     await ghWait();
     await triageSlots.acquire(); // released by track
-    if (crashed || existsSync(STOP_FILE)) {
+    if (crashed || stopping()) {
       triageSlots.release();
       break;
     }
@@ -1083,7 +1143,7 @@ async function mainLoop() {
   const running = new Set<Promise<void>>();
   let judged = "";
   for (;;) {
-    if (crashed || existsSync(STOP_FILE)) break;
+    if (crashed || stopping()) break;
     await ghWait();
     let buildable: Issue | undefined;
     try {
@@ -1288,6 +1348,16 @@ process.on("SIGINT", () => {
   process.exit(130);
 });
 
+// Draining: everything already in flight finishes here, PRs babysat to their merge included; a newer run started
+// beside it takes everything else. The run then ends as usual.
+process.on("SIGUSR1", () => {
+  if (draining) return;
+  draining = true;
+  releasePidFile();
+  log("=== Draining: finishing what's in flight, starting nothing new ===");
+  record({ kind: "drain" });
+});
+
 log(`=== Factory ${RUN} started: ${MAX_PARALLEL} slots, at most ${MAX_ISSUES} issues, babysitting ${ME}'s PRs ===`);
 record({ kind: "run-start", slots: MAX_PARALLEL });
 // Before anything starts: this run's own sandboxes would look the same.
@@ -1304,6 +1374,7 @@ implementDone = true;
 await Promise.all([babysitting, triaging, watchingMain]);
 summary(
   crashed ? `${crashed}; finished in-flight work, started nothing new`
+  : draining ? "drained: a newer run took over"
   : existsSync(STOP_FILE) ? `${STOP_FILE} found`
   : taken.size >= MAX_ISSUES ? `MAX_ISSUES (${MAX_ISSUES}) reached`
   : "queue empty",
