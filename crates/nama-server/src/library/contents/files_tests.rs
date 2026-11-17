@@ -219,7 +219,7 @@ async fn items_stored_before_upgrading_were_added_when_the_server_upgraded_not_w
     // A raw connection, not `Database::write`: `Database::open` would run every migration.
     let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
     // The last migration before Items recorded when they were added.
-    sqlx::migrate!().run_to(77, &mut before).await.unwrap();
+    sqlx::migrate!().run_to(78, &mut before).await.unwrap();
     sqlx::query(
         "INSERT INTO libraries (id, name, kind) VALUES (1, 'Movies', 'movies');
          INSERT INTO library_files (id, library_id, path, size, modified_ns)
@@ -236,7 +236,7 @@ async fn items_stored_before_upgrading_were_added_when_the_server_upgraded_not_w
         i64::try_from(since.as_secs()).unwrap()
     };
     let upgrading = unix_seconds();
-    sqlx::migrate!().run_to(78, &mut before).await.unwrap();
+    sqlx::migrate!().run_to(79, &mut before).await.unwrap();
     let upgraded = unix_seconds();
     let added: i64 = sqlx::query_scalar("SELECT added_at FROM library_items")
         .fetch_one(&mut before)
