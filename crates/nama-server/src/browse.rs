@@ -8,6 +8,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_proto::nama::v1::{PageRequest, PageResponse};
 
 use crate::{
     db::Database,
@@ -16,7 +17,7 @@ use crate::{
         LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Stored, WatchState,
         WatchStateKind, WatchStates,
     },
-    page,
+    page::{self, Page},
     playback::{Probe, Sidecars, Track, Tracks},
     scanner::read_only_folder,
 };
@@ -190,10 +191,15 @@ impl Browse {
         })
     }
 
-    /// The Movies, Shows and Episodes of every Library that a search for `query` finds: see
-    /// [`Contents::search`].
-    pub(crate) async fn search(&self, query: &str) -> Result<Found, Error> {
-        Ok(self.contents.search(query).await?)
+    /// The `asked` page of the Movies, Shows and Episodes of every Library that a search for
+    /// `query` finds: see [`Contents::search`].
+    pub(crate) async fn search(
+        &self,
+        query: &str,
+        asked: &PageRequest,
+    ) -> Result<(Found, PageResponse), Error> {
+        let page = Page::read(asked, format!("SearchLibraries {query}").as_bytes())?;
+        Ok(self.contents.search(query, &page).await?)
     }
 
     /// The User `user`'s Watch State of each of `titles`, in the same order, kept under any of
