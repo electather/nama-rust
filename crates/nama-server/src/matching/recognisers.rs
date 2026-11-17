@@ -94,7 +94,7 @@ impl Recognisers {
     /// The well-formed ids the Plugin `plugin`'s Recogniser names for `asked`, in its order;
     /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Records whether
     /// the call failed for the Admin to see, and logs a failure only when a run of them starts:
-    /// Matching has no scan to log a tally at the end of, as the Scanner does.
+    /// Matching has no scan to log a tally at the end of, as a scan's own pass does.
     async fn ask(
         &self,
         plugin: &PluginId,

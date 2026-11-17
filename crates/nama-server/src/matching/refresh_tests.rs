@@ -1,6 +1,6 @@
 use nama_plugin_api::{PluginId, metadata::ExternalId};
 
-use super::tests::{Fixture, matched};
+use super::testing::{Fixture, episode, matched, movie};
 use crate::library::ImageRef;
 
 const SECRETS: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
@@ -12,8 +12,10 @@ const SECRETS_STILL: &str = "/gNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
 async fn a_match_stored_at_an_older_metadata_version_gets_its_still_on_the_next_scan() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    shows.write(SECRETS);
-    shows.write(BEGINNINGS_AND_ENDINGS);
+    shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
+    shows
+        .write(BEGINNINGS_AND_ENDINGS, &[episode("Dark", 2017, 2, 1)])
+        .await;
     media.scan(shows).await;
     let matched = media.outcomes(shows).await;
     media.contents.stored_by_older_metadata(shows.id).await;
@@ -33,7 +35,9 @@ async fn a_match_stored_at_an_older_metadata_version_gets_its_still_on_the_next_
 async fn a_movie_stored_at_an_older_metadata_version_is_fetched_again_by_its_id() {
     let media = Fixture::new().await;
     let movies = &media.movies;
-    movies.write("Alien (1979)/Alien (1979).mkv");
+    movies
+        .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
+        .await;
     media.scan(movies).await;
     media.contents.stored_by_older_metadata(movies.id).await;
     let searches = media.searches();
@@ -62,7 +66,7 @@ async fn a_movie_stored_at_an_older_metadata_version_is_fetched_again_by_its_id(
 async fn a_show_stored_at_an_older_metadata_version_gets_its_own_details_on_the_next_scan() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    shows.write(SECRETS);
+    shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
     media.scan(shows).await;
     media.contents.stored_by_older_metadata(shows.id).await;
     let older = media.contents.shows(shows.id).await.unwrap().remove(0);
@@ -95,8 +99,10 @@ async fn a_show_stored_at_an_older_metadata_version_gets_its_own_details_on_the_
 async fn a_match_at_the_current_metadata_version_is_not_fetched_again() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    shows.write(SECRETS);
-    shows.write(BEGINNINGS_AND_ENDINGS);
+    shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
+    shows
+        .write(BEGINNINGS_AND_ENDINGS, &[episode("Dark", 2017, 2, 1)])
+        .await;
     media.scan(shows).await;
     media.contents.stored_by_older_metadata(shows.id).await;
     media.scan(shows).await;
@@ -111,7 +117,7 @@ async fn a_match_at_the_current_metadata_version_is_not_fetched_again() {
 async fn a_pinned_match_stored_at_an_older_metadata_version_stays_pinned_once_refreshed() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    shows.write(SECRETS);
+    shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
     media.scan(shows).await;
     let item = media.item(shows, SECRETS).await;
     media
@@ -125,7 +131,7 @@ async fn a_pinned_match_stored_at_an_older_metadata_version_stays_pinned_once_re
     media.scan(shows).await;
     let refreshed = media.stills(shows).await;
     // A changed file is Matched again, which follows a pin rather than searching.
-    shows.replace(SECRETS);
+    shows.replace(SECRETS).await;
     media.scan(shows).await;
 
     assert_eq!(refreshed, [Some(SECRETS_STILL.to_owned())]);
@@ -137,7 +143,7 @@ async fn a_pinned_match_stored_at_an_older_metadata_version_stays_pinned_once_re
 async fn a_match_the_provider_fails_to_refresh_stays_as_it_was_until_a_later_scan() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    shows.write(SECRETS);
+    shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
     media.scan(shows).await;
     media.contents.stored_by_older_metadata(shows.id).await;
     let tmdb = PluginId::from_static("tmdb");
@@ -163,8 +169,10 @@ async fn a_match_the_provider_fails_to_refresh_stays_as_it_was_until_a_later_sca
 async fn a_match_from_a_gone_plugin_does_not_stop_others_being_refreshed() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    shows.write(SECRETS);
-    shows.write(BEGINNINGS_AND_ENDINGS);
+    shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
+    shows
+        .write(BEGINNINGS_AND_ENDINGS, &[episode("Dark", 2017, 2, 1)])
+        .await;
     media.scan(shows).await;
     media.contents.stored_by_older_metadata(shows.id).await;
     // Sorts before `tmdb`, so its title is asked about first.

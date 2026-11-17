@@ -55,6 +55,8 @@
 mod confidence;
 mod recognisers;
 mod sources;
+#[cfg(test)]
+mod testing;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
