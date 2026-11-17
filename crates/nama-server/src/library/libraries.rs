@@ -6,11 +6,10 @@
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use icu_normalizer::ComposingNormalizerBorrowed;
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
-use crate::db::Database;
+use crate::{db::Database, users::name_key};
 
 /// The kind of media a Library holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
@@ -369,8 +368,8 @@ async fn update(
         .fetch_optional(&mut *conn)
         .await?
         .ok_or(Error::NotFound(id))?;
-    // Keeping its name, in any case, lets a Library that shared it before names were unique keep
-    // it.
+    // Keeping its name, even in other letter case, lets a Library that shared it before names were
+    // unique keep it.
     if name_key(&name) != name_key(&current) {
         ensure_name_free(conn, &name).await?;
     }
@@ -628,7 +627,8 @@ async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Fails if a Library already has `name`, by [`name_key`].
+/// Fails if a Library already has `name`, by the key a User's name is unique under. Folded in
+/// Rust, as SQLite's `lower()` and `NOCASE` fold only ASCII.
 async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(), Error> {
     let key = name_key(name);
     let names = sqlx::query_scalar!("SELECT name FROM libraries")
@@ -638,15 +638,6 @@ async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(),
         Some(library) => Err(Error::NameTaken { library }),
         None => Ok(()),
     }
-}
-
-/// What a Library's name is unique under: lowercase and in NFC, so names that differ only in case,
-/// or in an accent typed as one character or two, clash, as Users' do. Folded in Rust, as SQLite's
-/// `lower()` and `NOCASE` fold only ASCII.
-fn name_key(name: &str) -> String {
-    (ComposingNormalizerBorrowed::new_nfc())
-        .normalize(&name.to_lowercase())
-        .into_owned()
 }
 
 /// Fails if one of `folders` is, is inside, or holds a folder of a Library other than `except`.

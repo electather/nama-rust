@@ -16,6 +16,16 @@ async fn setup() -> (TempDir, TempDir, Libraries, String) {
     (data, media, Libraries::new(db), folder)
 }
 
+/// Makes a folder for each of `names` in `media` and returns their paths.
+fn subfolders<const N: usize>(media: &TempDir, names: [&str; N]) -> [String; N] {
+    let media = media.path().canonicalize().unwrap();
+    names.map(|name| {
+        let path = media.join(name);
+        std::fs::create_dir(&path).unwrap();
+        path.to_str().unwrap().to_owned()
+    })
+}
+
 fn order(namespaces: &[&str]) -> Vec<String> {
     namespaces.iter().map(|&n| n.to_owned()).collect()
 }
@@ -200,11 +210,7 @@ async fn renaming_a_library_to_another_case_of_its_own_name_is_kept() {
 #[tokio::test]
 async fn a_library_sharing_its_name_from_before_names_were_unique_keeps_it_on_update() {
     let (_data, media, libraries, _folder) = setup().await;
-    let [films, cinema, tv] = ["films", "cinema", "tv"].map(|name| {
-        let path = media.path().canonicalize().unwrap().join(name);
-        std::fs::create_dir(&path).unwrap();
-        path.to_str().unwrap().to_owned()
-    });
+    let [films, cinema, tv] = subfolders(&media, ["films", "cinema", "tv"]);
     libraries
         .create("Movies", Kind::Movies, vec![films])
         .await
@@ -240,11 +246,7 @@ async fn a_library_sharing_its_name_from_before_names_were_unique_keeps_it_on_up
 #[tokio::test]
 async fn a_name_another_library_has_with_its_accent_typed_apart_is_taken() {
     let (_data, media, libraries, _folder) = setup().await;
-    let [films, tv] = ["films", "tv"].map(|name| {
-        let path = media.path().canonicalize().unwrap().join(name);
-        std::fs::create_dir(&path).unwrap();
-        path.to_str().unwrap().to_owned()
-    });
+    let [films, tv] = subfolders(&media, ["films", "tv"]);
     libraries
         .create("Café", Kind::Movies, vec![films])
         .await

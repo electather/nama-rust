@@ -31,7 +31,8 @@ mod sign_in_codes;
 pub use codes::SetupCode;
 pub(crate) use codes::random_secret;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
-use names::{checked_name, name_key};
+use names::checked_name;
+pub(crate) use names::name_key;
 pub(crate) use notification_preferences::{
     every_turned_off as every_notification_turned_off, of as notification_preferences_of,
     set as set_notification_preference,

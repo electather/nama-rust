@@ -1,4 +1,4 @@
-//! What a User's or Device's name may hold, and the key a User's is unique under.
+//! What a User's or Device's name may hold, and the key a User's or a Library's is unique under.
 
 use icu_normalizer::ComposingNormalizerBorrowed;
 use icu_properties::{
@@ -52,11 +52,11 @@ fn nfc(text: &str) -> String {
 }
 
 /// The `username` a User's `name` is stored and looked up under, so names are unique and found
-/// ignoring case and how accents were typed. Sign-in passes raw input, so it normalises itself,
+/// ignoring case and how accents were typed. A Library's name is unique under it too. Sign-in passes raw input, so it normalises itself,
 /// again after lowercasing, which can leave a string out of NFC.
 // ponytail: a `username` stored before names were normalised isn't re-keyed. It differs only for
 // a name typed decomposed, and such a User no longer signs in by name; delete and recreate it.
-pub(super) fn name_key(name: &str) -> String {
+pub(crate) fn name_key(name: &str) -> String {
     nfc(&normalised(name).to_lowercase())
 }
 
