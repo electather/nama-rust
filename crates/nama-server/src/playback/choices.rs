@@ -189,7 +189,11 @@ pub(super) fn burn_in(facts: &Facts) -> Option<BurnIn> {
             }
         } else {
             BurnIn::Text {
-                subtitle: TextSubtitle::Stream(subtitle),
+                subtitle: TextSubtitle::Stream {
+                    subtitle,
+                    track: place,
+                    fonts: probe.font_attachments.len(),
+                },
             }
         },
     )

@@ -71,6 +71,7 @@ function openDark(
         }),
         listEpisodes: () => ({ episodes: [secrets, lies] }),
         listShows: () => ({ shows: [] }),
+        listGenres: () => ({}),
         ...browse,
       });
     },
@@ -202,7 +203,7 @@ function until<T>(gone: { now: boolean }, answer: T) {
   };
 }
 
-test("an open Show page drops a Season deleted elsewhere", async () => {
+test("an open Show page drops a Season deleted elsewhere, linking to the one left", async () => {
   const gone = { now: false };
   const seasons = [{ number: 1 }, { number: 2 }];
   const events = openDark(
@@ -221,6 +222,7 @@ test("an open Show page drops a Season deleted elsewhere", async () => {
 
   expect(await screen.findByText("Season 1 is no longer in this Library.")).toBeDefined();
   expect(screen.queryByText(/Lies/u)).toBeNull();
+  expect(screen.getByRole("link", { name: "Season 2" })).toBeDefined();
 });
 
 test("an open Show page says so once the Show was deleted elsewhere", async () => {

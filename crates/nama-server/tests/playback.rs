@@ -2,7 +2,10 @@
 //! subtitles, over a real socket, with the TMDB Plugin enabled against a fake TMDB.
 
 #[path = "support/browsing.rs"]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod browsing;
+#[path = "playback/burn_in.rs"]
+mod burn_in;
 #[path = "support/http.rs"]
 mod http;
 #[path = "playback/keyframes.rs"]
@@ -14,6 +17,8 @@ mod refused;
 mod server;
 #[path = "playback/sidecars.rs"]
 mod sidecars;
+#[path = "playback/subtitle_pass.rs"]
+mod subtitle_pass;
 
 use std::{
     fs,
@@ -1783,8 +1788,10 @@ async fn a_vobsub_track_is_read_out_as_mks_once_and_thrown_away_with_its_version
 }
 
 /// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads every file as an
-/// H.264 and AAC MKV with an ASS subtitle, a cover picture and a font, and ffmpeg, which writes
-/// the arguments of each run to `log`, reads the subtitle out as `ASS` and an attachment as `FONT`.
+/// H.264 and AAC MKV a minute long with an ASS subtitle, a cover picture and a font, and ffmpeg,
+/// which writes the arguments of each run to `log`, lists libx264, writes `ASS` wherever it's told
+/// to write ASS and `FONT` wherever it's told to dump an attachment, takes 30 s to start burning
+/// the subtitle in from the file, as a big one's would, and writes nothing else.
 #[cfg(unix)]
 fn ffmpeg_reading_ass_and_a_font(bin: &Path, log: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
@@ -1794,13 +1801,15 @@ cat <<'EOF'
              {"codec_name": "ass", "codec_type": "subtitle"},
              {"codec_type": "attachment", "tags": {"filename": "cover.jpg", "mimetype": "image/jpeg"}},
              {"codec_type": "attachment", "tags": {"filename": "vazir.ttf", "mimetype": "font/ttf"}}],
- "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
+ "format": {"format_name": "matroska,webm", "duration": "60.000000"}}
 EOF
 "#;
-    // Like ffmpeg, it fails for want of an output file once it has dumped an attachment.
     let ffmpeg = format!(
-        "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *'-f ass'*) printf ASS ;; \
-         *'-dump_attachment'*) printf FONT; exit 1 ;; esac\n",
+        "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *-encoders*) echo ' V....D libx264  H.264'; exit 0 ;; \
+         *':si='*) exec sleep 30 ;; esac\n\
+         for arg; do [ -n \"$out\" ] && printf $out > \"$arg\"; \
+         out=; case \"$prev,$arg\" in -f,ass) out=ASS ;; *,-dump_attachment*) out=FONT ;; esac; \
+         prev=$arg; done\n",
         log.display()
     );
     Ffmpeg {
@@ -1858,7 +1867,7 @@ async fn an_ass_track_is_served_as_ass_with_its_files_fonts_to_a_session_alone()
     let dumps: Vec<_> = runs.lines().filter(|run| run.contains("dump")).collect();
     // The font is the file's second attachment, after the cover.
     assert_eq!(dumps.len(), 1, "{runs}");
-    assert!(dumps[0].contains("-dump_attachment:t:1 pipe:1"), "{runs}");
+    assert!(dumps[0].contains("-dump_attachment:t:1 "), "{runs}");
     let beyond = format!("/media/versions/{version}/fonts/1");
     assert_eq!(fetch(&fx.server, &beyond, token).await.status, 404);
     assert_eq!(fetch(&fx.server, font, None).await.status, 401);

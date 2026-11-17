@@ -29,7 +29,7 @@ use crate::{
         Role, Slot, TitleKind, TitleSources, artwork_router, custom_images_router,
         local_images_router,
     },
-    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, running_router},
+    playback::{Probing, RunningPlans, TrackPreferences, running_router},
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
@@ -93,7 +93,6 @@ pub(crate) fn router(
     abilities: Abilities,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
-    subtitles: SubtitleCache,
 ) -> axum::Router {
     let plugins = plugin_settings.extension_points();
     let users = Users::new(Arc::clone(&db), plugins.clone());
@@ -106,7 +105,7 @@ pub(crate) fn router(
         running.clone(),
         &db,
         Arc::clone(&ffmpeg),
-        subtitles,
+        probing.clone(),
     )
     .merge(running_router(running.clone()));
     let images = ImageSources {
@@ -285,6 +284,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_GET_MOVIE_SPEC.procedure,              Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_SHOWS_SPEC.procedure,             Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_SHOW_SPEC.procedure,               Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_GENRES_SPEC.procedure,            Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_EPISODES_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
     (proto::BROWSE_SERVICE_SEARCH_LIBRARIES_SPEC.procedure,       Access::SignedIn),

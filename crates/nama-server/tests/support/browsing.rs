@@ -5,7 +5,8 @@ use std::{collections::HashMap, path::PathBuf};
 
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ExternalId, GetMovieRequest, LibraryKind, MatchServiceClient, Movie,
+    BrowseServiceClient, ExternalId, GetMovieRequest, LibraryKind, ListMoviesRequest,
+    MatchServiceClient, Movie,
 };
 use nama_server::ffmpeg::Ffmpeg;
 
@@ -114,6 +115,32 @@ impl Fixture {
             .into_owned();
         Ok(response.movie.into_option().unwrap())
     }
+}
+
+/// The Movies `ListMovies` lists in the Library `library`, each as `GetMovie` gives it.
+pub(crate) async fn movies_in(
+    browse: &BrowseServiceClient<HttpClient>,
+    library: i64,
+) -> Result<Vec<Movie>, ConnectError> {
+    let listed = browse
+        .list_movies(ListMoviesRequest {
+            library_id: library,
+            ..Default::default()
+        })
+        .await?
+        .into_owned()
+        .movies;
+    let mut movies = Vec::new();
+    for movie in listed {
+        let asked = GetMovieRequest {
+            library_id: library,
+            movie_id: movie.id,
+            ..Default::default()
+        };
+        let got = browse.get_movie(asked).await?.into_owned().movie;
+        movies.extend(got.into_option());
+    }
+    Ok(movies)
 }
 
 pub(crate) fn tmdb_id(id: i64) -> ExternalId {

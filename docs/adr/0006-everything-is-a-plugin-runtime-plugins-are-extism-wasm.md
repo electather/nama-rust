@@ -1,6 +1,6 @@
 # Everything outside the Kernel is a Plugin; installed Plugins are Extism WASM
 
-Following deepseek-harness's "everything is a plugin" design, every feature outside a small fixed Kernel is a Plugin behind an Extension Point. The Kernel is storage, scanning, streaming/transcoding, auth sessions and the plugin registry. Built-in Plugins are Rust crates compiled into the Server. Installed Plugins are `.wasm` files loaded at runtime through Extism and wrapped by one adapter that implements the same Rust traits, so the Kernel can't tell the two kinds apart. Plugins are trusted code. WASM was chosen for **portability**, not sandboxing: one `.wasm` file runs on every platform a self-hoster uses and survives Server upgrades.
+Following deepseek-harness's "everything is a plugin" design, every feature outside a small fixed Kernel is a Plugin behind an Extension Point. The Kernel is storage, scanning, streaming/transcoding, auth sessions and the plugin registry. Built-in Plugins are Rust crates compiled into the Server. Installed Plugins are `.wasm` files loaded at runtime through Extism and wrapped by one adapter that implements the same Rust traits, so the Kernel can't tell the two kinds apart. Plugins are trusted code. WASM was chosen for **portability**, not sandboxing: one `.wasm` file runs on every platform a self-hoster uses and survives Server upgrades. ADR 0049 says which limits an Installed Plugin is held to.
 
 ## Considered Options
 

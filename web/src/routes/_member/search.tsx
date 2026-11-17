@@ -1,18 +1,17 @@
-import { useQuery } from "@connectrpc/connect-query";
-import { keepPreviousData } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Page } from "@/components/page";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";
+import { ShowMore } from "@/components/show-more";
 import {
   BrowseService,
   type EpisodeInLibrary,
   type MovieInLibrary,
-  type SearchLibrariesResponse,
   type ShowInLibrary,
 } from "@/gen/nama/v1/browse_pb";
 import { metadataLine, seasonName, titleParam, yearOf } from "@/lib/browse";
+import { pagedQuery, usePaged } from "@/lib/paged";
 
 /** What the nav's search box found in the signed-in User's Libraries for `?query=`. */
 export const Route = createFileRoute("/_member/search")({
@@ -22,6 +21,16 @@ export const Route = createFileRoute("/_member/search")({
     const query = typeof raw === "string" || typeof raw === "number" ? String(raw).trim() : "";
     // Set even when blank: the router keeps the raw value under any key this leaves out.
     return { query: query === "" ? undefined : query };
+  },
+  loaderDeps: ({ search: { query } }) => ({ query }),
+  // The router keeps the last results up while the next keystroke's load, so the page doesn't
+  // flash, and its "Try again" loads them again.
+  loader: async ({ context: { queryClient, transport }, deps: { query } }) => {
+    if (query === undefined) return;
+    await queryClient.infiniteQuery({
+      ...pagedQuery(BrowseService.method.searchLibraries, firstPageOf(query), transport),
+      staleTime: "static",
+    });
   },
   component: Search,
 });
@@ -41,27 +50,20 @@ function Search() {
   );
 }
 
-function Results({ query }: { query: string }) {
-  // The last results stay up while the next keystroke's are on their way, so the page doesn't flash.
-  const search = useQuery(
-    BrowseService.method.searchLibraries,
-    { query },
-    { placeholderData: keepPreviousData },
-  );
-  if (search.isError) {
-    return (
-      <p role="alert" className="mt-8 text-muted-foreground">
-        Couldn’t search your Libraries. Try again in a moment.
-      </p>
-    );
-  }
-  if (!search.data) return <p className="mt-8 text-muted-foreground">Searching…</p>;
-  return <Found query={query} found={search.data} />;
+/** `SearchLibraries`' first page of what a search for `query` finds. */
+function firstPageOf(query: string) {
+  return { query, page: { token: "" } };
 }
 
-/** What a search for `query` found, grouped by kind, or that it found nothing. */
-function Found({ query, found }: { query: string; found: SearchLibrariesResponse }) {
-  const { movies, shows, episodes } = found;
+/** What a search for `query` found, a page at a time, grouped by kind, or that it found nothing. */
+function Results({ query }: { query: string }) {
+  const { data, hasNextPage, fetchNextPage } = usePaged(
+    BrowseService.method.searchLibraries,
+    firstPageOf(query),
+  );
+  const movies = data.pages.flatMap((page) => page.movies);
+  const shows = data.pages.flatMap((page) => page.shows);
+  const episodes = data.pages.flatMap((page) => page.episodes);
   if (movies.length + shows.length + episodes.length === 0) {
     return <p className="mt-8 text-muted-foreground">Nothing found for “{query}”.</p>;
   }
@@ -92,6 +94,7 @@ function Found({ query, found }: { query: string; found: SearchLibrariesResponse
           ))}
         </ul>
       </FoundSection>
+      {hasNextPage && <ShowMore load={fetchNextPage} loaded={data.pages.length} />}
     </>
   );
 }

@@ -10,6 +10,18 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-17, #881
+
+- None that `buf breaking` reports: in `nama/v1/browse.proto`, `SearchLibrariesRequest` gains `page` (2), a `PageRequest`, and `SearchLibrariesResponse` gains `page` (4), a `PageResponse`.
+- `SearchLibraries` lists a page of what it found (ADR 0055), its Movies, Shows and Episodes in one order, best fit first, where it listed all of it.
+- A client built before gets only the 50 best fits and finds no next token; it must regenerate and send `page`. The web app is the only client.
+
+## 2026-11-17, #884
+
+- `FIELD_SAME_TYPE`, `nama/v1/browse.proto`: `ListMoviesResponse.movies` (1) and `ListShowsResponse.shows` (1).
+- `ListMovies` and `ListShows` page through the shared messages of `nama/v1/page.proto` (ADR 0055): each request takes a `MovieFilter` or `ShowFilter` in `filter` (2), a `MovieSort` or `ShowSort` in `sort` (3), a `SortDirection` in `direction` (4) and a `PageRequest` in `page` (5), and each response gives a `PageResponse` in `page` (2). A listed title is a `MovieSummary` or `ShowSummary`, with only what a grid shows, each field under the number it has in `Movie` or `Show`; `GetMovie` and `GetShow` give the rest, Versions and Tracks among it. The new `ListGenres` lists a Library's genres to filter by.
+- A client built before gets the first 50 titles by title, each with its id, title, poster and date, and for a Movie the caller's Watch State, but no Versions or other details; it must regenerate, page with `page`, and read the rest from `GetMovie` or `GetShow`. The web app is the only client.
+
 ## 2026-11-17, #882
 
 - None that `buf breaking` reports: in `nama/v1/browse.proto`, `ListContinueWatchingRequest` gains `page` (1), a `PageRequest`, and `ListContinueWatchingResponse` gains `page` (2), a `PageResponse`.

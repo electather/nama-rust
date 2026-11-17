@@ -587,7 +587,12 @@ async fn delete_media_removes_the_movies_versions_in_the_background() {
 
     let contents = Contents::new(Arc::clone(&db));
     tokio::time::timeout(Duration::from_secs(10), async {
-        while !contents.movies(alien.library).await.unwrap().is_empty() {
+        while !contents
+            .movies(alien.library, None)
+            .await
+            .unwrap()
+            .is_empty()
+        {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
@@ -632,7 +637,10 @@ async fn delete_media_refuses_an_episode_whose_file_holds_one_not_named_and_dele
         "the title's files also hold Dark S01E02 (Lies); name each in `also` to delete it too, \
          or keep the files"
     );
-    let shows = Contents::new(Arc::clone(&db)).shows(library).await.unwrap();
+    let shows = Contents::new(Arc::clone(&db))
+        .shows(library, None)
+        .await
+        .unwrap();
     assert_eq!(shows[0].episodes().count(), 2);
     assert!(Path::new(&path).exists());
 }

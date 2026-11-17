@@ -43,9 +43,10 @@ use crate::{
 /// file's headers, but from a disk, or a network share, that playback is reading from too.
 const PROBES_AT_ONCE: usize = 3;
 
-/// How many Versions' keyframes are listed at once. Each listing reads a whole file, from a disk
-/// that playback is reading from too.
-const LISTINGS_AT_ONCE: usize = 2;
+/// How many whole files are read at once, to list a Version's keyframes or read its text
+/// subtitles out ([`Probing::read_whole_file_in_background`]), from a disk that playback is
+/// reading from too.
+const WHOLE_FILE_READS_AT_ONCE: usize = 2;
 
 /// How long a plan waits for a Version's keyframes before it Transcodes instead, well short of
 /// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866).
@@ -133,14 +134,14 @@ struct Inner {
     sidecars: Sidecars,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
-    /// Background passes and keyframe listings, so shutting down can wait for them.
+    /// Background passes and whole-file reads, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
     /// A permit per background probe running, [`PROBES_AT_ONCE`] in all.
     running: tokio::sync::Semaphore,
-    /// A permit per keyframe listing running, [`LISTINGS_AT_ONCE`] in all.
-    listings: tokio::sync::Semaphore,
+    /// A permit per whole-file read running, [`WHOLE_FILE_READS_AT_ONCE`] in all.
+    whole_file_reads: tokio::sync::Semaphore,
     /// The Versions being probed, each by one [`Claim`] holder, and where it sends what it found,
     /// so a later pass over their Library leaves them to it and [`Probing::current`] waits for
     /// its result, rather than probe them twice.
@@ -163,7 +164,7 @@ impl Probing {
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 running: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
-                listings: tokio::sync::Semaphore::new(LISTINGS_AT_ONCE),
+                whole_file_reads: tokio::sync::Semaphore::new(WHOLE_FILE_READS_AT_ONCE),
                 claimed: Claims::default(),
                 listing: Claims::default(),
             }),
@@ -202,6 +203,11 @@ impl Probing {
                 return found.map_err(Error::Probe);
             }
         }
+    }
+
+    /// The subtitle cache it cleans, where a burn-in reads what's cached instead of the file.
+    pub(super) fn subtitles(&self) -> &subtitles::Cache {
+        &self.inner.subtitles
     }
 
     /// When each keyframe of the Version `version`'s first video falls, in milliseconds from its
@@ -278,6 +284,11 @@ impl Probing {
             }
             .instrument(pass_span),
         );
+    }
+
+    /// The subtitle cache, from which it throws away what's cached for files gone or changed.
+    pub(super) fn subtitle_cache(&self) -> subtitles::Cache {
+        self.inner.subtitles.clone()
     }
 
     /// Cancels the probes running, waits for them to stop, and starts no more passes.
@@ -449,6 +460,33 @@ impl Probing {
         }
     }
 
+    /// Runs `read`, which reads a whole file, in `span` as a background task, so a request given
+    /// up on doesn't stop it (#866), once fewer than [`WHOLE_FILE_READS_AT_ONCE`] such reads run.
+    /// Shutting down cancels it. Returns `false`, dropping `read`, once the Server is shutting
+    /// down.
+    pub(super) fn read_whole_file_in_background(
+        &self,
+        span: tracing::Span,
+        read: impl Future<Output = ()> + Send + 'static,
+    ) -> bool {
+        // A read spawned after shutdown would be cancelled at once, and whoever waited for it
+        // would spawn it again, round and round.
+        if self.inner.cancel.is_cancelled() {
+            return false;
+        }
+        let probing = self.clone();
+        let read = async move {
+            // The semaphore is never closed.
+            if let Ok(_reading) = probing.inner.whole_file_reads.acquire().await {
+                read.await;
+            }
+        };
+        let cancel = self.inner.cancel.clone();
+        (self.inner.tasks)
+            .spawn(async move { cancel.run_until_cancelled(read).await }.instrument(span));
+        true
+    }
+
     /// Lists the keyframes of the file at `path` as [`Self::list_claimed`] does, as a background
     /// task, so a plan request given up on doesn't stop it (#866), and hands back where it sends
     /// them. `None` once the Server is shutting down.
@@ -457,11 +495,6 @@ impl Probing {
         path: String,
         claim: Claim<Listed>,
     ) -> Option<watch::Receiver<Option<Listed>>> {
-        // A listing spawned after shutdown would be cancelled at once, and its waiter would claim
-        // and spawn it again, round and round.
-        if self.inner.cancel.is_cancelled() {
-            return None;
-        }
         let found = claim.found.subscribe();
         let listing_span = diagnostics::following_current(tracing::info_span!(
             parent: None,
@@ -469,29 +502,21 @@ impl Probing {
             file.id = claim.file.id
         ));
         let probing = self.clone();
-        self.inner.tasks.spawn(
-            async move {
-                let listing = probing.list_claimed(&path, claim);
-                if let Some(Err(err)) = probing.inner.cancel.run_until_cancelled(listing).await {
-                    tracing::error!("could not keep the keyframes listed for {path}: {err}");
-                }
+        let listing = async move {
+            if let Err(err) = probing.list_claimed(&path, claim).await {
+                tracing::error!("could not keep the keyframes listed for {path}: {err}");
             }
-            .instrument(listing_span),
-        );
-        Some(found)
+        };
+        self.read_whole_file_in_background(listing_span, listing)
+            .then_some(found)
     }
 
-    /// Lists the keyframes of the file at `path`, stored as the file `claim` is for, once fewer
-    /// than [`LISTINGS_AT_ONCE`] run, keeps them, and sends them to whoever waited for them. A
-    /// listing that failed for a reason that says something about the file is kept too, and
-    /// returned as [`ProbeError::UnlistedBefore`] until the file changes or the probe failure
-    /// version is bumped. Unlike a probe, a timeout isn't tried again: each try reads the whole
-    /// file for up to `WHOLE_FILE_TIMEOUT` (#850).
+    /// Lists the keyframes of the file at `path`, stored as the file `claim` is for, keeps them,
+    /// and sends them to whoever waited for them. A listing that failed for a reason that says
+    /// something about the file is kept too, and returned as [`ProbeError::UnlistedBefore`] until
+    /// the file changes or the probe failure version is bumped. Unlike a probe, a timeout isn't
+    /// tried again: each try reads the whole file for up to `WHOLE_FILE_TIMEOUT` (#850).
     async fn list_claimed(&self, path: &str, claim: Claim<Listed>) -> Result<(), sqlx::Error> {
-        // The semaphore is never closed.
-        let Ok(_listing) = self.inner.listings.acquire().await else {
-            return Ok(());
-        };
         let listed = ffprobe::keyframes(&self.inner.ffmpeg, path)
             .await
             .map_err(Arc::new);
@@ -542,7 +567,7 @@ async fn failure(err: &ProbeError, path: &str) -> ProbeFailure {
 }
 
 /// Whether the file at `path` can be opened and read from now.
-async fn readable(path: &str) -> bool {
+pub(super) async fn readable(path: &str) -> bool {
     use tokio::io::AsyncReadExt;
 
     match tokio::fs::File::open(path).await {

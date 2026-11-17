@@ -47,6 +47,7 @@ function serverWithAMovie() {
           ],
         }),
         listContinueWatching: () => ({}),
+        listGenres: () => ({}),
         getMovie: () => ({
           movie: { title: "Alien", backdropUrl: backdrop, versions: [{ id: 1n }] },
         }),

@@ -8,4 +8,4 @@ API key. When re-recording one, trim it the same way.
 | File | Answers |
 |---|---|
 | `movie.json` | `GET /v3/movies/949`, Heat, with an `hdmovielogo` in `en` and one in `00` |
-| `tv.json` | `GET /v3/tv/371980`, Severance, with a season-level list the Plugin skips |
+| `tv.json` | `GET /v3/tv/371980`, Severance, with `seasonposter`s for Seasons 1 and 2 and one for `all` |
