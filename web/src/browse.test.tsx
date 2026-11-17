@@ -67,29 +67,6 @@ test("an unknown Movie shows the not-found page, under the app chrome", async ()
   expect(screen.getByRole("link", { name: "Libraries" })).toBeDefined();
 });
 
-test("a Season the Show doesn't have falls back to its first, after the Specials", async () => {
-  const transport = serverToBrowse({
-    getShow: () => ({
-      show: { title: "Severance" },
-      seasons: [{ number: 0 }, { number: 1 }, { number: 2 }],
-    }),
-    listEpisodes: ({ seasonNumber }) => ({
-      episodes: [
-        {
-          seasonNumber,
-          episodeNumber: 1,
-          title: `Opener of Season ${seasonNumber}`,
-          versions: [{ id: 1n }],
-        },
-      ],
-    }),
-  });
-  openApp("/libraries/2/shows/tmdb-95396?season=9", transport);
-
-  expect(await screen.findByText(/Opener of Season 1/u)).toBeDefined();
-  expect(screen.queryByText(/Opener of Season (0|9)/u)).toBeNull();
-});
-
 /** A fake Server with a Show of `seasons`, each holding one Episode titled after its Season. */
 function serverWithSeasons(...seasons: number[]) {
   return serverToBrowse({
@@ -109,6 +86,13 @@ function serverWithSeasons(...seasons: number[]) {
     }),
   });
 }
+
+test("a Season the Show doesn't have falls back to its first, after the Specials", async () => {
+  openApp("/libraries/2/shows/tmdb-95396?season=9", serverWithSeasons(0, 1, 2));
+
+  expect(await screen.findByText(/Opener of Season 1/u)).toBeDefined();
+  expect(screen.queryByText(/Opener of Season (0|9)/u)).toBeNull();
+});
 
 test("a Show with one Season lists its Episodes without Season links", async () => {
   openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(1));

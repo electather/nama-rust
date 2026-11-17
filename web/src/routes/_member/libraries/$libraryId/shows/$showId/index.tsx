@@ -46,7 +46,7 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
     const { queryClient, transport } = context;
     await Promise.all([
       queryOrNotFound(context, BrowseService.method.listEpisodes, episodes),
-      specialsBelow(seasons) &&
+      specialsBelow(seasons, season.number) &&
         queryOrNotFound(context, BrowseService.method.listEpisodes, { ...show, seasonNumber: 0 }),
       // Only for Resume, so a failure leaves the page without it rather than failing it.
       queryClient
@@ -82,9 +82,17 @@ function seasonToShow(seasons: Season[], asked: number | undefined) {
   );
 }
 
-/** Whether the Show's page lists its Specials below its only Season. */
-function specialsBelow(seasons: Season[]) {
-  return onlySeason(seasons) !== undefined && seasons.some(({ number }) => number === 0);
+/**
+ * Whether the page lists the Show's only Season, without Season links. Asks of the Season `shown`,
+ * as Events change an open page's Seasons but not the one it shows.
+ */
+function listsOnlySeason(seasons: Season[], shown: number) {
+  return onlySeason(seasons)?.number === shown;
+}
+
+/** Whether the page lists the Show's Specials below its only Season. */
+function specialsBelow(seasons: Season[], shown: number) {
+  return listsOnlySeason(seasons, shown) && seasons.some(({ number }) => number === 0);
 }
 
 function Show() {
@@ -103,6 +111,7 @@ function Show() {
       backdropThumbhash={data.show.backdropThumbhash}
     >
       <ShowIntro {...show} show={data.show} />
+      {/* Ends with the menu even when there are no Season links before it. */}
       <div className="mt-8 flex items-start justify-end gap-2">
         <Seasons seasons={data.seasons} current={seasonNumber} />
         <MarkPlayedMenu
@@ -141,7 +150,7 @@ function Show() {
  * Specials, whose page lists them all; with only Specials, it names them.
  */
 function Seasons({ seasons, current }: { seasons: Season[]; current: number }) {
-  if (onlySeason(seasons)) return null;
+  if (listsOnlySeason(seasons, current)) return null;
   return (
     // Pulled out by the links' own padding, so the first lines up with the title.
     <nav aria-label="Seasons" className="-ms-3 flex flex-1 flex-wrap gap-1">
@@ -171,7 +180,7 @@ function SeasonShown({ seasons, current }: { seasons: Season[]; current: number 
         <section aria-label={`${seasonName(current)} Episodes`}>
           <Episodes seasonNumber={current} />
         </section>
-        {specialsBelow(seasons) && <Specials />}
+        {specialsBelow(seasons, current) && <Specials />}
       </>
     );
   }
