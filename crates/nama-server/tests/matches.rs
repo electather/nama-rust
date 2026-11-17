@@ -611,8 +611,9 @@ async fn an_episode_matched_by_hand_to_a_show_without_it_is_listed_as_not_in_sho
 }
 
 #[tokio::test]
-async fn an_item_not_matched_yet_is_listed_without_a_reason() {
-    let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_MOVIES).await;
+async fn an_item_not_matched_yet_while_its_source_is_down_is_listed_without_a_reason() {
+    let mut fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.server.stop_tmdb();
     fx.write(HOME_MOVIES, VIDEO);
     fx.scan_and_match().await;
 
@@ -620,9 +621,7 @@ async fn an_item_not_matched_yet_is_listed_without_a_reason() {
 
     assert_eq!(
         listed.iter().map(|item| item.reason).collect::<Vec<_>>(),
-        [EnumValue::from(
-            UnmatchedReason::UNMATCHED_REASON_UNSPECIFIED
-        )]
+        [UnmatchedReason::UNMATCHED_REASON_UNSPECIFIED]
     );
 }
 
@@ -683,6 +682,7 @@ async fn an_episode_not_matched_yet_is_listed_with_its_season_and_number() {
             year: None,
             season: Some(1),
             episode: Some(2),
+            reason: UnmatchedReason::UNMATCHED_REASON_NO_SEARCHING_SOURCE.into(),
             ..Default::default()
         }]
     );
