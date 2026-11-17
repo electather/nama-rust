@@ -138,6 +138,8 @@ async fn sweeping_uploads_deletes_every_leftover_and_keeps_stored_images() {
     std::fs::create_dir_all(&uploads).unwrap();
     std::fs::write(uploads.join(".tmpAbC123"), b"half an upload").unwrap();
     std::fs::write(uploads.join("poster.jpg"), b"\xff\xd8").unwrap();
+    std::fs::create_dir(uploads.join("folder")).unwrap();
+    std::fs::write(uploads.join("folder").join("part"), b"").unwrap();
 
     store.sweep_uploads().await.unwrap();
 
