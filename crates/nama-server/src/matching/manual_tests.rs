@@ -7,7 +7,7 @@ use nama_plugin_api::{
 
 use super::{
     ManualError, Summary,
-    tests::{Fixture, Outcome, matched},
+    testing::{Fixture, Outcome, episode, matched, movie},
 };
 use crate::library::{ImageRef, Picked, UnmatchedReason};
 
@@ -17,7 +17,9 @@ async fn a_manual_match_survives_a_rescan_after_its_file_changes() {
     let movies = &media.movies;
     // TMDB finds nothing for it.
     let home_movies = "Home Movies (2019)/Home Movies (2019).mkv";
-    movies.write(home_movies);
+    movies
+        .write(home_movies, &[movie("Home Movies", 2019)])
+        .await;
     media.scan(movies).await;
     let unmatched = media.outcomes(movies).await;
     let item = media.item(movies, home_movies).await;
@@ -28,7 +30,7 @@ async fn a_manual_match_survives_a_rescan_after_its_file_changes() {
         .await
         .unwrap();
     let searches = media.searches();
-    movies.replace(home_movies);
+    movies.replace(home_movies).await;
     media.scan(movies).await;
 
     assert_eq!(unmatched, [Outcome::Unmatched]);
@@ -41,8 +43,15 @@ async fn a_manual_match_survives_a_rescan_after_its_file_changes() {
 async fn a_manual_match_replaces_an_automatic_one_for_every_file_named_alike() {
     let media = Fixture::new().await;
     let movies = &media.movies;
-    movies.write("Alien (1979)/Alien (1979).mkv");
-    movies.write("Alien (1979)/Alien (1979) - Director's Cut.mkv");
+    movies
+        .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
+        .await;
+    movies
+        .write(
+            "Alien (1979)/Alien (1979) - Director's Cut.mkv",
+            &[movie("Alien", 1979)],
+        )
+        .await;
     media.scan(movies).await;
     let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
 
@@ -64,8 +73,18 @@ async fn re_matching_a_show_re_matches_its_episodes() {
     let media = Fixture::new().await;
     let shows = &media.shows;
     // Both the US and the UK Office fit, so the scan leaves them Unmatched.
-    shows.write("The Office/Season 01/The Office - S01E01.mkv");
-    shows.write("The Office/Season 01/The Office - S01E02.mkv");
+    shows
+        .write(
+            "The Office/Season 01/The Office - S01E01.mkv",
+            &[episode("The Office", None, 1, 1)],
+        )
+        .await;
+    shows
+        .write(
+            "The Office/Season 01/The Office - S01E02.mkv",
+            &[episode("The Office", None, 1, 2)],
+        )
+        .await;
     media.scan(shows).await;
     let pilot = media
         .item(shows, "The Office/Season 01/The Office - S01E01.mkv")
@@ -103,7 +122,12 @@ async fn re_matching_a_show_re_matches_its_episodes() {
 async fn a_new_episode_of_a_pinned_show_matches_the_pinned_show() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    shows.write("The Office/Season 01/The Office - S01E01.mkv");
+    shows
+        .write(
+            "The Office/Season 01/The Office - S01E01.mkv",
+            &[episode("The Office", None, 1, 1)],
+        )
+        .await;
     media.scan(shows).await;
     let pilot = media
         .item(shows, "The Office/Season 01/The Office - S01E01.mkv")
@@ -114,7 +138,12 @@ async fn a_new_episode_of_a_pinned_show_matches_the_pinned_show() {
         .await
         .unwrap();
 
-    shows.write("The Office/Season 01/The Office - S01E02.mkv");
+    shows
+        .write(
+            "The Office/Season 01/The Office - S01E02.mkv",
+            &[episode("The Office", None, 1, 2)],
+        )
+        .await;
     media.scan(shows).await;
 
     assert_eq!(
@@ -128,10 +157,10 @@ async fn a_match_fixed_while_its_librarys_scan_lock_is_held_waits_then_applies()
     let media = Fixture::new().await;
     let movies = &media.movies;
     let alien = "Alien (1979)/Alien (1979).mkv";
-    movies.write(alien);
+    movies.write(alien, &[movie("Alien", 1979)]).await;
     media.scan(movies).await;
     let item = media.item(movies, alien).await;
-    let scan = media.scanner.lock(movies.id).await;
+    let scan = media.locks.lock(movies.id).await;
 
     let matcher = media.matcher.clone();
     let mut clearing = tokio::spawn(async move { matcher.clear_match(item).await });
@@ -157,10 +186,12 @@ async fn an_episode_matched_to_a_show_without_its_season_is_unmatched_as_not_in_
     let media = Fixture::new().await;
     let shows = &media.shows;
     // The US Office has no Season 10 at TMDB.
-    let episode = "The Office/Season 10/The Office - S10E01.mkv";
-    shows.write(episode);
+    let path = "The Office/Season 10/The Office - S10E01.mkv";
+    shows
+        .write(path, &[episode("The Office", None, 10, 1)])
+        .await;
     media.scan(shows).await;
-    let item = media.item(shows, episode).await;
+    let item = media.item(shows, path).await;
 
     let summary = media
         .matcher
@@ -178,7 +209,7 @@ async fn an_episode_matched_to_a_show_without_its_season_is_unmatched_as_not_in_
     );
     assert_eq!(
         media.reasons(shows).await,
-        [(episode.to_owned(), Some(UnmatchedReason::NotInShow))]
+        [(path.to_owned(), Some(UnmatchedReason::NotInShow))]
     );
 }
 
@@ -186,10 +217,12 @@ async fn an_episode_matched_to_a_show_without_its_season_is_unmatched_as_not_in_
 async fn an_episode_matched_to_a_show_whose_season_lacks_it_is_unmatched_as_not_in_show() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    let episode = "The Office/Season 01/The Office - S01E42.mkv";
-    shows.write(episode);
+    let path = "The Office/Season 01/The Office - S01E42.mkv";
+    shows
+        .write(path, &[episode("The Office", None, 1, 42)])
+        .await;
     media.scan(shows).await;
-    let item = media.item(shows, episode).await;
+    let item = media.item(shows, path).await;
 
     let summary = media
         .matcher
@@ -207,7 +240,7 @@ async fn an_episode_matched_to_a_show_whose_season_lacks_it_is_unmatched_as_not_
     );
     assert_eq!(
         media.reasons(shows).await,
-        [(episode.to_owned(), Some(UnmatchedReason::NotInShow))]
+        [(path.to_owned(), Some(UnmatchedReason::NotInShow))]
     );
 }
 
@@ -216,13 +249,13 @@ async fn a_cleared_match_stays_unmatched_after_its_file_changes() {
     let media = Fixture::new().await;
     let movies = &media.movies;
     let alien = "Alien (1979)/Alien (1979).mkv";
-    movies.write(alien);
+    movies.write(alien, &[movie("Alien", 1979)]).await;
     media.scan(movies).await;
     let item = media.item(movies, alien).await;
 
     media.matcher.clear_match(item).await.unwrap();
     let cleared = media.outcomes(movies).await;
-    movies.replace(alien);
+    movies.replace(alien).await;
     media.scan(movies).await;
 
     assert_eq!(cleared, [Outcome::Unmatched]);
@@ -233,7 +266,9 @@ async fn a_cleared_match_stays_unmatched_after_its_file_changes() {
 async fn a_match_to_a_title_the_source_does_not_have_is_refused_and_changes_nothing() {
     let media = Fixture::new().await;
     let movies = &media.movies;
-    movies.write("Alien (1979)/Alien (1979).mkv");
+    movies
+        .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
+        .await;
     media.scan(movies).await;
     let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
 
@@ -261,7 +296,10 @@ async fn a_match_for_an_item_that_does_not_exist_is_refused() {
 #[tokio::test]
 async fn a_match_set_while_no_metadata_provider_is_enabled_is_unavailable() {
     let media = Fixture::without_tmdb().await;
-    media.movies.write("Alien (1979)/Alien (1979).mkv");
+    media
+        .movies
+        .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
+        .await;
     media.scan(&media.movies).await;
     let item = media
         .item(&media.movies, "Alien (1979)/Alien (1979).mkv")

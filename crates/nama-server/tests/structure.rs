@@ -584,11 +584,6 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         &["requests", "make_seasons_available"],
         "ADR 0012: the Library makes Requests Available inside its own write",
     ),
-    (
-        Importers::File("src/matching/matching_tests.rs"),
-        &["scanner", "Scanner"],
-        "ADR 0051: Matching's Fixture scans real folders with Scanner::scan",
-    ),
 ];
 
 #[test]
