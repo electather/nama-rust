@@ -147,6 +147,21 @@ async fn a_plugin_without_tick_every_is_never_ticked() {
 
 #[cfg(feature = "testing")]
 #[tokio::test(start_paused = true)]
+async fn a_registry_set_to_tick_on_demand_ticks_only_when_asked() {
+    let registry = served();
+    registry.tick_only_on_demand();
+    let ticks = enabled(&registry, Some(EVERY));
+
+    tokio::time::advance(EVERY * 10).await;
+    settle().await;
+    assert_eq!(count(&ticks), 0);
+
+    registry.tick_now(&ID).await.unwrap();
+    assert_eq!(count(&ticks), 1);
+}
+
+#[cfg(feature = "testing")]
+#[tokio::test(start_paused = true)]
 async fn tick_now_ticks_a_plugin_its_schedule_never_ticks() {
     let registry = Registry::new();
     let ticks = enabled(&registry, None);
