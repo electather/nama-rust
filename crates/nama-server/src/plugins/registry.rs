@@ -281,7 +281,7 @@ impl Registry {
             }
             let generation = state.next_generation;
             state.next_generation += 1;
-            let scope = tick::scope(&self.points, manifest, &registrations, !state.on_demand);
+            let scope = tick::scope(&self.points, manifest, &registrations, state.on_demand);
             state.plugins.insert(
                 id.clone(),
                 Enabled {
