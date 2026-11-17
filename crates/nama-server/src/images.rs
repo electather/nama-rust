@@ -236,9 +236,16 @@ impl ImageStore {
     ///
     /// # Errors
     ///
-    /// If the file can't be written.
+    /// If `bytes` is over 20 MiB, the most one stored object may have (`FileTooLarge`), or the
+    /// file can't be written.
     pub async fn write(&self, key: &[&str], bytes: &[u8]) -> io::Result<()> {
         let key = row_key(key);
+        if bytes.len() > MAX_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::FileTooLarge,
+                format!("{key} is over the store's 20 MiB object size limit"),
+            ));
+        }
         let _writing = self.write_lock(&key).lock().await;
         let blobs = self.blobs();
         if blobs.exists(&key).await? {

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { LibraryService } from "@/gen/nama/v1/library_pb";
-import type { UpdatePluginSettingsRequest } from "@/gen/nama/v1/plugin_pb";
+import { SettingKind, type UpdatePluginSettingsRequest } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
 import { input, openPlugin, plugin } from "./test-plugins";
@@ -47,13 +47,30 @@ test("a Plugin's settings fill its form, with defaults as hints and a set secret
   expect((await input("TMDB", "Token")).type).toBe("password");
 });
 
-test("the form checks the schema: a required setting is required and a number is whole", async () => {
+test("the form checks the schema: a disabled Plugin's required setting may be blank and a number is whole", async () => {
   openPlugin("log-events");
 
-  expect((await input("log-events", "Path")).required).toBe(true);
+  expect((await input("log-events", "Path")).required).toBe(false);
   const days = await input("log-events", "Keep for days");
   expect([days.type, days.step]).toEqual(["number", "1"]);
   expect((await input("log-events", "Verbose")).checked).toBe(true);
+});
+
+test("the form checks the schema: an enabled Plugin's required setting is required", async () => {
+  const path = {
+    key: "path",
+    label: "Path",
+    description: "",
+    kind: SettingKind.TEXT,
+    required: true,
+  };
+  openPlugin("log-events", {
+    getPlugin: () => ({
+      plugin: { summary: { id: "log-events", enabled: true }, settings: [path] },
+    }),
+  });
+
+  expect((await input("log-events", "Path")).required).toBe(true);
 });
 
 test("the form checks the schema: a number takes only its bounds", async () => {

@@ -23,37 +23,54 @@ export function SettingInput({
   setting,
   choices,
   error,
+  checksRequired,
 }: {
   setting: Setting;
   /** A CHOICE setting's options, once a settings test offers them. Never for Personal settings. */
   choices?: Choice[] | undefined;
   error: string | undefined;
+  /** Whether a required setting must be filled in. Not for a disabled Plugin, checked when enabled. */
+  checksRequired: boolean;
 }) {
   if (setting.kind === SettingKind.CHOICE) {
+    const required = checksRequired && setting.required;
     // A new element once the choices come, so it starts on the stored one.
-    return <ChoiceInput key={String(choices !== undefined)} {...{ setting, choices, error }} />;
+    return (
+      <ChoiceInput key={String(choices !== undefined)} {...{ setting, choices, error, required }} />
+    );
   }
   if (setting.kind === SettingKind.LIBRARIES) {
     return <LibraryPicker setting={setting} hint={hint(setting)} error={error} />;
   }
-  return <OwnInput setting={setting} error={error} />;
+  return <OwnInput setting={setting} error={error} checksRequired={checksRequired} />;
 }
 
 /** The input of a setting whose value is typed or ticked on its own, with no list to pick from. */
-function OwnInput({ setting, error }: { setting: Setting; error: string | undefined }) {
+function OwnInput({
+  setting,
+  error,
+  checksRequired,
+}: {
+  setting: Setting;
+  error: string | undefined;
+  checksRequired: boolean;
+}) {
   if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;
   if (setting.secretSet) return <SetSecret setting={setting} error={error} />;
-  return <TypedInput setting={setting} error={error} />;
+  const required = checksRequired && blankIsMissing(setting);
+  return <TypedInput setting={setting} error={error} required={required} />;
 }
 
 /** A text, secret, number or URL setting's input. A secret's value never comes back, so it starts blank. */
 function TypedInput({
   setting,
   error,
+  required,
   focused,
 }: {
   setting: Setting;
   error: string | undefined;
+  required: boolean;
   /** Whether it takes the focus as it appears, in place of the button that was pressed. */
   focused?: boolean;
 }) {
@@ -69,7 +86,7 @@ function TypedInput({
       // oxlint-disable-next-line jsx-a11y/no-autofocus -- only set when pressing Replace swaps it in for the button, whose focus would otherwise be lost
       autoFocus={focused}
       defaultValue={valueText(setting.value)}
-      required={blankIsMissing(setting)}
+      required={required}
       hint={hint(setting)}
       error={error}
     />
@@ -93,7 +110,7 @@ function SetSecret({ setting, error }: { setting: Setting; error: string | undef
   const [replacing, setReplacing] = useState(false);
   // A refusal naming the secret needs its input to show under.
   if (replacing || error !== undefined) {
-    return <TypedInput setting={setting} error={error} focused={replacing} />;
+    return <TypedInput setting={setting} error={error} required={false} focused={replacing} />;
   }
   return (
     <div className="flex items-start justify-between gap-4">
