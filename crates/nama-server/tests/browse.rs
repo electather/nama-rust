@@ -6,6 +6,8 @@
 mod browsing;
 #[path = "support/http.rs"]
 mod http;
+#[path = "browse/next_episode.rs"]
+mod next_episode;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]

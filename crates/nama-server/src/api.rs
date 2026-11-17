@@ -286,6 +286,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_GET_SHOW_SPEC.procedure,               Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_GENRES_SPEC.procedure,            Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_EPISODES_SPEC.procedure,          Access::SignedIn),
+    (proto::BROWSE_SERVICE_GET_NEXT_EPISODE_SPEC.procedure,       Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
     (proto::BROWSE_SERVICE_SEARCH_LIBRARIES_SPEC.procedure,       Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
@@ -648,6 +649,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_LIBRARY_NOT_FOUND
         | R::REFUSAL_REASON_NOTHING_MATCHED
         | R::REFUSAL_REASON_SEASON_NOT_FOUND
+        | R::REFUSAL_REASON_EPISODE_NOT_FOUND
         | R::REFUSAL_REASON_VERSION_NOT_FOUND
         | R::REFUSAL_REASON_TRACK_NOT_FOUND
         | R::REFUSAL_REASON_ITEM_NOT_FOUND

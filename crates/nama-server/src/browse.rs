@@ -63,6 +63,8 @@ pub(crate) enum Error {
     NothingMatched,
     #[error("the Show has no such Season in the Library")]
     NoSuchSeason,
+    #[error("the Season has no such Episode in the Library")]
+    NoSuchEpisode,
     #[error("there is no such Version")]
     NoSuchVersion,
     #[error(transparent)]

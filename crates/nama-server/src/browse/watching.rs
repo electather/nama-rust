@@ -5,7 +5,9 @@ use std::{cmp::Reverse, collections::HashMap};
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{PageRequest, PageResponse};
 
-use super::{Browse, Error, Show, Target, Titles, Version, finding_failed, with_tracks};
+use super::{
+    Browse, Episode, Error, Show, Target, Titles, Version, episode_ids, finding_failed, with_tracks,
+};
 use crate::{
     library::{
         LibraryEpisode, LibraryMovie, LibraryVersion, MovieOrEpisode, Progress, TitlesIn,
@@ -122,6 +124,41 @@ impl Browse {
             .map(|(title, _)| title.with_tracks(&probes))
             .collect();
         Ok((listed, paging))
+    }
+
+    /// The Episode that plays after Episode `number` of Season `season` of the Show `show` of the
+    /// Shows Library `library`, with the User `user`'s Watch State of it: the one
+    /// [`unplayed_after`] it of the Show's Episodes in the Library. Fails as browsing to that
+    /// Season does, or with [`Error::NoSuchEpisode`].
+    pub(crate) async fn episode_after(
+        &self,
+        user: i64,
+        library: i64,
+        show: &ExternalId,
+        (season, number): (i64, i64),
+    ) -> Result<Option<(Episode, Option<WatchState>)>, Error> {
+        let show = self.show(library, show).await?;
+        let season_episodes = &show
+            .seasons
+            .get(&season)
+            .ok_or(Error::NoSuchSeason)?
+            .episodes;
+        let from = (season_episodes.iter())
+            .find(|episode| episode.number == number)
+            .ok_or(Error::NoSuchEpisode)?;
+        let later: Vec<_> = (show.episodes())
+            .filter(|episode| (episode.season, episode.number) > (season, number))
+            .collect();
+        let titles = later.iter().map(|episode| episode_ids(episode)).collect();
+        let states = self.states_of(user, titles).await?;
+        let Some((next, state)) = unplayed_after(from, later.into_iter().zip(states)) else {
+            return Ok(None);
+        };
+        let probes = self.probes(next.versions.iter()).await?;
+        Ok(Some((
+            next.clone().map_versions(with_tracks(&probes)),
+            state,
+        )))
     }
 
     /// The whole of [`Self::continue_watching`], without Tracks, each title with its recency.
@@ -282,18 +319,38 @@ fn show_entry<'a, V>(
 const SPECIALS: i64 = 0;
 
 /// The first unplayed Episode of `watched`, in aired order, after the one that became played
-/// most recently, Specials aside.
+/// most recently: [`unplayed_after`] it.
 fn next_episode<'a, V>(watched: &[WatchedEpisode<'a, V>]) -> Option<&'a LibraryEpisode<V>> {
-    let aired = |episode: &LibraryEpisode<V>| episode.season != SPECIALS;
     let played_at = |taken: Option<(WatchState, i64)>| taken?.0.played_at;
     // Of those played in the same second, as when a Season is marked played, the last aired.
     let (_, last_played) = (watched.iter().enumerate())
-        .filter(|&(_, &(episode, _))| aired(episode))
+        .filter(|&(_, &(episode, _))| is_aired(episode))
         .filter_map(|(nth, &(_, taken))| Some((played_at(taken)?, nth)))
         .max()?;
-    (watched.get(last_played + 1..)?.iter())
-        .find(|&&(episode, taken)| aired(episode) && played_at(taken).is_none())
-        .map(|&(episode, _)| episode)
+    let (from, _) = watched.get(last_played)?;
+    let later = (watched.get(last_played + 1..)?.iter())
+        .map(|&(episode, taken)| (episode, taken.map(|(state, _)| state)));
+    unplayed_after(from, later).map(|(episode, _)| episode)
+}
+
+/// The Episode that plays after `from`: the first of the `later` Episodes of its Show, in aired
+/// order, each with the User's Watch State of it, that the User hasn't played, Specials aside.
+/// `None` after a Special, which has no place in aired order.
+fn unplayed_after<'a, V>(
+    from: &LibraryEpisode<V>,
+    later: impl IntoIterator<Item = (&'a LibraryEpisode<V>, Option<WatchState>)>,
+) -> Option<(&'a LibraryEpisode<V>, Option<WatchState>)> {
+    if !is_aired(from) {
+        return None;
+    }
+    (later.into_iter()).find(|&(episode, state)| {
+        is_aired(episode) && state.is_none_or(|state| state.played_at.is_none())
+    })
+}
+
+/// Whether `episode` is in aired order, which Specials aren't.
+fn is_aired<V>(episode: &LibraryEpisode<V>) -> bool {
+    episode.season != SPECIALS
 }
 
 #[cfg(test)]
