@@ -1,4 +1,3 @@
-import { createInfiniteQueryOptions, useSuspenseInfiniteQuery } from "@connectrpc/connect-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-title";
@@ -13,13 +12,9 @@ import {
   isStateFilter,
   listedIn,
 } from "@/components/request-state-filter";
-import {
-  type FollowedShow,
-  type ListRequestsResponse,
-  type Request,
-  RequestService,
-} from "@/gen/nama/v1/request_pb";
+import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { pagedQuery, usePaged } from "@/lib/paged";
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/requests/")({
@@ -49,10 +44,7 @@ export const Route = createFileRoute("/_member/requests/")({
   loaderDeps: ({ search: { state } }) => ({ state }),
   loader: ({ context: { queryClient, transport }, deps: { state } }) =>
     queryClient.infiniteQuery({
-      ...createInfiniteQueryOptions(RequestService.method.listRequests, firstPageIn(state), {
-        transport,
-        ...paging,
-      }),
+      ...pagedQuery(RequestService.method.listRequests, firstPageIn(state), transport),
       staleTime: "static",
     }),
   component: Requests,
@@ -100,14 +92,8 @@ function FindOrList({
 
 /** `ListRequests`' first page of the Requests and Followed Shows in `filter`. */
 function firstPageIn(filter: StateFilter | undefined) {
-  return { ...listedIn(filter), pageSize: 50, pageToken: "" };
+  return { filter: listedIn(filter), page: { token: "" } };
 }
-
-/** How each `ListRequests` page asks for the next, until the last says there is none. */
-const paging = {
-  pageParamKey: "pageToken",
-  getNextPageParam: (page: ListRequestsResponse) => page.nextPageToken || undefined,
-} as const;
 
 /**
  * The Requests and Followed Shows in the state the URL names, a page at a time, under the filter
@@ -115,10 +101,9 @@ const paging = {
  */
 function RequestList() {
   const { state: filter = "all" } = Route.useSearch();
-  const { data, hasNextPage, fetchNextPage } = useSuspenseInfiniteQuery(
+  const { data, hasNextPage, fetchNextPage } = usePaged(
     RequestService.method.listRequests,
     firstPageIn(filter),
-    paging,
   );
   const requests = data.pages.flatMap((page) => page.requests);
   const followedShows = data.pages.flatMap((page) => page.followedShows);

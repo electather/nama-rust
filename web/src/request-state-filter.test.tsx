@@ -38,7 +38,7 @@ const failedDune = {
 };
 
 /** Whether a row is in `state`, which lists every row when unspecified, as the Server filters. */
-function isIn(row: { state?: RequestState }, state: RequestState) {
+function isIn(row: { state?: RequestState }, state: RequestState = RequestState.UNSPECIFIED) {
   return state === RequestState.UNSPECIFIED || row.state === state;
 }
 
@@ -54,9 +54,9 @@ function filteringServer(
 ) {
   return fakeServer({ signedIn, events }, {}, {}, (router) => {
     router.service(RequestService, {
-      listRequests: ({ state }) => ({
-        requests: requests.filter((row) => isIn(row, state)),
-        followedShows: followedShows.filter((row) => isIn(row, state)),
+      listRequests: ({ filter }) => ({
+        requests: requests.filter((row) => isIn(row, filter?.state)),
+        followedShows: followedShows.filter((row) => isIn(row, filter?.state)),
       }),
       countPendingRequests: () => ({
         count: [...requests, ...followedShows].filter((row) => row.state === RequestState.PENDING)

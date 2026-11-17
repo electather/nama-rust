@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// The page of a long list a request asks for (ADR 0055). Pages follow the list's order as it was,
+// so rows added or removed between pages don't shift later pages.
+message PageRequest {
+  // How many rows to list at most. 0 or less lists 50, and more than 100 lists 100.
+  int32 size = 1;
+  // The `next_token` of the page before, to list the page after it, or empty for the first. A
+  // token a call with another filter or sort returned, or a made-up one, is refused with
+  // `REFUSAL_REASON_PAGE_TOKEN_INVALID`.
+  string token = 2;
+}
+
+// What a page of a long list says about the rest of it.
+message PageResponse {
+  // The `token` that lists the next page, or empty if this is the last.
+  string next_token = 1;
+  // How many rows the whole list has, on the first page only.
+  optional int32 total_size = 2;
+}
+
+// Which way a list's sort runs.
+enum SortDirection {
+  // The list's natural direction, which each list names.
+  SORT_DIRECTION_UNSPECIFIED = 0;
+  SORT_DIRECTION_ASCENDING = 1;
+  SORT_DIRECTION_DESCENDING = 2;
+}

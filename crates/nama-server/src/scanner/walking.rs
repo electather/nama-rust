@@ -1,9 +1,10 @@
-//! Walking a Library's folders for the video files in them, and planning what a scan changes
-//! from what it found and what was stored.
+//! Walking a Library's folders for the video files in them and the sidecar subtitles beside those,
+//! and planning what a scan changes from what it found and what was stored.
 
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
+    mem,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -12,7 +13,10 @@ use tokio_util::sync::CancellationToken;
 use walkdir::{DirEntry, WalkDir};
 
 use super::{Error, Planned, Summary, names};
-use crate::library::{Change, LibraryKind, PARSER_VERSION, Stored};
+use crate::{
+    library::{Change, LibraryKind, PARSER_VERSION, Stored},
+    playback::{Sidecar, VersionSidecars, is_sidecar},
+};
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
 const VIDEO_EXTENSIONS: &[&str] = &[
@@ -32,6 +36,7 @@ struct Found {
 #[derive(Debug, Default)]
 pub(super) struct Walked {
     files: Vec<Found>,
+    sidecars: Vec<Found>,
     /// Folders and files that couldn't be read. What's stored under them is kept.
     unreadable: Vec<PathBuf>,
     /// The Library's folders the Server can't write to.
@@ -54,8 +59,9 @@ pub(super) fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Wal
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
-            match entry.and_then(|entry| video_file(root, &entry)) {
-                Ok(Some(file)) => walked.files.push(file),
+            match entry.and_then(|entry| listed_file(root, &entry)) {
+                Ok(Some(file)) if is_video(Path::new(&file.path)) => walked.files.push(file),
+                Ok(Some(sidecar)) => walked.sidecars.push(sidecar),
                 Ok(None) => {}
                 Err(err) => {
                     let path = err.path().unwrap_or(root).to_owned();
@@ -94,9 +100,10 @@ pub(super) fn is_video(path: &Path) -> bool {
         .is_some_and(|ext| VIDEO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
-fn video_file(root: &Path, entry: &DirEntry) -> Result<Option<Found>, walkdir::Error> {
+/// The video or sidecar subtitle at `entry`, if it is one outside an extras folder.
+fn listed_file(root: &Path, entry: &DirEntry) -> Result<Option<Found>, walkdir::Error> {
     let path = entry.path();
-    if !entry.file_type().is_file() || !is_video(path) {
+    if !entry.file_type().is_file() || !(is_video(path) || is_sidecar(path)) {
         return Ok(None);
     }
     let Ok(relative) = path.strip_prefix(root) else {
@@ -204,3 +211,116 @@ pub(super) fn plan(
     }
     (planned, summary)
 }
+
+/// The sidecar subtitles a walk found, and the folders and files it couldn't read.
+#[derive(Debug)]
+pub(super) struct FoundSidecars {
+    sidecars: Vec<Found>,
+    unreadable: Vec<PathBuf>,
+}
+
+impl Walked {
+    /// Takes the sidecars out, leaving the videos to [`plan`].
+    pub(super) fn take_sidecars(&mut self) -> FoundSidecars {
+        FoundSidecars {
+            sidecars: mem::take(&mut self.sidecars),
+            unreadable: self.unreadable.clone(),
+        }
+    }
+}
+
+impl FoundSidecars {
+    /// The sidecars found beside each of `versions`, stored files by path, whose found set
+    /// differs from the one `stored` holds by Version id. A Version in a folder the walk couldn't
+    /// read, or beside a sidecar it couldn't, is left out, so its sidecars stay as stored.
+    pub(super) fn changed(
+        self,
+        versions: &HashMap<String, Stored>,
+        mut stored: HashMap<i64, Vec<Sidecar>>,
+    ) -> Vec<VersionSidecars> {
+        let mut found = by_version(self.sidecars, versions);
+        let mut changed = Vec::new();
+        for (path, version) in versions {
+            let path = Path::new(path);
+            let (Some(folder), Some(stem)) = (path.parent(), path.file_stem()) else {
+                continue;
+            };
+            let unread = |missed: &PathBuf| {
+                folder.starts_with(missed)
+                    || (missed.parent() == Some(folder) && is_sidecar(missed))
+            };
+            if self.unreadable.iter().any(unread) {
+                continue;
+            }
+            let mut sidecars = found.remove(&version.id).unwrap_or_default();
+            sidecars.sort();
+            // A sidecar under two of the Library's folders, one inside the other, is found twice.
+            sidecars.dedup();
+            if stored.remove(&version.id).unwrap_or_default() != sidecars {
+                changed.push(VersionSidecars {
+                    version: version.id,
+                    stem: stem.to_string_lossy().into_owned(),
+                    sidecars,
+                });
+            }
+        }
+        changed
+    }
+}
+
+/// `sidecars` by the id of the one of `versions`, stored files by path, each belongs to. One that
+/// belongs to none is left out.
+fn by_version(
+    sidecars: Vec<Found>,
+    versions: &HashMap<String, Stored>,
+) -> HashMap<i64, Vec<Sidecar>> {
+    let mut videos_in: HashMap<&Path, Vec<&Path>> = HashMap::new();
+    for path in versions.keys().map(Path::new) {
+        if let Some(folder) = path.parent() {
+            videos_in.entry(folder).or_default().push(path);
+        }
+    }
+    // Sorted, so of two videos with one stem a sidecar picks the same one each scan.
+    for videos in videos_in.values_mut() {
+        videos.sort();
+    }
+    let mut found: HashMap<i64, Vec<Sidecar>> = HashMap::new();
+    for sidecar in sidecars {
+        let path = Path::new(&sidecar.path);
+        let videos = path.parent().and_then(|folder| videos_in.get(folder));
+        let video = videos.and_then(|videos| video_of(path, videos));
+        let Some(version) = video
+            .and_then(Path::to_str)
+            .and_then(|video| versions.get(video))
+        else {
+            continue;
+        };
+        found.entry(version.id).or_default().push(Sidecar {
+            path: sidecar.path,
+            size: sidecar.size,
+            modified_ns: sidecar.modified_ns,
+        });
+    }
+    found
+}
+
+/// The one of `videos`, each in `sidecar`'s folder, that `sidecar` belongs to: the one with the
+/// longest name without its extension that `sidecar`'s name starts with, followed by `.`.
+fn video_of<'a>(sidecar: &Path, videos: &[&'a Path]) -> Option<&'a Path> {
+    (videos.iter().copied())
+        .filter_map(|video| Some((video, video.file_stem()?)))
+        .filter(|(_, stem)| after_stem(sidecar, stem).is_some_and(|rest| rest.starts_with(b".")))
+        .max_by_key(|(_, stem)| stem.len())
+        .map(|(video, _)| video)
+}
+
+/// What follows `stem` in `file`'s name, if its name starts with it.
+pub(super) fn after_stem<'a>(file: &'a Path, stem: &OsStr) -> Option<&'a [u8]> {
+    (file.file_name())?
+        .as_encoded_bytes()
+        .strip_prefix(stem.as_encoded_bytes())
+}
+
+#[cfg(test)]
+#[path = "walking_tests.rs"]
+mod tests;

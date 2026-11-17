@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sidecar_subtitles (version_id, path, size, modified_ns, codec, language,\n                                            title, is_default, forced, sdh)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "511568e218d7aa1d987760a9ad0b3525312d7972ddcce5e6de68dd301f26f408"
+}

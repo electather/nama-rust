@@ -4,6 +4,7 @@ include!("nama.v1.match.rs");
 include!("nama.v1.watch_state.rs");
 include!("nama.v1.browse.rs");
 include!("nama.v1.playback.rs");
+include!("nama.v1.page.rs");
 include!("nama.v1.plugin.rs");
 include!("nama.v1.refusal.rs");
 include!("nama.v1.request.rs");
@@ -33,6 +34,7 @@ pub mod __buffa {
         include!("nama.v1.watch_state.__view.rs");
         include!("nama.v1.browse.__view.rs");
         include!("nama.v1.playback.__view.rs");
+        include!("nama.v1.page.__view.rs");
         include!("nama.v1.plugin.__view.rs");
         include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.request.__view.rs");
@@ -130,6 +132,8 @@ pub mod __buffa {
         reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_SUBTITLE_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_REASON_JSON_ANY);
+        reg.register_json_any(super::__PAGE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PAGE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
@@ -169,6 +173,7 @@ pub mod __buffa {
         reg.register_json_any(super::__CREATE_SEASON_REQUESTS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_SEASON_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_FILTER_JSON_ANY);
         reg.register_json_any(super::__CREATE_FOLLOWED_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
@@ -622,6 +627,14 @@ pub use self::__buffa::view::PlaybackReasonView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackReasonOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::PageRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PageRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PageResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PageResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ListPluginsRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginsRequestOwnedView;
@@ -777,6 +790,10 @@ pub use self::__buffa::view::CreateSeasonRequestsResponseOwnedView;
 pub use self::__buffa::view::ListRequestsRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListRequestsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestFilterView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestFilterOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::CreateFollowedShowRequestView;
 #[doc(inline)]

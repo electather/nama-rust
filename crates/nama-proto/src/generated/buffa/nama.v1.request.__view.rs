@@ -5046,21 +5046,18 @@ impl ::serde::Serialize for CreateSeasonRequestsResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ListRequestsRequestView<'a> {
-    /// The state to list Requests and Followed Shows in. Unspecified lists every state.
+    /// Which Requests and Followed Shows to list. Unset lists all.
     ///
-    /// Field 1: `state`
-    pub state: ::buffa::EnumValue<super::super::RequestState>,
-    /// How many Requests and Followed Shows, together, to list at most. 0 lists 50, and more than 100
-    /// lists 100.
+    /// Field 4: `filter`
+    pub filter: ::buffa::MessageFieldView<
+        super::super::__buffa::view::RequestFilterView<'a>,
+    >,
+    /// The page of Requests and Followed Shows, together, to list.
     ///
-    /// Field 2: `page_size`
-    pub page_size: u32,
-    /// The `next_page_token` of the page before, to list the page after it, or empty for the first.
-    /// Pages follow the newest-first order as it was, so Requests opened while paging don't shift
-    /// later pages.
-    ///
-    /// Field 3: `page_token`
-    pub page_token: &'a str,
+    /// Field 5: `page`
+    pub page: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PageRequestView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
@@ -5093,28 +5090,47 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.state = ::buffa::EnumValue::from(
-                    ::buffa::types::decode_int32(&mut cur)?,
-                );
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.page_size = ::buffa::types::decode_uint32(&mut cur)?;
-            }
-            3u32 => {
+            4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                view.page_token = ::buffa::types::borrow_str(&mut cur)?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.filter.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.filter = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::RequestFilterView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.page.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.page = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PageRequestView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -5144,9 +5160,24 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ListRequestsRequest {
-            state: self.state,
-            page_size: self.page_size,
-            page_token: self.page_token.to_string(),
+            filter: match self.filter.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::RequestFilter,
+                        ::buffa::Inline<super::super::RequestFilter>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            page: match self.page.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PageRequest,
+                        ::buffa::Inline<super::super::PageRequest>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5154,21 +5185,25 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for ListRequestsRequestView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        {
-            let val = self.state.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
+        if self.filter.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.filter.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
-        if self.page_size != 0u32 {
-            size += 1u64 + ::buffa::types::uint32_encoded_len(self.page_size) as u64;
-        }
-        if !self.page_token.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.page_token) as u64;
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -5176,22 +5211,26 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsRequestView<'a> {
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        {
-            let val = self.state.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(1u32, val, buf);
-            }
+        if self.filter.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.filter.write_to(__cache, buf);
         }
-        if self.page_size != 0u32 {
-            ::buffa::types::put_uint32_field(2u32, self.page_size, buf);
-        }
-        if !self.page_token.is_empty() {
-            ::buffa::types::put_string_field(3u32, &self.page_token, buf);
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5214,18 +5253,15 @@ impl<'__a> ::serde::Serialize for ListRequestsRequestView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.state) {
-            __map.serialize_entry("state", &self.state)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.filter.as_option() {
+                __map.serialize_entry("filter", __v)?;
+            }
         }
-        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.page_size) {
-            __map
-                .serialize_entry(
-                    "pageSize",
-                    &::buffa::json_helpers::ProtoJson(&self.page_size),
-                )?;
-        }
-        if !::buffa::json_helpers::skip_if::is_empty_str(self.page_token) {
-            __map.serialize_entry("pageToken", self.page_token)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.page.as_option() {
+                __map.serialize_entry("page", __v)?;
+            }
         }
         __map.end()
     }
@@ -5322,29 +5358,23 @@ impl ListRequestsRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The state to list Requests and Followed Shows in. Unspecified lists every state.
+    /// Which Requests and Followed Shows to list. Unset lists all.
     ///
-    /// Field 1: `state`
+    /// Field 4: `filter`
     #[must_use]
-    pub fn state(&self) -> ::buffa::EnumValue<super::super::RequestState> {
-        self.0.reborrow().state
+    pub fn filter(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::RequestFilterView<'_>> {
+        &self.0.reborrow().filter
     }
-    /// How many Requests and Followed Shows, together, to list at most. 0 lists 50, and more than 100
-    /// lists 100.
+    /// The page of Requests and Followed Shows, together, to list.
     ///
-    /// Field 2: `page_size`
+    /// Field 5: `page`
     #[must_use]
-    pub fn page_size(&self) -> u32 {
-        self.0.reborrow().page_size
-    }
-    /// The `next_page_token` of the page before, to list the page after it, or empty for the first.
-    /// Pages follow the newest-first order as it was, so Requests opened while paging don't shift
-    /// later pages.
-    ///
-    /// Field 3: `page_token`
-    #[must_use]
-    pub fn page_token(&self) -> &'_ str {
-        self.0.reborrow().page_token
+    pub fn page(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::PageRequestView<'_>> {
+        &self.0.reborrow().page
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListRequestsRequestView<'static>>>
@@ -5370,6 +5400,264 @@ impl ::buffa::HasMessageView for super::super::ListRequestsRequest {
     type ViewHandle = ListRequestsRequestOwnedView;
 }
 impl ::serde::Serialize for ListRequestsRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// Which Requests and Followed Shows `ListRequests` lists.
+#[derive(Clone, Debug, Default)]
+pub struct RequestFilterView<'a> {
+    /// The state to list them in. Unspecified, or one the Server doesn't know, lists every state.
+    ///
+    /// Field 1: `state`
+    pub state: ::buffa::EnumValue<super::super::RequestState>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for RequestFilterView<'a> {
+    type Owned = super::super::RequestFilter;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.state = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::RequestFilter, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::RequestFilter, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::RequestFilter {
+            state: self.state,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for RequestFilterView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for RequestFilterView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.state) {
+            __map.serialize_entry("state", &self.state)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for RequestFilterView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RequestFilter";
+    const FULL_NAME: &'static str = "nama.v1.RequestFilter";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequestFilter";
+}
+::buffa::impl_default_view_instance!(RequestFilterView);
+::buffa::impl_view_reborrow!(RequestFilterView);
+/** Self-contained, `'static` owned view of a `RequestFilter` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`RequestFilterView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`RequestFilterView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct RequestFilterOwnedView(::buffa::OwnedView<RequestFilterView<'static>>);
+impl RequestFilterOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RequestFilterOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RequestFilterOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::RequestFilter,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RequestFilterOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`RequestFilterView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &RequestFilterView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::RequestFilter {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The state to list them in. Unspecified, or one the Server doesn't know, lists every state.
+    ///
+    /// Field 1: `state`
+    #[must_use]
+    pub fn state(&self) -> ::buffa::EnumValue<super::super::RequestState> {
+        self.0.reborrow().state
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<RequestFilterView<'static>>>
+for RequestFilterOwnedView {
+    fn from(inner: ::buffa::OwnedView<RequestFilterView<'static>>) -> Self {
+        RequestFilterOwnedView(inner)
+    }
+}
+impl ::core::convert::From<RequestFilterOwnedView>
+for ::buffa::OwnedView<RequestFilterView<'static>> {
+    fn from(wrapper: RequestFilterOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<RequestFilterView<'static>>>
+for RequestFilterOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<RequestFilterView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::RequestFilter {
+    type View<'a> = RequestFilterView<'a>;
+    type ViewHandle = RequestFilterOwnedView;
+}
+impl ::serde::Serialize for RequestFilterOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
@@ -6084,10 +6372,13 @@ pub struct ListRequestsResponseView<'a> {
         'a,
         super::super::__buffa::view::FollowedShowView<'a>,
     >,
-    /// The `page_token` that lists the next page, or empty if this is the last.
+    /// The rest of the list: the next page's token, and on the first page how many Requests and
+    /// Followed Shows, together, `filter` lets through.
     ///
-    /// Field 3: `next_page_token`
-    pub next_page_token: &'a str,
+    /// Field 4: `page`
+    pub page: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PageResponseView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListRequestsResponseView<'a> {
@@ -6120,12 +6411,26 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsResponseView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
-            3u32 => {
+            4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                view.next_page_token = ::buffa::types::borrow_str(&mut cur)?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.page.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.page = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PageResponseView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
             }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -6203,7 +6508,15 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
-            next_page_token: self.next_page_token.to_string(),
+            page: match self.page.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PageResponse,
+                        ::buffa::Inline<super::super::PageResponse>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6231,10 +6544,13 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        if !self.next_page_token.is_empty() {
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
             size
-                += 1u64
-                    + ::buffa::types::string_encoded_len(&self.next_page_token) as u64;
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -6263,8 +6579,13 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsResponseView<'a> {
             );
             v.write_to(__cache, buf);
         }
-        if !self.next_page_token.is_empty() {
-            ::buffa::types::put_string_field(3u32, &self.next_page_token, buf);
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6293,8 +6614,10 @@ impl<'__a> ::serde::Serialize for ListRequestsResponseView<'__a> {
         if !self.followed_shows.is_empty() {
             __map.serialize_entry("followedShows", &*self.followed_shows)?;
         }
-        if !::buffa::json_helpers::skip_if::is_empty_str(self.next_page_token) {
-            __map.serialize_entry("nextPageToken", self.next_page_token)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.page.as_option() {
+                __map.serialize_entry("page", __v)?;
+            }
         }
         __map.end()
     }
@@ -6410,12 +6733,15 @@ impl ListRequestsResponseOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::FollowedShowView<'_>> {
         &self.0.reborrow().followed_shows
     }
-    /// The `page_token` that lists the next page, or empty if this is the last.
+    /// The rest of the list: the next page's token, and on the first page how many Requests and
+    /// Followed Shows, together, `filter` lets through.
     ///
-    /// Field 3: `next_page_token`
+    /// Field 4: `page`
     #[must_use]
-    pub fn next_page_token(&self) -> &'_ str {
-        self.0.reborrow().next_page_token
+    pub fn page(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::PageResponseView<'_>> {
+        &self.0.reborrow().page
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListRequestsResponseView<'static>>>

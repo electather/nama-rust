@@ -45,10 +45,11 @@ use nama_proto::nama::v1::{
     DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
     GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
     ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, ListRequestsRequest,
-    ListRequestsResponse, MovieHit, Permission, PluginServiceClient, Quality, RefusalReason,
-    Request, RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
-    SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
-    WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
+    ListRequestsResponse, MovieHit, PageRequest, Permission, PluginServiceClient, Quality,
+    RefusalReason, Request, RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest,
+    SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest, TitleKind,
+    UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, event, request::MovieOrSeason,
+    setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -562,13 +563,21 @@ const STATES: [RequestState; 7] = [
 async fn page(
     client: &RequestServiceClient<HttpClient>,
     state: RequestState,
-    size: u32,
+    size: i32,
     token: &str,
 ) -> Result<ListRequestsResponse, ConnectError> {
     let listing = ListRequestsRequest {
-        state: state.into(),
-        page_size: size,
-        page_token: token.to_owned(),
+        filter: RequestFilter {
+            state: state.into(),
+            ..Default::default()
+        }
+        .into(),
+        page: PageRequest {
+            size,
+            token: token.to_owned(),
+            ..Default::default()
+        }
+        .into(),
         ..Default::default()
     };
     Ok(client.list_requests(listing).await?.into_owned())
@@ -587,7 +596,7 @@ async fn pages_list_every_request_and_followed_show_once_in_order_even_with_one_
 
     let first = page(&ada, RequestState::Unspecified, 4, "").await.unwrap();
     ada.ask(ALIEN).await;
-    let second = page(&ada, RequestState::Unspecified, 4, &first.next_page_token)
+    let second = page(&ada, RequestState::Unspecified, 4, &first.page.next_token)
         .await
         .unwrap();
 
@@ -604,7 +613,7 @@ async fn pages_list_every_request_and_followed_show_once_in_order_even_with_one_
         [followed],
         "after its Season Requests opened in the same second"
     );
-    assert_eq!(second.next_page_token, "", "the last page");
+    assert_eq!(second.page.next_token, "", "the last page");
 }
 
 #[tokio::test]
@@ -616,7 +625,7 @@ async fn a_page_token_used_with_another_state_or_made_up_is_refused() {
     ada.ask(DUNE).await;
     let pending = page(&ada, RequestState::Pending, 1, "").await.unwrap();
 
-    let all = page(&ada, RequestState::Unspecified, 1, &pending.next_page_token).await;
+    let all = page(&ada, RequestState::Unspecified, 1, &pending.page.next_token).await;
     let made_up = page(&ada, RequestState::Pending, 1, "made up").await;
 
     for refused in [all, made_up] {
@@ -625,7 +634,7 @@ async fn a_page_token_used_with_another_state_or_made_up_is_refused() {
             ErrorCode::InvalidArgument,
             RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
         );
-        assert_eq!(refusal.field, "page_token");
+        assert_eq!(refusal.field, "page.token");
     }
 }
 

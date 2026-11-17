@@ -52,9 +52,9 @@ function pagingServer(
     router.service(RequestService, {
       listRequests: (request) => {
         asked.push(request);
-        const index = Number(request.pageToken || "0");
+        const index = Number(request.page?.token ?? "");
         const next = index + 1 < pages.length ? String(index + 1) : "";
-        return { requests: pages[index] ?? [], nextPageToken: next };
+        return { requests: pages[index] ?? [], page: { nextToken: next } };
       },
     });
   });
@@ -135,8 +135,7 @@ test("changing the filter lists the newest of the new state from the first page"
     expect(rowTitles()).toEqual(["Heat"]);
   });
   expect(asked.at(-1)).toMatchObject({
-    state: RequestState.PENDING,
-    pageSize: 50,
-    pageToken: "",
+    filter: { state: RequestState.PENDING },
+    page: { token: "" },
   });
 });
