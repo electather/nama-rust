@@ -88,7 +88,7 @@ function useShowForLockScreen(
   return (
     show && {
       artist: metadataLine(show.title, episodeName(seasonNumber, episodeNumber, "short")),
-      artworkUrl: show.posterUrl,
+      posterUrl: show.posterUrl,
     }
   );
 }

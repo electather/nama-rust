@@ -5,9 +5,10 @@ import { SEEK_STEP_SECONDS, play, seekBy } from "./playback";
 /** What the lock screen, the notification and the media keys' overlay show of what's playing. */
 export interface NowPlaying {
   title: string;
-  /** For an Episode, its Show and which Episode it is. */
+  /** For an Episode, its Show and which Episode it is, shown under `title`. */
   artist?: string | undefined;
-  artworkUrl?: string | undefined;
+  /** The Poster shown beside it: an Episode's is its Show's. */
+  posterUrl?: string | undefined;
 }
 
 /**
@@ -17,20 +18,20 @@ export interface NowPlaying {
  */
 export function useMediaSession(
   videoRef: RefObject<HTMLVideoElement | null>,
-  { title, artist, artworkUrl }: NowPlaying,
+  { title, artist, posterUrl }: NowPlaying,
 ) {
   useEffect(() => {
     const video = videoRef.current;
     return video && "mediaSession" in navigator
-      ? showOnLockScreen(navigator.mediaSession, video, { title, artist, artworkUrl })
+      ? showOnLockScreen(navigator.mediaSession, video, { title, artist, posterUrl })
       : undefined;
-  }, [videoRef, title, artist, artworkUrl]);
+  }, [videoRef, title, artist, posterUrl]);
 }
 
 /** Hands `session` what's playing in `video` and the controls of it, until the cleanup it returns. */
 function showOnLockScreen(session: MediaSession, video: HTMLVideoElement, nowPlaying: NowPlaying) {
-  const { title, artist = "", artworkUrl } = nowPlaying;
-  const artwork = artworkUrl === undefined ? [] : [{ src: artworkUrl }];
+  const { title, artist = "", posterUrl } = nowPlaying;
+  const artwork = posterUrl === undefined ? [] : [{ src: posterUrl }];
   session.metadata = new MediaMetadata({ title, artist, artwork });
   const handlers = mediaActions(video);
   for (const action of MEDIA_ACTIONS) session.setActionHandler(action, handlers[action]);

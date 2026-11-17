@@ -21,7 +21,7 @@ import { TrackMenus } from "@/components/track-menus";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { playerOpened } from "@/lib/diagnostics";
-import { useMediaSession } from "@/lib/media-session";
+import { type NowPlaying, useMediaSession } from "@/lib/media-session";
 import { togglePlay, useAwake, useShortcuts, useVideo } from "@/lib/playback";
 import { usePlaybackPlan } from "@/lib/playback-plan";
 import { usePlaybackSource } from "@/lib/playback-source";
@@ -29,7 +29,7 @@ import { wordReasons } from "@/lib/playback-wording";
 import { useWatchState } from "@/lib/watch-state";
 
 /** What the player plays, and where "back" goes. */
-export interface PlayerProps {
+export interface PlayerProps extends NowPlaying {
   /** The Movie's or Episode's title, which also names the video. */
   title: string;
   versionId: bigint;
@@ -41,10 +41,6 @@ export interface PlayerProps {
   back: LinkOptions;
   /** The Episode to count down to and play after this one, if there is one. */
   next?: NextEpisode | undefined;
-  /** For an Episode, its Show and which Episode it is, which the lock screen shows under `title`. */
-  artist?: string | undefined;
-  /** The Poster the lock screen shows. */
-  artworkUrl?: string | undefined;
 }
 
 /**
@@ -98,7 +94,7 @@ function VideoPlayer({
   tracks,
   back,
   artist,
-  artworkUrl,
+  posterUrl,
   autoplay,
   planned,
   topBar,
@@ -111,7 +107,7 @@ function VideoPlayer({
   const [awake, wake] = useAwake();
   const nextEpisode = useNextEpisode(autoplay, video, wake);
   useShortcuts(videoRef, playerRef, back, nextEpisode.onInput);
-  useMediaSession(videoRef, { title, artist, artworkUrl });
+  useMediaSession(videoRef, { title, artist, posterUrl });
 
   return (
     <div

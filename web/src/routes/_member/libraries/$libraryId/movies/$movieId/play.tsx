@@ -29,7 +29,7 @@ function PlayMovie() {
       versionId={id}
       tracks={tracks}
       watchState={movie.watchState}
-      artworkUrl={movie.posterUrl}
+      posterUrl={movie.posterUrl}
       back={{ to: "/libraries/$libraryId/movies/$movieId", params }}
     />
   );
