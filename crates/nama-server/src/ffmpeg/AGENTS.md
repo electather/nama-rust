@@ -9,4 +9,4 @@ Finding the system's ffmpeg and ffprobe, asking what they can do, and building t
 ### Neighbours
 
 - Uses: `config`.
-- Used by: `playback` (with tracks and probing), `server_settings` (`Accel`, `Hardware`, `find_gpus`), other areas' tests (`fake::script`), the `api` parts for playback and the Server, and startup in `lib.rs` and `main.rs`.
+- Used by: `playback` (with tracks and probing), `server_settings` (`Accel`, `Hardware`), other areas' tests (`fake::script`, `fake::vaapi_on_two_gpus`), the `api` parts for playback and the Server, and startup in `lib.rs` and `main.rs`.

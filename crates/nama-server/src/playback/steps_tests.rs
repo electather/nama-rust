@@ -4,7 +4,7 @@ use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
 use super::{keyframes_unlisted, remux, too_busy_to_play};
 #[cfg(unix)]
-use crate::ffmpeg::fake::vaapi_on_two_gpus_at;
+use crate::ffmpeg::fake::{vaapi_on_two_gpus, vaapi_on_two_gpus_at};
 use crate::{
     ffmpeg::{Accel, Hardware, ToneMapper, Transcode, VideoConversion},
     playback::{
@@ -464,12 +464,6 @@ const QSV: Hardware = Hardware {
     gpu: None,
     tone_maps: true,
 };
-
-/// [`vaapi_on_two_gpus_at`] with the integrated GPU on `renderD128`.
-#[cfg(unix)]
-fn vaapi_on_two_gpus(root: &std::path::Path) -> Vec<Hardware> {
-    vaapi_on_two_gpus_at(root, ["renderD128", "renderD129"])
-}
 
 #[cfg(unix)]
 #[test]
