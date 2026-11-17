@@ -72,7 +72,8 @@ async fn starting_with_nothing_pending_writes_no_copy() {
 }
 
 #[tokio::test]
-async fn a_copy_that_cannot_be_written_stops_the_upgrade_and_says_where_and_how_much_space() {
+async fn a_copy_that_cannot_be_written_stops_the_upgrade_says_where_and_how_much_space_and_leaves_no_partial()
+ {
     let data_dir = tempfile::tempdir().unwrap();
     let previous = create_database_one_migration_behind(data_dir.path()).await;
     // A directory where the copy goes makes writing it fail.
@@ -92,6 +93,8 @@ async fn a_copy_that_cannot_be_written_stops_the_upgrade_and_says_where_and_how_
         previous,
         "the database was upgraded without a copy"
     );
+    let partial = data_dir.path().join(format!("{BEFORE_UPGRADE}.partial"));
+    assert!(!partial.exists(), "{} was left behind", partial.display());
 }
 
 /// Creates the database in `data_dir` with every migration but the last, as the Server before

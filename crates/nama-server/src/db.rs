@@ -373,19 +373,28 @@ async fn copy_before_upgrade(
         )
     })?;
     tracing::info!("copying the database to {BEFORE_UPGRADE_FILE_NAME} before upgrading it");
-    sqlx::query!("VACUUM INTO ?", partial_path)
-        .execute(&mut *conn)
-        .await?;
-    // VACUUM INTO doesn't sync what it writes, and the rename must not replace the last good copy
-    // with one a power cut could still lose. Windows syncs only a file opened for writing.
-    tokio::fs::OpenOptions::new()
-        .write(true)
-        .open(&partial)
-        .await?
-        .sync_all()
-        .await?;
-    tokio::fs::rename(&partial, &copy).await?;
-    Ok(())
+    let written = async {
+        sqlx::query!("VACUUM INTO ?", partial_path)
+            .execute(&mut *conn)
+            .await?;
+        // VACUUM INTO doesn't sync what it writes, and the rename must not replace the last good
+        // copy with one a power cut could still lose. Windows syncs only a file opened for writing.
+        tokio::fs::OpenOptions::new()
+            .write(true)
+            .open(&partial)
+            .await?
+            .sync_all()
+            .await?;
+        tokio::fs::rename(&partial, &copy).await?;
+        Ok(())
+    }
+    .await;
+    if written.is_err() {
+        // A copy that ran out of room would otherwise keep holding the space the error asks for.
+        // Removing it is best effort: the error that stopped the copy is the one to report.
+        let _: std::io::Result<()> = tokio::fs::remove_file(&partial).await;
+    }
+    written
 }
 
 /// How far [`advance_clock`] has moved the Server's clock, in milliseconds.
