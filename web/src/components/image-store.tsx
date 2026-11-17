@@ -42,7 +42,7 @@ export function ImageStore() {
     },
   ).data;
   const plugins = usePlugins();
-  const stores = plugins.filter((plugin) => isBlobStore(plugin));
+  const stores = plugins.filter((plugin) => isEnabledBlobStore(plugin));
   const current = settings?.storePluginId ?? "";
   // A disabled Plugin may still hold the images, or have been a failed switch's target.
   const nameOf = (pluginId: string) => storeName(pluginId, plugins);
@@ -79,7 +79,7 @@ function usePlugins() {
 }
 
 /** Whether `plugin` may keep the images: enabled, and serving the Blob store point. */
-function isBlobStore(plugin: PluginSummary) {
+function isEnabledBlobStore(plugin: PluginSummary) {
   return plugin.enabled && plugin.extensionPoints.includes(ExtensionPoint.BLOB_STORE);
 }
 

@@ -156,7 +156,7 @@ test("a switch that stopped shows why, with the old store still in use", async (
   ).toBeDefined();
 });
 
-test("a disabled store Plugin in use is named by its name, and isn't offered", async () => {
+test("a disabled Blob store Plugin in use shows its Plugin name, and isn’t offered", async () => {
   openSettings({ getImageSettings: () => ({ settings: { storePluginId: "old-store" } }) });
 
   const store = await imageStore();
@@ -165,7 +165,7 @@ test("a disabled store Plugin in use is named by its name, and isn't offered", a
   expect(options).toEqual(["Local disk", "S3"]);
 });
 
-test("a stopped switch to a disabled store Plugin names it, with one full stop", async () => {
+test("a stopped switch to a disabled Blob store Plugin names it, with one full stop", async () => {
   openSettings({
     getImageSettings: () => ({
       settings: {},
