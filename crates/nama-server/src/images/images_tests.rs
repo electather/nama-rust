@@ -6,7 +6,9 @@ use tempfile::TempDir;
 
 use axum::http::{HeaderMap, HeaderValue, header};
 
-use super::{Format, ImageStore, MAX_BYTES, file_name, serving::format_asked, unescape};
+use super::{
+    Format, ImageStore, MAX_BYTES, UPLOADS_DIR, file_name, serving::format_asked, unescape,
+};
 use crate::db::Database;
 
 const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
@@ -153,4 +155,29 @@ fn a_file_name_unescapes_to_its_text_and_no_other_name_does() {
     for name in [".tmpAbC123", "%2f", "%2", "%ZZ", "a%2Fb%"] {
         assert_eq!(unescape(name), None, "{name}");
     }
+}
+
+#[tokio::test]
+async fn sweeping_uploads_deletes_every_leftover_and_keeps_stored_images() {
+    let data = tempfile::tempdir().unwrap();
+    let store = store_in(&data).await;
+    store.write(KEY, b"\xff\xd8").await.unwrap();
+    let uploads = data.path().join(UPLOADS_DIR);
+    std::fs::create_dir_all(&uploads).unwrap();
+    std::fs::write(uploads.join(".tmpAbC123"), b"half an upload").unwrap();
+    std::fs::write(uploads.join("poster.jpg"), b"\xff\xd8").unwrap();
+    std::fs::create_dir(uploads.join("folder")).unwrap();
+    std::fs::write(uploads.join("folder").join("part"), b"").unwrap();
+
+    store.sweep_uploads().await.unwrap();
+
+    assert_eq!(std::fs::read_dir(&uploads).unwrap().count(), 0);
+    assert!(store.contains(KEY).await.unwrap());
+}
+
+#[tokio::test]
+async fn sweeping_uploads_without_an_uploads_folder_is_no_error() {
+    let data = tempfile::tempdir().unwrap();
+
+    store_in(&data).await.sweep_uploads().await.unwrap();
 }
