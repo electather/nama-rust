@@ -294,7 +294,12 @@ async fn the_cache_keeps_each_format_of_a_width_apart_within_the_one_limit() {
     fs::create_dir_all(old.parent().unwrap()).unwrap();
     fs::write(&old, vec![0; 1024 * 1024]).unwrap();
     let an_hour_ago = FileTimes::new().set_accessed(SystemTime::now() - Duration::from_hours(1));
-    File::open(&old).unwrap().set_times(an_hour_ago).unwrap();
+    File::options()
+        .write(true)
+        .open(&old)
+        .unwrap()
+        .set_times(an_hour_ago)
+        .unwrap();
 
     fetch_accepting(&fx, &poster, 640, ACCEPTS_JXL).await;
     fetch_at(&fx, &poster, 640).await;
