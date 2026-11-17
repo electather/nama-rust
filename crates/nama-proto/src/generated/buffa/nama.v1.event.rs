@@ -6574,6 +6574,17 @@ pub struct Playback {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub reasons: ::buffa::alloc::vec::Vec<PlaybackReason>,
+    /// The plan's `PlaybackPlan.id`, the same in every event about that plan, which pairs its
+    /// `PlaybackStarted` with its `PlaybackEnded`. Ids start again when the Server restarts.
+    ///
+    /// Field 8: `plan_id`
+    #[serde(
+        rename = "planId",
+        alias = "plan_id",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub plan_id: u64,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -6587,6 +6598,7 @@ impl ::core::fmt::Debug for Playback {
             .field("method", &self.method)
             .field("tracks", &self.tracks)
             .field("reasons", &self.reasons)
+            .field("plan_id", &self.plan_id)
             .finish()
     }
 }
@@ -6648,6 +6660,9 @@ impl ::buffa::Message for Playback {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.plan_id != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.plan_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6688,6 +6703,9 @@ impl ::buffa::Message for Playback {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.plan_id != 0u64 {
+            ::buffa::types::put_uint64_field(8u32, self.plan_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6756,6 +6774,13 @@ impl ::buffa::Message for Playback {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.reasons.push(elem);
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.plan_id = ::buffa::types::decode_uint64(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -6770,6 +6795,7 @@ impl ::buffa::Message for Playback {
         self.method = ::buffa::EnumValue::from(0);
         self.tracks.clear();
         self.reasons.clear();
+        self.plan_id = 0u64;
         self.__buffa_unknown_fields.clear();
     }
 }

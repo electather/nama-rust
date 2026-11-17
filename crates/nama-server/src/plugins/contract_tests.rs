@@ -503,6 +503,7 @@ fn each_playback_event_keeps_what_an_observer_reads() {
         version_id: 4,
         method: method.into(),
         tracks: vec![api::Track::default()],
+        plan_id: 5,
         ..Default::default()
     };
     let told = |method: wire::PlaybackMethod| {
@@ -511,6 +512,7 @@ fn each_playback_event_keeps_what_an_observer_reads() {
             device_id: 3,
             version_id: 4,
             method: method.into(),
+            plan_id: 5,
             ..Default::default()
         })
         .into()

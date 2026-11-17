@@ -671,6 +671,7 @@ async fn each_plan_tells_subscribers_its_playback_started() {
     let first = fx.plan(version).await.unwrap();
     let replacing = fx.plan(version).await.unwrap();
 
+    assert_ne!(first.id, replacing.id);
     for plan in [first, replacing] {
         let told = PlaybackStarted {
             playback: admins_playback(version, plan).into(),
@@ -730,6 +731,45 @@ async fn a_direct_play_its_player_stops_tells_subscribers_its_playback_ended() {
     assert_eq!(subscription.next().await, told.into());
 }
 
+#[tokio::test]
+async fn stopping_the_plan_another_replaced_tells_subscribers_only_its_playback_ended() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let config = fx.server.client_config();
+    let started_or_ended = [
+        EventType::EVENT_TYPE_PLAYBACK_STARTED,
+        EventType::EVENT_TYPE_PLAYBACK_ENDED,
+    ];
+    let mut subscription = subscribe(&config, &started_or_ended).await;
+    let first = fx.plan(version).await.unwrap();
+    fx.plan(version).await.unwrap();
+    for _ in 0..2 {
+        subscription.next().await;
+    }
+
+    PlaybackServiceClient::new(HttpClient::plaintext(), config)
+        .stop_playback(StopPlaybackRequest {
+            plan_id: first.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    // A later plan's Started comes after every Ended the stop published, so an Ended for the
+    // replacing plan would come between.
+    let later = fx.plan(version).await.unwrap();
+
+    let ended = PlaybackEnded {
+        playback: admins_playback(version, first).into(),
+        ..Default::default()
+    };
+    let started = PlaybackStarted {
+        playback: admins_playback(version, later).into(),
+        ..Default::default()
+    };
+    assert_eq!(subscription.next().await, ended.into());
+    assert_eq!(subscription.next().await, started.into());
+}
+
 /// What Observers are told of the Admin playing the Version `version` by `plan`.
 fn admins_playback(version: i64, plan: PlaybackPlan) -> Playback {
     Playback {
@@ -740,6 +780,7 @@ fn admins_playback(version: i64, plan: PlaybackPlan) -> Playback {
         method: plan.method,
         tracks: plan.tracks,
         reasons: plan.reasons,
+        plan_id: plan.id,
         ..Default::default()
     }
 }

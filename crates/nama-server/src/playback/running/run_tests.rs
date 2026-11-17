@@ -700,6 +700,7 @@ async fn a_transcode_whose_hardware_fails_carries_on_in_software_and_says_so() {
     assert_eq!(answer(later).await.unwrap().unwrap(), b"345");
     let changed = Playback {
         reasons: software_reasons,
+        plan_id: id,
         ..playback(7)
     };
     subscription.next().await.unwrap();
