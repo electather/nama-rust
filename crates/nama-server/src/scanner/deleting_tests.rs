@@ -65,6 +65,7 @@ impl Fixture {
                 kind: LibraryKind::Movies,
                 folders: vec![self.path("")],
                 read_only: Vec::new(),
+                empty_folders: Vec::new(),
                 title_sources: vec!["tmdb".to_owned()],
                 recognisers: Vec::new(),
             },

@@ -1342,6 +1342,8 @@ async fn a_movie_whose_file_has_gone_is_listed_again_once_a_rescan_matches_it() 
     };
     viewer.report(version, MINUTE, TWO_HOURS).await.unwrap();
 
+    // Another file keeps the folder from reading empty, which would keep the file's items (#911).
+    fx.write("notes.txt", b"");
     fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
     fx.scan_and_match().await;
     let gone = viewer.continue_watching().await;
@@ -1661,6 +1663,8 @@ async fn a_movie_a_scan_matches_is_found_right_after_it_and_not_once_its_file_is
         .map(|movie| (movie.library_id, &*movie.id, movie.title.as_str()))
         .collect();
     assert_eq!(movies, [(fx.library, &tmdb_id(DUNE), "Dune")]);
+    // Another file keeps the folder from reading empty, which would keep the file's items (#911).
+    fx.write("notes.txt", b"");
     fs::remove_file(fx.folder.join(DUNE_2021)).unwrap();
     fx.scan_and_match().await;
     assert_eq!(fx.search("dune").await.movies, []);

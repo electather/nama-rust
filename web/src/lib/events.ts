@@ -12,6 +12,7 @@ import {
   type ScanProgress,
   type ScanStarted,
 } from "@/gen/nama/v1/event_pb";
+import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ListUnmatchedItemsResponse, MatchService } from "@/gen/nama/v1/match_pb";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 
@@ -116,6 +117,7 @@ function apply({ message }: SubscribeResponse, queryClient: QueryClient) {
     relistUnmatched(message.value, queryClient);
     dropDecided(message.value, queryClient);
     refreshBrowsing(message.value, queryClient);
+    refreshLibrary(message.value, queryClient);
     refreshRequests(message.value, queryClient);
   } else if (message.case === "lagged") {
     forgetMissed(queryClient);
@@ -188,6 +190,15 @@ function refreshBrowsing({ event }: Event, queryClient: QueryClient) {
     // refetch, and a household Server has a handful of Libraries.
     void queryClient.invalidateQueries({ queryKey: browseKey });
   }
+}
+
+/** Refetches a Library when its scan finishes, which records the folders that look empty. */
+function refreshLibrary({ event }: Event, queryClient: QueryClient) {
+  if (event.case !== "scanFinished") return;
+  const input = { id: event.value.libraryId };
+  const method = LibraryService.method.getLibrary;
+  const queryKey = createConnectQueryKey({ schema: method, input, cardinality: "finite" });
+  void queryClient.invalidateQueries({ queryKey });
 }
 
 const requestEvents = new Set<Event["event"]["case"]>([

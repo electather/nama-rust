@@ -257,6 +257,20 @@ pub struct Library {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub recogniser_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Those of `folders` the Library's last scan found no file in where an earlier one found some,
+    /// as an unmounted share's mountpoint reads. That scan removed nothing stored under them, and
+    /// each later one keeps it, until one finds files there again or `ScanLibrary` names the folder
+    /// in `remove_missing_in`. A folder that never had files isn't listed. Empty in `ListLibraries`
+    /// for a caller without `PERMISSION_MANAGE_LIBRARIES`.
+    ///
+    /// Field 10: `empty_folders`
+    #[serde(
+        rename = "emptyFolders",
+        alias = "empty_folders",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub empty_folders: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -273,6 +287,7 @@ impl ::core::fmt::Debug for Library {
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
             .field("title_sources", &self.title_sources)
             .field("recogniser_ids", &self.recogniser_ids)
+            .field("empty_folders", &self.empty_folders)
             .finish()
     }
 }
@@ -355,6 +370,9 @@ impl ::buffa::Message for Library {
         for v in &self.recogniser_ids {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.empty_folders {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -394,6 +412,9 @@ impl ::buffa::Message for Library {
         }
         for v in &self.recogniser_ids {
             ::buffa::types::put_string_field(9u32, v, buf);
+        }
+        for v in &self.empty_folders {
+            ::buffa::types::put_string_field(10u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -493,6 +514,17 @@ impl ::buffa::Message for Library {
                 )?;
                 self.recogniser_ids.push(__elem);
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.empty_folders.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -510,6 +542,7 @@ impl ::buffa::Message for Library {
         self.backdrop_thumbhash = ::core::option::Option::None;
         self.title_sources.clear();
         self.recogniser_ids.clear();
+        self.empty_folders.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2193,13 +2226,26 @@ pub struct ScanLibraryRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub id: i64,
+    /// One of the Library's `empty_folders`, whose items this scan removes, as it would from a folder
+    /// that holds files: the Admin's "Remove missing items". Any other folder changes nothing.
+    ///
+    /// Field 2: `remove_missing_in`
+    #[serde(
+        rename = "removeMissingIn",
+        alias = "remove_missing_in",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub remove_missing_in: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ScanLibraryRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ScanLibraryRequest").field("id", &self.id).finish()
+        f.debug_struct("ScanLibraryRequest")
+            .field("id", &self.id)
+            .field("remove_missing_in", &self.remove_missing_in)
+            .finish()
     }
 }
 impl ScanLibraryRequest {
@@ -2208,6 +2254,18 @@ impl ScanLibraryRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ScanLibraryRequest";
+}
+impl ScanLibraryRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::remove_missing_in`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_remove_missing_in(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.remove_missing_in = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(ScanLibraryRequest);
 impl ::buffa::MessageName for ScanLibraryRequest {
@@ -2232,6 +2290,9 @@ impl ::buffa::Message for ScanLibraryRequest {
         if self.id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
         }
+        if let Some(ref v) = self.remove_missing_in {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2244,6 +2305,9 @@ impl ::buffa::Message for ScanLibraryRequest {
         use ::buffa::Enumeration as _;
         if self.id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.id, buf);
+        }
+        if let Some(ref v) = self.remove_missing_in {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2265,6 +2329,18 @@ impl ::buffa::Message for ScanLibraryRequest {
                 )?;
                 self.id = ::buffa::types::decode_int64(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .remove_missing_in
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2274,6 +2350,7 @@ impl ::buffa::Message for ScanLibraryRequest {
     }
     fn clear(&mut self) {
         self.id = 0i64;
+        self.remove_missing_in = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

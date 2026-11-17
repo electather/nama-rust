@@ -312,6 +312,8 @@ async fn a_custom_image_is_still_there_once_the_titles_last_file_leaves_and_a_ne
         .await;
     let uploaded = fx.alien_poster(fx.library).await;
 
+    // Another file keeps the folder from reading empty, which would keep the file's items (#911).
+    fx.write("notes.txt", b"");
     fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
     fx.scan_and_match().await;
     let gone = fx.get_movie(fx.library, ALIEN).await;
@@ -592,6 +594,8 @@ async fn removing_a_custom_image_once_its_title_has_left_the_server_still_remove
     let fx = Fixture::alien().await;
     fx.upload(&alien_poster(), &image(ImageFormat::Png, 2, 3))
         .await;
+    // Another file keeps the folder from reading empty, which would keep the file's items (#911).
+    fx.write("notes.txt", b"");
     fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
     fx.scan_and_match().await;
 

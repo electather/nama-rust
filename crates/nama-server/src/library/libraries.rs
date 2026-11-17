@@ -31,6 +31,9 @@ pub(crate) struct Library {
     /// Those of `folders` the Server couldn't write to when it last scanned the Library, so media
     /// in them isn't deleted (ADR 0038).
     pub(crate) read_only: Vec<String>,
+    /// Those of `folders` its last scan found no file in where an earlier one found some. That
+    /// scan kept what's stored under them, as when a share isn't mounted.
+    pub(crate) empty_folders: Vec<String>,
     /// The namespaces of the title sources its titles are searched and Matched with, first
     /// asked first.
     pub(crate) title_sources: Vec<String>,
@@ -169,15 +172,21 @@ impl Libraries {
         .await?;
         let mut folders: HashMap<i64, Vec<String>> = HashMap::new();
         let mut read_only: HashMap<i64, Vec<String>> = HashMap::new();
+        let mut empty: HashMap<i64, Vec<String>> = HashMap::new();
         for folder in sqlx::query!(
-            r#"SELECT library_id, path, read_only AS "read_only: bool" FROM library_folders
-               ORDER BY library_id, position"#
+            r#"SELECT library_id, path, read_only AS "read_only: bool",
+                      looks_empty AS "looks_empty: bool"
+               FROM library_folders ORDER BY library_id, position"#
         )
         .fetch_all(&mut *tx)
         .await?
         {
             if folder.read_only {
                 let library = read_only.entry(folder.library_id).or_default();
+                library.push(folder.path.clone());
+            }
+            if folder.looks_empty {
+                let library = empty.entry(folder.library_id).or_default();
                 library.push(folder.path.clone());
             }
             folders
@@ -191,6 +200,7 @@ impl Libraries {
             .map(|row| Library {
                 folders: folders.remove(&row.id).unwrap_or_default(),
                 read_only: read_only.remove(&row.id).unwrap_or_default(),
+                empty_folders: empty.remove(&row.id).unwrap_or_default(),
                 id: row.id,
                 name: row.name,
                 kind: row.kind,
@@ -211,8 +221,8 @@ impl Libraries {
         .await?
         .ok_or(Error::NotFound(id))?;
         let rows = sqlx::query!(
-            r#"SELECT path, read_only AS "read_only: bool" FROM library_folders
-               WHERE library_id = ? ORDER BY position"#,
+            r#"SELECT path, read_only AS "read_only: bool", looks_empty AS "looks_empty: bool"
+               FROM library_folders WHERE library_id = ? ORDER BY position"#,
             id
         )
         .fetch_all(&mut *tx)
@@ -221,12 +231,16 @@ impl Libraries {
         let read_only = (rows.iter().filter(|folder| folder.read_only))
             .map(|folder| folder.path.clone())
             .collect();
+        let empty_folders = (rows.iter().filter(|folder| folder.looks_empty))
+            .map(|folder| folder.path.clone())
+            .collect();
         Ok(Library {
             id,
             name: row.name,
             kind: row.kind,
             folders: rows.into_iter().map(|folder| folder.path).collect(),
             read_only,
+            empty_folders,
             title_sources: split_sources(&row.title_sources),
             recognisers: split_recognisers(&row.recognisers),
         })
@@ -236,6 +250,13 @@ impl Libraries {
     pub(crate) async fn set_read_only(&self, id: i64, read_only: Vec<String>) -> Result<(), Error> {
         self.db
             .write(move |tx| Box::pin(set_read_only(tx, id, read_only)))
+            .await
+    }
+
+    /// Records that each of the Library `id`'s folders but `empty` holds files, or never held any.
+    pub(crate) async fn set_empty_folders(&self, id: i64, empty: Vec<String>) -> Result<(), Error> {
+        self.db
+            .write(move |tx| Box::pin(set_empty_folders(tx, id, empty)))
             .await
     }
 
@@ -346,6 +367,7 @@ async fn create(
         kind,
         folders,
         read_only: Vec::new(),
+        empty_folders: Vec::new(),
         title_sources,
         recognisers,
     })
@@ -382,10 +404,11 @@ async fn update(
     .fetch_one(&mut *conn)
     .await?;
     ensure_folders_free(conn, &folders, Some(id)).await?;
-    // A folder it keeps stays read-only until a scan says otherwise; a new one holds nothing to
-    // delete until a scan, which checks it.
-    let read_only: Vec<String> = sqlx::query_scalar!(
-        "SELECT path FROM library_folders WHERE library_id = ? AND read_only = 1",
+    // A folder it keeps stays read-only, or empty, until a scan says otherwise; a new one holds
+    // nothing to delete or keep until a scan, which checks it.
+    let kept = sqlx::query!(
+        r#"SELECT path, read_only AS "read_only: bool", looks_empty AS "looks_empty: bool"
+           FROM library_folders WHERE library_id = ? AND (read_only = 1 OR looks_empty = 1)"#,
         id
     )
     .fetch_all(&mut *conn)
@@ -394,10 +417,19 @@ async fn update(
         .execute(&mut *conn)
         .await?;
     insert_folders(conn, id, &folders).await?;
-    let read_only: Vec<String> = (read_only.into_iter())
-        .filter(|folder| folders.contains(folder))
-        .collect();
+    let kept_where = |flag: fn(&_) -> bool| -> Vec<String> {
+        (kept
+            .iter()
+            .filter(|folder| flag(folder) && folders.contains(&folder.path)))
+        .map(|folder| folder.path.clone())
+        .collect()
+    };
+    let (read_only, empty_folders) = (
+        kept_where(|folder| folder.read_only),
+        kept_where(|folder| folder.looks_empty),
+    );
     set_read_only(conn, id, read_only.clone()).await?;
+    set_empty_folders(conn, id, empty_folders.clone()).await?;
     let title_sources = if title_sources.is_empty() {
         split_sources(&row.title_sources)
     } else {
@@ -417,6 +449,7 @@ async fn update(
         kind: row.kind,
         folders,
         read_only,
+        empty_folders,
         title_sources,
         recognisers,
     })
@@ -447,6 +480,29 @@ async fn set_read_only(
     for folder in read_only {
         sqlx::query!(
             "UPDATE library_folders SET read_only = 1 WHERE library_id = ? AND path = ?",
+            id,
+            folder,
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
+}
+
+async fn set_empty_folders(
+    conn: &mut SqliteConnection,
+    id: i64,
+    empty: Vec<String>,
+) -> Result<(), Error> {
+    sqlx::query!(
+        "UPDATE library_folders SET looks_empty = 0 WHERE library_id = ?",
+        id
+    )
+    .execute(&mut *conn)
+    .await?;
+    for folder in empty {
+        sqlx::query!(
+            "UPDATE library_folders SET looks_empty = 1 WHERE library_id = ? AND path = ?",
             id,
             folder,
         )

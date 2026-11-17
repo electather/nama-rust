@@ -144,6 +144,12 @@ impl Fixture {
         }
     }
 
+    /// The Library's folders its last scan held because they read empty.
+    async fn empty_folders(&self) -> Vec<String> {
+        let libraries = &self.scanner.inner.libraries;
+        libraries.get(self.library).await.unwrap().empty_folders
+    }
+
     /// Makes every later write fail, as a database that can't be written to does.
     async fn stop_writes(&self) {
         self.db
@@ -365,9 +371,80 @@ async fn files_in_a_folder_that_cant_be_read_are_kept() {
         1,
         "an unreadable folder emptied the Library"
     );
+    assert_eq!(
+        media.empty_folders().await,
+        Vec::<String>::new(),
+        "an unreadable folder looked empty, which removing its missing items can't clear"
+    );
     fs::rename(&parked, &media.root).unwrap();
 
     assert_eq!(media.scan().await, summary(0, 0, 0, 1));
+}
+
+#[tokio::test]
+async fn a_folder_that_reads_empty_keeps_its_items_and_looks_empty_until_files_are_back() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.scan().await;
+
+    // An unmounted share's mountpoint is an empty folder.
+    fs::rename(&media.root, media.root.with_file_name("parked")).unwrap();
+    fs::create_dir(&media.root).unwrap();
+    assert_eq!(media.scan().await, summary(0, 0, 0, 1));
+    assert_eq!(
+        media.files().await.len(),
+        1,
+        "an empty folder emptied the Library"
+    );
+    assert_eq!(media.empty_folders().await, [media.root.to_str().unwrap()]);
+
+    media.write("Up (2009)/Up (2009).mkv", 10);
+    assert_eq!(media.scan().await, summary(1, 0, 1, 0));
+    assert_eq!(media.empty_folders().await, Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn removing_missing_items_empties_a_folder_that_looks_empty_once() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.scan().await;
+    fs::remove_dir_all(media.path("Alien (1979)")).unwrap();
+    media.scan().await;
+    let folder = media.root.to_str().unwrap().to_owned();
+
+    (media.scanner.remove_missing(media.library, folder))
+        .await
+        .unwrap();
+    media.scanner.idle().await;
+
+    assert_eq!(media.files().await.len(), 0);
+    assert_eq!(media.empty_folders().await, Vec::<String>::new());
+    media.write("Up (2009)/Up (2009).mkv", 10);
+    media.scan().await;
+    fs::remove_dir_all(media.path("Up (2009)")).unwrap();
+    assert_eq!(
+        media.scan().await,
+        summary(0, 0, 0, 1),
+        "the removal held only once"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_left_with_few_files_or_none_ever_doesnt_look_empty() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.scan().await;
+    assert_eq!(
+        media.empty_folders().await,
+        Vec::<String>::new(),
+        "a new, empty folder"
+    );
+
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.write("Up (2009)/Up (2009).mkv", 10);
+    media.scan().await;
+    fs::remove_dir_all(media.path("Up (2009)")).unwrap();
+    assert_eq!(media.scan().await, summary(0, 0, 1, 1));
+    assert_eq!(media.empty_folders().await, Vec::<String>::new());
 }
 
 #[tokio::test]
@@ -550,6 +627,8 @@ async fn a_watched_library_follows_files_added_renamed_and_deleted_without_being
     .unwrap();
     wait_for_files(&media, &["Aliens (1986).mkv"]).await;
 
+    // Any file keeps the folder from reading empty, which would keep the deleted one.
+    media.write("notes.txt", 1);
     fs::remove_file(media.path("Aliens (1986).mkv")).unwrap();
     wait_for_files(&media, &[]).await;
     media.scanner.shutdown().await;
