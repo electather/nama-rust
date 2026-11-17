@@ -130,7 +130,7 @@ function SegmentFields({ saved, errors }: { saved: PlaybackSettings; errors: For
         min={1}
         required={false}
         defaultValue={saved.keepBehindMinutes}
-        hint="How much of a Remux or Transcode is kept behind where the player is, so skipping back that far plays at once. Skipping further waits while it’s made again. A 4K Remux keeps about 1 GB for 5 minutes. Leave it empty for 5 minutes. A change applies to those already playing."
+        hint="How much of a Remux or Transcode is kept behind where the player is, so skipping back that far plays at once. Skipping further waits while it’s made again. The kept files take room in the segment folder, memory on a tmpfs, so it must fit them: a 4K Remux keeps about 1 GB for 5 minutes. Leave it empty for 5 minutes. A change applies to those already playing."
         error={errors.keepBehindMinutes}
       />
     </>
@@ -253,6 +253,7 @@ function playbackSettingsErrors(error: ConnectError | null) {
     {},
     {
       [RefusalReason.FOLDER_NOT_ABSOLUTE]: { segmentFolder: serverMessage(error) },
+      [RefusalReason.FOLDER_NOT_WRITABLE]: { segmentFolder: serverMessage(error) },
       // The only fields the Server refuses as missing here, a count of 0.
       [RefusalReason.FIELD_REQUIRED]:
         refusalOf(error).field === "settings.keep_behind_minutes"
