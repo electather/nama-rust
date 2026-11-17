@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE library_folders SET looks_empty = 0 WHERE library_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "1a60c1bce07879e43e1501d2a4ac4bd0931980c53316a371872010e2f1fb18d8"
+}

@@ -51,6 +51,9 @@ pub(super) struct Walked {
     unreadable: Vec<PathBuf>,
     /// The Library's folders the Server can't write to.
     pub(super) read_only: Vec<String>,
+    /// The Library's folders the walk read and found no file in, as an unmounted share's
+    /// mountpoint reads.
+    empty: Vec<String>,
 }
 
 /// Blocks, so call it from `spawn_blocking`.
@@ -65,10 +68,15 @@ pub(super) fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Wal
             .follow_links(true)
             .into_iter()
             .filter_entry(|entry| entry.depth() == 0 || !is_hidden(entry.file_name()));
+        let mut empty = true;
         for entry in entries {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
+            // An unreadable folder isn't empty: its items are kept as unreadable, with no warning.
+            empty &= entry
+                .as_ref()
+                .is_ok_and(|entry| !entry.file_type().is_file());
             match entry.and_then(|entry| listed_file(root, &entry)) {
                 Ok(Some(file)) if is_video(Path::new(&file.path)) => walked.files.push(file),
                 Ok(Some(file)) if is_sidecar(Path::new(&file.path)) => walked.sidecars.push(file),
@@ -80,6 +88,9 @@ pub(super) fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Wal
                     walked.unreadable.push(path);
                 }
             }
+        }
+        if empty {
+            walked.empty.push(folder.clone());
         }
     }
     Ok(walked)
@@ -222,6 +233,29 @@ pub(super) fn plan(
         }
     }
     (planned, summary)
+}
+
+impl Walked {
+    /// Keeps what's `stored` under each folder the walk found no file in, but those `released`,
+    /// as if it couldn't be read, so an unmounted share doesn't empty the Library. Returns the
+    /// folders it keeps something under: one that never had files isn't held. Call it before
+    /// taking the sidecars and images out, so theirs are kept too.
+    pub(super) fn hold_empty(
+        &mut self,
+        stored: &HashMap<String, Stored>,
+        released: &HashSet<String>,
+    ) -> Vec<String> {
+        let held: Vec<String> = (mem::take(&mut self.empty).into_iter())
+            .filter(|folder| !released.contains(folder))
+            .filter(|folder| {
+                stored
+                    .keys()
+                    .any(|path| Path::new(path).starts_with(folder))
+            })
+            .collect();
+        self.unreadable.extend(held.iter().map(PathBuf::from));
+        held
+    }
 }
 
 /// The images a walk found that may stand in for a Movie's, and the folders and files it couldn't

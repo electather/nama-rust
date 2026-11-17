@@ -120,6 +120,12 @@ message Library {
   // Server's own Matching alone. `ListPlugins` lists the Plugins with
   // `EXTENSION_POINT_RECOGNISER` that may be named.
   repeated string recogniser_ids = 9;
+  // Those of `folders` the Library's last scan found no file in where an earlier one found some,
+  // as an unmounted share's mountpoint reads. That scan removed nothing stored under them, and
+  // each later one keeps it, until one finds files there again or `ScanLibrary` names the folder
+  // in `remove_missing_in`. A folder that never had files isn't listed. Empty in `ListLibraries`
+  // for a caller without `PERMISSION_MANAGE_LIBRARIES`.
+  repeated string empty_folders = 10;
 }
 
 message CreateLibraryRequest {
@@ -191,6 +197,9 @@ message DeleteLibraryResponse {}
 message ScanLibraryRequest {
   // The Library to scan.
   int64 id = 1;
+  // One of the Library's `empty_folders`, whose items this scan removes, as it would from a folder
+  // that holds files: the Admin's "Remove missing items". Any other folder changes nothing.
+  optional string remove_missing_in = 2;
 }
 
 message ScanLibraryResponse {}

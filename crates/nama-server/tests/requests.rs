@@ -1662,6 +1662,8 @@ async fn an_available_request_stays_available_after_its_movie_leaves_the_library
     )
     .await;
 
+    // Another file keeps the folder from reading empty, which would keep the file's items (#911).
+    library.write("notes.txt", b"");
     fs::remove_dir_all(library.folder().join("Alien (1979)")).unwrap();
     fixture.server.scan(library.id).await;
     removed.next().await;

@@ -5,8 +5,11 @@
 //! unless an older version of the name parser read it (ADR 0023), or it is unparsed and the
 //! Library's enabled Recognisers changed since its last scan (ADR 0050); a new or changed file is
 //! parsed and stored; a stored file that's gone is removed, except under a folder that couldn't be
-//! read, so a drive that isn't mounted doesn't empty the Library. A renamed file is a file gone and
-//! a file found. Changes are written in batches of [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
+//! read, or one of the Library's folders that held files and now holds none, as an unmounted
+//! share's mountpoint reads, so a drive that isn't mounted doesn't empty the Library. Such a folder
+//! is recorded as looking empty until a scan finds files there, or an Admin has one remove what's
+//! missing ([`Scanner::remove_missing`]). A renamed file is a file gone and a file found. Changes
+//! are written in batches of [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
 //! Once the Server is serving, a Library is also scanned when its folders change (see [`watch`]).
 //!
 //! Files are only listed and their metadata read, never opened, except the images beside a Movie's
@@ -179,6 +182,11 @@ struct Inner {
     cancel: CancellationToken,
     /// Libraries with a background scan waiting to start.
     queued: Mutex<HashSet<i64>>,
+    /// Folders, by Library id, whose next scan removes what's stored under them though they read
+    /// empty.
+    // ponytail: kept in memory, so a restart or a failed scan before the removal leaves the folder
+    // held, and the Admin presses again; store it if that turns out to bother anyone.
+    released: Mutex<HashSet<(i64, String)>>,
     /// How many scans of each Library have published `ScanStarted`, so Probing knows whether a
     /// later scan has. Held while publishing either, so none comes out of order.
     started: Mutex<HashMap<i64, u64>>,
@@ -231,6 +239,7 @@ impl Scanner {
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 queued: Mutex::default(),
+                released: Mutex::default(),
                 started: Mutex::default(),
                 locks,
                 watches: watch::Watches::default(),
@@ -243,6 +252,18 @@ impl Scanner {
     /// waiting to follow, that one does.
     pub(crate) async fn start(&self, id: i64) -> Result<(), LibraryError> {
         self.inner.libraries.get(id).await?;
+        self.queue(id);
+        Ok(())
+    }
+
+    /// Starts scanning the Library `id` in the background, as [`Self::start`] does, removing what's
+    /// stored under its `folder` even if the folder reads empty, that once. A `folder` its last
+    /// scan didn't find empty is scanned as [`Self::start`] would.
+    pub(crate) async fn remove_missing(&self, id: i64, folder: String) -> Result<(), LibraryError> {
+        let library = self.inner.libraries.get(id).await?;
+        if library.empty_folders.contains(&folder) {
+            lock(&self.inner.released).insert((id, folder));
+        }
         self.queue(id);
         Ok(())
     }
@@ -565,6 +586,19 @@ impl Scanner {
         let walking = cancel.clone();
         let mut found =
             tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
+        let released = (lock(&self.inner.released).extract_if(|(library_id, _)| *library_id == id))
+            .map(|(_, folder)| folder)
+            .collect();
+        let held = found.hold_empty(&stored, &released);
+        for folder in &held {
+            tracing::warn!(
+                library = id,
+                "{folder} looks empty. Is the drive connected? Nothing was removed."
+            );
+        }
+        if held != library.empty_folders {
+            self.inner.libraries.set_empty_folders(id, held).await?;
+        }
         let sidecars = found.take_sidecars();
         let images = found.take_images();
         if found.read_only != library.read_only {

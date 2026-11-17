@@ -1536,7 +1536,7 @@ async fn a_removed_versions_cached_subtitles_are_removed() {
     let fx = Fixture::subtitled_alien().await;
     fx.cache_subtitles().await;
 
-    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+    fx.remove_file(ALIEN_1080P);
 
     fx.scan_and_probe().await;
 
@@ -1732,7 +1732,7 @@ async fn a_pgs_track_is_read_out_as_sup_once_and_thrown_away_with_its_versions_w
     let read_outs: Vec<_> = runs.lines().filter(|run| run.contains("0:s:0")).collect();
     assert_eq!(read_outs.len(), 1, "{runs}");
     assert!(read_outs[0].contains("-c:s copy -f sup"), "{runs}");
-    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+    fx.remove_file(ALIEN_1080P);
     fx.scan_and_probe().await;
     assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
 }
@@ -1778,7 +1778,7 @@ async fn a_vobsub_track_is_read_out_as_mks_once_and_thrown_away_with_its_version
         panic!("not one Version's subtitles cached");
     };
     assert!(cached.join("4.mks").exists());
-    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+    fx.remove_file(ALIEN_1080P);
     fx.scan_and_probe().await;
     assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
 }

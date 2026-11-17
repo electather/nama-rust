@@ -54,6 +54,14 @@ pub struct LibraryView<'a> {
     ///
     /// Field 9: `recogniser_ids`
     pub recogniser_ids: ::buffa::RepeatedView<'a, &'a str>,
+    /// Those of `folders` the Library's last scan found no file in where an earlier one found some,
+    /// as an unmounted share's mountpoint reads. That scan removed nothing stored under them, and
+    /// each later one keeps it, until one finds files there again or `ScanLibrary` names the folder
+    /// in `remove_missing_in`. A folder that never had files isn't listed. Empty in `ListLibraries`
+    /// for a caller without `PERMISSION_MANAGE_LIBRARIES`.
+    ///
+    /// Field 10: `empty_folders`
+    pub empty_folders: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
@@ -163,6 +171,17 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
                 )?;
                 view.recogniser_ids.push(__elem);
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.empty_folders.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -194,6 +213,7 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
             backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
             title_sources: self.title_sources.iter().map(|s| s.to_string()).collect(),
             recogniser_ids: self.recogniser_ids.iter().map(|s| s.to_string()).collect(),
+            empty_folders: self.empty_folders.iter().map(|s| s.to_string()).collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -233,6 +253,9 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         for v in &self.recogniser_ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.empty_folders {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -275,6 +298,9 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         }
         for v in &self.recogniser_ids {
             ::buffa::types::put_string_field(9u32, v, buf);
+        }
+        for v in &self.empty_folders {
+            ::buffa::types::put_string_field(10u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -327,6 +353,9 @@ impl<'__a> ::serde::Serialize for LibraryView<'__a> {
         }
         if !self.recogniser_ids.is_empty() {
             __map.serialize_entry("recogniserIds", &*self.recogniser_ids)?;
+        }
+        if !self.empty_folders.is_empty() {
+            __map.serialize_entry("emptyFolders", &*self.empty_folders)?;
         }
         __map.end()
     }
@@ -493,6 +522,17 @@ impl LibraryOwnedView {
     #[must_use]
     pub fn recogniser_ids(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().recogniser_ids
+    }
+    /// Those of `folders` the Library's last scan found no file in where an earlier one found some,
+    /// as an unmounted share's mountpoint reads. That scan removed nothing stored under them, and
+    /// each later one keeps it, until one finds files there again or `ScanLibrary` names the folder
+    /// in `remove_missing_in`. A folder that never had files isn't listed. Empty in `ListLibraries`
+    /// for a caller without `PERMISSION_MANAGE_LIBRARIES`.
+    ///
+    /// Field 10: `empty_folders`
+    #[must_use]
+    pub fn empty_folders(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().empty_folders
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<LibraryView<'static>>>
@@ -3730,6 +3770,11 @@ pub struct ScanLibraryRequestView<'a> {
     ///
     /// Field 1: `id`
     pub id: i64,
+    /// One of the Library's `empty_folders`, whose items this scan removes, as it would from a folder
+    /// that holds files: the Admin's "Remove missing items". Any other folder changes nothing.
+    ///
+    /// Field 2: `remove_missing_in`
+    pub remove_missing_in: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ScanLibraryRequestView<'a> {
@@ -3769,6 +3814,13 @@ impl<'a> ::buffa::MessageView<'a> for ScanLibraryRequestView<'a> {
                 )?;
                 view.id = ::buffa::types::decode_int64(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.remove_missing_in = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3792,6 +3844,7 @@ impl<'a> ::buffa::MessageView<'a> for ScanLibraryRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ScanLibraryRequest {
             id: self.id,
+            remove_missing_in: self.remove_missing_in.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3806,6 +3859,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ScanLibraryRequestView<'a> {
         if self.id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
         }
+        if let Some(ref v) = self.remove_missing_in {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3819,6 +3875,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ScanLibraryRequestView<'a> {
         use ::buffa::Enumeration as _;
         if self.id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.id, buf);
+        }
+        if let Some(ref v) = self.remove_missing_in {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3843,6 +3902,9 @@ impl<'__a> ::serde::Serialize for ScanLibraryRequestView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_zero_i64(&self.id) {
             __map.serialize_entry("id", &::buffa::json_helpers::ProtoJson(&self.id))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.remove_missing_in {
+            __map.serialize_entry("removeMissingIn", __v)?;
         }
         __map.end()
     }
@@ -3945,6 +4007,14 @@ impl ScanLibraryRequestOwnedView {
     #[must_use]
     pub fn id(&self) -> i64 {
         self.0.reborrow().id
+    }
+    /// One of the Library's `empty_folders`, whose items this scan removes, as it would from a folder
+    /// that holds files: the Admin's "Remove missing items". Any other folder changes nothing.
+    ///
+    /// Field 2: `remove_missing_in`
+    #[must_use]
+    pub fn remove_missing_in(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().remove_missing_in
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ScanLibraryRequestView<'static>>>

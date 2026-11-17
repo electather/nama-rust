@@ -83,3 +83,4 @@
 0083_watch_states_played_at.sql
 0084_keyframes_start.sql
 0085_watch_states_hidden.sql
+0086_looks_empty_folders.sql

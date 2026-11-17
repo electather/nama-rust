@@ -3,7 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { ImageChoice } from "@/components/edit-images";
 import { DeleteLibrary, EditLibrary } from "@/components/library-form";
-import { ScanButton, ScanStatus } from "@/components/library-scan";
+import { EmptyFolders, ScanButton, ScanStatus } from "@/components/library-scan";
 import { Page } from "@/components/page";
 import { NotFound } from "@/components/route-error";
 import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
@@ -38,6 +38,7 @@ function LibraryPage() {
           <li key={folder}>{folder}</li>
         ))}
       </ul>
+      <EmptyFolders library={library} />
       {/* Pulled back by the buttons' own padding, so the first one's words line up with the name. */}
       <div className="mt-6 -ms-4 flex flex-wrap items-center gap-1">
         <ScanButton library={library} />
