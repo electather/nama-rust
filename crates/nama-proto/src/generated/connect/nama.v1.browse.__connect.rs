@@ -515,10 +515,11 @@ pub trait BrowseService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the caller's Continue Watching: the Movies and Episodes whose position is past 0 and
-    /// that they haven't played, most recent first by when their Watch State last changed. Only
-    /// those Matched in some Library are listed, each in the oldest Library that has it. The Watch
-    /// State of the rest is kept, so they are listed again once a rescan Matches them.
+    /// Lists a page of the caller's Continue Watching: the Movies and Episodes whose position is
+    /// past 0 and that they haven't played, most recent first by when their Watch State last
+    /// changed. Only those Matched in some Library are listed, each in the oldest Library that has
+    /// it. The Watch State of the rest is kept, so they are listed again once a rescan Matches them.
+    /// Fails with `invalid_argument` if `page.token` isn't one an earlier call returned.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-17, #882
+
+- None that `buf breaking` reports: in `nama/v1/browse.proto`, `ListContinueWatchingRequest` gains `page` (1), a `PageRequest`, and `ListContinueWatchingResponse` gains `page` (2), a `PageResponse`.
+- `ListContinueWatching` lists a page of Continue Watching (ADR 0055), most recent first, where it listed all of it.
+- A client built before gets only the 50 most recent entries and finds no next token; it must regenerate and send `page`. The web app is the only client.
+
 ## 2026-11-17, #879
 
 - None that `buf breaking` reports: in `nama/v1/request.proto`, `ListRequestsRequest.state` (1), `page_size` (2) and `page_token` (3), and `ListRequestsResponse.next_page_token` (3), are deleted with their numbers and names reserved.
