@@ -1,6 +1,12 @@
 import { createClient, type Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
-import { type QueryClient, queryOptions, skipToken, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  type QueryClient,
+  queryOptions,
+  skipToken,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import {
@@ -32,8 +38,8 @@ export function scanQuery(libraryId: bigint) {
 export function unmatchedKey(libraryId?: bigint) {
   return createConnectQueryKey({
     schema: MatchService.method.listUnmatchedItems,
-    ...(libraryId !== undefined && { input: { libraryId } }),
-    cardinality: "finite",
+    ...(libraryId !== undefined && { input: { filter: { libraryId } } }),
+    cardinality: "infinite",
   });
 }
 
@@ -168,9 +174,16 @@ function dropDecided({ event }: Event, queryClient: QueryClient) {
 // Matches turns out to load the Server.
 function dropUnmatched(queryClient: QueryClient, libraryId: bigint, itemId: bigint) {
   const queryKey = unmatchedKey(libraryId);
-  queryClient.setQueriesData<ListUnmatchedItemsResponse>(
+  queryClient.setQueriesData<InfiniteData<ListUnmatchedItemsResponse>>(
     { queryKey },
-    (list) => list && { ...list, items: list.items.filter((item) => item.itemId !== itemId) },
+    (list) =>
+      list && {
+        ...list,
+        pages: list.pages.map((page) => ({
+          ...page,
+          items: page.items.filter((item) => item.itemId !== itemId),
+        })),
+      },
   );
   void queryClient.invalidateQueries({ queryKey });
 }

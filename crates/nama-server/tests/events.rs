@@ -16,7 +16,7 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{
     Event, EventType, LibraryItemAdded, LibraryKind, ListUnmatchedItemsRequest, MatchServiceClient,
     MatchingFinished, ProbingFinished, RefusalReason, ScanFinished, ScanProgress, ScanStarted,
-    SubscribeRequest, event,
+    SubscribeRequest, UnmatchedItemFilter, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -328,7 +328,11 @@ async fn matching_finished_comes_once_after_a_scans_items_are_matched_or_unmatch
     let events = server.scan_until(media.id, is_probing_finished).await;
     let unmatched = MatchServiceClient::new(HttpClient::plaintext(), server.client_config())
         .list_unmatched_items(ListUnmatchedItemsRequest {
-            library_id: media.id,
+            filter: UnmatchedItemFilter {
+                library_id: media.id,
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         })
         .await

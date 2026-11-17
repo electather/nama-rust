@@ -1147,8 +1147,8 @@ export const ListEpisodesResponseSchema: GenMessage<ListEpisodesResponse> = /*@_
   messageDesc(file_nama_v1_browse, 25);
 
 /**
- * A Movie or Episode the caller has started and not played, with what a client needs to show it
- * and resume it.
+ * A Movie or Episode in the caller's Continue Watching, with what a client needs to show it and
+ * resume or start it.
  *
  * @generated from message nama.v1.ContinueWatchingEntry
  */
@@ -1790,10 +1790,14 @@ export const BrowseService: GenService<{
     output: typeof ListEpisodesResponseSchema;
   },
   /**
-   * Lists a page of the caller's Continue Watching: the Movies and Episodes whose position is
-   * past 0 and that they haven't played, most recent first by when their Watch State last
-   * changed. Only those Matched in some Library are listed, each in the oldest Library that has
-   * it. The Watch State of the rest is kept, so they are listed again once a rescan Matches them.
+   * Lists a page of the caller's Continue Watching, most recent first by when their Watch State
+   * last changed: the Movies whose position is past 0 and that they haven't played, and one
+   * Episode of each Show they've watched, listed by its latest Watch State of any Episode. That
+   * Episode is the one they most recently started and haven't played, or else the Show's next
+   * Episode, which has no Watch State: the first unplayed one after the one they played most
+   * recently, in aired order, Specials aside. Only those Matched in some Library are listed,
+   * each in the oldest Library that has it. The Watch State of the rest is kept, so they are
+   * listed again once a rescan Matches them.
    * Fails with `invalid_argument` if `page.token` isn't one an earlier call returned.
    *
    * @generated from rpc nama.v1.BrowseService.ListContinueWatching

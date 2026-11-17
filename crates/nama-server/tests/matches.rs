@@ -20,7 +20,7 @@ use nama_proto::nama::v1::{
     ExternalId, GetRequestRequest, LibraryKind, ListEpisodesRequest, ListUnmatchedItemsRequest,
     ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason, RequestServiceClient,
     RequestState, SearchTitlesRequest, SetMatchRequest, SetMatchResponse, TitleCandidate,
-    TitleKind, UnmatchedItem, UnmatchedReason,
+    TitleKind, UnmatchedItem, UnmatchedItemFilter, UnmatchedReason,
 };
 use refused::assert_refused;
 use server::{Builder, Library, TestServer};
@@ -157,7 +157,11 @@ impl Fixture {
     async fn needs_a_match(&self) -> ListUnmatchedItemsResponse {
         self.matches
             .list_unmatched_items(ListUnmatchedItemsRequest {
-                library_id: self.library,
+                filter: UnmatchedItemFilter {
+                    library_id: self.library,
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
             })
             .await
@@ -742,25 +746,6 @@ async fn clearing_an_episodes_match_lists_every_episode_of_its_show_as_cleared_b
             (items[pilot], CLEARED_BY_HAND.into(), 0),
             (items[second], CLEARED_BY_HAND.into(), 0)
         ]
-    );
-}
-
-#[tokio::test]
-async fn listing_the_unmatched_items_of_a_library_that_does_not_exist_is_not_found() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-
-    let refused = fx
-        .matches
-        .list_unmatched_items(ListUnmatchedItemsRequest {
-            library_id: fx.library + 1,
-            ..Default::default()
-        })
-        .await;
-
-    assert_refused(
-        refused,
-        ErrorCode::NotFound,
-        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
     );
 }
 

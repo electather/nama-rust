@@ -423,7 +423,7 @@ fn started_to_proto(started: Started, images: &ShownImages) -> proto::ContinueWa
             state,
         } => {
             let started_episode = proto::ContinueWatchingEpisode {
-                episode: episode_to_proto(episode, Some(state), images).into(),
+                episode: episode_to_proto(episode, state, images).into(),
                 show: show_to_proto(&show, images).into(),
                 ..Default::default()
             };

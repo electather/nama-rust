@@ -1,22 +1,26 @@
 import type { Transport } from "@connectrpc/connect";
-import { createQueryOptions, useSuspenseQuery, useTransport } from "@connectrpc/connect-query";
-import { useSuspenseQueries } from "@tanstack/react-query";
+import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useId, useState } from "react";
 
 import { Page } from "@/components/page";
+import { ShowMore } from "@/components/show-more";
 import { UnmatchedRow } from "@/components/unmatched-item";
 import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
-import { type ListUnmatchedItemsResponse, MatchService } from "@/gen/nama/v1/match_pb";
+import {
+  type ListUnmatchedItemsResponse,
+  MatchService,
+  type UnmatchedItem,
+} from "@/gen/nama/v1/match_pb";
+import { pagedQuery, usePaged } from "@/lib/paged";
 
 const librariesQuery = (transport: Transport) =>
   createQueryOptions(LibraryService.method.listLibraries, {}, { transport });
-const unmatchedQuery = (library: Library, transport: Transport) =>
-  createQueryOptions(
-    MatchService.method.listUnmatchedItems,
-    { libraryId: library.id },
-    { transport },
-  );
+
+/** `ListUnmatchedItems`' first page of `library`'s Unmatched Items. */
+function firstPageOf(library: Library) {
+  return { filter: { libraryId: library.id }, page: { token: "" } };
+}
 
 export const Route = createFileRoute("/_member/_admin/admin/needs-a-match")({
   validateSearch: (search: Record<string, unknown>): { library?: string } =>
@@ -30,7 +34,10 @@ export const Route = createFileRoute("/_member/_admin/admin/needs-a-match")({
     });
     await Promise.all(
       libraries.map((library) =>
-        queryClient.query({ ...unmatchedQuery(library, transport), staleTime: "static" }),
+        queryClient.infiniteQuery({
+          ...pagedQuery(MatchService.method.listUnmatchedItems, firstPageOf(library), transport),
+          staleTime: "static",
+        }),
       ),
     );
   },
@@ -67,32 +74,106 @@ function pickedLibraries(libraries: Library[], picked: string | undefined) {
 
 /** The Unmatched Items of each of `libraries` that has any, or that everything is Matched. */
 function UnmatchedLists({ libraries }: { libraries: Library[] }) {
-  const transport = useTransport();
-  const lists = useSuspenseQueries({
-    queries: libraries.map((library) => unmatchedQuery(library, transport)),
-  });
-  const needing = libraries
-    .map((library, index) => ({ library, list: lists[index]?.data }))
-    .filter(({ list }) => list !== undefined && list.items.length + list.unparsedPaths.length > 0);
   // One Item at a time is being fixed, so one Search button is on screen.
   const [fixing, setFixing] = useState<bigint>();
+  const toggle = (itemId: bigint) => {
+    setFixing(fixing === itemId ? undefined : itemId);
+  };
+  return <ListsFrom libraries={libraries} anyBefore={false} fixing={fixing} toggle={toggle} />;
+}
 
-  if (needing.length === 0) return <p className="mt-10 font-medium">Everything is Matched.</p>;
-  return needing.map(({ library, list }) => (
-    <LibrarySection key={library.id} library={library} list={list}>
-      {list?.items.map((item) => (
+/** Which Item is being fixed, and what opens or closes one. */
+interface Fixing {
+  fixing: bigint | undefined;
+  toggle: (itemId: bigint) => void;
+}
+
+/**
+ * The Unmatched Items of the first of `libraries` if it has any, then the rest's, or that
+ * everything is Matched if neither they nor the Libraries before them (`anyBefore`) have any.
+ * Each Library is a component of its own, since each pages through its list with a hook.
+ */
+function ListsFrom({
+  libraries: [library, ...rest],
+  anyBefore,
+  ...fixing
+}: { libraries: Library[]; anyBefore: boolean } & Fixing) {
+  if (library === undefined) {
+    return anyBefore ? undefined : <p className="mt-10 font-medium">Everything is Matched.</p>;
+  }
+  return <LibraryList library={library} rest={rest} anyBefore={anyBefore} {...fixing} />;
+}
+
+/** `library`'s Unmatched Items a page at a time, if it has any, then the `rest`'s. */
+function LibraryList({
+  library,
+  rest,
+  anyBefore,
+  fixing,
+  toggle,
+}: { library: Library; rest: Library[]; anyBefore: boolean } & Fixing) {
+  const { data, hasNextPage, fetchNextPage } = usePaged(
+    MatchService.method.listUnmatchedItems,
+    firstPageOf(library),
+  );
+  const { items, unparsedPaths, needsAMatch } = loaded(data.pages, hasNextPage);
+  return (
+    <>
+      {needsAMatch && (
+        <LibrarySection library={library} unparsedPaths={unparsedPaths}>
+          <UnmatchedRows items={items} libraryId={library.id} fixing={fixing} toggle={toggle} />
+          {hasNextPage && <ShowMore load={fetchNextPage} loaded={data.pages.length} />}
+        </LibrarySection>
+      )}
+      <ListsFrom
+        libraries={rest}
+        anyBefore={anyBefore || needsAMatch}
+        fixing={fixing}
+        toggle={toggle}
+      />
+    </>
+  );
+}
+
+/**
+ * The Items and unparsed paths `pages` list, and whether their Library needs a Match: pages yet to
+ * load (`hasNextPage`) count too, as an Event can take every loaded Item off before they load.
+ */
+function loaded(pages: ListUnmatchedItemsResponse[], hasNextPage: boolean) {
+  const items = pages.flatMap((page) => page.items);
+  // ponytail: only the first page carries them, and `usePaged` lets it go after 10 pages; keep
+  // them as it keeps `totalSize` if a Library that long turns up.
+  const unparsedPaths = pages.flatMap((page) => page.unparsedPaths);
+  return {
+    items,
+    unparsedPaths,
+    needsAMatch: items.length + unparsedPaths.length > 0 || hasNextPage,
+  };
+}
+
+/** `items`, the Unmatched Items of the Library `libraryId`, each with its Find a Match. */
+function UnmatchedRows({
+  items,
+  libraryId,
+  fixing,
+  toggle,
+}: { items: UnmatchedItem[]; libraryId: bigint } & Fixing) {
+  return (
+    // Pulled out by the rows' own padding, so the titles line up with the heading.
+    <ul className="-mx-3 mt-2 flex flex-col">
+      {items.map((item) => (
         <UnmatchedRow
           key={item.itemId}
           item={item}
-          libraryId={library.id}
+          libraryId={libraryId}
           open={fixing === item.itemId}
           onToggle={() => {
-            setFixing(fixing === item.itemId ? undefined : item.itemId);
+            toggle(item.itemId);
           }}
         />
       ))}
-    </LibrarySection>
-  ));
+    </ul>
+  );
 }
 
 function LibraryFilter({
@@ -131,11 +212,11 @@ function LibraryFilter({
 
 function LibrarySection({
   library,
-  list,
+  unparsedPaths,
   children,
 }: {
   library: Library;
-  list: ListUnmatchedItemsResponse | undefined;
+  unparsedPaths: string[];
   children: ReactNode;
 }) {
   const heading = useId();
@@ -144,9 +225,8 @@ function LibrarySection({
       <h2 id={heading} className="font-medium">
         {library.name}
       </h2>
-      {/* Pulled out by the rows' own padding, so the titles line up with the heading. */}
-      <ul className="-mx-3 mt-2 flex flex-col">{children}</ul>
-      {list && list.unparsedPaths.length > 0 && (
+      {children}
+      {unparsedPaths.length > 0 && (
         <div className="mt-6">
           <h3 className="text-sm font-medium">Files to rename</h3>
           <p className="mt-1 text-sm text-pretty text-muted-foreground">
@@ -154,7 +234,7 @@ function LibrarySection({
             Library.
           </p>
           <ul className="mt-2 flex flex-col gap-1 text-sm wrap-anywhere">
-            {list.unparsedPaths.map((path) => (
+            {unparsedPaths.map((path) => (
               <li key={path}>{path}</li>
             ))}
           </ul>
