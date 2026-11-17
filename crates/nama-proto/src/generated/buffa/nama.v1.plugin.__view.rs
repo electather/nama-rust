@@ -6860,7 +6860,8 @@ impl ::serde::Serialize for PluginOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call that answers clears it, and so do disabling the Plugin and a restart.
+/// An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call
+/// that answers clears it, and so do disabling the Plugin and a restart.
 #[derive(Clone, Debug, Default)]
 pub struct ExtensionPointFailureView<'a> {
     /// The point that failed.

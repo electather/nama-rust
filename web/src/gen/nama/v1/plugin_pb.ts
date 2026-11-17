@@ -589,7 +589,8 @@ export const PluginSchema: GenMessage<Plugin> = /*@__PURE__*/
   messageDesc(file_nama_v1_plugin, 20);
 
 /**
- * An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call that answers clears it, and so do disabling the Plugin and a restart.
+ * An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call
+ * that answers clears it, and so do disabling the Plugin and a restart.
  *
  * @generated from message nama.v1.ExtensionPointFailure
  */

@@ -106,19 +106,20 @@ impl Plugin for Listens {
 
 /// Tells `points`' [`Told`]s, each call ending in `result`, and gives the call a while to end.
 async fn tell(points: &ExtensionPoints, result: Result<(), &'static str>) -> Option<Failing> {
-    let before = points.failing(&PLUGIN, PointKey::provide::<dyn Told>());
+    let told = PointKey::provide::<dyn Told>();
+    let before = points.failing(&PLUGIN, told);
     points.tell_each(move |_, _: Arc<dyn Told>| async move {
         result.map_err(Box::<dyn Error + Send + Sync>::from)
     });
     // The call runs as its own task, which records its outcome when it ends.
     for _ in 0..100 {
         tokio::task::yield_now().await;
-        let now = points.failing(&PLUGIN, PointKey::provide::<dyn Told>());
+        let now = points.failing(&PLUGIN, told);
         if now != before {
             return now;
         }
     }
-    points.failing(&PLUGIN, PointKey::provide::<dyn Told>())
+    points.failing(&PLUGIN, told)
 }
 
 #[tokio::test]

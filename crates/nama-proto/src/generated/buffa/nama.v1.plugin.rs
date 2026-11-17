@@ -4439,7 +4439,8 @@ pub const __PLUGIN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::typ
     from_json: ::buffa::type_registry::any_from_json::<Plugin>,
     is_wkt: false,
 };
-/// An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call that answers clears it, and so do disabling the Plugin and a restart.
+/// An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call
+/// that answers clears it, and so do disabling the Plugin and a restart.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
