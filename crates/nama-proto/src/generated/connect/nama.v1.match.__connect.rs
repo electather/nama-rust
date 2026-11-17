@@ -328,11 +328,12 @@ pub trait MatchService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the items of a Library that need a Match, by path: those Matching left Unmatched,
-    /// those it hasn't Matched yet, such as when no title source was enabled, and those pinned
-    /// Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. Also lists the
-    /// Library's files whose names didn't parse, which an Admin fixes by renaming. Fails with
-    /// `not_found` if there is no such Library.
+    /// Lists a page of the items of a Library that need a Match, in `sort`'s order: those Matching
+    /// left Unmatched, those it hasn't Matched yet, such as when no title source was enabled, and
+    /// those pinned Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. The first
+    /// page also lists the Library's files whose names didn't parse, which an Admin fixes by
+    /// renaming. Fails with `not_found` if there is no such Library, and with `invalid_argument` if
+    /// `page.token` isn't one a call with the same `filter`, `sort` and `direction` returned.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

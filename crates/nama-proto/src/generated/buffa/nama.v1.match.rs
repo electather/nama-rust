@@ -145,6 +145,163 @@ impl ::buffa::Enumeration for TitleKind {
         &[Self::TITLE_KIND_UNSPECIFIED, Self::TITLE_KIND_MOVIE, Self::TITLE_KIND_SHOW]
     }
 }
+/// The order `ListUnmatchedItems` lists items in, each tie broken by item id.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum UnmatchedItemSort {
+    /// `UNMATCHED_ITEM_SORT_PATH`.
+    UNMATCHED_ITEM_SORT_UNSPECIFIED = 0i32,
+    /// By the path of the file that holds the item.
+    UNMATCHED_ITEM_SORT_PATH = 1i32,
+    /// By when a scan found the item.
+    UNMATCHED_ITEM_SORT_FOUND = 2i32,
+}
+impl UnmatchedItemSort {
+    ///Idiomatic alias for [`Self::UNMATCHED_ITEM_SORT_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::UNMATCHED_ITEM_SORT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::UNMATCHED_ITEM_SORT_PATH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Path: Self = Self::UNMATCHED_ITEM_SORT_PATH;
+    ///Idiomatic alias for [`Self::UNMATCHED_ITEM_SORT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Found: Self = Self::UNMATCHED_ITEM_SORT_FOUND;
+}
+impl ::core::default::Default for UnmatchedItemSort {
+    fn default() -> Self {
+        Self::UNMATCHED_ITEM_SORT_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for UnmatchedItemSort {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for UnmatchedItemSort {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = UnmatchedItemSort;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!(
+                        "a string, integer, or null for ", stringify!(UnmatchedItemSort)
+                    ),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<UnmatchedItemSort, E> {
+                <UnmatchedItemSort as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<UnmatchedItemSort, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <UnmatchedItemSort as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<UnmatchedItemSort, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <UnmatchedItemSort as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<UnmatchedItemSort, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for UnmatchedItemSort {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for UnmatchedItemSort {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::UNMATCHED_ITEM_SORT_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::UNMATCHED_ITEM_SORT_PATH),
+            2i32 => ::core::option::Option::Some(Self::UNMATCHED_ITEM_SORT_FOUND),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::UNMATCHED_ITEM_SORT_UNSPECIFIED => "UNMATCHED_ITEM_SORT_UNSPECIFIED",
+            Self::UNMATCHED_ITEM_SORT_PATH => "UNMATCHED_ITEM_SORT_PATH",
+            Self::UNMATCHED_ITEM_SORT_FOUND => "UNMATCHED_ITEM_SORT_FOUND",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "UNMATCHED_ITEM_SORT_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::UNMATCHED_ITEM_SORT_UNSPECIFIED)
+            }
+            "UNMATCHED_ITEM_SORT_PATH" => {
+                ::core::option::Option::Some(Self::UNMATCHED_ITEM_SORT_PATH)
+            }
+            "UNMATCHED_ITEM_SORT_FOUND" => {
+                ::core::option::Option::Some(Self::UNMATCHED_ITEM_SORT_FOUND)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::UNMATCHED_ITEM_SORT_UNSPECIFIED,
+            Self::UNMATCHED_ITEM_SORT_PATH,
+            Self::UNMATCHED_ITEM_SORT_FOUND,
+        ]
+    }
+}
 /// Why an item is Unmatched, which says how to fix it.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -1641,16 +1798,44 @@ pub const __CLEAR_MATCH_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListUnmatchedItemsRequest {
-    /// The Library whose items to list.
+    /// Which items to list.
     ///
-    /// Field 1: `library_id`
+    /// Field 2: `filter`
     #[serde(
-        rename = "libraryId",
-        alias = "library_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "filter",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub library_id: i64,
+    pub filter: ::buffa::MessageField<
+        UnmatchedItemFilter,
+        ::buffa::Inline<UnmatchedItemFilter>,
+    >,
+    /// The order to list them in.
+    ///
+    /// Field 3: `sort`
+    #[serde(
+        rename = "sort",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub sort: ::buffa::EnumValue<UnmatchedItemSort>,
+    /// Which way `sort` runs. Unspecified lists by path from A, and the item found most recently
+    /// first.
+    ///
+    /// Field 5: `direction`
+    #[serde(
+        rename = "direction",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub direction: ::buffa::EnumValue<SortDirection>,
+    /// The page of items to list.
+    ///
+    /// Field 4: `page`
+    #[serde(
+        rename = "page",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub page: ::buffa::MessageField<PageRequest, ::buffa::Inline<PageRequest>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1658,7 +1843,10 @@ pub struct ListUnmatchedItemsRequest {
 impl ::core::fmt::Debug for ListUnmatchedItemsRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ListUnmatchedItemsRequest")
-            .field("library_id", &self.library_id)
+            .field("filter", &self.filter)
+            .field("sort", &self.sort)
+            .field("direction", &self.direction)
+            .field("page", &self.page)
             .finish()
     }
 }
@@ -1677,6 +1865,220 @@ impl ::buffa::MessageName for ListUnmatchedItemsRequest {
     const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ListUnmatchedItemsRequest";
 }
 impl ::buffa::Message for ListUnmatchedItemsRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.filter.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.filter.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.sort.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.direction.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.filter.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.filter.write_to(__cache, buf);
+        }
+        {
+            let val = self.sort.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
+        }
+        {
+            let val = self.direction.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(5u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.filter.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.sort = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.page.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.direction = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.filter = ::buffa::MessageField::none();
+        self.sort = ::buffa::EnumValue::from(0);
+        self.page = ::buffa::MessageField::none();
+        self.direction = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ListUnmatchedItemsRequest {
+    const PROTO_FQN: &'static str = "nama.v1.ListUnmatchedItemsRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ListUnmatchedItemsRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __LIST_UNMATCHED_ITEMS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.ListUnmatchedItemsRequest",
+    to_json: ::buffa::type_registry::any_to_json::<ListUnmatchedItemsRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<ListUnmatchedItemsRequest>,
+    is_wkt: false,
+};
+/// Which items `ListUnmatchedItems` lists.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct UnmatchedItemFilter {
+    /// The Library whose items to list.
+    ///
+    /// Field 1: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub library_id: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for UnmatchedItemFilter {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("UnmatchedItemFilter")
+            .field("library_id", &self.library_id)
+            .finish()
+    }
+}
+impl UnmatchedItemFilter {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.UnmatchedItemFilter";
+}
+::buffa::impl_default_instance!(UnmatchedItemFilter);
+impl ::buffa::MessageName for UnmatchedItemFilter {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "UnmatchedItemFilter";
+    const FULL_NAME: &'static str = "nama.v1.UnmatchedItemFilter";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.UnmatchedItemFilter";
+}
+impl ::buffa::Message for UnmatchedItemFilter {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -1737,8 +2139,8 @@ impl ::buffa::Message for ListUnmatchedItemsRequest {
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for ListUnmatchedItemsRequest {
-    const PROTO_FQN: &'static str = "nama.v1.ListUnmatchedItemsRequest";
+impl ::buffa::ExtensionSet for UnmatchedItemFilter {
+    const PROTO_FQN: &'static str = "nama.v1.UnmatchedItemFilter";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1746,7 +2148,7 @@ impl ::buffa::ExtensionSet for ListUnmatchedItemsRequest {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for ListUnmatchedItemsRequest {
+impl ::buffa::json_helpers::ProtoElemJson for UnmatchedItemFilter {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -1760,16 +2162,18 @@ impl ::buffa::json_helpers::ProtoElemJson for ListUnmatchedItemsRequest {
     }
 }
 #[doc(hidden)]
-pub const __LIST_UNMATCHED_ITEMS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.ListUnmatchedItemsRequest",
-    to_json: ::buffa::type_registry::any_to_json::<ListUnmatchedItemsRequest>,
-    from_json: ::buffa::type_registry::any_from_json::<ListUnmatchedItemsRequest>,
+pub const __UNMATCHED_ITEM_FILTER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.UnmatchedItemFilter",
+    to_json: ::buffa::type_registry::any_to_json::<UnmatchedItemFilter>,
+    from_json: ::buffa::type_registry::any_from_json::<UnmatchedItemFilter>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListUnmatchedItemsResponse {
+    /// The page's items.
+    ///
     /// Field 1: `items`
     #[serde(
         rename = "items",
@@ -1777,9 +2181,9 @@ pub struct ListUnmatchedItemsResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub items: ::buffa::alloc::vec::Vec<UnmatchedItem>,
-    /// The absolute paths of the Library's files whose names don't follow the naming conventions,
-    /// by path. They hold no items, so nothing can Match them and there's no item to pass to
-    /// `SetMatch`: renaming the file and rescanning the Library is the fix.
+    /// On the first page only, the absolute paths of the Library's files whose names don't follow
+    /// the naming conventions, by path. They hold no items, so nothing can Match them and there's no
+    /// item to pass to `SetMatch`: renaming the file and rescanning the Library is the fix.
     ///
     /// Field 2: `unparsed_paths`
     #[serde(
@@ -1789,6 +2193,15 @@ pub struct ListUnmatchedItemsResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub unparsed_paths: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The next page's token, and on the first page how many items the Library has that need a
+    /// Match.
+    ///
+    /// Field 3: `page`
+    #[serde(
+        rename = "page",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub page: ::buffa::MessageField<PageResponse, ::buffa::Inline<PageResponse>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1798,6 +2211,7 @@ impl ::core::fmt::Debug for ListUnmatchedItemsResponse {
         f.debug_struct("ListUnmatchedItemsResponse")
             .field("items", &self.items)
             .field("unparsed_paths", &self.unparsed_paths)
+            .field("page", &self.page)
             .finish()
     }
 }
@@ -1839,6 +2253,14 @@ impl ::buffa::Message for ListUnmatchedItemsResponse {
         for v in &self.unparsed_paths {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1859,6 +2281,14 @@ impl ::buffa::Message for ListUnmatchedItemsResponse {
         }
         for v in &self.unparsed_paths {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1896,6 +2326,17 @@ impl ::buffa::Message for ListUnmatchedItemsResponse {
                 )?;
                 self.unparsed_paths.push(__elem);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.page.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1906,6 +2347,7 @@ impl ::buffa::Message for ListUnmatchedItemsResponse {
     fn clear(&mut self) {
         self.items.clear();
         self.unparsed_paths.clear();
+        self.page = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

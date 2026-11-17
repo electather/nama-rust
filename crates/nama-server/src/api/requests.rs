@@ -731,11 +731,22 @@ impl From<requests::Error> for ConnectError {
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_TITLE_SOURCE, message),
             requests::Error::Quality(refused) => return refused.into(),
-            requests::Error::PageTokenInvalid(_) => {
-                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page.token")
-            }
+            requests::Error::PageTokenInvalid(invalid) => return invalid.into(),
             requests::Error::Database(err) => return database_failed(err),
         };
         refused.into()
+    }
+}
+
+/// The Connect error for a page token [`Page::read`](crate::page::Page::read) refused, for every
+/// paged list.
+impl From<crate::page::TokenInvalid> for ConnectError {
+    fn from(invalid: crate::page::TokenInvalid) -> Self {
+        refuse(
+            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
+            invalid.to_string(),
+        )
+        .field("page.token")
+        .into()
     }
 }

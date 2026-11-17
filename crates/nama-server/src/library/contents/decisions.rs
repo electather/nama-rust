@@ -6,7 +6,7 @@ use nama_plugin_api::{
     PluginId,
     metadata::{ExternalId, ExternalIds},
 };
-use nama_proto::nama::v1::Event;
+use nama_proto::nama::v1::{Event, PageResponse, SortDirection, UnmatchedItemSort};
 use sqlx::SqliteConnection;
 
 use super::{
@@ -16,6 +16,7 @@ use crate::{
     db::now,
     library::title_source::{Candidate, Season},
     library::versions::METADATA_VERSION,
+    page::Page,
     requests::{make_available, make_seasons_available},
 };
 
@@ -29,6 +30,80 @@ pub(crate) struct Unmatched {
     /// Whether an admin pinned it Unmatched with `ClearMatch`. Read from the pin, not stored as
     /// a reason, since `clear_match` stores none.
     pub(crate) cleared: bool,
+}
+
+/// Where an Unmatched Item sits in either order [`Contents::unmatched`] lists in: when a scan
+/// found it, and its file's path.
+pub(crate) type UnmatchedPlace = (i64, String);
+
+/// Hands `$query!` the SQL for the Items of the Library `?1` that need a Match, one row each in
+/// the shape of [`UnmatchedRow`], ending in a `WHERE` that more conditions can follow with `AND`.
+macro_rules! unmatched_sql {
+    ($query:ident) => {
+        $query!(
+            r#"SELECT library_items.id AS "id!", library_files.path,
+                      library_items.added_at, library_items.kind AS "kind: ItemKind",
+                      library_items.title, library_items.year, library_items.hint,
+                      library_items.season, library_items.episode,
+                      item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
+                      item_matches.tied_titles AS "tied_titles?",
+                      EXISTS (SELECT 1 FROM match_pins
+                              WHERE match_pins.library_id = library_files.library_id
+                                AND match_pins.kind = library_items.kind
+                                AND match_pins.title = library_items.title
+                                AND match_pins.year IS library_items.year
+                                AND match_pins.hint IS library_items.hint
+                                AND match_pins.pinned_id IS NULL) AS "cleared!: bool"
+               FROM library_items
+               JOIN library_files ON library_files.id = library_items.file_id
+               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+               WHERE library_files.library_id = ?1
+                 AND item_matches.state IS NOT 'matched'"#
+        )
+    };
+}
+
+/// A row of [`Contents::unmatched`], before it is read into an [`Unmatched`].
+struct UnmatchedRow {
+    id: i64,
+    path: String,
+    added_at: i64,
+    kind: ItemKind,
+    title: String,
+    year: Option<i64>,
+    hint: Option<String>,
+    season: Option<i64>,
+    episode: Option<i64>,
+    unmatched_reason: Option<ReasonColumn>,
+    tied_titles: Option<String>,
+    cleared: bool,
+}
+
+impl UnmatchedRow {
+    /// The row read in full, `None` if its Item no longer reads as one, or an error if its
+    /// stored reason doesn't.
+    fn into_unmatched(self) -> Option<Result<Unmatched, sqlx::Error>> {
+        let reason = self
+            .unmatched_reason
+            .map(|column| column.reason(self.tied_titles.as_deref()))
+            .transpose();
+        let item = ItemRow {
+            kind: self.kind,
+            title: Cow::Owned(self.title),
+            year: self.year,
+            hint: self.hint,
+            season: self.season,
+            episode: self.episode,
+        }
+        .into_item()?;
+        Some(reason.map(|reason| Unmatched {
+            id: self.id,
+            path: self.path,
+            item,
+            reason,
+            cleared: self.cleared,
+        }))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -273,57 +348,94 @@ impl Contents {
             .await
     }
 
-    /// The Items of the Library `library` that need a Match, by path: those Matching left
-    /// Unmatched or hasn't decided about, including those pinned Unmatched.
-    pub(crate) async fn unmatched(&self, library: i64) -> Result<Vec<Unmatched>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT library_items.id AS "id!", library_files.path,
-                      library_items.kind AS "kind: ItemKind", library_items.title,
-                      library_items.year, library_items.hint, library_items.season,
-                      library_items.episode,
-                      item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
-                      item_matches.tied_titles AS "tied_titles?",
-                      EXISTS (SELECT 1 FROM match_pins
-                              WHERE match_pins.library_id = library_files.library_id
-                                AND match_pins.kind = library_items.kind
-                                AND match_pins.title = library_items.title
-                                AND match_pins.year IS library_items.year
-                                AND match_pins.hint IS library_items.hint
-                                AND match_pins.pinned_id IS NULL) AS "cleared!: bool"
-               FROM library_items
-               JOIN library_files ON library_files.id = library_items.file_id
-               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
-               WHERE library_files.library_id = ?
-                 AND item_matches.state IS NOT 'matched'
-               ORDER BY library_files.path, library_items.id"#,
-            library
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        rows.into_iter()
-            .filter_map(|row| {
-                let reason = row
-                    .unmatched_reason
-                    .map(|column| column.reason(row.tied_titles.as_deref()))
-                    .transpose();
-                let item = ItemRow {
-                    kind: row.kind,
-                    title: Cow::Owned(row.title),
-                    year: row.year,
-                    hint: row.hint,
-                    season: row.season,
-                    episode: row.episode,
-                }
-                .into_item()?;
-                Some(reason.map(|reason| Unmatched {
-                    id: row.id,
-                    path: row.path,
-                    item,
-                    reason,
-                    cleared: row.cleared,
-                }))
-            })
-            .collect()
+    /// The page `page` of the Items of the Library `library` that need a Match, sorted by
+    /// `order`'s key in its direction, an unspecified one running ascending: those Matching left
+    /// Unmatched or hasn't decided about, including those pinned Unmatched. Only the first page
+    /// counts them all.
+    pub(crate) async fn unmatched(
+        &self,
+        library: i64,
+        order: (UnmatchedItemSort, SortDirection),
+        page: &Page<UnmatchedPlace>,
+    ) -> Result<(Vec<Unmatched>, PageResponse), sqlx::Error> {
+        let (sort, direction) = order;
+        let descending = direction == SortDirection::SORT_DIRECTION_DESCENDING;
+        let (after_place, after_id) = page.after.clone().unzip();
+        let (added_at, path) = after_place.unzip();
+        let limit = page.limit();
+        // Each query runs either way: descending, its `DESC` terms order the rows and the plain
+        // ones only tie; ascending, its `DESC` terms are all NULL, so the plain ones order them.
+        macro_rules! by_path {
+            ($unmatched:literal) => {
+                sqlx::query_as!(
+                    UnmatchedRow,
+                    $unmatched
+                        + " AND (?2 IS NULL
+                                OR CASE WHEN ?5
+                                   THEN (library_files.path, library_items.id) < (?2, ?3)
+                                   ELSE (library_files.path, library_items.id) > (?2, ?3) END)
+                           ORDER BY CASE WHEN ?5 THEN library_files.path END DESC,
+                                    library_files.path,
+                                    CASE WHEN ?5 THEN library_items.id END DESC,
+                                    library_items.id
+                           LIMIT ?4",
+                    library,
+                    path,
+                    after_id,
+                    limit,
+                    descending,
+                )
+            };
+        }
+        macro_rules! by_found {
+            ($unmatched:literal) => {
+                sqlx::query_as!(
+                    UnmatchedRow,
+                    $unmatched
+                        + " AND (?2 IS NULL
+                                OR CASE WHEN ?5
+                                   THEN (library_items.added_at, library_items.id) < (?2, ?3)
+                                   ELSE (library_items.added_at, library_items.id) > (?2, ?3) END)
+                           ORDER BY CASE WHEN ?5 THEN library_items.added_at END DESC,
+                                    library_items.added_at,
+                                    CASE WHEN ?5 THEN library_items.id END DESC,
+                                    library_items.id
+                           LIMIT ?4",
+                    library,
+                    added_at,
+                    after_id,
+                    limit,
+                    descending,
+                )
+            };
+        }
+        macro_rules! count {
+            ($unmatched:literal) => {
+                sqlx::query_scalar!(
+                    r#"SELECT COUNT(*) AS "count!: u32" FROM ("# + $unmatched + ")",
+                    library
+                )
+            };
+        }
+        // One snapshot, so the count and the page agree.
+        let mut tx = self.db.reader().begin().await?;
+        // ponytail: SQLite sorts every Unmatched Item of the Library to list one page; index
+        // `added_at` if Libraries with tens of thousands of them turn up.
+        let mut rows = if sort == UnmatchedItemSort::UNMATCHED_ITEM_SORT_FOUND {
+            unmatched_sql!(by_found).fetch_all(&mut *tx).await?
+        } else {
+            unmatched_sql!(by_path).fetch_all(&mut *tx).await?
+        };
+        let mut paging = page.finish(&mut rows, |row| ((row.added_at, row.path.clone()), row.id));
+        if page.is_first() {
+            let total = unmatched_sql!(count).fetch_one(&mut *tx).await?;
+            paging.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
+        }
+        let unmatched = rows
+            .into_iter()
+            .filter_map(UnmatchedRow::into_unmatched)
+            .collect::<Result<_, _>>()?;
+        Ok((unmatched, paging))
     }
 
     /// Forgets what Matching left Unmatched in the Library `library`, so it decides those Items

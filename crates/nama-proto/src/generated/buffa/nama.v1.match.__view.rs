@@ -2389,10 +2389,27 @@ impl ::serde::Serialize for ClearMatchResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ListUnmatchedItemsRequestView<'a> {
-    /// The Library whose items to list.
+    /// Which items to list.
     ///
-    /// Field 1: `library_id`
-    pub library_id: i64,
+    /// Field 2: `filter`
+    pub filter: ::buffa::MessageFieldView<
+        super::super::__buffa::view::UnmatchedItemFilterView<'a>,
+    >,
+    /// The order to list them in.
+    ///
+    /// Field 3: `sort`
+    pub sort: ::buffa::EnumValue<super::super::UnmatchedItemSort>,
+    /// Which way `sort` runs. Unspecified lists by path from A, and the item found most recently
+    /// first.
+    ///
+    /// Field 5: `direction`
+    pub direction: ::buffa::EnumValue<super::super::SortDirection>,
+    /// The page of items to list.
+    ///
+    /// Field 4: `page`
+    pub page: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PageRequestView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsRequestView<'a> {
@@ -2425,12 +2442,65 @@ impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsRequestView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
-            1u32 => {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.filter.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.filter = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::UnmatchedItemFilterView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            3u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                view.library_id = ::buffa::types::decode_int64(&mut cur)?;
+                view.sort = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.direction = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.page.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.page = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PageRequestView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -2460,7 +2530,26 @@ impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsRequestView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ListUnmatchedItemsRequest {
-            library_id: self.library_id,
+            filter: match self.filter.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::UnmatchedItemFilter,
+                        ::buffa::Inline<super::super::UnmatchedItemFilter>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            sort: self.sort,
+            direction: self.direction,
+            page: match self.page.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PageRequest,
+                        ::buffa::Inline<super::super::PageRequest>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2468,12 +2557,37 @@ impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsRequestView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for ListUnmatchedItemsRequestView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.library_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        if self.filter.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.filter.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.sort.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.direction.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -2481,13 +2595,38 @@ impl<'a> ::buffa::ViewEncode<'a> for ListUnmatchedItemsRequestView<'a> {
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.library_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        if self.filter.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.filter.write_to(__cache, buf);
+        }
+        {
+            let val = self.sort.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
+        }
+        {
+            let val = self.direction.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(5u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2510,12 +2649,21 @@ impl<'__a> ::serde::Serialize for ListUnmatchedItemsRequestView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.library_id) {
-            __map
-                .serialize_entry(
-                    "libraryId",
-                    &::buffa::json_helpers::ProtoJson(&self.library_id),
-                )?;
+        {
+            if let ::core::option::Option::Some(__v) = self.filter.as_option() {
+                __map.serialize_entry("filter", __v)?;
+            }
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.sort) {
+            __map.serialize_entry("sort", &self.sort)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.direction) {
+            __map.serialize_entry("direction", &self.direction)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.page.as_option() {
+                __map.serialize_entry("page", __v)?;
+            }
         }
         __map.end()
     }
@@ -2612,12 +2760,40 @@ impl ListUnmatchedItemsRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The Library whose items to list.
+    /// Which items to list.
     ///
-    /// Field 1: `library_id`
+    /// Field 2: `filter`
     #[must_use]
-    pub fn library_id(&self) -> i64 {
-        self.0.reborrow().library_id
+    pub fn filter(
+        &self,
+    ) -> &::buffa::MessageFieldView<
+        super::super::__buffa::view::UnmatchedItemFilterView<'_>,
+    > {
+        &self.0.reborrow().filter
+    }
+    /// The order to list them in.
+    ///
+    /// Field 3: `sort`
+    #[must_use]
+    pub fn sort(&self) -> ::buffa::EnumValue<super::super::UnmatchedItemSort> {
+        self.0.reborrow().sort
+    }
+    /// Which way `sort` runs. Unspecified lists by path from A, and the item found most recently
+    /// first.
+    ///
+    /// Field 5: `direction`
+    #[must_use]
+    pub fn direction(&self) -> ::buffa::EnumValue<super::super::SortDirection> {
+        self.0.reborrow().direction
+    }
+    /// The page of items to list.
+    ///
+    /// Field 4: `page`
+    #[must_use]
+    pub fn page(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::PageRequestView<'_>> {
+        &self.0.reborrow().page
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListUnmatchedItemsRequestView<'static>>>
@@ -2650,19 +2826,292 @@ impl ::serde::Serialize for ListUnmatchedItemsRequestOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
+/// Which items `ListUnmatchedItems` lists.
+#[derive(Clone, Debug, Default)]
+pub struct UnmatchedItemFilterView<'a> {
+    /// The Library whose items to list.
+    ///
+    /// Field 1: `library_id`
+    pub library_id: i64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for UnmatchedItemFilterView<'a> {
+    type Owned = super::super::UnmatchedItemFilter;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::UnmatchedItemFilter,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::UnmatchedItemFilter,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::UnmatchedItemFilter {
+            library_id: self.library_id,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemFilterView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for UnmatchedItemFilterView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.library_id) {
+            __map
+                .serialize_entry(
+                    "libraryId",
+                    &::buffa::json_helpers::ProtoJson(&self.library_id),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for UnmatchedItemFilterView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "UnmatchedItemFilter";
+    const FULL_NAME: &'static str = "nama.v1.UnmatchedItemFilter";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.UnmatchedItemFilter";
+}
+::buffa::impl_default_view_instance!(UnmatchedItemFilterView);
+::buffa::impl_view_reborrow!(UnmatchedItemFilterView);
+/** Self-contained, `'static` owned view of a `UnmatchedItemFilter` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`UnmatchedItemFilterView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`UnmatchedItemFilterView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct UnmatchedItemFilterOwnedView(
+    ::buffa::OwnedView<UnmatchedItemFilterView<'static>>,
+);
+impl UnmatchedItemFilterOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UnmatchedItemFilterOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UnmatchedItemFilterOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::UnmatchedItemFilter,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UnmatchedItemFilterOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`UnmatchedItemFilterView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &UnmatchedItemFilterView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::UnmatchedItemFilter {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Library whose items to list.
+    ///
+    /// Field 1: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> i64 {
+        self.0.reborrow().library_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<UnmatchedItemFilterView<'static>>>
+for UnmatchedItemFilterOwnedView {
+    fn from(inner: ::buffa::OwnedView<UnmatchedItemFilterView<'static>>) -> Self {
+        UnmatchedItemFilterOwnedView(inner)
+    }
+}
+impl ::core::convert::From<UnmatchedItemFilterOwnedView>
+for ::buffa::OwnedView<UnmatchedItemFilterView<'static>> {
+    fn from(wrapper: UnmatchedItemFilterOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<UnmatchedItemFilterView<'static>>>
+for UnmatchedItemFilterOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<UnmatchedItemFilterView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::UnmatchedItemFilter {
+    type View<'a> = UnmatchedItemFilterView<'a>;
+    type ViewHandle = UnmatchedItemFilterOwnedView;
+}
+impl ::serde::Serialize for UnmatchedItemFilterOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
 #[derive(Clone, Debug, Default)]
 pub struct ListUnmatchedItemsResponseView<'a> {
+    /// The page's items.
+    ///
     /// Field 1: `items`
     pub items: ::buffa::RepeatedView<
         'a,
         super::super::__buffa::view::UnmatchedItemView<'a>,
     >,
-    /// The absolute paths of the Library's files whose names don't follow the naming conventions,
-    /// by path. They hold no items, so nothing can Match them and there's no item to pass to
-    /// `SetMatch`: renaming the file and rescanning the Library is the fix.
+    /// On the first page only, the absolute paths of the Library's files whose names don't follow
+    /// the naming conventions, by path. They hold no items, so nothing can Match them and there's no
+    /// item to pass to `SetMatch`: renaming the file and rescanning the Library is the fix.
     ///
     /// Field 2: `unparsed_paths`
     pub unparsed_paths: ::buffa::RepeatedView<'a, &'a str>,
+    /// The next page's token, and on the first page how many items the Library has that need a
+    /// Match.
+    ///
+    /// Field 3: `page`
+    pub page: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PageResponseView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsResponseView<'a> {
@@ -2695,6 +3144,27 @@ impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsResponseView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.page.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.page = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PageResponseView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2760,6 +3230,15 @@ impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsResponseView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             unparsed_paths: self.unparsed_paths.iter().map(|s| s.to_string()).collect(),
+            page: match self.page.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PageResponse,
+                        ::buffa::Inline<super::super::PageResponse>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2782,6 +3261,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ListUnmatchedItemsResponseView<'a> {
         for v in &self.unparsed_paths {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2803,6 +3290,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ListUnmatchedItemsResponseView<'a> {
         }
         for v in &self.unparsed_paths {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2830,6 +3325,11 @@ impl<'__a> ::serde::Serialize for ListUnmatchedItemsResponseView<'__a> {
         }
         if !self.unparsed_paths.is_empty() {
             __map.serialize_entry("unparsedPaths", &*self.unparsed_paths)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.page.as_option() {
+                __map.serialize_entry("page", __v)?;
+            }
         }
         __map.end()
     }
@@ -2926,6 +3426,8 @@ impl ListUnmatchedItemsResponseOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// The page's items.
+    ///
     /// Field 1: `items`
     #[must_use]
     pub fn items(
@@ -2933,14 +3435,24 @@ impl ListUnmatchedItemsResponseOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::UnmatchedItemView<'_>> {
         &self.0.reborrow().items
     }
-    /// The absolute paths of the Library's files whose names don't follow the naming conventions,
-    /// by path. They hold no items, so nothing can Match them and there's no item to pass to
-    /// `SetMatch`: renaming the file and rescanning the Library is the fix.
+    /// On the first page only, the absolute paths of the Library's files whose names don't follow
+    /// the naming conventions, by path. They hold no items, so nothing can Match them and there's no
+    /// item to pass to `SetMatch`: renaming the file and rescanning the Library is the fix.
     ///
     /// Field 2: `unparsed_paths`
     #[must_use]
     pub fn unparsed_paths(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().unparsed_paths
+    }
+    /// The next page's token, and on the first page how many items the Library has that need a
+    /// Match.
+    ///
+    /// Field 3: `page`
+    #[must_use]
+    pub fn page(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::PageResponseView<'_>> {
+        &self.0.reborrow().page
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListUnmatchedItemsResponseView<'static>>>
