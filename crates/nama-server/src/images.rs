@@ -293,6 +293,25 @@ impl ImageStore {
         })
     }
 
+    /// Deletes the uploads a crashed run left, going on past one it can't delete. Only the caller
+    /// knows no upload is in flight: startup, before serving.
+    ///
+    /// # Errors
+    ///
+    /// If the uploads folder can't be read.
+    pub async fn sweep_uploads(&self) -> io::Result<()> {
+        let mut entries = match tokio::fs::read_dir(self.dir.join(UPLOADS_DIR)).await {
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+            entries => entries?,
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            if let Err(err) = tokio::fs::remove_file(entry.path()).await {
+                tracing::warn!("could not delete {}: {err}", entry.path().display());
+            }
+        }
+        Ok(())
+    }
+
     /// Whether an image is stored at `key`.
     ///
     /// # Errors
