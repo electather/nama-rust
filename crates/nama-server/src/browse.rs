@@ -16,6 +16,7 @@ use crate::{
         LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Stored, WatchState,
         WatchStateKind, WatchStates,
     },
+    page,
     playback::{Probe, Sidecars, Track, Tracks},
     scanner::read_only_folder,
 };
@@ -63,6 +64,8 @@ pub(crate) enum Error {
     NoSuchSeason,
     #[error("there is no such Version")]
     NoSuchVersion,
+    #[error(transparent)]
+    PageTokenInvalid(#[from] page::TokenInvalid),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -223,6 +226,9 @@ impl Browse {
         versions: impl Iterator<Item = &LibraryVersion>,
     ) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let files: Vec<Stored> = versions.map(|version| version.file).collect();
+        if files.is_empty() {
+            return Ok(HashMap::new());
+        }
         let mut probes = self.tracks.of(&files).await?;
         (self.sidecars)
             .append_to(probes.iter_mut().map(|(&id, probe)| (id, probe)))

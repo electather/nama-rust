@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_proto::nama::v1::PageRequest;
 use tempfile::TempDir;
 
 use super::{Browse, Error, Started, Target};
@@ -235,7 +236,12 @@ async fn an_episode_has_the_same_tracks_however_it_is_reached() {
         .remove(0);
     let Started::Episode {
         episode: started, ..
-    } = browse.continue_watching(user).await.unwrap().remove(0)
+    } = browse
+        .continue_watching(user, &PageRequest::default())
+        .await
+        .unwrap()
+        .0
+        .remove(0)
     else {
         panic!("the pilot is an Episode");
     };
@@ -312,7 +318,10 @@ async fn a_movie_matched_in_two_libraries_is_listed_in_continue_watching_under_t
     let halfway = Progress::new(1_000, 2_000).unwrap();
     browse.report(user, older.version, halfway).await.unwrap();
 
-    let started = browse.continue_watching(user).await.unwrap();
+    let (started, _) = browse
+        .continue_watching(user, &PageRequest::default())
+        .await
+        .unwrap();
 
     let listed: Vec<_> = started
         .iter()
@@ -338,7 +347,10 @@ async fn continue_watching_reads_no_library_for_a_user_who_started_nothing() {
         watch_states: WatchStates::new(db),
     };
 
-    let started = browse.continue_watching(1).await.unwrap();
+    let (started, _) = browse
+        .continue_watching(1, &PageRequest::default())
+        .await
+        .unwrap();
 
     assert!(started.is_empty(), "{started:?}");
 }
@@ -645,7 +657,10 @@ async fn an_episodes_watch_state_under_an_id_its_library_doesnt_prefer_is_shown(
 
 /// The Movies the User `user` has in Continue Watching, by id, with how far in they are.
 async fn continuing_movies(browse: &Browse, user: i64) -> Vec<(ExternalId, i64)> {
-    let started = browse.continue_watching(user).await.unwrap();
+    let (started, _) = browse
+        .continue_watching(user, &PageRequest::default())
+        .await
+        .unwrap();
     (started.into_iter())
         .map(|started| match started {
             Started::Movie { movie, state, .. } => (movie.id, state.position_ms),
