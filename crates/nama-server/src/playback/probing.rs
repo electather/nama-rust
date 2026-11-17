@@ -1,7 +1,7 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
 //! [`super::tracks`]), and decides what a failure to probe one means for trying it again. It also
-//! lists a Version's keyframes when first asked for them, and keeps them, or that listing them
-//! failed, for its file as it is ([`Probing::keyframes`]).
+//! lists a Version's keyframes in the background when first asked for them, and keeps them, or
+//! that listing them failed, for its file as it is ([`Probing::keyframes`]).
 //!
 //! After a Library's files change, those without current Tracks, never probed or changed or read
 //! by an older probe version since, are probed in the background, a few at a time
@@ -18,6 +18,7 @@ use std::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicBool, Ordering},
     },
+    time::Duration,
 };
 
 use futures_util::StreamExt;
@@ -42,6 +43,14 @@ use crate::{
 /// file's headers, but from a disk, or a network share, that playback is reading from too.
 const PROBES_AT_ONCE: usize = 3;
 
+/// How many Versions' keyframes are listed at once. Each listing reads a whole file, from a disk
+/// that playback is reading from too.
+const LISTINGS_AT_ONCE: usize = 2;
+
+/// How long a plan waits for a Version's keyframes before it Transcodes instead, well short of
+/// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866).
+const LISTING_WAIT: Duration = Duration::from_secs(30);
+
 /// Why probing a file failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ProbeError {
@@ -59,6 +68,10 @@ pub(crate) enum ProbeError {
     /// changes or [`super::tracks::PROBE_FAILURE_VERSION`] is bumped (#850).
     #[error("listing the keyframes failed or timed out before, and the file hasn't changed since")]
     UnlistedBefore,
+    /// The keyframes weren't listed within [`LISTING_WAIT`]; the listing carries on and keeps
+    /// them for a later plan.
+    #[error("the keyframes aren't listed yet")]
+    NotListedYet,
 }
 
 /// Why probing a Version right away failed.
@@ -102,8 +115,9 @@ type Probed = Result<Probe, Arc<ProbeError>>;
 /// A file's keyframes, or why they couldn't be listed, as handed to whoever waited for them.
 type Listed = Result<Vec<i64>, Arc<ProbeError>>;
 
-/// The Versions some task holds a [`Claim`] on, and where it sends what it found.
-type Claims<T> = Mutex<HashMap<i64, watch::Receiver<Option<T>>>>;
+/// The Versions some task holds a [`Claim`] on, and where it sends what it found. Shared, so a
+/// listing's claim can outlive the plan that started it.
+type Claims<T> = Arc<Mutex<HashMap<i64, watch::Receiver<Option<T>>>>>;
 
 /// Probes stored files, in the background after their Library changes or right away for one
 /// Version.
@@ -119,12 +133,14 @@ struct Inner {
     sidecars: Sidecars,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
-    /// Background passes, so shutting down can wait for them.
+    /// Background passes and keyframe listings, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
     /// A permit per background probe running, [`PROBES_AT_ONCE`] in all.
     running: tokio::sync::Semaphore,
+    /// A permit per keyframe listing running, [`LISTINGS_AT_ONCE`] in all.
+    listings: tokio::sync::Semaphore,
     /// The Versions being probed, each by one [`Claim`] holder, and where it sends what it found,
     /// so a later pass over their Library leaves them to it and [`Probing::current`] waits for
     /// its result, rather than probe them twice.
@@ -147,8 +163,9 @@ impl Probing {
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 running: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
-                claimed: Mutex::default(),
-                listing: Mutex::default(),
+                listings: tokio::sync::Semaphore::new(LISTINGS_AT_ONCE),
+                claimed: Claims::default(),
+                listing: Claims::default(),
             }),
         }
     }
@@ -188,23 +205,33 @@ impl Probing {
     }
 
     /// When each keyframe of the Version `version`'s first video falls, in milliseconds from its
-    /// start, in order: as kept for its file as it is now, or else listed, which reads the whole
-    /// file, and kept. If something is listing them already, waits for that and returns what it
-    /// found instead, or lists them itself if that gave up without finding anything. They're kept
-    /// only while the Version's Tracks were read from its file as it is now.
+    /// start, in order: as kept for its file as it is now, or else listed in the background,
+    /// which reads the whole file, and kept. If something is listing them already, waits for that
+    /// instead. Waits at most [`LISTING_WAIT`] for a listing, then returns
+    /// [`ProbeError::NotListedYet`] while it carries on. They're kept only while the Version's
+    /// Tracks were read from its file as it is now.
     pub(super) async fn keyframes(&self, version: i64) -> Result<Vec<i64>, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
-        // ponytail: not held to PROBES_AT_ONCE, as `current` isn't; limit it apart if many
-        // whole-file reads at once swamp the disk.
         loop {
             let mut lister = match try_claim(&self.inner.listing, file) {
-                Ok(claim) => return self.list_claimed(&path, claim).await,
+                Ok(claim) => match self.inner.tracks.keyframes(file).await? {
+                    Some(Keyframes::Listed(keyframes)) => return Ok(keyframes),
+                    Some(Keyframes::Unlisted) => {
+                        return Err(Error::Probe(Arc::new(ProbeError::UnlistedBefore)));
+                    }
+                    None => self
+                        .list_in_background(path.clone(), claim)
+                        .ok_or_else(|| Error::Probe(Arc::new(ProbeError::NotListedYet)))?,
+                },
                 Err(lister) => lister,
             };
-            // An error means the lister sent nothing, having found them kept or given up, so
-            // they're read or listed here instead.
-            if let Ok(found) = lister.wait_for(Option::is_some).await
+            let waited = tokio::time::timeout(LISTING_WAIT, lister.wait_for(Option::is_some))
+                .await
+                .map_err(|_elapsed| Error::Probe(Arc::new(ProbeError::NotListedYet)))?;
+            // An error means the lister gave up without listing them, as when shutting down
+            // cancelled it, so they're read or listed here instead.
+            if let Ok(found) = waited
                 && let Some(found) = Option::clone(&found)
             {
                 return found.map_err(Error::Probe);
@@ -359,7 +386,7 @@ impl Probing {
     async fn probe_logged(
         &self,
         path: &str,
-        claim: Claim<'_, Probed>,
+        claim: Claim<Probed>,
         ffprobe_runs: &AtomicBool,
     ) -> Result<Option<Probed>, sqlx::Error> {
         match self.probe_claimed(path, claim).await {
@@ -387,7 +414,7 @@ impl Probing {
 
     /// Probes the file at `path`, stored as the file `claim` is for, like
     /// [`Self::probe_and_store`], and sends what it found to whoever waited for it.
-    async fn probe_claimed(&self, path: &str, claim: Claim<'_, Probed>) -> Result<Probe, Unprobed> {
+    async fn probe_claimed(&self, path: &str, claim: Claim<Probed>) -> Result<Probe, Unprobed> {
         let probed = self.probe_and_store(path, claim.file).await;
         let found = match &probed {
             Ok(probe) => Ok(probe.clone()),
@@ -422,36 +449,71 @@ impl Probing {
         }
     }
 
-    /// The keyframes of the file at `path`, stored as the file `claim` is for, as kept, or else
-    /// listed, sent to whoever waited for them, and kept. A listing that failed for a reason
-    /// that says something about the file is kept too, and returned as
-    /// [`ProbeError::UnlistedBefore`] until the file changes or the probe failure version is
-    /// bumped. Unlike a probe, a timeout isn't tried again: each try reads the whole file for up
-    /// to `WHOLE_FILE_TIMEOUT` while a Play waits (#850).
-    async fn list_claimed(&self, path: &str, claim: Claim<'_, Listed>) -> Result<Vec<i64>, Error> {
-        match self.inner.tracks.keyframes(claim.file).await? {
-            Some(Keyframes::Listed(keyframes)) => return Ok(keyframes),
-            Some(Keyframes::Unlisted) => {
-                return Err(Error::Probe(Arc::new(ProbeError::UnlistedBefore)));
-            }
-            None => {}
+    /// Lists the keyframes of the file at `path` as [`Self::list_claimed`] does, as a background
+    /// task, so a plan request given up on doesn't stop it (#866), and hands back where it sends
+    /// them. `None` once the Server is shutting down.
+    fn list_in_background(
+        &self,
+        path: String,
+        claim: Claim<Listed>,
+    ) -> Option<watch::Receiver<Option<Listed>>> {
+        // A listing spawned after shutdown would be cancelled at once, and its waiter would claim
+        // and spawn it again, round and round.
+        if self.inner.cancel.is_cancelled() {
+            return None;
         }
+        let found = claim.found.subscribe();
+        let listing_span = diagnostics::following_current(tracing::info_span!(
+            parent: None,
+            "keyframe listing",
+            file.id = claim.file.id
+        ));
+        let probing = self.clone();
+        self.inner.tasks.spawn(
+            async move {
+                let listing = probing.list_claimed(&path, claim);
+                if let Some(Err(err)) = probing.inner.cancel.run_until_cancelled(listing).await {
+                    tracing::error!("could not keep the keyframes listed for {path}: {err}");
+                }
+            }
+            .instrument(listing_span),
+        );
+        Some(found)
+    }
+
+    /// Lists the keyframes of the file at `path`, stored as the file `claim` is for, once fewer
+    /// than [`LISTINGS_AT_ONCE`] run, keeps them, and sends them to whoever waited for them. A
+    /// listing that failed for a reason that says something about the file is kept too, and
+    /// returned as [`ProbeError::UnlistedBefore`] until the file changes or the probe failure
+    /// version is bumped. Unlike a probe, a timeout isn't tried again: each try reads the whole
+    /// file for up to `WHOLE_FILE_TIMEOUT` (#850).
+    async fn list_claimed(&self, path: &str, claim: Claim<Listed>) -> Result<(), sqlx::Error> {
+        // The semaphore is never closed.
+        let Ok(_listing) = self.inner.listings.acquire().await else {
+            return Ok(());
+        };
         let listed = ffprobe::keyframes(&self.inner.ffmpeg, path)
             .await
             .map_err(Arc::new);
-        claim.found.send_replace(Some(listed.clone()));
         let kept = match &listed {
             Ok(keyframes) => Some(Keyframes::Listed(keyframes.clone())),
-            Err(err) => matches!(
-                failure(err, path).await,
-                ProbeFailure::Lasting(_) | ProbeFailure::Passing(_)
-            )
-            .then_some(Keyframes::Unlisted),
+            Err(err) => {
+                // The plan that started it may have stopped waiting, and so won't log it.
+                tracing::warn!("could not list the keyframes of {path}: {err}");
+                matches!(
+                    failure(err, path).await,
+                    ProbeFailure::Lasting(_) | ProbeFailure::Passing(_)
+                )
+                .then_some(Keyframes::Unlisted)
+            }
         };
-        if let Some(kept) = kept {
-            self.inner.tracks.store_keyframes(claim.file, &kept).await?;
-        }
-        listed.map_err(Error::Probe)
+        let stored = match kept {
+            Some(kept) => self.inner.tracks.store_keyframes(claim.file, &kept).await,
+            None => Ok(()),
+        };
+        // Sent once kept, so whoever got them finds them kept when they next ask.
+        claim.found.send_replace(Some(listed));
+        stored
     }
 }
 
@@ -468,9 +530,9 @@ async fn failure(err: &ProbeError, path: &str) -> ProbeFailure {
         // gone stale since the scan, which may read fine once it's back unchanged.
         ProbeError::Failed(_) if !readable(path).await => ProbeFailure::Retried,
         // ffprobe read the file and refused it, or said something it can't parse: it will again.
-        // Only a kept listing returns `UnlistedBefore`, never ffprobe, so no probe or listing gets
-        // here with it; it lasts until the file changes, as a lasting failure does.
-        ProbeError::Failed(_) | ProbeError::UnlistedBefore => {
+        // Only `Probing::keyframes` returns `UnlistedBefore` and `NotListedYet`, never ffprobe, so
+        // no probe or listing gets here with them.
+        ProbeError::Failed(_) | ProbeError::UnlistedBefore | ProbeError::NotListedYet => {
             ProbeFailure::Lasting(LastingReason::Failed)
         }
         ProbeError::Output(_) => ProbeFailure::Lasting(LastingReason::UnreadableOutput),
@@ -492,33 +554,30 @@ async fn readable(path: &str) -> bool {
 /// The right to probe one stored file, or list its keyframes, held by one task at a time and
 /// given up when dropped, even by a probe cancelled midway.
 #[derive(Debug)]
-struct Claim<'a, T> {
-    claims: &'a Claims<T>,
+struct Claim<T> {
+    claims: Claims<T>,
     file: Stored,
     /// Where what was found goes to whoever waits for it. Dropped with nothing sent, it tells
     /// them to do it themselves.
     found: watch::Sender<Option<T>>,
 }
 
-impl<T> Drop for Claim<'_, T> {
+impl<T> Drop for Claim<T> {
     fn drop(&mut self) {
-        lock(self.claims).remove(&self.file.id);
+        lock(&self.claims).remove(&self.file.id);
     }
 }
 
 /// Claims the stored file `file` in `claims`, or if some task holds it, hands back where that will
 /// send what it found.
-fn try_claim<T>(
-    claims: &Claims<T>,
-    file: Stored,
-) -> Result<Claim<'_, T>, watch::Receiver<Option<T>>> {
+fn try_claim<T>(claims: &Claims<T>, file: Stored) -> Result<Claim<T>, watch::Receiver<Option<T>>> {
     match lock(claims).entry(file.id) {
         Entry::Occupied(holder) => Err(holder.get().clone()),
         Entry::Vacant(unclaimed) => {
             let (found, waiting) = watch::channel(None);
             unclaimed.insert(waiting);
             Ok(Claim {
-                claims,
+                claims: Arc::clone(claims),
                 file,
                 found,
             })

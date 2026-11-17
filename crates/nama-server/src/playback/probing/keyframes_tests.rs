@@ -4,7 +4,9 @@ use super::tests::Fixture;
 #[cfg(unix)]
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
-use super::{Error, ProbeError, ffprobe::WHOLE_FILE_TIMEOUT};
+use super::{
+    Error, Keyframes, LISTING_WAIT, LISTINGS_AT_ONCE, ProbeError, ffprobe::WHOLE_FILE_TIMEOUT,
+};
 #[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
 
@@ -209,18 +211,159 @@ async fn a_versions_keyframes_that_timed_out_arent_listed_again() {
     tokio::time::advance(WHOLE_FILE_TIMEOUT).await;
     // Real time again: storing the timeout writes SQLite, which a paused clock would race.
     tokio::time::resume();
-    let timed_out = listing.await.unwrap();
+    listing.await.unwrap().unwrap_err();
     // Bounded, so listing it again fails the test rather than sleeping out the fake's hour.
     let again =
         tokio::time::timeout(Duration::from_secs(5), media.probing.keyframes(version)).await;
 
     assert!(
-        matches!(&timed_out, Err(Error::Probe(err)) if matches!(**err, ProbeError::TimedOut(_))),
-        "{timed_out:?}"
-    );
-    assert!(
-        again.is_ok_and(|again| again.is_err()),
-        "it was listed again"
+        again.as_ref().is_ok_and(|again| matches!(
+            again,
+            Err(Error::Probe(err))
+                if matches!(**err, ProbeError::TimedOut(_) | ProbeError::UnlistedBefore)
+        )),
+        "{again:?}"
     );
     assert_eq!(probe_runs(bin.path()), 1);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_listing_carries_on_after_the_plan_waiting_for_it_is_dropped() {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    let probing = media.probing.clone();
+    let dropped = tokio::spawn(async move { probing.keyframes(version).await });
+    wait_for_probe(&bin.path().join("runs")).await;
+
+    dropped.abort();
+    dropped.await.unwrap_err();
+    let file = media.stored(alien).await;
+    let started = tokio::time::Instant::now();
+    let kept = loop {
+        if let Some(kept) = media.tracks.keyframes(file).await.unwrap() {
+            break kept;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "the listing was never kept"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    };
+
+    assert_eq!(kept, Keyframes::Listed(vec![0, 10_000]));
+    assert_eq!(media.keyframes(alien).await, [0, 10_000]);
+    assert_eq!(probe_runs(bin.path()), 1);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_listing_not_done_within_the_wait_is_unlisted_for_now_and_carries_on() {
+    let bin = tempfile::tempdir().unwrap();
+    let go = bin.path().join("go");
+    let listing = format!(
+        "while [ ! -e '{}' ]; do sleep 0.1; done\nprintf '0.000000,K__\\n'",
+        go.display()
+    );
+    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), &listing)).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    let probing = media.probing.clone();
+    let waiting = tokio::spawn(async move { probing.keyframes(version).await });
+    wait_for_probe(&bin.path().join("runs")).await;
+
+    // After opening the database, whose pool times out by the clock.
+    tokio::time::pause();
+    tokio::time::advance(LISTING_WAIT).await;
+    tokio::time::resume();
+    let waited = waiting.await.unwrap();
+    fs::write(&go, "").unwrap();
+
+    assert!(
+        matches!(&waited, Err(Error::Probe(err)) if matches!(**err, ProbeError::NotListedYet)),
+        "{waited:?}"
+    );
+    assert_eq!(media.keyframes(alien).await, [0]);
+    assert_eq!(probe_runs(bin.path()), 1);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_listing_past_the_cap_waits_for_a_slot() {
+    let bin = tempfile::tempdir().unwrap();
+    let go = bin.path().join("go");
+    let listing = format!(
+        "while [ ! -e '{}' ]; do sleep 0.05; done\nprintf '0.000000,K__\\n'",
+        go.display()
+    );
+    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), &listing)).await;
+    let mut plans = Vec::new();
+    for n in 0..=LISTINGS_AT_ONCE {
+        let movie = format!("Movie {n} (2000)/Movie {n} (2000).mkv");
+        media.write_probed(&movie, 10).await;
+        let version = media.file_id(&movie).await;
+        let probing = media.probing.clone();
+        plans.push(tokio::spawn(
+            async move { probing.keyframes(version).await },
+        ));
+    }
+    let started = tokio::time::Instant::now();
+    while probe_runs(bin.path()) < LISTINGS_AT_ONCE {
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "the listings never started"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    // Long enough for one past the cap to start, were it not held back.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let while_full = probe_runs(bin.path());
+    fs::write(&go, "").unwrap();
+    let listed = futures_util::future::join_all(plans).await;
+
+    assert_eq!(while_full, LISTINGS_AT_ONCE);
+    assert!(
+        listed
+            .iter()
+            .all(|listed| listed.as_ref().is_ok_and(Result::is_ok)),
+        "{listed:?}"
+    );
+    assert_eq!(probe_runs(bin.path()), LISTINGS_AT_ONCE + 1);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn shutting_down_stops_a_listing_and_keeps_nothing() {
+    let bin = tempfile::tempdir().unwrap();
+    // `exec`, so stopping it kills the sleep rather than leaving it orphaned.
+    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), "exec sleep 3600")).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    let probing = media.probing.clone();
+    let listing = tokio::spawn(async move { probing.keyframes(version).await });
+    wait_for_probe(&bin.path().join("runs")).await;
+
+    let stopped = tokio::time::timeout(Duration::from_secs(5), media.probing.shutdown()).await;
+    let waited = tokio::time::timeout(Duration::from_secs(5), listing).await;
+
+    assert!(stopped.is_ok(), "shutting down waited for the listing");
+    assert!(
+        waited.is_ok_and(|waited| waited.unwrap().is_err()),
+        "the plan waited on"
+    );
+    let kept = media
+        .tracks
+        .keyframes(media.stored(alien).await)
+        .await
+        .unwrap();
+    assert!(kept.is_none(), "{kept:?}");
 }
