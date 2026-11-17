@@ -101,7 +101,7 @@ fn a_credential_local_auth_did_not_make_is_an_error() {
     assert!(checked.is_err(), "{checked:?}");
 }
 
-fn timed(check: impl Fn()) -> Duration {
+fn timed(check: impl FnOnce()) -> Duration {
     let started = Instant::now();
     check();
     started.elapsed()
