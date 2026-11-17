@@ -13,7 +13,7 @@ use nama_plugin_api::{
     Manifest, PluginId,
     auth::Authenticator,
     automation::Permission,
-    settings::{Choices, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema},
+    settings::{Choices, SettingKind, SettingValue, Settings, SettingsError},
 };
 use nama_proto::nama::v1::{PluginKind, Quality};
 use thiserror::Error;
@@ -38,8 +38,11 @@ mod library_ids;
 mod personal;
 mod put_back;
 mod running;
+mod sent;
 mod stored;
+mod title_sources;
 
+use sent::{check_fits, with_stored_secrets};
 pub use stored::{grants, stored};
 use stored::{import, save, set_enabled, set_enabled_granting};
 
@@ -412,17 +415,18 @@ impl PluginSettings {
         Ok(Some(with_stored(plugin, &mut self.stored().await?)))
     }
 
-    /// Saves `sent` as the Plugin `id`'s settings, a secret left out keeping its stored value, then
-    /// applies them if it is stored as enabled, so a restart retries settings that fail to enable
-    /// it (ADR 0028). One that fails to enable with them is put back as it ran, as
-    /// [`PluginSettings::enable_granting`] puts one back. Returns the Plugin as it is now, enabled
-    /// only if running, with what is stored for it.
+    /// Saves `sent` as the Plugin `id`'s settings, a secret left out keeping its stored value and a
+    /// repeated Library id kept once, then applies them if it is stored as enabled, so a restart
+    /// retries settings that fail to enable it (ADR 0028). One that fails to enable with them is
+    /// put back as it ran, as [`PluginSettings::enable_granting`] does. Returns the Plugin as it is
+    /// now, enabled only if running, with what is stored for it.
     ///
     /// # Errors
     ///
-    /// If no Plugin has the id or the Server refused it, the settings don't fit its schema or
-    /// name a Library that doesn't exist, its settings check fails or doesn't offer a choice
-    /// setting's value, or the database can't be read or written. A refused change saves nothing.
+    /// If no Plugin has the id or the Server refused it, the settings don't fit its schema (even
+    /// an integer's bounds, and a required setting only if it is stored as enabled) or name a
+    /// Library that doesn't exist, its settings check fails or doesn't offer a choice's value, or
+    /// the database fails. A refused change saves nothing.
     pub async fn update(
         &self,
         id: &PluginId,
@@ -439,9 +443,9 @@ impl PluginSettings {
                     granted,
                 },
             ) = this.listed(&id).await?;
-            let settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
-            Settings::new(settings.clone())
-                .resolve(&manifest.settings)
+            let mut settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
+            library_ids::dedupe_library_ids(&manifest.settings, &mut settings);
+            check_fits(&manifest.settings, &settings, stored.enabled)
                 .map_err(ChangeError::InvalidSettings)?;
             this.check_library_ids(&manifest.settings, &settings)
                 .await?;
@@ -739,26 +743,6 @@ async fn detached<T: Send + 'static>(
         error!("changing a plugin panicked: {err}");
         Err(sqlx::Error::WorkerCrashed.into())
     })
-}
-
-/// The settings `sent` for a Plugin with `schema`: the ones it names, with a secret left out
-/// keeping its `stored` value, so a form can replace a secret without showing it.
-fn with_stored_secrets(
-    schema: &SettingsSchema,
-    mut sent: BTreeMap<String, SettingValue>,
-    stored: &BTreeMap<String, SettingValue>,
-) -> BTreeMap<String, SettingValue> {
-    schema
-        .fields
-        .iter()
-        .filter_map(|field| {
-            let kept = || {
-                let secret = field.kind == SettingKind::Secret;
-                stored.get(&field.key).filter(|_| secret).cloned()
-            };
-            Some((field.key.clone(), sent.remove(&field.key).or_else(kept)?))
-        })
-        .collect()
 }
 
 // No code that could panic runs while it is held, so a poisoned lock's handle is still whole.

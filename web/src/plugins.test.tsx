@@ -171,7 +171,7 @@ test("a disabled Plugin missing a required setting offers Set up, which opens it
   expect(logEvents.queryByRole("button", { name: "Enable log-events" })).toBeNull();
   fireEvent.click(logEvents.getByRole("link", { name: "Set up log-events" }));
 
-  expect((await input("log-events", "Path")).required).toBe(true);
+  expect((await input("log-events", "Path")).required).toBe(false);
 });
 
 test("an enabled Plugin missing a required setting is marked as needing attention", async () => {

@@ -68,10 +68,12 @@ export function ChoiceInput({
   setting,
   choices,
   error,
+  required,
 }: {
   setting: Setting;
   choices: Choice[] | undefined;
   error: string | undefined;
+  required: boolean;
 }) {
   const stored = setting.value?.value.case === "textValue" ? setting.value.value.value : "";
   if (choices === undefined) {
@@ -99,7 +101,7 @@ export function ChoiceInput({
       label={setting.label}
       name={setting.key}
       defaultValue={stored}
-      required={setting.required}
+      required={required}
       hint={setting.description}
       error={error}
     >

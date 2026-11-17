@@ -1,10 +1,11 @@
 use nama_plugin_api::{
+    Plugin,
     contract::{ArtworkAsked, TitleId, TitleKind},
-    metadata::TitleSource,
+    metadata::{SourceManifest, TitleMethod, TitleSource},
 };
 
 use super::Client;
-use crate::Endpoints;
+use crate::{Endpoints, Tmdb};
 
 /// A client whose TMDB isn't there, so any request it sends fails.
 fn unreachable() -> Client {
@@ -48,4 +49,16 @@ async fn artwork_by_a_malformed_id_is_empty_without_asking_tmdb() {
 
     assert!(!answer.unsupported_id);
     assert_eq!(answer.artwork, []);
+}
+
+#[test]
+fn the_manifest_declares_the_title_source_the_client_is() {
+    let client = unreachable();
+    let declared = SourceManifest {
+        namespace: client.namespace().to_owned(),
+        looks_up: client.lookup_namespaces(),
+        searches: client.answers(TitleMethod::Search),
+    };
+
+    assert_eq!(Tmdb::new().manifest().title_source, Some(declared));
 }

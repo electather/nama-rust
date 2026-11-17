@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { ExtensionPoint, PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type ImageStoreSwitch, ServerService } from "@/gen/nama/v1/server_pb";
-import { formText, onSubmitted, refusal, refusalOf } from "@/lib/forms";
+import { endSentence, formText, onSubmitted, refusal, refusalOf } from "@/lib/forms";
 import { pluginName } from "@/lib/plugins";
 
 const imageSettingsKey = createConnectQueryKey({
@@ -41,9 +41,11 @@ export function ImageStore() {
         isRunning(query.state.data?.switching) ? SWITCHING_POLL_MS : false,
     },
   ).data;
-  const stores = useBlobStores();
+  const plugins = usePlugins();
+  const stores = plugins.filter((plugin) => isEnabledBlobStore(plugin));
   const current = settings?.storePluginId ?? "";
-  const nameOf = (pluginId: string) => storeName(pluginId, stores);
+  // A disabled Plugin may still hold the images, or have been a failed switch's target.
+  const nameOf = (pluginId: string) => storeName(pluginId, plugins);
 
   return (
     <section aria-labelledby="image-store" className="mt-10 flex flex-col gap-5">
@@ -71,18 +73,20 @@ export function ImageStore() {
   );
 }
 
-/** The enabled Blob store Plugins, or none while the list loads. */
-function useBlobStores() {
-  const { data } = useQuery(PluginService.method.listPlugins, {});
-  return (data?.summaries ?? []).filter(
-    (plugin) => plugin.enabled && plugin.extensionPoints.includes(ExtensionPoint.BLOB_STORE),
-  );
+/** Every Plugin, enabled or not, or none while the list loads. */
+function usePlugins() {
+  return useQuery(PluginService.method.listPlugins, {}).data?.summaries ?? [];
+}
+
+/** Whether `plugin` may keep the images: an enabled Blob store Plugin. */
+function isEnabledBlobStore(plugin: PluginSummary) {
+  return plugin.enabled && plugin.extensionPoints.includes(ExtensionPoint.BLOB_STORE);
 }
 
 /** What admins know the store `pluginId` by: "Local disk" for none, else its Plugin's name. */
-function storeName(pluginId: string, stores: PluginSummary[]) {
+function storeName(pluginId: string, plugins: PluginSummary[]) {
   if (pluginId === "") return "Local disk";
-  return pluginName(stores.find((plugin) => plugin.id === pluginId) ?? { id: pluginId, name: "" });
+  return pluginName(plugins.find((plugin) => plugin.id === pluginId) ?? { id: pluginId, name: "" });
 }
 
 /** How far the copy to another store has got, or why it stopped. Nothing without one. */
@@ -100,7 +104,7 @@ function SwitchProgress({
   if (isRunning(switching)) return <Copying switching={switching} to={to} />;
   return (
     <p role="alert" className="text-sm text-pretty text-destructive">
-      Moving the images to {to} stopped, so they stay on {current}: {switching.failure}.
+      Moving the images to {to} stopped, so they stay on {current}: {endSentence(switching.failure)}
     </p>
   );
 }
@@ -188,7 +192,7 @@ function switchRefusal(error: ConnectError, nameOf: (pluginId: string) => string
     {},
     {
       [RefusalReason.IMAGE_STORE_FAILED_CHECK]: {
-        form: `${named} failed its check, so the images stay where they are: ${params["reason"] ?? "it couldn’t keep an image"}.`,
+        form: `${named} failed its check, so the images stay where they are: ${endSentence(params["reason"] ?? "it couldn’t keep an image")}`,
       },
       [RefusalReason.IMAGE_STORE_IN_USE]: { form: `${named} already keeps the images.` },
       [RefusalReason.IMAGE_STORE_SWITCHING]: {

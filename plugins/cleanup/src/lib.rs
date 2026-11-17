@@ -73,6 +73,7 @@ fn manifest() -> Manifest {
         settings: vec![
             SettingField {
                 required: true,
+                min_value: Some(0),
                 default_value: SettingValue {
                     value: Some(setting_value::Value::IntegerValue(30)),
                     ..SettingValue::default()
@@ -211,7 +212,8 @@ fn chosen_libraries<'a>(ids: &[i64], libraries: &'a [Library]) -> Vec<&'a Librar
         .collect()
 }
 
-/// The `days` setting as a number of days, at least 0. A failure names the setting.
+/// The `days` setting as a number of days, at least 0. A failure names the setting. The Kernel
+/// refuses saving one under 0, but one saved before the Manifest said so may still be stored.
 fn days(setting: Option<&str>) -> Result<i64, Error> {
     let setting = setting.ok_or_else(|| Error::msg(format!("the setting {DAYS} isn't set")))?;
     match setting.trim().parse::<i64>() {

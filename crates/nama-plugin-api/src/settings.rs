@@ -41,6 +41,18 @@ pub struct SettingField {
     pub required: bool,
     /// The value used when none is given.
     pub default: Option<SettingValue>,
+    /// The least an [`SettingKind::Integer`] setting may be, inclusive. Only for that kind.
+    pub min: Option<i64>,
+    /// The most an [`SettingKind::Integer`] setting may be, inclusive. Only for that kind.
+    pub max: Option<i64>,
+}
+
+impl SettingField {
+    /// Whether `number` is within the setting's [`min`](Self::min) and [`max`](Self::max).
+    #[must_use]
+    pub fn within_bounds(&self, number: i64) -> bool {
+        self.min.is_none_or(|min| number >= min) && self.max.is_none_or(|max| number <= max)
+    }
 }
 
 /// What kind of value a setting takes.
@@ -176,8 +188,9 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// If a required setting is missing, or else a setting has a value of the wrong kind. Settings
-    /// the schema doesn't name are kept, so a Plugin's older settings survive an upgrade.
+    /// If a required setting is missing, or else a setting has a value of the wrong kind or an
+    /// integer outside its bounds. Settings the schema doesn't name are kept, so a Plugin's older
+    /// settings survive an upgrade.
     pub fn resolve(mut self, schema: &SettingsSchema) -> Result<Self, SettingsError> {
         // Missing before wrong kinds, whatever the order of the fields: the Plugins list offers
         // Set up exactly when this refuses with `Missing`.
@@ -193,6 +206,13 @@ impl Settings {
                     return Err(SettingsError::WrongKind {
                         key: field.key.clone(),
                         expected: field.kind,
+                    });
+                }
+                (Some(SettingValue::Integer(number)), _) if !field.within_bounds(*number) => {
+                    return Err(SettingsError::OutOfRange {
+                        key: field.key.clone(),
+                        min: field.min,
+                        max: field.max,
                     });
                 }
                 (None, Some(default)) => {
@@ -224,6 +244,15 @@ pub enum SettingsError {
         /// The kind the schema declares.
         expected: SettingKind,
     },
+    /// An integer setting's value is outside the bounds its schema declares.
+    OutOfRange {
+        /// The setting.
+        key: String,
+        /// Its least value, if it has one.
+        min: Option<i64>,
+        /// Its most value, if it has one.
+        max: Option<i64>,
+    },
 }
 
 impl fmt::Display for SettingsError {
@@ -233,6 +262,14 @@ impl fmt::Display for SettingsError {
             Self::WrongKind { key, expected } => {
                 write!(f, "the setting {key} must be {expected}")
             }
+            Self::OutOfRange { key, min, max } => match (min, max) {
+                (Some(min), Some(max)) => {
+                    write!(f, "the setting {key} must be from {min} to {max}")
+                }
+                (Some(min), None) => write!(f, "the setting {key} must be at least {min}"),
+                (None, Some(max)) => write!(f, "the setting {key} must be at most {max}"),
+                (None, None) => write!(f, "the setting {key} is out of range"),
+            },
         }
     }
 }
@@ -298,7 +335,91 @@ mod tests {
             kind,
             required: true,
             default: None,
+            min: None,
+            max: None,
         }
+    }
+
+    fn days(min: Option<i64>, max: Option<i64>) -> SettingsSchema {
+        SettingsSchema {
+            fields: vec![SettingField {
+                min,
+                max,
+                ..required("days", SettingKind::Integer)
+            }],
+        }
+    }
+
+    fn resolve_days(schema: &SettingsSchema, days: i64) -> Result<Settings, SettingsError> {
+        Settings::new([("days".to_owned(), SettingValue::Integer(days))].into()).resolve(schema)
+    }
+
+    fn out_of_range(min: Option<i64>, max: Option<i64>) -> SettingsError {
+        SettingsError::OutOfRange {
+            key: "days".to_owned(),
+            min,
+            max,
+        }
+    }
+
+    #[test]
+    fn an_integer_outside_its_bounds_is_refused_naming_the_setting() {
+        let schema = days(Some(0), Some(365));
+
+        assert_eq!(
+            resolve_days(&schema, -1),
+            Err(out_of_range(Some(0), Some(365)))
+        );
+        assert_eq!(
+            resolve_days(&schema, 366),
+            Err(out_of_range(Some(0), Some(365)))
+        );
+    }
+
+    #[test]
+    fn an_integer_equal_to_either_bound_is_taken() {
+        let schema = days(Some(0), Some(365));
+
+        assert_eq!(resolve_days(&schema, 0).err(), None);
+        assert_eq!(resolve_days(&schema, 365).err(), None);
+    }
+
+    #[test]
+    fn an_integer_without_bounds_takes_any_value() {
+        let schema = days(None, None);
+
+        assert_eq!(resolve_days(&schema, i64::MIN).err(), None);
+        assert_eq!(resolve_days(&schema, i64::MAX).err(), None);
+    }
+
+    #[test]
+    fn a_missing_setting_is_reported_before_one_out_of_range() {
+        let mut schema = days(Some(0), None);
+        schema.fields.push(required("api_key", SettingKind::Secret));
+
+        assert_eq!(
+            resolve_days(&schema, -5),
+            Err(SettingsError::Missing("api_key".to_owned()))
+        );
+    }
+
+    #[test]
+    fn an_integer_out_of_range_is_refused_in_plain_words() {
+        let refusals = [
+            out_of_range(Some(0), None),
+            out_of_range(None, Some(10)),
+            out_of_range(Some(1), Some(10)),
+        ]
+        .map(|err| err.to_string());
+
+        assert_eq!(
+            refusals,
+            [
+                "the setting days must be at least 0",
+                "the setting days must be at most 10",
+                "the setting days must be from 1 to 10",
+            ]
+        );
     }
 
     #[test]

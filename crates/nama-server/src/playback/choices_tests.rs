@@ -580,6 +580,21 @@ fn a_preferred_subtitle_ranks_sdh_then_title_then_one_the_device_shows_then_the_
 }
 
 #[test]
+fn a_full_sdh_preference_picks_a_track_titled_sdh_over_a_plain_english_one() {
+    let wanted = subtitle_in("subrip", Some("eng"), (false, true), Some("Full"));
+    // Probing marks a subtitle titled "English (SDH)" as SDH without its disposition flag.
+    let tracks = [
+        subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, Some("English")),
+        subtitle_in("subrip", Some("eng"), (false, true), Some("English (SDH)")),
+    ];
+
+    assert_eq!(
+        preferred_among(&like(&wanted), &tracks, &firefox()),
+        Some(1)
+    );
+}
+
+#[test]
 fn a_preferred_text_subtitle_is_shown_by_the_device_and_the_plan_starts_with_it() {
     let english = subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, None);
     let tracks = vec![video("h264"), audio("aac", true), english.clone()];
