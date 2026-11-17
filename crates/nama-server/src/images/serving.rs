@@ -4,14 +4,16 @@
 use std::{
     io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use axum::{
-    body::Body,
+    body::{Body, Bytes},
     extract::Request,
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    http::{HeaderMap, HeaderValue, StatusCode, header, request::Parts},
     response::{IntoResponse, Response},
 };
+use tokio::sync::OwnedSemaphorePermit;
 use tower_http::services::ServeFile;
 
 use super::{Copied, Format, ImageStore, RESIZED_DIR, Resize, SVG, resized, row_key, version_of};
@@ -42,28 +44,23 @@ impl ImageStore {
         resize: Option<Resize>,
         request: Request,
     ) -> io::Result<Response> {
+        let (head, _empty) = request.into_parts();
         let Some(resize) = resize else {
-            return self
-                .serve_original(key, content_type, request.headers())
-                .await;
+            return self.serve_original(key, content_type, &head).await;
         };
-        let asked = format_asked(request.headers());
+        let asked = format_asked(&head.headers);
         let mut response = if let Some(format) = self.ensure_copy(key, resize, asked).await {
             // The copy can go between making it and sending it, deleted with the folder or by
             // another request's eviction, so the original stands in for it.
-            let (head, _empty) = request.into_parts();
-            let for_copy = Request::from_parts(head.clone(), Body::empty());
             let copy = self.copy_path(key, resize.width, format);
-            let sent = serve_file(copy, format.content_type(), for_copy).await?;
+            let sent = serve_file(copy, format.content_type(), &head).await?;
             if sent.status() == StatusCode::NOT_FOUND {
-                self.serve_original(key, content_type, &head.headers)
-                    .await?
+                self.serve_original(key, content_type, &head).await?
             } else {
                 sent
             }
         } else {
-            self.serve_original(key, content_type, request.headers())
-                .await?
+            self.serve_original(key, content_type, &head).await?
         };
         response
             .headers_mut()
@@ -71,38 +68,52 @@ impl ImageStore {
         Ok(response)
     }
 
-    /// The original at `key` as the answer to a request with `asked`, sent as `content_type`, as
-    /// [`ImageStore::serve`] says.
-    // ponytail: holds the original whole, at most `MAX_UPLOAD_BYTES`, while it is sent, and
-    // answers no Range request (ADR 0052); a streaming get is the fix.
+    /// The original at `key` as the answer to a request with `head`, sent as `content_type`, as
+    /// [`ImageStore::serve`] says: streamed, answering Range, from a store that keeps it as a
+    /// local file, else read whole under one of `reading`'s permits.
+    // ponytail: a Plugin store's original is held whole, at most `MAX_UPLOAD_BYTES`, while it is
+    // sent, and answers no Range request (ADR 0052); a streaming get in the contract is the fix,
+    // once someone running one reports memory pressure.
     async fn serve_original(
         &self,
         key: &[&str],
         content_type: &'static str,
-        asked: &HeaderMap,
+        head: &Parts,
     ) -> io::Result<Response> {
         let row = row_key(key);
         let etag = format!("\"{}\"", version_of(row.as_bytes()));
         let blobs = self.blobs();
-        let mut response = if is_none_match(asked, &etag) {
+        let mut response = if is_none_match(&head.headers, &etag) {
             // The ETag comes from the key, so whether it is stored is all a 304 needs to know.
             if blobs.exists(&row).await? {
                 StatusCode::NOT_MODIFIED.into_response()
             } else {
                 StatusCode::NOT_FOUND.into_response()
             }
+        } else if let Some(path) = blobs.local_path(&row) {
+            // `ServeFile`'s own ETag, from the file's modified time and size, is replaced below:
+            // one from the key stays the same across a switch of stores (#793).
+            serve_file(path, content_type, head).await?
         } else {
+            // `reading` is never closed.
+            let reading = Arc::clone(&self.reading)
+                .acquire_owned()
+                .await
+                .map_err(io::Error::other)?;
             match blobs.get(&row).await? {
                 Some(bytes) => (
                     [(header::CONTENT_TYPE, HeaderValue::from_static(content_type))],
-                    bytes,
+                    // The permit goes once the body's last reference does, when it is sent.
+                    Bytes::from_owner(Held {
+                        bytes,
+                        _reading: reading,
+                    }),
                 )
                     .into_response(),
                 None => StatusCode::NOT_FOUND.into_response(),
             }
         };
-        let status = response.status();
-        if status != StatusCode::NOT_FOUND {
+        if response.status() != StatusCode::NOT_FOUND {
             let etag = HeaderValue::from_str(&etag).map_err(io::Error::other)?;
             response.headers_mut().insert(header::ETAG, etag);
         }
@@ -123,6 +134,8 @@ impl ImageStore {
         if mark_sent(&copy).await {
             return Some(asked);
         }
+        // `reading` is never closed.
+        let _reading = self.reading.acquire().await.ok()?;
         // ponytail: an image sent as stored where a copy was asked for, such as one no wider
         // than asked, is fetched here and again to send it, on every such request; remember
         // which widths an image goes unresized at if that makes a slow store slower.
@@ -239,13 +252,26 @@ pub(super) fn format_asked(headers: &HeaderMap) -> Format {
     }
 }
 
-/// The resized copy at `path` as the answer to `request`, sent as `content_type`, as
+/// An original read whole, holding its permit of `ImageStore::reading` until it is dropped.
+struct Held {
+    bytes: Vec<u8>,
+    _reading: OwnedSemaphorePermit,
+}
+
+impl AsRef<[u8]> for Held {
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// The file at `path` as the answer to a request with `head`, sent as `content_type`, as
 /// [`ImageStore::serve`] says.
 async fn serve_file(
     path: PathBuf,
     content_type: &'static str,
-    request: Request,
+    head: &Parts,
 ) -> io::Result<Response> {
+    let request = Request::from_parts(head.clone(), Body::empty());
     let mut response = match ServeFile::new(path).try_call(request).await {
         Ok(response) => response.into_response(),
         // Without a fallback, `try_call` hands a missing file back as an error.
