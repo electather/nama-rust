@@ -140,6 +140,11 @@ pub(super) const TITLE_EPISODE: Method =
 pub(super) const TITLE_IMAGE: Method = optional(services::TITLE_SOURCE, "Image", "title_image");
 pub(super) const TITLE_ARTWORK: Method =
     optional(services::TITLE_SOURCE, "Artwork", "title_artwork");
+pub(super) const TITLE_SEASON_ARTWORK: Method = optional(
+    services::TITLE_SOURCE,
+    "SeasonArtwork",
+    "title_season_artwork",
+);
 pub(super) const RECOGNISE_TITLE: Method =
     optional(services::RECOGNISER, "RecogniseTitle", "recognise_title");
 pub(super) const RECOGNISE_FILE: Method =
@@ -225,6 +230,7 @@ pub(super) const POINTS: &[Point] = &[
             TITLE_EPISODE,
             TITLE_IMAGE,
             TITLE_ARTWORK,
+            TITLE_SEASON_ARTWORK,
         ],
         key: PointKey::provide::<dyn TitleSource>,
         register: |registrar, running| {

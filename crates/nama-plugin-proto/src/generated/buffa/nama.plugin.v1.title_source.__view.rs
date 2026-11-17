@@ -1396,7 +1396,7 @@ impl ::serde::Serialize for TitleAskedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What the `title_season` export is asked for.
+/// What the `title_season` and `title_season_artwork` exports are asked for.
 #[derive(Clone, Debug, Default)]
 pub struct SeasonAskedView<'a> {
     /// The Show's id.
@@ -4178,7 +4178,7 @@ impl ::serde::Serialize for ArtworkAskedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What the `title_artwork` export returns.
+/// What the `title_artwork` and `title_season_artwork` exports return.
 #[derive(Clone, Debug, Default)]
 pub struct ArtworkAnswerView<'a> {
     /// The title's artwork, in no particular order. Empty if the source has none.

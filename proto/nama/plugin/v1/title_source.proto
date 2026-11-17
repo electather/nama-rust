@@ -34,6 +34,9 @@ service TitleSourceService {
   // The `title_artwork` export: the artwork the source has for one title, of every kind it has.
   // Optional.
   rpc Artwork(ArtworkAsked) returns (ArtworkAnswer);
+  // The `title_season_artwork` export: the artwork the source has for one Season of the Show with
+  // the id asked for, in any namespace the source keeps or looks titles up by. Optional.
+  rpc SeasonArtwork(SeasonAsked) returns (ArtworkAnswer);
 }
 
 // Whether a title is a Movie or a Show. A source that doesn't know a kind finds nothing of it.
@@ -85,7 +88,7 @@ message TitleAsked {
   TitleId id = 1;
 }
 
-// What the `title_season` export is asked for.
+// What the `title_season` and `title_season_artwork` exports are asked for.
 message SeasonAsked {
   // The Show's id.
   TitleId show = 1;
@@ -155,7 +158,7 @@ message ArtworkAsked {
   TitleId id = 2;
 }
 
-// What the `title_artwork` export returns.
+// What the `title_artwork` and `title_season_artwork` exports return.
 message ArtworkAnswer {
   // The title's artwork, in no particular order. Empty if the source has none.
   repeated Artwork artwork = 1;

@@ -168,12 +168,25 @@ impl Artwork {
     }
 
     /// The Posters and Backdrops every enabled source's artwork list has for the title of `kind`
-    /// with the id `id`, ranked as [`pick`] ranks them, each offered. Asked anew each call.
-    pub(crate) async fn listed(&self, kind: TitleKind, id: &ExternalId) -> Listed {
-        let lists = self
-            .metadata
-            .artwork_lists(kind, &ExternalIds::from_iter([id.clone()]))
-            .await;
+    /// with the id `id`, or with `season` only the Posters of that Season of the Show, ranked as
+    /// [`pick`] ranks them, each offered. Asked anew each call.
+    pub(crate) async fn listed(
+        &self,
+        kind: TitleKind,
+        id: &ExternalId,
+        season: Option<u32>,
+    ) -> Listed {
+        let ids = ExternalIds::from_iter([id.clone()]);
+        // A Season's one image is its Poster.
+        let (lists, backdrops) = match (kind, season) {
+            (_, None) => (self.metadata.artwork_lists(kind, &ids).await, true),
+            (TitleKind::Show, Some(season)) => (
+                self.metadata.season_artwork_lists(&ids, season).await,
+                false,
+            ),
+            // A Movie has no Seasons.
+            (TitleKind::Movie, Some(_)) => (Vec::new(), false),
+        };
         let offered = |of_kind| {
             (ranked(&lists, of_kind, LANGUAGE).into_iter())
                 .map(|(_, source, art)| self.offer(&source.plugin, &art.path))
@@ -181,7 +194,11 @@ impl Artwork {
         };
         Listed {
             posters: offered(ArtworkKind::Poster),
-            backdrops: offered(ArtworkKind::Backdrop),
+            backdrops: if backdrops {
+                offered(ArtworkKind::Backdrop)
+            } else {
+                Vec::new()
+            },
         }
     }
 

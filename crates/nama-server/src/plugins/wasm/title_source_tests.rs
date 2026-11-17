@@ -201,5 +201,6 @@ async fn a_title_source_exporting_only_artwork_and_image_loads_and_is_asked_for_
     assert!(running.serves(&TITLE_ARTWORK));
     assert!(running.answers(TitleMethod::Artwork));
     assert!(!running.answers(TitleMethod::Movie));
+    assert!(!running.answers(TitleMethod::SeasonArtwork));
     assert!(failed.contains("title_artwork"), "{failed}");
 }
