@@ -98,6 +98,14 @@ pub trait TitleSource: Send + Sync + 'static {
         unsupported()
     }
 
+    /// The artwork this source has for the Season asked for, of every kind it has.
+    fn season_artwork<'a>(
+        &'a self,
+        _asked: &'a SeasonAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
+        unsupported()
+    }
+
     /// Whether this source serves `method`. The Kernel asks a source only for the methods it
     /// answers; a Built-in that leaves a method out may keep the default, which costs one
     /// [`MetadataError::Unsupported`] answer.
@@ -136,6 +144,8 @@ pub enum TitleMethod {
     Image,
     /// [`TitleSource::artwork`].
     Artwork,
+    /// [`TitleSource::season_artwork`].
+    SeasonArtwork,
 }
 
 /// The answer of a [`TitleSource`] method its source left out.

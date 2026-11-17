@@ -133,6 +133,31 @@ impl Client {
             .map_or(Lookup::Missing, |title| Lookup::Found(title.id)))
     }
 
+    /// The images, in every language, TMDB has at `path` of the TMDB id of the `kind` of title `id`
+    /// names, found as [`Client::find`] finds it.
+    async fn images(
+        &self,
+        kind: TitleKind,
+        id: &TitleId,
+        path: impl FnOnce(i64) -> String,
+    ) -> Result<ArtworkAnswer, MetadataError> {
+        let id = match self.find(kind, id).await? {
+            Lookup::Found(id) => id,
+            Lookup::Missing => return Ok(ArtworkAnswer::default()),
+            Lookup::Unsupported => {
+                return Ok(ArtworkAnswer {
+                    unsupported_id: true,
+                    ..Default::default()
+                });
+            }
+        };
+        let images: Option<Images> = self.api_in(None, &path(id), &[]).await?;
+        Ok(ArtworkAnswer {
+            artwork: images.map_or_default(Vec::from),
+            ..Default::default()
+        })
+    }
+
     async fn details<T: DeserializeOwned>(&self, path: &str) -> Result<Option<T>, MetadataError> {
         self.api(path, &[("append_to_response", "external_ids")])
             .await
@@ -413,22 +438,19 @@ impl TitleSource for Client {
                 // A kind TMDB doesn't know has no artwork.
                 _ => return Ok(ArtworkAnswer::default()),
             };
-            let id = match self.find(kind, &asked.id).await? {
-                Lookup::Found(id) => id,
-                Lookup::Missing => return Ok(ArtworkAnswer::default()),
-                Lookup::Unsupported => {
-                    return Ok(ArtworkAnswer {
-                        unsupported_id: true,
-                        ..Default::default()
-                    });
-                }
-            };
-            let path = format!("/{section}/{id}/images");
-            let images: Option<Images> = self.api_in(None, &path, &[]).await?;
-            Ok(ArtworkAnswer {
-                artwork: images.map_or_default(Vec::from),
-                ..Default::default()
-            })
+            self.images(kind, &asked.id, |id| format!("/{section}/{id}/images"))
+                .await
+        })
+    }
+
+    fn season_artwork<'a>(
+        &'a self,
+        asked: &'a SeasonAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
+        Box::pin(async move {
+            let path = |show| format!("/tv/{show}/season/{}/images", asked.season);
+            self.images(TitleKind::TITLE_KIND_SHOW, &asked.show, path)
+                .await
         })
     }
 }

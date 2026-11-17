@@ -5333,6 +5333,16 @@ pub struct ListArtworkRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// A Season's number, to list that Season of the Show's Posters for its Season Poster. Season 0
+    /// holds specials.
+    ///
+    /// Field 3: `season`
+    #[serde(
+        rename = "season",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub season: ::core::option::Option<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -5342,6 +5352,7 @@ impl ::core::fmt::Debug for ListArtworkRequest {
         f.debug_struct("ListArtworkRequest")
             .field("kind", &self.kind)
             .field("id", &self.id)
+            .field("season", &self.season)
             .finish()
     }
 }
@@ -5351,6 +5362,15 @@ impl ListArtworkRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ListArtworkRequest";
+}
+impl ListArtworkRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::season`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_season(mut self, value: u32) -> Self {
+        self.season = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(ListArtworkRequest);
 impl ::buffa::MessageName for ListArtworkRequest {
@@ -5386,6 +5406,9 @@ impl ::buffa::Message for ListArtworkRequest {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.season {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5409,6 +5432,9 @@ impl ::buffa::Message for ListArtworkRequest {
                 buf,
             );
             self.id.write_to(__cache, buf);
+        }
+        if let Some(v) = self.season {
+            ::buffa::types::put_uint32_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5441,6 +5467,15 @@ impl ::buffa::Message for ListArtworkRequest {
                     ctx,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.season = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5451,6 +5486,7 @@ impl ::buffa::Message for ListArtworkRequest {
     fn clear(&mut self) {
         self.kind = ::buffa::EnumValue::from(0);
         self.id = ::buffa::MessageField::none();
+        self.season = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -534,6 +534,28 @@ async fn artwork_is_listed_in_every_language_by_any_id_tmdb_looks_up() {
 }
 
 #[tokio::test]
+async fn a_seasons_artwork_is_listed_in_every_language_by_any_id_tmdb_looks_up() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+    let asked = SeasonAsked {
+        show: title_id(&ExternalId::tvdb(334_824)).into(),
+        season: 1,
+        ..Default::default()
+    };
+
+    let season = tmdb.season_artwork(&asked).await.unwrap();
+
+    assert_eq!(count(&season.artwork, ArtworkKind::ARTWORK_KIND_POSTER), 3);
+    assert_eq!(season.artwork.len(), 3);
+    let images: Vec<_> = fake
+        .requests()
+        .into_iter()
+        .filter(|request| request.contains("/images"))
+        .collect();
+    assert_eq!(images, ["/3/tv/70523/season/1/images?api_key=test-api-key"]);
+}
+
+#[tokio::test]
 async fn a_title_with_no_artwork_on_tmdb_lists_none() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);

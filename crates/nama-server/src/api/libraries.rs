@@ -293,7 +293,7 @@ impl LibraryService for LibraryServiceHandler {
         let request = request.to_owned_message();
         let kind = title_kind_from_proto(request.kind)?;
         let id = required_id(request.id.into_option(), "id", "title")?;
-        let listed = self.images.artwork.listed(kind, &id).await;
+        let listed = self.images.artwork.listed(kind, &id, request.season).await;
         Response::ok(ListArtworkResponse {
             poster_urls: listed.posters,
             backdrop_urls: listed.backdrops,

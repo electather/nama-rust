@@ -1,0 +1,32 @@
+{
+  "id": 90954,
+  "posters": [
+    {
+      "aspect_ratio": 0.667,
+      "height": 1500,
+      "iso_639_1": "de",
+      "file_path": "/tHvgWB0sh2EYUPNG1SpbVJ5NhGn.jpg",
+      "vote_average": 5.9,
+      "vote_count": 7,
+      "width": 1000
+    },
+    {
+      "aspect_ratio": 0.667,
+      "height": 1500,
+      "iso_639_1": "en",
+      "file_path": "/5LoHuHWA4H8jElFlZDvsmU2n63b.jpg",
+      "vote_average": 5.6,
+      "vote_count": 8,
+      "width": 1000
+    },
+    {
+      "aspect_ratio": 0.667,
+      "height": 1500,
+      "iso_639_1": "en",
+      "file_path": "/9kVd2rTSqPzQ1yW4oNcLbXhE3uM.jpg",
+      "vote_average": 5.2,
+      "vote_count": 3,
+      "width": 1000
+    }
+  ]
+}

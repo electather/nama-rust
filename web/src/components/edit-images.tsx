@@ -8,11 +8,7 @@ import type { Choices } from "@/components/artwork-choices";
 import { ChangeImage, type ImageRules } from "@/components/change-image";
 import { Button } from "@/components/ui/button";
 import type { Movie, Season, Show } from "@/gen/nama/v1/browse_pb";
-import {
-  LibraryService,
-  type ListArtworkRequestSchema,
-  type ListArtworkResponse,
-} from "@/gen/nama/v1/library_pb";
+import { LibraryService, type ListArtworkRequestSchema } from "@/gen/nama/v1/library_pb";
 // oxlint-disable-next-line import/max-dependencies -- the dialog puts together a title's images, changing each and its artwork lists
 import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
@@ -29,8 +25,11 @@ export interface EditableImage {
   /** Where its Custom Image is uploaded to and removed from, as the Server names it. */
   path: string;
   shape: keyof typeof shapes;
-  /** Which of the title's artwork lists offers others to pick from; a Season's has none. */
-  artwork?: "posterUrls" | "backdropUrls";
+  /** The artwork lists asked for others to pick from, and which of them offers this image's. */
+  artwork?: {
+    asked: MessageInitShape<typeof ListArtworkRequestSchema>;
+    list: "posterUrls" | "backdropUrls";
+  };
 }
 
 /** Each shape's preview: a Poster tall, a Backdrop wide. */
@@ -56,15 +55,15 @@ const titleImages: ImageRules = {
   queryKey: [],
 };
 
-/** A title's images and the artwork lists to pick others from, for {@link EditImages}. */
+/** A title's images, for {@link EditImages}. */
 export interface TitleImages {
   images: EditableImage[];
-  artwork: MessageInitShape<typeof ListArtworkRequestSchema>;
 }
 
 /** A Movie's Poster and Backdrop, for {@link EditImages}. */
 export function movieImages(movieId: ExternalId, movie: Movie): TitleImages {
   const path = `/custom-images/movie/${titleParam(movieId)}`;
+  const asked = { kind: TitleKind.MOVIE, id: movieId };
   const images: EditableImage[] = [
     {
       name: "Poster",
@@ -72,7 +71,7 @@ export function movieImages(movieId: ExternalId, movie: Movie): TitleImages {
       custom: movie.customPoster,
       path: `${path}/poster`,
       shape: "poster",
-      artwork: "posterUrls",
+      artwork: { asked, list: "posterUrls" },
     },
     {
       name: "Backdrop",
@@ -80,15 +79,16 @@ export function movieImages(movieId: ExternalId, movie: Movie): TitleImages {
       custom: movie.customBackdrop,
       path: `${path}/backdrop`,
       shape: "backdrop",
-      artwork: "backdropUrls",
+      artwork: { asked, list: "backdropUrls" },
     },
   ];
-  return { images, artwork: { kind: TitleKind.MOVIE, id: movieId } };
+  return { images };
 }
 
 /** A Show's Poster and Backdrop, and the Poster of its Season `season`, for {@link EditImages}. */
 export function showImages(showId: ExternalId, show: Show, season?: Season): TitleImages {
   const path = `/custom-images/show/${titleParam(showId)}`;
+  const asked = { kind: TitleKind.SHOW, id: showId };
   const images: EditableImage[] = [
     {
       name: "Poster",
@@ -96,7 +96,7 @@ export function showImages(showId: ExternalId, show: Show, season?: Season): Tit
       custom: show.customPoster,
       path: `${path}/poster`,
       shape: "poster",
-      artwork: "posterUrls",
+      artwork: { asked, list: "posterUrls" },
     },
   ];
   if (season) {
@@ -106,6 +106,7 @@ export function showImages(showId: ExternalId, show: Show, season?: Season): Tit
       custom: season.customPoster,
       path: `${path}/season/${String(season.number)}/poster`,
       shape: "poster",
+      artwork: { asked: { ...asked, season: season.number }, list: "posterUrls" },
     });
   }
   images.push({
@@ -114,9 +115,9 @@ export function showImages(showId: ExternalId, show: Show, season?: Season): Tit
     custom: show.customBackdrop,
     path: `${path}/backdrop`,
     shape: "backdrop",
-    artwork: "backdropUrls",
+    artwork: { asked, list: "backdropUrls" },
   });
-  return { images, artwork: { kind: TitleKind.SHOW, id: showId } };
+  return { images };
 }
 
 /**
@@ -125,7 +126,7 @@ export function showImages(showId: ExternalId, show: Show, season?: Season): Tit
  * one. The lists are asked for each time it opens. The page shows a change as soon as the Server
  * has it; other people's pages, the next time they load.
  */
-export function EditImages({ title, images, artwork }: TitleImages & { title: string }) {
+export function EditImages({ title, images }: TitleImages & { title: string }) {
   const { signedIn } = useRouteContext({ from: "/_member" });
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
@@ -156,7 +157,7 @@ export function EditImages({ title, images, artwork }: TitleImages & { title: st
           Everyone sees the images you upload or pick in place of the downloaded ones, until you
           remove them. Uploads are JPEG, PNG or WebP, up to 20 MB.
         </p>
-        {opened > 0 && <ImageChoices key={opened} images={images} artwork={artwork} />}
+        {opened > 0 && <ImageChoices key={opened} images={images} />}
         <div className="mt-6 flex justify-end">
           <Button variant="ghost" onClick={() => dialog.current?.close()}>
             Done
@@ -167,25 +168,33 @@ export function EditImages({ title, images, artwork }: TitleImages & { title: st
   );
 }
 
-/** Each of `images`, with the artwork the title's `artwork` lists offer in its place. */
-function ImageChoices({ images, artwork }: TitleImages) {
-  const listed = useQuery(LibraryService.method.listArtwork, artwork).data;
+/** Each of `images`, with the artwork its `artwork` lists offer in its place. */
+function ImageChoices({ images }: TitleImages) {
   return (
     <div className="mt-6 flex flex-col gap-5">
-      {images.map((image) => (
-        <ImageChoice key={image.path} image={image} choices={choicesOf(image, listed)} />
-      ))}
+      {images.map(({ artwork, ...image }) =>
+        artwork === undefined ? (
+          <ImageChoice key={image.path} image={image} />
+        ) : (
+          <ListedImageChoice key={image.path} image={image} artwork={artwork} />
+        ),
+      )}
     </div>
   );
 }
 
-/** The artwork `listed` offers in place of `image`, once it has arrived, if `image` has a list. */
-function choicesOf(
-  image: EditableImage,
-  listed: ListArtworkResponse | undefined,
-): Choices | undefined {
-  if (image.artwork === undefined || listed === undefined) return undefined;
-  return { urls: listed[image.artwork], shape: image.shape };
+/** One image, with the artwork `artwork` lists offer in its place once they have arrived. */
+function ListedImageChoice({
+  image,
+  artwork: { asked, list },
+}: {
+  image: EditableImage;
+  artwork: NonNullable<EditableImage["artwork"]>;
+}) {
+  // Images asking the same lists share one call.
+  const listed = useQuery(LibraryService.method.listArtwork, asked).data;
+  const choices = listed && { urls: listed[list], shape: image.shape };
+  return <ImageChoice image={image} choices={choices} />;
 }
 
 /** One image, with a way to change it, and `choices` to pick from if a title source lists any. */
