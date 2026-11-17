@@ -4,6 +4,7 @@
 mod migrations;
 
 use std::{
+    path::Path,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -12,6 +13,7 @@ use std::{
 };
 
 use nama_server::db::{self, Database};
+use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tokio::sync::oneshot;
 
 #[tokio::test]
@@ -29,6 +31,97 @@ async fn a_fresh_start_creates_the_database_and_restarting_applies_no_migrations
     assert_eq!(restart.migrations_applied(), Vec::<i64>::new());
     assert_eq!(count_rows(&restart).await, 1, "the restart lost a write");
     restart.close().await;
+}
+
+const BEFORE_UPGRADE: &str = "nama.db.before-upgrade";
+
+#[tokio::test]
+async fn starting_with_a_pending_migration_leaves_a_copy_from_before_it() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let previous = create_database_one_migration_behind(data_dir.path()).await;
+
+    let db = Database::open(data_dir.path()).await.unwrap();
+    db.close().await;
+
+    let copy = data_dir.path().join(BEFORE_UPGRADE);
+    assert_eq!(latest_migration(&copy).await, previous);
+}
+
+#[tokio::test]
+async fn a_later_upgrade_replaces_the_copy() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let previous = create_database_one_migration_behind(data_dir.path()).await;
+    let copy = data_dir.path().join(BEFORE_UPGRADE);
+    std::fs::write(&copy, "an earlier upgrade's copy").unwrap();
+
+    let db = Database::open(data_dir.path()).await.unwrap();
+    db.close().await;
+
+    assert_eq!(latest_migration(&copy).await, previous);
+}
+
+#[tokio::test]
+async fn starting_with_nothing_pending_writes_no_copy() {
+    let data_dir = tempfile::tempdir().unwrap();
+
+    Database::open(data_dir.path()).await.unwrap().close().await;
+    Database::open(data_dir.path()).await.unwrap().close().await;
+
+    let copy = data_dir.path().join(BEFORE_UPGRADE);
+    assert!(!copy.exists(), "{} was written", copy.display());
+}
+
+#[tokio::test]
+async fn a_copy_that_cannot_be_written_stops_the_upgrade_says_where_and_how_much_space_and_leaves_no_partial()
+ {
+    let data_dir = tempfile::tempdir().unwrap();
+    let previous = create_database_one_migration_behind(data_dir.path()).await;
+    // A directory where the copy goes makes writing it fail.
+    std::fs::create_dir(data_dir.path().join(BEFORE_UPGRADE)).unwrap();
+
+    let err = Database::open(data_dir.path())
+        .await
+        .unwrap_err()
+        .to_string();
+
+    assert!(
+        err.contains(&data_dir.path().display().to_string()) && err.contains(" MB free"),
+        "{err}"
+    );
+    assert_eq!(
+        latest_migration(&data_dir.path().join(db::FILE_NAME)).await,
+        previous,
+        "the database was upgraded without a copy"
+    );
+    let partial = data_dir.path().join(format!("{BEFORE_UPGRADE}.partial"));
+    assert!(!partial.exists(), "{} was left behind", partial.display());
+}
+
+/// Creates the database in `data_dir` with every migration but the last, as the Server before
+/// an upgrade left it, and returns the latest one it has.
+#[expect(clippy::unwrap_used, reason = "a failed setup fails the test")]
+async fn create_database_one_migration_behind(data_dir: &Path) -> i64 {
+    let previous = *migrations::numbers().iter().rev().nth(1).unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data_dir.join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    sqlx::migrate!().run_to(previous, &mut conn).await.unwrap();
+    conn.close().await.unwrap();
+    previous
+}
+
+/// The latest migration the database file at `path` has had.
+#[expect(clippy::unwrap_used, reason = "a failed read fails the test")]
+async fn latest_migration(path: &Path) -> i64 {
+    let options = SqliteConnectOptions::new().filename(path).read_only(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let latest = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations")
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    conn.close().await.unwrap();
+    latest
 }
 
 #[tokio::test]
@@ -321,7 +414,7 @@ async fn reader_connections_have_a_busy_timeout_and_foreign_keys_on_and_cannot_w
 // differ (#561). Listing every file in one place makes both PRs append a different last line, which does.
 #[test]
 fn migrations_txt_lists_every_migration_in_order() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files: Vec<String> = std::fs::read_dir(dir.join("migrations"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
