@@ -5,7 +5,7 @@ import {
   ExtensionPoints,
   LogoChoice,
   PluginLogo,
-  RecogniserFailing,
+  PointFailures,
 } from "@/components/plugin-at-a-glance";
 import { Page } from "@/components/page";
 import { PluginQualities } from "@/components/plugin-qualities";
@@ -44,7 +44,7 @@ function PluginPage() {
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <PluginToggle summary={summary} settings={plugin.settings} />
       </div>
-      <RecogniserFailing failure={plugin.recogniserFailure} />
+      <PointFailures failures={plugin.failures} />
       {summary.refusedReason === "" ? (
         <>
           <LogoChoice summary={summary} />

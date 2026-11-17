@@ -222,14 +222,20 @@ impl PluginServiceHandler {
             .ok_or_else(|| plugin_not_found(id))
     }
 
-    /// `stored` as `Plugin`, with its logo and whether its Recogniser's last call failed.
+    /// `stored` as `Plugin`, with its logo and each of its Extension Points whose last call failed.
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let logo = logo(&self.plugin_logos, &stored.plugin, &custom).await;
-        let failing = (self.plugin_settings.extension_points())
-            .failing(&stored.plugin.id, PointKey::provide::<dyn Recogniser>());
+        let points = self.plugin_settings.extension_points();
+        let failures = public_points()
+            .into_iter()
+            .filter_map(|(key, point)| {
+                let failing = points.failing(&stored.plugin.id, key)?;
+                Some(failure_to_proto(point, failing))
+            })
+            .collect();
         Ok(proto::Plugin {
-            recogniser_failure: failing.map(failing_to_proto).into(),
+            failures,
             ..plugin_to_proto(stored.plugin, stored.stored.settings, &stored.granted, logo)
         })
     }
@@ -476,8 +482,12 @@ fn plugin_to_proto(
     }
 }
 
-fn failing_to_proto(failing: Failing) -> proto::RecogniserFailure {
-    proto::RecogniserFailure {
+fn failure_to_proto(
+    point: proto::ExtensionPoint,
+    failing: Failing,
+) -> proto::ExtensionPointFailure {
+    proto::ExtensionPointFailure {
+        point: point.into(),
         last_error: failing.last_error,
         at_ms: failing.at_ms,
         failed_in_a_row: failing.in_a_row,
@@ -548,8 +558,18 @@ fn manifest_and_refusal(id: &PluginId, listed: Result<Manifest, String>) -> (Man
 /// The Extension Points an admin is shown for `points`, leaving out any this API doesn't name,
 /// such as a test's own.
 fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::ExtensionPoint>> {
+    let public = public_points();
+    points
+        .iter()
+        .filter_map(|point| public.iter().find(|(key, _)| key == point))
+        .map(|&(_, public)| public.into())
+        .collect()
+}
+
+/// Each Extension Point this API names, by its key, in the order its enum lists them.
+fn public_points() -> [(PointKey, proto::ExtensionPoint); 11] {
     use proto::ExtensionPoint as Public;
-    let public = [
+    [
         (
             PointKey::provide::<dyn Fulfiller<Movies>>(),
             Public::EXTENSION_POINT_MOVIE_FULFILLER,
@@ -594,12 +614,7 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
             PointKey::provide::<dyn Automation>(),
             Public::EXTENSION_POINT_AUTOMATION,
         ),
-    ];
-    points
-        .iter()
-        .filter_map(|point| public.iter().find(|(key, _)| key == point))
-        .map(|&(_, public)| public.into())
-        .collect()
+    ]
 }
 
 /// A setting with its `stored` value, as a client may see it: a secret's value, stored or
