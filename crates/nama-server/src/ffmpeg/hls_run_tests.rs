@@ -353,7 +353,11 @@ fn a_limited_tone_map_with_a_burn_in_scales_down_after_the_subtitle() {
         picture: None,
     }));
     let text = transcode_args(burned(BurnIn::Text {
-        subtitle: TextSubtitle::Stream(2),
+        subtitle: TextSubtitle::Stream {
+            subtitle: 2,
+            track: 4,
+            fonts: 1,
+        },
     }));
 
     let graph = format!(
@@ -433,7 +437,11 @@ fn a_run_that_seeks_reads_its_image_subtitle_from_an_input_that_doesnt() {
 fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Text {
-            subtitle: TextSubtitle::Stream(2),
+            subtitle: TextSubtitle::Stream {
+                subtitle: 2,
+                track: 4,
+                fonts: 1,
+            },
         }),
         ..SOFTWARE
     };
@@ -460,6 +468,26 @@ fn a_sidecar_text_subtitle_is_burned_in_from_its_own_file_by_libass() {
     assert_eq!(
         value_of(&args, "-vf"),
         Some(r"subtitles=filename=\'Alien.en.ass\'")
+    );
+}
+
+#[test]
+fn a_cached_text_subtitle_is_burned_in_from_its_ass_with_its_fonts_by_libass() {
+    let burned = VideoConversion {
+        burn_in: Some(BurnIn::Text {
+            subtitle: TextSubtitle::Cached {
+                ass: "cache/4.ass".to_owned(),
+                fonts: "cache/fonts".to_owned(),
+            },
+        }),
+        ..SOFTWARE
+    };
+
+    let args = transcode_args(burned);
+
+    assert_eq!(
+        value_of(&args, "-vf"),
+        Some(r"subtitles=filename=\'cache/4.ass\':fontsdir=\'cache/fonts\'")
     );
 }
 
