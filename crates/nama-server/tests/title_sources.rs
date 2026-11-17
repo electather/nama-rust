@@ -23,8 +23,8 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest,
     ExternalId, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListTitleSourcesRequest,
     ListUnmatchedItemsRequest, MatchServiceClient, PluginServiceClient, RefusalReason,
-    SettingValue, UnmatchedReason, UpdateLibraryRequest, UpdatePluginSettingsRequest,
-    setting_value,
+    SettingValue, UnmatchedItemFilter, UnmatchedReason, UpdateLibraryRequest,
+    UpdatePluginSettingsRequest, setting_value,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -311,7 +311,11 @@ async fn unmatched_reasons(
     let matches = MatchServiceClient::new(HttpClient::plaintext(), server.client_config());
     let listed = matches
         .list_unmatched_items(ListUnmatchedItemsRequest {
-            library_id: library.id,
+            filter: UnmatchedItemFilter {
+                library_id: library.id,
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         })
         .await

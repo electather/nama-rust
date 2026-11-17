@@ -1,5 +1,6 @@
 import { Code } from "@connectrpc/connect";
 import { useMutation } from "@connectrpc/connect-query";
+import { QRCodeSVG } from "qrcode.react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { FormField } from "@/components/form-field";
@@ -116,7 +117,7 @@ function DeviceNameField({ error }: { error: string | undefined }) {
 function WhereToEnterIt() {
   return (
     <>
-      On a Device where you’re signed in, go to{" "}
+      Scan the QR code with your phone. Or, on a Device where you’re signed in, go to{" "}
       <strong className="font-medium text-foreground">{window.location.origin}/code</strong> and
       enter this code.
     </>
@@ -136,22 +137,47 @@ function WaitForApproval({
   const expired = usePollUntilApproved(shown.handle, onSignedIn);
   return (
     <div className="flex flex-col gap-5">
-      <div className="rounded-xl border bg-surface-raised px-4 py-8 text-center">
-        <p
-          className={
-            expired
-              ? "text-4xl font-semibold tracking-wide whitespace-nowrap tabular-nums text-muted-foreground line-through"
-              : "text-4xl font-semibold tracking-wide whitespace-nowrap tabular-nums"
-          }
-        >
-          {shown.code}
-        </p>
-        <output className="mt-3 block text-sm text-muted-foreground">
-          {expired ? "This code has expired." : "Waiting for it to be approved…"}
-        </output>
-      </div>
+      <ShownCode code={shown.code} expired={expired} />
       {expired && newCode}
     </div>
+  );
+}
+
+/** The code, with its QR code while it can still be approved. */
+function ShownCode({ code, expired }: { code: string; expired: boolean }) {
+  return (
+    <div className="rounded-xl border bg-surface-raised px-4 py-8 text-center">
+      <p
+        className={
+          expired
+            ? "text-4xl font-semibold tracking-wide whitespace-nowrap tabular-nums text-muted-foreground line-through"
+            : "text-4xl font-semibold tracking-wide whitespace-nowrap tabular-nums"
+        }
+      >
+        {code}
+      </p>
+      {!expired && <ScanToApprove code={code} />}
+      <output className="mt-3 block text-sm text-muted-foreground">
+        {expired ? "This code has expired." : "Waiting for it to be approved…"}
+      </output>
+    </div>
+  );
+}
+
+/** `code` as a link to `/code` on this Server, for a phone to open by scanning. */
+function ScanToApprove({ code }: { code: string }) {
+  return (
+    // Dark modules on a light ground, since not every scanner reads them inverted. That holds only
+    // while the app is dark only: a light theme makes `foreground` dark.
+    <QRCodeSVG
+      value={`${window.location.origin}/code?${new URLSearchParams({ code })}`}
+      title="Scan it with your phone to approve this Device there"
+      size={176}
+      marginSize={4}
+      bgColor="transparent"
+      fgColor="currentColor"
+      className="mx-auto mt-6 rounded-lg bg-foreground text-background"
+    />
   );
 }
 

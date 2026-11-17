@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT CAST(title.key AS INTEGER) AS \"position!: i64\", user_id AS \"user_id!\",\n                      position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM json_each(?) AS title\n               JOIN json_each(title.value, '$[1]') AS id\n               JOIN watch_states ON watch_states.kind = json_extract(title.value, '$[0]')\n                                AND watch_states.title_id = id.value\n               WHERE ? IS NULL OR user_id = ?\n               ORDER BY title.key, user_id, updated_at DESC, watch_states.title_id",
+  "query": "SELECT CAST(title.key AS INTEGER) AS \"position!: i64\", user_id AS \"user_id!\",\n                      position_ms, duration_ms, played AS \"played: bool\", played_at,\n                      updated_at\n               FROM json_each(?) AS title\n               JOIN json_each(title.value, '$[1]') AS id\n               JOIN watch_states ON watch_states.kind = json_extract(title.value, '$[0]')\n                                AND watch_states.title_id = id.value\n               WHERE ? IS NULL OR user_id = ?\n               ORDER BY title.key, user_id, updated_at DESC, watch_states.title_id",
   "describe": {
     "columns": [
       {
@@ -54,8 +54,19 @@
         }
       },
       {
-        "name": "updated_at",
+        "name": "played_at",
         "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "played_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 6,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -74,8 +85,9 @@
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "05ea4e58b243e1ae690952554e0d1152bffe564fbd9962916dff6dac2e79ee59"
+  "hash": "bd007c24dd4bd727f7582f8a8deb267179ae56e9eb7ddab7c9e713da3827fa1e"
 }

@@ -47,10 +47,14 @@ service BrowseService {
   rpc ListEpisodes(ListEpisodesRequest) returns (ListEpisodesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Lists a page of the caller's Continue Watching: the Movies and Episodes whose position is
-  // past 0 and that they haven't played, most recent first by when their Watch State last
-  // changed. Only those Matched in some Library are listed, each in the oldest Library that has
-  // it. The Watch State of the rest is kept, so they are listed again once a rescan Matches them.
+  // Lists a page of the caller's Continue Watching, most recent first by when their Watch State
+  // last changed: the Movies whose position is past 0 and that they haven't played, and one
+  // Episode of each Show they've watched, listed by its latest Watch State of any Episode. That
+  // Episode is the one they most recently started and haven't played, or else the Show's next
+  // Episode, which has no Watch State: the first unplayed one after the one they played most
+  // recently, in aired order, Specials aside. Only those Matched in some Library are listed,
+  // each in the oldest Library that has it. The Watch State of the rest is kept, so they are
+  // listed again once a rescan Matches them.
   // Fails with `invalid_argument` if `page.token` isn't one an earlier call returned.
   rpc ListContinueWatching(ListContinueWatchingRequest) returns (ListContinueWatchingResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -61,7 +65,9 @@ service BrowseService {
   // as the User types. A last word of four digits after others is a year, which keeps only those
   // released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
   // Show counts as of every year one of its Episodes aired. A Show is found by its own title,
-  // and an Episode by its own, not its Show's.
+  // and an Episode by its own, not its Show's. Lists a page of what it found, best fit first.
+  // Fails with `invalid_argument` if `page.token` isn't one an earlier call for the same query
+  // returned.
   rpc SearchLibraries(SearchLibrariesRequest) returns (SearchLibrariesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -444,8 +450,8 @@ message ListEpisodesResponse {
   repeated Episode episodes = 1;
 }
 
-// A Movie or Episode the caller has started and not played, with what a client needs to show it
-// and resume it.
+// A Movie or Episode in the caller's Continue Watching, with what a client needs to show it and
+// resume or start it.
 message ContinueWatchingEntry {
   // The Library it is in.
   int64 library_id = 1;
@@ -479,14 +485,20 @@ message ListContinueWatchingResponse {
 message SearchLibrariesRequest {
   // The words to search for. One without letters or digits finds nothing.
   string query = 1;
+  // The page of what it found to list. Movies, Shows and Episodes share one order, best fit
+  // first, so a page holds `size` of them together.
+  PageRequest page = 2;
 }
 
-// What `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in two
-// Libraries is found in each.
+// A page of what `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in
+// two Libraries is found in each.
 message SearchLibrariesResponse {
   repeated MovieInLibrary movies = 1;
   repeated ShowInLibrary shows = 2;
   repeated EpisodeInLibrary episodes = 3;
+  // The rest of what it found: the next page's token, and on the first page how many Movies,
+  // Shows and Episodes it found in all.
+  PageResponse page = 4;
 }
 
 // A Movie a search found, with what a client needs to show it and open it with `GetMovie`.

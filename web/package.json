@@ -25,6 +25,7 @@
     "hls.js": "^1.7.4",
     "libbitsub": "1.13.2",
     "lucide-react": "^1.72.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "shadcn": "^4.23.0",
@@ -45,6 +46,7 @@
     "@vitejs/plugin-react": "^6",
     "fallow": "^3.42.0",
     "happy-dom": "^21.0.4",
+    "jsqr": "^1.4.0",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },

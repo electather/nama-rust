@@ -1,6 +1,6 @@
 //! Watch State through Browse: what a User reports, marks and has started.
 
-use std::collections::HashMap;
+use std::{cmp::Reverse, collections::HashMap};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{PageRequest, PageResponse};
@@ -9,14 +9,14 @@ use super::{Browse, Error, Show, Target, Titles, Version, finding_failed, with_t
 use crate::{
     library::{
         LibraryEpisode, LibraryMovie, LibraryVersion, MovieOrEpisode, Progress, TitlesIn,
-        WatchState, WatchStateKind,
+        WatchState,
     },
     page::Page,
     playback::Probe,
 };
 
-/// A Movie or Episode a User has started and not played, in the Library Continue Watching lists
-/// it under, with Versions of the form `V`.
+/// A Movie or Episode in a User's Continue Watching, in the Library it lists it under, with
+/// Versions of the form `V`.
 #[derive(Debug)]
 pub(crate) enum Started<V = Version> {
     Movie {
@@ -28,12 +28,14 @@ pub(crate) enum Started<V = Version> {
         library: i64,
         show: Show,
         episode: LibraryEpisode<V>,
-        state: WatchState,
+        /// `None` for the Show's next Episode, which the User hasn't started.
+        state: Option<WatchState>,
     },
 }
 
-/// Where a title sits in Continue Watching, newest first: when the Watch State it's listed by
-/// changed, and that state's row id, which breaks ties within a second.
+/// Where a title sits in Continue Watching, newest first: when its latest Watch State, or its
+/// Show's latest of any Episode, changed, and that state's row id, which breaks ties within a
+/// second.
 type Recency = (i64, i64);
 
 impl Browse {
@@ -90,11 +92,12 @@ impl Browse {
         Ok(self.watch_states.mark(user, marked, played).await?)
     }
 
-    /// A page of the User `user`'s Continue Watching: the Movies and Episodes they've started and
-    /// not played, most recent first. Each is in the oldest Library that has it under any of its
-    /// ids, listed once with its most recently updated Watch State among them, so a newer played
-    /// one under one id hides an older started one under another (ADR 0042). One no Library has
-    /// is left out. Only the first page counts them all.
+    /// A page of the User `user`'s Continue Watching, most recent first: the Movies they've
+    /// started and not played, and one Episode of each Show they've watched, the one they started
+    /// most recently if they haven't played it, or else the Show's next Episode. Each is in the
+    /// oldest Library that has it under any of its ids, with its most recently updated Watch State
+    /// among them, so a newer played one under one id hides an older started one under another
+    /// (ADR 0042). One no Library has is left out. Only the first page counts them all.
     pub(crate) async fn continue_watching(
         &self,
         user: i64,
@@ -126,50 +129,29 @@ impl Browse {
         &self,
         user: i64,
     ) -> Result<Vec<(Started<LibraryVersion>, Recency)>, Error> {
-        let started = self.watch_states.continue_watching(user).await?;
-        if started.is_empty() {
+        let states = self.watch_states.of_user(user).await?;
+        if states.is_empty() {
             return Ok(Vec::new());
         }
         let mut found = Found {
-            unfound: (started.iter())
-                .map(|(watched, state, _)| (watched.clone(), *state))
+            unfound: (states.into_iter())
+                .map(|(watched, state, row)| (watched, (state, row)))
                 .collect(),
-            place: HashMap::new(),
-            titles: Vec::new(),
+            listed: Vec::new(),
         };
         // Oldest first, so a title in two Libraries is found in the older.
         for library in self.libraries.list().await.map_err(finding_failed)? {
             match self.titles(&library).await? {
                 Titles::Movies(movies) => found.movies(library.id, movies),
-                Titles::Shows(shows) => found.episodes(library.id, &shows),
+                Titles::Shows(shows) => found.shows(library.id, shows),
             }
         }
-        let (asked, mut titles): (Vec<_>, Vec<_>) = (found.titles.into_iter())
-            .map(|(asked, title)| (asked, Some(title)))
-            .unzip();
-        let newest = self.watch_states.of_titles(Some(user), &asked).await?;
-        Ok((started.into_iter())
-            .filter_map(|(watched, WatchState { updated_at, .. }, row)| {
-                let place = *found.place.get(&watched)?;
-                // Taken under the first of its ids listed, so a title is listed once.
-                let title = titles.get_mut(place)?.take()?;
-                let &(_, state) = newest.get(place)?.first()?;
-                (state.position_ms > 0 && !state.played)
-                    .then(|| (title.with_state(state), (updated_at, row)))
-            })
-            .collect())
+        found.listed.sort_by_key(|&(_, recency)| Reverse(recency));
+        Ok(found.listed)
     }
 }
 
 impl Started<LibraryVersion> {
-    /// The same title with the Watch State `state`.
-    fn with_state(mut self, state: WatchState) -> Self {
-        match &mut self {
-            Self::Movie { state: had, .. } | Self::Episode { state: had, .. } => *had = state,
-        }
-        self
-    }
-
     fn versions(&self) -> &[LibraryVersion] {
         match self {
             Self::Movie { movie, .. } => &movie.versions,
@@ -204,72 +186,116 @@ impl Started<LibraryVersion> {
     }
 }
 
-/// The titles of the Libraries read so far that a User has started under any of their ids.
+/// What of the Libraries read so far is in a User's Continue Watching.
 struct Found {
-    /// The User's started Watch States under ids no Library read so far has.
-    unfound: HashMap<MovieOrEpisode, WatchState>,
-    /// Which of `titles` each id the User started a title under is of.
-    place: HashMap<MovieOrEpisode, usize>,
-    /// Each title found, with every id of it, and one of the Watch States it was started with.
-    titles: Vec<((WatchStateKind, ExternalIds), Started<LibraryVersion>)>,
+    /// The User's Watch States, each with its row id, under ids no Library read so far has.
+    unfound: HashMap<MovieOrEpisode, (WatchState, i64)>,
+    /// Each title listed, with its recency.
+    listed: Vec<(Started<LibraryVersion>, Recency)>,
 }
 
 impl Found {
-    /// Adds `title(state)`, a title of kind `kind` with the ids `ids`, if the User started it
-    /// under any of them, with `state` one they started it with, and takes its ids as its.
-    fn add(
+    /// Takes the User's Watch States under any of `ids` as one title's, and returns the latest.
+    // ponytail: a title in two Libraries with different id sets, watched both under an id the
+    // older one has and under one only the newer one has, is listed twice: the older Library's
+    // copy takes the ids it has and the newer one's takes the rest. Joining a title whose ids
+    // include one already taken to that title would list it once.
+    fn take(
         &mut self,
-        kind: WatchStateKind,
         ids: &ExternalIds,
         watched: impl Fn(&ExternalId) -> MovieOrEpisode,
-        title: impl FnOnce(WatchState) -> Started<LibraryVersion>,
-    ) {
-        // ponytail: a title in two Libraries with different id sets, started both under an id
-        // the older one has and under one only the newer one has, is listed twice: the older
-        // Library's copy takes the ids it has and the newer one's takes the rest. Joining a
-        // title whose ids include one already placed to that place would list it once.
-        let place = self.titles.len();
-        let mut started = None;
-        for id in ids.iter() {
-            let watched = watched(&id);
-            if let Some(state) = self.unfound.remove(&watched) {
-                self.place.insert(watched, place);
-                started = started.or(Some(state));
-            }
-        }
-        if let Some(state) = started {
-            self.titles.push(((kind, ids.clone()), title(state)));
-        }
+    ) -> Option<(WatchState, i64)> {
+        (ids.iter())
+            .filter_map(|id| self.unfound.remove(&watched(&id)))
+            .max_by_key(|&(state, row)| (state.updated_at, row))
     }
 
     /// The `movies` of the Library `library`.
     fn movies(&mut self, library: i64, movies: Vec<LibraryMovie>) {
         for movie in movies {
-            let ids = movie.ids.clone();
-            let started = |state| Started::Movie {
-                library,
-                movie,
-                state,
+            let Some((state, row)) = self.take(&movie.ids, MovieOrEpisode::movie) else {
+                continue;
             };
-            self.add(WatchStateKind::Movie, &ids, MovieOrEpisode::movie, started);
-        }
-    }
-
-    /// The Episodes of `shows`, of the Library `library`.
-    fn episodes(&mut self, library: i64, shows: &[Show]) {
-        for show in shows {
-            for episode in show.episodes() {
-                // ponytail: a Show cloned per started Episode; `Arc<Show>` if a profile ever
-                // points here.
-                let started = |state| Started::Episode {
+            if is_started(state) {
+                let started = Started::Movie {
                     library,
-                    show: show.clone(),
-                    episode: episode.clone(),
+                    movie,
                     state,
                 };
-                let kind = WatchStateKind::Episode;
-                self.add(kind, &episode.ids, MovieOrEpisode::episode, started);
+                self.listed.push((started, (state.updated_at, row)));
             }
         }
     }
+
+    /// The `shows` of the Library `library`, each listed at its latest Watch State.
+    // ponytail: a Show whose Episodes are split across Libraries is judged in each on that
+    // Library's Episodes alone, so it can be listed twice, or not at all when its next Episode is
+    // only in a newer Library. Merge a Show's Episodes across Libraries if that comes up.
+    fn shows(&mut self, library: i64, shows: Vec<Show>) {
+        for show in shows {
+            let watched: Vec<_> = (show.episodes())
+                .map(|episode| (episode, self.take(&episode.ids, MovieOrEpisode::episode)))
+                .collect();
+            let recency = (watched.iter())
+                .filter_map(|&(_, taken)| taken.map(|(state, row)| (state.updated_at, row)))
+                .max();
+            let Some((recency, (episode, state))) = recency.zip(show_entry(&watched)) else {
+                continue;
+            };
+            let episode = episode.clone();
+            let started = Started::Episode {
+                library,
+                show,
+                episode,
+                state,
+            };
+            self.listed.push((started, recency));
+        }
+    }
 }
+
+/// Whether a User has started the title of `state` and not played it.
+const fn is_started(state: WatchState) -> bool {
+    state.position_ms > 0 && !state.played
+}
+
+/// An Episode, with the User's latest Watch State of it and that state's row id.
+type WatchedEpisode<'a, V> = (&'a LibraryEpisode<V>, Option<(WatchState, i64)>);
+
+/// A Show's entry in Continue Watching, from each of its Episodes in aired order: its most
+/// recently started Episode, with its state, or else its next Episode, without one. `None` if it
+/// has neither.
+fn show_entry<'a, V>(
+    watched: &[WatchedEpisode<'a, V>],
+) -> Option<(&'a LibraryEpisode<V>, Option<WatchState>)> {
+    let started = (watched.iter())
+        .filter_map(|&(episode, taken)| Some((episode, taken?)))
+        .filter(|&(_, (state, _))| is_started(state))
+        .max_by_key(|&(_, (state, row))| (state.updated_at, row));
+    match started {
+        Some((episode, (state, _))) => Some((episode, Some(state))),
+        None => next_episode(watched).map(|episode| (episode, None)),
+    }
+}
+
+/// Season 0, which isn't in aired order.
+const SPECIALS: i64 = 0;
+
+/// The first unplayed Episode of `watched`, in aired order, after the one that became played
+/// most recently, Specials aside.
+fn next_episode<'a, V>(watched: &[WatchedEpisode<'a, V>]) -> Option<&'a LibraryEpisode<V>> {
+    let aired = |episode: &LibraryEpisode<V>| episode.season != SPECIALS;
+    let played_at = |taken: Option<(WatchState, i64)>| taken?.0.played_at;
+    // Of those played in the same second, as when a Season is marked played, the last aired.
+    let (_, last_played) = (watched.iter().enumerate())
+        .filter(|&(_, &(episode, _))| aired(episode))
+        .filter_map(|(nth, &(_, taken))| Some((played_at(taken)?, nth)))
+        .max()?;
+    (watched.get(last_played + 1..)?.iter())
+        .find(|&&(episode, taken)| aired(episode) && played_at(taken).is_none())
+        .map(|&(episode, _)| episode)
+}
+
+#[cfg(test)]
+#[path = "watching_tests.rs"]
+mod tests;
