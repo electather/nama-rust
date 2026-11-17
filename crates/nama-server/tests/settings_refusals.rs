@@ -18,17 +18,11 @@ use nama_proto::nama::v1::{
 use refused::assert_refused;
 use server::TestServer;
 
-/// A segment folder that's absolute where the tests run: on Windows one needs a drive.
-#[cfg(windows)]
-const FOLDER: &str = r"C:\nama";
-#[cfg(not(windows))]
-const FOLDER: &str = "/dev/shm/nama";
-
 /// Playback settings with every field but `gpu` away from its default, so a reset would show:
-/// a GPU is refused with Off.
-fn saved_playback() -> PlaybackSettings {
+/// a GPU is refused with Off. The segment folder is inside `server`'s data folder.
+fn saved_playback(server: &TestServer) -> PlaybackSettings {
     PlaybackSettings {
-        segment_folder: FOLDER.to_owned(),
+        segment_folder: server.data_dir().join("segments").display().to_string(),
         max_transcodes: Some(2),
         keep_behind_minutes: Some(30),
         hardware_acceleration: HardwareAcceleration::HARDWARE_ACCELERATION_OFF.into(),
@@ -66,7 +60,7 @@ async fn read_playback(client: &ServerServiceClient<HttpClient>) -> PlaybackSett
 async fn with_playback_saved() -> (TestServer, ServerServiceClient<HttpClient>) {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
-    (client.update_playback_settings(update_playback(saved_playback())))
+    (client.update_playback_settings(update_playback(saved_playback(&server))))
         .await
         .unwrap();
     (server, client)
@@ -147,7 +141,7 @@ async fn image_settings_without_settings_are_refused_naming_it_and_nothing_chang
 
 #[tokio::test]
 async fn an_unknown_hardware_acceleration_is_refused_naming_it_and_nothing_changes() {
-    let (_server, client) = with_playback_saved().await;
+    let (server, client) = with_playback_saved().await;
     let before = read_playback(&client).await;
     let on_a_gpu = Gpu {
         id: "0000:00:02.0".to_owned(),
@@ -159,7 +153,7 @@ async fn an_unknown_hardware_acceleration_is_refused_naming_it_and_nothing_chang
             .update_playback_settings(update_playback(PlaybackSettings {
                 hardware_acceleration: EnumValue::Unknown(99),
                 gpu: gpu.into(),
-                ..saved_playback()
+                ..saved_playback(&server)
             }))
             .await;
 
@@ -175,13 +169,13 @@ async fn an_unknown_hardware_acceleration_is_refused_naming_it_and_nothing_chang
 
 #[tokio::test]
 async fn an_unknown_remote_playback_limit_is_refused_naming_it_and_nothing_changes() {
-    let (_server, client) = with_playback_saved().await;
+    let (server, client) = with_playback_saved().await;
     let before = read_playback(&client).await;
 
     let updated = client
         .update_playback_settings(update_playback(PlaybackSettings {
             remote_playback_limit: EnumValue::Unknown(99),
-            ..saved_playback()
+            ..saved_playback(&server)
         }))
         .await;
 
@@ -196,13 +190,13 @@ async fn an_unknown_remote_playback_limit_is_refused_naming_it_and_nothing_chang
 
 #[tokio::test]
 async fn unspecified_hardware_acceleration_and_limit_are_saved_as_automatic_and_original() {
-    let (_server, client) = with_playback_saved().await;
+    let (server, client) = with_playback_saved().await;
 
     client
         .update_playback_settings(update_playback(PlaybackSettings {
             hardware_acceleration: HardwareAcceleration::HARDWARE_ACCELERATION_UNSPECIFIED.into(),
             remote_playback_limit: PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED.into(),
-            ..saved_playback()
+            ..saved_playback(&server)
         }))
         .await
         .unwrap();

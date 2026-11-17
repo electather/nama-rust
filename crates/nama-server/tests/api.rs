@@ -457,11 +457,10 @@ async fn segment_folder(client: &ServerServiceClient<HttpClient>) -> String {
         .clone()
 }
 
-/// A segment folder that's absolute where the tests run: on Windows one needs a drive.
-#[cfg(windows)]
-const FOLDER: &str = r"C:\nama";
-#[cfg(not(windows))]
-const FOLDER: &str = "/dev/shm/nama";
+/// A segment folder inside `server`'s data folder, which saving it creates.
+fn folder_in(server: &TestServer) -> String {
+    server.data_dir().join("segments").display().to_string()
+}
 
 fn set_segment_folder(folder: &str) -> UpdatePlaybackSettingsRequest {
     UpdatePlaybackSettingsRequest {
@@ -479,14 +478,15 @@ async fn the_segment_folder_is_empty_until_an_admin_sets_it() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
     let unset = segment_folder(&client).await;
+    let folder = folder_in(&server);
 
     client
-        .update_playback_settings(set_segment_folder(&format!(" {FOLDER} ")))
+        .update_playback_settings(set_segment_folder(&format!(" {folder} ")))
         .await
         .unwrap();
 
     assert_eq!(unset, "");
-    assert_eq!(segment_folder(&client).await, FOLDER);
+    assert_eq!(segment_folder(&client).await, folder);
 }
 
 #[tokio::test]
@@ -558,7 +558,7 @@ async fn a_transcode_cap_set_to_0_is_refused_naming_it_and_nothing_changes() {
     let updated = client
         .update_playback_settings(UpdatePlaybackSettingsRequest {
             settings: PlaybackSettings {
-                segment_folder: FOLDER.to_owned(),
+                segment_folder: folder_in(&server),
                 max_transcodes: Some(0),
                 ..Default::default()
             }
@@ -702,8 +702,9 @@ async fn keep_for_skipping_back_set_to_0_is_refused_naming_it_and_nothing_change
 async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_nothing_changes() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let folder = folder_in(&server);
     client
-        .update_playback_settings(set_segment_folder(FOLDER))
+        .update_playback_settings(set_segment_folder(&folder))
         .await
         .unwrap();
 
@@ -717,7 +718,26 @@ async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_no
         RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
     );
     assert_eq!(refusal.field, "settings.segment_folder");
-    assert_eq!(segment_folder(&client).await, FOLDER);
+    assert_eq!(segment_folder(&client).await, folder);
+}
+
+#[tokio::test]
+async fn a_segment_folder_the_server_cant_write_is_refused_naming_it() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let file = server.data_dir().join("a file");
+    std::fs::write(&file, b"").unwrap();
+    let folder = file.join("nama").display().to_string();
+
+    let updated = client.update_playback_settings(set_segment_folder(&folder));
+
+    let refusal = assert_refused(
+        updated.await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FOLDER_NOT_WRITABLE,
+    );
+    assert_eq!(refusal.field, "settings.segment_folder");
+    assert_eq!(refusal.params.get("folder"), Some(&folder));
 }
 
 /// Saving the Playback settings with `api` on the GPU `id`, named `name` by the client, and the

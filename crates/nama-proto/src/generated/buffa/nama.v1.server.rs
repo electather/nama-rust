@@ -2925,6 +2925,8 @@ pub struct PlaybackSettings {
     /// tmpfs's. Each plan's files go in a folder of their own inside it: those further behind
     /// playback than `keep_behind_minutes` are deleted as it plays, and the rest a minute after the
     /// plan was last asked for. Empty, the default, for `transcodes` in the Server's data folder.
+    /// Saving one creates it and checks the Server can write a file there; a plan creates it again
+    /// if it's gone, as a tmpfs's is after a reboot.
     ///
     /// Field 1: `segment_folder`
     #[serde(
@@ -2984,7 +2986,9 @@ pub struct PlaybackSettings {
     pub gpu: ::buffa::MessageField<Gpu, ::buffa::Inline<Gpu>>,
     /// How many minutes behind the last segment asked for a running Remux or Transcode keeps its
     /// files, so skipping back that far plays at once, at least 1. Unset for the default, 5. A change
-    /// applies to running plans from the Server's next look at them, within about 10 seconds.
+    /// applies to running plans from the Server's next look at them, within about 10 seconds. The
+    /// kept files take room in `segment_folder`, memory on a tmpfs, which must fit them: about 1 GB
+    /// per 4K Remux at the default.
     ///
     /// Field 6: `keep_behind_minutes`
     #[serde(
