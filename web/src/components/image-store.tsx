@@ -78,7 +78,7 @@ function usePlugins() {
   return useQuery(PluginService.method.listPlugins, {}).data?.summaries ?? [];
 }
 
-/** Whether `plugin` may keep the images: enabled, and serving the Blob store point. */
+/** Whether `plugin` may keep the images: an enabled Blob store Plugin. */
 function isEnabledBlobStore(plugin: PluginSummary) {
   return plugin.enabled && plugin.extensionPoints.includes(ExtensionPoint.BLOB_STORE);
 }
