@@ -139,7 +139,7 @@ impl Database {
         // The writer creates the file and switches it to WAL before any reader opens it.
         let mut writer =
             SqliteConnection::connect_with(&options.clone().create_if_missing(true)).await?;
-        let migrations_applied = migrate(&mut writer, data_dir, &MIGRATOR).await?;
+        let migrations_applied = migrate(&mut writer, data_dir).await?;
         // Every reader opens here and is never replaced or pinged on acquire: one opened or pinged
         // in a cancelled caller's future outlives `SqlitePool::close`, and the writer must close
         // last to remove the WAL.
@@ -350,19 +350,15 @@ where
 /// Applies the migrations the database in `data_dir` hasn't had, after copying it to
 /// [`BEFORE_UPGRADE_FILE_NAME`] if it already had some, so an upgrade that goes wrong has a way
 /// back.
-async fn migrate(
-    conn: &mut SqliteConnection,
-    data_dir: &Path,
-    migrator: &Migrator,
-) -> Result<Vec<i64>, OpenError> {
-    conn.ensure_migrations_table(&migrator.table_name).await?;
+async fn migrate(conn: &mut SqliteConnection, data_dir: &Path) -> Result<Vec<i64>, OpenError> {
+    conn.ensure_migrations_table(&MIGRATOR.table_name).await?;
     let before: HashSet<i64> = conn
-        .list_applied_migrations(&migrator.table_name)
+        .list_applied_migrations(&MIGRATOR.table_name)
         .await?
         .into_iter()
         .map(|m| m.version)
         .collect();
-    let pending: Vec<i64> = migrator
+    let pending: Vec<i64> = MIGRATOR
         .iter()
         .filter(|m| m.migration_type.is_up_migration())
         .map(|m| m.version)
@@ -388,7 +384,7 @@ async fn migrate(
     if pending.is_empty() {
         // Still run: it's what fails on a database a newer Server upgraded. Nothing to check keys
         // for, and a row broken before keys were enforced mustn't stop every start.
-        migrator.run(&mut *conn).await?;
+        MIGRATOR.run(&mut *conn).await?;
         return Ok(pending);
     }
     // SQLite ignores this pragma inside a transaction, so it goes off before the upgrade's opens
@@ -396,7 +392,7 @@ async fn migrate(
     sqlx::query!("PRAGMA foreign_keys = OFF")
         .execute(&mut *conn)
         .await?;
-    let upgraded = upgrade(conn, migrator).await;
+    let upgraded = upgrade(conn).await;
     // The upgrade's own error says more than one turning foreign keys back on.
     let restored = sqlx::query!("PRAGMA foreign_keys = ON")
         .execute(&mut *conn)
@@ -406,14 +402,14 @@ async fn migrate(
     Ok(pending)
 }
 
-/// Runs `migrator` in one transaction, so an upgrade that fails part way leaves the database as
+/// Runs the migrations in one transaction, so an upgrade that fails part way leaves the database as
 /// it was (ADR 0060). Each migration's own transaction nests in it as a savepoint.
-async fn upgrade(conn: &mut SqliteConnection, migrator: &Migrator) -> Result<(), OpenError> {
+async fn upgrade(conn: &mut SqliteConnection) -> Result<(), OpenError> {
     // IMMEDIATE takes the write lock up front, so a second Server on the same data directory
     // fails busy before it changes anything.
     let mut tx = conn.begin_with("BEGIN IMMEDIATE").await?;
     let upgraded = async {
-        migrator.run(&mut *tx).await?;
+        MIGRATOR.run(&mut *tx).await?;
         // The casts are for sqlx, which can't look up the pragma's own columns' types.
         let broken = sqlx::query!(
             r#"SELECT CAST("table" AS TEXT) AS "table!: String",
