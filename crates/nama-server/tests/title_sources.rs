@@ -247,7 +247,7 @@ async fn a_source_whose_plugin_is_gone_stays_in_its_library_but_no_other_may_nam
 }
 
 #[tokio::test]
-async fn items_wait_as_such_while_no_source_in_the_order_searches_and_match_once_one_does() {
+async fn undecided_items_list_no_searching_source_until_their_source_is_enabled_again() {
     let fake = FakeTmdb::start().await;
     let plugins = Registry::new();
     let endpoints = fake.endpoints();

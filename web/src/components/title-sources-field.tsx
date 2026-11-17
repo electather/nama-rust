@@ -26,6 +26,7 @@ export function TitleSourcesField({
   const [order, setOrder, fieldset] = useOrderResetWithForm(initial);
   const { data } = useQuery(LibraryService.method.listTitleSources, {});
   const enabled = data?.titleSources ?? [];
+
   return (
     <fieldset
       ref={fieldset}
@@ -114,7 +115,7 @@ function AddSources({
 }
 
 /**
- * Why the Library's files wait to be Matched, if no source in `order` is `enabled` and searches.
+ * Why the Library's Items wait to be Matched, if no source in `order` is `enabled` and searches.
  * Links to the Plugins only for a User who may enable one there.
  */
 function NoSourceSearches({ order, enabled }: { order: string[]; enabled: TitleSource[] }) {
@@ -135,8 +136,8 @@ function NoSourceSearches({ order, enabled }: { order: string[]; enabled: TitleS
   );
   return (
     <p className="text-sm text-pretty">
-      No source above can search for titles, so new files wait to be Matched until one can. Enable
-      one under {plugins}, or add one here that searches.
+      No source above can search for titles, so the Library’s Items wait to be Matched until one
+      can. Enable one under {plugins}, or add one here that searches.
     </p>
   );
 }

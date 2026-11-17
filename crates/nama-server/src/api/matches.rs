@@ -9,8 +9,8 @@ use nama_proto::nama::v1::{
 
 use crate::{
     library::{
-        Contents, Item, Libraries, SearchQuery, Source, TiedTitle, TitleSources, Unanswered,
-        Unmatched, UnmatchedReason,
+        Contents, Item, Libraries, SearchQuery, TiedTitle, TitleSources, Unanswered, Unmatched,
+        UnmatchedReason,
     },
     matching::{ManualError, Matcher},
 };
@@ -101,8 +101,11 @@ impl MatchService for MatchServiceHandler {
         request: ServiceRequest<'_, ListUnmatchedItemsRequest>,
     ) -> ServiceResult<ListUnmatchedItemsResponse> {
         let library = self.libraries.get(request.library_id).await?;
-        let ordered = self.metadata.in_order(library.title_sources);
-        let searching = ordered.sources().await.iter().any(Source::searches);
+        let searching = self
+            .metadata
+            .in_order(library.title_sources)
+            .can_search()
+            .await;
         let unmatched = self
             .contents
             .unmatched(request.library_id)
