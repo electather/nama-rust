@@ -247,7 +247,7 @@ fn bit_depth_is_read_from_the_pixel_format() {
 fn keyframes_are_the_packets_flagged_k_in_time_order() {
     let csv = "0.000000,K__\n0.083000,___\n2.002000,K_D\n1.001000,K__\nN/A,K__\n";
 
-    assert_eq!(super::parse_keyframes(csv), [0, 1001, 2002]);
+    assert_eq!(super::parse_keyframes(csv).keyframes_ms, [0, 1001, 2002]);
 }
 
 #[test]
@@ -307,10 +307,13 @@ fn a_packet_without_a_presentation_time_ends_by_its_decoding_time() {
 
 /// ffmpeg shifts a file that starts late to start at 0, and cuts its segments from there.
 #[test]
-fn keyframes_are_timed_from_the_files_start() {
+fn keyframes_are_timed_from_the_files_start_which_is_kept_beside_them() {
     let csv = "1.523000,K__\n4.023000,K__\n1.500000\n";
 
-    assert_eq!(super::parse_keyframes(csv), [23, 2523]);
+    let listed = super::parse_keyframes(csv);
+
+    assert_eq!(listed.keyframes_ms, [23, 2523]);
+    assert_eq!(listed.file_start_ms, 1500);
 }
 
 #[test]

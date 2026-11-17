@@ -86,11 +86,21 @@ impl PassingReason {
     }
 }
 
-/// When a Version's keyframes fall, in milliseconds, or that listing them failed in a kept way.
+/// When a Version's keyframes fall, or that listing them failed in a kept way.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Keyframes {
-    Listed(Vec<i64>),
+    Listed(ListedKeyframes),
     Unlisted,
+}
+
+/// What listing a Version's keyframes found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ListedKeyframes {
+    /// When the file starts, in milliseconds, or 0 if it starts before 0.
+    pub(super) file_start_ms: i64,
+    /// When each keyframe of its first video falls, in milliseconds from the file's start, in
+    /// order.
+    pub(super) keyframes_ms: Vec<i64>,
 }
 
 /// What probing a Version found.
@@ -354,7 +364,7 @@ impl Tracks {
     /// [`PROBE_FAILURE_VERSION`] since it was last probed at `file`'s size and modified time.
     pub(super) async fn keyframes(&self, file: Stored) -> Result<Option<Keyframes>, sqlx::Error> {
         let row = sqlx::query!(
-            "SELECT keyframes_ms, keyframes_failure_version FROM version_probes
+            "SELECT keyframes_ms, keyframes_start_ms, keyframes_failure_version FROM version_probes
              WHERE version_id = ? AND size = ? AND modified_ns = ?",
             file.id,
             file.size,
@@ -364,11 +374,13 @@ impl Tracks {
         .await?;
         Ok(row.and_then(|row| match row.keyframes_failure_version {
             Some(PROBE_FAILURE_VERSION) => Some(Keyframes::Unlisted),
-            // A failure at an older failure version left no keyframes, so they're listed again.
-            // Only `store_keyframes` writes them, as JSON it made.
-            _ => Some(Keyframes::Listed(
-                serde_json::from_str(&row.keyframes_ms?).ok()?,
-            )),
+            // A failure at an older failure version left no keyframes, and those kept before
+            // their file's start was left none, so they're listed again. Only `store_keyframes`
+            // writes them, as JSON it made.
+            _ => Some(Keyframes::Listed(ListedKeyframes {
+                file_start_ms: row.keyframes_start_ms?,
+                keyframes_ms: serde_json::from_str(&row.keyframes_ms?).ok()?,
+            })),
         }))
     }
 
@@ -379,17 +391,23 @@ impl Tracks {
         file: Stored,
         keyframes: &Keyframes,
     ) -> Result<(), sqlx::Error> {
-        let (keyframes_ms, failure_version) = match keyframes {
-            Keyframes::Listed(keyframes) => (Some(json_array(keyframes)), None),
-            Keyframes::Unlisted => (None, Some(PROBE_FAILURE_VERSION)),
+        let (keyframes_ms, start_ms, failure_version) = match keyframes {
+            Keyframes::Listed(listed) => (
+                Some(json_array(&listed.keyframes_ms)),
+                Some(listed.file_start_ms),
+                None,
+            ),
+            Keyframes::Unlisted => (None, None, Some(PROBE_FAILURE_VERSION)),
         };
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE version_probes SET keyframes_ms = ?, keyframes_failure_version = ?
+                        "UPDATE version_probes
+                         SET keyframes_ms = ?, keyframes_start_ms = ?, keyframes_failure_version = ?
                          WHERE version_id = ? AND size = ? AND modified_ns = ?",
                         keyframes_ms,
+                        start_ms,
                         failure_version,
                         file.id,
                         file.size,

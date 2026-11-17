@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT keyframes_ms, keyframes_failure_version FROM version_probes\n             WHERE version_id = ? AND size = ? AND modified_ns = ?",
+  "query": "SELECT keyframes_ms, keyframes_start_ms, keyframes_failure_version FROM version_probes\n             WHERE version_id = ? AND size = ? AND modified_ns = ?",
   "describe": {
     "columns": [
       {
@@ -15,8 +15,19 @@
         }
       },
       {
-        "name": "keyframes_failure_version",
+        "name": "keyframes_start_ms",
         "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "keyframes_start_ms"
+          }
+        }
+      },
+      {
+        "name": "keyframes_failure_version",
+        "ordinal": 2,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -31,8 +42,9 @@
     },
     "nullable": [
       true,
+      true,
       true
     ]
   },
-  "hash": "4793952b8fd07e87c46283f9288be5ab97ddac9f03dc18f42f1de5f7c1bbb022"
+  "hash": "787e4337a97227aa85a60d617a9864c46d8d818afcf8c8f23f105a6efe0f3254"
 }

@@ -364,12 +364,18 @@ impl Ffmpeg {
     ///
     /// The video starts up to [`REMUX_BACK_AT_MOST_MS`] before `from`, the audio as
     /// [`REMUX_AUDIO_BACK_MS`] says, so it doesn't step back where this run picks up another's.
+    /// Copied audio is cut there by `file_start_ms`, when the file starts as Probing reads it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the file's start is listed with its keyframes, after the plan made `remux`"
+    )]
     pub(crate) fn remux(
         &self,
         path: &str,
         remux: &Remux,
         dir: &Path,
         from: Keyframe,
+        file_start_ms: i64,
     ) -> io::Result<HlsRun> {
         let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
         let mut command = tokio::process::Command::new(&ffmpeg.path);
@@ -383,9 +389,19 @@ impl Ffmpeg {
         let audio_start_ms = (remux.audio.is_some() && from.n > 0)
             .then(|| (from.ms - REMUX_AUDIO_BACK_MS).max(start_ms));
         let seek_ms = audio_start_ms.unwrap_or(start_ms);
+        let aac_channels = remux.audio.and_then(|audio| audio.aac_channels);
         if seek_ms > 0 {
-            // Jumps to a keyframe at or before it, which in Matroska can be a few before.
-            command.args(["-ss", &seconds(seek_ms)]);
+            let cuts_copied_audio = audio_start_ms.is_some() && aac_channels.is_none();
+            if cuts_copied_audio && file_start_ms != 0 {
+                // `-copypriorss` drops packets by the input's `-ss` as a time in the file, not
+                // from its start as ffmpeg seeks by, so in one that starts late, such as an
+                // MPEG-TS, both are given in the file's own times.
+                command.args(["-seek_timestamp", "1"]);
+                command.args(["-ss", &seconds(file_start_ms + seek_ms)]);
+            } else {
+                // Jumps to a keyframe at or before it, which in Matroska can be a few before.
+                command.args(["-ss", &seconds(seek_ms)]);
+            }
         }
         command.args(["-itsoffset", &seconds(REMUX_LATER_BY_MS)]);
         command.arg("-i").arg(path);
@@ -409,7 +425,6 @@ impl Ffmpeg {
             // told. Only for HEVC: ffmpeg refuses the tag on any other codec.
             command.args(["-tag:v", "hvc1"]);
         }
-        let aac_channels = remux.audio.and_then(|audio| audio.aac_channels);
         aac(&mut command, aac_channels);
         if let Some(audio_start_ms) = audio_start_ms {
             start_audio_at(&mut command, audio_start_ms, aac_channels.is_some());
@@ -550,10 +565,8 @@ fn start_audio_at(command: &mut tokio::process::Command, start_ms: i64, converte
         command.arg("-af").arg(format!("atrim=start={start}"));
     } else {
         // Copied packets from before the input's `-ss` are kept under `-copyts` unless told.
-        // ponytail: ffmpeg drops them by the input's `-ss` without the file's start time, so this
-        // lands right only in a file that starts at 0. An MPEG-TS's copied audio can still start
-        // up to the video's back-off early, and before ffmpeg 8 a Matroska file starting at its
-        // AAC's priming, before 0, skips a frame. Pass the start Probing reads if either is heard.
+        // ponytail: before ffmpeg 8 a Matroska file starting at its AAC's priming, before 0,
+        // skips a frame, as Probing reads a start before 0 as 0; keep it if that's heard.
         command.args(["-copypriorss:a", "0"]);
     }
 }
