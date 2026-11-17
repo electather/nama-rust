@@ -40,7 +40,7 @@ mod state;
 #[cfg(test)]
 mod testing;
 
-pub(crate) use asked::Asked;
+pub(crate) use asked::{Asked, who_requested};
 pub(crate) use availability::{make_available, make_seasons_available};
 pub(crate) use deciding::RequestTitle;
 use hand_off::HandOff;

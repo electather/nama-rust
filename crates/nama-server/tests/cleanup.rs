@@ -52,6 +52,7 @@ async fn alien_and_dune() -> (TestServer, Library) {
     let server = TestServer::builder()
         .plugins(Registry::with_builtins())
         .tmdb()
+        .moves_clock()
         .start()
         .await;
     let library = server
@@ -404,6 +405,7 @@ async fn an_episode_every_user_watched_past_the_limit_is_deleted_and_a_recent_on
     let server = TestServer::builder()
         .plugins(Registry::with_builtins())
         .tmdb()
+        .moves_clock()
         .start()
         .await;
     let library = server

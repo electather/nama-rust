@@ -542,6 +542,11 @@ impl From<LibraryError> for ConnectError {
             LibraryError::NotFound(id) => {
                 refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message).param("libraryId", &id)
             }
+            LibraryError::NameTaken { library } => {
+                refuse(R::REFUSAL_REASON_LIBRARY_NAME_TAKEN, message)
+                    .field("name")
+                    .param("library", &library)
+            }
             LibraryError::FolderTaken { folder, library } => {
                 refuse(R::REFUSAL_REASON_FOLDER_TAKEN, message)
                     .field("folders")

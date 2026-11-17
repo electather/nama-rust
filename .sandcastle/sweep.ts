@@ -1,7 +1,7 @@
 // What a run that was killed outright leaves behind: its worktrees (each with a build of tens of GB), local
 // branches, stopped containers, `agent-working` labels and claims on origin. A run that ends on its own cleans up
 // as it goes; a killed one never reaches that code, so the next run on the machine sweeps before it starts. Only
-// one factory runs per machine (main.ts, PID_FILE), so none of it is in use then. An open issue's worktree and
+// an older run draining after a handover may still run then, and its worktrees carry its lock. An open issue's worktree and
 // branch stay, since the next run resumes them; a triage's never do, since triage commits nothing.
 //
 // `npx --prefix .sandcastle tsx .sandcastle/sweep.ts` (from the repo root) lists what the next run would remove;
@@ -11,7 +11,8 @@ import { hostname } from "node:os";
 
 /** What the factory may have left on this machine and on origin. */
 export type Leftovers = {
-  worktrees: { path: string; branch: string }[];
+  /** lockedBy: the `pid@host` of the run whose lock it carries (main.ts locks each worktree it makes). */
+  worktrees: { path: string; branch: string; lockedBy?: string }[];
   branches: string[];
   claims: { ref: string; owner: string }[];
 };
@@ -35,7 +36,12 @@ const finished = (branch: string, done: Set<number>) => {
 
 /** Which leftovers are dead: their issue or PR is done, and no running run holds them. */
 export function dead(left: Leftovers, facts: Facts) {
-  const worktrees = left.worktrees.filter((w) => !facts.mounted.has(w.path) && finished(w.branch, facts.done));
+  const liveRun = (owner = "") => {
+    const [pid, host] = owner.split("@");
+    return host === facts.host && facts.alive(Number(pid));
+  };
+  const worktrees = left.worktrees.filter((w) =>
+    !facts.mounted.has(w.path) && !liveRun(w.lockedBy) && finished(w.branch, facts.done));
   const kept = new Set(left.worktrees.filter((w) => !worktrees.includes(w)).map((w) => w.branch));
   return {
     worktrees: worktrees.map((w) => w.path),
@@ -61,6 +67,7 @@ function leftovers(root: string): Leftovers {
   const worktrees = sh("git", "worktree", "list", "--porcelain").split("\n\n").map((block) => ({
     path: /^worktree (.*)$/m.exec(block)?.[1] ?? "",
     branch: /^branch refs\/heads\/(.*)$/m.exec(block)?.[1] ?? "",
+    lockedBy: /^locked sandcastle factory (\S+)$/m.exec(block)?.[1],
   }));
   const claims = lines(sh("git", "ls-remote", "origin", "refs/claims/*")).map((l) => l.split("\t"));
   // The claim commit's message names its owner: "claim … by pid@host …".

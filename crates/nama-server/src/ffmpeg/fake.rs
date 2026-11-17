@@ -93,3 +93,35 @@ pub fn pci_function(sys: &Path, address: &str, vendor: &str) -> std::path::PathB
     std::fs::write(function.join("vendor"), format!("{vendor}\n")).unwrap();
     function
 }
+
+/// VAAPI on a dedicated AMD Radeon RX 9070 XT, then on an integrated AMD GPU, as Automatic
+/// orders them, with the integrated GPU and the dedicated one on the render nodes `nodes`, in a
+/// fake `/sys` and `/dev/dri` in `root`.
+///
+/// # Panics
+///
+/// If writing them fails.
+#[cfg(unix)]
+#[must_use]
+pub fn vaapi_on_two_gpus_at(root: &Path, nodes: [&str; 2]) -> Vec<super::Hardware> {
+    use super::{Accel, Hardware, find_gpus};
+
+    let (sys, dri) = (root.join("sys"), root.join("dri"));
+    let [integrated, dedicated] = nodes;
+    gpu(&sys, &dri, integrated, "0000:18:00.0", "0x1002");
+    pci_function(&sys, "0000:18:00.2", "0x1022");
+    gpu(&sys, &dri, dedicated, "0000:03:00.0", "0x1002");
+    let mesa = "VAAPI driver: Mesa Gallium driver 26.2.6 for AMD Radeon RX 9070 XT (radeonsi)";
+    find_gpus(&dri, &sys.join("class/drm"))
+        .into_iter()
+        .map(|gpu| Hardware {
+            accel: Accel::Vaapi,
+            gpu: Some(if gpu.id() == "0000:03:00.0" {
+                gpu.with_model(mesa)
+            } else {
+                gpu
+            }),
+            tone_maps: false,
+        })
+        .collect()
+}

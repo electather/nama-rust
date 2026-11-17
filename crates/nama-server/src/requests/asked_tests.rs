@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{ListRequestsResponse, PageRequest, Permission, RequestState};
 
-use super::Asked;
+use super::{Asked, join, who_requested};
 use crate::requests::apply::Applied;
+use crate::requests::deciding::decline;
 use crate::requests::testing::{
-    ADA, BOB, NOTHING, ada, ada_and_bob, ask_for, dark, follow_as, handed_off, requests_on, said,
-    user,
+    ADA, BOB, DARK, NOTHING, ada, ada_and_bob, ask_for, dark, follow_as, handed_off, requests_on,
+    said, user,
 };
 use crate::requests::{Error, Requests};
 use crate::{
@@ -308,4 +310,109 @@ async fn only_its_requesters_and_those_who_may_view_requests_see_one() {
 
         assert_eq!(seen, [true, false, true], "{kind:?}");
     }
+}
+
+/// Who Requested the title with `ids`, its Season `season` for a Show, as `who_requested` says.
+async fn requested(db: &Database, ids: &[ExternalId], season: Option<i64>) -> Option<Vec<i64>> {
+    let mut conn = db.reader().acquire().await.unwrap();
+    let ids = ExternalIds::from_iter(ids.iter().cloned());
+    who_requested(&mut conn, &ids, season).await.unwrap()
+}
+
+#[tokio::test]
+async fn a_movie_two_users_asked_for_has_both_requesters_found_by_any_of_its_ids() {
+    let (_data, db) = ada_and_bob().await;
+    ask_for(&db, ADA, 949, RequestState::Pending).await;
+    ask_for(&db, BOB, 949, RequestState::Pending).await;
+
+    let movie = ["imdb-tt0113277".parse().unwrap(), ExternalId::tmdb(949)];
+    assert_eq!(requested(&db, &movie, None).await, Some(vec![ADA, BOB]));
+}
+
+#[tokio::test]
+async fn a_request_in_any_state_but_declined_keeps_its_requesters() {
+    let (_data, db) = ada_and_bob().await;
+    let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+    let states = [
+        ("approved", Some(vec![ADA])),
+        ("processing", Some(vec![ADA])),
+        ("failed", Some(vec![ADA])),
+        ("partially_available", Some(vec![ADA])),
+        ("available", Some(vec![ADA])),
+        ("declined", None),
+    ];
+
+    for (state, expected) in states {
+        db.write(move |tx| {
+            Box::pin(
+                sqlx::query("UPDATE requests SET state = ? WHERE id = ?")
+                    .bind(state)
+                    .bind(id)
+                    .execute(&mut **tx),
+            )
+        })
+        .await
+        .unwrap();
+        let movie = [ExternalId::tmdb(949)];
+        assert_eq!(requested(&db, &movie, None).await, expected, "{state}");
+    }
+}
+
+#[tokio::test]
+async fn a_movie_nobody_asked_for_or_a_declined_one_is_not_requested() {
+    let (_data, db) = ada_and_bob().await;
+    let declined = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+    db.write(move |tx| Box::pin(decline(tx, declined, None)))
+        .await
+        .unwrap();
+    // A Show's Season Requests aren't a Movie's, so its id with no Season finds none.
+    follow_as(&db, BOB, dark(), RequestState::Pending).await;
+
+    assert_eq!(requested(&db, &[ExternalId::tmdb(949)], None).await, None);
+    assert_eq!(requested(&db, &[ExternalId::tmdb(DARK)], None).await, None);
+}
+
+#[tokio::test]
+async fn an_episode_has_its_season_requests_and_followed_shows_requesters() {
+    let (_data, db) = ada_and_bob().await;
+    let followed = follow_as(&db, ADA, dark(), RequestState::Approved).await;
+    let season_1 = followed.value.1[0].id;
+    // Only the Followed Show still has Ada as a Requester of Season 1.
+    db.write(move |tx| {
+        Box::pin(
+            sqlx::query("DELETE FROM requesters WHERE request_id = ?")
+                .bind(season_1)
+                .execute(&mut **tx),
+        )
+    })
+    .await
+    .unwrap();
+    db.write(move |tx| Box::pin(join(tx, Asked::Request, season_1, BOB, 0)))
+        .await
+        .unwrap();
+
+    let dark = [ExternalId::tmdb(DARK)];
+    assert_eq!(requested(&db, &dark, Some(1)).await, Some(vec![ADA, BOB]));
+    assert_eq!(requested(&db, &dark, Some(2)).await, Some(vec![ADA]));
+    assert_eq!(requested(&db, &dark, Some(3)).await, None);
+}
+
+#[tokio::test]
+async fn a_title_whose_only_requester_was_deleted_is_still_requested() {
+    let (_data, db) = ada_and_bob().await;
+    ask_for(&db, BOB, 949, RequestState::Pending).await;
+    db.write(|tx| {
+        Box::pin(
+            sqlx::query("DELETE FROM users WHERE id = ?")
+                .bind(BOB)
+                .execute(&mut **tx),
+        )
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(
+        requested(&db, &[ExternalId::tmdb(949)], None).await,
+        Some(vec![])
+    );
 }

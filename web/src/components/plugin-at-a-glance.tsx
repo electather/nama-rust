@@ -113,6 +113,11 @@ export const pluginPermissions: Partial<
     label: "Read Users",
     about: "It sees every User's id and display name, and nothing else about them.",
   },
+  [PluginPermission.READ_REQUESTS]: {
+    label: "Read Requests",
+    about:
+      "It sees which Users asked for each Movie and Episode, and nothing else about their Requests.",
+  },
 };
 
 /**

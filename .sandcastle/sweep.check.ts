@@ -16,6 +16,8 @@ const found = dead(
       { path: `${root}/agent-issue-741`, branch: "agent/issue-741" },
       { path: `${root}/agent-triage-9`, branch: "agent/triage-9" },
       { path: `${root}/agent-issue-800`, branch: "agent/triage-800" },
+      { path: `${root}/agent-triage-31`, branch: "agent/triage-31", lockedBy: "7@desk" },
+      { path: `${root}/agent-triage-32`, branch: "agent/triage-32", lockedBy: "5@desk" },
     ],
     branches: ["agent/issue-667", "agent/issue-741", "agent/triage-9", "agent/issue-12", "agent/fix-712", "agent/triage-800"],
     claims: [
@@ -28,8 +30,8 @@ const found = dead(
   facts,
 );
 
-assert.deepEqual(found.worktrees, [`${root}/agent-issue-667`, `${root}/agent-triage-9`],
-  "a done issue's and a triage's go; an open issue's stays to be resumed, and a running container's stays");
+assert.deepEqual(found.worktrees, [`${root}/agent-issue-667`, `${root}/agent-triage-9`, `${root}/agent-triage-32`],
+  "a done issue's and a triage's go; an open issue's stays to be resumed, and a running container's or live run's stays");
 assert.deepEqual(found.branches, ["agent/issue-667", "agent/triage-9"],
   "#12 is open, agent/fix-712 isn't the factory's, and a kept worktree's branch stays");
 assert.deepEqual(found.claims, ["refs/claims/pr-712"],

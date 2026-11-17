@@ -1,18 +1,19 @@
-// AI factory, three loops in one process:
+// AI factory, four loops in one process:
 // - triage: needs-triage issues, one at a time → an agent closes, specifies (ready-for-agent), splits, or asks
 //   (needs-decision).
 // - implement: ready-for-agent issues with no open PR → implement → review → push → PR, then lets go.
 // - babysit: qualifying PRs (see babysittable) → CI (rebase / one fix if needed) → up to main's tip → squash-merge.
+// - main: watches main's CI and files a main-red issue when it fails, then builds it in a lane of its own.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
 import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
 import { inspect, parseEnv, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
-import { mainVerdict, mergeStep } from "./merge.ts";
+import { failedJobs, mainAction, mainVerdict, mergeStep, prVerdict } from "./merge.ts";
 import { blockedCounts } from "./priority.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
@@ -22,6 +23,9 @@ const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per r
 const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
 // `touch .sandcastle/STOP`: running issues finish, nothing new starts, later runs exit at once. `rm` it to resume.
 const STOP_FILE = ".sandcastle/STOP";
+// SIGUSR1 (see handover.sh) does the same for this run alone, so a newer run can start beside it: it drains.
+let draining = false;
+const stopping = () => draining || existsSync(STOP_FILE);
 // Opus for implement and review; fix (merge main, mend CI) is narrow enough for Sonnet, with Opus as fallback.
 const OPUS = sandcastle.claudeCode("claude-opus-5-5", { effort: "high" });
 const SONNET = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" });
@@ -30,11 +34,13 @@ const HUMAN = "ready-for-human";
 const WORKING = "agent-working"; // on while a loop has the issue; off when that loop lets go of it
 const TRIAGE = "needs-triage";
 const DECISION = "needs-decision"; // triage's answer when only the maintainer can decide
+const MAIN_RED = "main-red"; // filed by the main monitor; built by mainLoop, not the implement loop
 // TRIAGE=off: leave needs-triage issues to a person. ONLY_ISSUE (build just that one) doesn't triage either.
 const TRIAGING = process.env.TRIAGE !== "off" && !process.env.ONLY_ISSUE;
 const BASE = "main";
 
-type Issue = { number: number; title: string; parent?: number; branch: string };
+// mainFix: it fixes a red main, so its PR never waits for main to go green.
+type Issue = { number: number; title: string; parent?: number; branch: string; mainFix?: boolean };
 type Box = Awaited<ReturnType<typeof sandcastle.createSandbox>>;
 class Blocked extends Error {}
 // The issue was closed while being built: drop it, don't count it as a crash.
@@ -70,7 +76,8 @@ const teMounts = process.env.TE !== "off" && existsSync(`${teClone}/plugin/scrip
   : [];
 if (teMounts.length) mkdirSync(teState, { recursive: true });
 
-// One factory per machine: they'd share the caches above and race on the same local branches.
+// One active factory per machine: they'd share the caches above and race on the same local branches. A draining
+// run (see SIGUSR1) lets go of the file, so the run that replaces it can start; it starts nothing new itself.
 const PID_FILE = `${cacheRoot}/factory.pid`;
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 try {
@@ -83,7 +90,12 @@ try {
   }
   writeFileSync(PID_FILE, String(process.pid)); // stale: its run was killed
 }
-process.on("exit", () => rmSync(PID_FILE, { force: true }));
+const releasePidFile = () => {
+  try {
+    if (Number(readFileSync(PID_FILE, "utf8")) === process.pid) rmSync(PID_FILE);
+  } catch {} // gone already
+};
+process.on("exit", releasePidFile);
 
 // launchd.log gets one timestamped line per thing that happens; status.md (see status.ts) the state of every issue.
 const LOGS = ".sandcastle/logs";
@@ -92,6 +104,26 @@ const RUN = `${process.pid}@${hostname()}`;
 const REPO_URL = gh("repo", "view", "--json", "url", "--jq", ".url");
 const record = recorder(LOGS, RUN, REPO_URL);
 const log = (msg: string) => console.log(`${new Date().toTimeString().slice(0, 8)} ${msg}`);
+
+// GitHub allows 5000 API calls an hour per user, shared with the other machine's factory and the user's own gh.
+// Running out is a wait, not a crash: it ended a whole run once, eight babysat PRs at a time. Work that hits it is
+// dropped and taken again after the reset; the loops start nothing until then.
+let ghResetsAt = 0;
+const rateLimited = (e: unknown) => {
+  const err = e as { message?: string; stderr?: unknown };
+  return /API rate limit exceeded|secondary rate limit/i.test(`${err?.message ?? e} ${err?.stderr ?? ""}`);
+};
+function noteRateLimit() {
+  // rate_limit itself doesn't count against the limit.
+  const reset = Number(spawnSync("gh", ["api", "rate_limit", "--jq", ".resources.core.reset"], { encoding: "utf8" }).stdout) * 1000;
+  const until = reset > Date.now() ? reset : Date.now() + 15 * 60_000; // a secondary limit has no reset to read
+  if (until <= ghResetsAt) return;
+  ghResetsAt = until;
+  log(`⏸ GitHub API rate limit: starting nothing until ${new Date(until).toTimeString().slice(0, 8)}`);
+}
+const ghWait = async () => {
+  while (Date.now() < ghResetsAt) await sleep(60_000);
+};
 
 // The sandboxes share OrbStack's one VM, which runs out of memory when they peak together. Every 30s a sandbox
 // over MEM_LOG_GIB (default 4) logs its biggest processes to mem.log, so the command behind a spike has a name.
@@ -197,15 +229,43 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
   return result;
 }
 
-const slots = slotPool(MAX_PARALLEL);
+// Each run on the machine publishes its busy slots here, so a run being handed over and its successor share the
+// pools' sizes (see slotPool) instead of each running a full set: memory is the machine's.
+type Busy = { build: number; triage: number; fix: number };
+const SLOTS_DIR = `${cacheRoot}/slots`;
+mkdirSync(SLOTS_DIR, { recursive: true });
+const SLOTS_FILE = `${SLOTS_DIR}/${process.pid}.json`;
+const otherRuns = (): Busy[] =>
+  readdirSync(SLOTS_DIR).flatMap((f) => {
+    const pid = Number(f.replace(".json", ""));
+    if (pid === process.pid) return [];
+    if (!alive(pid)) {
+      rmSync(`${SLOTS_DIR}/${f}`, { force: true }); // a killed run's
+      return [];
+    }
+    try {
+      return [JSON.parse(readFileSync(`${SLOTS_DIR}/${f}`, "utf8")) as Busy];
+    } catch {
+      return []; // caught mid-write: the next wake reads it
+    }
+  });
+const elsewhere = (pool: keyof Busy) => () => otherRuns().reduce((n, b) => n + b[pool], 0);
+const publish = () =>
+  writeFileSync(SLOTS_FILE, JSON.stringify({ build: slots.busy(), triage: triageSlots.busy(), fix: fixSlots.busy() }));
+process.on("exit", () => rmSync(SLOTS_FILE, { force: true }));
+const slots = slotPool(MAX_PARALLEL, elsewhere("build"), publish);
 // Triage has its own pool so it never holds up a build or a fix; it compiles little, so more fit at once.
 const TRIAGE_PARALLEL = Number(process.env.TRIAGE_PARALLEL ?? 10);
-const triageSlots = slotPool(TRIAGE_PARALLEL);
+const triageSlots = slotPool(TRIAGE_PARALLEL, elsewhere("triage"), publish);
 // Rebases and CI fixes have their own pool too, so finishing an open PR never waits behind new builds.
 const FIX_PARALLEL = Number(process.env.FIX_PARALLEL ?? 10);
-const fixSlots = slotPool(FIX_PARALLEL);
-// Every agent running, for the usage slow-down, which counts them all.
-const agentsBusy = () => slots.busy() + triageSlots.busy() + fixSlots.busy();
+const fixSlots = slotPool(FIX_PARALLEL, elsewhere("fix"), publish);
+publish();
+// Another run's release can't wake this run's waiters.
+setInterval(() => { slots.wake(); triageSlots.wake(); fixSlots.wake(); }, 30_000);
+// Every agent running on the machine, for the usage slow-down, which counts them all.
+const agentsBusy = () =>
+  slots.busy() + triageSlots.busy() + fixSlots.busy() + otherRuns().reduce((n, b) => n + b.build + b.triage + b.fix, 0);
 
 // Makes the branch mergeable: Sonnet first, then Opus from the last commit if Sonnet gives up.
 async function fix(box: Box, issue: Issue, problem: string, what: string) {
@@ -242,6 +302,7 @@ type ListedIssue = {
   number: number;
   title: string;
   author: { login: string };
+  labels: { name: string }[];
   parent: { number: number } | null;
   subIssuesSummary: { total: number; completed: number };
   blockedBy: { nodes: { number: number; state: string }[] };
@@ -284,7 +345,7 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
   const issues: ListedIssue[] = JSON.parse(
     gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100",
       // blockedBy, not issue_dependencies_summary: the summary lags seconds behind closes/edits
-      "--json", "number,title,author,parent,subIssuesSummary,blockedBy,blocking"),
+      "--json", "number,title,author,labels,parent,subIssuesSummary,blockedBy,blocking"),
   );
   const withPr = prsByIssue(prs);
   const ready: Issue[] = [];
@@ -294,6 +355,7 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
     const s = i.subIssuesSummary;
     const blockers = i.blockedBy.nodes.filter((b) => b.state === "OPEN").map((b) => `#${b.number}`);
     if (withPr.has(i.number)) continue; // the babysitter's, or a person's
+    if (i.labels.some((l) => l.name === MAIN_RED)) continue; // mainLoop's
     if (!trustedAuthor(i.author.login)) waiting.push({ issue: i.number, queue: "build", why: `written by ${i.author.login}, not you: never built` });
     else if (s.total > 0) waiting.push({ issue: i.number, queue: "build", why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
     else if (blockers.length) waiting.push({ issue: i.number, queue: "build", why: `blocked by ${blockers.join(", ")} (open)` });
@@ -317,7 +379,8 @@ function babysittable(prs = openPrs()): Job[] {
         JSON.parse(gh("issue", "view", String(ref.number), "--json", "title,state,author,labels,parent"));
       if (i.state !== "OPEN" || !trustedAuthor(i.author.login) || !i.labels.some((l) => l.name === READY)) continue;
       // One issue stands for the PR: the one reported on, and handed back if the PR can't be made green.
-      jobs.push({ pr: String(pr.number), issue: { number: ref.number, title: i.title, parent: i.parent?.number, branch: pr.headRefName } });
+      const mainFix = i.labels.some((l) => l.name === MAIN_RED);
+      jobs.push({ pr: String(pr.number), issue: { number: ref.number, title: i.title, parent: i.parent?.number, branch: pr.headRefName, mainFix } });
       break;
     }
   }
@@ -418,10 +481,32 @@ function queue() {
   };
 }
 const serially = queue(); // merges
-// Concurrent `git worktree add`s race on .git/worktrees (one reads another's half-written commondir).
+// Concurrent `git worktree add`s race on .git/worktrees (one reads another's half-written commondir), and during
+// a handover two runs add them. The lock is a directory, which mkdir creates atomically on macOS and Linux alike;
+// it names its holder, so a killed run's lock is broken.
 const oneSandboxAtATime = queue();
+const WORKTREE_LOCK = `${cacheRoot}/worktree-add.lock`;
+async function onMachine<T>(fn: () => Promise<T>): Promise<T> {
+  for (;;) {
+    try {
+      mkdirSync(WORKTREE_LOCK);
+      writeFileSync(`${WORKTREE_LOCK}/pid`, String(process.pid));
+      break;
+    } catch {
+      let holder = 0;
+      try { holder = Number(readFileSync(`${WORKTREE_LOCK}/pid`, "utf8")); } catch {} // not written yet, or released
+      if (holder && !alive(holder)) rmSync(WORKTREE_LOCK, { recursive: true, force: true });
+      else await sleep(1_000);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    rmSync(WORKTREE_LOCK, { recursive: true, force: true });
+  }
+}
 async function newBox(branch: string): Promise<Box> {
-  const box = await oneSandboxAtATime(() =>
+  const box = await oneSandboxAtATime(() => onMachine(() =>
     sandcastle.createSandbox({
       branch,
       baseBranch: `origin/${BASE}`,
@@ -429,7 +514,7 @@ async function newBox(branch: string): Promise<Box> {
       // Each box.run's git setup uses these, not run's own: the 10s default ran out on `git rev-parse` while five
       // builds loaded the host, crashing the run.
       timeouts: { gitSetupMs: 120_000 },
-    }),
+    })),
   );
   // Agents share the host's .git, and in a container every other sandbox's worktree path looks missing, so an
   // agent's `git worktree prune` wiped them all (then sandcastle's next prune deleted their folders). Prune skips
@@ -522,21 +607,30 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
   const url = `${REPO_URL}/actions/runs/${run}`;
   log(`#${issue.number} CI running on ${sha.slice(0, 7)}: ${url}`);
   record({ kind: "ci", issue: issue.number, url });
-  // Async, not spawnSync: the other issue's agents keep running while this one waits.
-  const watch = spawn("gh", ["run", "watch", run, "--exit-status", "--interval", "30"], { stdio: "ignore" });
-  let wasStale = false;
-  const poll = setInterval(() => {
-    if (signal?.aborted) watch.kill();
-    else if (stale()) { wasStale = true; watch.kill(); }
-  }, 60_000);
-  const code = await new Promise<number | null>((resolve) => watch.on("close", resolve));
-  clearInterval(poll);
-  signal?.throwIfAborted();
-  if (wasStale) {
-    ok("gh", "run", "cancel", run); // frees a runner for the rebased push
-    return "stale";
+  // The verdict comes from the run's jobs (see prVerdict), not from watch's exit code: watch also fails when gh
+  // does, and a rate limit once read as red CI on eight PRs at once.
+  for (;;) {
+    // Async, not spawnSync: the other issue's agents keep running while this one waits.
+    const watch = spawn("gh", ["run", "watch", run, "--interval", "30"], { stdio: "ignore" });
+    let wasStale = false;
+    const poll = setInterval(() => {
+      if (signal?.aborted) watch.kill();
+      else if (stale()) { wasStale = true; watch.kill(); }
+    }, 60_000);
+    await new Promise((resolve) => watch.on("close", resolve));
+    clearInterval(poll);
+    signal?.throwIfAborted();
+    if (wasStale) {
+      ok("gh", "run", "cancel", run); // frees a runner for the rebased push
+      return "stale";
+    }
+    const { status, jobs } = JSON.parse(gh("run", "view", run, "--json", "status,jobs",
+      "--jq", "{status, jobs: [.jobs[] | {name, conclusion}]}"));
+    const verdict = prVerdict(jobs);
+    if (verdict !== "unknown") return verdict === "red" ? "fail" : "pass";
+    if (status === "completed") return "fail"; // cancelled
+    await sleep(60_000); // watch stopped before the run ended, so gh failed: watch it again
   }
-  return code === 0 ? "pass" : "fail";
 }
 
 // A conflict needs an agent (rebase); after a red main, a PR merely behind is updated on GitHub (updateBranch).
@@ -572,7 +666,7 @@ const mainRed = () => {
 };
 
 // A red main fails every PR's run. A fix agent would mend main in each PR, and those PRs would then conflict,
-// so the PR holds no slot and waits until main's own fix has landed. Triage files that fix.
+// so the PR holds no slot and waits until main's own fix has landed. The main monitor files that fix (mainLoop).
 async function waitForGreenMain(job: Job) {
   log(`#${job.issue.number} CI failed while main is red: waiting for main`);
   note(job.issue, "waited for a red main");
@@ -595,7 +689,7 @@ async function greenCi(job: Job) {
       await rebase(job);
       continue;
     }
-    if (mainRed()) {
+    if (!job.issue.mainFix && mainRed()) {
       await waitForGreenMain(job);
       const head = `origin/${branchOf(job.issue)}`;
       const step = mergeStep({ conflicts: conflicts(head), behind: behind(head) });
@@ -722,8 +816,9 @@ function release(issue: Issue, ref: string) {
   ok("git", "push", "origin", "--delete", ref);
 }
 
-type Loop = "triage" | "implement" | "babysit";
-// Never shrinks: a merged issue stays open for a few seconds (`Closes #N` lags), so it mustn't be picked again.
+type Loop = "triage" | "implement" | "babysit" | "main fix";
+// Shrinks only when a rate limit dropped the work: a merged issue stays open for a few seconds (`Closes #N` lags),
+// so it mustn't be picked again.
 const taken = new Set<number>();
 const watched = new Set<string>(); // PRs, likewise
 const triaged = new Set<number>(); // issues the triage loop tried this run, whatever came of it
@@ -747,6 +842,7 @@ function noteWaiting(prs: OpenPr[], { ready, waiting } = readyIssues(prs)) {
   const held = (pool: typeof slots, size: number, what: string) =>
     crashed ? "next run: this one crashed"
     : existsSync(STOP_FILE) ? "next run: STOP is set"
+    : draining ? "the newer run: this one is draining"
     : paused() ? "paused: Claude usage near its limit"
     : pool.busy() >= size ? `waits for a ${what} (${pool.busy()}/${size} busy)`
     : slowed() && agentsBusy() >= SLOW_PARALLEL ? `slowed: at most ${SLOW_PARALLEL} agents near the usage limit`
@@ -887,8 +983,9 @@ async function overUsage(): Promise<boolean> {
 async function dispatch() {
   const running = new Set<Promise<void>>();
   for (;;) {
+    await ghWait();
     await slots.acquire();
-    if (crashed || taken.size >= MAX_ISSUES || existsSync(STOP_FILE)) {
+    if (crashed || taken.size >= MAX_ISSUES || stopping()) {
       slots.release();
       break;
     }
@@ -898,12 +995,15 @@ async function dispatch() {
       try {
         issue = pickNext();
       } catch (e) {
-        // e.g. git or gh failing for everyone (network, auth, an Xcode licence prompt): a crash, not the end of
-        // the run. In-flight issues finish and release their claims; nothing new starts.
-        const why = `picking the next issue failed: ${oneLine(e)}`;
-        appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
-        log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
-        crashed ||= why;
+        if (rateLimited(e)) noteRateLimit(); // a wait (issue stays "wait")
+        else {
+          // e.g. git or gh failing for everyone (network, auth, an Xcode licence prompt): a crash, not the end of
+          // the run. In-flight issues finish and release their claims; nothing new starts.
+          const why = `picking the next issue failed: ${oneLine(e)}`;
+          appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
+          log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
+          crashed ||= why;
+        }
       }
     }
     if (crashed || issue === "done") {
@@ -918,6 +1018,7 @@ async function dispatch() {
     const i = issue;
     // The slot taken above is released when the issue leaves the loop (see track).
     const started: Promise<void> = track(i, "implement", issueClaim(i), () => implement(i))
+      .then((o) => { if (o === "interrupted") taken.delete(i.number); }) // a rate limit: pick it again
       .finally(() => running.delete(started));
     running.add(started);
   }
@@ -929,16 +1030,22 @@ async function dispatch() {
 // left, since until then a new PR may still come. A crash elsewhere doesn't stop it: PRs opened after one would
 // otherwise sit until the next run, and a PR that crashes here isn't taken again this run (`watched`).
 let implementDone = false;
+let mainDone = false; // the main loop may still open a PR until then
 async function babysitLoop() {
   const running = new Set<Promise<void>>();
   for (;;) {
-    if (existsSync(STOP_FILE)) break;
+    if (stopping()) break; // its PRs in flight finish here; the rest are the newer run's
+    await ghWait();
     let jobs: Job[] = [];
     let prs: OpenPr[] = [];
     try {
       prs = openPrs();
       jobs = babysittable(prs);
     } catch (e) {
+      if (rateLimited(e)) {
+        noteRateLimit();
+        continue;
+      }
       const why = `listing PRs to babysit failed: ${oneLine(e)}`;
       appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
       log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
@@ -958,6 +1065,7 @@ async function babysitLoop() {
       watched.add(job.pr);
       started++;
       const p: Promise<void> = track(job.issue, "babysit", prClaim(job.pr), () => babysit(job))
+        .then((o) => { if (o === "interrupted") watched.delete(job.pr); }) // a rate limit: take it again
         .finally(() => running.delete(p));
       running.add(p);
     }
@@ -967,7 +1075,7 @@ async function babysitLoop() {
     } catch (e) {
       log(`couldn't refresh the waiting list: ${oneLine(e)}`); // status only: the next pass tries again
     }
-    if (implementDone && running.size === 0 && started === 0) break;
+    if (implementDone && mainDone && running.size === 0 && started === 0) break;
     await sleep(60_000);
   }
   await Promise.all(running);
@@ -979,8 +1087,9 @@ async function triageLoop() {
   if (!TRIAGING) return;
   const running = new Set<Promise<void>>();
   for (;;) {
+    await ghWait();
     await triageSlots.acquire(); // released by track
-    if (crashed || existsSync(STOP_FILE)) {
+    if (crashed || stopping()) {
       triageSlots.release();
       break;
     }
@@ -990,6 +1099,11 @@ async function triageLoop() {
       try {
         issue = triageable().find((i) => !triaged.has(i.number));
       } catch (e) {
+        if (rateLimited(e)) {
+          noteRateLimit();
+          triageSlots.release();
+          continue;
+        }
         const why = `listing issues to triage failed: ${oneLine(e)}`;
         appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
         log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
@@ -1012,10 +1126,106 @@ async function triageLoop() {
       continue;
     }
     const i = issue;
-    const p: Promise<void> = track(i, "triage", triageClaim(i), () => triage(i)).finally(() => running.delete(p));
+    const p: Promise<void> = track(i, "triage", triageClaim(i), () => triage(i))
+      .then((o) => { if (o === "interrupted") triaged.delete(i.number); }) // a rate limit: triage it again
+      .finally(() => running.delete(p));
     running.add(p);
   }
   await Promise.all(running);
+}
+
+// The main loop: every minute, judges the push run of main's tip on every OS (a PR doesn't wait for a macOS- or
+// Windows-only failure, so this is what gets one fixed), and builds the main-red issue it files at once: no build
+// slot, no slow-down, only the usage pause holds it. Its PR then goes through the babysitter like any other.
+// ponytail: one main-red issue at a time. A failure while one is open waits for its fix; if the fix missed, the
+// next tip fails again and files the next one.
+async function mainLoop() {
+  const running = new Set<Promise<void>>();
+  let judged = "";
+  for (;;) {
+    if (crashed || stopping()) break;
+    await ghWait();
+    let buildable: Issue | undefined;
+    try {
+      const open: { number: number; title: string; author: { login: string }; labels: { name: string }[] }[] =
+        JSON.parse(gh("issue", "list", "--label", MAIN_RED, "--state", "open", "--json", "number,title,author,labels"));
+      judged = watchMain(open.length > 0, judged);
+      const fresh = open.filter((i) => trustedAuthor(i.author.login) && i.labels.some((l) => l.name === READY) &&
+        !taken.has(i.number) && !inFlight.has(i.number));
+      const withPr = fresh.length ? prsByIssue(openPrs()) : new Map();
+      const i = fresh.find((c) => !withPr.has(c.number));
+      if (i) buildable = { number: i.number, title: i.title, branch: `agent/issue-${i.number}`, mainFix: true };
+      if (buildable && !(await overUsage())) {
+        const issue = buildable;
+        taken.add(issue.number);
+        const owner = claim(issueClaim(issue), `#${issue.number}`);
+        if (owner) log(`#${issue.number} main fix claimed by ${owner}`);
+        else {
+          const p: Promise<void> = track(issue, "main fix", issueClaim(issue), () => implement(issue))
+            .then((o) => { if (o === "interrupted") taken.delete(issue.number); }) // a rate limit: build it again
+            .finally(() => running.delete(p));
+          running.add(p);
+        }
+      }
+    } catch (e) {
+      if (rateLimited(e)) noteRateLimit();
+      else log(`main monitor: ${oneLine(e)}`); // one missed pass; the next tries again
+    }
+    if (implementDone && running.size === 0 && !buildable) break;
+    await sleep(60_000);
+  }
+  await Promise.all(running);
+}
+
+// Acts on the finished push run of main's tip (see mainAction). Returns the run and attempt it judged, so each is
+// acted on once. Main's runs are never cancelled (ci.yml's concurrency group is the commit), so every tip gets one.
+function watchMain(fixOpen: boolean, judged: string): string {
+  const tip = git("ls-remote", "origin", `refs/heads/${BASE}`).split("\t")[0];
+  const run: { databaseId: number; status: string; attempt: number } | undefined = JSON.parse(
+    gh("run", "list", "--workflow", "CI", "--commit", tip, "--event", "push", "--limit", "1", "--json", "databaseId,status,attempt"),
+  )[0];
+  if (!run || run.status !== "completed") return judged;
+  const key = `${run.databaseId}/${run.attempt}`;
+  if (key === judged) return judged;
+  const id = String(run.databaseId);
+  const failed = failedJobs(JSON.parse(gh("run", "view", id, "--json", "jobs", "--jq", "[.jobs[] | {name, conclusion}]")));
+  const action = mainAction({ attempt: run.attempt, failed }, fixOpen);
+  if (action === "rerun") {
+    log(`main ${tip.slice(0, 7)} failed ${failed.join(", ")}: rerunning them once, in case they're flaky`);
+    gh("run", "rerun", id, "--failed");
+  }
+  if (action === "file") fileMainRed(tip, id, failed);
+  return key;
+}
+
+// Both machines' monitors see the same run; only the one that claims it files the issue. The claim stays, so a
+// restarted monitor doesn't file it twice. ponytail: one claim ref per red main is left on origin.
+function fileMainRed(sha: string, run: string, failed: string[]) {
+  if (!tryClaim(`refs/claims/main-red-${run}`, `main-red run ${run}`)) return;
+  const url = `${REPO_URL}/actions/runs/${run}`;
+  const logs = spawnSync("gh", ["run", "view", run, "--log-failed"], { encoding: "utf8", maxBuffer: 512 * 2 ** 20 }).stdout ?? "";
+  const errors = logs.replaceAll(/\x1b\[[0-9;]*m/g, "").split("\n")
+    .filter((l) => /error|panicked|failed|assert/i.test(l)).slice(-80).join("\n").slice(-15_000);
+  const body = `🏭 Main's CI failed on ${sha}, and again when the failed jobs were rerun: ${url}
+
+**Failing jobs:** ${failed.join(", ")}
+
+<details><summary>Error lines from their logs</summary>
+
+\`\`\`text
+${errors || "(none matched: read the run's logs)"}
+\`\`\`
+</details>
+
+## Acceptance criteria
+
+- The failing jobs above pass on main. Fix the root cause, most likely in the newest change to what they test (\`git log\`). Change a test only where the test is wrong.
+- A PR runs CI on Linux only, and this sandbox can't build for macOS or Windows (\`cargo check --target x86_64-pc-windows-msvc\` stops at C dependencies). Fix a failure there from the log and the code (\`#[cfg]\` gates, paths, line endings); the main monitor checks main again once the fix merges.
+- Nothing else: park what more you find.
+`;
+  const issue = gh("issue", "create", "--title", `Main CI is red: ${failed.join(", ")}`.slice(0, 200), "--body", body,
+    "--label", READY, "--label", MAIN_RED).split("/").pop();
+  log(`✗ main ${sha.slice(0, 7)} is red (${failed.join(", ")}): filed #${issue}`);
 }
 
 // "true" unless gh says the label is gone: only a definite answer stops work.
@@ -1027,8 +1237,9 @@ const prClosed = (issue: Issue) =>
     .stdout?.trim() === "CLOSED";
 
 // One issue through one loop: implement ends at "pr opened", babysit at merged. Either may end handed back,
-// cancelled or crashed instead.
-async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Promise<Outcome>) {
+// cancelled, crashed, or interrupted by GitHub's rate limit instead.
+async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Promise<Outcome>): Promise<Outcome> {
+  let outcome: Outcome = "crashed";
   inFlight.set(issue.number, { issue, loop, claim: claimRef });
   log(`=== ${loop} #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots, ${triageSlots.busy()}/${TRIAGE_PARALLEL} triage slots, ${fixSlots.busy()}/${FIX_PARALLEL} fix slots busy, ${inFlight.size} in flight) ===`);
   stage(issue, "claimed");
@@ -1054,7 +1265,8 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
   try {
     // Only a marker for people, like its removal in release(): a GitHub GraphQL hiccup here once ended a whole run.
     if (!ok("gh", "issue", "edit", String(issue.number), "--add-label", WORKING)) log(`#${issue.number} couldn't add ${WORKING}`);
-    finish(issue, await work());
+    outcome = await work();
+    finish(issue, outcome);
   } catch (e) {
     // Checked first: merging by hand makes whatever the factory was doing fail (a rejected push, a
     // cancelled CI run, `gh pr merge` on a merged PR), and none of that is a crash or a hand-back.
@@ -1062,18 +1274,28 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
       log(`✓ #${issue.number} merged by hand`);
       await serially(() => afterMerge(issue));
       ok("git", "branch", "-D", branchOf(issue)); // the sandbox is closed by now
-      finish(issue, "merged", "merged by hand");
+      outcome = "merged";
+      finish(issue, outcome, "merged by hand");
     // The signal, not `instanceof`: sandcastle may hand the reason back wrapped in an Effect FiberFailure.
     } else if (abort.signal.aborted) {
       const why = `${(abort.signal.reason as Error).message} during ${stageOf.get(issue.number)?.stage ?? "start"}`;
       // The babysitter leaves the PR as it is: it may be a person's.
-      if (loop === "implement") ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
+      if (loop === "implement" || loop === "main fix") ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
       log(`⊘ #${issue.number} cancelled: ${why}`);
-      finish(issue, "cancelled", why);
+      outcome = "cancelled";
+      finish(issue, outcome, why);
     } else if (e instanceof Blocked) {
       if (loop === "triage") undecided(issue, e.message);
       else handBack(issue, e.message);
-      finish(issue, "handed back", e.message);
+      outcome = "handed back";
+      finish(issue, outcome, e.message);
+    } else if (rateLimited(e)) {
+      // After Blocked: an agent's own reason may mention a rate limit, and that one is the agent's to give.
+      const why = `GitHub API rate limit at ${stageOf.get(issue.number)?.stage ?? "start"}`;
+      noteRateLimit();
+      log(`⏸ #${issue.number} ${why}: taken again after the reset`);
+      outcome = "interrupted";
+      finish(issue, outcome, why);
     } else {
       // Infra failure (docker, auth, Claude limit): don't relabel; let in-flight issues finish, pick nothing new.
       // The next run picks the issue (no PR yet) or its PR (babysit) up again.
@@ -1094,6 +1316,7 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
     if (loop === "triage") triageSlots.release();
     else if (loop === "implement") slots.release();
   }
+  return outcome;
 }
 
 function summary(reason: string) {
@@ -1125,6 +1348,16 @@ process.on("SIGINT", () => {
   process.exit(130);
 });
 
+// Draining: everything already in flight finishes here, PRs babysat to their merge included; a newer run started
+// beside it takes everything else. The run then ends as usual.
+process.on("SIGUSR1", () => {
+  if (draining) return;
+  draining = true;
+  releasePidFile();
+  log("=== Draining: finishing what's in flight, starting nothing new ===");
+  record({ kind: "drain" });
+});
+
 log(`=== Factory ${RUN} started: ${MAX_PARALLEL} slots, at most ${MAX_ISSUES} issues, babysitting ${ME}'s PRs ===`);
 record({ kind: "run-start", slots: MAX_PARALLEL });
 // Before anything starts: this run's own sandboxes would look the same.
@@ -1135,11 +1368,13 @@ try {
 }
 const babysitting = babysitLoop();
 const triaging = triageLoop();
+const watchingMain = mainLoop().finally(() => { mainDone = true; });
 await dispatch();
 implementDone = true;
-await Promise.all([babysitting, triaging]);
+await Promise.all([babysitting, triaging, watchingMain]);
 summary(
   crashed ? `${crashed}; finished in-flight work, started nothing new`
+  : draining ? "drained: a newer run took over"
   : existsSync(STOP_FILE) ? `${STOP_FILE} found`
   : taken.size >= MAX_ISSUES ? `MAX_ISSUES (${MAX_ISSUES}) reached`
   : "queue empty",

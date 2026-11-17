@@ -63,15 +63,13 @@ impl MatchedMovie {
     }
 }
 
-/// Creates an empty Movies Library on `folder` and returns its id.
+/// Creates an empty Movies Library on `folder`, named after it so each one's name differs, and
+/// returns its id.
 pub(crate) async fn movies_library(db: &Arc<Database>, folder: &Path) -> i64 {
     let root = folder.canonicalize().unwrap();
+    let root = root.to_str().unwrap();
     Libraries::new(Arc::clone(db))
-        .create(
-            "Movies",
-            Kind::Movies,
-            vec![root.to_str().unwrap().to_owned()],
-        )
+        .create(root, Kind::Movies, vec![root.to_owned()])
         .await
         .unwrap()
         .id

@@ -35,6 +35,7 @@ export function libraryErrors(error: unknown, attempt: string): FormErrors {
       [Code.NotFound]: { form: "This Library isn’t on the Server any more." },
     },
     {
+      [RefusalReason.LIBRARY_NAME_TAKEN]: { name: serverMessage(error) },
       [RefusalReason.TITLE_SOURCES_INVALID]: { titleSources: serverMessage(error) },
       [RefusalReason.RECOGNISERS_INVALID]: recognisersRefused(error),
     },

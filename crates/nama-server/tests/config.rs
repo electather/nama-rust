@@ -19,7 +19,7 @@ use serde_json::Value;
 #[test]
 fn defaults_apply_when_there_is_no_config_file_or_environment() {
     Jail::expect_with(|_jail| {
-        let config = Config::load(None).unwrap();
+        let config = Config::load(None).unwrap().0;
 
         assert_eq!(config.name, "Nama");
         assert_eq!(config.listen, "0.0.0.0:7980".parse().unwrap());
@@ -40,7 +40,9 @@ fn a_config_file_sets_listen_address_and_data_directory() {
             "#,
         )?;
 
-        let config = Config::load(Some(&jail.directory().join("server.toml"))).unwrap();
+        let config = Config::load(Some(&jail.directory().join("server.toml")))
+            .unwrap()
+            .0;
 
         assert_eq!(config.listen, "127.0.0.1:9000".parse().unwrap());
         assert_eq!(config.data_dir, PathBuf::from("/var/lib/nama"));
@@ -61,7 +63,9 @@ fn nama_environment_variables_override_the_config_file() {
         jail.set_env("NAMA_LISTEN", "[::1]:9100");
         jail.set_env("NAMA_DATA_DIR", "/srv/nama");
 
-        let config = Config::load(Some(&jail.directory().join("server.toml"))).unwrap();
+        let config = Config::load(Some(&jail.directory().join("server.toml")))
+            .unwrap()
+            .0;
 
         assert_eq!(config.listen, "[::1]:9100".parse().unwrap());
         assert_eq!(config.data_dir, PathBuf::from("/srv/nama"));
@@ -84,7 +88,7 @@ fn without_a_named_file_nama_toml_in_the_working_directory_is_read() {
     Jail::expect_with(|jail| {
         jail.create_file("nama.toml", r#"data_dir = "/opt/nama""#)?;
 
-        let config = Config::load(None).unwrap();
+        let config = Config::load(None).unwrap().0;
 
         assert_eq!(config.data_dir, PathBuf::from("/opt/nama"));
         assert_eq!(config.listen, "0.0.0.0:7980".parse().unwrap());
@@ -96,10 +100,10 @@ fn without_a_named_file_nama_toml_in_the_working_directory_is_read() {
 fn the_server_name_comes_from_the_config_file_or_environment() {
     Jail::expect_with(|jail| {
         jail.create_file("nama.toml", r#"name = "Living Room""#)?;
-        assert_eq!(Config::load(None).unwrap().name, "Living Room");
+        assert_eq!(Config::load(None).unwrap().0.name, "Living Room");
 
         jail.set_env("NAMA_NAME", "Basement");
-        assert_eq!(Config::load(None).unwrap().name, "Basement");
+        assert_eq!(Config::load(None).unwrap().0.name, "Basement");
         Ok(())
     });
 }
@@ -107,7 +111,7 @@ fn the_server_name_comes_from_the_config_file_or_environment() {
 #[test]
 fn ffmpeg_and_ffprobe_paths_come_from_the_config_file_or_environment() {
     Jail::expect_with(|jail| {
-        let defaults = Config::load(None).unwrap();
+        let defaults = Config::load(None).unwrap().0;
         assert_eq!((defaults.ffmpeg, defaults.ffprobe), (None, None));
 
         jail.create_file(
@@ -118,7 +122,7 @@ fn ffmpeg_and_ffprobe_paths_come_from_the_config_file_or_environment() {
             "#,
         )?;
         jail.set_env("NAMA_FFPROBE", "/usr/lib/jellyfin-ffmpeg/ffprobe");
-        let config = Config::load(None).unwrap();
+        let config = Config::load(None).unwrap().0;
 
         assert_eq!(config.ffmpeg, Some(PathBuf::from("/opt/ffmpeg/ffmpeg")));
         assert_eq!(
@@ -142,7 +146,7 @@ fn the_config_file_can_turn_a_plugin_off() {
             ",
         )?;
 
-        let config = Config::load(None).unwrap();
+        let config = Config::load(None).unwrap().0;
 
         assert_eq!(
             config.plugins.parse().unwrap(),
@@ -182,7 +186,7 @@ fn a_plugins_other_keys_are_its_settings() {
             "#,
         )?;
 
-        let config = Config::load(None).unwrap();
+        let config = Config::load(None).unwrap().0;
 
         assert_eq!(
             config.plugins.parse().unwrap()["tmdb"],
@@ -214,7 +218,7 @@ fn a_plugin_table_with_a_wrong_value_loads_and_fails_only_when_parsed() {
             "#,
         )?;
 
-        let config = Config::load(None).unwrap();
+        let config = Config::load(None).unwrap().0;
 
         assert_eq!(config.plugins.ids().collect::<Vec<_>>(), ["tmdb"]);
         let err = config.plugins.parse().unwrap_err().to_string();
@@ -232,7 +236,7 @@ fn trusted_proxies_are_ip_addresses_or_cidr_ranges() {
             r#"trusted_proxies = ["10.0.0.0/8", "::1", "::ffff:192.168.0.0/112"]"#,
         )?;
 
-        let config = Config::load(None).unwrap();
+        let config = Config::load(None).unwrap().0;
 
         let trusted = |ip: &str| {
             let ip = ip.parse().unwrap();
@@ -264,6 +268,59 @@ fn a_trusted_proxy_that_isnt_an_ip_address_or_cidr_range_is_an_error() {
         jail.create_file("nama.toml", r#"trusted_proxies = ["10.0.0.0/33"]"#)?;
 
         Config::load(None).unwrap_err();
+        Ok(())
+    });
+}
+
+#[test]
+fn an_unknown_key_in_the_config_file_is_reported_by_name_and_ignored() {
+    Jail::expect_with(|jail| {
+        jail.create_file(
+            "nama.toml",
+            r#"
+                watch_folder = false
+                api_key = "secret"
+
+                [plugins.tmdb]
+                anything = "goes"
+            "#,
+        )?;
+
+        let (config, unknown_keys) = Config::load(None).unwrap();
+
+        assert!(config.watch_folders);
+        assert_eq!(unknown_keys, ["api_key", "watch_folder"]);
+        Ok(())
+    });
+}
+
+#[test]
+fn an_unknown_key_in_the_config_file_is_reported_even_when_an_environment_variable_sets_it() {
+    Jail::expect_with(|jail| {
+        jail.create_file(
+            "nama.toml",
+            r#"
+                server_url = "http://localhost:7980"
+                "watch.folders" = false
+            "#,
+        )?;
+        jail.set_env("NAMA_SERVER_URL", "http://localhost:7980");
+
+        let (_, unknown_keys) = Config::load(None).unwrap();
+
+        assert_eq!(unknown_keys, ["server_url", "watch.folders"]);
+        Ok(())
+    });
+}
+
+#[test]
+fn an_unrelated_nama_environment_variable_is_not_reported() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_SERVER_URL", "http://localhost:7980");
+
+        let (_, unknown_keys) = Config::load(None).unwrap();
+
+        assert!(unknown_keys.is_empty(), "{unknown_keys:?}");
         Ok(())
     });
 }

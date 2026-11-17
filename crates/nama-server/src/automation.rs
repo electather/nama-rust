@@ -13,9 +13,9 @@ use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
         DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Library,
-        LibraryKind, Permission, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
-        TitleRefKind, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState,
-        WatchStates, WatchStatesAsked,
+        LibraryKind, Permission, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue,
+        Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates, Titles,
+        TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
     },
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
@@ -27,6 +27,7 @@ use crate::{
     db::Database,
     library::{self, Contents, ItemKind, LibraryEpisode, LibraryError, WatchStateKind},
     plugins::ExtensionPoints,
+    requests,
     scanner::{self, Scanner},
     users,
 };
@@ -88,6 +89,7 @@ enum Method {
     ListTitles,
     ListWatchStates,
     ListUsers,
+    ListRequesters,
     DeleteMedia,
 }
 
@@ -99,6 +101,7 @@ impl Method {
             Self::ListLibraries | Self::ListTitles => Permission::PERMISSION_READ_LIBRARIES,
             Self::ListWatchStates => Permission::PERMISSION_READ_WATCH_STATES,
             Self::ListUsers => Permission::PERMISSION_READ_USERS,
+            Self::ListRequesters => Permission::PERMISSION_READ_REQUESTS,
             Self::DeleteMedia => Permission::PERMISSION_DELETE_MEDIA,
         }
     }
@@ -113,6 +116,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_READ_WATCH_STATES => "Read Watch States",
         Permission::PERMISSION_DELETE_MEDIA => "Delete media",
         Permission::PERMISSION_READ_USERS => "Read Users",
+        Permission::PERMISSION_READ_REQUESTS => "Read Requests",
     }
 }
 
@@ -260,6 +264,38 @@ impl PluginKernel {
         }
         every_id.sort_unstable_by_key(|&(place, _)| place);
         Ok(every_id.into_iter().map(|(_, title)| title).collect())
+    }
+
+    /// The ids of the Users who Requested `title`, an Episode's being its Season's, or `None` if
+    /// nothing did. A Movie's Requests are found by every id its Match gives it, as its Watch
+    /// State is; an Episode the Library doesn't have has none.
+    async fn requesters(
+        &self,
+        automation: &Automation,
+        title: &TitleRef,
+    ) -> Result<Option<Vec<i64>>, KernelRefused> {
+        let contents = Contents::new(Arc::clone(&automation.db));
+        let read = |err| self.database_refused("reading the Library's titles", &err);
+        let library = title.library_id;
+        let (ids, season) = match titled(
+            title,
+            |id| (ItemKind::Movie, id),
+            |id| (ItemKind::Episode, id),
+        )? {
+            (ItemKind::Movie, id) => {
+                let every_id = contents.every_id(library, ItemKind::Movie, &[id]).await;
+                (every_id.map_err(read)?.pop().unwrap_or_default(), None)
+            }
+            (ItemKind::Episode, id) => {
+                match contents.season_of(library, &id).await.map_err(read)? {
+                    Some((show, season)) => (show, Some(season)),
+                    None => return Ok(None),
+                }
+            }
+        };
+        let refused = |err| self.database_refused("reading the Requests", &err);
+        let mut conn = automation.db.reader().acquire().await.map_err(refused)?;
+        (requests::who_requested(&mut conn, &ids, season).await).map_err(refused)
     }
 
     /// Refuses a delete that would take along one of the Episodes `taken_along`, of the Library
@@ -496,6 +532,30 @@ impl Kernel for PluginKernel {
                     })
                     .collect(),
                 ..Users::default()
+            })
+        })
+    }
+
+    fn list_requesters<'a>(
+        &'a self,
+        asked: &'a RequestersAsked,
+    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
+        Box::pin(async move {
+            let automation = self.check(Method::ListRequesters)?;
+            let mut titles = Vec::with_capacity(asked.titles.len());
+            // ponytail: a few queries per title; read a page's titles together if ticks get slow.
+            for title in &asked.titles {
+                let requesters = self.requesters(&automation, title).await?;
+                titles.push(TitleRequesters {
+                    title_ref: MessageField::some(title.clone()),
+                    requested: requesters.is_some(),
+                    user_ids: requesters.unwrap_or_default(),
+                    ..TitleRequesters::default()
+                });
+            }
+            Ok(Requesters {
+                titles,
+                ..Requesters::default()
             })
         })
     }
