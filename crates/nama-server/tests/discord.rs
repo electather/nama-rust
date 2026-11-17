@@ -4,19 +4,23 @@
 
 #[path = "support/fake_discord.rs"]
 mod fake_discord;
+#[path = "support/refused.rs"]
+mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
 use std::time::{Duration, Instant};
 
-use connectrpc::client::HttpClient;
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use fake_discord::{FakeDiscord, Posted};
 use nama_proto::nama::v1::{
-    EnablePluginRequest, ListPersonalSettingsRequest, PluginServiceClient, ServerServiceClient,
-    ServerSettings, SettingValue, UpdatePersonalSettingsRequest, UpdatePluginSettingsRequest,
-    UpdateServerSettingsRequest, UserServiceClient, setting_value::Value,
+    EnablePluginRequest, ListPersonalSettingsRequest, PluginServiceClient, RefusalReason,
+    ServerServiceClient, ServerSettings, SettingValue, UpdatePersonalSettingsRequest,
+    UpdatePluginSettingsRequest, UpdateServerSettingsRequest, UserServiceClient,
+    setting_value::Value,
 };
+use refused::assert_refused;
 use server::{SignedIn, TestServer, WAIT, requests::Requester, tmdb::DUNE};
 
 fn text(key: &str, value: &str) -> (String, SettingValue) {
@@ -74,14 +78,19 @@ fn users(user: &SignedIn) -> UserServiceClient<HttpClient> {
     reason = "a test helper fails its test by panicking"
 )]
 async fn set_webhook(user: &SignedIn, webhook: &str) {
+    save_webhook(user, webhook).await.unwrap();
+}
+
+/// `user` asks to set their Discord webhook to `webhook`.
+async fn save_webhook(user: &SignedIn, webhook: &str) -> Result<(), ConnectError> {
     users(user)
         .update_personal_settings(UpdatePersonalSettingsRequest {
             plugin_id: "discord".to_owned(),
             settings: std::iter::once(text("webhook", webhook)).collect(),
             ..Default::default()
         })
-        .await
-        .unwrap();
+        .await?;
+    Ok(())
 }
 
 /// Whether `user` has a Discord webhook set, as they list their Personal settings.
@@ -101,6 +110,33 @@ async fn has_webhook(user: &SignedIn) -> bool {
         .filter(|plugin| plugin.plugin_id == "discord")
         .flat_map(|plugin| &plugin.settings)
         .any(|setting| setting.key == "webhook" && setting.secret_set)
+}
+
+#[tokio::test]
+async fn a_webhook_that_isnt_one_is_refused_on_saving_without_its_value() {
+    let discord = FakeDiscord::start(&[]).await;
+    let server = started(&discord).await;
+    let ada = server.user_with_default_permissions("Ada").await;
+
+    let refused = save_webhook(&ada, "garbage").await;
+
+    let message = refused.as_ref().err().and_then(|err| err.message.clone());
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
+    assert_eq!(
+        refusal.params.get("pluginId").map(String::as_str),
+        Some("discord")
+    );
+    assert_eq!(
+        message.as_deref(),
+        Some(
+            "the Personal setting webhook must be a Discord webhook URL, with /api/webhooks/ in it"
+        )
+    );
+    assert!(!has_webhook(&ada).await);
 }
 
 #[tokio::test]
