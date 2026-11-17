@@ -198,6 +198,7 @@ impl Ffmpeg {
 
     /// The names `ffmpeg -hide_banner <list>` lists, such as its filters for `-filters`, or why it
     /// couldn't say. Empty without ffmpeg.
+    #[tracing::instrument(name = "ffmpeg list", skip_all, fields(ffmpeg.list = list))]
     async fn listed(&self, list: &str) -> Result<Vec<String>, String> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Ok(vec![]);
@@ -255,6 +256,7 @@ impl Ffmpeg {
     }
 
     /// `gpu` with the model its driver names when ffmpeg opens it with VAAPI, if it does.
+    #[tracing::instrument(name = "ffmpeg open GPU", skip_all)]
     async fn named(&self, gpu: &Gpu) -> Gpu {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return gpu.clone();
@@ -321,6 +323,7 @@ impl Ffmpeg {
     }
 
     /// Converts `clip`, a lavfi source, as `video` says, and throws it away, or says why it failed.
+    #[tracing::instrument(name = "ffmpeg test encode", skip_all)]
     async fn test_encode(&self, clip: &str, video: &VideoConversion) -> Result<(), String> {
         let ffmpeg = self.ffmpeg.as_ref().map_err(Clone::clone)?;
         // The clip's path matters only to a subtitle burned in, which a test has none of.
@@ -516,6 +519,7 @@ impl Ffmpeg {
     }
 
     /// What ffmpeg, quiet but for errors, writes given `args`, within [`SUBTITLE_TIMEOUT`].
+    #[tracing::instrument(name = "ffmpeg extract", skip_all)]
     async fn read_out(&self, args: &[&str]) -> Result<std::process::Output, SubtitleError> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Err(SubtitleError::Unavailable);

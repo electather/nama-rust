@@ -24,6 +24,7 @@ use futures_util::StreamExt;
 use nama_proto::nama::v1::ProbingFinished;
 use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
+use tracing::Instrument as _;
 
 use super::{
     subtitles,
@@ -31,6 +32,7 @@ use super::{
 };
 use crate::{
     db::Database,
+    diagnostics,
     ffmpeg::Ffmpeg,
     library::{Contents, Stored},
 };
@@ -213,16 +215,25 @@ impl Probing {
             return;
         }
         let probing = self.clone();
-        self.inner.tasks.spawn(async move {
-            let pass = probing.probe_stale(library);
-            match probing.inner.cancel.run_until_cancelled(pass).await {
-                Some(Ok(probed)) => finished(probed),
-                Some(Err(err)) => {
-                    tracing::error!(library, "probing a Library's files failed: {err}");
+        // In the trace of the scan that changed the files, so their probes are in it too.
+        let pass_span = diagnostics::following_current(tracing::info_span!(
+            parent: None,
+            "probe pass",
+            library.id = library
+        ));
+        self.inner.tasks.spawn(
+            async move {
+                let pass = probing.probe_stale(library);
+                match probing.inner.cancel.run_until_cancelled(pass).await {
+                    Some(Ok(probed)) => finished(probed),
+                    Some(Err(err)) => {
+                        tracing::error!(library, "probing a Library's files failed: {err}");
+                    }
+                    None => {}
                 }
-                None => {}
             }
-        });
+            .instrument(pass_span),
+        );
     }
 
     /// Cancels the probes running, waits for them to stop, and starts no more passes.
@@ -374,6 +385,7 @@ impl Probing {
     /// Probes the file at `path`, stored as `file`, and stores and returns what it holds, unless
     /// its Tracks became current since whoever claimed it found them stale. If ffprobe can't read
     /// it, stores that and why, and forgets what it held before.
+    #[tracing::instrument(name = "probe", skip_all, fields(file.id = file.id))]
     async fn probe_and_store(&self, path: &str, file: Stored) -> Result<Probe, Unprobed> {
         if self.inner.tracks.current(&[file]).await?.contains(&file.id)
             && let Some(probe) = self.inner.tracks.of(&[file]).await?.remove(&file.id)
