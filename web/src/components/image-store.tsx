@@ -153,7 +153,9 @@ function SwitchForm({
     <form
       className="flex flex-col gap-5"
       onSubmit={onSubmitted((typed) => {
-        switchStore.mutate({ pluginId: formText(typed, "pluginId") });
+        // A disabled option isn't submitted, so the store in use, when disabled, sends no pluginId.
+        const pluginId = typed.has("pluginId") ? formText(typed, "pluginId") : current;
+        switchStore.mutate({ pluginId });
       })}
     >
       <FormSelect
@@ -164,12 +166,7 @@ function SwitchForm({
         required={false}
         hint="An enabled Blob store Plugin, such as S3, can keep them in place of local disk. Every image is copied across before the switch, and the old store keeps its copies."
       >
-        <option value="">Local disk</option>
-        {stores.map((plugin) => (
-          <option key={plugin.id} value={plugin.id}>
-            {pluginName(plugin)}
-          </option>
-        ))}
+        <StoreOptions current={current} stores={stores} nameOf={nameOf} />
       </FormSelect>
       <FormEnd
         action={switchStore.isPending ? "Checking the store…" : "Switch image store"}
@@ -179,6 +176,37 @@ function SwitchForm({
         refusal={failed}
       />
     </form>
+  );
+}
+
+/**
+ * Local disk and `stores` to pick from. The store `current`, when it isn't one of them (a disabled
+ * Plugin's), comes between them: chosen, but not pickable.
+ */
+function StoreOptions({
+  current,
+  stores,
+  nameOf,
+}: {
+  current: string;
+  stores: PluginSummary[];
+  nameOf: (pluginId: string) => string;
+}) {
+  const inUseButDisabled = current !== "" && !stores.some((plugin) => plugin.id === current);
+  return (
+    <>
+      <option value="">Local disk</option>
+      {inUseButDisabled && (
+        <option value={current} disabled>
+          {nameOf(current)} (disabled)
+        </option>
+      )}
+      {stores.map((plugin) => (
+        <option key={plugin.id} value={plugin.id}>
+          {pluginName(plugin)}
+        </option>
+      ))}
+    </>
   );
 }
 

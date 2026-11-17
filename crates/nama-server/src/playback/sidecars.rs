@@ -2,7 +2,7 @@
 //!
 //! [`Sidecars`] owns `sidecar_subtitles` (see the area's `AGENTS.md`). A scan finds the files and
 //! says which Version each is beside; their rows go when the Version goes. Only their names and
-//! metadata are read, never the files. Readers of a Version's Tracks append the text ones with
+//! metadata are read, never the files. Readers of a Version's Tracks append them with
 //! [`Sidecars::append_to`] (see the area's `AGENTS.md`).
 
 use std::{collections::HashMap, ffi::OsStr, path::Path, sync::Arc};
@@ -66,8 +66,8 @@ impl Sidecars {
         Ok(stored)
     }
 
-    /// Appends to the Tracks of each of `probes`, by Version id, the text sidecars stored beside
-    /// it, in path order, after the file's own, so those keep their places.
+    /// Appends to the Tracks of each of `probes`, by Version id, the sidecars stored beside it, in
+    /// path order, after the file's own, so those keep their places.
     pub(crate) async fn append_to(
         &self,
         probes: impl IntoIterator<Item = (i64, &mut Probe)>,
@@ -100,10 +100,7 @@ impl Sidecars {
                 forced: row.forced,
                 sdh: row.sdh,
             };
-            // `.sup` ones wait until they're served as PGS (#938).
-            if let Some(probe) = probes.get_mut(&row.version_id)
-                && track.is_text_subtitle()
-            {
+            if let Some(probe) = probes.get_mut(&row.version_id) {
                 probe.tracks.push(track);
             }
         }

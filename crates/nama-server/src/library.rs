@@ -46,4 +46,5 @@ pub(crate) use versions::PARSER_VERSION;
 pub(crate) use versions::METADATA_VERSION;
 pub(crate) use watch_states::{
     Kind as WatchStateKind, MovieOrEpisode, Progress, WatchState, WatchStates,
+    Watched as WatchedTitle,
 };

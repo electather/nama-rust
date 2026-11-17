@@ -1,6 +1,17 @@
-//! Writing short media files with the ffmpeg on `PATH`, for tests to probe, Remux and Transcode.
+//! Writing short media files with the ffmpeg on `PATH`, for tests to probe, Remux and Transcode,
+//! and the text of subtitles for tests to write in a charset.
 
 use std::{io, path::Path, process::Command};
+
+/// A cue of Persian, which older `.srt` files hold in Windows-1256. Its yeh is the Arabic one
+/// they write, as Windows-1256 has no Farsi yeh.
+#[cfg(any(test, feature = "testing"))]
+pub const PERSIAN_SRT: &str =
+    "1\n00:00:01,000 --> 00:00:03,000\nسلام، امروز هوا خيلي خوب است و ما به پارک مي‌رويم.\n";
+
+/// A cue of French with `é` and `ü`, which older `.srt` files hold in Windows-1252.
+#[cfg(any(test, feature = "testing"))]
+pub const FRENCH_SRT: &str = "1\n00:00:01,000 --> 00:00:03,000\nLe café de Saül est très bon, mais sa cuisine est un vrai capharnaüm.\n";
 
 /// Writes a fifth of a second of 10-bit 4K video with English 5.1 audio, as Matroska, to `path`,
 /// with the ffmpeg on `PATH`, for a test to probe. The video is tagged with `transfer`, as ffmpeg
@@ -111,31 +122,46 @@ pub fn write_hevc_with_5_1(path: &Path) -> io::Result<()> {
 pub fn write_black_with_pgs(path: &Path) -> io::Result<()> {
     // ffmpeg can't encode PGS, so it muxes one written by hand.
     let sup = path.with_extension("sup");
-    std::fs::write(&sup, white_square_pgs())?;
-    let written = write_test_media(path, |ffmpeg| {
-        ffmpeg
-            .args([
-                "-f",
-                "lavfi",
-                "-i",
-                "color=black:size=320x240:rate=24",
-                "-i",
-            ])
-            .arg(&sup)
-            .args(["-t", "20", "-map", "0", "-map", "1"])
-            // A keyframe each second, so a Transcode started mid-way seeks past where the
-            // subtitle starts, as it would in a film.
-            .args(["-c:v", "libx264", "-preset", "ultrafast", "-g", "24", "-c:s", "copy"])
-            .args(["-f", "matroska"])
-    });
+    std::fs::write(&sup, white_square_pgs(0, 19))?;
+    let written = write_black(path, Some(&sup));
     std::fs::remove_file(&sup)?;
     written
 }
 
-/// A PGS stream, as a `.sup` file holds it, on a 320×240 canvas: a 16×16 white square at 100, 100
-/// shown at 0 seconds and cleared at 19.
+/// Writes [`write_black_with_pgs`]'s video without a subtitle Track to `path`, and beside it the
+/// PGS sidecar `<name>.en.sup` showing its square from 5 seconds to 15, for a test to burn in.
+///
+/// # Errors
+///
+/// If the sidecar can't be written beside `path`, or ffmpeg can't be run or fails.
 #[cfg(any(test, feature = "testing"))]
-fn white_square_pgs() -> Vec<u8> {
+pub fn write_black_with_pgs_sidecar(path: &Path) -> io::Result<()> {
+    std::fs::write(path.with_extension("en.sup"), white_square_pgs(5, 15))?;
+    write_black(path, None)
+}
+
+/// Writes 20 seconds of black 320×240 H.264 video, with the PGS file `pgs` as its subtitle Track
+/// if given, as Matroska, to `path`.
+#[cfg(any(test, feature = "testing"))]
+fn write_black(path: &Path, pgs: Option<&Path>) -> io::Result<()> {
+    write_test_media(path, |ffmpeg| {
+        ffmpeg.args(["-f", "lavfi", "-i", "color=black:size=320x240:rate=24"]);
+        if let Some(pgs) = pgs {
+            ffmpeg.arg("-i").arg(pgs).args(["-map", "0", "-map", "1"]);
+        }
+        ffmpeg
+            .args(["-t", "20"])
+            // A keyframe each second, so a Transcode started mid-way seeks past where the
+            // subtitle starts, as it would in a film.
+            .args(["-c:v", "libx264", "-preset", "ultrafast", "-g", "24", "-c:s", "copy"])
+            .args(["-f", "matroska"])
+    })
+}
+
+/// A PGS stream, as a `.sup` file holds it, on a 320×240 canvas: a 16×16 white square at 100, 100
+/// shown at `shown_at` seconds and cleared at `cleared_at`.
+#[cfg(any(test, feature = "testing"))]
+fn white_square_pgs(shown_at: u32, cleared_at: u32) -> Vec<u8> {
     // Each segment: "PG", when it shows and decodes in 90 kHz ticks, its type and its length.
     let segment = |seconds: u32, kind: u8, body: &[u8]| -> Vec<u8> {
         let length = u16::try_from(body.len()).unwrap_or(u16::MAX);
@@ -162,14 +188,14 @@ fn white_square_pgs() -> Vec<u8> {
     let rows = [0, 0x80 | 16, 1, 0, 0].repeat(16);
     let object = [&[0, 0, 0, 0xC0, 0, 0, 84, 0, 16, 0, 16][..], &rows].concat();
     [
-        segment(0, 0x16, &shown),
-        segment(0, 0x17, &window),
-        segment(0, 0x14, &palette),
-        segment(0, 0x15, &object),
-        segment(0, 0x80, &[]),
-        segment(19, 0x16, &cleared),
-        segment(19, 0x17, &window),
-        segment(19, 0x80, &[]),
+        segment(shown_at, 0x16, &shown),
+        segment(shown_at, 0x17, &window),
+        segment(shown_at, 0x14, &palette),
+        segment(shown_at, 0x15, &object),
+        segment(shown_at, 0x80, &[]),
+        segment(cleared_at, 0x16, &cleared),
+        segment(cleared_at, 0x17, &window),
+        segment(cleared_at, 0x80, &[]),
     ]
     .concat()
 }

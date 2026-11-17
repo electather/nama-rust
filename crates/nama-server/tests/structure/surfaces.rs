@@ -21,7 +21,8 @@ type Exception = (&'static str, &'static str, &'static str);
 const SURFACE_EXCEPTIONS: &[Exception] = &[(
     "ffmpeg",
     "fake",
-    "the crate's Fake programs rule sends every test's fake program through ffmpeg::fake::script",
+    "the crate's Fake programs rule sends every test's fake program through ffmpeg::fake::script, \
+     and neighbours' tests share its two-GPU VAAPI fake",
 )];
 
 /// The most lines an area's `AGENTS.md` holds: its invariants, then its Neighbours.

@@ -51,7 +51,7 @@ use crate::{
 
 /// The version of how a source makes WebVTT, part of every cache key so what an older one made is
 /// made again; when to bump it is in `AGENTS.md`.
-const WEBVTT_VERSION: u32 = 2;
+const WEBVTT_VERSION: u32 = 3;
 
 /// Where clients fetch the Version `version`'s Track `track`, by its place in the Version's
 /// Tracks, in `format`: the one it's [`served_as`], or ASS for an ASS or SSA one.
@@ -141,11 +141,14 @@ async fn serve(
         return StatusCode::NOT_FOUND.into_response();
     };
     let key = source.cache_key();
-    let served = if source.from_text_pass {
-        subtitles.read_by_text_pass(&key, &probed).await
-    } else {
-        let read = source.read(&subtitles.ffmpeg);
-        subtitles.cache.get_or_make(&key, read).await
+    let served = match source.reading {
+        // Already what's served for PGS, so neither ffmpeg nor the cache needs to copy it.
+        Reading::Sup => tokio::fs::read(&source.path).await.map_err(Error::from),
+        Reading::TextPass => subtitles.read_by_text_pass(&key, &probed).await,
+        Reading::Ffmpeg => {
+            let read = source.read(&subtitles.ffmpeg);
+            subtitles.cache.get_or_make(&key, read).await
+        }
     };
     match served {
         Ok(served) => ([(header::CONTENT_TYPE, source.content_type())], served).into_response(),
@@ -235,13 +238,24 @@ struct Source {
     name: String,
     /// The file it's read from.
     path: String,
-    /// Its place among that file's subtitle Tracks, which is how ffmpeg picks it out.
-    subtitle: usize,
+    /// Its place among that file's subtitle Tracks, which is how ffmpeg picks it out, or `None`
+    /// for a sidecar's one.
+    subtitle: Option<usize>,
     served_as: proto::SubtitleFormat,
     /// ASS or SSA, whose dialogue ffmpeg would make WebVTT with their styling and drawings in.
     ass: bool,
+    /// How it's read out.
+    reading: Reading,
+}
+
+/// How a [`Source`] is read out.
+enum Reading {
     /// A text Track inside the file, which a text pass reads out with the others.
-    from_text_pass: bool,
+    TextPass,
+    /// A `.sup` sidecar served as PGS, which is already what's served.
+    Sup,
+    /// Copied or converted by ffmpeg.
+    Ffmpeg,
 }
 
 impl Source {
@@ -262,14 +276,23 @@ impl Source {
             Some(sidecar) => (
                 format!("{track}.{}.{}", sidecar.size, sidecar.modified_ns),
                 sidecar.path.clone(),
-                0,
+                None,
             ),
-            None => (track.to_string(), path.clone(), probe.ffmpeg_index(track)?),
+            None => (
+                track.to_string(),
+                path.clone(),
+                Some(probe.ffmpeg_index(track)?),
+            ),
         };
+        let served_as = format_of(found)?;
         Some(Self {
-            served_as: format_of(found)?,
+            served_as,
             ass: found.is_ass_subtitle(),
-            from_text_pass: found.sidecar().is_none() && found.is_text_subtitle(),
+            reading: match found.sidecar() {
+                Some(_) if served_as == PGS => Reading::Sup,
+                None if found.is_text_subtitle() => Reading::TextPass,
+                _ => Reading::Ffmpeg,
+            },
             file: *file,
             name,
             path,

@@ -24,14 +24,14 @@ pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 #[cfg(test)]
 use self::hls::filter_value;
 pub(crate) use self::hls::{
-    BurnIn, FromCut, HlsRun, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
+    BurnIn, FromCut, HlsRun, ImageSubtitle, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
     TranscodeAudio, VideoConversion, VideoLimit, hls_init, hls_init_from,
 };
-use self::hls::{VideoArgs, aac, hls_output, map_audio, seconds, video_args};
+use self::hls::{VideoArgs, aac, hls_output, map_audio, pgs_start_ms, seconds, video_args};
 #[cfg(any(test, feature = "testing"))]
 pub use self::test_media::{
-    write_4k_with_5_1, write_1080p_h264, write_black_with_pgs, write_h264_with_5_1,
-    write_hevc_with_5_1,
+    FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_1080p_h264, write_black_with_pgs,
+    write_black_with_pgs_sidecar, write_h264_with_5_1, write_hevc_with_5_1,
 };
 use crate::config::Config;
 
@@ -364,12 +364,18 @@ impl Ffmpeg {
     ///
     /// The video starts up to [`REMUX_BACK_AT_MOST_MS`] before `from`, the audio as
     /// [`REMUX_AUDIO_BACK_MS`] says, so it doesn't step back where this run picks up another's.
+    /// Copied audio is cut there by `file_start_ms`, when the file starts as Probing reads it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the plan makes `remux` before Probing lists the file's start with its keyframes"
+    )]
     pub(crate) fn remux(
         &self,
         path: &str,
         remux: &Remux,
         dir: &Path,
         from: Keyframe,
+        file_start_ms: i64,
     ) -> io::Result<HlsRun> {
         let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
         let mut command = tokio::process::Command::new(&ffmpeg.path);
@@ -383,9 +389,19 @@ impl Ffmpeg {
         let audio_start_ms = (remux.audio.is_some() && from.n > 0)
             .then(|| (from.ms - REMUX_AUDIO_BACK_MS).max(start_ms));
         let seek_ms = audio_start_ms.unwrap_or(start_ms);
+        let aac_channels = remux.audio.and_then(|audio| audio.aac_channels);
         if seek_ms > 0 {
-            // Jumps to a keyframe at or before it, which in Matroska can be a few before.
-            command.args(["-ss", &seconds(seek_ms)]);
+            let cuts_copied_audio = audio_start_ms.is_some() && aac_channels.is_none();
+            if cuts_copied_audio && file_start_ms != 0 {
+                // `-copypriorss` drops packets by the input's `-ss` as a time in the file, not
+                // from its start as ffmpeg seeks by, so in one that starts late, such as an
+                // MPEG-TS, both are given in the file's own times.
+                command.args(["-seek_timestamp", "1"]);
+                command.args(["-ss", &seconds(file_start_ms + seek_ms)]);
+            } else {
+                // Jumps to a keyframe at or before it, which in Matroska can be a few before.
+                command.args(["-ss", &seconds(seek_ms)]);
+            }
         }
         command.args(["-itsoffset", &seconds(REMUX_LATER_BY_MS)]);
         command.arg("-i").arg(path);
@@ -409,7 +425,6 @@ impl Ffmpeg {
             // told. Only for HEVC: ffmpeg refuses the tag on any other codec.
             command.args(["-tag:v", "hvc1"]);
         }
-        let aac_channels = remux.audio.and_then(|audio| audio.aac_channels);
         aac(&mut command, aac_channels);
         if let Some(audio_start_ms) = audio_start_ms {
             start_audio_at(&mut command, audio_start_ms, aac_channels.is_some());
@@ -422,7 +437,7 @@ impl Ffmpeg {
     /// to the end. It cuts a file at each cut, numbered from `from`'s, such as `3.m4s`, and writes
     /// an init segment named by [`hls_init`] that's whole once the first file is. A run started at
     /// any cut writes the same files, so one can pick up where another stopped. Each file appears
-    /// only once it's whole. Fails without ffmpeg.
+    /// only once it's whole. Fails without ffmpeg, or if a PGS sidecar it burns in can't be read.
     pub(crate) fn transcode(
         &self,
         path: &str,
@@ -447,8 +462,27 @@ impl Ffmpeg {
             command.args(["-ss", &seconds(start_ms)]);
         }
         command.arg("-i").arg(path);
-        if seeks && matches!(video.burn_in, Some(BurnIn::Image { .. })) {
-            command.arg("-i").arg(path);
+        match &video.burn_in {
+            Some(BurnIn::Image {
+                subtitle: ImageSubtitle::Sidecar(sidecar),
+                ..
+            }) => {
+                // `-start_at_zero` moves each input back by its own start, a `.sup`'s being its
+                // first picture's time, which `-itsoffset` undoes. No `-ss`: see `overlay_graph`'s
+                // caller.
+                command
+                    .arg("-itsoffset")
+                    .arg(seconds(pgs_start_ms(sidecar)?))
+                    .arg("-i")
+                    .arg(sidecar);
+            }
+            Some(BurnIn::Image {
+                subtitle: ImageSubtitle::Stream(_),
+                ..
+            }) if seeks => {
+                command.arg("-i").arg(path);
+            }
+            _ => {}
         }
         // Times as in the file, so the keyframes forced below fall at the same frames whichever
         // cut a run starts at: `-force_key_frames` expressions time frames from the run's first.
@@ -483,17 +517,24 @@ impl Ffmpeg {
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
+    /// or with `None` the one subtitle of the text sidecar at `path`, read in the charset it's in,
     /// encoded with ffmpeg's `codec`, such as `webvtt`, or `copy` to keep it as it is, and written
     /// by its `muxer`, such as `webvtt` or `sup`.
     pub(crate) async fn subtitle(
         &self,
         path: &str,
-        subtitle: usize,
+        subtitle: Option<usize>,
         codec: &str,
         muxer: &str,
     ) -> Result<Vec<u8>, SubtitleError> {
-        let map = format!("0:s:{subtitle}");
-        let args = ["-i", path, "-map", &map, "-c:s", codec, "-f", muxer, "-"];
+        let charset = match subtitle {
+            // Matroska and MP4 store text subtitles as UTF-8.
+            Some(_) => None,
+            None => sidecar_charset(path).await,
+        };
+        let mut args = charset.map_or_default(|charset| vec!["-sub_charenc", charset]);
+        let map = format!("0:s:{}", subtitle.unwrap_or_default());
+        args.extend(["-i", path, "-map", &map, "-c:s", codec, "-f", muxer, "-"]);
         let output = self.read_out(&args).await?;
         if !output.status.success() {
             return Err(failed(&output));
@@ -562,6 +603,25 @@ async fn all_there(written: &[(usize, PathBuf)]) -> io::Result<bool> {
     Ok(true)
 }
 
+/// The charset the sidecar at `path` is in, as ffmpeg's `-sub_charenc` or the `subtitles` filter's
+/// `charenc` names it, if it isn't UTF-8, which ffmpeg reads by default.
+pub(crate) async fn sidecar_charset(path: &str) -> Option<&'static str> {
+    // One that can't be read gets none, and ffmpeg says why it can't read it either.
+    let bytes = tokio::fs::read(path).await.ok()?;
+    charset_of(&bytes)
+}
+
+/// [`sidecar_charset`] for a sidecar holding `bytes`.
+fn charset_of(bytes: &[u8]) -> Option<&'static str> {
+    // ffmpeg reads UTF-8, with or without a BOM, and UTF-16 by its BOM, on its own.
+    if str::from_utf8(bytes).is_ok() || encoding_rs::Encoding::for_bom(bytes).is_some() {
+        return None;
+    }
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
+    detector.feed(bytes, true);
+    Some(detector.guess(None, chardetng::Utf8Detection::Deny).name())
+}
+
 /// A failed read-out, saying what ffmpeg wrote to stderr.
 fn failed(output: &std::process::Output) -> SubtitleError {
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -578,10 +638,8 @@ fn start_audio_at(command: &mut tokio::process::Command, start_ms: i64, converte
         command.arg("-af").arg(format!("atrim=start={start}"));
     } else {
         // Copied packets from before the input's `-ss` are kept under `-copyts` unless told.
-        // ponytail: ffmpeg drops them by the input's `-ss` without the file's start time, so this
-        // lands right only in a file that starts at 0. An MPEG-TS's copied audio can still start
-        // up to the video's back-off early, and before ffmpeg 8 a Matroska file starting at its
-        // AAC's priming, before 0, skips a frame. Pass the start Probing reads if either is heard.
+        // ponytail: before ffmpeg 8 a Matroska file starting at its AAC's priming, before 0,
+        // skips a frame, as Probing reads a start before 0 as 0; keep it if that's heard.
         command.args(["-copypriorss:a", "0"]);
     }
 }

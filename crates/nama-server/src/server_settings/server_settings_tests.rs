@@ -11,7 +11,7 @@ use super::{
     Settings, Values,
 };
 #[cfg(unix)]
-use crate::ffmpeg::{Hardware, fake, find_gpus};
+use crate::ffmpeg::fake::vaapi_on_two_gpus;
 use crate::{db::Database, ffmpeg::Accel};
 
 const DEFAULT_FOLDER: &str = "/data/transcodes";
@@ -316,24 +316,6 @@ async fn a_folder_the_server_cant_create_or_write_is_refused_naming_it_and_nothi
     );
 }
 
-/// VAAPI on a dedicated AMD GPU at `0000:03:00.0`, then on an integrated one at
-/// `0000:18:00.0`, as Automatic orders them.
-#[cfg(unix)]
-fn vaapi_on_two_gpus(root: &Path) -> Vec<Hardware> {
-    let (sys, dri) = (root.join("sys"), root.join("dri"));
-    fake::gpu(&sys, &dri, "renderD128", "0000:18:00.0", "0x1002");
-    fake::pci_function(&sys, "0000:18:00.2", "0x1022");
-    fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
-    find_gpus(&dri, &sys.join("class/drm"))
-        .into_iter()
-        .map(|gpu| Hardware {
-            accel: Accel::Vaapi,
-            gpu: Some(gpu),
-            tone_maps: false,
-        })
-        .collect()
-}
-
 fn picked(accel: Accel, id: &str, name: &str) -> HardwareChoice {
     let gpu = PickedGpu {
         id: id.to_owned(),
@@ -422,7 +404,7 @@ async fn after_a_restart_without_its_gpu_a_pick_keeps_its_name_and_survives_anot
         .await
         .unwrap();
 
-    let stored = picked(Accel::Vaapi, "0000:03:00.0", "AMD GPU at 0000:03:00.0");
+    let stored = picked(Accel::Vaapi, "0000:03:00.0", "AMD Radeon RX 9070 XT");
     assert_eq!(saved_again.hardware, stored);
     assert_eq!(saved_again.max_transcodes, NonZeroU32::new(3));
 }

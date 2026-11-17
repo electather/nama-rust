@@ -1,8 +1,11 @@
 use std::path::Path;
 
+use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
+
 use super::{
-    Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe, Remux, RemuxAudio,
-    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
+    Accel, BurnIn, FRENCH_SRT, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, ImageSubtitle,
+    Keyframe, PERSIAN_SRT, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode, TranscodeAudio,
+    VideoConversion, VideoLimit, sidecar_charset,
 };
 
 /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
@@ -40,7 +43,13 @@ const ZSCALE_TONE_MAP: &str = "setparams=color_primaries=bt2020:colorspace=bt202
 
 /// The arguments for a run of `remux` of `alien.mkv` from `from`, with ffmpeg 7.1.1.
 fn remux_args(remux: Remux, from: Keyframe) -> Vec<String> {
-    let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, Path::new("plan"), from);
+    remux_args_starting_at(remux, from, 0)
+}
+
+/// The arguments for a run of `remux` of `alien.mkv`, as if it started at `file_start_ms`, from
+/// `from`, with ffmpeg 7.1.1.
+fn remux_args_starting_at(remux: Remux, from: Keyframe, file_start_ms: i64) -> Vec<String> {
+    let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, Path::new("plan"), from, file_start_ms);
     args(&run.unwrap())
 }
 
@@ -285,6 +294,35 @@ fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time
 }
 
 #[test]
+fn a_remux_of_a_file_starting_late_seeks_by_the_files_own_times_only_to_cut_copied_audio() {
+    let audio = |aac_channels| Remux {
+        audio: Some(RemuxAudio {
+            track: 0,
+            aac_channels,
+        }),
+        hevc: false,
+    };
+    let silent = Remux {
+        audio: None,
+        hevc: false,
+    };
+    let third = keyframe(3, 6000, Some(4000));
+    let late = |remux| remux_args_starting_at(remux, third, 1477);
+    let at_0 = |remux| remux_args_starting_at(remux, third, 0);
+
+    let copied = late(audio(None));
+
+    assert_eq!(value_of(&copied, "-seek_timestamp"), Some("1"));
+    assert_eq!(input_seek(&copied), Some("7.394"));
+    assert_eq!(value_of(&copied, "-copypriorss:a"), Some("0"));
+    assert_eq!(value_of(&at_0(audio(None)), "-seek_timestamp"), None);
+    assert_eq!(input_seek(&at_0(audio(None))), Some("5.917"));
+    for unchanged in [audio(Some(2)), silent] {
+        assert_eq!(late(unchanged), at_0(unchanged));
+    }
+}
+
+#[test]
 fn a_remux_from_the_first_keyframe_keeps_the_audio_from_the_files_start() {
     let remux = Remux {
         audio: Some(RemuxAudio {
@@ -349,7 +387,7 @@ fn a_limited_tone_map_with_a_burn_in_scales_down_after_the_subtitle() {
     };
 
     let image = transcode_args(burned(BurnIn::Image {
-        subtitle: 1,
+        subtitle: ImageSubtitle::Stream(1),
         picture: None,
     }));
     let text = transcode_args(burned(BurnIn::Text {
@@ -392,7 +430,7 @@ fn a_playback_limit_scales_the_picture_and_caps_the_bitrate() {
 fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Image {
-            subtitle: 1,
+            subtitle: ImageSubtitle::Stream(1),
             picture: Some((1920, 1080)),
         }),
         ..SOFTWARE
@@ -411,7 +449,7 @@ fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
 fn a_run_that_seeks_reads_its_image_subtitle_from_an_input_that_doesnt() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Image {
-            subtitle: 1,
+            subtitle: ImageSubtitle::Stream(1),
             picture: None,
         }),
         ..SOFTWARE
@@ -458,7 +496,10 @@ fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
 fn a_sidecar_text_subtitle_is_burned_in_from_its_own_file_by_libass() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Text {
-            subtitle: TextSubtitle::Sidecar("Alien.en.ass".to_owned()),
+            subtitle: TextSubtitle::Sidecar {
+                path: "Alien.en.ass".to_owned(),
+                charset: None,
+            },
         }),
         ..SOFTWARE
     };
@@ -469,6 +510,43 @@ fn a_sidecar_text_subtitle_is_burned_in_from_its_own_file_by_libass() {
         value_of(&args, "-vf"),
         Some(r"subtitles=filename=\'Alien.en.ass\'")
     );
+}
+
+/// The filters a Transcode burns in a sidecar holding `bytes` with, in the charset it's found in.
+async fn sidecar_burn_in_filters(bytes: &[u8]) -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let sidecar = dir.path().join("Alien.en.srt");
+    std::fs::write(&sidecar, bytes).unwrap();
+    let path = sidecar.to_str().unwrap().to_owned();
+    let charset = sidecar_charset(&path).await;
+    let burned = VideoConversion {
+        burn_in: Some(BurnIn::Text {
+            subtitle: TextSubtitle::Sidecar { path, charset },
+        }),
+        ..SOFTWARE
+    };
+
+    let args = transcode_args(burned);
+
+    value_of(&args, "-vf").unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn a_sidecar_not_in_utf8_is_burned_in_read_in_the_charset_its_bytes_are_in() {
+    let persian = sidecar_burn_in_filters(&WINDOWS_1256.encode(PERSIAN_SRT).0).await;
+    let french = sidecar_burn_in_filters(&WINDOWS_1252.encode(FRENCH_SRT).0).await;
+
+    assert!(persian.ends_with(r":charenc=\'windows-1256\'"), "{persian}");
+    assert!(french.ends_with(r":charenc=\'windows-1252\'"), "{french}");
+}
+
+#[tokio::test]
+async fn a_utf8_sidecar_with_or_without_a_bom_is_burned_in_with_no_charset() {
+    let plain = sidecar_burn_in_filters(PERSIAN_SRT.as_bytes()).await;
+    let with_bom = sidecar_burn_in_filters(format!("\u{feff}{PERSIAN_SRT}").as_bytes()).await;
+
+    assert!(!plain.contains("charenc"), "{plain}");
+    assert!(!with_bom.contains("charenc"), "{with_bom}");
 }
 
 #[test]
@@ -687,6 +765,7 @@ fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
             &silent,
             Path::new("plan"),
             keyframe(0, 0, None),
+            0,
         );
         let args = args(&run.unwrap());
         ["-hls_ts_options", "-hls_segment_options"]
@@ -712,3 +791,6 @@ fn a_path_in_a_filter_option_survives_both_of_ffmpegs_unescapings() {
         r"\'/films/it\'\\\'\'s: a \[test\]\, x\; y\\z.mkv\'"
     );
 }
+
+#[path = "hls_sidecar_tests.rs"]
+mod sidecar;

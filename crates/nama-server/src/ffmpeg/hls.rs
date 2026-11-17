@@ -1,6 +1,6 @@
 //! Building the runs of ffmpeg that write a Remux's or Transcode's HLS files.
 
-use std::{io, path::Path, process::Stdio};
+use std::{fs::File, io, io::Read, path::Path, process::Stdio};
 
 use super::{Hardware, finding::is_release_before};
 
@@ -94,14 +94,22 @@ pub(crate) struct VideoLimit {
 /// A subtitle Track a Transcode burns into the picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BurnIn {
-    /// A bitmap, such as PGS, at its place among the file's subtitle streams, counting from 0, laid
-    /// over a picture of the width and height given, if known.
+    /// A bitmap, such as PGS, laid over a picture of the width and height given, if known.
     Image {
-        subtitle: usize,
+        subtitle: ImageSubtitle,
         picture: Option<(i64, i64)>,
     },
     /// Text, such as ASS, which libass draws with its styling, from the file or a sidecar.
     Text { subtitle: TextSubtitle },
+}
+
+/// Where a [`BurnIn::Image`] subtitle is read from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ImageSubtitle {
+    /// At its place among the subtitle streams of the file transcoded, counting from 0.
+    Stream(usize),
+    /// The PGS file at this path beside it.
+    Sidecar(String),
 }
 
 /// Where a [`BurnIn::Text`] subtitle is read from.
@@ -115,8 +123,12 @@ pub(crate) enum TextSubtitle {
         track: usize,
         fonts: usize,
     },
-    /// The one in this file beside it.
-    Sidecar(String),
+    /// The one in the file `path` beside it, read in `charset` if it isn't UTF-8, which running
+    /// the plan finds with [`super::sidecar_charset`].
+    Sidecar {
+        path: String,
+        charset: Option<&'static str>,
+    },
     /// A [`Self::Stream`] read out of the file into the ASS file `ass`, drawn with the fonts in
     /// the folder `fonts`.
     Cached { ass: String, fonts: String },
@@ -133,8 +145,15 @@ fn transcoded_video(
 ) -> Vec<String> {
     let drawn = match burn_in {
         None => None,
-        Some(&BurnIn::Image { subtitle, picture }) => {
-            let graph = overlay_graph(before, subtitle, picture, after, seeks);
+        Some(BurnIn::Image { subtitle, picture }) => {
+            let (source, subtitle) = match *subtitle {
+                // The input's `-ss` drops a bitmap that began before it, so a run that seeks reads
+                // the subtitle from a second input, `transcode` opens, that doesn't.
+                ImageSubtitle::Stream(subtitle) => (usize::from(seeks), subtitle),
+                // The second input, holding just its one subtitle.
+                ImageSubtitle::Sidecar(_) => (1, 0),
+            };
+            let graph = overlay_graph(before, source, subtitle, *picture, after);
             return ["-filter_complex", &graph, "-map", "[video]"]
                 .map(str::to_owned)
                 .into();
@@ -148,8 +167,19 @@ fn transcoded_video(
             filter_value(path)
         )),
         Some(BurnIn::Text {
-            subtitle: TextSubtitle::Sidecar(sidecar),
-        }) => Some(format!("subtitles=filename={}", filter_value(sidecar))),
+            subtitle:
+                TextSubtitle::Sidecar {
+                    path: sidecar,
+                    charset,
+                },
+        }) => {
+            let charenc =
+                charset.map_or_default(|charset| format!(":charenc={}", filter_value(charset)));
+            Some(format!(
+                "subtitles=filename={}{charenc}",
+                filter_value(sidecar)
+            ))
+        }
         Some(BurnIn::Text {
             subtitle: TextSubtitle::Cached { ass, fonts },
         }) => Some(format!(
@@ -166,19 +196,16 @@ fn transcoded_video(
     args
 }
 
-/// The filtergraph that runs the first video through `before`, lays its `subtitle`th subtitle
-/// stream, a bitmap, over it, fitted to `picture` if known, then runs it through `after`, ending at
-/// `[video]`.
+/// The filtergraph that runs the first video through `before`, lays input `source`'s `subtitle`th
+/// subtitle stream, a bitmap, over it, fitted to `picture` if known, then runs it through `after`,
+/// ending at `[video]`.
 fn overlay_graph(
     before: Option<String>,
+    source: usize,
     subtitle: usize,
     picture: Option<(i64, i64)>,
     after: Option<String>,
-    seeks: bool,
 ) -> String {
-    // The input's `-ss` drops a bitmap that began before it, so a run that seeks reads the
-    // subtitle from a second input, `transcode` opens, that doesn't.
-    let source = usize::from(seeks);
     // A bitmap's canvas can be smaller than the picture, as a 4K Blu-ray's 1080p PGS is, or
     // another shape, as a cropped film's 1080p PGS is: scaled evenly and centred, its text is
     // neither stretched nor cut off.
@@ -192,6 +219,17 @@ fn overlay_graph(
         "[0:V:0]{before}[picture];[{source}:s:{subtitle}]{fit}[subtitle];\
          [picture][subtitle]overlay=(W-w)/2:(H-h)/2{after}[video]"
     )
+}
+
+/// When the first picture of the PGS file at `path` shows, in milliseconds: the 90 kHz time its
+/// first segment's header carries after `PG`. Blocks on the disk, briefly.
+pub(super) fn pgs_start_ms(path: &str) -> io::Result<i64> {
+    let mut header = [0; 6];
+    File::open(path)?.read_exact(&mut header)?;
+    let [b'P', b'G', ticks @ ..] = header else {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "not a PGS file"));
+    };
+    Ok(i64::from(u32::from_be_bytes(ticks)) / 90)
 }
 
 /// `value` as a filter's option value in a filtergraph, which ffmpeg unescapes twice: once
