@@ -66,6 +66,7 @@ function openAlien(
           readOnlyFolder: readOnlyFolder(),
         }),
         listMovies: () => ({ movies: [] }),
+        listGenres: () => ({}),
       });
     },
   );

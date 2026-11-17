@@ -3,7 +3,7 @@ import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService, HdrFormat, type MovieSchema } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, HdrFormat, type MovieSummarySchema } from "@/gen/nama/v1/browse_pb";
 import {
   EventService,
   type SubscribeResponse,
@@ -26,7 +26,7 @@ function serverToBrowse(
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, browse);
+    router.service(BrowseService, { listGenres: () => ({}), ...browse });
     if (events) router.service(EventService, { subscribe: () => events });
   });
 }
@@ -91,7 +91,7 @@ test("a Season the Show doesn't have falls back to its first, after the Specials
 });
 
 test("a Library's page shows a Movie as soon as it's Matched", async () => {
-  const listed: MessageInitShape<typeof MovieSchema>[] = [];
+  const listed: MessageInitShape<typeof MovieSummarySchema>[] = [];
   let match: (() => void) | undefined;
   const matched = new Promise<void>((resolve) => {
     match = resolve;
