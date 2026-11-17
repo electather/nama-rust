@@ -557,7 +557,7 @@ fn start_audio_at(command: &mut tokio::process::Command, start_ms: i64, converte
 // The fakes are shell scripts.
 #[cfg(all(test, unix))]
 #[path = "ffmpeg/ffmpeg_tests.rs"]
-pub(crate) mod tests;
+mod tests;
 
 #[cfg(test)]
 #[path = "ffmpeg/hls_run_tests.rs"]
