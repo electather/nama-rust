@@ -168,6 +168,10 @@ _Avoid_: scope, capability, Permission (alone, which is a User's)
 The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through the Automation lane.
 _Avoid_: plugin database, KV, cache, plugin state
 
+**Plugin Log**:
+The lines a Plugin writes about its own work, each naming the Plugin. Part of a Server's Diagnostics, so it stays where the admin sends it, but never shared with the Hub, even when the admin shares Diagnostics.
+_Avoid_: plugin output, plugin console
+
 **Cleanup**:
 An Automation that deletes a Requested title once each of its Requesters has watched it and a set number of days have passed, or hasn't watched it within a longer set number of days. A title nobody Requested is kept.
 
