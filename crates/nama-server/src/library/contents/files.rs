@@ -215,6 +215,8 @@ async fn reparse(
     )
     .execute(&mut *conn)
     .await?;
+    // The file is unchanged, so an Item only this parser reads is no newer media (#837).
+    let added_at = first_added(conn, file).await?.unwrap_or_else(db::now);
     let mut stored = sqlx::query!(
         r#"SELECT id AS "id!", kind AS "kind: ItemKind", title, year, hint, season, episode
            FROM library_items WHERE file_id = ? ORDER BY id"#,
@@ -249,7 +251,7 @@ async fn reparse(
             .await?;
         events.push(item_removed(library, gone.id));
     }
-    let added = insert_items(conn, file, &unpaired, db::now()).await?;
+    let added = insert_items(conn, file, &unpaired, added_at).await?;
     events.extend(
         added
             .into_iter()

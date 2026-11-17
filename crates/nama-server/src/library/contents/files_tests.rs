@@ -53,6 +53,31 @@ async fn storing_a_changed_file_keeps_when_its_items_were_added() {
 }
 
 #[tokio::test]
+async fn an_item_a_reparse_newly_reads_was_added_with_its_file() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    let first = sqlx::query_scalar::<_, i64>("SELECT added_at FROM library_items")
+        .fetch_one(fx.contents.db.reader())
+        .await
+        .unwrap();
+
+    db::advance_clock(Duration::from_secs(2));
+    let file = fx.contents.stored(fx.library).await.unwrap()[ALIEN].id;
+    let reparse = Change::Reparse {
+        file,
+        path: ALIEN.to_owned(),
+        items: vec![movie("Alien", 1979), movie("Aliens", 1986)],
+    };
+    fx.contents.apply(fx.library, vec![reparse]).await.unwrap();
+
+    let added = sqlx::query_scalar::<_, i64>("SELECT added_at FROM library_items")
+        .fetch_all(fx.contents.db.reader())
+        .await
+        .unwrap();
+    assert_eq!(added, [first, first]);
+}
+
+#[tokio::test]
 async fn removing_a_file_deletes_it_with_its_items_and_their_matches() {
     let fx = Fixture::new().await;
     fx.store(ALIEN, 10, movie("Alien", 1979)).await;
