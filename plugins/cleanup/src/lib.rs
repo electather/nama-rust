@@ -180,6 +180,13 @@ fn clean(library: &Library, cutoffs: Cutoffs, now_ms: i64) -> Result<Vec<String>
         }
         token = page.next_page_token;
     }
+    if !due.is_empty() {
+        nama_pdk::info!(
+            "{} titles in Library {} are due for deleting",
+            due.len(),
+            library.id
+        );
+    }
     let asked = ask_due(recorded.clone(), &listed, &due, now_ms, |title, also| {
         kernel::delete_media(title.clone(), also)
     });

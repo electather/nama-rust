@@ -241,10 +241,11 @@ async fn close(db: Arc<Database>) {
 /// [`OTLP_ENDPOINT`] is set, exports traces and logs there too. Returns what exports, to flush at
 /// shutdown.
 fn init_tracing() -> Option<Exporting> {
-    // Extism logs an Installed Plugin's error or panic as it is, which may quote a secret setting;
-    // the Server logs it itself with secrets blanked.
+    // Extism logs an Installed Plugin's error or panic, and the lines it writes through Extism's
+    // own log functions, as they are, which may quote a secret setting; the Server logs both
+    // itself with secrets blanked (ADR 0061).
     let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,extism::plugin=off"));
+        .unwrap_or_else(|_| EnvFilter::new("info,extism::plugin=off,extism::pdk=off"));
     // The Server's own spans are for exporting: on stdout they'd prefix each line logged in one.
     let not_own_span = filter_fn(|metadata| {
         !(metadata.is_span() && metadata.target().starts_with(env!("CARGO_CRATE_NAME")))

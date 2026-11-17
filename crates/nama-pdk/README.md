@@ -280,7 +280,17 @@ Each call has a memory and a time limit, and three crashes in a row disable the 
 
 An export's error is its message to people. `manifest()`'s gets the Plugin refused and `check_settings()`'s is shown to the admin testing, saving settings or replacing Qualities, and the trait docs' `# Errors` say where each point's goes, such as `fulfill`'s, which becomes the reason a Request shows as Failed. Write it as a sentence an admin can act on. A panic reaches the Server with its message, not as a bare trap.
 
-## 12. Building and installing
+## 12. Logging
+
+Log with `nama_pdk::{debug!, info!, warn!, error!}`, which take `format!`-style arguments:
+
+```rust
+nama_pdk::info!("Radarr took Request {} for TMDB id {}", 12, 603);
+```
+
+The Server logs each line under the target `nama::plugin`, naming your Plugin, with the values of its secret settings blanked. That catches a secret only as it is stored, so **never log a setting's value, a token or a response's body**: log ids, counts and statuses. A line over 2 KiB is cut, and a Plugin writing more than a burst of 50 lines, then 10 a second, has the rest dropped. `debug!` shows only when the admin asks for it, such as with `RUST_LOG=info,nama::plugin=debug`. In `manifest()`, `check_settings()` and `check_personal_settings()`, and in native unit tests, the lines go nowhere. Extism's own log macros don't build with `nama_pdk::extism_pdk`; the details are in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin).
+
+## 13. Building and installing
 
 ```sh
 rustup target add wasm32-unknown-unknown

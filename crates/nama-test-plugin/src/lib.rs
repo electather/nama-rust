@@ -164,12 +164,12 @@ mod exports {
         match config::get(OBSERVER)?.as_deref() {
             Some("clock") => {
                 let since_epoch = nama_pdk::now().duration_since(UNIX_EPOCH)?;
-                extism_pdk::info!("test-plugin's clock reads {}", since_epoch.as_millis());
+                nama_pdk::info!("test-plugin's clock reads {}", since_epoch.as_millis());
                 Ok(())
             }
             Some("hoard") => {
                 std::hint::black_box(vec![1_u8; 256 << 20]);
-                extism_pdk::info!("test-plugin hoarded");
+                nama_pdk::info!("test-plugin hoarded");
                 Ok(())
             }
             Some("loop") => loop_forever(),
@@ -177,21 +177,22 @@ mod exports {
             Some("panic") => panic!("the test Plugin's Observer was set to panic"),
             _ => {
                 for event in observed.events {
-                    extism_pdk::info!("test-plugin observed {event:?}");
+                    nama_pdk::info!("test-plugin observed {event:?}");
                 }
                 if let Some(url) = config::get("fetch")? {
                     let response = http::request::<()>(&HttpRequest::new(&url), None)?;
-                    extism_pdk::info!("test-plugin fetched {url}: {}", response.status_code());
+                    nama_pdk::info!("test-plugin fetched {url}: {}", response.status_code());
                 }
                 Ok(())
             }
         }
     }
 
+    /// Loops, logging each turn, so a test sees `nama.log` leave the call's clock running.
     fn loop_forever() -> ! {
-        extism_pdk::info!("test-plugin is looping");
+        nama_pdk::info!("test-plugin is looping");
         loop {
-            std::hint::spin_loop();
+            nama_pdk::debug!("test-plugin is still looping");
         }
     }
 
@@ -336,9 +337,9 @@ mod exports {
             }
             nama_pdk::kernel::store_put("ticked", None, b"yes")?;
             let kept = nama_pdk::kernel::store_get("ticked", None)?;
-            extism_pdk::info!("test-plugin's Store keeps {kept:?}");
+            nama_pdk::info!("test-plugin's Store keeps {kept:?}");
             let libraries = nama_pdk::kernel::libraries()?;
-            extism_pdk::info!("test-plugin sees {} Libraries", libraries.len());
+            nama_pdk::info!("test-plugin sees {} Libraries", libraries.len());
             Ok(())
         }
     }

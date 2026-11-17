@@ -30,7 +30,9 @@ use super::{
     automation::{FUNCTIONS, Reach, import},
     bundled::BUNDLED,
     calls::Calls,
-    check_exports, contract, points,
+    check_exports, contract,
+    plugin_log::{self, PluginLog},
+    points,
     services::{CHECK_SETTINGS, TITLE_SEARCH, known_exports},
 };
 use crate::plugins::{contain_sync, kept_logo, registry::personal_settings_refusal};
@@ -278,14 +280,15 @@ pub(super) fn compile(
 ) -> Result<Compiled, extism::Error> {
     let calls = Calls::default();
     let manifest = manifest_for(wasm, hosts, config).with_timeout(CALL_TIMEOUT);
-    let plugin = build(manifest, cache_config, None, calls.clone())?;
+    let plugin = build(manifest, cache_config, None, None, calls.clone())?;
     Ok(Compiled { plugin, calls })
 }
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
-/// Compiles `wasm`, letting it send HTTP requests to `hosts`, read `config`, call [`now`] and call
-/// the Kernel's functions, which reach `kernel` on the runtime this is called on. Its calls run
-/// in `calls`, which limits each to its method's time, so Extism's own timeout is left off.
+/// Compiles `wasm`, letting it send HTTP requests to `hosts`, read `config`, call [`now`], write
+/// to `log` and call the Kernel's functions, which reach `kernel` on the runtime this is called
+/// on. Its calls run in `calls`, which limits each to its method's time, so Extism's own timeout
+/// is left off.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate input of the compile, and every caller names them all"
@@ -296,10 +299,11 @@ pub(super) fn compile_with_kernel(
     hosts: Vec<String>,
     config: Vec<(String, String)>,
     kernel: Option<Arc<dyn Kernel>>,
+    log: Arc<PluginLog>,
     calls: Calls,
 ) -> Result<Compiled, extism::Error> {
     let manifest = manifest_for(wasm, hosts, config);
-    let plugin = build(manifest, cache_config, kernel, calls.clone())?;
+    let plugin = build(manifest, cache_config, kernel, Some(log), calls.clone())?;
     Ok(Compiled { plugin, calls })
 }
 
@@ -314,10 +318,13 @@ fn manifest_for(
         .with_config(config.into_iter())
 }
 
+/// Compiles `manifest`'s Plugin with every `nama` import. With no `log`, for no enablement, its
+/// lines are dropped.
 fn build(
     manifest: extism::Manifest,
     cache_config: &Path,
     kernel: Option<Arc<dyn Kernel>>,
+    log: Option<Arc<PluginLog>>,
     calls: Calls,
 ) -> Result<CompiledPlugin, extism::Error> {
     let reach = UserData::new(Reach {
@@ -330,7 +337,15 @@ fn build(
     let builder = FUNCTIONS.iter().fold(
         PluginBuilder::new(manifest)
             .with_cache_config(cache_config)
-            .with_function_in_namespace("nama", "now", [], [ValType::I64], UserData::new(()), now),
+            .with_function_in_namespace("nama", "now", [], [ValType::I64], UserData::new(()), now)
+            .with_function_in_namespace(
+                "nama",
+                "log",
+                [ValType::I32, ValType::I64],
+                [],
+                UserData::new(log),
+                plugin_log::import,
+            ),
         |builder, function| {
             builder.with_function_in_namespace(
                 "nama",
