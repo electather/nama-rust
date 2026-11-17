@@ -236,3 +236,36 @@ async fn path_descending_lists_the_last_path_first() {
         ]
     );
 }
+
+#[tokio::test]
+async fn items_of_one_file_found_together_list_one_a_page_in_every_order() {
+    let fx = Fixture::new().await;
+    // One file, so the three tie on both path and when they were found, and only ids part them.
+    let change = Change::Store {
+        path: ALIEN.to_owned(),
+        size: 10,
+        modified_ns: 0,
+        items: vec![
+            movie("Alien", 1979),
+            movie("Aliens", 1986),
+            movie("Alien 3", 1992),
+        ],
+    };
+    fx.contents.apply(fx.library, vec![change]).await.unwrap();
+    let one = || vec![ALIEN.to_owned()];
+
+    for sort in [UNMATCHED_ITEM_SORT_PATH, UNMATCHED_ITEM_SORT_FOUND] {
+        for direction in [
+            SortDirection::SORT_DIRECTION_ASCENDING,
+            SortDirection::SORT_DIRECTION_DESCENDING,
+        ] {
+            let pages = unmatched_pages(&fx, (sort, direction), 1).await;
+
+            assert_eq!(
+                pages,
+                [(one(), Some(3)), (one(), None), (one(), None)],
+                "{sort:?} {direction:?}"
+            );
+        }
+    }
+}

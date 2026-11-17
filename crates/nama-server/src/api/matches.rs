@@ -106,7 +106,15 @@ impl MatchService for MatchServiceHandler {
         self.libraries.get(library).await?;
         let order = unmatched_order(&request);
         let list = format!("ListUnmatchedItems {library} {order:?}");
-        let page = Page::read(&request.page, list.as_bytes())?;
+        let page = Page::read(&request.page, list.as_bytes()).map_err(|invalid| {
+            ConnectError::from(
+                refuse(
+                    RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
+                    invalid.to_string(),
+                )
+                .field("page.token"),
+            )
+        })?;
         let (unmatched, paging) = (self.contents)
             .unmatched(library, order, &page)
             .await
