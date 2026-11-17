@@ -362,7 +362,7 @@ async fn a_movie_nobody_asked_for_or_a_declined_one_is_not_requested() {
     db.write(move |tx| Box::pin(decline(tx, declined, None)))
         .await
         .unwrap();
-    // A Show sharing the Movie's id isn't the Movie.
+    // A Show's Season Requests aren't a Movie's, so its id with no Season finds none.
     follow_as(&db, BOB, dark(), RequestState::Pending).await;
 
     assert_eq!(requested(&db, &[ExternalId::tmdb(949)], None).await, None);
