@@ -94,6 +94,8 @@ const unmatchedBecause: Partial<Record<UnmatchedReason, string>> = {
   [UnmatchedReason.NOT_IN_SHOW]:
     "Its Show has no such Episode. Matching it to another Show may help.",
   [UnmatchedReason.CLEARED_BY_HAND]: "Unmatched by hand.",
+  [UnmatchedReason.NO_SEARCHING_SOURCE]:
+    "None of its Library’s title sources can search for titles. Once one can, the next scan tries again.",
 };
 
 function withYear(title: string, year: number | undefined) {

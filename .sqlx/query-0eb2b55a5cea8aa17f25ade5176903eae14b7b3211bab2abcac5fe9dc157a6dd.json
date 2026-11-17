@@ -1,0 +1,33 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT item_id AS \"item_id!\", coalesce(show_title, title) AS \"title!: String\"\n                   FROM item_matches\n                   WHERE state = 'matched' AND sort_title IS NULL\n                   LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "item_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "item_id"
+          }
+        }
+      },
+      {
+        "name": "title!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "0eb2b55a5cea8aa17f25ade5176903eae14b7b3211bab2abcac5fe9dc157a6dd"
+}

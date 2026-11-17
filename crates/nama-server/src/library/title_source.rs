@@ -174,6 +174,12 @@ impl TitleSources {
         sources
     }
 
+    /// Whether some source the routing methods ask searches for titles, without which Matching
+    /// leaves every Item no ID Hint names undecided.
+    pub(crate) async fn can_search(&self) -> bool {
+        self.sources().await.iter().any(Source::searches)
+    }
+
     /// Whether some source the routing methods ask answers `method` and keeps titles under
     /// `namespace`, such as an ID Hint's, or looks them up by it. Matching routes with
     /// [`TitleSources::by_namespace`] and keeps the route, so only tests ask this.

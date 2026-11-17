@@ -2,7 +2,10 @@
 //! subtitles, over a real socket, with the TMDB Plugin enabled against a fake TMDB.
 
 #[path = "support/browsing.rs"]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod browsing;
+#[path = "playback/burn_in.rs"]
+mod burn_in;
 #[path = "support/http.rs"]
 mod http;
 #[path = "playback/keyframes.rs"]
@@ -1779,8 +1782,10 @@ async fn a_vobsub_track_is_read_out_as_mks_once_and_thrown_away_with_its_version
 }
 
 /// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads every file as an
-/// H.264 and AAC MKV with an ASS subtitle, a cover picture and a font, and ffmpeg, which writes
-/// the arguments of each run to `log`, reads the subtitle out as `ASS` and an attachment as `FONT`.
+/// H.264 and AAC MKV a minute long with an ASS subtitle, a cover picture and a font, and ffmpeg,
+/// which writes the arguments of each run to `log`, lists libx264, reads the subtitle out as `ASS`
+/// and an attachment as `FONT`, takes 30 s to start burning the subtitle in from the file, as a
+/// big one's would, and writes nothing else.
 #[cfg(unix)]
 fn ffmpeg_reading_ass_and_a_font(bin: &Path, log: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
@@ -1790,13 +1795,14 @@ cat <<'EOF'
              {"codec_name": "ass", "codec_type": "subtitle"},
              {"codec_type": "attachment", "tags": {"filename": "cover.jpg", "mimetype": "image/jpeg"}},
              {"codec_type": "attachment", "tags": {"filename": "vazir.ttf", "mimetype": "font/ttf"}}],
- "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
+ "format": {"format_name": "matroska,webm", "duration": "60.000000"}}
 EOF
 "#;
     // Like ffmpeg, it fails for want of an output file once it has dumped an attachment.
     let ffmpeg = format!(
         "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *'-f ass'*) printf ASS ;; \
-         *'-dump_attachment'*) printf FONT; exit 1 ;; esac\n",
+         *'-dump_attachment'*) printf FONT; exit 1 ;; *-encoders*) echo ' V....D libx264  H.264' ;; \
+         *':si='*) exec sleep 30 ;; esac\n",
         log.display()
     );
     Ffmpeg {
