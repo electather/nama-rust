@@ -18,13 +18,13 @@ use nama_server::plugins::Registry;
 use crate::{refused::assert_refused, server::TestServer};
 
 /// The Built-in Plugin `bucketer`, with the required text settings `endpoint` and `bucket`, the
-/// required secret `secret_key` and the optional secret `session_token`. Each `secret_key` it is
-/// enabled with goes in [`SECRET_KEYS_GIVEN`].
-struct Bucketer;
+/// required secret `secret_key` and the optional secret `session_token`, keeping the secrets each
+/// enable hands it.
+struct Bucketer(SecretsGiven);
 
-/// Every `secret_key` any test's `bucketer` was enabled with, since a secret's value never comes
-/// back over the API.
-static SECRET_KEYS_GIVEN: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// The `secret_key` and `session_token` one server's `bucketer` was enabled with, each time, since
+/// a secret's value never comes back over the API.
+type SecretsGiven = Arc<Mutex<Vec<(Option<String>, Option<String>)>>>;
 
 impl Plugin for Bucketer {
     fn manifest(&self) -> Manifest {
@@ -53,10 +53,12 @@ impl Plugin for Bucketer {
     }
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        let secret_key = registrar.settings().text("secret_key").unwrap_or_default();
-        (SECRET_KEYS_GIVEN.lock())
+        let secret = |key| registrar.settings().text(key).map(str::to_owned);
+        let given = (secret("secret_key"), secret("session_token"));
+        self.0
+            .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .push(secret_key.to_owned());
+            .push(given);
         Ok(())
     }
 }
@@ -65,21 +67,34 @@ fn client(server: &TestServer) -> PluginServiceClient<HttpClient> {
     PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
 
-/// A server with `bucketer` saved with all its settings, and so running, as the Admin.
+/// A server with `bucketer` saved with all its settings, and so running, as the Admin, and the
+/// secrets it is enabled with.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn with_bucketer_set_up() -> TestServer {
+async fn with_bucketer_set_up() -> (TestServer, SecretsGiven) {
+    let given = SecretsGiven::default();
     let plugins = Registry::new();
-    plugins.describe_builtin(|| Arc::new(Bucketer));
+    let made = Arc::clone(&given);
+    plugins.describe_builtin(move || Arc::new(Bucketer(Arc::clone(&made))));
     let server = TestServer::builder().plugins(plugins).start().await;
     let secrets = [
         ("secret_key", text("s3cr3t")),
         ("session_token", text("t0k3n")),
     ];
     update(&server, &[texts(), secrets].concat()).await.unwrap();
-    server
+    (server, given)
+}
+
+/// The secrets `bucketer` was last enabled with.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn last_given(given: &SecretsGiven) -> (Option<String>, Option<String>) {
+    let given = given.lock().unwrap_or_else(PoisonError::into_inner);
+    given.last().cloned().unwrap()
 }
 
 /// [`with_bucketer_set_up`], then disabled.
@@ -88,7 +103,7 @@ async fn with_bucketer_set_up() -> TestServer {
     reason = "a test helper fails its test by panicking"
 )]
 async fn with_bucketer_set_up_and_disabled() -> TestServer {
-    let server = with_bucketer_set_up().await;
+    let (server, _) = with_bucketer_set_up().await;
     let disable = DisablePluginRequest {
         id: "bucketer".to_owned(),
         ..Default::default()
@@ -253,7 +268,7 @@ async fn a_disabled_plugins_forgotten_secret_is_no_longer_set() {
 
 #[tokio::test]
 async fn forgetting_a_running_plugins_required_secret_is_refused_and_nothing_changes() {
-    let server = with_bucketer_set_up().await;
+    let (server, _) = with_bucketer_set_up().await;
 
     let refusal = assert_refused(
         update_forgetting(&server, &["secret_key"], &texts()).await,
@@ -268,7 +283,7 @@ async fn forgetting_a_running_plugins_required_secret_is_refused_and_nothing_cha
 
 #[tokio::test]
 async fn a_running_plugin_forgetting_an_optional_secret_runs_again_without_it() {
-    let server = with_bucketer_set_up().await;
+    let (server, given) = with_bucketer_set_up().await;
 
     update_forgetting(&server, &["session_token"], &texts())
         .await
@@ -276,11 +291,12 @@ async fn a_running_plugin_forgetting_an_optional_secret_runs_again_without_it() 
 
     assert_eq!(secrets_set(&server).await, ["secret_key"]);
     assert!(summary(&server).await.enabled);
+    assert_eq!(last_given(&given), (Some("s3cr3t".to_owned()), None));
 }
 
 #[tokio::test]
 async fn a_forgotten_secret_also_sent_takes_the_sent_value() {
-    let server = with_bucketer_set_up().await;
+    let (server, given) = with_bucketer_set_up().await;
 
     let sent = [texts().as_slice(), &[("secret_key", text("n3w"))]].concat();
     update_forgetting(&server, &["secret_key"], &sent)
@@ -288,15 +304,13 @@ async fn a_forgotten_secret_also_sent_takes_the_sent_value() {
         .unwrap();
 
     assert_eq!(secrets_set(&server).await, ["secret_key", "session_token"]);
-    let given = SECRET_KEYS_GIVEN
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    assert!(given.iter().any(|key| key == "n3w"), "{given:?}");
+    let n3w = (Some("n3w".to_owned()), Some("t0k3n".to_owned()));
+    assert_eq!(last_given(&given), n3w);
 }
 
 #[tokio::test]
 async fn forgetting_a_key_that_isnt_a_secret_changes_nothing() {
-    let server = with_bucketer_set_up().await;
+    let (server, _) = with_bucketer_set_up().await;
 
     update_forgetting(&server, &["endpoint", "region"], &texts())
         .await
@@ -308,7 +322,7 @@ async fn forgetting_a_key_that_isnt_a_secret_changes_nothing() {
 
 #[tokio::test]
 async fn a_secret_left_out_or_sent_blank_keeps_its_stored_value() {
-    let server = with_bucketer_set_up().await;
+    let (server, _) = with_bucketer_set_up().await;
 
     let sent = [texts().as_slice(), &[("secret_key", text(""))]].concat();
     update(&server, &sent).await.unwrap();

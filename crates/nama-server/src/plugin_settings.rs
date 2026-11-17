@@ -417,9 +417,9 @@ impl PluginSettings {
 
     /// Saves `sent` as the Plugin `id`'s settings, then applies them if it is stored as enabled, so
     /// a restart retries settings that fail to enable it (ADR 0028). A secret left out keeps its
-    /// stored value unless `forgotten` names it, and a repeated Library id is kept once. One that fails to enable with them is
-    /// put back as it ran, as [`PluginSettings::enable_granting`] does. Returns the Plugin as it is
-    /// now, enabled only if running, with what is stored for it.
+    /// stored value unless `forgotten` names it, and a repeated Library id is kept once. One that
+    /// fails to enable with them is put back as it ran, as [`PluginSettings::enable_granting`]
+    /// does. Returns the Plugin as it is now, enabled only if running, with what is stored for it.
     ///
     /// # Errors
     ///
