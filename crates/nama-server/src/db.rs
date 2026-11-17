@@ -78,6 +78,7 @@ impl Database {
         tokio::fs::create_dir_all(data_dir)
             .await
             .map_err(OpenError::DataDir)?;
+        warn_about_filesystem(data_dir);
         let options = SqliteConnectOptions::new()
             .filename(data_dir.join(FILE_NAME))
             .journal_mode(SqliteJournalMode::Wal)
@@ -357,6 +358,88 @@ pub(crate) fn now_ms() -> i64 {
             i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
         })
         .saturating_add(offset_ms())
+}
+
+/// Why the data directory's filesystem is a poor home for SQLite's WAL, which needs working
+/// locks and shared memory.
+#[derive(Debug, PartialEq, Eq)]
+enum FilesystemRisk {
+    /// Locks across the network fail, so the database can lock up or corrupt.
+    Network,
+    /// Rewriting pages in place fragments the file, and some setups, such as ZFS inside an LXC
+    /// container, lock it up.
+    CopyOnWrite,
+}
+
+/// The risk of the filesystem `filesystem_name` names.
+fn filesystem_risk(filesystem: &str) -> Option<FilesystemRisk> {
+    match filesystem {
+        "nfs" | "cifs" | "smb2" | "smbfs" => Some(FilesystemRisk::Network),
+        "zfs" | "btrfs" => Some(FilesystemRisk::CopyOnWrite),
+        _ => None,
+    }
+}
+
+/// Warns when `data_dir` sits where SQLite does badly; the Server starts anyway.
+fn warn_about_filesystem(data_dir: &Path) {
+    let Some(filesystem) = filesystem_name(data_dir) else {
+        return;
+    };
+    match filesystem_risk(&filesystem) {
+        Some(FilesystemRisk::Network) => tracing::warn!(
+            "the data directory is on a network share ({filesystem}), where the database can \
+             lock up or corrupt; keep it on a local disk"
+        ),
+        Some(FilesystemRisk::CopyOnWrite) => tracing::warn!(
+            "the data directory is on {filesystem}, a copy-on-write filesystem, where the \
+             database can slow down or lock up; see \"Docker\" in the README"
+        ),
+        None => {}
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn filesystem_name(dir: &Path) -> Option<String> {
+    let stat = rustix::fs::statfs(dir).ok()?;
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "magic numbers are 32 bits, which a 32-bit `long` holds as negative"
+    )]
+    let magic = stat.f_type as u32;
+    linux_filesystem_name(magic).map(str::to_owned)
+}
+
+/// Linux reports a magic number, not a name, so only those `filesystem_risk` knows are named.
+#[cfg(target_os = "linux")]
+fn linux_filesystem_name(magic: u32) -> Option<&'static str> {
+    match magic {
+        0x6969 => Some("nfs"),
+        0xFF53_4D42 => Some("cifs"),
+        0xFE53_4D42 => Some("smb2"),
+        0x2FC1_2FC1 => Some("zfs"),
+        0x9123_683E => Some("btrfs"),
+        _ => None,
+    }
+}
+
+#[cfg(target_vendor = "apple")]
+fn filesystem_name(dir: &Path) -> Option<String> {
+    let stat = rustix::fs::statfs(dir).ok()?;
+    // A name such as "apfs", NUL-terminated and ASCII, so no `c_char` is negative.
+    Some(
+        stat.f_fstypename
+            .iter()
+            .map_while(|&c| u8::try_from(c).ok().filter(|&byte| byte != 0))
+            .map(char::from)
+            .collect(),
+    )
+}
+
+// ponytail: other systems, Windows among them, aren't checked; ask theirs once one runs a Server.
+#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+const fn filesystem_name(_dir: &Path) -> Option<String> {
+    None
 }
 
 #[cfg(test)]

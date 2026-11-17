@@ -60,6 +60,8 @@ docker run -d --name nama -p 7980:7980 \
 
 User 1000 must be able to read the media, and write `/data` if you mount a host folder there. The `:ro` mount above keeps the Server from deleting media: to let Users with the Delete media Permission delete it, mount the folder without `:ro`, give user 1000 write access to it, and scan the Library again. To run as someone else, pass `--user` with their ids.
 
+Keep `/data` on a local disk. On a network share, such as NFS or SMB, the database can lock up or corrupt, and the Server warns at startup. It also warns on a copy-on-write filesystem, ZFS or Btrfs, where the database can slow down, or lock up in setups such as ZFS inside an LXC container; if it does, move `/data` to a filesystem such as ext4 or XFS.
+
 For Intel or AMD hardware acceleration (VAAPI and QSV), pass the GPU and the group that may use it:
 
 ```sh
