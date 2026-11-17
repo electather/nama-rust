@@ -65,9 +65,22 @@ function playThroughHlsJs(
 /** The plans a player let go of, by id, each to be stopped once the task that let go ends. */
 const letGo = new Map<bigint, ReturnType<typeof setTimeout>>();
 
+/** The plans stopped while their player was still open, by id, which it then needn't stop. */
+const stoppedEarly = new Set<bigint>();
+
 /**
- * Asks for the plan `planId`'s `url` every `KEEP_ALIVE_MS`, until the cleanup it returns, which
- * tells the Server it stopped, so it ends at once rather than a minute later.
+ * Tells the Server the plan `planId` stopped while its player is still open, as before asking for
+ * the plan that replaces it, so a Transcode it runs no longer counts toward the Server's limit.
+ */
+export async function stopPlan(transport: Transport, planId: bigint) {
+  stoppedEarly.add(planId);
+  await tellStopped(transport, planId);
+}
+
+/**
+ * Asks for the plan `planId`'s `url` every `KEEP_ALIVE_MS`, until the page goes or the cleanup it
+ * returns, either of which tells the Server it stopped, so it ends at once rather than a minute
+ * later.
  */
 function keepPlaying(transport: Transport, planId: bigint, url: string) {
   // React may clean up an effect and set it up again for the same plan, as `StrictMode` does on
@@ -79,13 +92,26 @@ function keepPlaying(transport: Transport, planId: bigint, url: string) {
     // notices when it next needs a segment.
     fetch(url, { method: "HEAD" }).catch(() => {});
   }, KEEP_ALIVE_MS);
+  // Closing or reloading the tab unmounts nothing, and a reloaded one no longer knows this plan,
+  // whose Transcode would count toward the limit for that minute. A page the browser keeps to go
+  // back to plays on when it does. ponytail: best effort, as the page may go before it's sent.
+  const leaving = ({ persisted }: PageTransitionEvent) => {
+    if (!persisted) void stopPlan(transport, planId);
+  };
+  window.addEventListener("pagehide", leaving);
   return () => {
     clearInterval(asking);
+    window.removeEventListener("pagehide", leaving);
+    if (stoppedEarly.delete(planId)) return;
     const stop = setTimeout(() => {
       letGo.delete(planId);
-      // A failed stop is left to that minute.
-      callUnaryMethod(transport, PlaybackService.method.stopPlayback, { planId }).catch(() => {});
+      void tellStopped(transport, planId);
     });
     letGo.set(planId, stop);
   };
+}
+
+/** Tells the Server the plan `planId` stopped. A failed stop is left to the minute. */
+async function tellStopped(transport: Transport, planId: bigint) {
+  await callUnaryMethod(transport, PlaybackService.method.stopPlayback, { planId }).catch(() => {});
 }

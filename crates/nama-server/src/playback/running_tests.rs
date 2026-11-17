@@ -149,7 +149,7 @@ async fn a_running_plan_is_marked_with_its_method_and_found_only_by_its_device()
 // The fake ffmpeg is `sleep`.
 #[cfg(unix)]
 #[tokio::test]
-async fn another_devices_transcodes_count_until_one_stops_and_remuxes_never_do() {
+async fn every_devices_transcodes_count_until_one_stops_and_remuxes_never_do() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     let transcode = || {
@@ -158,32 +158,14 @@ async fn another_devices_transcodes_count_until_one_stops_and_remuxes_never_do()
     };
     let (first, _) = transcode().await;
     start_writing_nothing(&plans).await;
-    assert_eq!(plans.running_transcodes(8).all, 1, "a Remux doesn't count");
+    assert_eq!(plans.running_transcodes().all, 1, "a Remux doesn't count");
     transcode().await;
 
-    let for_another_device = plans.running_transcodes(8).all;
-    let for_its_own_device = plans.running_transcodes(7).all;
+    let full = plans.running_transcodes().all;
     plans.stop_for(first, 7).await;
 
-    assert_eq!(for_another_device, 2);
-    assert_eq!(
-        for_its_own_device, 1,
-        "the one its new plan replaces doesn't count"
-    );
-    assert_eq!(plans.running_transcodes(8).all, 1);
-}
-
-// The fake ffmpeg is `sleep`.
-#[cfg(unix)]
-#[tokio::test]
-async fn a_device_leaves_only_one_of_its_own_transcodes_out_of_the_count() {
-    let data = tempfile::tempdir().unwrap();
-    let plans = running_plans(data.path()).await;
-    for _ in 0..3 {
-        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds(), 0).await;
-    }
-
-    assert_eq!(plans.running_transcodes(7).all, 2);
+    assert_eq!(full, 2);
+    assert_eq!(plans.running_transcodes().all, 1);
 }
 
 // The fake ffmpeg is `sleep`.
@@ -195,7 +177,7 @@ async fn a_transcode_on_hardware_counts_as_cpu_bound_once_it_fell_back_and_a_rem
     let (on_hardware, _) =
         start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds(), 0).await;
     let (remux, _) = start_writing_nothing(&plans).await;
-    let before = plans.running_transcodes(8);
+    let before = plans.running_transcodes();
 
     hls(&plans, on_hardware, 7)
         .fell_back
@@ -206,7 +188,7 @@ async fn a_transcode_on_hardware_counts_as_cpu_bound_once_it_fell_back_and_a_rem
 
     assert_eq!(before.cpu_bound, 0);
     assert_eq!(
-        plans.running_transcodes(8),
+        plans.running_transcodes(),
         RunningTranscodes {
             all: 1,
             cpu_bound: 1

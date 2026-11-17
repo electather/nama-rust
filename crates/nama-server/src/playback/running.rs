@@ -212,27 +212,24 @@ impl RunningPlans {
         Self { inner }
     }
 
-    /// The Transcodes running, leaving out one of `device`'s own: the plan it asks for replaces
-    /// the one it plays, which it stops only once the new one plays.
+    /// The Transcodes running, every Device's own included: a player stops its old plan before
+    /// asking for a new one.
     // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
     // Device planning in that window finds room and they can pass the cap together until
     // Transcodes end; reserve room under the plans' lock if that ever matters.
-    pub(super) fn running_transcodes(&self, device: i64) -> RunningTranscodes {
+    pub(super) fn running_transcodes(&self) -> RunningTranscodes {
         let plans = lock(&self.inner.plans);
-        let (own, others): (Vec<_>, Vec<_>) = (plans.values())
+        let transcodes: Vec<_> = (plans.values())
             .filter_map(|plan| {
-                let hls = (plan.hls.as_ref()).filter(|hls| hls.method == Method::Transcode)?;
-                Some((plan.playback.device_id, hls.cpu_bound()))
+                plan.hls
+                    .as_ref()
+                    .filter(|hls| hls.method == Method::Transcode)
             })
-            .partition(|(id, _)| *id == device);
-        let cpu_bound =
-            |transcodes: &[(i64, bool)]| transcodes.iter().filter(|(_, cpu)| *cpu).count();
-        let leaving_one_own_out = |of_own: usize, of_others: usize| {
-            u32::try_from(of_others + of_own.saturating_sub(1)).unwrap_or(u32::MAX)
-        };
+            .collect();
+        let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
         RunningTranscodes {
-            all: leaving_one_own_out(own.len(), others.len()),
-            cpu_bound: leaving_one_own_out(cpu_bound(&own), cpu_bound(&others)),
+            all: count(transcodes.len()),
+            cpu_bound: count(transcodes.iter().filter(|hls| hls.cpu_bound()).count()),
         }
     }
 

@@ -392,7 +392,7 @@ pub(crate) async fn plan(
         can_do: abilities.can_do().await,
         failed,
         audio,
-        running_transcodes: running.running_transcodes(caller.device.id),
+        running_transcodes: running.running_transcodes(),
         max_transcodes: settings.max_transcodes,
         picked_limit: limit,
         network: if on_local_network(client) {
@@ -491,8 +491,7 @@ struct Facts {
     /// The audio Track the User chose, or the Server chose by their Audio Preference, by its place
     /// in the Version's Tracks, if one was.
     audio: Option<usize>,
-    /// The Transcodes running, leaving out one of this Device's own, which the Transcode cap
-    /// counts.
+    /// The Transcodes running, every Device's own included.
     running_transcodes: RunningTranscodes,
     /// The most Transcodes the admin let the Server run at once, or `None` for the default.
     max_transcodes: Option<NonZeroU32>,
