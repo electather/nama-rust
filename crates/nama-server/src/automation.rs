@@ -293,9 +293,9 @@ impl PluginKernel {
                 }
             }
         };
-        let requests = |err| self.database_refused("reading the Requests", &err);
-        let mut conn = automation.db.reader().acquire().await.map_err(requests)?;
-        (requests::who_requested(&mut conn, &ids, season).await).map_err(requests)
+        let refused = |err| self.database_refused("reading the Requests", &err);
+        let mut conn = automation.db.reader().acquire().await.map_err(refused)?;
+        (requests::who_requested(&mut conn, &ids, season).await).map_err(refused)
     }
 
     /// Refuses a delete that would take along one of the Episodes `taken_along`, of the Library

@@ -1,4 +1,5 @@
-//! One page of a Library's Matched Movies or Episodes, as an Automation Plugin lists them.
+//! One page of a Library's Matched Movies or Episodes, as an Automation Plugin lists them, and
+//! what it reads of the titles on one.
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 

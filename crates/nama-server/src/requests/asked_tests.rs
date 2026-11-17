@@ -7,8 +7,8 @@ use super::{Asked, join, who_requested};
 use crate::requests::apply::Applied;
 use crate::requests::deciding::decline;
 use crate::requests::testing::{
-    ADA, BOB, DARK, NOTHING, ada, ada_and_bob, ask_for, dark, follow_as, handed_off,
-    match_in_a_library, requests_on, said, user,
+    ADA, BOB, DARK, NOTHING, ada, ada_and_bob, ask_for, dark, follow_as, handed_off, requests_on,
+    said, user,
 };
 use crate::requests::{Error, Requests};
 use crate::{
@@ -317,14 +317,42 @@ async fn requested(db: &Database, ids: &[ExternalId], season: Option<i64>) -> Op
 }
 
 #[tokio::test]
-async fn a_movie_two_users_asked_for_keeps_both_requesters_once_available() {
+async fn a_movie_two_users_asked_for_has_both_requesters_found_by_any_of_its_ids() {
     let (_data, db) = ada_and_bob().await;
     ask_for(&db, ADA, 949, RequestState::Pending).await;
     ask_for(&db, BOB, 949, RequestState::Pending).await;
-    match_in_a_library(&db, &[949]).await;
 
     let movie = ["imdb-tt0113277".parse().unwrap(), ExternalId::tmdb(949)];
     assert_eq!(requested(&db, &movie, None).await, Some(vec![ADA, BOB]));
+}
+
+#[tokio::test]
+async fn a_request_in_any_state_but_declined_keeps_its_requesters() {
+    let (_data, db) = ada_and_bob().await;
+    let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+    let states = [
+        ("approved", Some(vec![ADA])),
+        ("processing", Some(vec![ADA])),
+        ("failed", Some(vec![ADA])),
+        ("partially_available", Some(vec![ADA])),
+        ("available", Some(vec![ADA])),
+        ("declined", None),
+    ];
+
+    for (state, expected) in states {
+        db.write(move |tx| {
+            Box::pin(
+                sqlx::query("UPDATE requests SET state = ? WHERE id = ?")
+                    .bind(state)
+                    .bind(id)
+                    .execute(&mut **tx),
+            )
+        })
+        .await
+        .unwrap();
+        let movie = [ExternalId::tmdb(949)];
+        assert_eq!(requested(&db, &movie, None).await, expected, "{state}");
+    }
 }
 
 #[tokio::test]
