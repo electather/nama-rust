@@ -54,8 +54,11 @@ const EVERY_PERMISSION: [PluginPermission; 5] = [
 
 /// A Server with the Built-in Plugins and a fake TMDB.
 async fn start() -> TestServer {
+    let plugins = Registry::with_builtins();
+    // A scheduled tick would race the test's own ticks to delete the same title (#986).
+    plugins.tick_only_on_demand();
     TestServer::builder()
-        .plugins(Registry::with_builtins())
+        .plugins(plugins)
         .tmdb()
         .moves_clock()
         .start()
