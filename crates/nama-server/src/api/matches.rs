@@ -9,8 +9,8 @@ use nama_proto::nama::v1::{
 
 use crate::{
     library::{
-        Contents, Item, Libraries, SearchQuery, TiedTitle, TitleSources, Unanswered, Unmatched,
-        UnmatchedReason,
+        Contents, Item, Libraries, SearchQuery, Source, TiedTitle, TitleSources, Unanswered,
+        Unmatched, UnmatchedReason,
     },
     matching::{ManualError, Matcher},
 };
@@ -100,7 +100,9 @@ impl MatchService for MatchServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ListUnmatchedItemsRequest>,
     ) -> ServiceResult<ListUnmatchedItemsResponse> {
-        self.libraries.get(request.library_id).await?;
+        let library = self.libraries.get(request.library_id).await?;
+        let ordered = self.metadata.in_order(library.title_sources);
+        let searching = ordered.sources().await.iter().any(Source::searches);
         let unmatched = self
             .contents
             .unmatched(request.library_id)
@@ -112,7 +114,9 @@ impl MatchService for MatchServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(ListUnmatchedItemsResponse {
-            items: unmatched.into_iter().map(unmatched_to_proto).collect(),
+            items: (unmatched.into_iter())
+                .map(|item| unmatched_to_proto(item, searching))
+                .collect(),
             unparsed_paths,
             ..Default::default()
         })
@@ -145,7 +149,9 @@ fn reason_to_proto(
     }
 }
 
-fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
+/// `unmatched` as listed, where `searching` says whether some source in its Library's order
+/// searches, without which Matching can't decide it.
+fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::UnmatchedItem {
     let (kind, title, year, numbers) = match unmatched.item {
         Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
         Item::Episode {
@@ -164,6 +170,11 @@ fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
     let (reason, tied_titles) = if unmatched.cleared {
         (
             proto::UnmatchedReason::UNMATCHED_REASON_CLEARED_BY_HAND,
+            Vec::new(),
+        )
+    } else if unmatched.undecided && !searching {
+        (
+            proto::UnmatchedReason::UNMATCHED_REASON_NO_SEARCHING_SOURCE,
             Vec::new(),
         )
     } else {

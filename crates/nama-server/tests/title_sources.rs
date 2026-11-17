@@ -9,15 +9,22 @@ mod server;
 
 use std::sync::Arc;
 
+use buffa::EnumValue;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Registrar,
     metadata::{SourceManifest, TitleSource},
 };
+use nama_plugin_tmdb::{
+    Tmdb,
+    testing::{API_KEY, FakeTmdb},
+};
 use nama_proto::nama::v1::{
-    BrowseServiceClient, CreateLibraryRequest, EnablePluginRequest, ExternalId, LibraryKind,
-    LibraryServiceClient, ListMoviesRequest, ListTitleSourcesRequest, PluginServiceClient,
-    RefusalReason, SettingValue, UpdateLibraryRequest, UpdatePluginSettingsRequest, setting_value,
+    BrowseServiceClient, CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest,
+    ExternalId, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListTitleSourcesRequest,
+    ListUnmatchedItemsRequest, MatchServiceClient, PluginServiceClient, RefusalReason,
+    SettingValue, UnmatchedReason, UpdateLibraryRequest, UpdatePluginSettingsRequest,
+    setting_value,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -105,10 +112,7 @@ async fn an_order_where_no_source_searches_is_refused_whether_it_is_enabled_or_n
         .await;
     let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
     // fanart.tv fetches nothing until artwork is asked for, so any key does.
-    let key = SettingValue {
-        value: Some(setting_value::Value::TextValue("key".to_owned())),
-        ..Default::default()
-    };
+    let key = text("key");
     plugins
         .update_plugin_settings(UpdatePluginSettingsRequest {
             id: "fanart".to_owned(),
@@ -240,6 +244,86 @@ async fn a_source_whose_plugin_is_gone_stays_in_its_library_but_no_other_may_nam
         ("Renamed", vec!["gone".to_owned()])
     );
     assert_unknown(other, "gone");
+}
+
+#[tokio::test]
+async fn items_wait_as_such_while_no_source_in_the_order_searches_and_match_once_one_does() {
+    let fake = FakeTmdb::start().await;
+    let plugins = Registry::new();
+    let endpoints = fake.endpoints();
+    plugins.describe_builtin(move || Arc::new(Tmdb::with_endpoints(endpoints.clone())));
+    let server = TestServer::builder().plugins(plugins).start().await;
+    let plugin_service = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
+    plugin_service
+        .update_plugin_settings(UpdatePluginSettingsRequest {
+            id: "tmdb".to_owned(),
+            settings: std::iter::once(("api_key".to_owned(), text(API_KEY))).collect(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    plugin_service
+        .disable_plugin(DisablePluginRequest {
+            id: "tmdb".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let library = server
+        .create_library_searching(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN], &["tmdb"])
+        .await;
+
+    server.scan_and_match(&library).await;
+    let while_disabled = unmatched_reasons(&server, &library).await;
+    plugin_service
+        .enable_plugin(EnablePluginRequest {
+            id: "tmdb".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    server.scan_and_match(&library).await;
+
+    assert_eq!(
+        while_disabled,
+        [EnumValue::from(
+            UnmatchedReason::UNMATCHED_REASON_NO_SEARCHING_SOURCE
+        )]
+    );
+    assert_eq!(
+        unmatched_reasons(&server, &library).await,
+        Vec::<EnumValue<UnmatchedReason>>::new()
+    );
+    assert_eq!(movies(&server, &library).await, [tmdb(348)]);
+}
+
+/// The reason of each item `library` lists as needing a Match.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn unmatched_reasons(
+    server: &TestServer,
+    library: &Library,
+) -> Vec<EnumValue<UnmatchedReason>> {
+    let matches = MatchServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let listed = matches
+        .list_unmatched_items(ListUnmatchedItemsRequest {
+            library_id: library.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .items;
+    listed.into_iter().map(|item| item.reason).collect()
+}
+
+fn text(value: &str) -> SettingValue {
+    SettingValue {
+        value: Some(setting_value::Value::TextValue(value.to_owned())),
+        ..Default::default()
+    }
 }
 
 /// A request creating the Movies Library `name`, in a new folder of `dir`, ordering

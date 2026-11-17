@@ -26,6 +26,8 @@ pub(crate) struct Unmatched {
     pub(crate) item: Item,
     /// `None` while Matching hasn't decided, or for an Unmatched reason not stored.
     pub(crate) reason: Option<UnmatchedReason>,
+    /// Whether Matching hasn't decided about it yet, so the next scan tries it again.
+    pub(crate) undecided: bool,
     /// Whether an admin pinned it Unmatched with `ClearMatch`. Read from the pin, not stored as
     /// a reason, since `clear_match` stores none.
     pub(crate) cleared: bool,
@@ -283,6 +285,7 @@ impl Contents {
                       library_items.episode,
                       item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
                       item_matches.tied_titles AS "tied_titles?",
+                      item_matches.item_id IS NULL AS "undecided!: bool",
                       EXISTS (SELECT 1 FROM match_pins
                               WHERE match_pins.library_id = library_files.library_id
                                 AND match_pins.kind = library_items.kind
@@ -320,6 +323,7 @@ impl Contents {
                     path: row.path,
                     item,
                     reason,
+                    undecided: row.undecided,
                     cleared: row.cleared,
                 }))
             })

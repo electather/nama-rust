@@ -1,9 +1,12 @@
 import { useQuery } from "@connectrpc/connect-query";
+import { Link, useRouteContext } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { LibraryService, type TitleSource } from "@/gen/nama/v1/library_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { may } from "@/lib/permissions";
 
 /** A new Library's title sources, as the Server would set them. */
 const tmdbAlone = ["tmdb"];
@@ -23,7 +26,6 @@ export function TitleSourcesField({
   const [order, setOrder, fieldset] = useOrderResetWithForm(initial);
   const { data } = useQuery(LibraryService.method.listTitleSources, {});
   const enabled = data?.titleSources ?? [];
-
   return (
     <fieldset
       ref={fieldset}
@@ -53,6 +55,7 @@ export function TitleSourcesField({
         Titles are Matched with the first source that finds them. Artwork comes from every source in
         the order.
       </p>
+      {data !== undefined && <NoSourceSearches order={order} enabled={enabled} />}
       {/* Always there, so screen readers announce an error as it appears. */}
       <p id={`${id}-error`} role="alert" className="text-sm text-destructive empty:hidden">
         {error}
@@ -107,6 +110,34 @@ function AddSources({
           </Button>
         ))}
     </div>
+  );
+}
+
+/**
+ * Why the Library's files wait to be Matched, if no source in `order` is `enabled` and searches.
+ * Links to the Plugins only for a User who may enable one there.
+ */
+function NoSourceSearches({ order, enabled }: { order: string[]; enabled: TitleSource[] }) {
+  const { signedIn } = useRouteContext({ from: "/_member" });
+  const searches = order.some(
+    (namespace) => enabled.find((each) => each.namespace === namespace)?.searches === true,
+  );
+  if (searches) return null;
+  const plugins = may(signedIn.user, Permission.MANAGE_SETTINGS) ? (
+    <Link
+      to="/admin/plugins"
+      className="rounded-sm underline decoration-muted-foreground underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      Plugins
+    </Link>
+  ) : (
+    "Plugins"
+  );
+  return (
+    <p className="text-sm text-pretty">
+      No source above can search for titles, so new files wait to be Matched until one can. Enable
+      one under {plugins}, or add one here that searches.
+    </p>
   );
 }
 

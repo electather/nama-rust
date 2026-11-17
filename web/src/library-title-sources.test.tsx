@@ -14,10 +14,14 @@ const tmdb = { namespace: "tmdb", pluginId: "tmdb", pluginName: "TMDB", searches
 const tvdb = { namespace: "tvdb", pluginId: "tvdb", pluginName: "TVDB", searches: true };
 const fanart = { namespace: "fanart", pluginId: "fanart", pluginName: "fanart.tv" };
 
-/** A fake Server with the Library Films, ordered `titleSources`, whose saved orders go to `saved`. */
+/**
+ * A fake Server with the Library Films, ordered `titleSources`, whose saved orders go to `saved`,
+ * and whose running title sources are `running`.
+ */
 function titleSourcesServer(
   titleSources: string[],
   saved: (titleSources: string[]) => void = () => {},
+  running = [tmdb, tvdb, fanart],
 ) {
   const library = {
     id: 1n,
@@ -32,7 +36,7 @@ function titleSourcesServer(
     libraries: [library],
     libraryService: {
       getLibrary: () => ({ library }),
-      listTitleSources: () => ({ titleSources: [tmdb, tvdb, fanart] }),
+      listTitleSources: () => ({ titleSources: running }),
       updateLibrary: (request) => {
         saved(request.titleSources);
         return { library: { ...library, titleSources: request.titleSources } };
@@ -142,4 +146,24 @@ test("a source that doesn't search shows as artwork only, in its row and on its 
 
   expect(titleSourcesShown()).toEqual(["TMDB", "fanart.tv · Artwork only"]);
   screen.getByText(/artwork comes from every source in the order/iu);
+});
+
+test("an order where no running source searches says so, and links to the Plugins", async () => {
+  openApp(
+    "/admin/libraries/1",
+    titleSourcesServer(["tvdb", "fanart"], () => {}, [tmdb, fanart]),
+  );
+  await screen.findByRole("button", { name: "Remove fanart.tv" });
+
+  const note = await screen.findByText(/no source above can search for titles/iu);
+  expect(titleSourcesShown()).toEqual(["tvdb · not available", "fanart.tv · Artwork only"]);
+  const plugins = within(note).getByRole("link", { name: "Plugins" });
+  expect(plugins.getAttribute("href")).toBe("/admin/plugins");
+});
+
+test("an order with a running source that searches says nothing of it", async () => {
+  openApp("/admin/libraries/1", titleSourcesServer(["fanart", "tmdb"]));
+  await screen.findByRole("button", { name: "Remove TMDB" });
+
+  expect(screen.queryByText(/no source above can search for titles/iu)).toBeNull();
 });
