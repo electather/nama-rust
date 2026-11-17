@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"count!: u32\" FROM (SELECT 1 AS is_request, id, created_at FROM requests\n             WHERE (?2 IS NULL OR state = ?2)\n               AND (?1 IS NULL OR id IN (SELECT request_id FROM requesters WHERE user_id = ?1))\n             UNION ALL\n             SELECT 0, id, created_at FROM followed_shows\n             WHERE (?2 IS NULL OR state = ?2)\n               AND (?1 IS NULL OR id IN (SELECT followed_show_id FROM followed_show_requesters\n                                         WHERE user_id = ?1)))",
+  "describe": {
+    "columns": [
+      {
+        "name": "count!: u32",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5c230dcf47d53f124f00956dc52e07cb95b3cabcbdfb096ab87f94463a4141a0"
+}

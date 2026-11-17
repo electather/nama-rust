@@ -3,7 +3,7 @@
 Requests and Followed Shows: Users asking for what isn't on the Server (ADR 0012).
 
 - **One path for Request changes.** Every change to a Request or Followed Show goes through `Requests::apply` in `apply.rs`, which alone publishes their events and hands off (ADR 0029). A Library's write making them Available is the exception (ADR 0012).
-- **Requester rules once.** What a Request and a Followed Show share (Requesters, the guarded Pending decision) is written once in `asked.rs`; each keeps only what differs. Who may see one is `users`' (`User::whose_requests`, `may_see`), which `events` asks too.
+- **Requester rules once.** What a Request and a Followed Show share (Requesters, the guarded Pending decision) is written once in `asked.rs`; each keeps only what differs. Who may see one is `users`' (`User::whose_requests`, `may_see`), which `events` asks too, and `listing.rs`'s SQL asks again to page.
 - **One owner for Quality rules.** Only `qualities.rs` reads or writes `qualities` and `default_qualities`, tests included, and decides which Quality a Request, Show or Followed Show takes (ADR 0025). Requests and handlers ask it. `OWNED_TABLES` in `crates/nama-server/tests/structure.rs` enforces it.
 - **One owner for title ids.** Only the Requests area reads or writes `request_title_ids` and `followed_show_ids`, tests included; `OWNED_TABLES` enforces it. A Request's and a Followed Show's Show ids come only from these tables or the title source.
 - **Private modules.** The area's files are private modules; neighbours import only what `requests.rs` re-exports, `qualities`' names included under names that read without it (`list_qualities`, `QualityRefused`). Items inside default to `pub(super)`.

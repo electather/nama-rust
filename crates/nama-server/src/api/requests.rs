@@ -114,16 +114,13 @@ impl RequestService for RequestServiceHandler {
         let viewer = &caller(&ctx)?.user;
         // Unspecified, or a state this Server doesn't know, lists every state.
         let state = request
+            .filter
             .state
             .as_known()
             .filter(|&state| state != RequestState::Unspecified);
-        let size = match request.page_size {
-            0 => 50,
-            size => size.min(100),
-        };
         let page = self
             .requests
-            .list(viewer, state, size as usize, request.page_token)
+            .list(viewer, state, &request.to_owned_message().page)
             .await?;
         Response::ok(page)
     }
@@ -742,8 +739,8 @@ impl From<requests::Error> for ConnectError {
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_TITLE_SOURCE, message),
             requests::Error::Quality(refused) => return refused.into(),
-            requests::Error::PageTokenInvalid => {
-                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")
+            requests::Error::PageTokenInvalid(_) => {
+                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page.token")
             }
             requests::Error::Database(err) => return database_failed(err),
         };

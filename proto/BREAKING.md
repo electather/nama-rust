@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-17, #879
+
+- None that `buf breaking` reports: in `nama/v1/request.proto`, `ListRequestsRequest.state` (1), `page_size` (2) and `page_token` (3), and `ListRequestsResponse.next_page_token` (3), are deleted with their numbers and names reserved.
+- `ListRequests` pages through the shared messages of the new `nama/v1/page.proto` (ADR 0055): its request takes the state in `filter` (4), a `RequestFilter`, and the page in `page` (5), a `PageRequest`, whose `size` is now an `int32`; its response gives the next token, and on the first page the `total_size`, in `page` (4), a `PageResponse`. `REFUSAL_REASON_PAGE_TOKEN_INVALID`'s `field` is now `page.token`.
+- A client built before has its state and page ignored, so it gets the first 50 of every state, and finds no next token; it must regenerate and send `filter` and `page`. The web app is the only client.
+
 ## 2026-11-16, #833
 
 - `RPC_NO_DELETE`, `nama/v1/match.proto`: `MatchService.SearchMetadata`.
