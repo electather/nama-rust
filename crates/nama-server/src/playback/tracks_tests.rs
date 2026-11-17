@@ -50,8 +50,8 @@ impl Tracks {
             .unwrap();
     }
 
-    /// Forgets when the Version `version`'s file starts, as its keyframes kept before that was
-    /// kept beside them left it.
+    /// Leaves the Version `version`'s kept keyframes without their file's start, as a row kept
+    /// before migration 0083 has them.
     pub(in crate::playback) async fn forget_keyframes_start(&self, version: i64) {
         self.db
             .write(move |tx| {
