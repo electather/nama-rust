@@ -19,11 +19,11 @@ pub(crate) struct Page<K> {
     /// The sort key and id of the last row of the page before, which this page lists after, or
     /// `None` for the first page.
     pub(crate) after: Option<(K, i64)>,
-    /// The hash of the filter and sort the list is read under.
-    filter: Hash,
+    /// The hash of the list, filter and sort the page is read under.
+    list_hash: Hash,
 }
 
-/// A page token's hash of the filter and sort it was made under.
+/// A hash of a list, its filter and its sort, which a page token must have been made under.
 type Hash = [u8; 8];
 
 /// What a page token holds, encoded so clients treat it as opaque and don't build their own.
@@ -31,7 +31,7 @@ type Hash = [u8; 8];
 struct Cursor<K> {
     key: K,
     id: i64,
-    filter: Hash,
+    list_hash: Hash,
 }
 
 /// A page token that isn't one the Server made for the same list, filter and sort.
@@ -40,13 +40,10 @@ struct Cursor<K> {
 pub(crate) struct TokenInvalid;
 
 impl<K: Serialize + DeserializeOwned> Page<K> {
-    /// Reads `request` for a list read under `filter_and_sort`, which tells lists apart and must
-    /// be the same as when the token was made: two filters or sorts must give different bytes.
-    pub(crate) fn read(
-        request: &PageRequest,
-        filter_and_sort: &[u8],
-    ) -> Result<Self, TokenInvalid> {
-        let filter = hash(filter_and_sort);
+    /// Reads `request` for the list `list` names with its filter and sort: two lists, filters or
+    /// sorts must give different bytes, so a token made under one is refused under another.
+    pub(crate) fn read(request: &PageRequest, list: &[u8]) -> Result<Self, TokenInvalid> {
+        let list_hash = hash(list);
         let size = u32::try_from(request.size)
             .ok()
             .filter(|&size| size > 0)
@@ -58,14 +55,14 @@ impl<K: Serialize + DeserializeOwned> Page<K> {
                 .decode(&request.token)
                 .ok()
                 .and_then(|json| serde_json::from_slice::<Cursor<K>>(&json).ok())
-                .filter(|cursor| cursor.filter == filter)
+                .filter(|cursor| cursor.list_hash == list_hash)
                 .ok_or(TokenInvalid)?;
             Some((cursor.key, cursor.id))
         };
         Ok(Self {
             size,
             after,
-            filter,
+            list_hash,
         })
     }
 
@@ -99,7 +96,7 @@ impl<K: Serialize + DeserializeOwned> Page<K> {
                 let cursor = Cursor {
                     key,
                     id,
-                    filter: self.filter,
+                    list_hash: self.list_hash,
                 };
                 URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).expect("serializes"))
             }
@@ -116,10 +113,8 @@ impl<K: Serialize + DeserializeOwned> Page<K> {
     clippy::expect_used,
     reason = "a SHA-256 digest is longer than the hash taken from it"
 )]
-fn hash(filter_and_sort: &[u8]) -> Hash {
-    *Sha256::digest(filter_and_sort)
-        .first_chunk()
-        .expect("32 bytes")
+fn hash(list: &[u8]) -> Hash {
+    *Sha256::digest(list).first_chunk().expect("32 bytes")
 }
 
 #[cfg(test)]

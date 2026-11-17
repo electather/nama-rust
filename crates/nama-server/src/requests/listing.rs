@@ -36,7 +36,7 @@ pub(super) fn read_title_id(text: &str) -> Result<ExternalId, sqlx::Error> {
 
 /// Hands `$query!` the SQL for the Requests and Followed Shows the User `?1` may see, or all if
 /// it is NULL, in the state `?2`, or any if it is NULL: one row each of `is_request`, `id` and
-/// `created_at`.
+/// `created_at`. It asks `may_see`'s question in SQL, so a page reads only the keys it sorts.
 macro_rules! listed_sql {
     ($query:ident) => {
         $query!(
@@ -63,35 +63,34 @@ impl Requests {
         &self,
         viewer: &User,
         state: Option<RequestState>,
-        page: &PageRequest,
+        asked: &PageRequest,
     ) -> Result<ListRequestsResponse, Error> {
         let state = state.map(stored);
-        let page = Page::<Place>::read(page, state.unwrap_or_default().as_bytes())?;
+        let list = format!("ListRequests {}", state.unwrap_or_default());
+        let page = Page::<Place>::read(asked, list.as_bytes())?;
         let whose = viewer.whose_requests();
-        let mut conn = self.db.reader().acquire().await?;
-        let mut places = places(&mut conn, whose, state, &page).await?;
-        let mut rest = page.finish(&mut places, |row| {
-            ((row.created_at, row.is_request), row.id)
-        });
+        // One snapshot, so the count, the page and its rows agree.
+        let mut tx = self.db.reader().begin().await?;
+        let mut rows = page_rows(&mut tx, whose, state, &page).await?;
+        let mut paging = page.finish(&mut rows, |row| ((row.created_at, row.is_request), row.id));
         if page.is_first() {
-            let total = count(&mut conn, whose, state).await?;
-            rest.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
+            let total = count(&mut tx, whose, state).await?;
+            paging.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
         }
         let mut listed = ListRequestsResponse {
-            page: rest.into(),
+            page: paging.into(),
             ..Default::default()
         };
-        // shortcut: two queries per row, for at most 100 rows; read a page's rows in one query
+        // ponytail: two queries per row, for at most 100 rows; read a page's rows in one query
         // each for Requests and Followed Shows if pages get slow.
-        for place in places {
-            // A row withdrawn since `places` was read is left out, as if the page were read later.
-            if place.is_request {
-                let request = load_one(&mut conn, place.id).await?;
+        for row in rows {
+            if row.is_request {
+                let request = load_one(&mut tx, row.id).await?;
                 listed
                     .requests
                     .extend(request.map(|request| self.progress.attach(request)));
             } else {
-                let followed = load_followed(&mut conn, Some(place.id), None).await?;
+                let followed = load_followed(&mut tx, Some(row.id), None).await?;
                 listed.followed_shows.extend(followed);
             }
         }
@@ -155,7 +154,7 @@ impl Requests {
 }
 
 /// A row of [`Requests::list`], before it is read in full.
-struct Listed {
+struct Row {
     is_request: bool,
     id: i64,
     created_at: i64,
@@ -163,20 +162,22 @@ struct Listed {
 
 /// The rows of `page` of the Requests and Followed Shows the User `whose` may see, or all if
 /// `None`, in the stored state `state`, or any if `None`, newest first.
-async fn places(
+async fn page_rows(
     conn: &mut SqliteConnection,
     whose: Option<i64>,
     state: Option<&str>,
     page: &Page<Place>,
-) -> Result<Vec<Listed>, sqlx::Error> {
+) -> Result<Vec<Row>, sqlx::Error> {
     let (opened_before, request_before, id_before) = match page.after {
         Some(((created_at, is_request), id)) => (Some(created_at), Some(is_request), Some(id)),
         None => (None, None, None),
     };
-    macro_rules! places {
+    // ponytail: SQLite sorts the key of every row the filter lets through, with no index on
+    // `created_at`; add one to each table once a Server's Requests number in the tens of thousands.
+    macro_rules! page_rows {
         ($listed:literal) => {
             sqlx::query_as!(
-                Listed,
+                Row,
                 r#"SELECT is_request AS "is_request!: bool", id AS "id!",
                           created_at AS "created_at!"
                    FROM ("#
@@ -194,7 +195,7 @@ async fn places(
             )
         };
     }
-    listed_sql!(places).fetch_all(conn).await
+    listed_sql!(page_rows).fetch_all(conn).await
 }
 
 /// How many of the Requests and Followed Shows the User `whose` may see, or all if `None`, are
