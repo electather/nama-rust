@@ -271,8 +271,9 @@ async fn fails_again(err: &SubtitleError, path: &str) -> bool {
 async fn keep(from: &Path, to: &Path) -> io::Result<()> {
     let (from, to) = (from.to_owned(), to.to_owned());
     tokio::task::spawn_blocking(move || {
-        // Synced before the rename, or a crash can leave a whole name over an empty file.
-        std::fs::File::open(&from)?.sync_all()?;
+        // Synced before the rename, or a crash can leave a whole name over an empty file. Windows
+        // syncs only a file opened for writing.
+        (std::fs::OpenOptions::new().write(true).open(&from)?).sync_all()?;
         std::fs::rename(from, to)
     })
     .await?
