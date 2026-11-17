@@ -35,7 +35,7 @@ Warm, quiet, confident. Like a good living room: it gets out of the way and lets
 
 ## Design Principles
 
-1. **Your media, nothing else.** Every surface shows what's on this Server or what you asked for. No promotion, no filler rows.
+1. **Your media, nothing else.** Every surface shows what's on this Server or what you asked for, or, in a Home row from a Plugin the Admin enabled, what you can Request (ADR 0058). No promotion, no filler rows.
 2. **Content carries the colour.** Artwork is the loudest thing on screen; the interface stays quiet around it.
 3. **Requests are part of browsing.** A missing title is one action away from being requested, and its state lives where the title lives.
 4. **Admin power, member calm.** Advanced controls exist but are progressively disclosed; a member never trips over them.

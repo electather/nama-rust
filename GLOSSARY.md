@@ -110,7 +110,7 @@ _Avoid_: descriptor, plugin.json, metadata
 
 **Extension Point**:
 A named place where the Kernel lets Plugins take part, declared as Observe or Provide. One an Installed Plugin can serve is a service of the Plugin contract, such as `nama.plugin.v1.NotifierService`, with a version of its own (ADR 0043).
-_Avoid_: hook, seam, slot
+_Avoid_: hook, seam, slot, UI Extension Point
 
 **Observer**:
 A Plugin's handler that is told something happened and can't change it.
@@ -261,6 +261,10 @@ _Avoid_: watched status, play state, progress
 **Continue Watching**:
 A User's Movies and Episodes whose Watch State says they've started and not played, and the next Episode of each Show they're partway through, most recent first, leaving out what they've hidden from it. Hiding a title lasts until the User plays it, or for a Show any of its Episodes, again, and never changes its Watch State.
 _Avoid_: on deck, in progress, resume list, Next Up
+
+**Home row**:
+A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching; a Plugin may provide others for each User, which can hold titles not on the Server for the User to Request.
+_Avoid_: shelf, section, rail, carousel
 
 ## Playback
 
