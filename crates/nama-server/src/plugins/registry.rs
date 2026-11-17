@@ -64,6 +64,9 @@ pub(super) struct State {
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
     pub(super) as_installed: Vec<fn() -> Arc<dyn Plugin>>,
+    /// Whether a Plugin enabled now ticks only through `Registry::tick_now`, never on its
+    /// schedule. Only `Registry::tick_only_on_demand`, in tests, sets it.
+    on_demand: bool,
 }
 
 pub(super) type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
@@ -278,12 +281,13 @@ impl Registry {
             }
             let generation = state.next_generation;
             state.next_generation += 1;
+            let scope = tick::scope(&self.points, manifest, &registrations, state.on_demand);
             state.plugins.insert(
                 id.clone(),
                 Enabled {
                     _plugin: plugin,
                     generation,
-                    scope: tick::scope(&self.points, manifest, &registrations).with_stop(stop),
+                    scope: scope.with_stop(stop),
                 },
             );
             for (index, registration) in registrations.into_iter().enumerate() {
@@ -522,6 +526,13 @@ impl Registry {
             }
             tick::Ticked::Panicked => Err(format!("{id}'s tick panicked, so it is disabled")),
         }
+    }
+
+    /// Testing only: Plugins enabled from now on tick only through [`Registry::tick_now`], never
+    /// on their schedule, so a test's ticks are the only ones and none races them.
+    #[cfg(feature = "testing")]
+    pub fn tick_only_on_demand(&self) {
+        self.write(|state| state.on_demand = true);
     }
 
     /// The id of each Installed Plugin disabled from now on because it crashed, for the Server to

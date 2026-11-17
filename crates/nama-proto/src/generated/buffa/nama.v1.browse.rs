@@ -7598,6 +7598,363 @@ pub const __LIST_EPISODES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
     from_json: ::buffa::type_registry::any_from_json::<ListEpisodesResponse>,
     is_wkt: false,
 };
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct GetNextEpisodeRequest {
+    /// The Shows Library the Show is in.
+    ///
+    /// Field 1: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub library_id: i64,
+    /// The Show's id, as `ListShows` gave it.
+    ///
+    /// Field 2: `show_id`
+    #[serde(
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// The Episode's Season's number, as `GetShow` gave it.
+    ///
+    /// Field 3: `season_number`
+    #[serde(
+        rename = "seasonNumber",
+        alias = "season_number",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub season_number: u32,
+    /// The Episode's number, as `ListEpisodes` gave it.
+    ///
+    /// Field 4: `episode_number`
+    #[serde(
+        rename = "episodeNumber",
+        alias = "episode_number",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub episode_number: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GetNextEpisodeRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GetNextEpisodeRequest")
+            .field("library_id", &self.library_id)
+            .field("show_id", &self.show_id)
+            .field("season_number", &self.season_number)
+            .field("episode_number", &self.episode_number)
+            .finish()
+    }
+}
+impl GetNextEpisodeRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.GetNextEpisodeRequest";
+}
+::buffa::impl_default_instance!(GetNextEpisodeRequest);
+impl ::buffa::MessageName for GetNextEpisodeRequest {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "GetNextEpisodeRequest";
+    const FULL_NAME: &'static str = "nama.v1.GetNextEpisodeRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.GetNextEpisodeRequest";
+}
+impl ::buffa::Message for GetNextEpisodeRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.season_number != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
+        }
+        if self.episode_number != 0u32 {
+            size
+                += 1u64 + ::buffa::types::uint32_encoded_len(self.episode_number) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
+        }
+        if self.season_number != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.season_number, buf);
+        }
+        if self.episode_number != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.episode_number, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.season_number = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.episode_number = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.library_id = 0i64;
+        self.show_id = ::buffa::MessageField::none();
+        self.season_number = 0u32;
+        self.episode_number = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GetNextEpisodeRequest {
+    const PROTO_FQN: &'static str = "nama.v1.GetNextEpisodeRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for GetNextEpisodeRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __GET_NEXT_EPISODE_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.GetNextEpisodeRequest",
+    to_json: ::buffa::type_registry::any_to_json::<GetNextEpisodeRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<GetNextEpisodeRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct GetNextEpisodeResponse {
+    /// The Episode that plays after the one asked about, unset if none does.
+    ///
+    /// Field 1: `next`
+    #[serde(
+        rename = "next",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub next: ::buffa::MessageField<Episode, ::buffa::Inline<Episode>>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GetNextEpisodeResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GetNextEpisodeResponse").field("next", &self.next).finish()
+    }
+}
+impl GetNextEpisodeResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.GetNextEpisodeResponse";
+}
+::buffa::impl_default_instance!(GetNextEpisodeResponse);
+impl ::buffa::MessageName for GetNextEpisodeResponse {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "GetNextEpisodeResponse";
+    const FULL_NAME: &'static str = "nama.v1.GetNextEpisodeResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.GetNextEpisodeResponse";
+}
+impl ::buffa::Message for GetNextEpisodeResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.next.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.next.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.next.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.next.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.next.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.next = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GetNextEpisodeResponse {
+    const PROTO_FQN: &'static str = "nama.v1.GetNextEpisodeResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for GetNextEpisodeResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __GET_NEXT_EPISODE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.GetNextEpisodeResponse",
+    to_json: ::buffa::type_registry::any_to_json::<GetNextEpisodeResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<GetNextEpisodeResponse>,
+    is_wkt: false,
+};
 /// A Movie or Episode in the caller's Continue Watching, with what a client needs to show it and
 /// resume or start it.
 #[derive(Clone, PartialEq, Default)]
