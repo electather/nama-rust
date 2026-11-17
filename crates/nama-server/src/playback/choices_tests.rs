@@ -445,7 +445,10 @@ fn an_ass_sidecar_beside_a_file_with_fonts_is_burned_in_from_its_path_on_a_devic
     assert_eq!(
         transcoded(&plan).video.burn_in,
         Some(BurnIn::Text {
-            subtitle: TextSubtitle::Sidecar("/media/Alien.en.ass".to_owned())
+            subtitle: TextSubtitle::Sidecar {
+                path: "/media/Alien.en.ass".to_owned(),
+                charset: None,
+            }
         })
     );
 }
