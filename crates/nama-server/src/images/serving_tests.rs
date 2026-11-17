@@ -184,6 +184,30 @@ async fn an_original_on_local_disk_answers_range_with_its_keys_etag() {
 }
 
 #[tokio::test]
+async fn an_original_answers_if_match_by_its_keys_etag_in_every_store() {
+    let (memory, disk) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    for store in [in_memory(&memory).await, on_disk(&disk).await] {
+        store.write(KEY, b"\xff\xd8poster").await.unwrap();
+        let mut matching = get();
+        let headers = matching.headers_mut();
+        headers.insert(header::IF_MATCH, etag(&store).await);
+        headers.insert(
+            header::IF_UNMODIFIED_SINCE,
+            HeaderValue::from_static("Thu, 01 Jan 1970 00:00:00 GMT"),
+        );
+
+        let response = store
+            .serve(KEY, "image/jpeg", None, matching)
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), 200);
+        assert!(!response.headers().contains_key(header::LAST_MODIFIED));
+        assert_eq!(body(response).await, b"\xff\xd8poster");
+    }
+}
+
+#[tokio::test]
 async fn a_large_original_on_local_disk_is_sent_in_chunks() {
     let data = tempfile::tempdir().unwrap();
     let store = on_disk(&data).await;

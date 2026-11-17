@@ -21,7 +21,8 @@ use super::{Copied, Format, ImageStore, RESIZED_DIR, Resize, SVG, resized, row_k
 impl ImageStore {
     /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
     /// stored, 304 for a matching `If-None-Match`, else the bytes with an `ETag` taken from `key`,
-    /// which is the same in every store since a key names its bytes.
+    /// which is the same in every store since a key names its bytes. Where it is sent from a
+    /// local file, a resized copy or an original in the local-disk store, it answers `Range`.
     ///
     /// With a `resize`, it is sent as a copy that wide, made the first time it is asked for, or
     /// else as it is stored where it can't or needn't be resized (see `make_copy`), varying by
@@ -91,15 +92,23 @@ impl ImageStore {
                 StatusCode::NOT_FOUND.into_response()
             }
         } else if let Some(path) = blobs.local_path(&row) {
-            // `ServeFile`'s own ETag, from the file's modified time and size, is replaced below:
-            // one from the key stays the same across a switch of stores (#793).
-            serve_file(path, content_type, head).await?
+            // `ServeFile` checks preconditions against its own validators, from the file's
+            // modified time and size, which a switch of stores changes (#793); the key's ETag,
+            // checked above and set below, is the only one, as in any other store.
+            let mut head = head.clone();
+            for precondition in [
+                header::IF_MATCH,
+                header::IF_UNMODIFIED_SINCE,
+                header::IF_NONE_MATCH,
+                header::IF_MODIFIED_SINCE,
+            ] {
+                head.headers.remove(precondition);
+            }
+            let mut sent = serve_file(path, content_type, &head).await?;
+            sent.headers_mut().remove(header::LAST_MODIFIED);
+            sent
         } else {
-            // `reading` is never closed.
-            let reading = Arc::clone(&self.reading)
-                .acquire_owned()
-                .await
-                .map_err(io::Error::other)?;
+            let reading = self.whole_read().await?;
             match blobs.get(&row).await? {
                 Some(bytes) => (
                     [(header::CONTENT_TYPE, HeaderValue::from_static(content_type))],
@@ -121,6 +130,16 @@ impl ImageStore {
         Ok(response)
     }
 
+    /// A permit of `reading`, held while an original is in memory whole; waits while
+    /// [`WHOLE_READS`](super::WHOLE_READS) are held.
+    async fn whole_read(&self) -> io::Result<OwnedSemaphorePermit> {
+        // `reading` is never closed, so this never fails.
+        Arc::clone(&self.reading)
+            .acquire_owned()
+            .await
+            .map_err(io::Error::other)
+    }
+
     /// The format of the copy of the image at `key` to send for `resize`, made now if it wasn't
     /// there: `asked`, or JPEG where `make_copy` puts one in its place. `None` to send the image
     /// as stored, which an image that can't be resized or isn't stored also is, after a warning
@@ -134,8 +153,7 @@ impl ImageStore {
         if mark_sent(&copy).await {
             return Some(asked);
         }
-        // `reading` is never closed.
-        let _reading = self.reading.acquire().await.ok()?;
+        let _reading = self.whole_read().await.ok()?;
         // ponytail: an image sent as stored where a copy was asked for, such as one no wider
         // than asked, is fetched here and again to send it, on every such request; remember
         // which widths an image goes unresized at if that makes a slow store slower.
