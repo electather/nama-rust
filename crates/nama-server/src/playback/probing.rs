@@ -281,7 +281,7 @@ impl Probing {
         );
     }
 
-    /// The subtitle cache it throws away what's cached for files gone or changed from.
+    /// The subtitle cache, from which it throws away what's cached for files gone or changed.
     pub(super) fn subtitle_cache(&self) -> subtitles::Cache {
         self.inner.subtitles.clone()
     }

@@ -546,7 +546,7 @@ impl Ffmpeg {
         let output = tokio::process::Command::new(&ffmpeg.path)
             .args(["-v", "error", "-nostdin"])
             .args(args)
-            // A fetch given up on, or cancelled at shutdown, stops ffmpeg too.
+            // A fetch given up on, or a read cancelled at shutdown, stops ffmpeg too.
             .kill_on_drop(true)
             .output();
         Ok(tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??)

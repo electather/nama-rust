@@ -170,10 +170,11 @@ async fn serve_font(
         }
     };
     // Only what probing recorded as a font, never another attachment.
-    if font >= probed.2.font_attachments.len() {
+    let (_, file, probe) = &probed;
+    if font >= probe.font_attachments.len() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let key = cache_key(probed.1, &font_name(font));
+    let key = cache_key(*file, &font_name(font));
     match subtitles.read_by_text_pass(&key, &probed).await {
         // The renderer reads a font's bytes whatever its type, and nothing should guess one.
         Ok(bytes) => (
@@ -221,7 +222,7 @@ enum Error {
     /// Kept from an earlier text pass, which isn't tried again until the file changes.
     #[error("reading the subtitles out failed before, and the file hasn't changed since: {0}")]
     FailedBefore(String),
-    /// The text pass stopped without it, as when the Server shuts down; it logged why.
+    /// The text pass stopped without it, as when the Server shuts down.
     #[error("the subtitles weren't read out")]
     NotReadOut,
 }

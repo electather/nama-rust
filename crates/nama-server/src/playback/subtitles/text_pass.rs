@@ -25,7 +25,7 @@ const FAILED: &str = "failed";
 
 /// What ffmpeg says when it couldn't write into the cache, which says nothing about the file it
 /// reads, as each is an error only writing gives.
-// shortcut: matches the C library's English messages, as in the Docker image; read ffmpeg's exit
+// ponytail: matches the C library's English messages, as in the Docker image; read ffmpeg's exit
 // code instead if a Server in another locale remembers a full disk.
 const CACHE_UNWRITABLE: &[&str] = &[
     "No space left on device",
@@ -50,17 +50,14 @@ impl Subtitles {
         if let Some(read) = cached(&cached_at).await? {
             return Ok(read);
         }
-        let pass = TextPass::of(
-            probed,
-            self.cache.folder(probed.1),
-            Arc::clone(&self.ffmpeg),
-        );
+        let (_, file, _) = probed;
+        let pass = TextPass::of(probed, self.cache.folder(*file), Arc::clone(&self.ffmpeg));
         let folder = pass.folder.clone();
         failed_before(&folder).await?;
         let span = diagnostics::following_current(tracing::info_span!(
             parent: None,
             "subtitle pass",
-            file.id = probed.1.id
+            file.id = file.id
         ));
         let start = |running| {
             let pass = async move {
