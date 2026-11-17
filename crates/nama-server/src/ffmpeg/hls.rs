@@ -92,7 +92,7 @@ pub(crate) struct VideoLimit {
 }
 
 /// A subtitle Track a Transcode burns into the picture.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BurnIn {
     /// A bitmap, such as PGS, at its place among the file's subtitle streams, counting from 0, laid
     /// over a picture of the width and height given, if known.
@@ -100,9 +100,17 @@ pub(crate) enum BurnIn {
         subtitle: usize,
         picture: Option<(i64, i64)>,
     },
-    /// Text, such as ASS, at its place among the file's subtitle streams, counting from 0, which
-    /// libass draws with its styling.
-    Text { subtitle: usize },
+    /// Text, such as ASS, which libass draws with its styling, from the file or a sidecar.
+    Text { subtitle: TextSubtitle },
+}
+
+/// Where a [`BurnIn::Text`] subtitle is read from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TextSubtitle {
+    /// At its place among the subtitle streams of the file transcoded, counting from 0.
+    Stream(usize),
+    /// The one in this file beside it.
+    Sidecar(String),
 }
 
 /// The arguments that take the first video of the file at `path` into a Transcode, through
@@ -110,13 +118,13 @@ pub(crate) enum BurnIn {
 fn transcoded_video(
     path: &str,
     before: Option<String>,
-    burn_in: Option<BurnIn>,
+    burn_in: Option<&BurnIn>,
     after: Option<String>,
     seeks: bool,
 ) -> Vec<String> {
     let drawn = match burn_in {
         None => None,
-        Some(BurnIn::Image { subtitle, picture }) => {
+        Some(&BurnIn::Image { subtitle, picture }) => {
             let graph = overlay_graph(before, subtitle, picture, after, seeks);
             return ["-filter_complex", &graph, "-map", "[video]"]
                 .map(str::to_owned)
@@ -125,10 +133,15 @@ fn transcoded_video(
         // ponytail: assumes ffmpeg has libass. Each run reads the whole file for the subtitle
         // first, attached fonts and all; read it once into the subtitle cache instead if seeking
         // in a styled subtitle's Transcode is too slow.
-        Some(BurnIn::Text { subtitle }) => Some(format!(
+        Some(BurnIn::Text {
+            subtitle: TextSubtitle::Stream(subtitle),
+        }) => Some(format!(
             "subtitles=filename={}:si={subtitle}",
             filter_value(path)
         )),
+        Some(BurnIn::Text {
+            subtitle: TextSubtitle::Sidecar(sidecar),
+        }) => Some(format!("subtitles=filename={}", filter_value(sidecar))),
     };
     let mut args: Vec<String> = ["-map", "0:V:0"].map(str::to_owned).into();
     if let Some(filters) = filter_chain([before, drawn, after]) {
@@ -276,7 +289,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
     };
     VideoArgs {
         input: accel.map_or_default(|accel| accel.input(gpu, false)),
-        video: transcoded_video(path, before, video.burn_in, after, seeks),
+        video: transcoded_video(path, before, video.burn_in.as_ref(), after, seeks),
         codec,
     }
 }

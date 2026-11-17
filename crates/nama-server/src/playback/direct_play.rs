@@ -13,8 +13,8 @@ use axum::{
 use futures_util::StreamExt as _;
 use tower_http::services::ServeFile;
 
-use super::{Tracks, running::RunningPlans, subtitles};
-use crate::{ffmpeg::Ffmpeg, library::Contents, users::Caller};
+use super::{Sidecars, Tracks, running::RunningPlans, subtitles};
+use crate::{db::Database, ffmpeg::Ffmpeg, library::Contents, users::Caller};
 
 pub(super) fn direct_play_url(version: i64) -> String {
     format!("/media/versions/{version}")
@@ -22,19 +22,20 @@ pub(super) fn direct_play_url(version: i64) -> String {
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `contents`, and 404 if
 /// there is none, marking the caller's Direct Plays of it in `running` asked for as the request
-/// arrives and with each part of the file sent, and the subtitles plans offer, read with `ffmpeg`
-/// and cached in `subtitles`. Whether the caller has a session is up to the layers the router is
-/// put behind.
+/// arrives and with each part of the file sent, and the subtitles plans offer, found in `db`, read
+/// with `ffmpeg` and cached in `subtitles`. Whether the caller has a session is up to the layers
+/// the router is put behind.
 pub(crate) fn router(
     contents: Contents,
     running: RunningPlans,
-    tracks: Tracks,
+    db: &Arc<Database>,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
 ) -> Router {
     let subtitles = subtitles::router(subtitles::Subtitles {
         contents: contents.clone(),
-        tracks,
+        tracks: Tracks::new(Arc::clone(db)),
+        sidecars: Sidecars::new(Arc::clone(db)),
         ffmpeg,
         cache: subtitles,
     });

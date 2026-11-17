@@ -27,6 +27,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use super::{
+    sidecars::Sidecars,
     subtitles,
     tracks::{LastingReason, PassingReason, Probe, ProbeFailure, Tracks},
 };
@@ -111,6 +112,7 @@ pub(crate) struct Probing {
 struct Inner {
     contents: Contents,
     tracks: Tracks,
+    sidecars: Sidecars,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
     /// Background passes, so shutting down can wait for them.
@@ -134,6 +136,7 @@ impl Probing {
         Self {
             inner: Arc::new(Inner {
                 tracks: Tracks::new(Arc::clone(&db)),
+                sidecars: Sidecars::new(Arc::clone(&db)),
                 contents: Contents::new(db),
                 ffmpeg,
                 subtitles,
@@ -151,6 +154,16 @@ impl Probing {
     /// that and returns what it found instead, or probes it itself if that gave up without finding
     /// anything.
     pub(crate) async fn current(&self, version: i64) -> Result<Probe, Error> {
+        let mut probe = self.probed(version).await?;
+        (self.inner.sidecars)
+            .append_to([(version, &mut probe)])
+            .await?;
+        Ok(probe)
+    }
+
+    /// What probing read from the Version `version`'s file, as [`Self::current`] has it, without
+    /// its sidecars, which are never stored with it.
+    async fn probed(&self, version: i64) -> Result<Probe, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
         // ponytail: not held to PROBES_AT_ONCE, so a play press never queues; limit it apart if

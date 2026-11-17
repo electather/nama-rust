@@ -14,6 +14,7 @@ use std::{
 use nama_proto::nama::v1 as proto;
 use sqlx::SqliteConnection;
 
+use super::sidecars::Sidecar;
 use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::Stored};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
@@ -103,9 +104,14 @@ pub(crate) struct Probe {
 impl Probe {
     /// The place of the Track at `place` among the file's Tracks of its kind, counting from 0,
     /// which is how ffmpeg picks out an audio or subtitle stream. `None` if there's no Track there.
-    /// A video Track's can fall short of ffmpeg's, since probing leaves out cover art.
+    /// A video Track's can fall short of ffmpeg's, since probing leaves out cover art. `None` for
+    /// a sidecar, which isn't in the file; sidecars follow the file's own Tracks, so none counts.
     pub(super) fn ffmpeg_index(&self, place: usize) -> Option<usize> {
-        let kind = discriminant(&self.tracks.get(place)?.kind);
+        let track = self
+            .tracks
+            .get(place)
+            .filter(|track| track.sidecar().is_none())?;
+        let kind = discriminant(&track.kind);
         // Probing keeps every audio and subtitle stream, so ffmpeg's are these, in order.
         Some(
             (self.tracks.iter().take(place))
@@ -157,6 +163,8 @@ pub(crate) enum TrackKind {
         /// Whether the file carries the Track's codec header, such as VobSub's `.idx` with its
         /// palette and size.
         header: bool,
+        /// The file beside the Version it's read from, or `None` for one inside its file.
+        sidecar: Option<Sidecar>,
     },
 }
 
@@ -418,8 +426,7 @@ impl Tracks {
         let tracks = sqlx::query!(
             r#"SELECT version_id, kind, codec, language, title, is_default AS "default: bool",
                       forced AS "forced: bool", sdh AS "sdh: bool", width, height, frame_rate, bit_depth, hdr,
-                      dolby_vision_profile,
-                      dolby_vision_base_layer,
+                      dolby_vision_profile, dolby_vision_base_layer,
                       channels, image AS "image: bool", header AS "header: bool"
                FROM tracks
                WHERE version_id IN (SELECT value FROM json_each(?))
@@ -448,6 +455,7 @@ impl Tracks {
                     image: row.image.unwrap_or_default(),
                     // Unknown for a file probed before it was recorded.
                     header: row.header.unwrap_or_default(),
+                    sidecar: None,
                 },
             };
             let track = Track {
@@ -536,7 +544,7 @@ async fn store_track(
             TrackKind::Audio { channels } => {
                 ("audio", None, None, None, None, None, channels, None, None)
             }
-            TrackKind::Subtitle { image, header } => (
+            TrackKind::Subtitle { image, header, .. } => (
                 "subtitle",
                 None,
                 None,

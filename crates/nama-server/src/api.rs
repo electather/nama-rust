@@ -28,7 +28,7 @@ use crate::{
         Artwork, Contents, CustomImageUrls, CustomImages, Libraries, TitleKind, TitleSources,
         artwork_router, custom_images_router,
     },
-    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, Tracks, running_router},
+    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, running_router},
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
@@ -101,7 +101,7 @@ pub(crate) fn router(
     let media = crate::playback::router(
         contents,
         running.clone(),
-        Tracks::new(Arc::clone(&db)),
+        &db,
         Arc::clone(&ffmpeg),
         subtitles,
     )

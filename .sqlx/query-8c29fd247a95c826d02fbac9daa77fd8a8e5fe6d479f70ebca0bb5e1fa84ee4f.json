@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version_id, path, size, modified_ns, codec, language, title,\n                      is_default AS \"is_default: bool\", forced AS \"forced: bool\", sdh AS \"sdh: bool\"\n               FROM sidecar_subtitles\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY path",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "version_id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "codec",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "codec"
+          }
+        }
+      },
+      {
+        "name": "language",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "is_default: bool",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "is_default"
+          }
+        }
+      },
+      {
+        "name": "forced: bool",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "forced"
+          }
+        }
+      },
+      {
+        "name": "sdh: bool",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "sdh"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8c29fd247a95c826d02fbac9daa77fd8a8e5fe6d479f70ebca0bb5e1fa84ee4f"
+}
