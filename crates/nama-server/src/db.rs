@@ -8,7 +8,7 @@
 use std::{
     collections::HashSet,
     panic::AssertUnwindSafe,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -29,6 +29,9 @@ use tracing::Instrument as _;
 
 /// The database file's name inside the data directory.
 pub const FILE_NAME: &str = "nama.db";
+
+/// The copy of the database an upgrade leaves beside it, to go back to if the upgrade goes wrong.
+const BEFORE_UPGRADE_FILE_NAME: &str = "nama.db.before-upgrade";
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -51,6 +54,20 @@ pub enum OpenError {
     /// A migration failed, or the database has migrations this binary doesn't know.
     #[error("could not migrate the database: {0}")]
     Migrate(#[from] MigrateError),
+    /// The copy to go back to couldn't be written, so the database was left as it was.
+    #[error(
+        "could not copy the database to {BEFORE_UPGRADE_FILE_NAME} before upgrading it, so it was \
+         left as it was; the copy needs about {needs_mb} MB free in {}: {source}",
+        data_dir.display()
+    )]
+    BeforeUpgradeCopy {
+        /// Where the copy goes.
+        data_dir: PathBuf,
+        /// About how much free space the copy needs: the database's size.
+        needs_mb: u64,
+        /// Why the copy failed.
+        source: sqlx::Error,
+    },
 }
 
 /// The future a write returns, which may borrow the transaction it was given.
@@ -69,11 +86,12 @@ pub struct Database {
 
 impl Database {
     /// Opens the database in `data_dir`, creating the directory and the file if they don't exist,
-    /// and applies any migrations it hasn't had yet.
+    /// and applies any migrations it hasn't had yet, after copying a database that had some.
     ///
     /// # Errors
     ///
-    /// If the directory or file can't be created or opened, or a migration fails.
+    /// If the directory or file can't be created or opened, the copy can't be written, or a
+    /// migration fails.
     pub async fn open(data_dir: &Path) -> Result<Self, OpenError> {
         tokio::fs::create_dir_all(data_dir)
             .await
@@ -88,7 +106,7 @@ impl Database {
         // The writer creates the file and switches it to WAL before any reader opens it.
         let mut writer =
             SqliteConnection::connect_with(&options.clone().create_if_missing(true)).await?;
-        let migrations_applied = migrate(&mut writer).await?;
+        let migrations_applied = migrate(&mut writer, data_dir).await?;
         // Every reader opens here and is never replaced or pinged on acquire: one opened or pinged
         // in a cancelled caller's future outlives `SqlitePool::close`, and the writer must close
         // last to remove the WAL.
@@ -296,7 +314,10 @@ where
     }
 }
 
-async fn migrate(conn: &mut SqliteConnection) -> Result<Vec<i64>, MigrateError> {
+/// Applies the migrations the database in `data_dir` hasn't had, after copying it to
+/// [`BEFORE_UPGRADE_FILE_NAME`] if it already had some, so an upgrade that goes wrong has a way
+/// back.
+async fn migrate(conn: &mut SqliteConnection, data_dir: &Path) -> Result<Vec<i64>, OpenError> {
     conn.ensure_migrations_table(&MIGRATOR.table_name).await?;
     let before: HashSet<i64> = conn
         .list_applied_migrations(&MIGRATOR.table_name)
@@ -304,13 +325,67 @@ async fn migrate(conn: &mut SqliteConnection) -> Result<Vec<i64>, MigrateError> 
         .into_iter()
         .map(|m| m.version)
         .collect();
-    MIGRATOR.run(&mut *conn).await?;
-    Ok(MIGRATOR
+    let pending: Vec<i64> = MIGRATOR
         .iter()
         .filter(|m| m.migration_type.is_up_migration())
         .map(|m| m.version)
         .filter(|v| !before.contains(v))
-        .collect())
+        .collect();
+    // A new database has nothing to go back to.
+    if !pending.is_empty() && !before.is_empty() {
+        // Counts the pages still in the WAL too, which the file's size misses.
+        let size = sqlx::query_scalar!(
+            r#"SELECT page_count * page_size AS "size!: u64"
+               FROM pragma_page_count(), pragma_page_size()"#
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+        if let Err(source) = copy_before_upgrade(conn, data_dir).await {
+            return Err(OpenError::BeforeUpgradeCopy {
+                data_dir: data_dir.to_owned(),
+                needs_mb: size.div_ceil(1_000_000),
+                source,
+            });
+        }
+    }
+    MIGRATOR.run(&mut *conn).await?;
+    Ok(pending)
+}
+
+/// Writes a copy of the database to [`BEFORE_UPGRADE_FILE_NAME`], replacing the last upgrade's.
+/// It's written under another name first, so a failed copy leaves the last good one in place.
+async fn copy_before_upgrade(
+    conn: &mut SqliteConnection,
+    data_dir: &Path,
+) -> Result<(), sqlx::Error> {
+    let copy = data_dir.join(BEFORE_UPGRADE_FILE_NAME);
+    let partial = data_dir.join(format!("{BEFORE_UPGRADE_FILE_NAME}.partial"));
+    // VACUUM INTO refuses a file that isn't empty, such as one a crash left half-written.
+    if let Err(err) = tokio::fs::remove_file(&partial).await
+        && err.kind() != std::io::ErrorKind::NotFound
+    {
+        return Err(err.into());
+    }
+    let partial_path = partial.to_str().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the data directory's path isn't valid UTF-8",
+        )
+    })?;
+    tracing::info!("copying the database to {BEFORE_UPGRADE_FILE_NAME} before upgrading it");
+    sqlx::query!("VACUUM INTO ?", partial_path)
+        .execute(&mut *conn)
+        .await?;
+    // VACUUM INTO doesn't sync what it writes, and the rename must not replace the last good copy
+    // with one a power cut could still lose. Windows syncs only a file opened for writing.
+    tokio::fs::OpenOptions::new()
+        .write(true)
+        .open(&partial)
+        .await?
+        .sync_all()
+        .await?;
+    tokio::fs::rename(&partial, &copy).await?;
+    Ok(())
 }
 
 /// How far [`advance_clock`] has moved the Server's clock, in milliseconds.
