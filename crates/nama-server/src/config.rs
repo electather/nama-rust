@@ -10,7 +10,7 @@ use std::{
 };
 
 use figment::{
-    Figment, Source,
+    Figment,
     providers::{Env, Format, Serialized, Toml},
     value::{Dict, Value},
 };
@@ -183,15 +183,15 @@ impl Config {
         }
         let figment = figment.merge(Env::prefixed(ENV_PREFIX).ignore(&["config"]));
         let NotingIgnored(config, ignored) = figment.extract()?;
-        // shortcut: a key also set by a `NAMA_*` variable, or a quoted key with a dot in it, isn't
-        // reported; check the file's own table instead if one is missed in practice.
+        // The file's own table, not the merged figment's metadata: a `NAMA_*` variable setting the
+        // same key would hide the file's, and figment's paths split a quoted `"a.b"` key.
+        let in_file: Dict = match file {
+            Some(file) => Figment::from(Toml::file_exact(file)).extract()?,
+            None => Dict::new(),
+        };
         let unknown_keys = ignored
             .into_iter()
-            .filter(|key| {
-                figment
-                    .find_metadata(key)
-                    .is_some_and(|metadata| matches!(metadata.source, Some(Source::File(_))))
-            })
+            .filter(|key| in_file.contains_key(key))
             .collect();
         Ok((config, unknown_keys))
     }

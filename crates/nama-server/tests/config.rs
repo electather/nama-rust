@@ -295,6 +295,25 @@ fn an_unknown_key_in_the_config_file_is_reported_by_name_and_ignored() {
 }
 
 #[test]
+fn an_unknown_key_in_the_config_file_is_reported_even_when_an_environment_variable_sets_it() {
+    Jail::expect_with(|jail| {
+        jail.create_file(
+            "nama.toml",
+            r#"
+                server_url = "http://localhost:7980"
+                "watch.folders" = false
+            "#,
+        )?;
+        jail.set_env("NAMA_SERVER_URL", "http://localhost:7980");
+
+        let (_, unknown_keys) = Config::load(None).unwrap();
+
+        assert_eq!(unknown_keys, ["server_url", "watch.folders"]);
+        Ok(())
+    });
+}
+
+#[test]
 fn an_unrelated_nama_environment_variable_is_not_reported() {
     Jail::expect_with(|jail| {
         jail.set_env("NAMA_SERVER_URL", "http://localhost:7980");
