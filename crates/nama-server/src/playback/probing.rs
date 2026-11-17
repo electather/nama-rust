@@ -30,7 +30,9 @@ use tracing::Instrument as _;
 use super::{
     sidecars::Sidecars,
     subtitles,
-    tracks::{Keyframes, LastingReason, PassingReason, Probe, ProbeFailure, Tracks},
+    tracks::{
+        Keyframes, LastingReason, ListedKeyframes, PassingReason, Probe, ProbeFailure, Tracks,
+    },
 };
 use crate::{
     db::Database,
@@ -114,7 +116,7 @@ impl From<Unprobed> for Error {
 type Probed = Result<Probe, Arc<ProbeError>>;
 
 /// A file's keyframes, or why they couldn't be listed, as handed to whoever waited for them.
-type Listed = Result<Vec<i64>, Arc<ProbeError>>;
+type Listed = Result<ListedKeyframes, Arc<ProbeError>>;
 
 /// The Versions some task holds a [`Claim`] on, and where it sends what it found. Shared, so a
 /// listing's claim can outlive the plan that started it.
@@ -210,13 +212,13 @@ impl Probing {
         &self.inner.subtitles
     }
 
-    /// When each keyframe of the Version `version`'s first video falls, in milliseconds from its
-    /// start, in order: as kept for its file as it is now, or else listed in the background,
-    /// which reads the whole file, and kept. If something is listing them already, waits for that
-    /// instead. Waits at most [`LISTING_WAIT`] for a listing, then returns
-    /// [`ProbeError::NotListedYet`] while it carries on. They're kept only while the Version's
-    /// Tracks were read from its file as it is now.
-    pub(super) async fn keyframes(&self, version: i64) -> Result<Vec<i64>, Error> {
+    /// When the Version `version`'s file starts and each keyframe of its first video falls: as
+    /// kept for its file as it is now, or else listed in the background, which reads the whole
+    /// file, and kept. If something is listing them already, waits for that instead. Waits at
+    /// most [`LISTING_WAIT`] for a listing, then returns [`ProbeError::NotListedYet`] while it
+    /// carries on. They're kept only while the Version's Tracks were read from its file as it is
+    /// now.
+    pub(super) async fn keyframes(&self, version: i64) -> Result<ListedKeyframes, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
         loop {

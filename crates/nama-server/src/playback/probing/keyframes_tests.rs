@@ -5,7 +5,7 @@ use super::tests::Fixture;
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
 use super::{
-    Error, Keyframes, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE,
+    Error, Keyframes, LISTING_WAIT, ListedKeyframes, ProbeError, WHOLE_FILE_READS_AT_ONCE,
     ffprobe::WHOLE_FILE_TIMEOUT,
 };
 #[cfg(unix)]
@@ -61,7 +61,7 @@ impl Fixture {
     /// The keyframes of the Version stored at `relative`.
     async fn keyframes(&self, relative: &str) -> Vec<i64> {
         let version = self.file_id(relative).await;
-        self.probing.keyframes(version).await.unwrap()
+        self.probing.keyframes(version).await.unwrap().keyframes_ms
     }
 }
 
@@ -78,6 +78,25 @@ async fn a_versions_keyframes_are_listed_once_and_kept() {
     assert_eq!(media.keyframes(alien).await, [0, 10_000]);
 
     assert_eq!(probe_runs(bin.path()), 1);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_kept_without_its_files_start_are_listed_again_with_it() {
+    let bin = tempfile::tempdir().unwrap();
+    let starting_late = ffprobe_listing_by(bin.path(), "printf '1.500000,K__\\n1.500000\\n'");
+    let media = Fixture::with_ffmpeg(starting_late).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    media.probing.keyframes(version).await.unwrap();
+
+    media.tracks.forget_keyframes_start(version).await;
+    let listed = media.probing.keyframes(version).await.unwrap();
+
+    assert_eq!(listed.file_start_ms, 1500);
+    assert_eq!(probe_runs(bin.path()), 2);
 }
 
 // The fake ffprobe is a shell script.
@@ -256,7 +275,11 @@ async fn a_listing_carries_on_after_the_plan_waiting_for_it_is_dropped() {
         tokio::time::sleep(Duration::from_millis(10)).await;
     };
 
-    assert_eq!(kept, Keyframes::Listed(vec![0, 10_000]));
+    let listed = ListedKeyframes {
+        file_start_ms: 0,
+        keyframes_ms: vec![0, 10_000],
+    };
+    assert_eq!(kept, Keyframes::Listed(listed));
     assert_eq!(media.keyframes(alien).await, [0, 10_000]);
     assert_eq!(probe_runs(bin.path()), 1);
 }
