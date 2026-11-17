@@ -350,7 +350,8 @@ pub trait PlaybackService: Send + Sync + 'static {
     /// there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
     /// itself needs a Transcode to play it, never for a choice, and the Server is already running as
     /// many as it may, the caller's own Device's included: a player replacing its plan stops the old
-    /// one first.
+    /// one first. Refused with `REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE` when a Remux or a Transcode
+    /// would play it and the Server can't create its folder in the segment folder.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

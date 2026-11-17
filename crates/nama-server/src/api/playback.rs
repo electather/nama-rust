@@ -95,25 +95,7 @@ impl PlaybackService for PlaybackServiceHandler {
             self.settings.now(),
         )
         .await
-        .map_err(|err| match err {
-            StartError::Database(err) => database_failed(err),
-            StartError::Busy(max) => refuse(
-                RefusalReason::REFUSAL_REASON_SERVER_BUSY,
-                format!(
-                    "only a Transcode would play it here, and the Server is already running as \
-                     many as it may at once, {max}; try again once one ends"
-                ),
-            )
-            .param("maxTranscodes", &max)
-            .into(),
-            err @ (StartError::Keyframes(_) | StartError::Run(_)) => {
-                tracing::error!(
-                    version = request.version_id,
-                    "could not start a plan: {err}"
-                );
-                ConnectError::internal("the Server failed")
-            }
-        })?
+        .map_err(|err| plan_failed(err, request.version_id))?
         .ok_or_else(version_not_found)?;
         Response::ok(PlanPlaybackResponse {
             plan: plan_to_proto(plan).into(),
@@ -244,6 +226,42 @@ impl PlaybackService for PlaybackServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(SetAudioPreferenceResponse::default())
+    }
+}
+
+/// The error a plan for the Version `version` that couldn't start is answered with.
+fn plan_failed(err: StartError, version: i64) -> ConnectError {
+    match err {
+        StartError::Database(err) => database_failed(err),
+        StartError::Busy(max) => refuse(
+            RefusalReason::REFUSAL_REASON_SERVER_BUSY,
+            format!(
+                "only a Transcode would play it here, and the Server is already running as \
+                 many as it may at once, {max}; try again once one ends"
+            ),
+        )
+        .param("maxTranscodes", &max)
+        .into(),
+        StartError::SegmentFolder { folder, source } => {
+            let folder = folder.display();
+            tracing::warn!(
+                version,
+                "could not create a plan's folder in the segment folder, {folder}: {source}"
+            );
+            refuse(
+                RefusalReason::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE,
+                format!(
+                    "the Server can't write to its segment folder, {folder}, so it can't \
+                     Remux or Transcode this; an Admin can set another under Playback"
+                ),
+            )
+            .param("folder", &folder)
+            .into()
+        }
+        err @ (StartError::Keyframes(_) | StartError::Run(_)) => {
+            tracing::error!(version, "could not start a plan: {err}");
+            ConnectError::internal("the Server failed")
+        }
     }
 }
 
