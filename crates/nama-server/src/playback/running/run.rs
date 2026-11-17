@@ -18,7 +18,12 @@ use super::{
 use crate::{
     events::{EventBus, event},
     ffmpeg::{Keyframe, hls_init, hls_init_from},
+    server_settings::PlaybackSettings,
 };
+
+/// How ffmpeg's stderr says a write failed with ENOSPC. ffmpeg, not the Server, writes a plan's
+/// files, so its words are all the Server sees of it.
+const DISK_FULL: &str = "No space left on device";
 
 /// Starts ffmpeg writing a plan's files, from a keyframe on, to the folder it's given.
 pub(super) type Run = dyn Fn(&Path, Keyframe) -> io::Result<Child> + Send + Sync;
@@ -60,6 +65,8 @@ pub(super) struct Running {
     pub(super) events: EventBus,
     /// As it started, for telling Observers how it plays once it fell back.
     pub(super) playback: Playback,
+    /// For the time kept behind playback, which a warning that the segment folder is full names.
+    pub(super) settings: PlaybackSettings,
     /// The run of ffmpeg writing its files, and its task, which stops ffmpeg when aborted.
     pub(super) ffmpeg: tokio::sync::Mutex<Option<(Arc<FfmpegRun>, JoinHandle<()>)>>,
 }
@@ -304,7 +311,7 @@ impl Running {
     /// enough ahead, then logs why if it failed and marks it stopped.
     async fn watch(self: Arc<Self>, ffmpeg: Child, run: Arc<FfmpegRun>) {
         let failed = tokio::select! {
-            output = ffmpeg.wait_with_output() => log_failure(output, self.id),
+            output = ffmpeg.wait_with_output() => self.log_failure(output),
             // Dropping the child stops ffmpeg.
             () = self.written_far_ahead(&run) => false,
         };
@@ -354,6 +361,47 @@ impl Running {
         }
     }
 
+    /// Logs why ffmpeg failed, if it did, and says whether it did.
+    fn log_failure(&self, output: io::Result<Output>) -> bool {
+        match output {
+            Ok(Output { status, .. }) if status.success() => false,
+            Ok(Output { status, stderr, .. }) => {
+                let stderr = String::from_utf8_lossy(&stderr);
+                tracing::warn!(
+                    plan = self.id,
+                    "ffmpeg failed ({status}): {}",
+                    stderr.trim()
+                );
+                if stderr.contains(DISK_FULL) {
+                    self.warn_disk_full();
+                }
+                true
+            }
+            Err(err) => {
+                tracing::warn!(plan = self.id, "could not wait for ffmpeg: {err}");
+                false
+            }
+        }
+    }
+
+    /// Warns that the segment folder is full, with what tells an Admin it's too small, such as a
+    /// tmpfs holding the files kept behind playback.
+    fn warn_disk_full(&self) {
+        let folder = self.dir.parent().unwrap_or(&self.dir);
+        let free = free_bytes(folder).map_or_else(
+            || "an unknown amount".to_owned(),
+            |bytes| format!("{} MiB", bytes / (1024 * 1024)),
+        );
+        let kept_behind_minutes = self.settings.keep_behind_ms() / 60_000;
+        tracing::warn!(
+            plan = self.id,
+            "the segment folder, {}, is full, with {free} free while plans keep \
+             {kept_behind_minutes} minutes behind playback: give it more room, or keep less \
+             behind in the Playback settings",
+            folder.display()
+        );
+    }
+
     /// Returns once `run` has written [`RUN_AHEAD_MS`] past the start of the last segment asked
     /// for, or of where it started if later, keeping track of how far it has written meanwhile.
     async fn written_far_ahead(&self, run: &FfmpegRun) {
@@ -388,20 +436,16 @@ impl Running {
     }
 }
 
-/// Logs why ffmpeg, running for the plan `plan`, failed, if it did, and says whether it did.
-fn log_failure(output: io::Result<Output>, plan: u64) -> bool {
-    match output {
-        Ok(Output { status, .. }) if status.success() => false,
-        Ok(Output { status, stderr, .. }) => {
-            let stderr = String::from_utf8_lossy(&stderr);
-            tracing::warn!(plan, "ffmpeg failed ({status}): {}", stderr.trim());
-            true
-        }
-        Err(err) => {
-            tracing::warn!(plan, "could not wait for ffmpeg: {err}");
-            false
-        }
-    }
+#[cfg(unix)]
+fn free_bytes(folder: &Path) -> Option<u64> {
+    let stat = rustix::fs::statvfs(folder).ok()?;
+    Some(stat.f_bavail.saturating_mul(stat.f_frsize))
+}
+
+// ponytail: a Windows Server's warning gives no free space; ask GetDiskFreeSpaceExW once one runs.
+#[cfg(not(unix))]
+const fn free_bytes(_folder: &Path) -> Option<u64> {
+    None
 }
 
 #[cfg(test)]

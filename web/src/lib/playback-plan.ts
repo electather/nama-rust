@@ -273,15 +273,14 @@ function usePlan(versionId: bigint, asking: Asking) {
   }).data;
 }
 
-/**
- * A plan that can't play, saying why, for a Server that failed to plan or is too busy to Transcode
- * as `error` says. Any other `error` is thrown.
- */
+/** A plan that can't play, saying why, for an `error` the player explains; any other is thrown. */
 function cantPlayBecause(error: unknown) {
   if (isCode(error, Code.Internal)) return cantPlayPlan({ text: serverFailedToPlan });
   const { reason, params } = refusalOf(error);
+  const text = serverMessage(error);
+  if (reason === RefusalReason.SEGMENT_FOLDER_UNWRITABLE) return cantPlayPlan({ text });
   if (reason !== RefusalReason.SERVER_BUSY) throw error;
-  return cantPlayPlan({ kind: PlaybackReasonKind.SERVER_BUSY, params, text: serverMessage(error) });
+  return cantPlayPlan({ kind: PlaybackReasonKind.SERVER_BUSY, params, text });
 }
 
 /** A plan that can't play, for the one `reason`. */

@@ -194,6 +194,10 @@ pub enum RefusalReason {
     /// `resource_exhausted`: only a Transcode would play the Version on this Device, and the Server
     /// is already running as many as its Playback settings allow. Params: `maxTranscodes`.
     REFUSAL_REASON_SERVER_BUSY = 60i32,
+    /// `failed_precondition`: a Remux or a Transcode would play the Version, and the Server can't
+    /// create its folder in the segment folder, such as a tmpfs gone, read-only or full since it was
+    /// set. Params: `folder`, the segment folder.
+    REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE = 85i32,
     /// `invalid_argument`: the Playback settings name a GPU their hardware acceleration didn't pass
     /// its test on when the Server started and that isn't the one saved with it, or name one with
     /// Automatic, Off, NVENC or VideoToolbox, which take none. `field` is `settings.gpu`. Params:
@@ -448,6 +452,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SERVER_BUSY`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ServerBusy: Self = Self::REFUSAL_REASON_SERVER_BUSY;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SegmentFolderUnwritable: Self = Self::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_GPU_NOT_OFFERED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const GpuNotOffered: Self = Self::REFUSAL_REASON_GPU_NOT_OFFERED;
@@ -729,6 +736,11 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             59i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SHOW_HAS_QUALITY),
             60i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_BUSY),
+            85i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE,
+                )
+            }
             61i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_GPU_NOT_OFFERED),
             62i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TRACK_NOT_FOUND),
             63i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_READ_ONLY),
@@ -903,6 +915,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_SHOW_HAS_QUALITY => "REFUSAL_REASON_SHOW_HAS_QUALITY",
             Self::REFUSAL_REASON_SERVER_BUSY => "REFUSAL_REASON_SERVER_BUSY",
+            Self::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE => {
+                "REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE"
+            }
             Self::REFUSAL_REASON_GPU_NOT_OFFERED => "REFUSAL_REASON_GPU_NOT_OFFERED",
             Self::REFUSAL_REASON_TRACK_NOT_FOUND => "REFUSAL_REASON_TRACK_NOT_FOUND",
             Self::REFUSAL_REASON_FOLDER_READ_ONLY => "REFUSAL_REASON_FOLDER_READ_ONLY",
@@ -1153,6 +1168,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SERVER_BUSY" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_BUSY)
             }
+            "REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE,
+                )
+            }
             "REFUSAL_REASON_GPU_NOT_OFFERED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_GPU_NOT_OFFERED)
             }
@@ -1280,6 +1300,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PAGE_TOKEN_INVALID,
             Self::REFUSAL_REASON_SHOW_HAS_QUALITY,
             Self::REFUSAL_REASON_SERVER_BUSY,
+            Self::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE,
             Self::REFUSAL_REASON_GPU_NOT_OFFERED,
             Self::REFUSAL_REASON_TRACK_NOT_FOUND,
             Self::REFUSAL_REASON_FOLDER_READ_ONLY,
