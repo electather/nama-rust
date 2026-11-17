@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM sidecar_subtitles WHERE version_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "0a5ad105e52fc9b09b050d31e282d76e16d081ccb2376bc404f26b1027045e35"
+}

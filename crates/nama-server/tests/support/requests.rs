@@ -7,7 +7,8 @@ use nama_proto::nama::v1::{
     ApproveRequestRequest, CreateFollowedShowRequest, CreateRequestRequest,
     CreateSeasonRequestsRequest, DeclineRequestRequest, ExternalId, FollowedShow, FoundMovie,
     FoundShow, GetRequestRequest, ListRequestsRequest, LookUpMovieRequest, LookUpShowRequest,
-    Request, RequestServiceClient, RequestState, RetryRequestRequest, WithdrawRequestRequest,
+    Request, RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest,
+    WithdrawRequestRequest,
 };
 
 use super::{SignedIn, TestServer};
@@ -127,7 +128,11 @@ pub(crate) trait Requester {
         let listed = self
             .service()
             .list_requests(ListRequestsRequest {
-                state: state.into(),
+                filter: RequestFilter {
+                    state: state.into(),
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
             })
             .await

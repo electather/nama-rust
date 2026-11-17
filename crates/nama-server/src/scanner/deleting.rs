@@ -18,7 +18,7 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::Request;
 
-use super::is_video;
+use super::{after_stem, is_video};
 use crate::{
     library::{Library, LibraryEpisode, LibraryVersion},
     plugins::{ExtensionPoints, Failure, RETRIES},
@@ -261,12 +261,7 @@ fn sidecars_of(video: &Path, gone: &[&Path]) -> io::Result<Vec<PathBuf>> {
 
 /// Whether `file`'s name is `stem` followed by `.` or `-` and more.
 fn named_after(file: &Path, stem: &OsStr) -> bool {
-    (file.file_name())
-        .and_then(|name| {
-            name.as_encoded_bytes()
-                .strip_prefix(stem.as_encoded_bytes())
-        })
-        .is_some_and(|rest| rest.starts_with(b".") || rest.starts_with(b"-"))
+    after_stem(file, stem).is_some_and(|rest| rest.starts_with(b".") || rest.starts_with(b"-"))
 }
 
 /// The innermost of `library`'s folders that `path` is inside, if any.

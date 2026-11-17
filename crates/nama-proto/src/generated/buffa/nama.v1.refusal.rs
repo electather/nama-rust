@@ -184,7 +184,7 @@ pub enum RefusalReason {
     /// `PERMISSION_CHOOSE_QUALITY`. `field` is `quality`.
     REFUSAL_REASON_QUALITY_NOT_ALLOWED = 57i32,
     /// `invalid_argument`: the page token isn't one the Server handed out for the same request, such
-    /// as one listing Requests in another state. `field` is `page_token`.
+    /// as one listing Requests in another state. `field` is `page.token`.
     REFUSAL_REASON_PAGE_TOKEN_INVALID = 58i32,
     /// `invalid_argument`: the Quality named isn't the Show's, which each of its Seasons takes: an
     /// asker named another, or a Request manager changed it once a Season was handed off or

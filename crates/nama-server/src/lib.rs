@@ -16,6 +16,7 @@ mod library;
 #[cfg(test)]
 mod log_capture;
 mod matching;
+mod page;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;

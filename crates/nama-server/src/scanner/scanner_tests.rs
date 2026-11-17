@@ -30,19 +30,19 @@ const BUFFERED: usize = 8;
 pub(super) struct Fixture {
     pub(super) scanner: Scanner,
     /// What the scanner tells a scan finished, if anything probes.
-    probing: Option<Probing>,
-    db: Arc<Database>,
-    contents: Contents,
+    pub(super) probing: Option<Probing>,
+    pub(super) db: Arc<Database>,
+    pub(super) contents: Contents,
     events: EventBus,
-    library: i64,
-    root: PathBuf,
+    pub(super) library: i64,
+    pub(super) root: PathBuf,
     _media: TempDir,
     _data: TempDir,
 }
 
 impl Fixture {
     /// With nothing probing.
-    async fn new(kind: LibraryKind) -> Self {
+    pub(super) async fn new(kind: LibraryKind) -> Self {
         Self::with_probing(kind, None, ExtensionPoints::default()).await
     }
 
@@ -53,7 +53,7 @@ impl Fixture {
 
     /// Probing with `ffmpeg`.
     #[cfg(unix)]
-    async fn with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
+    pub(super) async fn with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
         Self::with_probing(kind, Some(ffmpeg), ExtensionPoints::default()).await
     }
 
@@ -153,7 +153,7 @@ impl Fixture {
 
     /// The stored files, as `/`-separated paths relative to the Library folder, whatever
     /// separator the platform uses.
-    async fn files(&self) -> Vec<(String, Vec<Item>)> {
+    pub(super) async fn files(&self) -> Vec<(String, Vec<Item>)> {
         self.contents
             .files(self.library)
             .await
@@ -181,7 +181,7 @@ fn movie(title: &str, year: i64, hint: Option<ExternalId>) -> Vec<Item> {
     }]
 }
 
-fn summary(added: u64, updated: u64, removed: u64, unchanged: u64) -> Summary {
+pub(super) fn summary(added: u64, updated: u64, removed: u64, unchanged: u64) -> Summary {
     Summary {
         added,
         updated,
@@ -454,7 +454,7 @@ async fn a_subscriber_that_falls_behind_lags_while_the_scan_finishes_on_time() {
 /// An ffprobe in `bin` that adds a line to `bin/runs` each time it runs, then runs `then`, a
 /// shell script.
 #[cfg(unix)]
-fn fake_ffprobe(bin: &std::path::Path, then: &str) -> Ffmpeg {
+pub(super) fn fake_ffprobe(bin: &std::path::Path, then: &str) -> Ffmpeg {
     let runs = bin.join("runs");
     let script = format!("#!/bin/sh\necho run >> '{}'\n{then}\n", runs.display());
     Ffmpeg {
