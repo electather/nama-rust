@@ -36,6 +36,7 @@ export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
           // A passing test that offered nothing for a setting still unlocks it, empty.
           choices={choices && (choices[setting.key]?.choices ?? [])}
           error={errors[setting.key]}
+          checksRequired={plugin.summary.enabled}
         />
       ))}
       <FormEnd

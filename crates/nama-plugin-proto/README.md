@@ -55,6 +55,8 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `CONTRACT_VERSION` 0.4.0: `blob_store.proto` adds `BlobStoreService` 1.0.0, a blob store keeping the Kernel's own stored files, with `BLOB_MAX_BYTES`; a blob store call may run for 60 seconds. `SETTING_KIND_LIBRARIES` and `SettingValue.library_ids` (`LibraryIds`) add a setting naming Libraries by id, which an admin picks from the Server's Library list; the Kernel refuses saving an id no Library has, and a Plugin skips an id the Kernel no longer lists (ADR 0053).
   `CONTRACT_VERSION` 0.4.1: the optional `check_personal_settings()` export, taking `PersonalSettingsCheck` and returning `PersonalSettingsChecked`, checks a User's Personal settings when they save them, and the Kernel refuses the save if it fails.
   `CONTRACT_VERSION` 0.4.2: `Playback.plan_id` names the Playback Plan a Playback event is about, pairing its `PlaybackStarted` with its `PlaybackEnded`; ids start again when the Server restarts.
+  `CONTRACT_VERSION` 0.4.3: `SettingField.min_value` and `max_value` bound a `SETTING_KIND_INTEGER` setting, inclusive; the Kernel refuses a Manifest that sets them on another kind, sets `min_value` over `max_value` or has a default outside them, and refuses saving or enabling with a value outside them. The Kernel saves a repeated Library id in a `SETTING_KIND_LIBRARIES` setting once.
+
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 
 ## Title ids

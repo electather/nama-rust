@@ -25,6 +25,8 @@ fn secret(key: &str) -> SettingsSchema {
             kind: SettingKind::Secret,
             required: false,
             default: None,
+            min: None,
+            max: None,
         }],
     }
 }

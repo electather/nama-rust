@@ -28,7 +28,7 @@ pub(crate) use custom_images::{
 };
 pub(crate) use libraries::{
     Error as LibraryError, FolderProblem, Kind as LibraryKind, Libraries, Library, Order,
-    check_title_sources,
+    check_known, check_title_sources, default_title_sources,
 };
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
 pub(crate) use title_source::{

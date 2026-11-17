@@ -18,6 +18,7 @@ use connectrpc::{
 };
 use hyper::HeaderMap;
 use nama_plugin_local_auth::LocalAuth;
+use nama_plugin_tmdb::Tmdb;
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, EventServiceClient, LibraryKind,
     LibraryServiceClient, RefusalReason, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
@@ -80,6 +81,8 @@ async fn start_behind_proxy() -> TestServer {
 async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServer {
     let registry = Registry::new();
     registry.describe_builtin(|| Arc::new(LocalAuth));
+    // A Library created naming no title source orders TMDB, which every Server has Built in.
+    registry.describe_builtin(|| Arc::new(Tmdb::new()));
     let data_dir = tempfile::tempdir().unwrap();
     let config = Config {
         data_dir: data_dir.path().to_owned(),

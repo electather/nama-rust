@@ -45,6 +45,11 @@ pub(crate) fn local_disk(data_dir: &Path) -> Arc<dyn Blobs> {
     Arc::new(LocalDisk::new(data_dir))
 }
 
+/// How many originals may be read whole at once (`ImageStore::reading`): a grid of Posters with
+/// resizing off asks for many over HTTP/2 at once, which would otherwise hold that many times
+/// [`MAX_BYTES`].
+const WHOLE_READS: usize = 4;
+
 /// Where the images Matches store are kept.
 pub(crate) const KEPT_ARTWORK_DIR: &str = "artwork";
 
@@ -138,6 +143,11 @@ pub struct ImageStore {
     /// is held in memory for it, and a request that waited behind the one making its copy finds
     /// it rather than fetching the original again.
     resizing: Arc<tokio::sync::Mutex<()>>,
+    /// A permit is held by each original read whole, until it is sent or resized, so at most
+    /// [`WHOLE_READS`] originals are in memory at once on a small device (ADR 0039, ADR 0052).
+    // ponytail: a client that stops reading holds its permit with no timeout, so a few stalled
+    // ones stall every whole read; time a send out if that bites.
+    reading: Arc<tokio::sync::Semaphore>,
     /// Held from finding a key missing until it is stored: two writes of one key would otherwise
     /// both store it, and the second, replacing the first, changes its `ETag` (#793). Every write
     /// and delete takes the store under it, so a switch holding them all knows none is left
@@ -199,6 +209,7 @@ impl ImageStore {
             store: Arc::new(RwLock::new(store)),
             switching: Arc::default(),
             resizing: Arc::default(),
+            reading: Arc::new(tokio::sync::Semaphore::new(WHOLE_READS)),
             writing: Arc::new(std::array::from_fn(|_| tokio::sync::Mutex::default())),
         }
     }

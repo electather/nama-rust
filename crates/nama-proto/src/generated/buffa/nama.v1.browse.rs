@@ -1291,7 +1291,7 @@ pub struct Track {
     )]
     pub forced: bool,
     /// Whether the file marks it for the deaf and hard of hearing (SDH), as subtitles that also
-    /// describe sounds.
+    /// describe sounds. A subtitle whose title says so, such as "English (SDH)", counts too.
     ///
     /// Field 9: `sdh`
     #[serde(

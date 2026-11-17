@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    metadata::TitleSource,
+    metadata::{SourceManifest, TMDB, TitleSource},
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
 
@@ -83,6 +83,8 @@ impl Plugin for Tmdb {
                     kind: SettingKind::Secret,
                     required: true,
                     default: None,
+                    min: None,
+                    max: None,
                 },
                 SettingField {
                     key: LANGUAGE.to_owned(),
@@ -93,6 +95,8 @@ impl Plugin for Tmdb {
                     kind: SettingKind::Text,
                     required: false,
                     default: Some(SettingValue::Text(DEFAULT_LANGUAGE.to_owned())),
+                    min: None,
+                    max: None,
                 },
             ],
         };
@@ -108,6 +112,11 @@ impl Plugin for Tmdb {
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: Vec::new(),
             tick_every: None,
+            title_source: Some(SourceManifest {
+                namespace: TMDB.to_owned(),
+                looks_up: client::looks_up(),
+                searches: true,
+            }),
         }
     }
 
