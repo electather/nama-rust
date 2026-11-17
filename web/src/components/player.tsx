@@ -22,7 +22,7 @@ import { TrackMenus } from "@/components/track-menus";
 import { Slider } from "@/components/ui/slider";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { playPressed } from "@/lib/diagnostics";
+import { playerOpened } from "@/lib/diagnostics";
 import { type Video, clock, togglePlay, useAwake, useShortcuts, useVideo } from "@/lib/playback";
 import { usePlaybackPlan } from "@/lib/playback-plan";
 import { usePlaybackSource } from "@/lib/playback-source";
@@ -48,7 +48,7 @@ export interface PlayerProps {
  * here. While the Server works a plan out, which the first time can take minutes, it says so.
  */
 export function Player(props: PlayerProps) {
-  useEffect(playPressed, []);
+  useEffect(playerOpened, []);
   // Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it mounted, and
   // React keeps the Tracks and Playback Limit it asked for.
   return (

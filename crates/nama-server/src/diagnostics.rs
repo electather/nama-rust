@@ -1,5 +1,6 @@
-//! Diagnostics: the spans the Server records about itself, exported only to an endpoint its admin
-//! sets (ADR 0054). What a span may carry is a rule in `crates/nama-server/AGENTS.md`.
+//! Diagnostics: the spans the Server records about itself, and the web app's that it forwards,
+//! exported only to an endpoint its admin sets (ADR 0054). What a span may carry is a rule in
+//! `crates/nama-server/AGENTS.md`.
 
 use std::{
     collections::HashMap,

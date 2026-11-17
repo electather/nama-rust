@@ -63,10 +63,10 @@ export function traceRouteChanges(router: AnyRouter) {
 let playPressedAt: number | undefined;
 
 /**
- * Marks play as pressed, when the player opens: at the route change that opened it, so its
- * loading counts too.
+ * Marks play as pressed at the route change that opened the player, so the player's own loading
+ * counts too.
  */
-export function playPressed() {
+export function playerOpened() {
   // ponytail: where the browser blocks autoplay, the span also holds the wait for the User to press
   // play in the player; drop it then if that skews playback start.
   playPressedAt = navigatedAt;
