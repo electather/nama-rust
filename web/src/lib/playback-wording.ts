@@ -115,6 +115,8 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
     "The subtitles chosen need fonts their file doesn’t carry, so a Transcode burns them into the picture.",
   [PlaybackReasonKind.SUBTITLES_TRACK_CARRIES_NO_PALETTE]: () =>
     "The subtitles chosen carry no palette to draw them with, so a Transcode burns them into the picture.",
+  [PlaybackReasonKind.KEYFRAMES_UNLISTED]: () =>
+    "The Server couldn’t list where its keyframes fall, which a Remux needs, so it can’t Remux it.",
   [PlaybackReasonKind.DEVICE_PLAYS_FEWER_CHANNELS]: (param) =>
     `Its audio is converted to ${param.channels()}, as this Device doesn’t play 5.1.`,
   [PlaybackReasonKind.DEVICE_CHANNELS_UNKNOWN]: (param) =>

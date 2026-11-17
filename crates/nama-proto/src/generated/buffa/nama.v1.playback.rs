@@ -1431,6 +1431,9 @@ pub enum PlaybackReasonKind {
     /// Rules out Direct Play and Remux: the VobSub subtitles chosen need Burn-in on a Device that
     /// draws VobSub, because their Track carries no palette to draw them with (ADR 0033).
     PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE = 32i32,
+    /// Rules out Remux: the Server couldn't list the Version's keyframes, which a Remux cuts its
+    /// segments at, as when reading the whole file failed or took too long.
+    PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED = 33i32,
     /// The rest rule nothing out.
     ///
     /// The plan converts the audio to fewer channels because the Device says it plays fewer.
@@ -1528,6 +1531,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SubtitlesTrackCarriesNoPalette: Self = Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const KeyframesUnlisted: Self = Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED;
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DevicePlaysFewerChannels: Self = Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS;
@@ -1748,6 +1754,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
                 )
             }
+            33i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+                )
+            }
             16i32 => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -1878,6 +1889,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             }
             Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE => {
                 "PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE"
+            }
+            Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED => {
+                "PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED"
             }
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS => {
                 "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS"
@@ -2010,6 +2024,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
                 )
             }
+            "PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+                )
+            }
             "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS" => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -2106,6 +2125,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN,
             Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
             Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
+            Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
             Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,

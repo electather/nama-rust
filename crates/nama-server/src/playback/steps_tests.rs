@@ -2,7 +2,9 @@ use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
-use super::{remux, too_busy_to_play};
+use super::{keyframes_unlisted, remux, too_busy_to_play};
+#[cfg(unix)]
+use crate::ffmpeg::fake::vaapi_on_two_gpus_at;
 use crate::{
     ffmpeg::{Accel, Hardware, ToneMapper, Transcode, VideoConversion},
     playback::{
@@ -125,6 +127,28 @@ fn each_method_that_just_failed_on_the_device_is_ruled_out_and_the_plan_says_so(
             .collect();
         assert_eq!(failures, reasons, "{method:?}");
     }
+}
+
+#[test]
+fn keyframes_that_couldnt_be_listed_rule_out_only_a_remux() {
+    let tracks = Some(vec![video("h264"), audio("aac", true)]);
+    let unlisted = Facts {
+        keyframes_unlisted: true,
+        ..facts(tracks.clone())
+    };
+
+    let given = keyframes_unlisted(&unlisted, None);
+
+    assert_eq!(
+        (given.iter())
+            .map(|reason| (reason.kind, &reason.rules_out))
+            .collect::<Vec<_>>(),
+        [(
+            Kind::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+            &BTreeSet::from([Method::Remux])
+        )]
+    );
+    assert_eq!(keyframes_unlisted(&facts(tracks), None), []);
 }
 
 #[test]
@@ -441,35 +465,10 @@ const QSV: Hardware = Hardware {
     tone_maps: true,
 };
 
-/// VAAPI on a dedicated AMD Radeon RX 9070 XT, then on an integrated AMD GPU, as Automatic
-/// orders them, with the integrated one on `renderD128`.
+/// [`vaapi_on_two_gpus_at`] with the integrated GPU on `renderD128`.
 #[cfg(unix)]
 fn vaapi_on_two_gpus(root: &std::path::Path) -> Vec<Hardware> {
     vaapi_on_two_gpus_at(root, ["renderD128", "renderD129"])
-}
-
-/// As [`vaapi_on_two_gpus`], with the integrated GPU and the dedicated one on `nodes`.
-#[cfg(unix)]
-fn vaapi_on_two_gpus_at(root: &std::path::Path, nodes: [&str; 2]) -> Vec<Hardware> {
-    use crate::ffmpeg::{fake, find_gpus};
-
-    let (sys, dri) = (root.join("sys"), root.join("dri"));
-    let [integrated, dedicated] = nodes;
-    fake::gpu(&sys, &dri, integrated, "0000:18:00.0", "0x1002");
-    fake::pci_function(&sys, "0000:18:00.2", "0x1022");
-    fake::gpu(&sys, &dri, dedicated, "0000:03:00.0", "0x1002");
-    let mesa = "VAAPI driver: Mesa Gallium driver 26.2.6 for AMD Radeon RX 9070 XT (radeonsi)";
-    find_gpus(&dri, &sys.join("class/drm"))
-        .into_iter()
-        .map(|gpu| Hardware {
-            gpu: Some(if gpu.id() == "0000:03:00.0" {
-                gpu.with_model(mesa)
-            } else {
-                gpu
-            }),
-            ..VAAPI
-        })
-        .collect()
 }
 
 #[cfg(unix)]

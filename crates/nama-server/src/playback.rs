@@ -57,8 +57,8 @@ use codecs::{file_audio, is_audio, played_audio_place, played_by, played_tracks}
 use direct_play::direct_play_url;
 use limits::{fitted, limit_in_effect, network, on_local_network, picture, playback_limit};
 use steps::{
-    converting, device_decoding, failed_on_device, fallback, remux, server_busy, server_ffmpeg,
-    too_busy_to_play, transcode, version_length, version_tracks,
+    converting, device_decoding, failed_on_device, fallback, keyframes_unlisted, remux,
+    server_busy, server_ffmpeg, too_busy_to_play, transcode, version_length, version_tracks,
 };
 
 /// How a plan plays a Version, the one the Server prefers first.
@@ -346,9 +346,10 @@ pub(crate) enum AskedSubtitle {
 }
 
 /// Plans what `asked` asks on `caller`'s Device, by the Playback settings `settings`, and starts
-/// it in `running` if it plays. It probes the Version first unless its Tracks are current. `None`
-/// if there is no such Version, and [`StartError::Busy`] if only a Transcode would play it and
-/// the Server is running as many as it may.
+/// it in `running` if it plays. It probes the Version first unless its Tracks are current. A Remux
+/// whose keyframes can't be listed is planned again without one. `None` if there is no such
+/// Version, and [`StartError::Busy`] if only a Transcode would play it and the Server is running
+/// as many as it may.
 #[expect(
     clippy::too_many_arguments,
     reason = "the handles are the PlaybackService handler's own, and the rest is the call; \
@@ -398,6 +399,7 @@ pub(crate) async fn plan(
         device: decoding,
         can_do: abilities.can_do().await,
         failed,
+        keyframes_unlisted: false,
         audio,
         running_transcodes: running.running_transcodes(),
         max_transcodes: settings.max_transcodes,
@@ -413,6 +415,28 @@ pub(crate) async fn plan(
         hardware_choice: settings.hardware,
         dropped: BTreeSet::new(),
     };
+    match start_built(running, caller, facts.clone(), start_ms).await {
+        Err(StartError::Keyframes(err)) => {
+            tracing::warn!(
+                version,
+                "could not list a Version's keyframes, so planning it without a Remux: {err}"
+            );
+            facts.keyframes_unlisted = true;
+            // Listing them may have taken minutes, so the Transcode limit is checked again (#827).
+            facts.running_transcodes = running.running_transcodes();
+            start_built(running, caller, facts, start_ms).await
+        }
+        planned => planned,
+    }
+}
+
+/// Builds the plan for `facts` and starts it in `running` if it plays, as [`plan`] says.
+async fn start_built(
+    running: &RunningPlans,
+    caller: &Caller,
+    mut facts: Facts,
+    start_ms: i64,
+) -> Result<Option<Planned>, StartError> {
     let plan = build(&mut facts);
     if plan.playing.is_none() {
         return match too_busy_to_play(facts) {
@@ -495,6 +519,9 @@ struct Facts {
     can_do: CanDo,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
+    /// Whether listing the Version's keyframes just failed or timed out, which a Remux needs. The
+    /// Server never stores it.
+    keyframes_unlisted: bool,
     /// The audio Track the User chose, or the Server chose by their Audio Preference, by its place
     /// in the Version's Tracks, if one was.
     audio: Option<usize>,
@@ -560,7 +587,7 @@ const LASTING_STEPS: [Step; 4] = [
 ];
 
 /// The steps for what rules a method out only for now.
-const NOW_STEPS: [Step; 2] = [failed_on_device, server_busy];
+const NOW_STEPS: [Step; 3] = [failed_on_device, keyframes_unlisted, server_busy];
 
 /// The steps for the User's choices, each dropped where it leaves no method and the plan plays
 /// without it.
