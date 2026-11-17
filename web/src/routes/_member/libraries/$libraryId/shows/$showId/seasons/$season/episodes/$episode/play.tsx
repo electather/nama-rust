@@ -1,9 +1,10 @@
-import { useSuspenseQuery } from "@connectrpc/connect-query";
+import { useQuery, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { type NextEpisode, streakSearch } from "@/components/next-episode";
 import { Player } from "@/components/player";
 import { DeletedWhilePlaying, NotFound, PlayerError } from "@/components/route-error";
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, type Episode } from "@/gen/nama/v1/browse_pb";
 import {
   externalIdFromParam,
   isGone,
@@ -17,7 +18,7 @@ import {
 export const Route = createFileRoute(
   "/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
 )({
-  validateSearch: versionSearch,
+  validateSearch: (search) => ({ ...versionSearch(search), ...streakSearch(search) }),
   loader: async ({ context, params }) => {
     const input = {
       libraryId: (await libraryFromParam(context, params.libraryId)).id,
@@ -39,13 +40,18 @@ function PlayEpisode() {
   const { input, episodeNumber } = Route.useLoaderData();
   const { data, error } = useSuspenseQuery(BrowseService.method.listEpisodes, input);
   const episode = data.episodes.find((each) => each.episodeNumber === episodeNumber);
-  const { version } = Route.useSearch();
+  const { version, streak } = Route.useSearch();
   const { libraryId, showId } = Route.useParams();
+  // Not suspended: the Episode plays while the Server finds the next one.
+  const nextQuery = useQuery(BrowseService.method.getNextEpisode, { ...input, episodeNumber });
   // An Event removed it, or its whole Season, since the loader ran.
   if (!episode || isGone(error)) return <DeletedWhilePlaying />;
   const { id, tracks } = versionToPlay(episode.versions, version);
   return (
     <Player
+      // The router keeps this route mounted when autoplay opens another Episode in it, which needs
+      // a player of its own.
+      key={`${input.seasonNumber}/${episodeNumber}`}
       title={episode.title}
       versionId={id}
       tracks={tracks}
@@ -55,6 +61,30 @@ function PlayEpisode() {
         params: { libraryId, showId },
         search: { season: input.seasonNumber },
       }}
+      next={nextEpisode(nextQuery.data?.next, streak, { libraryId, showId })}
     />
   );
+}
+
+/** What the player autoplays next: `episode` of the Show `params` names, after one autoplay `streak` opened. */
+function nextEpisode(
+  episode: Episode | undefined,
+  streak: number | undefined,
+  { libraryId, showId }: { libraryId: string; showId: string },
+): NextEpisode | undefined {
+  if (!episode) return undefined;
+  return {
+    episode,
+    streak: streak ?? 0,
+    link: (nextStreak) => ({
+      to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
+      params: {
+        libraryId,
+        showId,
+        season: String(episode.seasonNumber),
+        episode: String(episode.episodeNumber),
+      },
+      search: { streak: nextStreak },
+    }),
+  };
 }

@@ -50,10 +50,10 @@ export function useVideo() {
     onVolumeChange: sync,
     onPlaying: firstFramePlayed,
   };
-  /** Runs `action` on the `<video>`, from an event handler. */
-  const control = (action: (video: HTMLVideoElement) => void) => {
+  /** Runs `action` on the `<video>`, from an event handler or an effect. */
+  const control = useCallback((action: (video: HTMLVideoElement) => void) => {
     if (ref.current) action(ref.current);
-  };
+  }, []);
   return { ref, state, events, control };
 }
 
@@ -132,14 +132,20 @@ function shortcutFor(event: KeyboardEvent): Shortcut | undefined {
   return keyIsTaken(event) ? undefined : shortcuts[event.key];
 }
 
-// Ctrl+F, Alt+arrows and the like belong to the browser, every key to an open menu, and a
-// prevented key to whatever already used it, such as Esc closing playback info.
+// Ctrl+F, Alt+arrows and the like belong to the browser, every key to an open menu or dialog, and
+// a prevented key to whatever already used it, such as Esc closing playback info.
 function keyIsTaken(event: KeyboardEvent) {
-  return event.defaultPrevented || hasModifier(event) || inMenu(event) || focusUses(event);
+  return event.defaultPrevented || hasModifier(event) || inMenuOrDialog(event) || focusUses(event);
 }
 
-function inMenu({ target }: KeyboardEvent) {
-  return target instanceof Element && target.closest('[role="menu"]') !== null;
+// The dialog is looked for on the page, not around the key's target: a modal `<dialog>` makes the
+// player inert, but keys still reach `document`, even with focus left on `<body>` by a click on
+// its backdrop.
+function inMenuOrDialog({ target }: KeyboardEvent) {
+  return (
+    document.querySelector("dialog[open]") !== null ||
+    (target instanceof Element && target.closest('[role="menu"]') !== null)
+  );
 }
 
 function hasModifier(event: KeyboardEvent) {
@@ -180,9 +186,13 @@ export function useShortcuts(
 }
 
 export function togglePlay(video: HTMLVideoElement) {
-  // A refused play, such as autoplay the browser blocked, leaves it paused with Play showing.
-  if (video.paused) video.play().catch(() => {});
+  if (video.paused) play(video);
   else video.pause();
+}
+
+/** Plays `video`. A refused play, such as autoplay the browser blocked, leaves it paused with Play showing. */
+export function play(video: HTMLVideoElement) {
+  video.play().catch(() => {});
 }
 
 export function toggleMute(video: HTMLVideoElement) {
