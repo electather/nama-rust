@@ -8,7 +8,7 @@
 use std::{
     collections::HashSet,
     panic::AssertUnwindSafe,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -29,6 +29,9 @@ use tracing::Instrument as _;
 
 /// The database file's name inside the data directory.
 pub const FILE_NAME: &str = "nama.db";
+
+/// The copy of the database an upgrade leaves beside it, to go back to if the upgrade goes wrong.
+const BEFORE_UPGRADE_FILE_NAME: &str = "nama.db.before-upgrade";
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -51,6 +54,20 @@ pub enum OpenError {
     /// A migration failed, or the database has migrations this binary doesn't know.
     #[error("could not migrate the database: {0}")]
     Migrate(#[from] MigrateError),
+    /// The copy to go back to couldn't be written, so the database was left as it was.
+    #[error(
+        "could not copy the database to {BEFORE_UPGRADE_FILE_NAME} before upgrading it, so it was \
+         left as it was; the copy needs about {needs_mb} MB free in {}: {source}",
+        data_dir.display()
+    )]
+    BeforeUpgradeCopy {
+        /// Where the copy goes.
+        data_dir: PathBuf,
+        /// About how much free space the copy needs: the database's size.
+        needs_mb: u64,
+        /// Why the copy failed.
+        source: sqlx::Error,
+    },
 }
 
 /// The future a write returns, which may borrow the transaction it was given.
@@ -69,15 +86,17 @@ pub struct Database {
 
 impl Database {
     /// Opens the database in `data_dir`, creating the directory and the file if they don't exist,
-    /// and applies any migrations it hasn't had yet.
+    /// and applies any migrations it hasn't had yet, after copying a database that had some.
     ///
     /// # Errors
     ///
-    /// If the directory or file can't be created or opened, or a migration fails.
+    /// If the directory or file can't be created or opened, the copy can't be written, or a
+    /// migration fails.
     pub async fn open(data_dir: &Path) -> Result<Self, OpenError> {
         tokio::fs::create_dir_all(data_dir)
             .await
             .map_err(OpenError::DataDir)?;
+        warn_about_filesystem(data_dir);
         let options = SqliteConnectOptions::new()
             .filename(data_dir.join(FILE_NAME))
             .journal_mode(SqliteJournalMode::Wal)
@@ -88,7 +107,7 @@ impl Database {
         // The writer creates the file and switches it to WAL before any reader opens it.
         let mut writer =
             SqliteConnection::connect_with(&options.clone().create_if_missing(true)).await?;
-        let migrations_applied = migrate(&mut writer).await?;
+        let migrations_applied = migrate(&mut writer, data_dir).await?;
         // Every reader opens here and is never replaced or pinged on acquire: one opened or pinged
         // in a cancelled caller's future outlives `SqlitePool::close`, and the writer must close
         // last to remove the WAL.
@@ -296,7 +315,10 @@ where
     }
 }
 
-async fn migrate(conn: &mut SqliteConnection) -> Result<Vec<i64>, MigrateError> {
+/// Applies the migrations the database in `data_dir` hasn't had, after copying it to
+/// [`BEFORE_UPGRADE_FILE_NAME`] if it already had some, so an upgrade that goes wrong has a way
+/// back.
+async fn migrate(conn: &mut SqliteConnection, data_dir: &Path) -> Result<Vec<i64>, OpenError> {
     conn.ensure_migrations_table(&MIGRATOR.table_name).await?;
     let before: HashSet<i64> = conn
         .list_applied_migrations(&MIGRATOR.table_name)
@@ -304,13 +326,76 @@ async fn migrate(conn: &mut SqliteConnection) -> Result<Vec<i64>, MigrateError> 
         .into_iter()
         .map(|m| m.version)
         .collect();
-    MIGRATOR.run(&mut *conn).await?;
-    Ok(MIGRATOR
+    let pending: Vec<i64> = MIGRATOR
         .iter()
         .filter(|m| m.migration_type.is_up_migration())
         .map(|m| m.version)
         .filter(|v| !before.contains(v))
-        .collect())
+        .collect();
+    // A new database has nothing to go back to.
+    if !pending.is_empty() && !before.is_empty() {
+        // Counts the pages still in the WAL too, which the file's size misses.
+        let size = sqlx::query_scalar!(
+            r#"SELECT page_count * page_size AS "size!: u64"
+               FROM pragma_page_count(), pragma_page_size()"#
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+        if let Err(source) = copy_before_upgrade(conn, data_dir).await {
+            return Err(OpenError::BeforeUpgradeCopy {
+                data_dir: data_dir.to_owned(),
+                needs_mb: size.div_ceil(1_000_000),
+                source,
+            });
+        }
+    }
+    MIGRATOR.run(&mut *conn).await?;
+    Ok(pending)
+}
+
+/// Writes a copy of the database to [`BEFORE_UPGRADE_FILE_NAME`], replacing the last upgrade's.
+/// It's written under another name first, so a failed copy leaves the last good one in place.
+async fn copy_before_upgrade(
+    conn: &mut SqliteConnection,
+    data_dir: &Path,
+) -> Result<(), sqlx::Error> {
+    let copy = data_dir.join(BEFORE_UPGRADE_FILE_NAME);
+    let partial = data_dir.join(format!("{BEFORE_UPGRADE_FILE_NAME}.partial"));
+    // VACUUM INTO refuses a file that isn't empty, such as one a crash left half-written.
+    if let Err(err) = tokio::fs::remove_file(&partial).await
+        && err.kind() != std::io::ErrorKind::NotFound
+    {
+        return Err(err.into());
+    }
+    let partial_path = partial.to_str().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the data directory's path isn't valid UTF-8",
+        )
+    })?;
+    tracing::info!("copying the database to {BEFORE_UPGRADE_FILE_NAME} before upgrading it");
+    let written = async {
+        sqlx::query!("VACUUM INTO ?", partial_path)
+            .execute(&mut *conn)
+            .await?;
+        // VACUUM INTO doesn't sync what it writes, and the rename must not replace the last good
+        // copy with one a power cut could still lose. Windows syncs only a file opened for writing.
+        tokio::fs::OpenOptions::new()
+            .write(true)
+            .open(&partial)
+            .await?
+            .sync_all()
+            .await?;
+        tokio::fs::rename(&partial, &copy).await?;
+        Ok(())
+    }
+    .await;
+    if written.is_err() {
+        // A copy that ran out of room would otherwise keep holding the space the error asks for.
+        // Removing it is best effort: the error that stopped the copy is the one to report.
+        let _: std::io::Result<()> = tokio::fs::remove_file(&partial).await;
+    }
+    written
 }
 
 /// How far [`advance_clock`] has moved the Server's clock, in milliseconds.
@@ -357,6 +442,93 @@ pub(crate) fn now_ms() -> i64 {
             i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
         })
         .saturating_add(offset_ms())
+}
+
+/// Why the data directory's filesystem is a poor home for SQLite's WAL, which needs working
+/// locks and shared memory.
+#[derive(Debug, PartialEq, Eq)]
+enum FilesystemRisk {
+    /// Locks across the network fail, so the database can lock up or corrupt.
+    Network,
+    /// Rewriting pages in place fragments the file, and some setups, such as ZFS inside an LXC
+    /// container, lock it up.
+    CopyOnWrite,
+}
+
+/// `filesystem` is spelled as macOS's `statfs` names it, or as `linux_filesystem_name` does.
+fn filesystem_risk(filesystem: &str) -> Option<FilesystemRisk> {
+    match filesystem {
+        "nfs" | "cifs" | "smb2" | "smbfs" | "9p" | "ceph" | "afs" | "afpfs" | "webdav" => {
+            Some(FilesystemRisk::Network)
+        }
+        "zfs" | "btrfs" => Some(FilesystemRisk::CopyOnWrite),
+        _ => None,
+    }
+}
+
+/// Warns when `data_dir` sits where SQLite does badly; the Server starts anyway.
+fn warn_about_filesystem(data_dir: &Path) {
+    let Some(filesystem) = filesystem_name(data_dir) else {
+        return;
+    };
+    match filesystem_risk(&filesystem) {
+        Some(FilesystemRisk::Network) => tracing::warn!(
+            "the data directory is on a network share ({filesystem}), where the database can \
+             lock up or corrupt; keep it on a local disk"
+        ),
+        Some(FilesystemRisk::CopyOnWrite) => tracing::warn!(
+            "the data directory is on {filesystem}, a copy-on-write filesystem, where the \
+             database can slow down or lock up; see \"Docker\" in the README"
+        ),
+        None => {}
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn filesystem_name(dir: &Path) -> Option<String> {
+    let stat = rustix::fs::statfs(dir).ok()?;
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "magic numbers fit in 32 bits, and a 32-bit `long` holds some as negative"
+    )]
+    let magic = stat.f_type as u32;
+    linux_filesystem_name(magic).map(str::to_owned)
+}
+
+/// Linux reports a magic number, not a name, so only those `filesystem_risk` knows are named.
+#[cfg(target_os = "linux")]
+fn linux_filesystem_name(magic: u32) -> Option<&'static str> {
+    match magic {
+        0x6969 => Some("nfs"),
+        0xFF53_4D42 => Some("cifs"),
+        0xFE53_4D42 => Some("smb2"),
+        0x0102_1997 => Some("9p"),
+        0x00C3_6400 => Some("ceph"),
+        0x5346_414F => Some("afs"),
+        0x2FC1_2FC1 => Some("zfs"),
+        0x9123_683E => Some("btrfs"),
+        _ => None,
+    }
+}
+
+#[cfg(target_vendor = "apple")]
+fn filesystem_name(dir: &Path) -> Option<String> {
+    let stat = rustix::fs::statfs(dir).ok()?;
+    // A name such as "apfs", NUL-terminated and ASCII, so no `c_char` is negative.
+    Some(
+        stat.f_fstypename
+            .iter()
+            .map_while(|&c| u8::try_from(c).ok().filter(|&byte| byte != 0))
+            .map(char::from)
+            .collect(),
+    )
+}
+
+// ponytail: other systems, Windows among them, aren't checked; ask theirs once one runs a Server.
+#[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
+const fn filesystem_name(_dir: &Path) -> Option<String> {
+    None
 }
 
 #[cfg(test)]

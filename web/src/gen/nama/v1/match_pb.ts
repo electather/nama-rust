@@ -4,13 +4,15 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { PageRequest, PageResponse, SortDirection } from "./page_pb";
+import { file_nama_v1_page } from "./page_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/v1/match.proto.
  */
 export const file_nama_v1_match: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIlIKCkV4dGVybmFsSWQSEQoJbmFtZXNwYWNlGAQgASgJEg0KBXZhbHVlGAUgASgJSgQIARACSgQIAhADSgQIAxAEUgR0bWRiUgRpbWRiUgR0dmRiIowBCg5UaXRsZUNhbmRpZGF0ZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIbCg5vcmlnaW5hbF90aXRsZRgDIAEoCUgAiAEBEhEKBHllYXIYBCABKAVIAYgBAUIRCg9fb3JpZ2luYWxfdGl0bGVCBwoFX3llYXIiYgoTU2VhcmNoVGl0bGVzUmVxdWVzdBIgCgRraW5kGAEgASgOMhIubmFtYS52MS5UaXRsZUtpbmQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBQgcKBV95ZWFyIkMKFFNlYXJjaFRpdGxlc1Jlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEIi8KGUxpc3RVbm1hdGNoZWRJdGVtc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyJbChpMaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZRIlCgVpdGVtcxgBIAMoCzIWLm5hbWEudjEuVW5tYXRjaGVkSXRlbRIWCg51bnBhcnNlZF9wYXRocxgCIAMoCSKVAgoNVW5tYXRjaGVkSXRlbRIPCgdpdGVtX2lkGAEgASgDEgwKBHBhdGgYAiABKAkSIAoEa2luZBgDIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAQgASgJEhEKBHllYXIYBSABKAVIAIgBARITCgZzZWFzb24YBiABKAVIAYgBARIUCgdlcGlzb2RlGAcgASgFSAKIAQESKAoGcmVhc29uGAggASgOMhgubmFtYS52MS5Vbm1hdGNoZWRSZWFzb24SLAoLdGllZF90aXRsZXMYCSADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlQgcKBV95ZWFyQgkKB19zZWFzb25CCgoIX2VwaXNvZGUqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIqjwIKD1VubWF0Y2hlZFJlYXNvbhIgChxVTk1BVENIRURfUkVBU09OX1VOU1BFQ0lGSUVEEAASHgoaVU5NQVRDSEVEX1JFQVNPTl9BTUJJR1VPVVMQARIiCh5VTk1BVENIRURfUkVBU09OX05PX1RJVExFX0ZJVFMQAhIkCiBVTk1BVENIRURfUkVBU09OX1VOS05PV05fSURfSElOVBADEiAKHFVOTUFUQ0hFRF9SRUFTT05fTk9UX0lOX1NIT1cQBBIkCiBVTk1BVENIRURfUkVBU09OX0NMRUFSRURfQllfSEFORBAFEigKJFVOTUFUQ0hFRF9SRUFTT05fTk9fU0VBUkNISU5HX1NPVVJDRRAGMtYCCgxNYXRjaFNlcnZpY2USUAoMU2VhcmNoVGl0bGVzEhwubmFtYS52MS5TZWFyY2hUaXRsZXNSZXF1ZXN0Gh0ubmFtYS52MS5TZWFyY2hUaXRsZXNSZXNwb25zZSIDkAIBEkQKCFNldE1hdGNoEhgubmFtYS52MS5TZXRNYXRjaFJlcXVlc3QaGS5uYW1hLnYxLlNldE1hdGNoUmVzcG9uc2UiA5ACAhJKCgpDbGVhck1hdGNoEhoubmFtYS52MS5DbGVhck1hdGNoUmVxdWVzdBobLm5hbWEudjEuQ2xlYXJNYXRjaFJlc3BvbnNlIgOQAgISYgoSTGlzdFVubWF0Y2hlZEl0ZW1zEiIubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXF1ZXN0GiMubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZSIDkAIBYgZwcm90bzM");
+  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIlIKCkV4dGVybmFsSWQSEQoJbmFtZXNwYWNlGAQgASgJEg0KBXZhbHVlGAUgASgJSgQIARACSgQIAhADSgQIAxAEUgR0bWRiUgRpbWRiUgR0dmRiIowBCg5UaXRsZUNhbmRpZGF0ZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIbCg5vcmlnaW5hbF90aXRsZRgDIAEoCUgAiAEBEhEKBHllYXIYBCABKAVIAYgBAUIRCg9fb3JpZ2luYWxfdGl0bGVCBwoFX3llYXIiYgoTU2VhcmNoVGl0bGVzUmVxdWVzdBIgCgRraW5kGAEgASgOMhIubmFtYS52MS5UaXRsZUtpbmQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBQgcKBV95ZWFyIkMKFFNlYXJjaFRpdGxlc1Jlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEItQBChlMaXN0VW5tYXRjaGVkSXRlbXNSZXF1ZXN0EiwKBmZpbHRlchgCIAEoCzIcLm5hbWEudjEuVW5tYXRjaGVkSXRlbUZpbHRlchIoCgRzb3J0GAMgASgOMhoubmFtYS52MS5Vbm1hdGNoZWRJdGVtU29ydBIpCglkaXJlY3Rpb24YBSABKA4yFi5uYW1hLnYxLlNvcnREaXJlY3Rpb24SIgoEcGFnZRgEIAEoCzIULm5hbWEudjEuUGFnZVJlcXVlc3RKBAgBEAJSCmxpYnJhcnlfaWQiKQoTVW5tYXRjaGVkSXRlbUZpbHRlchISCgpsaWJyYXJ5X2lkGAEgASgDIoABChpMaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZRIlCgVpdGVtcxgBIAMoCzIWLm5hbWEudjEuVW5tYXRjaGVkSXRlbRIWCg51bnBhcnNlZF9wYXRocxgCIAMoCRIjCgRwYWdlGAMgASgLMhUubmFtYS52MS5QYWdlUmVzcG9uc2UilQIKDVVubWF0Y2hlZEl0ZW0SDwoHaXRlbV9pZBgBIAEoAxIMCgRwYXRoGAIgASgJEiAKBGtpbmQYAyABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgV0aXRsZRgEIAEoCRIRCgR5ZWFyGAUgASgFSACIAQESEwoGc2Vhc29uGAYgASgFSAGIAQESFAoHZXBpc29kZRgHIAEoBUgCiAEBEigKBnJlYXNvbhgIIAEoDjIYLm5hbWEudjEuVW5tYXRjaGVkUmVhc29uEiwKC3RpZWRfdGl0bGVzGAkgAygLMhcubmFtYS52MS5UaXRsZUNhbmRpZGF0ZUIHCgVfeWVhckIJCgdfc2Vhc29uQgoKCF9lcGlzb2RlKlIKCVRpdGxlS2luZBIaChZUSVRMRV9LSU5EX1VOU1BFQ0lGSUVEEAASFAoQVElUTEVfS0lORF9NT1ZJRRABEhMKD1RJVExFX0tJTkRfU0hPVxACKnUKEVVubWF0Y2hlZEl0ZW1Tb3J0EiMKH1VOTUFUQ0hFRF9JVEVNX1NPUlRfVU5TUEVDSUZJRUQQABIcChhVTk1BVENIRURfSVRFTV9TT1JUX1BBVEgQARIdChlVTk1BVENIRURfSVRFTV9TT1JUX0ZPVU5EEAIqjwIKD1VubWF0Y2hlZFJlYXNvbhIgChxVTk1BVENIRURfUkVBU09OX1VOU1BFQ0lGSUVEEAASHgoaVU5NQVRDSEVEX1JFQVNPTl9BTUJJR1VPVVMQARIiCh5VTk1BVENIRURfUkVBU09OX05PX1RJVExFX0ZJVFMQAhIkCiBVTk1BVENIRURfUkVBU09OX1VOS05PV05fSURfSElOVBADEiAKHFVOTUFUQ0hFRF9SRUFTT05fTk9UX0lOX1NIT1cQBBIkCiBVTk1BVENIRURfUkVBU09OX0NMRUFSRURfQllfSEFORBAFEigKJFVOTUFUQ0hFRF9SRUFTT05fTk9fU0VBUkNISU5HX1NPVVJDRRAGMtYCCgxNYXRjaFNlcnZpY2USUAoMU2VhcmNoVGl0bGVzEhwubmFtYS52MS5TZWFyY2hUaXRsZXNSZXF1ZXN0Gh0ubmFtYS52MS5TZWFyY2hUaXRsZXNSZXNwb25zZSIDkAIBEkQKCFNldE1hdGNoEhgubmFtYS52MS5TZXRNYXRjaFJlcXVlc3QaGS5uYW1hLnYxLlNldE1hdGNoUmVzcG9uc2UiA5ACAhJKCgpDbGVhck1hdGNoEhoubmFtYS52MS5DbGVhck1hdGNoUmVxdWVzdBobLm5hbWEudjEuQ2xlYXJNYXRjaFJlc3BvbnNlIgOQAgISYgoSTGlzdFVubWF0Y2hlZEl0ZW1zEiIubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXF1ZXN0GiMubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_page]);
 
 /**
  * An id of a title in a title source: a namespace and a value, such as `tmdb` and `603`.
@@ -228,11 +230,33 @@ export const ClearMatchResponseSchema: GenMessage<ClearMatchResponse> = /*@__PUR
  */
 export type ListUnmatchedItemsRequest = Message<"nama.v1.ListUnmatchedItemsRequest"> & {
   /**
-   * The Library whose items to list.
+   * Which items to list.
    *
-   * @generated from field: int64 library_id = 1;
+   * @generated from field: nama.v1.UnmatchedItemFilter filter = 2;
    */
-  libraryId: bigint;
+  filter?: UnmatchedItemFilter | undefined;
+
+  /**
+   * The order to list them in.
+   *
+   * @generated from field: nama.v1.UnmatchedItemSort sort = 3;
+   */
+  sort: UnmatchedItemSort;
+
+  /**
+   * Which way `sort` runs. Unspecified lists by path from A, and the item found most recently
+   * first.
+   *
+   * @generated from field: nama.v1.SortDirection direction = 5;
+   */
+  direction: SortDirection;
+
+  /**
+   * The page of items to list.
+   *
+   * @generated from field: nama.v1.PageRequest page = 4;
+   */
+  page?: PageRequest | undefined;
 };
 
 /**
@@ -243,22 +267,53 @@ export const ListUnmatchedItemsRequestSchema: GenMessage<ListUnmatchedItemsReque
   messageDesc(file_nama_v1_match, 8);
 
 /**
+ * Which items `ListUnmatchedItems` lists.
+ *
+ * @generated from message nama.v1.UnmatchedItemFilter
+ */
+export type UnmatchedItemFilter = Message<"nama.v1.UnmatchedItemFilter"> & {
+  /**
+   * The Library whose items to list.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.UnmatchedItemFilter.
+ * Use `create(UnmatchedItemFilterSchema)` to create a new message.
+ */
+export const UnmatchedItemFilterSchema: GenMessage<UnmatchedItemFilter> = /*@__PURE__*/
+  messageDesc(file_nama_v1_match, 9);
+
+/**
  * @generated from message nama.v1.ListUnmatchedItemsResponse
  */
 export type ListUnmatchedItemsResponse = Message<"nama.v1.ListUnmatchedItemsResponse"> & {
   /**
+   * The page's items.
+   *
    * @generated from field: repeated nama.v1.UnmatchedItem items = 1;
    */
   items: UnmatchedItem[];
 
   /**
-   * The absolute paths of the Library's files whose names don't follow the naming conventions,
-   * by path. They hold no items, so nothing can Match them and there's no item to pass to
-   * `SetMatch`: renaming the file and rescanning the Library is the fix.
+   * On the first page only, the absolute paths of the Library's files whose names don't follow
+   * the naming conventions, by path. They hold no items, so nothing can Match them and there's no
+   * item to pass to `SetMatch`: renaming the file and rescanning the Library is the fix.
    *
    * @generated from field: repeated string unparsed_paths = 2;
    */
   unparsedPaths: string[];
+
+  /**
+   * The next page's token, and on the first page how many items the Library has that need a
+   * Match.
+   *
+   * @generated from field: nama.v1.PageResponse page = 3;
+   */
+  page?: PageResponse | undefined;
 };
 
 /**
@@ -266,7 +321,7 @@ export type ListUnmatchedItemsResponse = Message<"nama.v1.ListUnmatchedItemsResp
  * Use `create(ListUnmatchedItemsResponseSchema)` to create a new message.
  */
 export const ListUnmatchedItemsResponseSchema: GenMessage<ListUnmatchedItemsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 9);
+  messageDesc(file_nama_v1_match, 10);
 
 /**
  * An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
@@ -345,7 +400,7 @@ export type UnmatchedItem = Message<"nama.v1.UnmatchedItem"> & {
  * Use `create(UnmatchedItemSchema)` to create a new message.
  */
 export const UnmatchedItemSchema: GenMessage<UnmatchedItem> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 10);
+  messageDesc(file_nama_v1_match, 11);
 
 /**
  * Whether a title is a Movie or a Show.
@@ -381,6 +436,47 @@ export type TitleKind = (typeof TitleKind)[keyof typeof TitleKind] | UnknownEnum
  */
 export const TitleKindSchema: GenEnum<TitleKind> = /*@__PURE__*/
   enumDesc(file_nama_v1_match, 0);
+
+/**
+ * The order `ListUnmatchedItems` lists items in, each tie broken by item id.
+ *
+ * @generated from enum nama.v1.UnmatchedItemSort
+ */
+export const UnmatchedItemSort = {
+  /**
+   * `UNMATCHED_ITEM_SORT_PATH`.
+   *
+   * @generated from enum value: UNMATCHED_ITEM_SORT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * By the path of the file that holds the item.
+   *
+   * @generated from enum value: UNMATCHED_ITEM_SORT_PATH = 1;
+   */
+  PATH: 1,
+
+  /**
+   * By when a scan found the item.
+   *
+   * @generated from enum value: UNMATCHED_ITEM_SORT_FOUND = 2;
+   */
+  FOUND: 2,
+} as const;
+
+/**
+ * The order `ListUnmatchedItems` lists items in, each tie broken by item id.
+ *
+ * @generated from enum nama.v1.UnmatchedItemSort
+ */
+export type UnmatchedItemSort = (typeof UnmatchedItemSort)[keyof typeof UnmatchedItemSort] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.UnmatchedItemSort.
+ */
+export const UnmatchedItemSortSchema: GenEnum<UnmatchedItemSort> = /*@__PURE__*/
+  enumDesc(file_nama_v1_match, 1);
 
 /**
  * Why an item is Unmatched, which says how to fix it.
@@ -453,7 +549,7 @@ export type UnmatchedReason = (typeof UnmatchedReason)[keyof typeof UnmatchedRea
  * Describes the enum nama.v1.UnmatchedReason.
  */
 export const UnmatchedReasonSchema: GenEnum<UnmatchedReason> = /*@__PURE__*/
-  enumDesc(file_nama_v1_match, 1);
+  enumDesc(file_nama_v1_match, 2);
 
 /**
  * Fixing Matches by hand: finding titles in the title sources, and Matching items to them.
@@ -508,11 +604,12 @@ export const MatchService: GenService<{
     output: typeof ClearMatchResponseSchema;
   },
   /**
-   * Lists the items of a Library that need a Match, by path: those Matching left Unmatched,
-   * those it hasn't Matched yet, such as when no title source in its order searches, and those
-   * pinned Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. Also lists the
-   * Library's files whose names didn't parse, which an Admin fixes by renaming. Fails with
-   * `not_found` if there is no such Library.
+   * Lists a page of the items of a Library that need a Match, in `sort`'s order: those Matching
+   * left Unmatched, those it hasn't Matched yet, such as when no title source in its order searches, and
+   * those pinned Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. The first
+   * page also lists the Library's files whose names didn't parse, which an Admin fixes by
+   * renaming. Fails with `not_found` if there is no such Library, and with `invalid_argument` if
+   * `page.token` isn't one a call with the same `filter`, `sort` and `direction` returned.
    *
    * @generated from rpc nama.v1.MatchService.ListUnmatchedItems
    */

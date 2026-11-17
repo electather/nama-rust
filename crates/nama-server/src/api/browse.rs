@@ -235,8 +235,9 @@ impl BrowseService for BrowseServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, SearchLibrariesRequest>,
     ) -> ServiceResult<SearchLibrariesResponse> {
-        let found = self.browse.search(request.query).await;
-        let found = found.map_err(refused(Fields::NONE))?;
+        let request = request.to_owned_message();
+        let found = self.browse.search(&request.query, &request.page).await;
+        let (found, page) = found.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await?;
         Response::ok(SearchLibrariesResponse {
             movies: (found.movies.into_iter())
@@ -250,6 +251,7 @@ impl BrowseService for BrowseServiceHandler {
                 .into_iter()
                 .map(found_episode_to_proto)
                 .collect(),
+            page: page.into(),
             ..Default::default()
         })
     }
@@ -421,7 +423,7 @@ fn started_to_proto(started: Started, images: &ShownImages) -> proto::ContinueWa
             state,
         } => {
             let started_episode = proto::ContinueWatchingEpisode {
-                episode: episode_to_proto(episode, Some(state), images).into(),
+                episode: episode_to_proto(episode, state, images).into(),
                 show: show_to_proto(&show, images).into(),
                 ..Default::default()
             };

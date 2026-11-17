@@ -10,6 +10,7 @@ use nama_plugin_tmdb::{
     Tmdb,
     testing::{API_KEY, FakeTmdb},
 };
+use nama_proto::nama::v1::{PageRequest, SortDirection, UnmatchedItemSort};
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
@@ -22,6 +23,7 @@ use crate::{
         Artwork, Change, Contents, File, FileItem, Item, Libraries, LibraryKind, LibraryShow,
         Recorded, ScanLocks, UnmatchedReason,
     },
+    page::Page,
     plugins::{ExtensionPoints, Registry},
     server_settings::ServerUrl,
 };
@@ -257,12 +259,22 @@ impl Fixture {
             .collect()
     }
 
-    /// Why each Item of `library` that needs a Match is Unmatched, with its file's path.
+    /// Why each Item of `library` that needs a Match is Unmatched, with its file's path, by path:
+    /// the first page of them, at most 50.
     pub(super) async fn reasons(
         &self,
         library: &Library,
     ) -> Vec<(String, Option<UnmatchedReason>)> {
-        let unmatched = self.contents.unmatched(library.id).await.unwrap();
+        let first = Page::read(&PageRequest::default(), b"").unwrap();
+        let by_path = (
+            UnmatchedItemSort::UNMATCHED_ITEM_SORT_PATH,
+            SortDirection::SORT_DIRECTION_ASCENDING,
+        );
+        let (unmatched, _) = self
+            .contents
+            .unmatched(library.id, by_path, &first)
+            .await
+            .unwrap();
         unmatched
             .into_iter()
             .map(|item| (library.relative(&item.path), item.reason))
