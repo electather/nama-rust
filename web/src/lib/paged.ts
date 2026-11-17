@@ -5,7 +5,8 @@ import {
   isMessage,
 } from "@bufbuild/protobuf";
 import type { Transport } from "@connectrpc/connect";
-import { createInfiniteQueryOptions, useSuspenseInfiniteQuery } from "@connectrpc/connect-query";
+import { createInfiniteQueryOptions, useTransport } from "@connectrpc/connect-query";
+import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
@@ -47,8 +48,7 @@ export function usePaged<I extends DescMessage, O extends DescMessage>(
   method: DescMethodUnary<I, O>,
   input: MessageInitShape<I> & { page: MessageInitShape<typeof PageRequestSchema> },
 ) {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connect-query can't see that a generic `I` has the `page.token` `input`'s type promises
-  const query = useSuspenseInfiniteQuery(method, input as never, paging as never);
+  const query = useSuspenseInfiniteQuery(pagedQuery(method, input, useTransport()));
   const counted = totalSizeIn(query.data.pages[0]);
   const [totalSize, setTotalSize] = useState(counted);
   if (counted !== undefined && counted !== totalSize) setTotalSize(counted);

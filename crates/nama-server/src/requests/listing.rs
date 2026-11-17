@@ -85,10 +85,8 @@ impl Requests {
         // each for Requests and Followed Shows if pages get slow.
         for row in rows {
             if row.is_request {
-                let request = load_one(&mut tx, row.id).await?;
-                listed
-                    .requests
-                    .extend(request.map(|request| self.progress.attach(request)));
+                let request = self.visible(&mut tx, Some(row.id), viewer).await?;
+                listed.requests.extend(request);
             } else {
                 let followed = load_followed(&mut tx, Some(row.id), None).await?;
                 listed.followed_shows.extend(followed);

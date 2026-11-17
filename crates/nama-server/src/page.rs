@@ -12,7 +12,6 @@ const DEFAULT_SIZE: u32 = 50;
 const MAX_SIZE: u32 = 100;
 
 /// The page of a list a client asked for, sorted by a key of type `K` and tie-broken by id.
-#[derive(Debug, PartialEq)]
 pub(crate) struct Page<K> {
     /// How many rows the page lists at most.
     pub(crate) size: u32,
