@@ -242,7 +242,7 @@ where
     E: From<sqlx::Error> + Send + 'static,
 {
     // The task is never aborted, so it only fails if it panicked.
-    tokio::spawn(work)
+    tokio::spawn(work.in_current_span())
         .await
         .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
 }

@@ -291,7 +291,7 @@ async fn formatted<R, K, E: ProviderError<K>>(
     answer: impl Future<Output = Result<R, E>>,
 ) -> Result<R, Failure<K>> {
     answer.await.map_err(|err| {
-        diagnostics::failed(&Span::current(), "failed");
+        diagnostics::failed(&Span::current(), std::any::type_name::<E>());
         err.failure()
     })
 }

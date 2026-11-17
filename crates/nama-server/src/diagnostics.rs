@@ -1,6 +1,5 @@
 //! Diagnostics: the spans the Server records about itself, exported only to an endpoint its admin
-//! sets (ADR 0054). A span carries ids, counts, sizes, durations, codecs and outcomes, never a
-//! title, file path, name, IP address or search text.
+//! sets (ADR 0054). What a span may carry is a rule in `crates/nama-server/AGENTS.md`.
 
 use std::{
     env,
@@ -111,6 +110,15 @@ fn service_and_method(path: &str) -> Option<(&str, &str)> {
     (service.starts_with("nama.") && !method.contains('/')).then_some((service, method))
 }
 
+/// `span`, made with `parent: None`, put in the current span's trace, for a task spawned from the
+/// current span that may outlive it: as a child it would hold the current span open, stretching
+/// that span's duration to the task's.
+pub(crate) fn following_current(span: Span) -> Span {
+    // Fails only when nothing exports spans, so there's no trace to join.
+    let _: Result<(), SetParentError> = span.set_parent(Span::current().context());
+    span
+}
+
 /// Marks the RPC span [`trace_call`] left in a request's `extensions` failed with `err`'s code.
 pub(crate) fn rpc_failed(extensions: &axum::http::Extensions, err: &ConnectError) {
     mark_if_failed(extensions.get::<Span>(), Some(err));
@@ -187,6 +195,7 @@ where
             .zip(dispatch)
             .and_then(|(id, dispatch)| get_otel_context(id, &dispatch))
             .unwrap_or_default();
+        // Real time, not `db::now`: the exception to "One clock" in `crates/nama-server/AGENTS.md`.
         let ended = SystemTime::now();
         self.tracer
             .span_builder(query.summary)

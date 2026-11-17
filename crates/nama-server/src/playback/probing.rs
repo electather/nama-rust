@@ -32,6 +32,7 @@ use super::{
 };
 use crate::{
     db::Database,
+    diagnostics,
     ffmpeg::Ffmpeg,
     library::{Contents, Stored},
 };
@@ -214,7 +215,12 @@ impl Probing {
             return;
         }
         let probing = self.clone();
-        // In the span of the scan that changed the files, so their probes are its children.
+        // In the trace of the scan that changed the files, so their probes are in it too.
+        let pass_span = diagnostics::following_current(tracing::info_span!(
+            parent: None,
+            "probe pass",
+            library.id = library
+        ));
         self.inner.tasks.spawn(
             async move {
                 let pass = probing.probe_stale(library);
@@ -226,7 +232,7 @@ impl Probing {
                     None => {}
                 }
             }
-            .in_current_span(),
+            .instrument(pass_span),
         );
     }
 

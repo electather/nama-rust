@@ -22,7 +22,7 @@ use tokio::{
     task::{self, JoinError, JoinHandle},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{Instrument as _, error, info, warn};
 
 use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
@@ -737,10 +737,12 @@ async fn detached<T: Send + 'static>(
     change: impl Future<Output = Result<T, ChangeError>> + Send + 'static,
 ) -> Result<T, ChangeError> {
     // The task is never aborted, so it only fails if it panicked.
-    task::spawn(change).await.unwrap_or_else(|err| {
-        error!("changing a plugin panicked: {err}");
-        Err(sqlx::Error::WorkerCrashed.into())
-    })
+    task::spawn(change.in_current_span())
+        .await
+        .unwrap_or_else(|err| {
+            error!("changing a plugin panicked: {err}");
+            Err(sqlx::Error::WorkerCrashed.into())
+        })
 }
 
 /// The settings `sent` for a Plugin with `schema`: the ones it names, with a secret left out

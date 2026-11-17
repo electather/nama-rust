@@ -9,7 +9,9 @@ use std::{
 
 use nama_plugin_api::{ObservePoint, Observer, PluginId, PointKey, blob_store::BlobStore};
 use nama_proto::nama::v1::PluginKind;
-use tracing::{error, info, warn};
+use tracing::{Instrument as _, error, info, warn};
+
+use crate::diagnostics;
 
 use super::{
     Answer, ProviderError, contain_call, contain_sync,
@@ -42,11 +44,13 @@ impl ExtensionPoints {
             return;
         }
         let event = Arc::new(event);
+        let span = diagnostics::following_current(tracing::info_span!(parent: None, "notify"));
         for entry in observers {
             let Some(observer) = entry.registration.observer::<P>() else {
                 continue;
             };
-            tokio::spawn(self.clone().deliver(entry, observer, Arc::clone(&event)));
+            let delivering = self.clone().deliver(entry, observer, Arc::clone(&event));
+            tokio::spawn(delivering.instrument(span.clone()));
         }
     }
 
@@ -165,9 +169,11 @@ impl ExtensionPoints {
         F: Future<Output = Result<(), E>> + Send + 'static,
         E: ProviderError<()> + 'static,
     {
+        let span = diagnostics::following_current(tracing::info_span!(parent: None, "tell"));
         for entry in self.entries(PointKey::provide::<T>()) {
             if let Some(provider) = entry.registration.provider::<T>() {
-                tokio::spawn(self.clone().tell_one(entry, provider, call.clone()));
+                let telling = self.clone().tell_one(entry, provider, call.clone());
+                tokio::spawn(telling.instrument(span.clone()));
             }
         }
     }
