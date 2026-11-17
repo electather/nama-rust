@@ -361,12 +361,13 @@ impl Titles {
         (self.show(show)?.seasons.remove(&number)).ok_or(Error::NoSuchSeason)
     }
 
-    /// The Episode `id` of any of its Shows.
-    fn episode(self, id: &ExternalId) -> Result<LibraryEpisode, Error> {
+    /// The Episode `id`, with the first Show that has it.
+    fn episode(self, id: &ExternalId) -> Result<(LibraryShow, LibraryEpisode), Error> {
         (self.shows()?.into_iter())
-            .flat_map(|show| show.seasons.into_values())
-            .flat_map(|season| season.episodes)
-            .find(|episode| &episode.id == id)
+            .find_map(|show| {
+                let episode = show.episodes().find(|episode| &episode.id == id)?.clone();
+                Some((show, episode))
+            })
             .ok_or(Error::NothingMatched)
     }
 }

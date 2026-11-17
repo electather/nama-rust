@@ -3,6 +3,12 @@ import { Link, type LinkOptions } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
 import { BackdropCard, BackdropGrid } from "@/components/backdrop-card";
+import {
+  HiddenNotice,
+  HideMenu,
+  type Hiding,
+  useHideFromContinueWatching,
+} from "@/components/hide-from-continue-watching";
 import { posterLink } from "@/components/poster";
 import {
   BrowseService,
@@ -17,72 +23,90 @@ export const continueWatchingRow = { page: { size: 6 } };
 
 /**
  * What you've started and not played, and the next Episode of each Show you're watching, most
- * recent first. Nothing at all when there's none.
+ * recent first, each with a menu to hide it. Nothing at all when there's none and nothing to undo.
  */
 export function ContinueWatching() {
   const { data } = useSuspenseQuery(BrowseService.method.listContinueWatching, continueWatchingRow);
-  if (data.entries.length === 0) return null;
+  const { lastHidden, hide, undo } = useHideFromContinueWatching();
+  const cards = data.entries.flatMap(entryCard);
+  if (cards.length === 0 && !lastHidden) return null;
   return (
     <section aria-labelledby="continue-watching" className="mt-10">
       <h2 id="continue-watching" className="font-medium">
         Continue Watching
       </h2>
-      <BackdropGrid>
-        {data.entries.flatMap(entryCard).map(({ key, link, backdrop }) => (
-          <li key={key}>
-            <Link {...link} className={posterLink}>
-              <BackdropCard {...backdrop} />
-            </Link>
-          </li>
-        ))}
-      </BackdropGrid>
+      <HiddenNotice lastHidden={lastHidden} onUndo={undo} />
+      {cards.length > 0 && (
+        <BackdropGrid>
+          {cards.map(({ link, backdrop, hiding }) => (
+            <li key={hiding.key} className="relative">
+              <Link {...link} className={posterLink}>
+                <BackdropCard {...backdrop} />
+              </Link>
+              <HideMenu
+                title={hiding.title}
+                onHide={() => {
+                  hide(hiding);
+                }}
+              />
+            </li>
+          ))}
+        </BackdropGrid>
+      )}
     </section>
   );
 }
 
-/** A Continue Watching entry: where it plays, resuming where you stopped, and its card. */
+/** A Continue Watching entry: where it plays, resuming where you stopped, its card, and hiding it. */
 interface Card {
-  key: string;
   link: LinkOptions;
   backdrop: ComponentProps<typeof BackdropCard>;
+  hiding: Hiding;
 }
 
 function entryCard({ libraryId, movieOrEpisode }: ContinueWatchingEntry): Card[] {
-  const library = String(libraryId);
-  if (movieOrEpisode.case === "movie") return [movieCard(library, movieOrEpisode.value)];
-  if (movieOrEpisode.case === "episode") return episodeCard(library, movieOrEpisode.value);
+  if (movieOrEpisode.case === "movie") return movieCard(libraryId, movieOrEpisode.value);
+  if (movieOrEpisode.case === "episode") return episodeCard(libraryId, movieOrEpisode.value);
   return [];
 }
 
-function movieCard(libraryId: string, movie: Movie): Card {
+function movieCard(library: bigint, movie: Movie): Card[] {
+  // Protobuf message fields are always optional; the Server sets it.
+  if (!movie.id) return [];
+  const libraryId = String(library);
   const movieId = titleParam(movie.id);
-  return {
-    key: `${libraryId}/${movieId}`,
-    link: {
-      to: "/libraries/$libraryId/movies/$movieId/play",
-      params: { libraryId, movieId },
+  const hiding = { libraryId: library, target: { case: "movieId", value: movie.id } } as const;
+  return [
+    {
+      hiding: { key: `${libraryId}/${movieId}`, title: movie.title, ...hiding },
+      link: {
+        to: "/libraries/$libraryId/movies/$movieId/play",
+        params: { libraryId, movieId },
+      },
+      backdrop: {
+        url: movie.backdropUrl,
+        thumbhash: movie.backdropThumbhash,
+        title: movie.title,
+        logoUrl: movie.titleLogoUrl,
+        detail: timeLeft(movie.watchState),
+        watchState: movie.watchState,
+      },
     },
-    backdrop: {
-      url: movie.backdropUrl,
-      thumbhash: movie.backdropThumbhash,
-      title: movie.title,
-      logoUrl: movie.titleLogoUrl,
-      detail: timeLeft(movie.watchState),
-      watchState: movie.watchState,
-    },
-  };
+  ];
 }
 
 /** An Episode shows its Show's Backdrop, saying which Episode it is, such as "S1, E3". */
-function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpisode): Card[] {
-  // Protobuf message fields are always optional; the Server sets both.
-  if (!show || !episode) return [];
+function episodeCard(library: bigint, { show, episode }: ContinueWatchingEpisode): Card[] {
+  // Protobuf message fields are always optional; the Server sets them.
+  if (!show?.id || !episode) return [];
+  const libraryId = String(library);
   const showId = titleParam(show.id);
   const season = String(episode.seasonNumber);
   const number = String(episode.episodeNumber);
+  const hiding = { libraryId: library, target: { case: "showId", value: show.id } } as const;
   return [
     {
-      key: `${libraryId}/${showId}/${season}/${number}`,
+      hiding: { key: `${libraryId}/${showId}/${season}/${number}`, title: show.title, ...hiding },
       link: {
         to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
         params: { libraryId, showId, season, episode: number },

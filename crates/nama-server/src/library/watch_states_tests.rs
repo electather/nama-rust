@@ -330,3 +330,29 @@ async fn marking_a_movie_unplayed_forgets_it_under_every_id() {
     assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
     assert_eq!(movie_state(&watch_states, user, alien_imdb()).await, None);
 }
+
+/// Whether each of the User `user`'s Watch States is hidden from Continue Watching.
+async fn hidden(watch_states: &WatchStates, user: i64) -> Vec<bool> {
+    let states = watch_states.of_user(user).await.unwrap();
+    states.into_iter().map(|(_, _, _, hidden)| hidden).collect()
+}
+
+#[tokio::test]
+async fn hiding_a_movie_hides_only_that_users_and_leaves_its_watch_state_alone() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, ada) = watch_states(&data).await;
+    let bob = another_user(&watch_states, "Bob").await;
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    for user in [ada, bob] {
+        (watch_states.report(user, vec![Some(alien())], halfway))
+            .await
+            .unwrap();
+    }
+    let before = movie_state(&watch_states, ada, alien_id()).await;
+
+    watch_states.hide(ada, vec![alien()], true).await.unwrap();
+
+    assert_eq!(movie_state(&watch_states, ada, alien_id()).await, before);
+    assert_eq!(hidden(&watch_states, ada).await, [true]);
+    assert_eq!(hidden(&watch_states, bob).await, [false]);
+}

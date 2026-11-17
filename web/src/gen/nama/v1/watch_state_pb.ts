@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/watch_state.proto.
  */
 export const file_nama_v1_watch_state: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL3YxL3dhdGNoX3N0YXRlLnByb3RvEgduYW1hLnYxIloKCldhdGNoU3RhdGUSEwoLcG9zaXRpb25fbXMYASABKAQSEwoLZHVyYXRpb25fbXMYAiABKAQSDgoGcGxheWVkGAMgASgIEhIKCnVwZGF0ZWRfYXQYBCABKAMiVQoVUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSEwoLcG9zaXRpb25fbXMYAiABKAQSEwoLZHVyYXRpb25fbXMYAyABKAQiGAoWUmVwb3J0UHJvZ3Jlc3NSZXNwb25zZSLjAQoQU2V0UGxheWVkUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEicKCG1vdmllX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkSAASKQoKZXBpc29kZV9pZBgDIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEgAEiUKBnNlYXNvbhgEIAEoCzITLm5hbWEudjEuU2hvd1NlYXNvbkgAEiYKB3Nob3dfaWQYBSABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRIABIOCgZwbGF5ZWQYBiABKAhCCAoGdGFyZ2V0IkkKClNob3dTZWFzb24SJAoHc2hvd19pZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNIhMKEVNldFBsYXllZFJlc3BvbnNlMrQBChFXYXRjaFN0YXRlU2VydmljZRJWCg5SZXBvcnRQcm9ncmVzcxIeLm5hbWEudjEuUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0Gh8ubmFtYS52MS5SZXBvcnRQcm9ncmVzc1Jlc3BvbnNlIgOQAgISRwoJU2V0UGxheWVkEhkubmFtYS52MS5TZXRQbGF5ZWRSZXF1ZXN0GhoubmFtYS52MS5TZXRQbGF5ZWRSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_match]);
+  fileDesc("ChluYW1hL3YxL3dhdGNoX3N0YXRlLnByb3RvEgduYW1hLnYxIloKCldhdGNoU3RhdGUSEwoLcG9zaXRpb25fbXMYASABKAQSEwoLZHVyYXRpb25fbXMYAiABKAQSDgoGcGxheWVkGAMgASgIEhIKCnVwZGF0ZWRfYXQYBCABKAMiVQoVUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSEwoLcG9zaXRpb25fbXMYAiABKAQSEwoLZHVyYXRpb25fbXMYAyABKAQiGAoWUmVwb3J0UHJvZ3Jlc3NSZXNwb25zZSLjAQoQU2V0UGxheWVkUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEicKCG1vdmllX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkSAASKQoKZXBpc29kZV9pZBgDIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEgAEiUKBnNlYXNvbhgEIAEoCzITLm5hbWEudjEuU2hvd1NlYXNvbkgAEiYKB3Nob3dfaWQYBSABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRIABIOCgZwbGF5ZWQYBiABKAhCCAoGdGFyZ2V0IkkKClNob3dTZWFzb24SJAoHc2hvd19pZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNIhMKEVNldFBsYXllZFJlc3BvbnNlIqUBCiRTZXRIaWRkZW5Gcm9tQ29udGludWVXYXRjaGluZ1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxInCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEgAEiYKB3Nob3dfaWQYAyABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRIABIOCgZoaWRkZW4YBCABKAhCCAoGdGFyZ2V0IicKJVNldEhpZGRlbkZyb21Db250aW51ZVdhdGNoaW5nUmVzcG9uc2UyugIKEVdhdGNoU3RhdGVTZXJ2aWNlElYKDlJlcG9ydFByb2dyZXNzEh4ubmFtYS52MS5SZXBvcnRQcm9ncmVzc1JlcXVlc3QaHy5uYW1hLnYxLlJlcG9ydFByb2dyZXNzUmVzcG9uc2UiA5ACAhJHCglTZXRQbGF5ZWQSGS5uYW1hLnYxLlNldFBsYXllZFJlcXVlc3QaGi5uYW1hLnYxLlNldFBsYXllZFJlc3BvbnNlIgOQAgISgwEKHVNldEhpZGRlbkZyb21Db250aW51ZVdhdGNoaW5nEi0ubmFtYS52MS5TZXRIaWRkZW5Gcm9tQ29udGludWVXYXRjaGluZ1JlcXVlc3QaLi5uYW1hLnYxLlNldEhpZGRlbkZyb21Db250aW51ZVdhdGNoaW5nUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_match]);
 
 /**
  * A User's progress through a Movie or Episode.
@@ -211,6 +211,68 @@ export const SetPlayedResponseSchema: GenMessage<SetPlayedResponse> = /*@__PURE_
   messageDesc(file_nama_v1_watch_state, 5);
 
 /**
+ * @generated from message nama.v1.SetHiddenFromContinueWatchingRequest
+ */
+export type SetHiddenFromContinueWatchingRequest = Message<"nama.v1.SetHiddenFromContinueWatchingRequest"> & {
+  /**
+   * The Library the Movie or Show is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * What to hide, identified as browsing identifies it.
+   *
+   * @generated from oneof nama.v1.SetHiddenFromContinueWatchingRequest.target
+   */
+  target: {
+    /**
+     * A Movie of a Movies Library, by its id as `ListMovies` gave it.
+     *
+     * @generated from field: nama.v1.ExternalId movie_id = 2;
+     */
+    value: ExternalId;
+    case: "movieId";
+  } | {
+    /**
+     * A Show of a Shows Library, by its id as `ListShows` gave it.
+     *
+     * @generated from field: nama.v1.ExternalId show_id = 3;
+     */
+    value: ExternalId;
+    case: "showId";
+  } | { case: undefined; value?: undefined };
+
+  /**
+   * Whether it is now hidden. False undoes hiding it.
+   *
+   * @generated from field: bool hidden = 4;
+   */
+  hidden: boolean;
+};
+
+/**
+ * Describes the message nama.v1.SetHiddenFromContinueWatchingRequest.
+ * Use `create(SetHiddenFromContinueWatchingRequestSchema)` to create a new message.
+ */
+export const SetHiddenFromContinueWatchingRequestSchema: GenMessage<SetHiddenFromContinueWatchingRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watch_state, 6);
+
+/**
+ * @generated from message nama.v1.SetHiddenFromContinueWatchingResponse
+ */
+export type SetHiddenFromContinueWatchingResponse = Message<"nama.v1.SetHiddenFromContinueWatchingResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.SetHiddenFromContinueWatchingResponse.
+ * Use `create(SetHiddenFromContinueWatchingResponseSchema)` to create a new message.
+ */
+export const SetHiddenFromContinueWatchingResponseSchema: GenMessage<SetHiddenFromContinueWatchingResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watch_state, 7);
+
+/**
  * Remembering how far the signed-in caller has got through what they play.
  *
  * Watch State is kept per User against the Movie or Episode a Version is Matched to, by its
@@ -253,6 +315,19 @@ export const WatchStateService: GenService<{
     methodKind: "unary";
     input: typeof SetPlayedRequestSchema;
     output: typeof SetPlayedResponseSchema;
+  },
+  /**
+   * Hides a Movie or Show that is Matched in a Library from the caller's Continue Watching, or
+   * shows it again, without changing its Watch State. It stays hidden until the caller's Watch
+   * State of the Movie, or of any of the Show's Episodes, next changes, as when they play it; a
+   * new Episode doesn't show it again. Fails as `SetPlayed` does.
+   *
+   * @generated from rpc nama.v1.WatchStateService.SetHiddenFromContinueWatching
+   */
+  setHiddenFromContinueWatching: {
+    methodKind: "unary";
+    input: typeof SetHiddenFromContinueWatchingRequestSchema;
+    output: typeof SetHiddenFromContinueWatchingResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_watch_state, 0);
