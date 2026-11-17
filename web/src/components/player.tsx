@@ -1,16 +1,8 @@
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Link, type LinkOptions } from "@tanstack/react-router";
-import { ArrowLeft, Pause, Play } from "lucide-react";
-import {
-  type PointerEvent,
-  type ReactNode,
-  type RefObject,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { ArrowLeft } from "lucide-react";
+import { type PointerEvent, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 
 import { DroppedChoice } from "@/components/dropped-choice";
 import {
@@ -20,17 +12,16 @@ import {
   useAutoplay,
   useNextEpisode,
 } from "@/components/next-episode";
-import { FullscreenButton, VolumeControls } from "@/components/player-controls";
+import { BottomBar } from "@/components/player-controls";
 import { PlaybackInfo } from "@/components/playback-info";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Tracks, Watch State, playback info and autoplay
 import { SubtitleTracks } from "@/components/subtitles-menu";
 import { TrackMenus } from "@/components/track-menus";
-import { Slider } from "@/components/ui/slider";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { playerOpened } from "@/lib/diagnostics";
-import { type Video, clock, togglePlay, useAwake, useShortcuts, useVideo } from "@/lib/playback";
+import { togglePlay, useAwake, useShortcuts, useVideo } from "@/lib/playback";
 import { usePlaybackPlan } from "@/lib/playback-plan";
 import { usePlaybackSource } from "@/lib/playback-source";
 import { wordReasons } from "@/lib/playback-wording";
@@ -173,58 +164,6 @@ function TopBar({
         {playbackInfo}
       </header>
       {notice}
-    </div>
-  );
-}
-
-/** The position, Play and the time, then `children` beside the volume and full screen. */
-function BottomBar({
-  video,
-  playerRef,
-  children,
-}: {
-  video: Video;
-  playerRef: RefObject<HTMLDivElement | null>;
-  children: ReactNode;
-}) {
-  const { playing, time, duration } = video.state;
-  return (
-    <div className="pointer-events-auto bg-linear-to-t group-data-controls-hidden:pointer-events-none from-scrim px-2 pt-10 pb-2 sm:px-4 sm:pb-4">
-      <div className="px-2">
-        <Slider
-          progress
-          label="Position"
-          valueText={`${clock(time)} of ${clock(duration)}`}
-          disabled={!duration}
-          value={Math.min(time, duration)}
-          max={duration || 1}
-          onValueChange={(seconds) => {
-            video.control((element) => {
-              element.currentTime = seconds;
-            });
-          }}
-        />
-      </div>
-      <div className="flex items-center gap-1">
-        <Button
-          variant="overlay"
-          size="icon"
-          aria-label={playing ? "Pause" : "Play"}
-          onClick={() => {
-            video.control(togglePlay);
-          }}
-        >
-          {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
-        </Button>
-        <span className="ms-2 text-sm tabular-nums">
-          {clock(time)} / {clock(duration)}
-        </span>
-        <div className="ms-auto flex items-center gap-1">
-          {children}
-          <VolumeControls video={video} />
-          <FullscreenButton playerRef={playerRef} />
-        </div>
-      </div>
     </div>
   );
 }
