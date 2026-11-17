@@ -4,12 +4,12 @@ use std::{ffi::OsStr, path::Path};
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
-    self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetShowRequest,
-    GetShowResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
-    ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest, ListGenresResponse,
-    ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse, MovieSort,
-    Permission, RefusalReason, SearchLibrariesRequest, SearchLibrariesResponse, ShowSort,
-    SortDirection, WatchedFilter,
+    self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
+    GetNextEpisodeResponse, GetShowRequest, GetShowResponse, ListContinueWatchingRequest,
+    ListContinueWatchingResponse, ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest,
+    ListGenresResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
+    MovieSort, Permission, RefusalReason, SearchLibrariesRequest, SearchLibrariesResponse,
+    ShowSort, SortDirection, WatchedFilter,
 };
 
 use crate::{
@@ -207,6 +207,37 @@ impl BrowseService for BrowseServiceHandler {
                 .into_iter()
                 .map(|(episode, state)| episode_to_proto(episode, state, &images))
                 .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn get_next_episode(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, GetNextEpisodeRequest>,
+    ) -> ServiceResult<GetNextEpisodeResponse> {
+        let user = caller(&ctx)?.user.id;
+        let request = request.to_owned_message();
+        let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
+        let numbers = (
+            i64::from(request.season_number),
+            i64::from(request.episode_number),
+        );
+        let next = self
+            .browse
+            .episode_after(user, request.library_id, &show, numbers)
+            .await
+            .map_err(refused(Fields {
+                title: "show_id",
+                season: "season_number",
+                episode: "episode_number",
+                ..Fields::LIBRARY
+            }))?;
+        let images = self.images.shown().await?;
+        Response::ok(GetNextEpisodeResponse {
+            next: next
+                .map(|(episode, state)| episode_to_proto(episode, state, &images))
+                .into(),
             ..Default::default()
         })
     }
@@ -545,6 +576,8 @@ pub(super) struct Fields {
     /// The Movie's, Show's or Episode's id; a Season's Show's.
     pub(super) title: &'static str,
     pub(super) season: &'static str,
+    /// An Episode's number within its Season.
+    pub(super) episode: &'static str,
     pub(super) version: &'static str,
 }
 
@@ -554,6 +587,7 @@ impl Fields {
         library: "",
         title: "",
         season: "",
+        episode: "",
         version: "",
     };
     /// A Browse request naming only its Library, in `library_id`.
@@ -580,6 +614,9 @@ pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError 
             }
             browse::Error::NoSuchSeason => {
                 refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message).field(fields.season)
+            }
+            browse::Error::NoSuchEpisode => {
+                refuse(R::REFUSAL_REASON_EPISODE_NOT_FOUND, message).field(fields.episode)
             }
             browse::Error::NoSuchVersion => {
                 refuse(R::REFUSAL_REASON_VERSION_NOT_FOUND, message).field(fields.version)
