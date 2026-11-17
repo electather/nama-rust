@@ -9,10 +9,12 @@ use std::{
 
 use nama_plugin_api::{ObservePoint, Observer, PluginId, PointKey, blob_store::BlobStore};
 use nama_proto::nama::v1::PluginKind;
-use tracing::{error, info, warn};
+use tracing::{Instrument as _, error, info, warn};
+
+use crate::diagnostics;
 
 use super::{
-    Answer, ProviderError, contain, contain_sync,
+    Answer, ProviderError, contain_call, contain_sync,
     failing::{Failing, Failures},
     formatted,
     registry::{Enabled, Entry, MakeKernel, State},
@@ -42,11 +44,13 @@ impl ExtensionPoints {
             return;
         }
         let event = Arc::new(event);
+        let span = diagnostics::following_current(tracing::info_span!(parent: None, "notify"));
         for entry in observers {
             let Some(observer) = entry.registration.observer::<P>() else {
                 continue;
             };
-            tokio::spawn(self.clone().deliver(entry, observer, Arc::clone(&event)));
+            let delivering = self.clone().deliver(entry, observer, Arc::clone(&event));
+            tokio::spawn(delivering.instrument(span.clone()));
         }
     }
 
@@ -60,7 +64,9 @@ impl ExtensionPoints {
         if !self.is_current(&entry) {
             return;
         }
-        if let Err(message) = contain(|| observer.observe(&event)).await {
+        if let Err(message) =
+            contain_call(&entry.plugin, P::NAME, || observer.observe(&event)).await
+        {
             self.disable_after_panic(&entry, P::NAME, &message);
         }
     }
@@ -135,7 +141,7 @@ impl ExtensionPoints {
             if !self.is_current(&entry) {
                 continue;
             }
-            match contain(|| formatted(call(provider))).await {
+            match contain_call(&entry.plugin, point.name(), || formatted(call(provider))).await {
                 Ok(result) => {
                     let result = result.map_err(|failure| failure.blanked(&entry.secrets));
                     return Asked::Answered(Answer {
@@ -163,9 +169,11 @@ impl ExtensionPoints {
         F: Future<Output = Result<(), E>> + Send + 'static,
         E: ProviderError<()> + 'static,
     {
+        let span = diagnostics::following_current(tracing::info_span!(parent: None, "tell"));
         for entry in self.entries(PointKey::provide::<T>()) {
             if let Some(provider) = entry.registration.provider::<T>() {
-                tokio::spawn(self.clone().tell_one(entry, provider, call.clone()));
+                let telling = self.clone().tell_one(entry, provider, call.clone());
+                tokio::spawn(telling.instrument(span.clone()));
             }
         }
     }
@@ -207,7 +215,9 @@ impl ExtensionPoints {
             return;
         }
         let point = entry.registration.point().name();
-        let called = contain(|| formatted(call(entry.plugin.clone(), provider)));
+        let called = contain_call(&entry.plugin, point, || {
+            formatted(call(entry.plugin.clone(), provider))
+        });
         match called.await {
             Ok(Ok(())) => {}
             Ok(Err(failure)) => {

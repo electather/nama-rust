@@ -15,6 +15,7 @@ use axum::{
 };
 use tokio::sync::OwnedSemaphorePermit;
 use tower_http::services::ServeFile;
+use tracing::Instrument as _;
 
 use super::{Copied, Format, ImageStore, RESIZED_DIR, Resize, SVG, resized, row_key, version_of};
 
@@ -186,6 +187,10 @@ impl ImageStore {
                 }
                 copied.map_err(|err| format!("could not resize {named}: {err}"))
             })
+            .instrument(tracing::info_span!(
+                "resize image",
+                image.width = resize.width
+            ))
             .await;
         // The thread having stopped, or a resize having panicked, is one more failed resize.
         let copied = resized

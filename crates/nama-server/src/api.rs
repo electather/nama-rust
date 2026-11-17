@@ -19,6 +19,7 @@ use crate::{
     config::Config,
     connections::Connections,
     db::{Database, now},
+    diagnostics::{self, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
@@ -113,7 +114,7 @@ pub(crate) fn router(
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
-    connectrpc::Router::new()
+    let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
@@ -179,7 +180,10 @@ pub(crate) fn router(
             plugin_logos: plugin_logos.clone(),
             db,
         }))
-        .into_axum_router()
+        .into_axum_service()
+        .with_interceptor(RecordFailures);
+    axum::Router::new()
+        .fallback_service(rpcs)
         .merge(artwork_router)
         .merge(custom_images_router(
             custom_images,
@@ -195,6 +199,7 @@ pub(crate) fn router(
             Arc::from(config.trusted_proxies.as_slice()),
             identify_source,
         ))
+        .layer(middleware::from_fn(diagnostics::trace_call))
 }
 
 /// Who may call an RPC or fetch media.
@@ -420,9 +425,12 @@ async fn require_access(request: Request, next: Next) -> axum::response::Respons
         .and_then(|()| check_recent_authentication(path, caller));
     match allowed {
         Ok(()) => next.run(request).await,
-        Err(refused) => refused
-            .into_http_response(request.headers())
-            .into_response(),
+        Err(refused) => {
+            diagnostics::rpc_failed(request.extensions(), &refused);
+            refused
+                .into_http_response(request.headers())
+                .into_response()
+        }
     }
 }
 
@@ -570,6 +578,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE
         | R::REFUSAL_REASON_FOLDER_NOT_FOUND
         | R::REFUSAL_REASON_FOLDER_NOT_READABLE
+        | R::REFUSAL_REASON_FOLDER_NOT_WRITABLE
         | R::REFUSAL_REASON_FOLDER_NOT_UTF8
         | R::REFUSAL_REASON_FOLDER_REPEATED
         | R::REFUSAL_REASON_SETTING_WRONG_KIND

@@ -14,5 +14,5 @@ Planning how a Device plays a Version, running the plans, serving their files an
 
 ### Neighbours
 
-- Uses: `ffmpeg`, `library`, `server_settings` (its settings and `PlaybackLimit`), `events`, `images`, `users`, `db`, and `config` and `plugins` in tests.
+- Uses: `ffmpeg`, `library`, `server_settings` (its settings and `PlaybackLimit`), `events`, `images`, `users`, `db`, `diagnostics` (the trace a probe pass joins), and `config` and `plugins` in tests.
 - Used by: `api`, `browse`, `scanner` and startup in `lib.rs`.

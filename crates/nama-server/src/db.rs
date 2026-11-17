@@ -25,6 +25,7 @@ use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
 };
+use tracing::Instrument as _;
 
 /// The database file's name inside the data directory.
 pub const FILE_NAME: &str = "nama.db";
@@ -179,11 +180,17 @@ impl Database {
             + 'static,
     {
         let (done, result) = oneshot::channel();
+        // The writer's task runs it, so its queries would otherwise belong to no caller's trace.
+        let caller = tracing::Span::current();
         let job: Job = Box::new(move |conn| {
-            Box::pin(async move {
-                // The caller may have stopped waiting; the write still happened.
-                let _: Result<(), _> = done.send(in_transaction(conn, write, after_commit).await);
-            })
+            Box::pin(
+                async move {
+                    // The caller may have stopped waiting; the write still happened.
+                    let _: Result<(), _> =
+                        done.send(in_transaction(conn, write, after_commit).await);
+                }
+                .instrument(caller),
+            )
         });
         // The writer runs until the last handle is dropped, so it's there to take the job.
         if self.jobs.send(job).await.is_err() {
@@ -235,7 +242,7 @@ where
     E: From<sqlx::Error> + Send + 'static,
 {
     // The task is never aborted, so it only fails if it panicked.
-    tokio::spawn(work)
+    tokio::spawn(work.in_current_span())
         .await
         .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
 }

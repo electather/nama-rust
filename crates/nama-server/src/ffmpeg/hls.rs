@@ -77,6 +77,7 @@ pub(crate) struct HlsRun(pub(super) tokio::process::Command);
 
 impl HlsRun {
     /// Starts ffmpeg. Dropping the child stops it.
+    #[tracing::instrument(name = "ffmpeg launch", skip_all)]
     pub(crate) fn spawn(mut self) -> io::Result<tokio::process::Child> {
         self.0.spawn()
     }

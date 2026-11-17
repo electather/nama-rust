@@ -6,7 +6,9 @@ use tempfile::TempDir;
 
 use axum::http::{HeaderMap, HeaderValue, header};
 
-use super::{Format, ImageStore, file_name, serving::format_asked, unescape};
+use super::{
+    Format, ImageStore, MAX_BYTES, UPLOADS_DIR, file_name, serving::format_asked, unescape,
+};
 use crate::db::Database;
 
 const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
@@ -32,6 +34,32 @@ async fn a_failed_write_leaves_nothing_behind() {
         .map(|entry| entry.unwrap().file_name())
         .collect();
     assert_eq!(left, ["%2Fposter.jpg"]);
+}
+
+#[tokio::test]
+async fn a_write_over_the_object_size_limit_is_refused_and_stores_nothing() {
+    let data = tempfile::tempdir().unwrap();
+    let store = store_in(&data).await;
+
+    let refused = store.write(KEY, &vec![0; MAX_BYTES + 1]).await.unwrap_err();
+
+    assert_eq!(refused.kind(), std::io::ErrorKind::FileTooLarge);
+    assert!(
+        refused.to_string().contains("artwork/tmdb/%2Fposter.jpg"),
+        "{refused}"
+    );
+    assert!(refused.to_string().contains("20 MiB"), "{refused}");
+    assert!(!store.contains(KEY).await.unwrap());
+}
+
+#[tokio::test]
+async fn a_write_of_exactly_the_object_size_limit_is_stored() {
+    let data = tempfile::tempdir().unwrap();
+    let store = store_in(&data).await;
+
+    store.write(KEY, &vec![0; MAX_BYTES]).await.unwrap();
+
+    assert!(store.contains(KEY).await.unwrap());
 }
 
 #[tokio::test]
@@ -127,4 +155,29 @@ fn a_file_name_unescapes_to_its_text_and_no_other_name_does() {
     for name in [".tmpAbC123", "%2f", "%2", "%ZZ", "a%2Fb%"] {
         assert_eq!(unescape(name), None, "{name}");
     }
+}
+
+#[tokio::test]
+async fn sweeping_uploads_deletes_every_leftover_and_keeps_stored_images() {
+    let data = tempfile::tempdir().unwrap();
+    let store = store_in(&data).await;
+    store.write(KEY, b"\xff\xd8").await.unwrap();
+    let uploads = data.path().join(UPLOADS_DIR);
+    std::fs::create_dir_all(&uploads).unwrap();
+    std::fs::write(uploads.join(".tmpAbC123"), b"half an upload").unwrap();
+    std::fs::write(uploads.join("poster.jpg"), b"\xff\xd8").unwrap();
+    std::fs::create_dir(uploads.join("folder")).unwrap();
+    std::fs::write(uploads.join("folder").join("part"), b"").unwrap();
+
+    store.sweep_uploads().await.unwrap();
+
+    assert_eq!(std::fs::read_dir(&uploads).unwrap().count(), 0);
+    assert!(store.contains(KEY).await.unwrap());
+}
+
+#[tokio::test]
+async fn sweeping_uploads_without_an_uploads_folder_is_no_error() {
+    let data = tempfile::tempdir().unwrap();
+
+    store_in(&data).await.sweep_uploads().await.unwrap();
 }

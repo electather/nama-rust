@@ -12,5 +12,5 @@ The Connect handlers: one part per service in this folder, and `../api.rs` with 
 
 ### Neighbours
 
-- Uses: every area and single file below the top row: `browse`, `scanner`, `plugin_settings`, `requests`, `playback`, `matching`, `library`, `events`, `connections`, `users`, `plugins`, `images`, `server_settings`, `ffmpeg`, `db` and `config`.
+- Uses: every area and single file below the top row: `browse`, `scanner`, `plugin_settings`, `requests`, `playback`, `matching`, `library`, `events`, `connections`, `users`, `plugins`, `images`, `server_settings`, `ffmpeg`, `db`, `config` and `diagnostics` (the span each RPC runs in).
 - Used by: startup in `lib.rs` (`router`).

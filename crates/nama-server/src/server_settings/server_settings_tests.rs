@@ -16,18 +16,17 @@ use crate::{db::Database, ffmpeg::Accel};
 
 const DEFAULT_FOLDER: &str = "/data/transcodes";
 
-/// A segment folder that's absolute where the tests run: on Windows one needs a drive.
-#[cfg(windows)]
-const FOLDER: &str = r"C:\nama";
-#[cfg(not(windows))]
-const FOLDER: &str = "/tmp/nama";
-
 async fn fresh() -> (tempfile::TempDir, Settings) {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Database::open(data_dir.path()).await.unwrap();
     let settings = Settings::new(Arc::new(db), DEFAULT_FOLDER.into());
     settings.load().await.unwrap();
     (data_dir, settings)
+}
+
+/// A segment folder inside `data_dir`, which saving it creates.
+fn folder_in(data_dir: &tempfile::TempDir) -> String {
+    data_dir.path().join("segments").display().to_string()
 }
 
 /// A second `Settings` on the same database, as after a restart, once it loaded.
@@ -126,13 +125,14 @@ async fn clearing_the_url_leaves_links_out() {
 
 #[tokio::test]
 async fn stored_playback_settings_are_in_use_and_read_again_after_a_restart() {
-    let (_data_dir, settings) = fresh().await;
+    let (data_dir, settings) = fresh().await;
+    let folder = folder_in(&data_dir);
     let playback = settings.playback();
 
     let stored = settings
         .change_playback(
             PlaybackChange {
-                segment_folder: &format!(" {FOLDER} "),
+                segment_folder: &format!(" {folder} "),
                 max_transcodes: Some(5),
                 keep_behind_minutes: Some(12),
                 hardware: HardwareChoice::Api(Accel::Vaapi, None),
@@ -144,7 +144,7 @@ async fn stored_playback_settings_are_in_use_and_read_again_after_a_restart() {
         .unwrap();
 
     let expected = PlaybackValues {
-        segment_folder: FOLDER.to_owned(),
+        segment_folder: folder.clone(),
         max_transcodes: NonZeroU32::new(5),
         keep_behind_minutes: NonZeroU32::new(12),
         hardware: HardwareChoice::Api(Accel::Vaapi, None),
@@ -152,22 +152,23 @@ async fn stored_playback_settings_are_in_use_and_read_again_after_a_restart() {
     };
     assert_eq!(stored, expected);
     assert_eq!(playback.now(), expected);
-    assert_eq!(playback.path(), Path::new(FOLDER));
+    assert_eq!(playback.path(), Path::new(&folder));
     assert_eq!(playback.keep_behind_ms(), 720_000);
     assert_eq!(
         playback.leftover_paths(),
-        [PathBuf::from(FOLDER), DEFAULT_FOLDER.into()]
+        [PathBuf::from(&folder), DEFAULT_FOLDER.into()]
     );
     assert_eq!(restarted(&settings).await.playback().now(), expected);
 }
 
 #[tokio::test]
 async fn playback_settings_go_back_to_their_defaults_when_cleared() {
-    let (_data_dir, settings) = fresh().await;
+    let (data_dir, settings) = fresh().await;
+    let folder = folder_in(&data_dir);
     settings
         .change_playback(
             PlaybackChange {
-                segment_folder: FOLDER,
+                segment_folder: &folder,
                 max_transcodes: Some(5),
                 keep_behind_minutes: Some(12),
                 hardware: HardwareChoice::Off,
@@ -200,14 +201,15 @@ async fn a_folder_that_isnt_absolute_is_refused_naming_it_trimmed() {
 
 #[tokio::test]
 async fn a_cap_of_0_is_refused_and_leaves_every_playback_setting_as_it_was() {
-    let (_data_dir, settings) = fresh().await;
+    let (data_dir, settings) = fresh().await;
+    let folder = folder_in(&data_dir);
 
     let refused = settings
         .change_playback(
             PlaybackChange {
                 max_transcodes: Some(0),
                 hardware: HardwareChoice::Off,
-                ..change(FOLDER)
+                ..change(&folder)
             },
             &[],
         )
@@ -223,13 +225,14 @@ async fn a_cap_of_0_is_refused_and_leaves_every_playback_setting_as_it_was() {
 
 #[tokio::test]
 async fn keeping_0_minutes_behind_is_refused_and_leaves_every_playback_setting_as_it_was() {
-    let (_data_dir, settings) = fresh().await;
+    let (data_dir, settings) = fresh().await;
+    let folder = folder_in(&data_dir);
 
     let refused = settings
         .change_playback(
             PlaybackChange {
                 keep_behind_minutes: Some(0),
-                ..change(FOLDER)
+                ..change(&folder)
             },
             &[],
         )
@@ -261,6 +264,55 @@ async fn a_folder_that_isnt_absolute_is_reported_before_a_cap_of_0() {
         Invalid::FolderNotAbsolute {
             folder: "tmp".to_owned()
         }
+    );
+}
+
+#[tokio::test]
+async fn a_folder_saved_is_created_and_left_empty() {
+    let (data_dir, settings) = fresh().await;
+    let folder = data_dir.path().join("segments").join("nama");
+
+    let change = change(folder.to_str().unwrap());
+    settings.change_playback(change, &[]).await.unwrap();
+
+    assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 0);
+}
+
+#[tokio::test]
+async fn an_empty_folder_takes_the_default_without_creating_it() {
+    let (data_dir, settings) = fresh().await;
+    let default = data_dir.path().join("transcodes");
+    let settings = Settings::new(Arc::clone(&settings.db), default.clone());
+
+    settings.change_playback(change(""), &[]).await.unwrap();
+
+    assert_eq!(settings.playback().path(), default);
+    assert!(!default.exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_folder_the_server_cant_create_or_write_is_refused_naming_it_and_nothing_changes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (_data_dir, settings) = fresh().await;
+    let locked = tempfile::tempdir().unwrap();
+    std::fs::set_permissions(locked.path(), std::fs::Permissions::from_mode(0o500)).unwrap();
+    if tempfile::tempfile_in(locked.path()).is_ok() {
+        // Running as root, which writes anywhere; there's nothing to test.
+        return;
+    }
+
+    for folder in [locked.path().to_owned(), locked.path().join("nama")] {
+        let folder = folder.to_str().unwrap().to_owned();
+        let refused = settings.change_playback(change(&folder), &[]).await;
+
+        assert_eq!(invalid(refused), Invalid::FolderNotWritable { folder });
+    }
+    assert_eq!(std::fs::read_dir(locked.path()).unwrap().count(), 0);
+    assert_eq!(
+        restarted(&settings).await.playback().now(),
+        PlaybackValues::default()
     );
 }
 
@@ -377,15 +429,19 @@ async fn after_a_restart_without_its_gpu_a_pick_keeps_its_name_and_survives_anot
 
 #[tokio::test]
 async fn changing_one_group_keeps_the_others_stored_values() {
-    let (_data_dir, settings) = fresh().await;
+    let (data_dir, settings) = fresh().await;
+    let folder = folder_in(&data_dir);
     settings.set_url("https://nama.example.com").await.unwrap();
-    settings.change_playback(change(FOLDER), &[]).await.unwrap();
+    settings
+        .change_playback(change(&folder), &[])
+        .await
+        .unwrap();
     let after_playback = restarted(&settings).await.now();
     settings.set_url("https://other.example.com").await.unwrap();
     let after_url = restarted(&settings).await.now();
 
     assert_eq!(after_playback.url, "https://nama.example.com");
-    assert_eq!(after_url.playback.segment_folder, FOLDER);
+    assert_eq!(after_url.playback.segment_folder, folder);
 }
 
 #[tokio::test]
@@ -407,9 +463,13 @@ async fn stored_image_settings_are_in_use_and_read_again_after_a_restart() {
 
 #[tokio::test]
 async fn changing_the_playback_settings_first_stores_no_url() {
-    let (_data_dir, settings) = fresh().await;
+    let (data_dir, settings) = fresh().await;
+    let folder = folder_in(&data_dir);
 
-    settings.change_playback(change(FOLDER), &[]).await.unwrap();
+    settings
+        .change_playback(change(&folder), &[])
+        .await
+        .unwrap();
 
     assert_eq!(restarted(&settings).await.now().url, "");
 }
