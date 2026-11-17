@@ -39,10 +39,12 @@ export default defineConfig({
     proxy: {
       // Connect paths (`/nama.v1.ServerService/GetServerInfo` and the like) and media: the same
       // paths the Server keeps out of the web app (`crates/nama-server/src/web.rs`). Custom Images
-      // are uploaded with `PUT` and removed with `DELETE`, which the web app never answers.
+      // are uploaded with `PUT` and removed with `DELETE`, which the web app never answers, and
+      // the web app's Diagnostics are posted.
       "^/nama\\.": serverUrl,
       "/media/": serverUrl,
       "/custom-images/": serverUrl,
+      "/diagnostics/": serverUrl,
     },
   },
   // The build prerenders `_shell.html` through a preview server. Where `localhost` resolves to

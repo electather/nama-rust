@@ -9,6 +9,8 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { firstFramePlayed } from "./diagnostics";
+
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
 const CONTROLS_LINGER_MS = 3000;
 const SEEK_STEP_SECONDS = 10;
@@ -17,7 +19,10 @@ const VOLUME_STEP = 0.1;
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
 export type Video = Pick<ReturnType<typeof useVideo>, "state" | "control">;
 
-/** The `<video>`'s ref, what it's doing, and the handlers that keep that up to date. */
+/**
+ * The `<video>`'s ref, what it's doing, and the handlers that keep that up to date and record when
+ * its first frame played.
+ */
 export function useVideo() {
   const ref = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState({
@@ -43,6 +48,7 @@ export function useVideo() {
     onTimeUpdate: sync,
     onDurationChange: sync,
     onVolumeChange: sync,
+    onPlaying: firstFramePlayed,
   };
   /** Runs `action` on the `<video>`, from an event handler. */
   const control = (action: (video: HTMLVideoElement) => void) => {

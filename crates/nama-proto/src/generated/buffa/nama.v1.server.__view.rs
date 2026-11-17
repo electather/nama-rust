@@ -257,6 +257,14 @@ pub struct GetServerInfoResponseView<'a> {
     ///
     /// Field 4: `image_widths`
     pub image_widths: ::buffa::RepeatedView<'a, u32>,
+    /// Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
+    /// (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
+    /// `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
+    /// while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
+    /// too often with HTTP 429.
+    ///
+    /// Field 5: `exports_diagnostics`
+    pub exports_diagnostics: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
@@ -310,6 +318,13 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
                 )?;
                 view.setup_required = ::buffa::types::decode_bool(&mut cur)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.exports_diagnostics = ::buffa::types::decode_bool(&mut cur)?;
+            }
             4u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
@@ -361,6 +376,7 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
             version: self.version.to_string(),
             setup_required: self.setup_required,
             image_widths: self.image_widths.to_vec(),
+            exports_diagnostics: self.exports_diagnostics,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -388,6 +404,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
                 .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if self.exports_diagnostics {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -419,6 +438,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
             for &v in &self.image_widths {
                 ::buffa::types::encode_uint32(v, buf);
             }
+        }
+        if self.exports_diagnostics {
+            ::buffa::types::put_bool_field(5u32, self.exports_diagnostics, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -456,6 +478,9 @@ impl<'__a> ::serde::Serialize for GetServerInfoResponseView<'__a> {
                     "imageWidths",
                     &::buffa::json_helpers::RepeatedJson(&self.image_widths),
                 )?;
+        }
+        if self.exports_diagnostics {
+            __map.serialize_entry("exportsDiagnostics", &self.exports_diagnostics)?;
         }
         __map.end()
     }
@@ -586,6 +611,17 @@ impl GetServerInfoResponseOwnedView {
     #[must_use]
     pub fn image_widths(&self) -> &::buffa::RepeatedView<'_, u32> {
         &self.0.reborrow().image_widths
+    }
+    /// Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
+    /// (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
+    /// `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
+    /// while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
+    /// too often with HTTP 429.
+    ///
+    /// Field 5: `exports_diagnostics`
+    #[must_use]
+    pub fn exports_diagnostics(&self) -> bool {
+        self.0.reborrow().exports_diagnostics
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetServerInfoResponseView<'static>>>

@@ -19,7 +19,7 @@ use crate::{
     config::Config,
     connections::Connections,
     db::{Database, now},
-    diagnostics::{self, RecordFailures},
+    diagnostics::{self, BrowserSpans, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
@@ -40,6 +40,7 @@ use crate::{
 };
 
 mod browse;
+mod browser_spans;
 mod events;
 mod libraries;
 mod matches;
@@ -124,6 +125,7 @@ pub(crate) fn router(
             images: image_store,
             points: plugins.clone(),
             data_dir: config.data_dir.clone(),
+            exports_diagnostics: config.otlp_endpoint.is_some(),
         }))
         .add_service(Arc::new(SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
@@ -193,6 +195,9 @@ pub(crate) fn router(
         ))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
+        .merge(browser_spans::router(
+            config.otlp_endpoint.as_deref().map(BrowserSpans::new),
+        ))
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(
@@ -341,10 +346,11 @@ const ACCESS: &[(&str, Access)] = &[
 ];
 
 /// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
-/// routes share, and uploading or removing a Plugin's, a title's or a Library's Custom Image. The
-/// first prefix a path starts with decides.
-const PREFIXES: [(&str, Access); 3] = [
+/// routes share, uploading or removing a Plugin's, a title's or a Library's Custom Image, and
+/// posting the web app's Diagnostics. The first prefix a path starts with decides.
+const PREFIXES: [(&str, Access); 4] = [
     ("/media/", Access::SignedIn),
+    ("/diagnostics/", Access::SignedIn),
     ("/custom-images/plugin/", MANAGE_SETTINGS),
     ("/custom-images/", MANAGE_LIBRARIES),
 ];
