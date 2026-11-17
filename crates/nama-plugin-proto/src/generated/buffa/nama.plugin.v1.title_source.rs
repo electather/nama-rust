@@ -1191,7 +1191,7 @@ pub const __TITLE_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
     from_json: ::buffa::type_registry::any_from_json::<TitleAsked>,
     is_wkt: false,
 };
-/// What the `title_season` export is asked for.
+/// What the `title_season` and `title_season_artwork` exports are asked for.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -2654,7 +2654,7 @@ pub const __ARTWORK_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     from_json: ::buffa::type_registry::any_from_json::<ArtworkAsked>,
     is_wkt: false,
 };
-/// What the `title_artwork` export returns.
+/// What the `title_artwork` and `title_season_artwork` exports return.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

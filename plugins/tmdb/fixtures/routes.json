@@ -35,5 +35,6 @@
   "/3/tv/900001/season/1?append_to_response=external_ids": "tv-900001-season-1.json",
   "/3/movie/348/images": "movie-348-images.json",
   "/3/movie/949/images": "movie-949-images.json",
-  "/3/tv/70523/images": "tv-70523-images.json"
+  "/3/tv/70523/images": "tv-70523-images.json",
+  "/3/tv/70523/season/1/images": "tv-70523-season-1-images.json"
 }

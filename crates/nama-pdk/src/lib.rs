@@ -585,6 +585,16 @@ pub trait TitleSource {
     fn artwork(_asked: ArtworkAsked) -> Result<ArtworkAnswer, Error> {
         Err(not_served("artwork"))
     }
+
+    /// The artwork the source has for the Season `asked` names, of every kind it has; none if it
+    /// has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn season_artwork(_asked: SeasonAsked) -> Result<ArtworkAnswer, Error> {
+        Err(not_served("season artwork"))
+    }
 }
 
 /// What a [`TitleSource`] method the Plugin doesn't override returns, should [`title_source!`]
@@ -594,7 +604,8 @@ fn not_served(method: &str) -> Error {
 }
 
 /// Exports the [`TitleSource`] methods a Plugin serves, each under its export name: `search` as
-/// `title_search`, and `movie`, `show`, `season`, `episode`, `image` and `artwork` likewise,
+/// `title_search`, and `movie`, `show`, `season`, `episode`, `image`, `artwork` and
+/// `season_artwork` likewise,
 /// taking and returning their `nama.plugin.v1` messages:
 /// `title_source!(Tvdb, [search, show, season, image])`.
 ///
@@ -708,6 +719,21 @@ macro_rules! title_source {
                 Buffa(asked): Buffa<ArtworkAsked>,
             ) -> FnResult<Buffa<ArtworkAnswer>> {
                 Ok(Buffa(<$source as TitleSource>::artwork(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, season_artwork) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                ArtworkAnswer, Buffa, FnResult, SeasonAsked, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_season_artwork(
+                Buffa(asked): Buffa<SeasonAsked>,
+            ) -> FnResult<Buffa<ArtworkAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::season_artwork(asked)?))
             }
         };
     };

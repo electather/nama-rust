@@ -30,6 +30,22 @@ fn a_title_sources_artwork_list_is_an_optional_row_calling_title_artwork() {
 }
 
 #[test]
+fn a_title_sources_season_artwork_list_is_an_optional_row_calling_title_season_artwork() {
+    let title_source = POINTS
+        .iter()
+        .find(|point| point.service == services::TITLE_SOURCE)
+        .unwrap();
+    let season_artwork = title_source
+        .methods
+        .iter()
+        .find(|method| method.name == "SeasonArtwork")
+        .unwrap();
+
+    assert_eq!(season_artwork.export, "title_season_artwork");
+    assert!(season_artwork.optional);
+}
+
+#[test]
 fn a_tick_is_a_required_row_whose_failure_is_logged_not_shown() {
     let automation = POINTS
         .iter()
