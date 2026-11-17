@@ -381,8 +381,20 @@ jobs:
   # The one check main's ruleset requires (AGENTS.md, "CI jobs"). A job skipped by the path filter
   # counts as passed, but a skipped matrix job reports under its unexpanded name
   # (`test (${{ matrix.os }}, ...)`), so the ruleset can't require `test` itself.
+  # PRs only: the push that merges a PR is checked already, and the migrations squash (ADR 0059)
+  # deleted every migration on main once.
+  migrations:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      # HEAD^1 is the PR's base, as in `lint`.
+      - run: .github/scripts/migrations-unchanged.sh "$(git rev-parse HEAD^1)"
+
   ci-ok:
-    needs: [changes, lint, web, rust-check, test, web-test]
+    needs: [changes, lint, migrations, web, rust-check, test, web-test]
     if: always() && github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:

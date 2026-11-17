@@ -79,3 +79,114 @@ fn linux_names_the_magic_numbers_of_risky_filesystems_only() {
         assert_eq!(linux_filesystem_name(magic), name, "{magic:#x}");
     }
 }
+
+/// Opens the database in `dir` as [`super::Database::open`]'s writer does, foreign keys on.
+async fn connect(dir: &std::path::Path) -> sqlx::SqliteConnection {
+    use sqlx::{Connection as _, sqlite::SqliteConnectOptions};
+
+    let options = SqliteConnectOptions::new()
+        .filename(dir.join(super::FILE_NAME))
+        .create_if_missing(true)
+        .foreign_keys(true);
+    sqlx::SqliteConnection::connect_with(&options)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn an_upgrade_that_rebuilds_a_referenced_table_keeps_the_rows_that_reference_it() {
+    static FIXTURE: sqlx::migrate::Migrator =
+        sqlx::migrate!("tests/fixtures/migrations/rebuild_keeps_children");
+    let dir = tempfile::tempdir().unwrap();
+    let mut conn = connect(dir.path()).await;
+
+    super::migrate(&mut conn, dir.path(), &FIXTURE)
+        .await
+        .unwrap();
+
+    let children: Vec<(i64, i64)> =
+        sqlx::query_as("SELECT id, parent_id FROM children ORDER BY id")
+            .fetch_all(&mut conn)
+            .await
+            .unwrap();
+    assert_eq!(children, [(1, 1), (2, 1), (3, 2)]);
+}
+
+#[tokio::test]
+async fn an_upgrade_that_fails_part_way_applies_none_of_its_migrations() {
+    static FIXTURE: sqlx::migrate::Migrator =
+        sqlx::migrate!("tests/fixtures/migrations/third_fails");
+    let dir = tempfile::tempdir().unwrap();
+    let mut conn = connect(dir.path()).await;
+
+    let opened = super::migrate(&mut conn, dir.path(), &FIXTURE).await;
+
+    assert!(opened.is_err(), "{opened:?}");
+    let tables: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM sqlite_schema WHERE name IN ('firsts', 'seconds')")
+            .fetch_all(&mut conn)
+            .await
+            .unwrap();
+    assert_eq!(tables, Vec::<String>::new());
+    let recorded: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    assert_eq!(recorded, 0);
+}
+
+#[tokio::test]
+async fn an_upgrade_that_leaves_a_broken_foreign_key_names_its_row_and_applies_nothing() {
+    static FIXTURE: sqlx::migrate::Migrator =
+        sqlx::migrate!("tests/fixtures/migrations/broken_key");
+    let dir = tempfile::tempdir().unwrap();
+    let mut conn = connect(dir.path()).await;
+
+    let opened = super::migrate(&mut conn, dir.path(), &FIXTURE).await;
+
+    let Err(super::OpenError::BrokenForeignKey {
+        table,
+        rowid,
+        parent,
+    }) = opened
+    else {
+        panic!("{opened:?}");
+    };
+    assert_eq!(
+        (table.as_str(), rowid, parent.as_str()),
+        ("children", Some(3), "parents")
+    );
+    let tables: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM sqlite_schema WHERE name IN ('parents', 'children')",
+    )
+    .fetch_one(&mut conn)
+    .await
+    .unwrap();
+    assert_eq!(tables, 0);
+}
+
+#[tokio::test]
+async fn a_database_a_newer_server_upgraded_says_to_run_that_version() {
+    static FIXTURE: sqlx::migrate::Migrator =
+        sqlx::migrate!("tests/fixtures/migrations/rebuild_keeps_children");
+    let dir = tempfile::tempdir().unwrap();
+    let mut conn = connect(dir.path()).await;
+    super::migrate(&mut conn, dir.path(), &FIXTURE)
+        .await
+        .unwrap();
+    // What a newer Server's migration would have recorded.
+    sqlx::query(
+        "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time)
+         VALUES (99, 'newer', TRUE, x'00', 0)",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+
+    let opened = super::migrate(&mut conn, dir.path(), &FIXTURE).await;
+
+    let Err(err @ super::OpenError::NewerVersion(99)) = opened else {
+        panic!("{opened:?}");
+    };
+    assert!(err.to_string().contains("newer version of Nama"), "{err}");
+}

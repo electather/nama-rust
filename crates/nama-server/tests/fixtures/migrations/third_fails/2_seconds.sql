@@ -1,0 +1,1 @@
+CREATE TABLE seconds (id INTEGER PRIMARY KEY);
