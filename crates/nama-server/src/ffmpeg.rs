@@ -30,8 +30,8 @@ pub(crate) use self::hls::{
 use self::hls::{VideoArgs, aac, hls_output, map_audio, pgs_start_ms, seconds, video_args};
 #[cfg(any(test, feature = "testing"))]
 pub use self::test_media::{
-    write_4k_with_5_1, write_1080p_h264, write_black_with_pgs, write_black_with_pgs_sidecar,
-    write_h264_with_5_1, write_hevc_with_5_1,
+    FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_1080p_h264, write_black_with_pgs,
+    write_black_with_pgs_sidecar, write_h264_with_5_1, write_hevc_with_5_1,
 };
 use crate::config::Config;
 
@@ -502,17 +502,24 @@ impl Ffmpeg {
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
+    /// or with `None` the one subtitle of the text sidecar at `path`, read in the charset it's in,
     /// encoded with ffmpeg's `codec`, such as `webvtt`, or `copy` to keep it as it is, and written
     /// by its `muxer`, such as `webvtt` or `sup`.
     pub(crate) async fn subtitle(
         &self,
         path: &str,
-        subtitle: usize,
+        subtitle: Option<usize>,
         codec: &str,
         muxer: &str,
     ) -> Result<Vec<u8>, SubtitleError> {
-        let map = format!("0:s:{subtitle}");
-        let args = ["-i", path, "-map", &map, "-c:s", codec, "-f", muxer, "-"];
+        let charset = match subtitle {
+            // Matroska and MP4 store text subtitles as UTF-8.
+            Some(_) => None,
+            None => sidecar_charset(path).await,
+        };
+        let mut args = charset.map_or_default(|charset| vec!["-sub_charenc", charset]);
+        let map = format!("0:s:{}", subtitle.unwrap_or_default());
+        args.extend(["-i", path, "-map", &map, "-c:s", codec, "-f", muxer, "-"]);
         let output = self.read_out(&args).await?;
         if !output.status.success() {
             return Err(failed(&output));
@@ -579,6 +586,25 @@ async fn all_there(written: &[(usize, PathBuf)]) -> io::Result<bool> {
         }
     }
     Ok(true)
+}
+
+/// The charset the sidecar at `path` is in, as ffmpeg's `-sub_charenc` or the `subtitles` filter's
+/// `charenc` names it, if it isn't UTF-8, which ffmpeg reads by default.
+pub(crate) async fn sidecar_charset(path: &str) -> Option<&'static str> {
+    // One that can't be read gets none, and ffmpeg says why it can't read it either.
+    let bytes = tokio::fs::read(path).await.ok()?;
+    charset_of(&bytes)
+}
+
+/// [`sidecar_charset`] for a sidecar holding `bytes`.
+fn charset_of(bytes: &[u8]) -> Option<&'static str> {
+    // ffmpeg reads UTF-8, with or without a BOM, and UTF-16 by its BOM, on its own.
+    if str::from_utf8(bytes).is_ok() || encoding_rs::Encoding::for_bom(bytes).is_some() {
+        return None;
+    }
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
+    detector.feed(bytes, true);
+    Some(detector.guess(None, chardetng::Utf8Detection::Deny).name())
 }
 
 /// A failed read-out, saying what ffmpeg wrote to stderr.

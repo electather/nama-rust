@@ -1,6 +1,17 @@
-//! Writing short media files with the ffmpeg on `PATH`, for tests to probe, Remux and Transcode.
+//! Writing short media files with the ffmpeg on `PATH`, for tests to probe, Remux and Transcode,
+//! and the text of subtitles for tests to write in a charset.
 
 use std::{io, path::Path, process::Command};
+
+/// A cue of Persian, which older `.srt` files hold in Windows-1256. Its yeh is the Arabic one
+/// they write, as Windows-1256 has no Farsi yeh.
+#[cfg(any(test, feature = "testing"))]
+pub const PERSIAN_SRT: &str =
+    "1\n00:00:01,000 --> 00:00:03,000\nسلام، امروز هوا خيلي خوب است و ما به پارک مي‌رويم.\n";
+
+/// A cue of French with `é` and `ü`, which older `.srt` files hold in Windows-1252.
+#[cfg(any(test, feature = "testing"))]
+pub const FRENCH_SRT: &str = "1\n00:00:01,000 --> 00:00:03,000\nLe café de Saül est très bon, mais sa cuisine est un vrai capharnaüm.\n";
 
 /// Writes a fifth of a second of 10-bit 4K video with English 5.1 audio, as Matroska, to `path`,
 /// with the ffmpeg on `PATH`, for a test to probe. The video is tagged with `transfer`, as ffmpeg

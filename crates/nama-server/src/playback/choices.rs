@@ -187,7 +187,11 @@ pub(super) fn burn_in(facts: &Facts) -> Option<BurnIn> {
         });
     }
     let subtitle = match sidecar {
-        Some(sidecar) => TextSubtitle::Sidecar(sidecar),
+        Some(path) => TextSubtitle::Sidecar {
+            path,
+            // Found once the plan runs, as planning reads no files.
+            charset: None,
+        },
         None => TextSubtitle::Stream {
             subtitle: probe.ffmpeg_index(place)?,
             track: place,

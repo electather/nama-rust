@@ -123,8 +123,12 @@ pub(crate) enum TextSubtitle {
         track: usize,
         fonts: usize,
     },
-    /// The one in this file beside it.
-    Sidecar(String),
+    /// The one in the file `path` beside it, read in `charset` if it isn't UTF-8, which running
+    /// the plan finds with [`super::sidecar_charset`].
+    Sidecar {
+        path: String,
+        charset: Option<&'static str>,
+    },
     /// A [`Self::Stream`] read out of the file into the ASS file `ass`, drawn with the fonts in
     /// the folder `fonts`.
     Cached { ass: String, fonts: String },
@@ -163,8 +167,19 @@ fn transcoded_video(
             filter_value(path)
         )),
         Some(BurnIn::Text {
-            subtitle: TextSubtitle::Sidecar(sidecar),
-        }) => Some(format!("subtitles=filename={}", filter_value(sidecar))),
+            subtitle:
+                TextSubtitle::Sidecar {
+                    path: sidecar,
+                    charset,
+                },
+        }) => {
+            let charenc =
+                charset.map_or_default(|charset| format!(":charenc={}", filter_value(charset)));
+            Some(format!(
+                "subtitles=filename={}{charenc}",
+                filter_value(sidecar)
+            ))
+        }
         Some(BurnIn::Text {
             subtitle: TextSubtitle::Cached { ass, fonts },
         }) => Some(format!(

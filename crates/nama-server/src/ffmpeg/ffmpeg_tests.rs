@@ -1,8 +1,10 @@
 use std::{ffi::OsStr, fs, path::Path, sync::Arc, time::Duration};
 
+use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
+
 use super::{
-    Abilities, Accel, CanDo, Ffmpeg, FoundProgram, Gpu, Hardware, VideoConversion, fake,
-    fake::script, find_gpus, video_args,
+    Abilities, Accel, CanDo, FRENCH_SRT, Ffmpeg, FoundProgram, Gpu, Hardware, PERSIAN_SRT,
+    VideoConversion, fake, fake::script, find_gpus, video_args,
 };
 use crate::config::Config;
 
@@ -532,4 +534,45 @@ case \"$*\" in
 #[tokio::test]
 async fn without_ffmpeg_no_hardware_is_found() {
     assert_eq!(Ffmpeg::default().find_hardware().await, Ok(vec![]));
+}
+
+/// What a fake ffmpeg that prints its arguments is given to read the sidecar `bytes` as WebVTT.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn sidecar_read_with(bytes: &[u8]) -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let ffmpeg = fake_ffmpeg(dir.path(), r#"*) echo "$@" ;;"#);
+    let sidecar = dir.path().join("Alien.srt");
+    fs::write(&sidecar, bytes).unwrap();
+    let sidecar = sidecar.to_str().unwrap();
+
+    let read = ffmpeg.subtitle(sidecar, None, "webvtt", "webvtt").await;
+
+    String::from_utf8(read.unwrap()).unwrap()
+}
+
+#[tokio::test]
+async fn a_sidecar_not_in_utf8_is_read_in_the_charset_its_bytes_are_in() {
+    let persian = sidecar_read_with(&WINDOWS_1256.encode(PERSIAN_SRT).0).await;
+    let french = sidecar_read_with(&WINDOWS_1252.encode(FRENCH_SRT).0).await;
+
+    assert!(
+        persian.starts_with("-v error -nostdin -sub_charenc windows-1256 -i "),
+        "{persian}"
+    );
+    assert!(
+        french.starts_with("-v error -nostdin -sub_charenc windows-1252 -i "),
+        "{french}"
+    );
+}
+
+#[tokio::test]
+async fn a_utf8_sidecar_with_or_without_a_bom_is_read_with_no_charset() {
+    let plain = sidecar_read_with(FRENCH_SRT.as_bytes()).await;
+    let with_bom = sidecar_read_with(format!("\u{feff}{FRENCH_SRT}").as_bytes()).await;
+
+    assert!(!plain.contains("-sub_charenc"), "{plain}");
+    assert!(!with_bom.contains("-sub_charenc"), "{with_bom}");
 }

@@ -51,7 +51,7 @@ use crate::{
 
 /// The version of how a source makes WebVTT, part of every cache key so what an older one made is
 /// made again; when to bump it is in `AGENTS.md`.
-const WEBVTT_VERSION: u32 = 2;
+const WEBVTT_VERSION: u32 = 3;
 
 /// Where clients fetch the Version `version`'s Track `track`, by its place in the Version's
 /// Tracks, in `format`: the one it's [`served_as`], or ASS for an ASS or SSA one.
@@ -238,8 +238,9 @@ struct Source {
     name: String,
     /// The file it's read from.
     path: String,
-    /// Its place among that file's subtitle Tracks, which is how ffmpeg picks it out.
-    subtitle: usize,
+    /// Its place among that file's subtitle Tracks, which is how ffmpeg picks it out, or `None`
+    /// for a sidecar's one.
+    subtitle: Option<usize>,
     served_as: proto::SubtitleFormat,
     /// ASS or SSA, whose dialogue ffmpeg would make WebVTT with their styling and drawings in.
     ass: bool,
@@ -275,9 +276,13 @@ impl Source {
             Some(sidecar) => (
                 format!("{track}.{}.{}", sidecar.size, sidecar.modified_ns),
                 sidecar.path.clone(),
-                0,
+                None,
             ),
-            None => (track.to_string(), path.clone(), probe.ffmpeg_index(track)?),
+            None => (
+                track.to_string(),
+                path.clone(),
+                Some(probe.ffmpeg_index(track)?),
+            ),
         };
         let served_as = format_of(found)?;
         Some(Self {
