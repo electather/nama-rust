@@ -237,7 +237,7 @@ export type Track = Message<"nama.v1.Track"> & {
 
   /**
    * Whether the file marks it for the deaf and hard of hearing (SDH), as subtitles that also
-   * describe sounds.
+   * describe sounds. A subtitle whose title says so, such as "English (SDH)", counts too.
    *
    * @generated from field: bool sdh = 9;
    */
