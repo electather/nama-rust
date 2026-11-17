@@ -11,6 +11,24 @@ use crate::ffmpeg::Ffmpeg;
 /// file lists differently. Each listing logs a line to `bin/runs` first, then takes a second.
 #[cfg(unix)]
 fn listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
+    ffprobe_listing_by(
+        bin,
+        r#"sleep 1
+    # macOS's wc pads the count with spaces.
+    printf '0.000000,K__\n%s.000000,K__\n' "$(wc -c < "$file" | tr -d ' ')""#,
+    )
+}
+
+/// As [`listing_ffprobe`], but each listing fails, as on a file ffprobe can't read through.
+#[cfg(unix)]
+fn failing_listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
+    ffprobe_listing_by(bin, "echo 'read failed' >&2; exit 1")
+}
+
+/// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
+/// Tracks, and lists keyframes by running `listing`, after logging a line to `bin/runs`.
+#[cfg(unix)]
+fn ffprobe_listing_by(bin: &std::path::Path, listing: &str) -> Ffmpeg {
     let runs = bin.join("runs");
     fake_ffprobe(
         bin,
@@ -18,9 +36,7 @@ fn listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
             r#"for file; do :; done
 case "$*" in *packet=*)
     echo list >> '{}'
-    sleep 1
-    # macOS's wc pads the count with spaces.
-    printf '0.000000,K__\n%s.000000,K__\n' "$(wc -c < "$file" | tr -d ' ')"
+    {listing}
     exit ;;
 esac
 echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"#,
@@ -116,6 +132,58 @@ async fn a_versions_keyframes_are_listed_again_once_its_file_is_touched() {
     media.store(alien).await;
     media.match_to_alien(alien).await;
     media.keyframes(alien).await;
+
+    assert_eq!(probe_runs(bin.path()), 2);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_that_failed_to_list_arent_listed_again() {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+
+    media.probing.keyframes(version).await.unwrap_err();
+    media.probing.keyframes(version).await.unwrap_err();
+
+    assert_eq!(probe_runs(bin.path()), 1);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_its_file_changes() {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    media.probing.keyframes(version).await.unwrap_err();
+
+    // Stored and probed again, as a scan and the plan after it would.
+    media.write_probed(alien, 20).await;
+    media.probing.keyframes(version).await.unwrap_err();
+
+    assert_eq!(probe_runs(bin.path()), 2);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_the_failure_version_is_bumped()
+ {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    media.probing.keyframes(version).await.unwrap_err();
+
+    media.tracks.failed_by_older_failure_version(version).await;
+    media.probing.keyframes(version).await.unwrap_err();
 
     assert_eq!(probe_runs(bin.path()), 2);
 }

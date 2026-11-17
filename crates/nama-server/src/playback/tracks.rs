@@ -20,9 +20,9 @@ use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::Stored};
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
 pub(super) const PROBE_VERSION: i64 = 9;
 
-/// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
-/// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
-/// [`PROBE_VERSION`] bump retries them too.
+/// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on, or failed to list the
+/// keyframes of, at an older one is tried again, and those it read are left alone; when to bump
+/// it is in `AGENTS.md`. A [`PROBE_VERSION`] bump retries them too.
 pub(super) const PROBE_FAILURE_VERSION: i64 = 1;
 
 /// How many times in a row the probe pass tries a file that fails for a passing reason, such as a
@@ -83,6 +83,13 @@ impl PassingReason {
             Self::TimedOut => "timed_out",
         }
     }
+}
+
+/// When a Version's keyframes fall, in milliseconds, or that listing them failed in a kept way.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum Keyframes {
+    Listed(Vec<i64>),
+    Unlisted,
 }
 
 /// What probing a Version found.
@@ -335,21 +342,25 @@ impl Tracks {
         ignore_removed(stored)
     }
 
-    /// When each keyframe of the stored file `file`'s first video falls, in milliseconds, if
-    /// they've been kept since it was last probed at `file`'s size and modified time.
-    pub(super) async fn keyframes(&self, file: Stored) -> Result<Option<Vec<i64>>, sqlx::Error> {
-        let keyframes = sqlx::query_scalar!(
-            "SELECT keyframes_ms FROM version_probes
+    /// The stored file `file`'s keyframes, kept or failed to list at the current
+    /// [`PROBE_FAILURE_VERSION`] since it was last probed at `file`'s size and modified time.
+    pub(super) async fn keyframes(&self, file: Stored) -> Result<Option<Keyframes>, sqlx::Error> {
+        let row = sqlx::query!(
+            "SELECT keyframes_ms, keyframes_failure_version FROM version_probes
              WHERE version_id = ? AND size = ? AND modified_ns = ?",
             file.id,
             file.size,
             file.modified_ns
         )
         .fetch_optional(self.db.reader())
-        .await?
-        .flatten();
-        // Only `store_keyframes` writes them, as JSON it made.
-        Ok(keyframes.and_then(|json| serde_json::from_str(&json).ok()))
+        .await?;
+        Ok(row.and_then(|row| match row.keyframes_failure_version {
+            Some(PROBE_FAILURE_VERSION) => Some(Keyframes::Unlisted),
+            // Only `store_keyframes` writes them, as JSON it made.
+            _ => Some(Keyframes::Listed(
+                serde_json::from_str(&row.keyframes_ms?).ok()?,
+            )),
+        }))
     }
 
     /// Keeps `keyframes` as the Version `file`'s until it's next probed. A Version not last probed
@@ -357,16 +368,20 @@ impl Tracks {
     pub(super) async fn store_keyframes(
         &self,
         file: Stored,
-        keyframes: &[i64],
+        keyframes: &Keyframes,
     ) -> Result<(), sqlx::Error> {
-        let keyframes = json_array(keyframes);
+        let (keyframes_ms, failure_version) = match keyframes {
+            Keyframes::Listed(keyframes) => (Some(json_array(keyframes)), None),
+            Keyframes::Unlisted => (None, Some(PROBE_FAILURE_VERSION)),
+        };
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE version_probes SET keyframes_ms = ?
+                        "UPDATE version_probes SET keyframes_ms = ?, keyframes_failure_version = ?
                          WHERE version_id = ? AND size = ? AND modified_ns = ?",
-                        keyframes,
+                        keyframes_ms,
+                        failure_version,
                         file.id,
                         file.size,
                         file.modified_ns

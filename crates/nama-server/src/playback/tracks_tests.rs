@@ -23,13 +23,22 @@ impl Tracks {
         .unwrap()
     }
 
-    /// Marks the Version `version` as failed at the failure version before the current one.
+    /// Marks the Version `version`'s failures, to probe it or list its keyframes, as at the
+    /// failure version before the current one.
     pub(in crate::playback) async fn failed_by_older_failure_version(&self, version: i64) {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
                         "UPDATE probe_failures SET failure_version = ? - 1 WHERE version_id = ?",
+                        PROBE_FAILURE_VERSION,
+                        version
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query!(
+                        "UPDATE version_probes SET keyframes_failure_version = ? - 1
+                         WHERE version_id = ? AND keyframes_failure_version IS NOT NULL",
                         PROBE_FAILURE_VERSION,
                         version
                     )

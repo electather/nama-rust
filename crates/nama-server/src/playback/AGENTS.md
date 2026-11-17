@@ -8,7 +8,7 @@ Planning how a Device plays a Version, running the plans, serving their files an
 - **One owner for probing.** Only Probing (`probing.rs`, with its private `probing/ffprobe.rs`) runs ffprobe on stored files and decides what a probe failure means for trying it again (`ProbeFailure`); Tracks stores it.
 - **One owner for Track Preferences.** Only `track_preferences.rs` reads or writes `track_preferences`, tests included, and decides what a Preference is kept for: the Show or Movie a Version is of, never an Item or file (ADR 0035).
 - **Probe version.** A change to what probing reads from a file, or how, bumps `PROBE_VERSION` in `tracks.rs`, so the next pass after a scan probes every file again (ADR 0023's pattern).
-- **Probe failure version.** A change that may let ffprobe read files it lastingly failed on before, without changing what probing reads from a file that it could read, bumps `PROBE_FAILURE_VERSION` in `tracks.rs`, so the next pass tries again only those files.
+- **Probe failure version.** A change that may let ffprobe read files it lastingly failed on before, without changing what probing reads from a file that it could read, bumps `PROBE_FAILURE_VERSION` in `tracks.rs`, so the next pass tries again only those files, and the next Remux lists the keyframes it couldn't before.
 - **WebVTT version.** A change to the WebVTT a subtitle source makes bumps `WEBVTT_VERSION` in `subtitles.rs`, so what the cache kept from before is made again.
 - **Private modules.** Every playback module is a private `mod` of `../playback.rs`; neighbours import only what it re-exports (such as `playback::Probing` or `playback::SubtitleCache`), and items inside default to `pub(super)`.
 
