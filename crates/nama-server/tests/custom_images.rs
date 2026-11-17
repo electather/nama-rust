@@ -544,18 +544,21 @@ async fn an_upload_for_tmdb_0348_is_not_found_and_leaves_tmdb_348s_poster_alone(
 async fn an_upload_for_a_title_no_library_has_is_not_found_and_kept_nowhere_but_removing_succeeds()
 {
     let fx = Fixture::alien().await;
-    let over_20_mib = vec![0; 20 * 1024 * 1024 + 1];
-
-    for (path, bytes) in [
+    let mut uploads = vec![
         ("movie/tmdb-1/poster", image(ImageFormat::Png, 2, 3)),
         ("movie/tmdb-1/backdrop", image(ImageFormat::Png, 3, 2)),
         ("show/tmdb-1/poster", image(ImageFormat::Png, 2, 3)),
         ("show/tmdb-1/backdrop", image(ImageFormat::Png, 3, 2)),
         // Alien is a Movie, not a Show.
         ("show/tmdb-348/poster", image(ImageFormat::Png, 2, 3)),
-        // Refused before its body is read, so not as too big.
-        ("movie/tmdb-1/poster", over_20_mib),
-    ] {
+    ];
+    // Refused before its body is read, so not as too big. Windows resets a connection closed with
+    // a body still unread, so the client there loses the 404 while it's still sending.
+    if cfg!(not(windows)) {
+        uploads.push(("movie/tmdb-1/poster", vec![0; 20 * 1024 * 1024 + 1]));
+    }
+
+    for (path, bytes) in uploads {
         let path = format!("/custom-images/{path}");
         let refused = fx.upload(&path, &bytes).await;
 
