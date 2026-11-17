@@ -94,16 +94,22 @@ pub(crate) struct VideoLimit {
 /// A subtitle Track a Transcode burns into the picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BurnIn {
-    /// A bitmap, such as PGS, at its place among the subtitle streams of the file transcoded or of
-    /// the sidecar given, counting from 0, laid over a picture of the width and height given, if
-    /// known.
+    /// A bitmap, such as PGS, laid over a picture of the width and height given, if known.
     Image {
-        subtitle: usize,
-        sidecar: Option<String>,
+        subtitle: ImageSubtitle,
         picture: Option<(i64, i64)>,
     },
     /// Text, such as ASS, which libass draws with its styling, from the file or a sidecar.
     Text { subtitle: TextSubtitle },
+}
+
+/// Where a [`BurnIn::Image`] subtitle is read from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ImageSubtitle {
+    /// At its place among the subtitle streams of the file transcoded, counting from 0.
+    Stream(usize),
+    /// The PGS file at this path beside it.
+    Sidecar(String),
 }
 
 /// Where a [`BurnIn::Text`] subtitle is read from.
@@ -135,15 +141,15 @@ fn transcoded_video(
 ) -> Vec<String> {
     let drawn = match burn_in {
         None => None,
-        Some(BurnIn::Image {
-            subtitle,
-            sidecar,
-            picture,
-        }) => {
-            // The input's `-ss` drops a bitmap that began before it, so a run that seeks reads the
-            // subtitle from a second input, `transcode` opens, that doesn't. A sidecar is one anyway.
-            let source = usize::from(seeks || sidecar.is_some());
-            let graph = overlay_graph(before, source, *subtitle, *picture, after);
+        Some(BurnIn::Image { subtitle, picture }) => {
+            let (source, subtitle) = match *subtitle {
+                // The input's `-ss` drops a bitmap that began before it, so a run that seeks reads
+                // the subtitle from a second input, `transcode` opens, that doesn't.
+                ImageSubtitle::Stream(subtitle) => (usize::from(seeks), subtitle),
+                // The second input, holding just its one subtitle.
+                ImageSubtitle::Sidecar(_) => (1, 0),
+            };
+            let graph = overlay_graph(before, source, subtitle, *picture, after);
             return ["-filter_complex", &graph, "-map", "[video]"]
                 .map(str::to_owned)
                 .into();

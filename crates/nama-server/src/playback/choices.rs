@@ -14,7 +14,7 @@ use super::{
     track_preferences::{Description, Preferred, SubtitlePreference, same_language},
     tracks::{Probe, Track, TrackKind},
 };
-use crate::ffmpeg::{BurnIn, TextSubtitle};
+use crate::ffmpeg::{BurnIn, ImageSubtitle, TextSubtitle};
 
 /// The audio Track `asked` asks for, by its place in `probe`'s Tracks. One the Server chose by the
 /// User's Audio Preference is then as if they chose it, so a plan that can't play it drops it
@@ -177,15 +177,12 @@ pub(super) fn burn_in(facts: &Facts) -> Option<BurnIn> {
     let track = (probe.tracks.get(place)).filter(|track| burns_in(&facts.device, probe, track))?;
     let sidecar = track.sidecar().map(|sidecar| sidecar.path.clone());
     if matches!(track.kind, TrackKind::Subtitle { image: true, .. }) {
-        // A sidecar holds just its one subtitle.
-        let subtitle = if sidecar.is_some() {
-            0
-        } else {
-            probe.ffmpeg_index(place)?
+        let subtitle = match sidecar {
+            Some(sidecar) => ImageSubtitle::Sidecar(sidecar),
+            None => ImageSubtitle::Stream(probe.ffmpeg_index(place)?),
         };
         return Some(BurnIn::Image {
             subtitle,
-            sidecar,
             picture: picture(facts),
         });
     }

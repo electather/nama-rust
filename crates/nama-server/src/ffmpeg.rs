@@ -24,7 +24,7 @@ pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 #[cfg(test)]
 use self::hls::filter_value;
 pub(crate) use self::hls::{
-    BurnIn, FromCut, HlsRun, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
+    BurnIn, FromCut, HlsRun, ImageSubtitle, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
     TranscodeAudio, VideoConversion, VideoLimit, hls_init, hls_init_from,
 };
 use self::hls::{VideoArgs, aac, hls_output, map_audio, pgs_start_ms, seconds, video_args};
@@ -449,7 +449,7 @@ impl Ffmpeg {
         command.arg("-i").arg(path);
         match &video.burn_in {
             Some(BurnIn::Image {
-                sidecar: Some(sidecar),
+                subtitle: ImageSubtitle::Sidecar(sidecar),
                 ..
             }) => {
                 // `-start_at_zero` moves each input back by its own start, a `.sup`'s being its
@@ -461,7 +461,10 @@ impl Ffmpeg {
                     .arg("-i")
                     .arg(sidecar);
             }
-            Some(BurnIn::Image { sidecar: None, .. }) if seeks => {
+            Some(BurnIn::Image {
+                subtitle: ImageSubtitle::Stream(_),
+                ..
+            }) if seeks => {
                 command.arg("-i").arg(path);
             }
             _ => {}

@@ -1,6 +1,6 @@
 use nama_proto::nama::v1::{PlaybackReasonKind as Kind, SubtitleFormat};
 
-use crate::ffmpeg::{BurnIn, TextSubtitle};
+use crate::ffmpeg::{BurnIn, ImageSubtitle, TextSubtitle};
 use crate::playback::{
     DeviceDecoding, Facts, Method, Sidecar, Subtitle, build,
     tests::{
@@ -477,7 +477,7 @@ fn a_pgs_sidecar_is_burned_in_from_its_path_on_a_device_that_doesnt_draw_pgs() {
     assert!(
         matches!(
             &burn_in,
-            Some(BurnIn::Image { subtitle: 0, sidecar: Some(path), .. }) if path == "/media/Alien.en.sup"
+            Some(BurnIn::Image { subtitle: ImageSubtitle::Sidecar(path), .. }) if path == "/media/Alien.en.sup"
         ),
         "{burn_in:?}"
     );

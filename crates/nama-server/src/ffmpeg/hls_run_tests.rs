@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use super::{
-    Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe, Remux, RemuxAudio,
-    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
+    Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, ImageSubtitle, Keyframe, Remux,
+    RemuxAudio, TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
 };
 
 /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
@@ -349,8 +349,7 @@ fn a_limited_tone_map_with_a_burn_in_scales_down_after_the_subtitle() {
     };
 
     let image = transcode_args(burned(BurnIn::Image {
-        subtitle: 1,
-        sidecar: None,
+        subtitle: ImageSubtitle::Stream(1),
         picture: None,
     }));
     let text = transcode_args(burned(BurnIn::Text {
@@ -393,8 +392,7 @@ fn a_playback_limit_scales_the_picture_and_caps_the_bitrate() {
 fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Image {
-            subtitle: 1,
-            sidecar: None,
+            subtitle: ImageSubtitle::Stream(1),
             picture: Some((1920, 1080)),
         }),
         ..SOFTWARE
@@ -413,8 +411,7 @@ fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
 fn a_run_that_seeks_reads_its_image_subtitle_from_an_input_that_doesnt() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Image {
-            subtitle: 1,
-            sidecar: None,
+            subtitle: ImageSubtitle::Stream(1),
             picture: None,
         }),
         ..SOFTWARE
@@ -452,8 +449,7 @@ fn a_pgs_sidecar_is_burned_in_from_a_second_input_moved_back_to_its_first_pictur
         audio: None,
         video: VideoConversion {
             burn_in: Some(BurnIn::Image {
-                subtitle: 0,
-                sidecar: Some(sup.clone()),
+                subtitle: ImageSubtitle::Sidecar(sup.clone()),
                 picture: None,
             }),
             ..SOFTWARE
