@@ -56,7 +56,7 @@ export async function defaultFilter(
   return count > 0 ? "pending" : "all";
 }
 
-/** `ListRequests`'s state for `filter`, where no filter means All. */
+/** `ListRequests`'s `RequestFilter` for `filter`, where no filter means All. */
 export function listedIn(filter: StateFilter | undefined) {
   return { state: stateFilters[filter ?? "all"] };
 }

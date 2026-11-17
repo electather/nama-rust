@@ -2402,6 +2402,18 @@ pub struct Title {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub episode_number: ::core::option::Option<u32>,
+    /// When a Scan first stored the Movie's newest Version, or the Episode's, in milliseconds since
+    /// the Unix epoch. A rescan or a new Match keeps it, even of a file changed in place. Items
+    /// stored before Servers recorded it have the time the Server upgraded.
+    ///
+    /// Field 6: `added_at_ms`
+    #[serde(
+        rename = "addedAtMs",
+        alias = "added_at_ms",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub added_at_ms: i64,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2414,6 +2426,7 @@ impl ::core::fmt::Debug for Title {
             .field("show_title", &self.show_title)
             .field("season_number", &self.season_number)
             .field("episode_number", &self.episode_number)
+            .field("added_at_ms", &self.added_at_ms)
             .finish()
     }
 }
@@ -2490,6 +2503,9 @@ impl ::buffa::Message for Title {
         if let Some(v) = self.episode_number {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if self.added_at_ms != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.added_at_ms) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2519,6 +2535,9 @@ impl ::buffa::Message for Title {
         }
         if let Some(v) = self.episode_number {
             ::buffa::types::put_uint32_field(5u32, v, buf);
+        }
+        if self.added_at_ms != 0i64 {
+            ::buffa::types::put_int64_field(6u32, self.added_at_ms, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2581,6 +2600,13 @@ impl ::buffa::Message for Title {
                     ::buffa::types::decode_uint32(buf)?,
                 );
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.added_at_ms = ::buffa::types::decode_int64(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2594,6 +2620,7 @@ impl ::buffa::Message for Title {
         self.show_title = ::core::option::Option::None;
         self.season_number = ::core::option::Option::None;
         self.episode_number = ::core::option::Option::None;
+        self.added_at_ms = 0i64;
         self.__buffa_unknown_fields.clear();
     }
 }

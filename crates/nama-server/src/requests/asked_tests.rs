@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
-use nama_proto::nama::v1::{ListRequestsResponse, Permission, RequestState};
+use nama_proto::nama::v1::{ListRequestsResponse, PageRequest, Permission, RequestState};
 
 use super::{Asked, join, who_requested};
 use crate::requests::apply::Applied;
@@ -85,7 +85,7 @@ async fn requesters_are_listed_in_the_order_they_asked() {
         let id = ask_kind(&db, kind, BOB).await.value;
         ask_kind(&db, kind, ADA).await;
         let page = requests
-            .list(&ada(Permissions::ADMIN), None, 100, "")
+            .list(&ada(Permissions::ADMIN), None, &PageRequest::default())
             .await
             .unwrap();
 
@@ -140,7 +140,7 @@ async fn joining_one_twice_changes_nothing() {
         let opened = ask_kind(&db, kind, ADA).await.value;
         let again = ask_kind(&db, kind, ADA).await;
         let page = requests
-            .list(&ada(Permissions::ADMIN), None, 100, "")
+            .list(&ada(Permissions::ADMIN), None, &PageRequest::default())
             .await
             .unwrap();
 
@@ -167,7 +167,7 @@ async fn a_requester_leaving_takes_only_them_off() {
         withdraw_kind(&requests, kind, &bob, id).await.unwrap();
         let again = withdraw_kind(&requests, kind, &bob, id).await;
         let page = requests
-            .list(&ada(Permissions::ADMIN), None, 100, "")
+            .list(&ada(Permissions::ADMIN), None, &PageRequest::default())
             .await
             .unwrap();
 
@@ -194,7 +194,7 @@ async fn the_last_requester_leaving_removes_it() {
             .await
             .unwrap();
         let page = requests
-            .list(&ada(Permissions::ADMIN), None, 100, "")
+            .list(&ada(Permissions::ADMIN), None, &PageRequest::default())
             .await
             .unwrap();
 
@@ -286,7 +286,10 @@ async fn only_a_pending_one_is_decided_and_declining_keeps_its_reason() {
 
 /// Whether `viewer` sees the `kind` with the ID `id` among the Requests listed.
 async fn sees(requests: &Requests, viewer: &User, kind: Asked, id: i64) -> bool {
-    let page = requests.list(viewer, None, 100, "").await.unwrap();
+    let page = requests
+        .list(viewer, None, &PageRequest::default())
+        .await
+        .unwrap();
     listed_requesters(&page, kind, id).is_some()
 }
 

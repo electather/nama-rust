@@ -21,7 +21,7 @@ One way a client might reach a Server, such as a LAN address, a public URL or a 
 _Avoid_: endpoint, connection, URI
 
 **Server URL**:
-The one address an admin sets for people to reach a Server's web app at, such as `https://nama.example.com`. Notifiers' messages link to Requests there; with none set, they have no links.
+The one address people reach a Server's web app at, such as `https://nama.example.com`: the one an admin sets, else a Linked Server's public name from the Hub. Notifiers' messages and Invites link there; with none, they have no links.
 _Avoid_: base URL, public URL
 
 **Diagnostics**:
@@ -61,6 +61,10 @@ _Avoid_: claim token, bootstrap code
 **Permission**:
 One thing a User is allowed to do on a Server, such as Request or manage Libraries. Each User has their own set, and new Users get the Server's default set. A User with the Admin Permission may do everything.
 _Avoid_: role, scope, right, group
+
+**Invite**:
+A single-use link that lets one person create a User on a Server, with the Permissions chosen when it was made.
+_Avoid_: invitation code, share, referral
 
 **Account**:
 A person's identity on the Hub, which can be linked to Users on many Servers.
@@ -106,7 +110,7 @@ _Avoid_: descriptor, plugin.json, metadata
 
 **Extension Point**:
 A named place where the Kernel lets Plugins take part, declared as Observe or Provide. One an Installed Plugin can serve is a service of the Plugin contract, such as `nama.plugin.v1.NotifierService`, with a version of its own (ADR 0043).
-_Avoid_: hook, seam, slot
+_Avoid_: hook, seam, slot, UI Extension Point
 
 **Observer**:
 A Plugin's handler that is told something happened and can't change it.
@@ -257,6 +261,10 @@ _Avoid_: watched status, play state, progress
 **Continue Watching**:
 A User's Movies and Episodes whose Watch State says they've started and not played, and the next Episode of each Show they're partway through, most recent first, leaving out what they've hidden from it. Hiding a title lasts until the User plays it, or for a Show any of its Episodes, again, and never changes its Watch State.
 _Avoid_: on deck, in progress, resume list, Next Up
+
+**Home row**:
+A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching; a Plugin may provide others, shared by every User or each User's own, which can hold titles not on the Server for the User to Request.
+_Avoid_: shelf, section, rail, carousel
 
 ## Playback
 

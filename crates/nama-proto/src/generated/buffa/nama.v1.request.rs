@@ -3875,38 +3875,22 @@ pub const __CREATE_SEASON_REQUESTS_RESPONSE_JSON_ANY: ::buffa::type_registry::Js
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListRequestsRequest {
-    /// The state to list Requests and Followed Shows in. Unspecified lists every state.
+    /// Which Requests and Followed Shows to list. Unset lists all.
     ///
-    /// Field 1: `state`
+    /// Field 4: `filter`
     #[serde(
-        rename = "state",
-        with = "::buffa::json_helpers::proto_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+        rename = "filter",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub state: ::buffa::EnumValue<RequestState>,
-    /// How many Requests and Followed Shows, together, to list at most. 0 lists 50, and more than 100
-    /// lists 100.
+    pub filter: ::buffa::MessageField<RequestFilter, ::buffa::Inline<RequestFilter>>,
+    /// The page of Requests and Followed Shows, together, to list.
     ///
-    /// Field 2: `page_size`
+    /// Field 5: `page`
     #[serde(
-        rename = "pageSize",
-        alias = "page_size",
-        with = "::buffa::json_helpers::uint32",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+        rename = "page",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub page_size: u32,
-    /// The `next_page_token` of the page before, to list the page after it, or empty for the first.
-    /// Pages follow the newest-first order as it was, so Requests opened while paging don't shift
-    /// later pages.
-    ///
-    /// Field 3: `page_token`
-    #[serde(
-        rename = "pageToken",
-        alias = "page_token",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub page_token: ::buffa::alloc::string::String,
+    pub page: ::buffa::MessageField<PageRequest, ::buffa::Inline<PageRequest>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3914,9 +3898,8 @@ pub struct ListRequestsRequest {
 impl ::core::fmt::Debug for ListRequestsRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ListRequestsRequest")
-            .field("state", &self.state)
-            .field("page_size", &self.page_size)
-            .field("page_token", &self.page_token)
+            .field("filter", &self.filter)
+            .field("page", &self.page)
             .finish()
     }
 }
@@ -3943,43 +3926,51 @@ impl ::buffa::Message for ListRequestsRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        {
-            let val = self.state.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
+        if self.filter.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.filter.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
-        if self.page_size != 0u32 {
-            size += 1u64 + ::buffa::types::uint32_encoded_len(self.page_size) as u64;
-        }
-        if !self.page_token.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.page_token) as u64;
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        {
-            let val = self.state.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(1u32, val, buf);
-            }
+        if self.filter.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.filter.write_to(__cache, buf);
         }
-        if self.page_size != 0u32 {
-            ::buffa::types::put_uint32_field(2u32, self.page_size, buf);
-        }
-        if !self.page_token.is_empty() {
-            ::buffa::types::put_string_field(3u32, &self.page_token, buf);
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3994,28 +3985,27 @@ impl ::buffa::Message for ListRequestsRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.state = ::buffa::EnumValue::from(
-                    ::buffa::types::decode_int32(buf)?,
-                );
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.page_size = ::buffa::types::decode_uint32(buf)?;
-            }
-            3u32 => {
+            4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                ::buffa::types::merge_string(&mut self.page_token, buf)?;
+                ::buffa::Message::merge_length_delimited(
+                    self.filter.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.page.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -4025,9 +4015,8 @@ impl ::buffa::Message for ListRequestsRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.state = ::buffa::EnumValue::from(0);
-        self.page_size = 0u32;
-        self.page_token.clear();
+        self.filter = ::buffa::MessageField::none();
+        self.page = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4058,6 +4047,141 @@ pub const __LIST_REQUESTS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
     type_url: "type.googleapis.com/nama.v1.ListRequestsRequest",
     to_json: ::buffa::type_registry::any_to_json::<ListRequestsRequest>,
     from_json: ::buffa::type_registry::any_from_json::<ListRequestsRequest>,
+    is_wkt: false,
+};
+/// Which Requests and Followed Shows `ListRequests` lists.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct RequestFilter {
+    /// The state to list them in. Unspecified, or one the Server doesn't know, lists every state.
+    ///
+    /// Field 1: `state`
+    #[serde(
+        rename = "state",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub state: ::buffa::EnumValue<RequestState>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RequestFilter {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RequestFilter").field("state", &self.state).finish()
+    }
+}
+impl RequestFilter {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequestFilter";
+}
+::buffa::impl_default_instance!(RequestFilter);
+impl ::buffa::MessageName for RequestFilter {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RequestFilter";
+    const FULL_NAME: &'static str = "nama.v1.RequestFilter";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequestFilter";
+}
+impl ::buffa::Message for RequestFilter {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.state = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.state = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RequestFilter {
+    const PROTO_FQN: &'static str = "nama.v1.RequestFilter";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for RequestFilter {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __REQUEST_FILTER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.RequestFilter",
+    to_json: ::buffa::type_registry::any_to_json::<RequestFilter>,
+    from_json: ::buffa::type_registry::any_from_json::<RequestFilter>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
@@ -4450,16 +4574,15 @@ pub struct ListRequestsResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub followed_shows: ::buffa::alloc::vec::Vec<FollowedShow>,
-    /// The `page_token` that lists the next page, or empty if this is the last.
+    /// The rest of the list: the next page's token, and on the first page how many Requests and
+    /// Followed Shows, together, `filter` lets through.
     ///
-    /// Field 3: `next_page_token`
+    /// Field 4: `page`
     #[serde(
-        rename = "nextPageToken",
-        alias = "next_page_token",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        rename = "page",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub next_page_token: ::buffa::alloc::string::String,
+    pub page: ::buffa::MessageField<PageResponse, ::buffa::Inline<PageResponse>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4469,7 +4592,7 @@ impl ::core::fmt::Debug for ListRequestsResponse {
         f.debug_struct("ListRequestsResponse")
             .field("requests", &self.requests)
             .field("followed_shows", &self.followed_shows)
-            .field("next_page_token", &self.next_page_token)
+            .field("page", &self.page)
             .finish()
     }
 }
@@ -4516,10 +4639,13 @@ impl ::buffa::Message for ListRequestsResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        if !self.next_page_token.is_empty() {
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
             size
-                += 1u64
-                    + ::buffa::types::string_encoded_len(&self.next_page_token) as u64;
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -4547,8 +4673,13 @@ impl ::buffa::Message for ListRequestsResponse {
             );
             v.write_to(__cache, buf);
         }
-        if !self.next_page_token.is_empty() {
-            ::buffa::types::put_string_field(3u32, &self.next_page_token, buf);
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4587,12 +4718,16 @@ impl ::buffa::Message for ListRequestsResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.followed_shows.push(elem);
             }
-            3u32 => {
+            4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                ::buffa::types::merge_string(&mut self.next_page_token, buf)?;
+                ::buffa::Message::merge_length_delimited(
+                    self.page.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -4604,7 +4739,7 @@ impl ::buffa::Message for ListRequestsResponse {
     fn clear(&mut self) {
         self.requests.clear();
         self.followed_shows.clear();
-        self.next_page_token.clear();
+        self.page = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

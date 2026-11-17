@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version_id, path, size, modified_ns FROM sidecar_subtitles\n             WHERE version_id IN (SELECT value FROM json_each(?))\n             ORDER BY path",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "version_id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sidecar_subtitles",
+            "name": "modified_ns"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a622398b73911d649c32aae7b3831ebc1ede463ddf1edc25a4f6810f4040aaec"
+}
