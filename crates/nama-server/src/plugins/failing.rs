@@ -1,5 +1,5 @@
-//! Which Providers' last calls failed, so the Admin sees a Plugin that keeps failing instead of it
-//! failing quietly on every call (ADR 0050).
+//! Which Providers' and Observers' last calls failed, so the Admin sees a Plugin that keeps
+//! failing instead of it failing quietly on every call (ADR 0050).
 
 use std::{
     collections::HashMap,
@@ -10,7 +10,7 @@ use nama_plugin_api::{PluginId, PointKey};
 
 use crate::db;
 
-/// A Provider whose last call failed: why, when, and how many calls in a row have.
+/// A Provider or Observer whose last call failed: why, when, and how many calls in a row have.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Failing {
     /// What the last failure said, with the Plugin's secret settings blanked.
@@ -21,13 +21,13 @@ pub struct Failing {
     pub in_a_row: u32,
 }
 
-/// Each Provider's [`Failing`], by Plugin and Extension Point. Held in memory only, so a restart
-/// forgets it.
+/// Each Provider's and Observer's [`Failing`], by Plugin and Extension Point. Held in memory
+/// only, so a restart forgets it.
 #[derive(Default)]
 pub(super) struct Failures(Mutex<HashMap<(PluginId, PointKey), Failing>>);
 
 impl Failures {
-    /// Records that the Plugin `plugin`'s Provider at `point` failed with `message`, and returns
+    /// Records that the Plugin `plugin`'s handler at `point` failed with `message`, and returns
     /// its run of failures so far.
     pub(super) fn failed(&self, plugin: &PluginId, point: PointKey, message: &str) -> Failing {
         let key = (plugin.clone(), point);
@@ -42,12 +42,12 @@ impl Failures {
         failing
     }
 
-    /// Records that the Plugin `plugin`'s Provider at `point` answered, which ends its run.
+    /// Records that the Plugin `plugin`'s handler at `point` answered, which ends its run.
     pub(super) fn answered(&self, plugin: &PluginId, point: PointKey) {
         self.lock().remove(&(plugin.clone(), point));
     }
 
-    /// The Plugin `plugin`'s Provider at `point`, if its last call failed.
+    /// The Plugin `plugin`'s handler at `point`, if its last call failed.
     pub(super) fn get(&self, plugin: &PluginId, point: PointKey) -> Option<Failing> {
         self.lock().get(&(plugin.clone(), point)).cloned()
     }
