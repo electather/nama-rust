@@ -1,10 +1,16 @@
 use std::{error::Error, sync::Arc};
 
 use nama_plugin_api::{
-    Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, recogniser::Recogniser,
+    BoxFuture, Manifest, ObservePoint, Observer, Plugin, PluginError, PluginId, PointKey, Priority,
+    Registrar,
+    recogniser::Recogniser,
+    settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
-use crate::plugins::{ExtensionPoints, Failing, Registry};
+use crate::{
+    log_capture::CapturedLog,
+    plugins::{ExtensionPoints, Failing, Registry},
+};
 
 const PLUGIN: PluginId = PluginId::from_static("flaky");
 
@@ -111,15 +117,24 @@ async fn tell(points: &ExtensionPoints, result: Result<(), &'static str>) -> Opt
     points.tell_each(move |_, _: Arc<dyn Told>| async move {
         result.map_err(Box::<dyn Error + Send + Sync>::from)
     });
+    recorded(points, told, before).await
+}
+
+/// What `points` records for [`PLUGIN`] at `point` once it changes from `before`, or after a while.
+async fn recorded(
+    points: &ExtensionPoints,
+    point: PointKey,
+    before: Option<Failing>,
+) -> Option<Failing> {
     // The call runs as its own task, which records its outcome when it ends.
     for _ in 0..100 {
         tokio::task::yield_now().await;
-        let now = points.failing(&PLUGIN, told);
+        let now = points.failing(&PLUGIN, point);
         if now != before {
             return now;
         }
     }
-    points.failing(&PLUGIN, told)
+    points.failing(&PLUGIN, point)
 }
 
 #[tokio::test]
@@ -136,6 +151,105 @@ async fn a_told_providers_failure_is_recorded_until_a_call_answers() {
         ("the topic is gone", 1)
     );
     assert_eq!(answered, None);
+}
+
+/// Observe: a word happened.
+struct Words;
+
+impl ObservePoint for Words {
+    const NAME: &'static str = "words";
+    type Event = Result<(), &'static str>;
+}
+
+const KEY: &str = "s3cr3t";
+
+/// A Plugin taking a secret `api_key`, whose Observer at [`Words`] fails, quoting the key, with
+/// each word's error.
+struct Watches;
+
+impl Observer<Words> for Watches {
+    fn observe<'a>(
+        &'a self,
+        event: &'a Result<(), &'static str>,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async move { event.map_err(|error| format!("{error} with {KEY}").into()) })
+    }
+}
+
+impl Plugin for Watches {
+    fn manifest(&self) -> Manifest {
+        let api_key = SettingField {
+            key: "api_key".to_owned(),
+            label: "API key".to_owned(),
+            description: String::new(),
+            kind: SettingKind::Secret,
+            required: true,
+            default: None,
+            min: None,
+            max: None,
+        };
+        Manifest {
+            extension_points: vec![PointKey::observe::<Words>()],
+            settings: SettingsSchema {
+                fields: vec![api_key],
+            },
+            ..Idle.manifest()
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.observe::<Words>(Self);
+        Ok(())
+    }
+}
+
+/// A Registry with [`Watches`] enabled with [`KEY`] as its `api_key`, and its Extension Points.
+fn watching() -> (Registry, ExtensionPoints) {
+    let plugins = Registry::new();
+    let api_key = SettingValue::Text(KEY.to_owned());
+    let settings = Settings::new([("api_key".to_owned(), api_key)].into());
+    plugins
+        .enable_with_settings(Arc::new(Watches), settings)
+        .unwrap();
+    let points = plugins.extension_points();
+    (plugins, points)
+}
+
+#[tokio::test]
+async fn an_observers_failure_is_recorded_without_its_secret_until_it_observes_again() {
+    let (_plugins, points) = watching();
+    let words = PointKey::observe::<Words>();
+
+    points.notify::<Words>(Err("the log is full"));
+    let failed = recorded(&points, words, None)
+        .await
+        .expect("the failure is recorded");
+    points.notify::<Words>(Ok(()));
+    let observed = recorded(&points, words, Some(failed.clone())).await;
+
+    assert_eq!(
+        (failed.last_error.as_str(), failed.in_a_row),
+        ("the log is full with …", 1)
+    );
+    assert_eq!(observed, None);
+}
+
+#[tokio::test]
+async fn a_builtin_observers_failure_is_logged_once_without_its_secret() {
+    let (_plugins, points) = watching();
+
+    // The test's runtime has one thread, so the Observer's task logs to it.
+    let log = CapturedLog::start();
+    points.notify::<Words>(Err("the log is full"));
+    recorded(&points, PointKey::observe::<Words>(), None).await;
+    let log = log.finish();
+
+    let failed: Vec<&str> = (log.lines())
+        .filter(|line| line.contains("observer failed"))
+        .collect();
+    assert_eq!(failed.len(), 1, "{log}");
+    assert!(failed[0].contains("the log is full with …"), "{log}");
+    assert!(!log.contains(KEY), "{log}");
 }
 
 #[test]

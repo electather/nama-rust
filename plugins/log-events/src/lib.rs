@@ -50,9 +50,13 @@ impl Plugin for LogEvents {
 struct Log;
 
 impl Observer<ServerStarted> for Log {
-    fn observe<'a>(&'a self, event: &'a ServerStartedEvent) -> BoxFuture<'a, ()> {
+    fn observe<'a>(
+        &'a self,
+        event: &'a ServerStartedEvent,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
             info!(name = %event.name, version = %event.version, "observed server started");
+            Ok(())
         })
     }
 }
@@ -60,11 +64,12 @@ impl Observer<ServerStarted> for Log {
 // ponytail: only playback is logged; a scan's batches of up to thousands of Items would flood the
 // log, so log them once someone needs them there.
 impl Observer<Events> for Log {
-    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, ()> {
+    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
             for (what, playback) in event.events.iter().filter_map(playback) {
                 log_playback(what, playback);
             }
+            Ok(())
         })
     }
 }
@@ -163,7 +168,7 @@ mod tests {
             events: vec![event(started), event(ended)],
             ..Default::default()
         };
-        Observer::<Events>::observe(&Log, &batch).await;
+        Observer::<Events>::observe(&Log, &batch).await.unwrap();
 
         let logged = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
         let lines: Vec<&str> = logged.lines().collect();
