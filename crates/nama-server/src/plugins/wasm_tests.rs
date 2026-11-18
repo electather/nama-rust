@@ -1,6 +1,7 @@
 use std::{collections::HashSet, path::Path, sync::Arc};
 
 use buffa::Message;
+use tempfile::TempDir;
 
 use nama_plugin_api::{
     Plugin, PluginId, PointKey, Registrar,
@@ -17,7 +18,7 @@ use nama_plugin_proto::{
 };
 
 use super::{
-    Running, allowed_hosts,
+    Installed, Running, allowed_hosts,
     bundled::{BUNDLED, bundling},
     check_exports, compile, delivery, extism_config, failure_cause, is_crash,
     load::{check_allowed_hosts, decode, judge, load, settings_schema, write_cache_config},
@@ -627,20 +628,11 @@ fn a_fulfiller_needs_no_stop_monitoring_export() {
 
 #[tokio::test]
 async fn a_fulfiller_without_the_stop_monitoring_export_isnt_asked() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let cache_config = write_cache_config(data_dir.path()).unwrap();
-    let (_, wasm) = BUNDLED
-        .iter()
-        .find(|(file, _)| *file == "radarr.wasm")
-        .unwrap();
-    let radarr = load(wasm.to_vec(), &cache_config).unwrap();
+    let (_data_dir, radarr) = installed("radarr.wasm");
     // Without its settings Radarr fails when asked, so only one not asked succeeds.
     let running_with = |exports: &[&'static str]| Running {
-        package: Arc::clone(&radarr.package),
-        compiled: Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap()),
-        secrets: Arc::default(),
-        crashes: Arc::default(),
         exports: Arc::new(exports.iter().copied().collect()),
+        ..running(&radarr)
     };
     let alien = StopMonitoring {
         title: Some(Title::from(MovieDeleted {
@@ -666,19 +658,11 @@ async fn a_fulfiller_without_the_stop_monitoring_export_isnt_asked() {
 
 #[test]
 fn a_fulfiller_needs_the_id_namespaces_its_manifest_names() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let cache_config = write_cache_config(data_dir.path()).unwrap();
-    let (_, wasm) = BUNDLED
-        .iter()
-        .find(|(file, _)| *file == "radarr.wasm")
-        .unwrap();
-    let compiled = Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap());
+    let (_data_dir, radarr) = installed("radarr.wasm");
+    let radarr = running(&radarr);
     let running = |package| Running {
         package: Arc::new(package),
-        compiled: Arc::clone(&compiled),
-        secrets: Arc::default(),
-        crashes: Arc::default(),
-        exports: Arc::default(),
+        ..radarr.clone()
     };
     let naming = running(Manifest {
         movie_id_namespaces: vec!["tmdb".to_owned(), "imdb".to_owned()],
@@ -695,12 +679,7 @@ fn a_fulfiller_needs_the_id_namespaces_its_manifest_names() {
 
 #[test]
 fn radarr_needs_a_tmdb_id_and_sonarr_a_tvdb_id() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let cache_config = write_cache_config(data_dir.path()).unwrap();
-    let package = |name: &str| {
-        let (_, wasm) = BUNDLED.iter().find(|(file, _)| *file == name).unwrap();
-        load(wasm.to_vec(), &cache_config).unwrap().package
-    };
+    let package = |file| installed(file).1.package;
 
     assert_eq!(package("radarr.wasm").movie_id_namespaces, ["tmdb"]);
     assert_eq!(package("sonarr.wasm").show_id_namespaces, ["tvdb"]);
@@ -737,13 +716,7 @@ fn a_point_this_server_doesnt_know_refuses_the_plugin() {
 
 #[test]
 fn register_says_when_the_package_wont_compile_with_its_settings() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let cache_config = write_cache_config(data_dir.path()).unwrap();
-    let (_, wasm) = BUNDLED
-        .iter()
-        .find(|(file, _)| *file == "radarr.wasm")
-        .unwrap();
-    let radarr = load(wasm.to_vec(), &cache_config).unwrap();
+    let (_data_dir, radarr) = installed("radarr.wasm");
     let mut broken = radarr.clone();
     broken.wasm = Arc::from(&b"not a module"[..]);
     let register = |plugin: &dyn Plugin| {
@@ -793,4 +766,34 @@ fn a_connection_or_channel_recipient_keeps_its_kind() {
         channel.recipient,
         Some(wire::delivery::Recipient::Channel(_))
     ));
+}
+
+/// Loads the bundled Plugin in `file`, compiling into the returned directory's cache, which must
+/// outlive what's compiled there.
+pub(super) fn installed(file: &str) -> (TempDir, Installed) {
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    let (_, wasm) = BUNDLED
+        .iter()
+        .find(|(bundled, _)| *bundled == file)
+        .unwrap();
+    (data_dir, load(wasm.to_vec(), &cache_config).unwrap())
+}
+
+/// Runs `installed` with no secret settings; a test changes the one field it's about with
+/// `Running { field, ..running(&installed) }`.
+pub(super) fn running(installed: &Installed) -> Running {
+    let compiled = compile(
+        &installed.wasm,
+        &installed.cache_config,
+        Vec::new(),
+        Vec::new(),
+    );
+    Running {
+        package: Arc::clone(&installed.package),
+        compiled: Arc::new(compiled.unwrap()),
+        secrets: Arc::default(),
+        crashes: Arc::default(),
+        exports: Arc::clone(&installed.exports),
+    }
 }
