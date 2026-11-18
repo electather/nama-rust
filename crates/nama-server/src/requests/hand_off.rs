@@ -255,6 +255,9 @@ impl HandOff {
         let Answer { plugin, result } = self
             .plugins
             .ask_first(|fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
+                // shortcut: an unmet need answers, so it clears the Fulfiller's recorded failure
+                // though its service wasn't called; check with `read_provider` first if that hides
+                // one.
                 if let Some(needs) = unmet(&*fulfiller, namespaces(ids)) {
                     return Ok(Err(needs));
                 }

@@ -138,17 +138,22 @@ impl Recognisers {
         plugin: &PluginId,
         asked: &TitleToRecognise,
     ) -> Result<Option<Vec<ExternalId>>, Miss> {
+        let serves = (self.plugins)
+            .read_provider(plugin, |recogniser: &dyn Recogniser| {
+                recogniser.recognises(RecogniserMethod::Title)
+            })
+            .await;
+        if serves != Some(true) {
+            return Ok(None);
+        }
         let answered = (self.plugins)
             .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
-                if !recogniser.recognises(RecogniserMethod::Title) {
-                    return Ok(None);
-                }
-                recogniser.recognise_title(asked).await.map(Some)
+                recogniser.recognise_title(asked).await
             })
             .await;
         match answered {
             Some(Answer {
-                result: Ok(Some(recognised)),
+                result: Ok(recognised),
                 ..
             }) => Ok(Some(well_formed(plugin, &recognised))),
             Some(Answer {
@@ -161,12 +166,8 @@ impl Recognisers {
                 *last = failure.message;
                 Err(Miss::RecogniserFailed)
             }
-            // Doesn't serve `recognise_title`, isn't enabled or a Recogniser, or it panicked,
-            // which disabled it.
-            Some(Answer {
-                result: Ok(None), ..
-            })
-            | None => Ok(None),
+            // No longer enabled or a Recogniser, or it panicked, which disabled it.
+            None => Ok(None),
         }
     }
 }

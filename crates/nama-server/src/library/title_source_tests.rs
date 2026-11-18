@@ -492,14 +492,10 @@ async fn a_source_finding_no_such_title_clears_its_failure_while_an_unavailable_
     let (metadata, _) = two(Answers::NotFound, Answers::Fails);
     let (aa, bb) = (PluginId::from_static("aa"), PluginId::from_static("bb"));
     let point = PointKey::provide::<dyn TitleSource>();
-    // Routing asks each source what it serves, an answer that would clear a failure recorded
-    // before it.
-    let to_aa = metadata.by_namespace("aa", TitleMethod::Show).await;
-    let to_bb = metadata.by_namespace("bb", TitleMethod::Show).await;
     metadata.plugins.provider_failed(&aa, point, "timed out");
 
-    let not_found = (metadata.show_from(to_aa, &ExternalId::new("aa", "1").unwrap())).await;
-    let unavailable = (metadata.show_from(to_bb, &ExternalId::new("bb", "1").unwrap())).await;
+    let not_found = metadata.show_by(&ExternalId::new("aa", "1").unwrap()).await;
+    let unavailable = metadata.show_by(&ExternalId::new("bb", "1").unwrap()).await;
 
     assert_eq!(not_found.unwrap_err(), Unanswered::NotFound);
     assert_eq!(unavailable.unwrap_err(), Unanswered::Unavailable);

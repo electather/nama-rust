@@ -194,6 +194,20 @@ async fn an_asked_providers_failure_is_recorded_at_its_point_until_a_call_answer
 }
 
 #[tokio::test]
+async fn reading_what_a_provider_says_of_itself_keeps_its_failure() {
+    let (_plugins, points) = listening();
+    ask(&points, || failed("the service is down")).await;
+
+    let read = points
+        .read_provider::<dyn Told, _>(&PLUGIN, |_| "told")
+        .await;
+
+    assert_eq!(read, Some("told"));
+    let failing = points.failing(&PLUGIN, PointKey::provide::<dyn Told>());
+    assert_eq!(failing.map(|failing| failing.in_a_row), Some(1));
+}
+
+#[tokio::test]
 async fn a_fulfillers_try_again_in_records_no_failure_and_clears_an_earlier_one() {
     let (_plugins, points) = listening();
     let down = || Err::<(), _>(Retryable("the service is down".into()));
