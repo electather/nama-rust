@@ -18,7 +18,7 @@ pub(crate) struct Found {
 }
 
 /// A Movie a search found, with the metadata the Match of its best-fitting Item stores.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct FoundMovie {
     pub(crate) library: i64,
     /// As browsing identifies it: see [`primary_id`](super::primary_id).
@@ -31,7 +31,7 @@ pub(crate) struct FoundMovie {
 }
 
 /// A Show a search found, with the metadata the Match of its best-fitting Episode stores.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct FoundShow {
     pub(crate) library: i64,
     /// As browsing identifies it: see [`primary_id`](super::primary_id).

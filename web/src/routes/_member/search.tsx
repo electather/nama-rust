@@ -2,15 +2,11 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Page } from "@/components/page";
-import { Poster, PosterGrid, posterLink } from "@/components/poster";
+import { PosterGrid } from "@/components/poster";
 import { ShowMore } from "@/components/show-more";
-import {
-  BrowseService,
-  type EpisodeInLibrary,
-  type MovieInLibrary,
-  type ShowInLibrary,
-} from "@/gen/nama/v1/browse_pb";
-import { metadataLine, seasonName, titleParam, yearOf } from "@/lib/browse";
+import { MovieInLibraryItem, ShowInLibraryItem } from "@/components/titles-in-library";
+import { BrowseService, type EpisodeInLibrary } from "@/gen/nama/v1/browse_pb";
+import { metadataLine, seasonName, titleParam } from "@/lib/browse";
 import { pagedQuery, usePaged } from "@/lib/paged";
 
 /** What the nav's search box found in the signed-in User's Libraries for `?query=`. */
@@ -73,14 +69,14 @@ function Results({ query }: { query: string }) {
       <FoundSection heading="Movies" count={movies.length}>
         <PosterGrid empty={null}>
           {movies.map((movie) => (
-            <MovieFound key={`${movie.libraryId}/${titleParam(movie.id)}`} movie={movie} />
+            <MovieInLibraryItem key={`${movie.libraryId}/${titleParam(movie.id)}`} movie={movie} />
           ))}
         </PosterGrid>
       </FoundSection>
       <FoundSection heading="Shows" count={shows.length}>
         <PosterGrid empty={null}>
           {shows.map((show) => (
-            <ShowFound key={`${show.libraryId}/${titleParam(show.id)}`} show={show} />
+            <ShowInLibraryItem key={`${show.libraryId}/${titleParam(show.id)}`} show={show} />
           ))}
         </PosterGrid>
       </FoundSection>
@@ -115,39 +111,6 @@ function FoundSection({
       <h2 className="font-medium">{heading}</h2>
       {children}
     </section>
-  );
-}
-
-function MovieFound({ movie }: { movie: MovieInLibrary }) {
-  return (
-    <li>
-      <Link
-        to="/libraries/$libraryId/movies/$movieId"
-        params={{ libraryId: String(movie.libraryId), movieId: titleParam(movie.id) }}
-        className={posterLink}
-      >
-        <Poster
-          url={movie.posterUrl}
-          thumbhash={movie.posterThumbhash}
-          title={movie.title}
-          detail={yearOf(movie.releaseDate)}
-        />
-      </Link>
-    </li>
-  );
-}
-
-function ShowFound({ show }: { show: ShowInLibrary }) {
-  return (
-    <li>
-      <Link
-        to="/libraries/$libraryId/shows/$showId"
-        params={{ libraryId: String(show.libraryId), showId: titleParam(show.id) }}
-        className={posterLink}
-      >
-        <Poster url={show.posterUrl} thumbhash={show.posterThumbhash} title={show.title} />
-      </Link>
-    </li>
   );
 }
 

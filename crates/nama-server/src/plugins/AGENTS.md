@@ -18,4 +18,4 @@ The Registry, how the Kernel calls Plugins at Extension Points, and the Built-in
 - Uses: `images` (cleaning a Manifest's logo).
 - Uses: `images` (`Blobs`, which `PluginBlobs` in `blob_store.rs` serves from a blob store Plugin).
 - Uses: `diagnostics` (marking a Plugin call's span failed, and keeping a spawned call in its caller's trace).
-- Used by: `plugin_settings` (the `Registry`), startup in `main.rs`, and, through `ExtensionPoints`, `library` (`TitleSources`, `Artwork`), `matching`, `scanner`, `requests`, `events`, `connections`, `users` and the `api` part for Plugins.
+- Used by: `plugin_settings` (the `Registry`), startup in `main.rs`, and, through `ExtensionPoints`, `library` (`TitleSources`, `Artwork`), `matching`, `scanner`, `requests`, `home_rows`, `events`, `connections`, `users` and the `api` part for Plugins.

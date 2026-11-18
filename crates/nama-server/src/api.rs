@@ -22,6 +22,7 @@ use crate::{
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
+    home_rows::HomeRows,
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
         Artwork, Contents, CustomImages, Libraries, LocalImages, TitleKind, TitleSources,
@@ -88,6 +89,7 @@ pub(crate) fn router(
     probing: Probing,
     events: EventBus,
     requests: Requests,
+    home_rows: HomeRows,
     settings: server_settings::Settings,
     running: RunningPlans,
     abilities: Abilities,
@@ -141,6 +143,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
+            home_rows,
             images: images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
@@ -292,6 +295,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_LIST_EPISODES_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_NEXT_EPISODE_SPEC.procedure,       Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_HOME_ROWS_SPEC.procedure,         Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC.procedure,   Access::SignedIn),
     (proto::BROWSE_SERVICE_SEARCH_LIBRARIES_SPEC.procedure,       Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_UNMATCHED_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_UNMATCHED_VERSION_SPEC.procedure,  Access::SignedIn),

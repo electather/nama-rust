@@ -8,6 +8,7 @@ use nama_proto::nama::v1::{
     GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
     GetUnmatchedVersionResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
     ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest, ListGenresResponse,
+    ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest, ListHomeRowsResponse,
     ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
     ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission, RefusalReason,
     SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection, WatchedFilter,
@@ -15,6 +16,7 @@ use nama_proto::nama::v1::{
 
 use crate::{
     browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
+    home_rows::{self, HomeRows, OnServer},
     library::{
         FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie, Listing,
         Role, Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
@@ -31,6 +33,7 @@ use super::{
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct BrowseServiceHandler {
     pub(super) browse: Browse,
+    pub(super) home_rows: HomeRows,
     pub(super) images: ImageSources,
 }
 
@@ -256,6 +259,52 @@ impl BrowseService for BrowseServiceHandler {
         Response::ok(ListContinueWatchingResponse {
             entries: (started.into_iter())
                 .map(|started| started_to_proto(started, &images))
+                .collect(),
+            page: page.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_home_rows(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, ListHomeRowsRequest>,
+    ) -> ServiceResult<ListHomeRowsResponse> {
+        let rows = self.home_rows.list().await.map_err(home_rows_refused)?;
+        Response::ok(ListHomeRowsResponse {
+            rows: (rows.into_iter())
+                .map(|(plugin, row)| proto::HomeRow {
+                    plugin_id: plugin.as_str().to_owned(),
+                    key: row.key,
+                    heading: row.heading,
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_home_row_titles(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListHomeRowTitlesRequest>,
+    ) -> ServiceResult<ListHomeRowTitlesResponse> {
+        let request = request.to_owned_message();
+        let plugin = request.plugin_id.into();
+        let listed = (self.home_rows)
+            .titles(&plugin, &request.key, &request.page)
+            .await;
+        let (titles, page) = listed.map_err(home_rows_refused)?;
+        let images = self.images.shown().await?;
+        Response::ok(ListHomeRowTitlesResponse {
+            titles: (titles.into_iter())
+                .map(|title| proto::HomeRowTitle {
+                    movie_or_show: Some(match title {
+                        OnServer::Movie(movie) => found_movie_to_proto(movie, &images).into(),
+                        OnServer::Show(show) => found_show_to_proto(show, &images).into(),
+                    }),
+                    ..Default::default()
+                })
                 .collect(),
             page: page.into(),
             ..Default::default()
@@ -705,6 +754,21 @@ pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError 
             browse::Error::Database(err) => return database_failed(err),
         };
         refused.into()
+    }
+}
+
+/// The Connect error a client gets when Home rows couldn't be read. Database failures are logged,
+/// not sent.
+fn home_rows_refused(err: home_rows::Error) -> ConnectError {
+    match err {
+        home_rows::Error::PageTokenInvalid(_) => refuse(
+            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
+            err.to_string(),
+        )
+        .field("page.token")
+        .into(),
+        home_rows::Error::Database(err) => database_failed(err),
+        home_rows::Error::Libraries(err) => err.into(),
     }
 }
 

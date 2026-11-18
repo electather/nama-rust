@@ -18,6 +18,7 @@ pub mod automation;
 pub mod blob_store;
 pub mod connector;
 pub mod fulfiller;
+pub mod home_row;
 mod ids;
 pub mod metadata;
 pub mod notifier;

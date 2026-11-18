@@ -42,3 +42,20 @@ pub mod continue_watching_entry {
         ),
     }
 }
+pub mod home_row_title {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, Debug)]
+    pub enum MovieOrShow<'a> {
+        Movie(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::MovieInLibraryView<'a>,
+            >,
+        ),
+        Show(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ShowInLibraryView<'a>,
+            >,
+        ),
+    }
+}
