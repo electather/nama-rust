@@ -9,7 +9,7 @@ use extism::{CurrentPlugin, UserData, Val};
 use nama_plugin_api::PluginId;
 use tracing::{Level, enabled, event, warn};
 
-use super::without_secrets;
+use super::{printable, without_secrets};
 use crate::{
     db,
     diagnostics::{MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, cut_plugin_line},
@@ -102,7 +102,7 @@ impl PluginLog {
         }
     }
 
-    /// `text` as the line logged: blanked, then cut.
+    /// `text` as the line logged: blanked, made [`printable`], then cut.
     fn line(&self, text: &[u8]) -> String {
         // Only what can reach the cut is read, so a huge line costs no more than a short one,
         // with room for a secret that starts before the cut to be read whole.
@@ -120,6 +120,9 @@ impl PluginLog {
             let kept = line.len().saturating_sub(longest_secret + 3);
             line.truncate(line.floor_char_boundary(kept));
         }
+        // Escaped after the trim above, which counts a secret's bytes as written, and before the
+        // cut, so the cut holds for the escaped line.
+        let mut line = printable(&line);
         if read_part || line.len() > MAX_PLUGIN_LINE_BYTES {
             cut_plugin_line(&mut line);
         }

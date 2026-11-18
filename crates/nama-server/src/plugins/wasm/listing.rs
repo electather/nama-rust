@@ -10,7 +10,7 @@ use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::PluginKind;
 use tracing::{info, warn};
 
-use super::{Installed, Listable, Refused, load::read_plugins};
+use super::{Installed, Listable, Refused, load::read_plugins, printable};
 use crate::plugins::{Registry, registry::Described};
 
 /// The bundled Installed Plugins and those in `<data_dir>/plugins/`, compiled but not yet listed.
@@ -40,6 +40,7 @@ impl Registry {
                     "found Installed Plugin"
                 ),
                 Err(refused) => {
+                    let refused = printable(&refused.to_string());
                     warn!(file = %file.display(), "refused Installed Plugin: {refused}");
                 }
             }
