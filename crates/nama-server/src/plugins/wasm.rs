@@ -575,13 +575,11 @@ impl Connector for Running {
 }
 
 impl Observer<Events> for Running {
-    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, ()> {
+    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
-            // An Observer's failure is logged and counted there; the Kernel waits for no answer.
-            drop(
-                self.call_method::<_, EventsObserved>(&OBSERVE_EVENTS, event)
-                    .await,
-            );
+            // An Observer's failure is logged and counted there, so the Kernel only records it.
+            let _: EventsObserved = self.call_method(&OBSERVE_EVENTS, event).await?;
+            Ok(())
         })
     }
 }

@@ -37,7 +37,9 @@ impl ExtensionPoints {
     /// Tells every Observer at `P` about `event`, without waiting for them.
     ///
     /// Each Observer runs as its own task, so a slow one doesn't hold up the others, and two
-    /// events may reach one Observer in either order. Must be called within a Tokio runtime.
+    /// events may reach one Observer in either order. A failure is recorded for the Plugins page,
+    /// without the Plugin's secret settings, until the Observer handles an event; one that panics
+    /// is disabled. Must be called within a Tokio runtime.
     pub fn notify<P: ObservePoint>(&self, event: P::Event) {
         let observers = self.entries(PointKey::observe::<P>());
         if observers.is_empty() {
@@ -64,9 +66,18 @@ impl ExtensionPoints {
         if !self.is_current(&entry) {
             return;
         }
-        let delivered = contain_call(&entry.plugin, P::NAME, || observer.observe(&event));
-        if let Err(message) = delivered.instrument(self.log_span(&entry.plugin)).await {
-            self.disable_after_panic(&entry, P::NAME, &message);
+        let key = PointKey::observe::<P>();
+        let delivered = contain_call(&entry.plugin, P::NAME, || {
+            formatted(observer.observe(&event))
+        });
+        // Not logged here: an Installed Plugin's Observer logs its own failure, as a Built-in may.
+        match delivered.instrument(self.log_span(&entry.plugin)).await {
+            Ok(Ok(())) => self.provider_answered(&entry.plugin, key),
+            Ok(Err(failure)) => {
+                let error = failure.blanked(&entry.secrets).message;
+                self.provider_failed(&entry.plugin, key, &error);
+            }
+            Err(message) => self.disable_after_panic(&entry, P::NAME, &message),
         }
     }
 
