@@ -3,8 +3,8 @@ import type { ConnectError } from "@connectrpc/connect";
 import { ExtensionPoint, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import type { ImageStoreSwitch } from "@/gen/nama/v1/server_pb";
-import { pluginName } from "@/lib/plugins";
 import { endSentence, refusal, refusalOf } from "@/shared/lib/forms";
+import { pluginName } from "@/shared/lib/plugins";
 
 /** Whether `switching` is still copying, rather than stopped with a failure. */
 export function isRunning(switching: ImageStoreSwitch | undefined) {

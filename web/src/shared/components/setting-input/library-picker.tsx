@@ -1,8 +1,9 @@
-import { useQuery } from "@connectrpc/connect-query";
 import { useId } from "react";
 
-import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import type { Setting } from "@/gen/nama/v1/plugin_pb";
+import { LibraryBox } from "@/shared/components/setting-input/library-box";
+import { UnlistedLibraries } from "@/shared/components/setting-input/unlisted-libraries";
+import { useLibrariesToPick } from "@/shared/hooks/use-libraries-to-pick";
 
 /**
  * A Libraries setting's input: a checkbox per Library on the Server, by name, ticked for the ones
@@ -19,14 +20,14 @@ export function LibraryPicker({
   error: string | undefined;
 }) {
   const id = useId();
-  const { data, isError } = useQuery(LibraryService.method.listLibraries, {});
+  const { data, isError } = useLibrariesToPick();
   const held = setting.value?.value.case === "libraryIds" ? setting.value.value.value.ids : [];
   const described = `${id}-hint ${id}-error`;
   return (
     <fieldset className="flex flex-col gap-2" aria-describedby={described}>
       <legend className="mb-2 text-sm font-medium">{setting.label}</legend>
       {data === undefined ? (
-        <Unlisted name={setting.key} held={held} failed={isError} />
+        <UnlistedLibraries name={setting.key} held={held} failed={isError} />
       ) : (
         data.libraries.map((library) => (
           <LibraryBox
@@ -47,54 +48,5 @@ export function LibraryPicker({
         {error}
       </p>
     </fieldset>
-  );
-}
-
-/** One Library's checkbox, sending its id as a `name` form value when ticked. */
-function LibraryBox({
-  library,
-  name,
-  checked,
-  invalid,
-  described,
-}: {
-  library: Library;
-  name: string;
-  checked: boolean;
-  invalid: boolean;
-  described: string;
-}) {
-  return (
-    <label className="flex items-center gap-3 text-sm">
-      <input
-        type="checkbox"
-        name={name}
-        value={String(library.id)}
-        defaultChecked={checked}
-        aria-invalid={invalid}
-        aria-describedby={described}
-        className="size-4 accent-foreground"
-      />
-      {library.name}
-    </label>
-  );
-}
-
-/**
- * While the Libraries load, or if they `failed` to, says so and sends the `held` ids as they were:
- * the Server keeps a left-out value only for a Secret, so sending none would clear them.
- */
-function Unlisted({ name, held, failed }: { name: string; held: bigint[]; failed: boolean }) {
-  return (
-    <>
-      <p className="text-sm text-muted-foreground">
-        {failed
-          ? "The Libraries couldn’t be listed, so saving keeps the ones picked."
-          : "Loading the Libraries…"}
-      </p>
-      {held.map((id) => (
-        <input key={String(id)} type="hidden" name={name} value={String(id)} />
-      ))}
-    </>
   );
 }

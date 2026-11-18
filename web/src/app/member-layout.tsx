@@ -2,7 +2,7 @@ import { Outlet, useMatches } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
 import { AppChrome } from "@/app/app-chrome/app-chrome";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/data/use-events";
 import { ConfirmItsYou } from "@/shared/components/confirm-its-you/confirm-its-you";
 
 /** Pages for a signed-in User, under the app chrome unless they fill the screen. */

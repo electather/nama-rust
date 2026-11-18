@@ -11,7 +11,7 @@ import {
   libraryFromParam,
   queryOrNotFound,
   wholeNumberFromParam,
-} from "@/lib/browse";
+} from "@/shared/hooks/browse";
 
 export const Route = createFileRoute(
   "/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",

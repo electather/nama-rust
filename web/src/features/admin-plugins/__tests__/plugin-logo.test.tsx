@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { openPlugin, plugin, tmdbLogo } from "@/test-plugins";
+import { tmdbLogo } from "@/test-plugin-list";
+import { openPlugin, plugin } from "@/test-plugins";
 
 afterEach(() => {
   cleanup();

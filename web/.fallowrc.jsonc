@@ -24,12 +24,6 @@
         "maxFileLines": 0,
         "reason": "All format, lint and test config lives in it (web/AGENTS.md, \"Only `vp`\").",
       },
-      {
-        // Each file leaves this list when it moves into the feature layout.
-        "files": ["src/access.test.tsx", "src/lib/events.ts", "src/test-plugins.tsx"],
-        "maxFileLines": 400,
-        "reason": "#1133: written before the feature layout, and split as it moves there.",
-      },
     ],
   },
   // web/src/AGENTS.md, "Layers". src/gen/ is ignored above, and protoc-gen-es only imports
@@ -58,48 +52,29 @@
       { "name": "routes", "patterns": ["src/routes/**"] },
       // The only files that import route files.
       { "name": "router", "patterns": ["src/main.tsx", "src/router.tsx", "src/routeTree.gen.ts"] },
-      // Code not yet moved into the feature layout (#1133). A18 (#1150) removes these zones.
-      { "name": "legacy-components", "patterns": ["src/components/**"] },
-      { "name": "legacy-lib", "patterns": ["src/lib/**"] },
     ],
     // Each feature PR adds its feature's zone, allowed `shared-*` and the sibling features it
-    // lists, and adds the feature to `app`, `routes` and `router`. While the move runs, every zone
-    // may also import the legacy ones.
+    // lists, and adds the feature to `app`, `routes` and `router`.
     "rules": [
       {
         "from": "shared-lib",
-        "allow": ["shared-lib", "legacy-components", "legacy-lib"],
+        "allow": ["shared-lib"],
       },
       {
         "from": "shared-hooks",
-        "allow": ["shared-hooks", "shared-lib", "legacy-components", "legacy-lib"],
+        "allow": ["shared-hooks", "shared-lib"],
       },
       {
         "from": "shared-ui",
-        "allow": ["shared-ui", "legacy-components", "legacy-lib"],
+        "allow": ["shared-ui"],
       },
       {
         "from": "shared-components",
-        "allow": [
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "auth",
-        "allow": [
-          "auth",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["auth", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-libraries",
@@ -109,21 +84,11 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-components",
-          "legacy-lib",
         ],
       },
       {
         "from": "admin-plugins",
-        "allow": [
-          "admin-plugins",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["admin-plugins", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-needs-a-match",
@@ -133,21 +98,11 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-components",
-          "legacy-lib",
         ],
       },
       {
         "from": "admin-playback",
-        "allow": [
-          "admin-playback",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["admin-playback", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-users",
@@ -158,118 +113,43 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-components",
-          "legacy-lib",
         ],
       },
       {
         "from": "invites",
-        "allow": [
-          "invites",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["invites", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "requests",
-        "allow": [
-          "requests",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["requests", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "action-bar",
-        "allow": [
-          "action-bar",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["action-bar", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "settings",
-        "allow": [
-          "settings",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["settings", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "home",
-        "allow": [
-          "home",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["home", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "library",
-        "allow": [
-          "library",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["library", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "title",
-        "allow": [
-          "title",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["title", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "player",
-        "allow": [
-          "player",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["player", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "app",
-        "allow": [
-          "app",
-          "player",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-          "legacy-components",
-          "legacy-lib",
-        ],
+        "allow": ["app", "player", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "routes",
@@ -293,8 +173,6 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-components",
-          "legacy-lib",
         ],
       },
       {
@@ -307,25 +185,11 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-components",
-          "legacy-lib",
         ],
       },
-      {
-        "from": "legacy-components",
-        "allow": [
-          "legacy-components",
-          "legacy-lib",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-        ],
-      },
-      { "from": "legacy-lib", "allow": ["legacy-lib", "shared-hooks", "shared-lib"] },
     ],
   },
-  // web/src/AGENTS.md: data hooks, Suspense and dynamic loading, in the new folders only.
+  // web/src/AGENTS.md: data hooks, Suspense and dynamic loading, in src/app/, src/features/ and src/shared/.
   "rulePacks": ["fallow-rules.jsonc"],
   // Every rule fails the run. `coverage-gaps` needs the runtime coverage sidecar, which CI
   // doesn't run.

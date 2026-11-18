@@ -1,7 +1,7 @@
 import { pendingCountQuery } from "@/features/requests/data/use-pending-count";
 import type { StateFilter } from "@/features/requests/lib/state-filter";
 import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
-import type { RouterContext } from "@/lib/access";
+import type { RouterContext } from "@/shared/hooks/access";
 import { may } from "@/shared/lib/permissions";
 
 /** The filter the Requests page opens on: Pending for a Request manager while anything is, else All. */

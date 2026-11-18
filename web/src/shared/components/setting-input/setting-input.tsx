@@ -1,6 +1,6 @@
-import { LibraryPicker } from "@/components/library-picker";
 import { type Choice, type Setting, SettingKind } from "@/gen/nama/v1/plugin_pb";
 import { ChoiceInput } from "@/shared/components/setting-input/choice-input";
+import { LibraryPicker } from "@/shared/components/setting-input/library-picker";
 import { OwnInput } from "@/shared/components/setting-input/own-input";
 import { hint } from "@/shared/lib/setting-values";
 

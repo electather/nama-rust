@@ -4,7 +4,7 @@ import { GettingReady } from "@/features/player/components/getting-ready";
 import { PlannedPlayer } from "@/features/player/components/planned-player";
 import { useAutoplay } from "@/features/player/hooks/use-autoplay";
 import type { PlayerProps } from "@/features/player/lib/player-props";
-import { playerOpened } from "@/lib/diagnostics";
+import { playerOpened } from "@/shared/lib/diagnostics";
 
 /**
  * Plays a Version full screen with Nama's own controls, from where the Server's Playback Plan says,

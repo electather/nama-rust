@@ -5,9 +5,9 @@ import { RequestedPermissions } from "@/features/admin-plugins/components/reques
 import { useEnablePlugin } from "@/features/admin-plugins/data/use-enable-plugin";
 import { refusedChange } from "@/features/admin-plugins/lib/refused-change";
 import type { PluginSummary, Setting } from "@/gen/nama/v1/plugin_pb";
-import { pluginName } from "@/lib/plugins";
 import { ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
 import { StateLabel } from "@/shared/components/state-label";
+import { pluginName } from "@/shared/lib/plugins";
 import { Button } from "@/shared/ui/button";
 
 /**

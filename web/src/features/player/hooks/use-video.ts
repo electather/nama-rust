@@ -1,6 +1,6 @@
 import { type SyntheticEvent, useCallback, useRef, useState } from "react";
 
-import { firstFramePlayed } from "@/lib/diagnostics";
+import { firstFramePlayed } from "@/shared/lib/diagnostics";
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
 export type Video = Pick<ReturnType<typeof useVideo>, "state" | "control">;

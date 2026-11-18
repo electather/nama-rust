@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { requestsKey } from "@/lib/events";
+import { requestsKey } from "@/shared/hooks/requests-key";
 import { refusalOf } from "@/shared/lib/forms";
 
 /**

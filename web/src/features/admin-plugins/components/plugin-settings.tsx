@@ -1,10 +1,12 @@
-import { TestButton, testPassed, useSettingsTest } from "@/components/settings-test";
+import { TestButton } from "@/features/admin-plugins/components/test-button";
+import { useSettingsTest } from "@/features/admin-plugins/data/use-settings-test";
 import { useUpdatePluginSettings } from "@/features/admin-plugins/data/use-update-plugin-settings";
 import { saved, settingErrors } from "@/features/admin-plugins/lib/setting-errors";
-import type { PluginDetails } from "@/lib/plugins";
+import { testPassed } from "@/features/admin-plugins/lib/test-passed";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { SettingInput } from "@/shared/components/setting-input/setting-input";
 import { onSubmitted } from "@/shared/lib/forms";
+import type { PluginDetails } from "@/shared/lib/plugins";
 import { forgottenTyped, settingsTyped } from "@/shared/lib/setting-values";
 
 /**

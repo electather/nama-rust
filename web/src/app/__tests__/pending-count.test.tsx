@@ -5,8 +5,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 import type { EventSchema } from "@/gen/nama/v1/event_pb";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { eventFeed, fakeServer, newUser, openApp } from "./test-app";
+import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
 

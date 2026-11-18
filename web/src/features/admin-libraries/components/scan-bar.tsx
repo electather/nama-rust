@@ -1,4 +1,4 @@
-import type { ScanState } from "@/lib/events";
+import type { ScanState } from "@/shared/hooks/scan-query";
 
 /** The scan's progress as a bar, while it's counting files. */
 export function ScanBar({ scan }: { scan: ScanState | undefined }) {

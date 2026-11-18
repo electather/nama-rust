@@ -4,7 +4,7 @@ import { NotFound } from "@/app/route-error/not-found";
 import { PlayerError } from "@/app/route-error/player-error";
 import { MoviePlayer } from "@/features/player/components/movie-player";
 import { versionSearch } from "@/features/player/lib/version-search";
-import { loadMovie } from "@/lib/browse";
+import { loadMovie } from "@/shared/hooks/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/play")({
   validateSearch: versionSearch,

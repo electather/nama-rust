@@ -1,6 +1,6 @@
 import { QualitiesForm } from "@/features/admin-plugins/components/qualities-form";
 import { useQualities } from "@/features/admin-plugins/data/use-qualities";
-import { type PluginDetails, pluginName } from "@/lib/plugins";
+import { type PluginDetails, pluginName } from "@/shared/lib/plugins";
 
 /** The Qualities heading and its form, or why they didn't load. */
 export function QualitiesSection({ plugin }: { plugin: PluginDetails }) {

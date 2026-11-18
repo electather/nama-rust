@@ -5,7 +5,7 @@ import { NotFound } from "@/app/route-error/not-found";
 import { ShowPage } from "@/features/title/components/show-page";
 import { seasonToShow, specialsBelow } from "@/features/title/lib/season-to-show";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { externalIdFromParam, libraryFromParam, queryOrNotFound } from "@/lib/browse";
+import { externalIdFromParam, libraryFromParam, queryOrNotFound } from "@/shared/hooks/browse";
 import { deletedFromSearch, type DeletedSearch } from "@/shared/lib/deleted-search";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({

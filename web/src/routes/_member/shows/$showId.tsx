@@ -4,7 +4,7 @@ import { NotFound } from "@/app/route-error/not-found";
 import { ShowToRequest } from "@/features/title/components/show-to-request";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { externalIdFromParam, queryOrNotFound } from "@/lib/browse";
+import { externalIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
 import { may } from "@/shared/lib/permissions";
 
 /** A Show from the title source, for picking its Seasons to Request. */

@@ -55,8 +55,8 @@ export default defineConfig({
     },
   },
   test: {
-    // Tests live in `__tests__` folders. The flat `src/*.test.tsx` are legacy, until they move.
-    include: ["src/**/__tests__/**/*.test.{ts,tsx}", "src/*.test.{ts,tsx}"],
+    // Tests live in `__tests__` folders.
+    include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
     retry: ci ? 2 : 0,
     // JSON, not JUnit: vitest's JUnit report doesn't show which tests passed only on a retry.
@@ -222,9 +222,10 @@ export default defineConfig({
       "typescript/explicit-module-boundary-types": "off",
       // Comes with the PR that adds translations.
       "react/jsx-no-literals": "off",
-      // Need a person to fix every hit, so they're on only in the feature layout's folders (the
-      // overrides below). Legacy code meets them as it moves.
-      "react/no-multi-comp": "off",
+      // web/src/AGENTS.md, "One component per file".
+      "react/no-multi-comp": ["error", { ignoreStateless: false }],
+      // Need a person to fix every hit in the route files and test helpers, so they're on only in
+      // the feature layout's folders (the overrides below).
       "react/only-export-components": "off",
       "react/jsx-handler-names": "off",
       "react/jsx-max-depth": "off",
@@ -242,11 +243,10 @@ export default defineConfig({
       "vitest/require-hook": "off",
     },
     overrides: [
-      // web/src/AGENTS.md, "The new folders": the strictest bar the tools offer.
+      // web/src/AGENTS.md, "Strictest lint": the strictest bar the tools offer.
       {
         files: newFolders,
         rules: {
-          "react/no-multi-comp": ["error", { ignoreStateless: false }],
           // Fast Refresh keeps a file's state only when it exports nothing but components. Route
           // files, which export `Route`, stay in src/routes/.
           "react/only-export-components": "error",

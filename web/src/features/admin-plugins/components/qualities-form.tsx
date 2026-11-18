@@ -7,9 +7,9 @@ import { useReplaceQualities } from "@/features/admin-plugins/data/use-replace-q
 import { useProfiles } from "@/features/admin-plugins/hooks/use-profiles";
 import { keyed, qualitiesTyped, qualityErrors } from "@/features/admin-plugins/lib/qualities";
 import { type Quality, QualitySchema } from "@/gen/nama/v1/plugin_pb";
-import type { PluginDetails } from "@/lib/plugins";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { onSubmitted } from "@/shared/lib/forms";
+import type { PluginDetails } from "@/shared/lib/plugins";
 
 /** The form that replaces the Plugin's Qualities with the rows typed, from the `saved` ones. */
 export function QualitiesForm({ plugin, saved }: { plugin: PluginDetails; saved: Quality[] }) {

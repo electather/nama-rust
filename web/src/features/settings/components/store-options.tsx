@@ -1,5 +1,5 @@
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { pluginName } from "@/lib/plugins";
+import { pluginName } from "@/shared/lib/plugins";
 
 /**
  * Local disk and `stores` to pick from. The store `current`, when it isn't one of them (a disabled

@@ -11,7 +11,7 @@ import { useEpisodes } from "@/features/title/data/use-episodes";
 import { useShow } from "@/features/title/data/use-show";
 import { showImages } from "@/features/title/lib/title-images";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
-import { isGone } from "@/lib/browse";
+import { isGone } from "@/shared/hooks/browse";
 
 /**
  * A Show of a Library: its Title Logo over its backdrop, its intro, the Season shown with its

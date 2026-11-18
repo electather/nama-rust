@@ -18,20 +18,23 @@ export interface RouterContext {
 
 /** Whether the Server has no Users yet, so the first Admin still has to be created. */
 export async function isSetupRequired(context: RouterContext) {
-  return (await serverInfo(context)).setupRequired;
+  const info = await serverInfo(context);
+  return info.setupRequired;
 }
 
 /** What any client can read about the Server, such as its name. */
-export function serverInfo({ queryClient, transport }: RouterContext) {
-  return queryClient.query({
+export async function serverInfo({ queryClient, transport }: RouterContext) {
+  const info = await queryClient.query({
     ...createQueryOptions(ServerService.method.getServerInfo, {}, { transport }),
     staleTime: "static",
   });
+  return info;
 }
 
 /** Who is signed in on this Device, or `null` when nobody is. */
-export function whoIsSignedIn({ queryClient, transport }: RouterContext) {
-  return queryClient.query({ ...signedInQuery(transport), staleTime: "static" });
+export async function whoIsSignedIn({ queryClient, transport }: RouterContext) {
+  const signedIn = await queryClient.query({ ...signedInQuery(transport), staleTime: "static" });
+  return signedIn;
 }
 
 /** The query behind `whoIsSignedIn`: being signed out isn't an error. */

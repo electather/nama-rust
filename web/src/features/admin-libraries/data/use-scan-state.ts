@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { scanQuery } from "@/lib/events";
+import { scanQuery } from "@/shared/hooks/scan-query";
 
 /** The latest scan Event about the Library `libraryId`, if one arrived since the page opened. */
 export function useScanState(libraryId: bigint) {

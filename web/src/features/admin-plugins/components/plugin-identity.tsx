@@ -1,6 +1,6 @@
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { kindAndVersion } from "@/lib/plugins";
 import { PluginLogo } from "@/shared/components/plugin-logo";
+import { kindAndVersion } from "@/shared/lib/plugins";
 
 /** A Plugin's logo, id, and where it comes from. */
 export function PluginIdentity({ summary }: { summary: PluginSummary }) {

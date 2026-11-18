@@ -11,9 +11,8 @@ import { notFound } from "@tanstack/react-router";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ExternalIdSchema } from "@/gen/nama/v1/match_pb";
+import type { RouterContext } from "@/shared/hooks/access";
 import { isCode } from "@/shared/lib/connect-errors";
-
-import type { RouterContext } from "./access";
 
 /**
  * Fetches `method` into the cache, unless it's there already. The Server's `not_found`, and the
@@ -66,7 +65,7 @@ export async function loadMovie(
 
 /** The id a `titleParam` names, after the router decodes it once; else the router's not-found. */
 export function externalIdFromParam(param: string) {
-  const [, namespace, value] = /^([a-z0-9]+)-(.+)$/u.exec(param) ?? [];
+  const { namespace, value } = /^(?<namespace>[a-z0-9]+)-(?<value>.+)$/u.exec(param)?.groups ?? {};
   try {
     if (namespace === undefined || value === undefined) {
       throw notFound();

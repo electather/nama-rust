@@ -1,5 +1,5 @@
 import { PluginSettings } from "@/features/admin-plugins/components/plugin-settings";
-import type { PluginDetails } from "@/lib/plugins";
+import type { PluginDetails } from "@/shared/lib/plugins";
 
 /** The Settings section of a Plugin's page: its form, or that it has none. */
 export function PluginSettingsSection({ plugin }: { plugin: PluginDetails }) {
