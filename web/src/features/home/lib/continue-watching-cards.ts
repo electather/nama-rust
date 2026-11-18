@@ -1,73 +1,25 @@
-import { useSuspenseQuery } from "@connectrpc/connect-query";
-import { Link, type LinkOptions } from "@tanstack/react-router";
+import type { LinkOptions } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
-import { BackdropCard, BackdropGrid } from "@/components/backdrop-card";
-import {
-  HiddenNotice,
-  HideMenu,
-  type Hiding,
-  useHideFromContinueWatching,
-} from "@/components/hide-from-continue-watching";
-import {
-  BrowseService,
-  type ContinueWatchingEntry,
-  type ContinueWatchingEpisode,
-  type Movie,
+import type { BackdropCard } from "@/features/home/components/backdrop-card";
+import type { Hiding } from "@/features/home/lib/hiding";
+import type {
+  ContinueWatchingEntry,
+  ContinueWatchingEpisode,
+  Movie,
 } from "@/gen/nama/v1/browse_pb";
-import { posterLink } from "@/shared/lib/poster-classes";
 import { episodeName, metadataLine, timeLeft } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
-/** Home's one page of Continue Watching: whole rows at one, two and three columns. */
-export const continueWatchingRow = { page: { size: 6 } };
-
-/**
- * What you've started and not played, and the next Episode of each Show you're watching, most
- * recent first, each with a menu to hide it. Nothing at all when there's none and nothing to undo.
- */
-export function ContinueWatching() {
-  const { data } = useSuspenseQuery(BrowseService.method.listContinueWatching, continueWatchingRow);
-  const { lastHidden, hide, undo } = useHideFromContinueWatching();
-  const cards = data.entries.flatMap(entryCard);
-  if (cards.length === 0 && !lastHidden) {
-    return null;
-  }
-  return (
-    <section aria-labelledby="continue-watching" className="mt-10">
-      <h2 id="continue-watching" className="font-medium">
-        Continue Watching
-      </h2>
-      <HiddenNotice lastHidden={lastHidden} onUndo={undo} />
-      {cards.length > 0 && (
-        <BackdropGrid>
-          {cards.map(({ link, backdrop, hiding }) => (
-            <li key={hiding.key} className="relative">
-              <Link {...link} className={posterLink}>
-                <BackdropCard {...backdrop} />
-              </Link>
-              <HideMenu
-                title={hiding.title}
-                onHide={() => {
-                  hide(hiding);
-                }}
-              />
-            </li>
-          ))}
-        </BackdropGrid>
-      )}
-    </section>
-  );
-}
-
 /** A Continue Watching entry: where it plays, resuming where you stopped, its card, and hiding it. */
-interface Card {
+export interface Card {
   link: LinkOptions;
   backdrop: ComponentProps<typeof BackdropCard>;
   hiding: Hiding;
 }
 
-function entryCard({ libraryId, movieOrEpisode }: ContinueWatchingEntry): Card[] {
+/** The card of a Continue Watching entry, or none for one the Server left incomplete. */
+export function entryCard({ libraryId, movieOrEpisode }: ContinueWatchingEntry): Card[] {
   if (movieOrEpisode.case === "movie") {
     return movieCard(libraryId, movieOrEpisode.value);
   }

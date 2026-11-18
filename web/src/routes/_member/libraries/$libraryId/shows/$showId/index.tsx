@@ -2,7 +2,6 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 
 import { NotFound } from "@/app/route-error/not-found";
-import { BackdropGrid, Still } from "@/components/backdrop-card";
 import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
 import { EditImages, showImages } from "@/components/edit-images";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
@@ -20,6 +19,8 @@ import {
   versionToPlay,
 } from "@/lib/browse";
 import { useSetPlayed } from "@/lib/watch-state";
+import { BackdropGrid } from "@/shared/components/backdrop-grid";
+import { Still } from "@/shared/components/still";
 // oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
 import { PlayedIconButton } from "@/shared/components/watch-state/played-icon-button";
 import { WatchedBar } from "@/shared/components/watch-state/watched-bar";

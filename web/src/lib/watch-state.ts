@@ -19,18 +19,6 @@ export function useSetPlayed() {
   return mutate;
 }
 
-/**
- * Hides a Movie or Show from your Continue Watching, or shows it again, then refetches what's on
- * screen.
- */
-export function useSetHiddenFromContinueWatching() {
-  const queryClient = useQueryClient();
-  const { mutate } = useMutation(WatchStateService.method.setHiddenFromContinueWatching, {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: browseKey }),
-  });
-  return mutate;
-}
-
 /** How often to report while playing. */
 const REPORT_EVERY_MS = 10_000;
 

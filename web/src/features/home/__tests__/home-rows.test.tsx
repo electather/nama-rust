@@ -3,8 +3,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService, type ListHomeRowTitlesRequest } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-
-import { fakeServer, newUser, openApp } from "./test-app";
+import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
 
@@ -49,7 +48,7 @@ test("home shows each Plugin's row after the Libraries, in order, with its title
   const picks = screen.getByRole("region", { name: "Picks" });
   const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
 
-  expect(headings).toEqual(["Libraries", "Picks", "Trending Shows"]);
+  expect(headings).toStrictEqual(["Libraries", "Picks", "Trending Shows"]);
   expect(within(picks).getByRole("link", { name: /Heat/u }).getAttribute("href")).toBe(
     "/libraries/1/movies/tmdb-949",
   );
@@ -65,9 +64,11 @@ test("home leaves out a row with no titles, and asks each row for one page", asy
   await screen.findByRole("region", { name: "Trending Shows" });
 
   expect(screen.queryByRole("region", { name: "Nothing here" })).toBeNull();
-  expect(asked.map((request) => [request.pluginId, request.key, request.page?.size])).toEqual([
-    ["lists", "picks", 10],
-    ["lists", "empty", 10],
-    ["trakt", "shows", 10],
-  ]);
+  expect(asked.map((request) => [request.pluginId, request.key, request.page?.size])).toStrictEqual(
+    [
+      ["lists", "picks", 10],
+      ["lists", "empty", 10],
+      ["trakt", "shows", 10],
+    ],
+  );
 });
