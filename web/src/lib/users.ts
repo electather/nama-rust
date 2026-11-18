@@ -54,24 +54,6 @@ export function createUserErrors(error: unknown): FormErrors {
   });
 }
 
-/** Why making an Invite was refused, if it was, next to the field it's about. */
-export function createInviteErrors(error: unknown): FormErrors {
-  if (error === null) {
-    return {};
-  }
-  return refusal(error, "make the Invite", {
-    [Code.InvalidArgument]: refusedFieldErrors(error, ["note"]),
-  });
-}
-
-/** Why revoking an Invite was refused, as a sentence. */
-export function revokeInviteRefusal(error: unknown) {
-  return refusal(error, "revoke this Invite", {
-    // Accepted or revoked meanwhile, it's no longer pending anyway.
-    [Code.NotFound]: { form: "This Invite was already used or revoked." },
-  }).form;
-}
-
 /** Why the Server refused to change your own password, next to the field it's about. */
 export function changePasswordErrors(error: unknown): FormErrors {
   return refusal(error, "change your password", {

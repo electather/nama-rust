@@ -2,9 +2,9 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { createFileRoute } from "@tanstack/react-router";
 
 import { CreateUser } from "@/components/create-user";
-import { Invites } from "@/components/invites";
 import { DefaultPermissionsEditor } from "@/components/permissions-editor";
 import { UserRow } from "@/components/user-row";
+import { Invites } from "@/features/invites/components/invites";
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { AdminList } from "@/shared/components/admin-list/admin-list";
 import { Page } from "@/shared/components/page";
