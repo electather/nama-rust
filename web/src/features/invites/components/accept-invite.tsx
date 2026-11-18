@@ -1,9 +1,9 @@
 import { InviteFields } from "@/features/invites/components/invite-fields";
 import { useAcceptInvite } from "@/features/invites/data/use-accept-invite";
-import { useServerName } from "@/features/invites/data/use-server-name";
 import { acceptInviteErrors } from "@/features/invites/lib/invite-refusals";
 import { SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
 import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
+import { useServerName } from "@/shared/hooks/use-server-name";
 import { formText } from "@/shared/lib/forms";
 
 /** The page an Invite's link opens, where someone picks the name and password of their new User. */

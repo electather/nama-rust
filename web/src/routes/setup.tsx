@@ -1,14 +1,7 @@
-import { Code } from "@connectrpc/connect";
-import { useMutation, useQuery } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { ServerService } from "@/gen/nama/v1/server_pb";
-import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
+import { Setup } from "@/features/auth/components/setup";
 import { isSetupRequired } from "@/lib/access";
-import { FormField } from "@/shared/components/form-field/form-field";
-import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
-import { type FormErrors, formText, refusedFieldErrors, refusal } from "@/shared/lib/forms";
 
 export const Route = createFileRoute("/setup")({
   beforeLoad: async ({ context }) => {
@@ -18,77 +11,3 @@ export const Route = createFileRoute("/setup")({
   },
   component: Setup,
 });
-
-function Setup() {
-  const navigate = Route.useNavigate();
-  const queryClient = useQueryClient();
-  const server = useQuery(ServerService.method.getServerInfo);
-  const setup = useMutation(SignInService.method.setup, {
-    onSuccess: async () => {
-      // The cached Server info still says setup is needed, and nobody is signed in.
-      queryClient.clear();
-      await navigate({ to: "/" });
-    },
-  });
-  const errors = setup.error ? setupErrors(setup.error) : {};
-
-  return (
-    <SignInLayout
-      heading={server.data ? `Set up ${server.data.name}` : "Set up this Server"}
-      intro="Enter the Setup Code this Server printed to its log when it started, then create the first Admin: you."
-      action={setup.isPending ? "Setting up…" : "Set up"}
-      pending={setup.isPending}
-      error={errors.form}
-      onSubmit={(form) => {
-        setup.mutate({
-          setupCode: formText(form, "setupCode"),
-          name: formText(form, "name"),
-          password: formText(form, "password"),
-          delivery: SessionDelivery.COOKIE,
-        });
-      }}
-    >
-      <SetupFields errors={errors} />
-    </SignInLayout>
-  );
-}
-
-function SetupFields({ errors }: { errors: FormErrors }) {
-  return (
-    <>
-      <FormField
-        label="Setup Code"
-        name="setupCode"
-        autoComplete="off"
-        spellCheck={false}
-        error={errors.setupCode}
-      />
-      <FormField
-        label="Username"
-        name="name"
-        autoComplete="username"
-        maxLength={64}
-        error={errors.name}
-      />
-      <FormField
-        label="Password"
-        name="password"
-        type="password"
-        autoComplete="new-password"
-        error={errors.password}
-      />
-    </>
-  );
-}
-
-function setupErrors(error: unknown): FormErrors {
-  return refusal(error, "set up this Server", {
-    [Code.PermissionDenied]: {
-      setupCode: "That isn’t the Setup Code. Check the Server’s log for it.",
-    },
-    [Code.FailedPrecondition]: {
-      form: "This Server is already set up. Reload the page to sign in.",
-    },
-    [Code.InvalidArgument]: refusedFieldErrors(error, ["name", "password"]),
-  });
-}
