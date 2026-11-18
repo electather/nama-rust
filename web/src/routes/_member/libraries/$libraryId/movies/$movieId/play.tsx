@@ -1,8 +1,10 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { DeletedWhilePlaying } from "@/app/route-error/deleted-while-playing";
+import { NotFound } from "@/app/route-error/not-found";
+import { PlayerError } from "@/app/route-error/player-error";
 import { Player } from "@/components/player";
-import { DeletedWhilePlaying, NotFound, PlayerError } from "@/components/route-error";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { isGone, loadMovie, versionSearch, versionToPlay } from "@/lib/browse";
 

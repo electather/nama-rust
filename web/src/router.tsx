@@ -5,7 +5,7 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@ta
 import { createRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { RouteError } from "@/components/route-error";
+import { RouteError } from "@/app/route-error/route-error";
 import { signedInQuery, whoIsSignedIn } from "@/lib/access";
 import { traceCalls, traceRouteChanges } from "@/lib/diagnostics";
 import { isCode, retryIfUnreachable } from "@/shared/lib/connect-errors";

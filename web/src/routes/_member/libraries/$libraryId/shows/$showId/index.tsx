@@ -1,11 +1,11 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 
+import { NotFound } from "@/app/route-error/not-found";
 import { BackdropGrid, Still } from "@/components/backdrop-card";
 import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
 import { EditImages, showImages } from "@/components/edit-images";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
-import { NotFound } from "@/components/route-error";
 import { ShowIntro } from "@/components/show-intro";
 import { TitlePage } from "@/components/title-page";
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
