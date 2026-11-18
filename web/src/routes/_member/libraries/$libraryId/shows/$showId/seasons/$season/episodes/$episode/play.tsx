@@ -1,11 +1,17 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { type NextEpisode, streakSearch } from "@/components/next-episode";
 import { Player } from "@/components/player";
 import { DeletedWhilePlaying, NotFound, PlayerError } from "@/components/route-error";
-import { BrowseService, type Episode } from "@/gen/nama/v1/browse_pb";
+import {
+  BrowseService,
+  type Episode,
+  type GetNextEpisodeRequestSchema,
+} from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { PlaybackService } from "@/gen/nama/v1/playback_pb";
 import {
   episodeName,
   externalIdFromParam,
@@ -45,8 +51,7 @@ function PlayEpisode() {
   const episode = data.episodes.find((each) => each.episodeNumber === episodeNumber);
   const { version, streak } = Route.useSearch();
   const { libraryId, showId } = Route.useParams();
-  // Not suspended: the Episode plays while the Server finds the next one.
-  const nextQuery = useQuery(BrowseService.method.getNextEpisode, { ...input, episodeNumber });
+  const next = useAutoplayedEpisode({ ...input, episodeNumber });
   const lockScreen = useShowForLockScreen(input, episodeNumber);
   // An Event removed it, or its whole Season, since the loader ran.
   if (!episode || isGone(error)) return <DeletedWhilePlaying />;
@@ -66,9 +71,18 @@ function PlayEpisode() {
         params: { libraryId, showId },
         search: { season: input.seasonNumber },
       }}
-      next={nextEpisode(nextQuery.data?.next, streak, { libraryId, showId })}
+      next={nextEpisode(next, streak, { libraryId, showId })}
     />
   );
+}
+
+/** The Episode after the one `episode` names, if the User has autoplay on. */
+function useAutoplayedEpisode(episode: MessageInitShape<typeof GetNextEpisodeRequestSchema>) {
+  // Neither suspends: the Episode plays while the Server finds the next one.
+  const next = useQuery(BrowseService.method.getNextEpisode, episode).data?.next;
+  // Off until the Server says it's on, so a User who turned it off never sees a countdown.
+  const on = useQuery(PlaybackService.method.getAutoplay, {}).data?.on === true;
+  return on ? next : undefined;
 }
 
 /**

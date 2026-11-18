@@ -142,6 +142,10 @@ pub mod __buffa {
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_AUDIO_PREFERENCE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_AUDIO_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_AUTOPLAY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_AUTOPLAY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_AUTOPLAY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_AUTOPLAY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USERS_AUDIO_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
@@ -670,6 +674,22 @@ pub use self::__buffa::view::SetAudioPreferenceRequestOwnedView;
 pub use self::__buffa::view::SetAudioPreferenceResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetAudioPreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UsersAudioPreferenceView;
 #[doc(inline)]

@@ -18,8 +18,8 @@ const titles = new Map([
   [5, "Truths"],
 ]);
 
-/** A fake Server with Season 1 of Dark in Library 2, where Episode 4 plays after 3, if `hasNext`, and 5 after 4. */
-function server(hasNext = true) {
+/** A fake Server with Season 1 of Dark in Library 2, where Episode 4 plays after 3, if `hasNext`, and 5 after 4, if `autoplay` is on. */
+function server({ hasNext = true, autoplay = true } = {}) {
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
@@ -29,6 +29,7 @@ function server(hasNext = true) {
         hasNext && episodeNumber < 5 ? { next: episode(episodeNumber + 1) } : {},
     });
     router.service(PlaybackService, {
+      getAutoplay: () => ({ on: autoplay }),
       planPlayback: ({ versionId }) => ({
         plan: { method: PlaybackMethod.DIRECT_PLAY, url: `/media/versions/${versionId}` },
       }),
@@ -48,8 +49,8 @@ function episode(episodeNumber: number) {
 }
 
 /** Opens Episode 3's player with `search`, and finds its `<video>` once its length is known. */
-async function playEpisode3(search = "", hasNext = true) {
-  const router = openApp(`${SHOW}/seasons/1/episodes/3/play${search}`, server(hasNext));
+async function playEpisode3(search = "", options: Parameters<typeof server>[0] = {}) {
+  const router = openApp(`${SHOW}/seasons/1/episodes/3/play${search}`, server(options));
   const video = await screen.findByLabelText<HTMLVideoElement>("Past and Present");
   Object.defineProperty(video, "duration", { value: DURATION_S });
   fireEvent(video, new Event("durationchange"));
@@ -130,9 +131,19 @@ test("Cancel hides the countdown, and the Episode then just ends", async () => {
 });
 
 test("without a next Episode there's no countdown, and the end opens nothing", async () => {
-  const { router, video } = await playEpisode3("", false);
+  const { router, video } = await playEpisode3("", { hasNext: false });
   playUntilLeft(video, 5);
   expect(countdown()).toBeNull();
+
+  fireEvent(video, new Event("ended"));
+  expect(await pathAfterNavigating(router)).toBe(`${SHOW}/seasons/1/episodes/3/play`);
+});
+
+test("with autoplay off there's no countdown or question, and the end opens nothing", async () => {
+  const { router, video } = await playEpisode3("?streak=3", { autoplay: false });
+  playUntilLeft(video, 20);
+  expect(countdown()).toBeNull();
+  expect(screen.queryByRole("alertdialog")).toBeNull();
 
   fireEvent(video, new Event("ended"));
   expect(await pathAfterNavigating(router)).toBe(`${SHOW}/seasons/1/episodes/3/play`);
