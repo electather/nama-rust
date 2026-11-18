@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { NotFound } from "@/components/route-error";
+import { NotFound } from "@/app/route-error/not-found";
 import { SeasonPicker } from "@/components/season-picker";
 import { TitlePage } from "@/components/title-page";
 import { RequestService } from "@/gen/nama/v1/request_pb";

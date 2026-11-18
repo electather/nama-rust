@@ -2,8 +2,8 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 
+import { NotFound } from "@/app/route-error/not-found";
 import { MovieActions } from "@/components/movie-actions";
-import { NotFound } from "@/components/route-error";
 import { Overview, TitleFacts, TitlePage } from "@/components/title-page";
 import { BrowseService, HdrFormat, type Version } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";

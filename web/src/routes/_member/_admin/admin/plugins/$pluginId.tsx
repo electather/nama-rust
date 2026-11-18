@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { NotFound } from "@/app/route-error/not-found";
 import {
   ExtensionPoints,
   LogoChoice,
@@ -11,7 +12,6 @@ import { PluginLog } from "@/components/plugin-log";
 import { PluginQualities } from "@/components/plugin-qualities";
 import { PluginSettings } from "@/components/plugin-settings";
 import { PluginToggle } from "@/components/plugin-toggle";
-import { NotFound } from "@/components/route-error";
 import { PluginService } from "@/gen/nama/v1/plugin_pb";
 // oxlint-disable-next-line import/max-dependencies -- the page puts together a section per part of a Plugin's setup: settings, Qualities, log
 import { queryOrNotFound } from "@/lib/browse";

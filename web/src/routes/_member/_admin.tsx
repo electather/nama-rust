@@ -1,10 +1,10 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
+import { AdminLayout } from "@/app/admin-layout";
 import { adminPages, adminPagesFor } from "@/lib/access";
-import { buttonVariants } from "@/shared/ui/button";
 
-// web/AGENTS.md, "Admin pages need a Permission".
+// src/routes/_member/_admin/AGENTS.md, "Admin pages need a Permission".
 /**
  * Admin pages, each for Users with the Permission `adminPages` gives it. Anyone else gets the same
  * page the Server's own refusal shows.
@@ -24,29 +24,10 @@ export const Route = createFileRoute("/_member/_admin")({
     }
     return { allowedAdminPages };
   },
-  component: AdminLayout,
+  component: Admin,
 });
 
-function AdminLayout() {
+function Admin() {
   const { allowedAdminPages } = Route.useRouteContext();
-  return (
-    <>
-      {/* Lined up with the page's column: each link's own padding makes up the rest of the inset. */}
-      <nav aria-label="Admin" className="mx-auto flex w-full max-w-5xl flex-wrap gap-1 sm:px-2">
-        {allowedAdminPages.map(({ to, label }) => (
-          <Link
-            key={to}
-            to={to}
-            className={buttonVariants({
-              variant: "ghost",
-              className: "h-8 aria-[current=page]:bg-muted aria-[current=page]:text-foreground",
-            })}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-      <Outlet />
-    </>
-  );
+  return <AdminLayout allowedAdminPages={allowedAdminPages} />;
 }

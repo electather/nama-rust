@@ -1,10 +1,10 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { NotFound } from "@/app/route-error/not-found";
 import { ImageChoice } from "@/components/edit-images";
 import { DeleteLibrary, EditLibrary } from "@/components/library-form";
 import { EmptyFolders, ScanButton, ScanStatus } from "@/components/library-scan";
-import { NotFound } from "@/components/route-error";
 import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import { queryOrNotFound } from "@/lib/browse";
 import { kindName } from "@/lib/libraries";

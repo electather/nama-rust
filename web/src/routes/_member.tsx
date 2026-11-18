@@ -1,14 +1,10 @@
-import { Outlet, createFileRoute, redirect, useMatches } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { AppChrome } from "@/components/app-chrome";
-import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { adminPagesFor, isSetupRequired, whoIsSignedIn } from "@/lib/access";
+import { MemberLayout } from "@/app/member-layout";
+import { isSetupRequired, whoIsSignedIn } from "@/lib/access";
 import { recordDiagnosticsIfExported } from "@/lib/diagnostics";
-import { useEvents } from "@/lib/events";
-import { ConfirmItsYou } from "@/shared/components/confirm-its-you/confirm-its-you";
-import { may } from "@/shared/lib/permissions";
 
-/** Pages for signed-in Users, under the app chrome unless they fill the screen. */
+/** Pages for signed-in Users. */
 export const Route = createFileRoute("/_member")({
   beforeLoad: async ({ context, location }) => {
     if (await isSetupRequired(context)) {
@@ -22,27 +18,10 @@ export const Route = createFileRoute("/_member")({
     await recordDiagnosticsIfExported(context);
     return { signedIn };
   },
-  component: MemberLayout,
+  component: Member,
 });
 
-function MemberLayout() {
+function Member() {
   const { signedIn } = Route.useRouteContext();
-  // A full-screen page that didn't load, such as an unknown Movie's player, keeps the chrome, so
-  // its not-found or error page has a way out.
-  const fullScreen = useMatches({
-    select: (matches) =>
-      matches.some((m) => m.staticData.fullScreen === true && m.status === "success"),
-  });
-  useEvents();
-  return (
-    <ConfirmItsYou>
-      {!fullScreen && (
-        <AppChrome
-          hasAdminPages={adminPagesFor(signedIn.user).length > 0}
-          managesRequests={may(signedIn.user, Permission.MANAGE_REQUESTS)}
-        />
-      )}
-      <Outlet />
-    </ConfirmItsYou>
-  );
+  return <MemberLayout user={signedIn.user} />;
 }

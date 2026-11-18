@@ -3,7 +3,6 @@ import { useMutation } from "@connectrpc/connect-query";
 import { QRCodeSVG } from "qrcode.react";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { SignInLayout, SignInPage } from "@/components/sign-in-layout";
 import {
   type PollSignInCodeResponse,
   SessionDelivery,
@@ -12,6 +11,8 @@ import {
   type StartSignInCodeResponse,
 } from "@/gen/nama/v1/sign_in_pb";
 import { FormField } from "@/shared/components/form-field/form-field";
+import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
+import { SignInPage } from "@/shared/components/sign-in-layout/sign-in-page";
 import { isCode } from "@/shared/lib/connect-errors";
 import { type FormErrors, formText, refusal, serverMessage } from "@/shared/lib/forms";
 import { Button } from "@/shared/ui/button";

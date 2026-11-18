@@ -10,8 +10,13 @@
       "kind": "banned-import",
       "specifiers": ["@connectrpc/connect-query", "@tanstack/react-query"],
       "files": ["src/app/**", "src/features/**", "src/shared/**"],
-      "exclude": ["src/features/*/data/**", "src/shared/hooks/**", "src/**/__tests__/**"],
-      "message": "Query in a data hook: a feature's data/ folder or src/shared/hooks/.",
+      "exclude": [
+        "src/app/data/**",
+        "src/features/*/data/**",
+        "src/shared/hooks/**",
+        "src/**/__tests__/**",
+      ],
+      "message": "Query in a data hook: src/app/data/, a feature's data/ folder or src/shared/hooks/.",
       "severity": "error",
     },
     {

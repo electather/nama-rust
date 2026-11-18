@@ -13,8 +13,7 @@ export interface RouterContext {
   transport: Transport;
 }
 
-// These run in each route's own `beforeLoad`, not once in the root's: the build prerenders the
-// root into the SPA shell, and the browser reuses what it returned there instead of running it.
+// src/routes/AGENTS.md, "Access checks per route".
 // Both answers stay cached until signing in, signing out or setting up clears the cache.
 
 /** Whether the Server has no Users yet, so the first Admin still has to be created. */

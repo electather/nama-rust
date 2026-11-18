@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { NotFound } from "@/app/route-error/not-found";
 import { MayDownloadAgain } from "@/components/delete-media";
 import { LibraryMovies, LibraryShows, type TitlesProps } from "@/components/library-titles";
 import { NotMatched, firstUnmatchedPage } from "@/components/not-matched";
-import { NotFound } from "@/components/route-error";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { deletedFromSearch, libraryFromParam, queryOrNotFound } from "@/lib/browse";

@@ -1,30 +1,10 @@
 import type { ComponentProps, ReactNode } from "react";
 
+import { SignInPage } from "@/shared/components/sign-in-layout/sign-in-page";
 import { onSubmitted } from "@/shared/lib/forms";
 import { Button } from "@/shared/ui/button";
 
-export function SignInPage({
-  heading,
-  intro,
-  footer,
-  children,
-}: {
-  heading: string;
-  intro: ReactNode;
-  /** Another way in, under the page's own, such as signing in with a code instead. */
-  footer?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
-      <h1 className="text-2xl font-semibold tracking-tight text-balance">{heading}</h1>
-      <p className="mt-2 text-muted-foreground">{intro}</p>
-      <div className="mt-8">{children}</div>
-      <div className="mt-6 flex justify-center empty:hidden">{footer}</div>
-    </main>
-  );
-}
-
+/** A signed-out page whose one form is the page, with the Server's refusal above its button. */
 export function SignInLayout({
   onSubmit,
   action,

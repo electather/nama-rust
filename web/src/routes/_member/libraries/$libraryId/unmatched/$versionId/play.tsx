@@ -1,9 +1,10 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { NotFound } from "@/app/route-error/not-found";
+import { PlayerError } from "@/app/route-error/player-error";
 import { Player } from "@/components/player";
 import { ProgressNotSaved } from "@/components/progress-not-saved";
-import { NotFound, PlayerError } from "@/components/route-error";
 import { parsedAs } from "@/components/unmatched-item";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { isGone, queryOrNotFound, wholeNumberFromParam } from "@/lib/browse";
