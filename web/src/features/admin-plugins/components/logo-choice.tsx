@@ -1,6 +1,7 @@
-import { ChangeImage, type ImageRules } from "@/components/change-image";
 import { pluginQueriesKey } from "@/features/admin-plugins/data/plugin-queries-key";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
+import { ChangeImage } from "@/shared/components/change-image/change-image";
+import type { ImageRules } from "@/shared/lib/image-rules";
 
 /** A Plugin's logo may also be an SVG, and the Plugin queries send its URL. */
 const pluginLogos: ImageRules = {

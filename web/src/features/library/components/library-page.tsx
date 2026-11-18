@@ -1,9 +1,9 @@
-import { MayDownloadAgain } from "@/components/delete-media";
 import { LibraryMovies } from "@/features/library/components/library-movies";
 import { LibraryShows } from "@/features/library/components/library-shows";
 import { NotMatched } from "@/features/library/components/not-matched";
 import type { TitleListing } from "@/features/library/lib/title-listing";
 import { LibraryKind, type Library } from "@/gen/nama/v1/library_pb";
+import { MayDownloadAgain } from "@/shared/components/delete-media/may-download-again";
 import { Page } from "@/shared/components/page";
 
 /** A Library: its titles, their sort and filter bar, its Unmatched Items and a delete's notice. */

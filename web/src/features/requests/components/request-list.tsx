@@ -1,4 +1,5 @@
-import { RequestRow, ShowRequests } from "@/components/request-row";
+import { RequestRow } from "@/features/requests/components/request-row";
+import { ShowRequests } from "@/features/requests/components/show-requests";
 import { StateFilterMenu } from "@/features/requests/components/state-filter-menu";
 import { useRequests } from "@/features/requests/data/use-requests";
 import { groupShows, keyOf } from "@/features/requests/lib/group-shows";

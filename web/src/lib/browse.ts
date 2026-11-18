@@ -82,14 +82,6 @@ export function externalIdFromParam(param: string) {
 /** Every browse query, including Continue Watching: what to refresh when Watch State changes. */
 export const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
 
-const dates = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
-
-/** A `YYYY-MM-DD` date in plain words, such as "Feb 3, 2022". */
-export function dateOf(date: string | undefined) {
-  // A bare date parses as midnight UTC, so it's formatted in UTC too.
-  return date === undefined ? undefined : dates.format(new Date(date));
-}
-
 /**
  * A Track in a few words, such as "AAC · 5.1 · English · Commentary": its codec, picture size or
  * channels, language and title.
@@ -148,31 +140,6 @@ export function wholeNumberFromParam(param: string) {
     throw notFound();
   }
   return Number(param);
-}
-
-/** What a page's URL says a delete left it to report: what went, and the Fulfillers not told. */
-export interface DeletedSearch {
-  deleted?: string | undefined;
-  notTold?: string[] | undefined;
-}
-
-/**
- * The search that reports deleting `deleted` when the Fulfillers `notTold` couldn't be told, or
- * clears an earlier report when every one was.
- */
-export function deletedSearch(deleted: string, notTold: string[]): DeletedSearch {
-  return notTold.length > 0 ? { deleted, notTold } : { deleted: undefined, notTold: undefined };
-}
-
-/** The report of a delete in `search`, as `deletedSearch` wrote it. */
-export function deletedFromSearch({ deleted, notTold }: Record<string, unknown>): DeletedSearch {
-  // Set even when unknown: the router keeps the raw value under any key this leaves out.
-  const unknown = { deleted: undefined, notTold: undefined };
-  return typeof deleted === "string" && isNames(notTold) ? { deleted, notTold } : unknown;
-}
-
-function isNames(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((name) => typeof name === "string");
 }
 
 /** A player's search params: the Version `?version=` chose, if it names one by id. */

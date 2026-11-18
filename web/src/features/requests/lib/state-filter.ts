@@ -1,5 +1,5 @@
-import { requestStateName } from "@/components/request-state";
 import { RequestState } from "@/gen/nama/v1/request_pb";
+import { requestStateName } from "@/shared/components/request-state/request-states";
 
 /** The Requests page's `state` search parameter values, in the order the filter offers them. */
 const stateFilters = {

@@ -1,5 +1,13 @@
-import type { ShowGroup } from "@/components/request-row";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { FollowedShow, Request } from "@/gen/nama/v1/request_pb";
+
+/** A Show's Followed Shows and Season Requests, listed together under it. */
+export interface ShowGroup {
+  showId?: ExternalId | undefined;
+  showTitle: string;
+  followed: FollowedShow[];
+  seasons: Request[];
+}
 
 /**
  * `requests` and `followedShows`, newest first, but with each Show's together where the Show's
