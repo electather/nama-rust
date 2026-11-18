@@ -1,9 +1,7 @@
-import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { NotFound } from "@/app/route-error/not-found";
-import { SeasonPicker } from "@/components/season-picker";
-import { TitlePage } from "@/components/title-page";
+import { ShowToRequest } from "@/features/title/components/show-to-request";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, queryOrNotFound } from "@/lib/browse";
@@ -23,27 +21,11 @@ export const Route = createFileRoute("/_member/shows/$showId")({
     return input;
   },
   notFoundComponent: NotFound,
-  component: ShowToRequest,
+  component: Show,
 });
 
-function ShowToRequest() {
-  const input = Route.useLoaderData();
+function Show() {
+  const { showId } = Route.useLoaderData();
   const { signedIn } = Route.useRouteContext();
-  const { show } = useSuspenseQuery(RequestService.method.lookUpShow, input).data;
-  if (!show) {
-    return <NotFound />;
-  }
-  return (
-    <TitlePage
-      title={show.title}
-      backdropUrl={show.backdropUrl}
-      backdropThumbhash={show.backdropThumbhash}
-    >
-      <p className="text-sm text-muted-foreground">{show.year}</p>
-      {show.overview !== undefined && (
-        <p className="mt-6 max-w-prose text-pretty">{show.overview}</p>
-      )}
-      <SeasonPicker show={show} you={signedIn.user?.id} />
-    </TitlePage>
-  );
+  return <ShowToRequest showId={showId} you={signedIn.user?.id} />;
 }

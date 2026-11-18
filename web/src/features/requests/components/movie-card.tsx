@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
-import { FoundMovieState } from "@/components/found-movie-state";
 import type { MovieHit } from "@/gen/nama/v1/request_pb";
+import { FoundMovieState } from "@/shared/components/found-movie-state/found-movie-state";
 import { Poster } from "@/shared/components/poster/poster";
 import { posterLink } from "@/shared/lib/poster-classes";
 import { titleParam } from "@/shared/lib/title-param";

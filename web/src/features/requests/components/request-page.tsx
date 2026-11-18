@@ -1,8 +1,9 @@
 import { Code } from "@connectrpc/connect";
 
-import { RequestRow, ShowRequests } from "@/components/request-row";
 import { Removed } from "@/features/requests/components/removed";
 import { RequestLayout } from "@/features/requests/components/request-layout";
+import { RequestRow } from "@/features/requests/components/request-row";
+import { ShowRequests } from "@/features/requests/components/show-requests";
 import { useRequest } from "@/features/requests/data/use-request";
 import { isCode } from "@/shared/lib/connect-errors";
 

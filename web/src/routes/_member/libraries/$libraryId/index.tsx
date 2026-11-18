@@ -6,8 +6,9 @@ import { firstUnmatchedPage } from "@/features/library/lib/first-unmatched-page"
 import { firstPageOf, listingFromSearch } from "@/features/library/lib/title-listing";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { deletedFromSearch, libraryFromParam, queryOrNotFound } from "@/lib/browse";
+import { libraryFromParam, queryOrNotFound } from "@/lib/browse";
 import { pagedQuery } from "@/shared/hooks/use-paged";
+import { deletedFromSearch } from "@/shared/lib/deleted-search";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/")({
   // The title whose page had the delete's result is gone, so the Fulfillers not told come here.

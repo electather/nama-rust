@@ -1,5 +1,5 @@
-import { ImageChoice } from "@/components/edit-images";
 import type { Library } from "@/gen/nama/v1/library_pb";
+import { ImageChoice } from "@/shared/components/image-choice/image-choice";
 
 /** The Backdrop the home page shows the Library by, to upload one in its place or remove it. */
 export function HomePageImage({ library }: { library: Library }) {
