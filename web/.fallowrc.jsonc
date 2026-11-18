@@ -35,7 +35,6 @@
           "src/components/edit-images.tsx",
           "src/components/image-store.tsx",
           "src/components/permissions-editor.tsx",
-          "src/components/playback-settings.tsx",
           "src/components/player.tsx",
           "src/components/plugin-at-a-glance.tsx",
           "src/components/plugin-qualities.tsx",
@@ -64,8 +63,6 @@
           "src/library-title-sources.test.tsx",
           "src/manage-requests.test.tsx",
           "src/permissions.test.tsx",
-          "src/playback-settings.test.tsx",
-          "src/playback.test.tsx",
           "src/player-ass.test.tsx",
           "src/player-burn-in.test.tsx",
           "src/player-info.test.tsx",
@@ -101,6 +98,7 @@
       { "name": "shared-components", "patterns": ["src/shared/components/**"] },
       { "name": "shared-hooks", "patterns": ["src/shared/hooks/**"] },
       { "name": "shared-lib", "patterns": ["src/shared/lib/**"] },
+      { "name": "admin-playback", "patterns": ["src/features/admin-playback/**"] },
       { "name": "invites", "patterns": ["src/features/invites/**"] },
       { "name": "app", "patterns": ["src/app/**"] },
       { "name": "routes", "patterns": ["src/routes/**"] },
@@ -138,6 +136,18 @@
         ],
       },
       {
+        "from": "admin-playback",
+        "allow": [
+          "admin-playback",
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+          "legacy-components",
+          "legacy-lib",
+        ],
+      },
+      {
         "from": "invites",
         "allow": [
           "invites",
@@ -165,6 +175,7 @@
         "from": "routes",
         "allow": [
           "app",
+          "admin-playback",
           "invites",
           "shared-components",
           "shared-ui",
