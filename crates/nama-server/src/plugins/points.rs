@@ -9,9 +9,9 @@ use std::{
 
 use nama_plugin_api::{ObservePoint, Observer, PluginId, PointKey, blob_store::BlobStore};
 use nama_proto::nama::v1::PluginKind;
-use tracing::{Instrument as _, error, info, warn};
+use tracing::{Instrument as _, Span, error, info, warn};
 
-use crate::diagnostics;
+use crate::diagnostics::{self, PLUGIN_TARGET};
 
 use super::{
     Answer, ProviderError, contain_call, contain_sync,
@@ -64,9 +64,8 @@ impl ExtensionPoints {
         if !self.is_current(&entry) {
             return;
         }
-        if let Err(message) =
-            contain_call(&entry.plugin, P::NAME, || observer.observe(&event)).await
-        {
+        let delivered = contain_call(&entry.plugin, P::NAME, || observer.observe(&event));
+        if let Err(message) = delivered.instrument(self.log_span(&entry.plugin)).await {
             self.disable_after_panic(&entry, P::NAME, &message);
         }
     }
@@ -141,7 +140,8 @@ impl ExtensionPoints {
             if !self.is_current(&entry) {
                 continue;
             }
-            match contain_call(&entry.plugin, point.name(), || formatted(call(provider))).await {
+            let called = contain_call(&entry.plugin, point.name(), || formatted(call(provider)));
+            match called.instrument(self.log_span(&entry.plugin)).await {
                 Ok(result) => {
                     let result = result.map_err(|failure| failure.blanked(&entry.secrets));
                     return Asked::Answered(Answer {
@@ -195,7 +195,10 @@ impl ExtensionPoints {
         // This task may hold the last handle on a Plugin disabled meanwhile, and its `Drop` is
         // Plugin code.
         let plugin = entry.plugin.clone();
-        if let Err(message) = contain_sync(|| drop((provider, entry))) {
+        let dropped = self
+            .log_span(&plugin)
+            .in_scope(|| contain_sync(|| drop((provider, entry))));
+        if let Err(message) = dropped {
             error!(plugin = %plugin, message, "plugin panicked while being dropped");
         }
     }
@@ -220,7 +223,7 @@ impl ExtensionPoints {
         let called = contain_call(&entry.plugin, point, || {
             formatted(call(entry.plugin.clone(), provider))
         });
-        match called.await {
+        match called.instrument(self.log_span(&entry.plugin)).await {
             Ok(Ok(())) => self.provider_answered(&entry.plugin, key),
             Ok(Err(failure)) => {
                 let error = failure.blanked(&entry.secrets).message;
@@ -374,6 +377,7 @@ impl ExtensionPoints {
         id: &PluginId,
         check: impl FnOnce(&State, Option<&Enabled>) -> Result<(), E>,
     ) -> Result<Option<Removed>, E> {
+        let log_span = self.log_span(id);
         self.write(|state| {
             check(state, state.plugins.get(id))?;
             let Some(enabled) = state.plugins.remove(id) else {
@@ -389,7 +393,27 @@ impl ExtensionPoints {
             Ok(Some(Removed {
                 enabled,
                 _handlers: handlers,
+                log_span,
             }))
+        })
+    }
+
+    /// The span a call into the Plugin `plugin` runs in, which names it on stdout before each line
+    /// a Built-in logs with `tracing` (ADR 0061). None for an Installed Plugin, whose lines carry
+    /// its id themselves. A Plugin the Registry doesn't list, enabled directly, runs in-process, so
+    /// it counts as Built-in.
+    pub(super) fn log_span(&self, plugin: &PluginId) -> Span {
+        if self.is_installed(plugin) {
+            return Span::none();
+        }
+        // `error`, so a level filter that keeps any of the Plugin's lines keeps the span naming it.
+        tracing::error_span!(target: PLUGIN_TARGET, "plugin", plugin = %plugin)
+    }
+
+    fn is_installed(&self, plugin: &PluginId) -> bool {
+        self.read(|state| {
+            (state.known.get(plugin))
+                .is_some_and(|known| known.kind == PluginKind::PLUGIN_KIND_INSTALLED)
         })
     }
 
@@ -423,13 +447,8 @@ impl ExtensionPoints {
             .is_some();
         // A Built-in Plugin is only disabled until a restart, since saving the last Authenticator
         // disabled would stop the Server starting.
-        let crashed = self.read(|state| {
-            let installed = state
-                .known
-                .get(&entry.plugin)
-                .is_some_and(|known| known.kind == PluginKind::PLUGIN_KIND_INSTALLED);
-            state.crashed.clone().filter(|_| installed)
-        });
+        let installed = self.is_installed(&entry.plugin);
+        let crashed = self.read(|state| state.crashed.clone().filter(|_| installed));
         if disabled && let Some(crashed) = crashed {
             // Nothing saves it once the Server stops serving.
             let _stopped = crashed.send(entry.plugin.clone());
@@ -477,18 +496,21 @@ pub(super) struct Removed {
     enabled: Enabled,
     // Held so the handlers are dropped with the Plugin, contained.
     _handlers: Vec<Entry>,
+    /// What the Plugin's `Stop` and `Drop` run in, as [`ExtensionPoints::log_span`] gives it.
+    log_span: Span,
 }
 
 impl Removed {
     /// Cancels the scope and waits for its tasks, then drops the Plugin.
     pub(super) async fn close(self, id: &PluginId) {
-        self.enabled.scope.clone().close().await;
+        let closing = self.enabled.scope.clone().close();
+        closing.instrument(self.log_span.clone()).await;
         self.dropped(id);
     }
 
     /// Cancels the scope at once, and joins it and drops the Plugin in the background.
     pub(super) fn close_later(self, id: &PluginId) {
-        self.enabled.scope.cancel();
+        self.log_span.in_scope(|| self.enabled.scope.cancel());
         let id = id.clone();
         match tokio::runtime::Handle::try_current() {
             Ok(runtime) => drop(runtime.spawn(async move { self.close(&id).await })),
@@ -499,7 +521,8 @@ impl Removed {
 
     /// Drops the Plugin and its handlers, containing a panic in their `Drop`, which is Plugin code.
     fn dropped(self, id: &PluginId) {
-        if let Err(message) = contain_sync(|| drop(self)) {
+        let log_span = self.log_span.clone();
+        if let Err(message) = log_span.in_scope(|| contain_sync(|| drop(self))) {
             error!(plugin = %id, message, "plugin panicked while being dropped");
         }
         info!(plugin = %id, "disabled plugin");

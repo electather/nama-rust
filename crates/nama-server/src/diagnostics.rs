@@ -46,6 +46,9 @@ use tracing_subscriber::{
 /// The target sqlx logs each query it ran under, once it has run.
 const SQL_TARGET: &str = "sqlx::query";
 
+/// The target of a Plugin's lines and of the span naming a Built-in on stdout.
+pub(crate) const PLUGIN_TARGET: &str = "nama::plugin";
+
 /// The layer that exports the Server's spans through `provider`, each SQL query among them.
 ///
 /// Spans pass [`exported_filter`]. Logged events never reach it, so a span carries none.
@@ -61,11 +64,10 @@ where
     }
     .with_filter(filter_fn(|metadata| metadata.target() == SQL_TARGET));
     // Lines logged for stdout quote file paths and names, which a span mustn't carry (ADR 0054).
-    #[expect(
-        clippy::redundant_closure_for_method_calls,
-        reason = "`Metadata::is_span` itself isn't general over the metadata's lifetime"
-    )]
-    let spans_only = exported_filter().and(filter_fn(|metadata| metadata.is_span()));
+    // The span naming a Built-in is for stdout: the Plugin call span it sits in names it already.
+    let spans_only = exported_filter().and(filter_fn(|metadata| {
+        metadata.is_span() && metadata.target() != PLUGIN_TARGET
+    }));
     tracing_opentelemetry::layer()
         .with_tracer(tracer)
         .with_filter(spans_only)

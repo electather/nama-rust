@@ -21,7 +21,7 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::PluginKind;
 use tokio::sync::{mpsc, watch};
-use tracing::{error, info};
+use tracing::{Instrument as _, error, info};
 
 use super::{
     CheckError, CheckTimedOut, EnableError, ExtensionPoints, LastProvider, Listed,
@@ -165,14 +165,17 @@ impl Registry {
                 return Err(EnableError::ManifestPanicked { message });
             }
         };
-        contain_sync(|| self.enable_as(&manifest, plugin, settings, granted)).unwrap_or_else(
-            |message| {
-                Err(EnableError::Panicked {
-                    plugin: manifest.id,
-                    message,
-                })
-            },
-        )
+        let id = &manifest.id;
+        let enabling = || contain_sync(|| self.enable_as(&manifest, plugin, settings, granted));
+        let enabled = self.log_span(id).in_scope(enabling);
+        let registrations = enabled.unwrap_or_else(|message| {
+            Err(EnableError::Panicked {
+                plugin: id.clone(),
+                message,
+            })
+        })?;
+        info!(plugin = %id, version = %manifest.version, registrations, "enabled plugin");
+        Ok(())
     }
 
     /// Enables the Plugin `id` that [`Registry::plugins`] lists with `settings`, as
@@ -213,22 +216,23 @@ impl Registry {
                 plugin: id.clone(),
                 reason,
             })?;
-        let plugin = contain_sync(|| make()).map_err(|message| EnableError::Panicked {
+        let plugin = self.log_span(id).in_scope(|| contain_sync(|| make()));
+        let plugin = plugin.map_err(|message| EnableError::Panicked {
             plugin: id.clone(),
             message,
         })?;
         self.enable_granting(plugin, settings, granted)
     }
 
-    /// Enables `plugin`, whose Manifest is `manifest`. Plugin code runs here, so only call it from
-    /// within [`contain_sync`].
+    /// Enables `plugin`, whose Manifest is `manifest`, returning how many registrations it made.
+    /// Plugin code runs here, so only call it from within [`contain_sync`].
     fn enable_as(
         &self,
         manifest: &Manifest,
         plugin: Arc<dyn Plugin>,
         settings: Settings,
         granted: HashSet<Permission>,
-    ) -> Result<(), EnableError> {
+    ) -> Result<usize, EnableError> {
         let id = &manifest.id;
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
@@ -310,11 +314,7 @@ impl Registry {
             }
             None
         });
-        if let Some((refusal, ..)) = refused {
-            return Err(refusal);
-        }
-        info!(plugin = %id, version = %manifest.version, registrations = count, "enabled plugin");
-        Ok(())
+        refused.map_or(Ok(count), |(refusal, ..)| Err(refusal))
     }
 
     /// The Registrar for an enablement of `manifest`'s Plugin with `settings`: it hands the
@@ -369,14 +369,16 @@ impl Registry {
     /// Cancels every enabled Plugin's scope and waits for the tasks in each, for the Server
     /// stopping. The Plugins stay enabled in memory.
     pub async fn shutdown(&self) {
-        let scopes: Vec<Scope> = self.read(|state| {
-            state
-                .plugins
-                .values()
-                .map(|enabled| enabled.scope.clone())
+        let scopes: Vec<(PluginId, Scope)> = self.read(|state| {
+            let plugins = state.plugins.iter();
+            plugins
+                .map(|(id, enabled)| (id.clone(), enabled.scope.clone()))
                 .collect()
         });
-        futures_util::future::join_all(scopes.into_iter().map(Scope::close)).await;
+        let closing = scopes
+            .into_iter()
+            .map(|(id, scope)| scope.close().instrument(self.log_span(&id)));
+        futures_util::future::join_all(closing).await;
     }
 
     /// The refusal of disabling the Plugin `id` if no other enabled Plugin provides `T`, such as
@@ -432,7 +434,8 @@ impl Registry {
         let checked = check_fresh(id, &make, &secrets, &settings, |plugin, settings| {
             Some(plugin.settings_check()?.check(settings))
         });
-        checked.await?.ok_or_else(no_check)
+        let checked = checked.instrument(self.log_span(id)).await?;
+        checked.ok_or_else(no_check)
     }
 
     /// Runs the Plugin `id`'s check of one User's Personal settings, `personal`, on a fresh
@@ -471,7 +474,7 @@ impl Registry {
         let checked = check_fresh(id, &make, &secrets, &asked, |plugin, (saved, values)| {
             Some(plugin.personal_settings_check()?.check(saved, values))
         });
-        checked.await.map(drop)
+        checked.instrument(self.log_span(id)).await.map(drop)
     }
 
     /// The ids of the enabled Plugins, sorted.
