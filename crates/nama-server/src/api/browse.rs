@@ -366,9 +366,8 @@ fn movie_summary(
     watch_state: Option<WatchState>,
     images: &ShownImages,
 ) -> proto::MovieSummary {
-    let poster_url = (images.custom)
-        .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
-        .or_else(|| (movie.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path)));
+    let downloaded = (movie.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
+    let poster_url = (images.movie_image(&movie.id, &movie.ids, Role::Poster)).or(downloaded);
     proto::MovieSummary {
         id: external_id_to_proto(&movie.id).into(),
         title: movie.title,

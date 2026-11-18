@@ -27,7 +27,8 @@ use http::fetch;
 use image::ImageFormat;
 use log::Log;
 use nama_proto::nama::v1::{
-    LibraryKind, ListShowsRequest, LookUpShowRequest, RequestServiceClient, SearchShowsRequest,
+    LibraryKind, ListMoviesRequest, ListShowsRequest, LookUpShowRequest, RequestServiceClient,
+    SearchShowsRequest,
 };
 use server::{
     TestServer,
@@ -52,6 +53,16 @@ impl Fixture {
         let backdrop = fetch(&self.server, &movie.backdrop_url.unwrap(), token).await;
         assert_eq!((poster.status, backdrop.status), (200, 200));
         (poster.body, backdrop.body)
+    }
+
+    /// Alien's Poster as `ListMovies` gives it, as the bytes served at its URL.
+    async fn listed_alien_poster(&self) -> Vec<u8> {
+        let listed = self.browse.list_movies(ListMoviesRequest {
+            library_id: self.library,
+            ..Default::default()
+        });
+        let movie = listed.await.unwrap().into_owned().movies.into_iter().next();
+        self.served(&movie.unwrap().poster_url.unwrap()).await
     }
 
     fn delete(&self, relative: &str) {
@@ -103,7 +114,8 @@ async fn a_poster_and_fanart_beside_a_movies_file_are_its_poster_and_backdrop_af
 
     fx.scan_and_match().await;
 
-    assert_eq!(fx.alien_images().await, (poster, fanart));
+    assert_eq!(fx.alien_images().await, (poster.clone(), fanart));
+    assert_eq!(fx.listed_alien_poster().await, poster);
     let movie = fx.get_movie(fx.library, ALIEN).await;
     assert!(!movie.unwrap().custom_poster);
 }
@@ -118,10 +130,16 @@ async fn a_custom_image_beats_the_one_beside_the_file_and_removing_it_brings_tha
 
     fx.upload(&custom_alien_poster(), &custom).await;
     let (shown_over_it, _) = fx.alien_images().await;
+    let listed_over_it = fx.listed_alien_poster().await;
     fx.remove(&custom_alien_poster()).await;
     let (shown_after, _) = fx.alien_images().await;
+    let listed_after = fx.listed_alien_poster().await;
 
-    assert_eq!((shown_over_it, shown_after), (custom, beside));
+    assert_eq!(
+        (shown_over_it, shown_after),
+        (custom.clone(), beside.clone())
+    );
+    assert_eq!((listed_over_it, listed_after), (custom, beside));
 }
 
 #[tokio::test]
