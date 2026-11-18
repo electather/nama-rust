@@ -25,7 +25,7 @@ export function TitleSourcesField({
   const id = useId();
   const [order, setOrder, fieldset] = useOrderResetWithForm(initial);
   const { data } = useQuery(LibraryService.method.listTitleSources, {});
-  const enabled = data?.titleSources ?? [];
+  const listed = data?.titleSources ?? [];
 
   return (
     <fieldset
@@ -36,7 +36,7 @@ export function TitleSourcesField({
       <legend className="mb-2 text-sm font-medium">Title sources</legend>
       <ol aria-label="Title sources" className="flex flex-col gap-1">
         {order.map((namespace, index) => {
-          const source = enabled.find((each) => each.namespace === namespace);
+          const source = listed.find((each) => each.namespace === namespace);
           return (
             <SourceRow
               key={namespace}
@@ -45,18 +45,18 @@ export function TitleSourcesField({
               setOrder={setOrder}
               label={source === undefined ? namespace : sourceName(source)}
               // Until the list arrives, no stored source is known to be missing.
-              unavailable={data !== undefined && source === undefined}
+              note={data === undefined ? undefined : unusable(source)}
               artworkOnly={source?.searches === false}
             />
           );
         })}
       </ol>
-      <AddSources enabled={enabled} order={order} setOrder={setOrder} />
+      <AddSources listed={listed} order={order} setOrder={setOrder} />
       <p id={`${id}-hint`} className="text-sm text-muted-foreground">
         Titles are Matched with the first source that finds them. Artwork comes from every source in
         the order.
       </p>
-      {data !== undefined && <NoSourceSearches order={order} enabled={enabled} />}
+      {data !== undefined && <NoSourceSearches order={order} listed={listed} />}
       {/* Always there, so screen readers announce an error as it appears. */}
       <p id={`${id}-error`} role="alert" className="text-sm text-destructive empty:hidden">
         {error}
@@ -83,20 +83,20 @@ function useOrderResetWithForm(initial: string[]) {
   return [order, setOrder, fieldset] as const;
 }
 
-/** A button per enabled source the order leaves out, which adds it at the end. */
+/** A button per running source the order leaves out, which adds it at the end. */
 function AddSources({
-  enabled,
+  listed,
   order,
   setOrder,
 }: {
-  enabled: TitleSource[];
+  listed: TitleSource[];
   order: string[];
   setOrder: (order: string[]) => void;
 }) {
   return (
     <div className="-ms-4 flex flex-wrap gap-1">
-      {enabled
-        .filter((source) => !order.includes(source.namespace))
+      {listed
+        .filter((source) => source.running && !order.includes(source.namespace))
         .map((source) => (
           <Button
             key={source.namespace}
@@ -115,20 +115,23 @@ function AddSources({
 }
 
 /**
- * Why the Library's Items wait to be Matched, if no source in `order` is `enabled` and searches:
+ * Why the Library's Items wait to be Matched, if no source in `order` is running and searches:
  * each source in turn, and whether it isn't running or only adds artwork. Links to the Plugins
  * only for a User who may enable one there.
  */
-function NoSourceSearches({ order, enabled }: { order: string[]; enabled: TitleSource[] }) {
+function NoSourceSearches({ order, listed }: { order: string[]; listed: TitleSource[] }) {
   const { signedIn } = useRouteContext({ from: "/_member" });
   const sources = order.map((namespace) => ({
     namespace,
-    source: enabled.find((each) => each.namespace === namespace),
+    source: listed.find((each) => each.namespace === namespace),
   }));
-  if (sources.some(({ source }) => source?.searches === true)) return null;
-  const why = sources.map(({ namespace, source }) =>
-    source === undefined ? `${namespace} isn’t running` : `${sourceName(source)} only adds artwork`,
-  );
+  if (sources.some(({ source }) => source?.running === true && source.searches)) return null;
+  const why = sources.map(({ namespace, source }) => {
+    if (source === undefined) return `${namespace} isn’t running`;
+    return source.running
+      ? `${sourceName(source)} only adds artwork`
+      : `${sourceName(source)} isn’t running`;
+  });
   const plugins = may(signedIn.user, Permission.MANAGE_SETTINGS) ? (
     <Link
       to="/admin/plugins"
@@ -155,6 +158,12 @@ function ArtworkOnly() {
   return <span className="text-muted-foreground"> · Artwork only</span>;
 }
 
+/** Why a source in the order can't be used now: no listed source keeps it, or it isn't running. */
+function unusable(source: TitleSource | undefined) {
+  if (source === undefined) return "not available";
+  return source.running ? undefined : "not running";
+}
+
 /** What people know `source` by: its Plugin's name, or else its namespace. */
 function sourceName({ namespace, pluginName }: TitleSource) {
   return pluginName === "" ? namespace : pluginName;
@@ -166,14 +175,14 @@ function SourceRow({
   index,
   setOrder,
   label,
-  unavailable,
+  note,
   artworkOnly,
 }: {
   order: string[];
   index: number;
   setOrder: (order: string[]) => void;
   label: string;
-  unavailable: boolean;
+  note: string | undefined;
   artworkOnly: boolean;
 }) {
   const move = (by: -1 | 1) => () => {
@@ -186,7 +195,7 @@ function SourceRow({
       <input type="hidden" name="titleSources" value={order[index]} />
       <span className="me-auto">
         {label}
-        {unavailable && <span className="text-muted-foreground"> · not available</span>}
+        {note !== undefined && <span className="text-muted-foreground"> · {note}</span>}
         {artworkOnly && <ArtworkOnly />}
       </span>
       <RowButton name={`Move ${label} up`} disabled={index === 0} onClick={move(-1)}>

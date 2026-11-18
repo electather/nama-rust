@@ -11,23 +11,42 @@ import { refused } from "./test-refusal";
 
 afterEach(cleanup);
 
-const tmdb = { namespace: "tmdb", pluginId: "tmdb", pluginName: "TMDB", searches: true };
-const tvdb = { namespace: "tvdb", pluginId: "tvdb", pluginName: "TVDB", searches: true };
-const fanart = { namespace: "fanart", pluginId: "fanart", pluginName: "fanart.tv" };
+const tmdb = {
+  namespace: "tmdb",
+  pluginId: "tmdb",
+  pluginName: "TMDB",
+  searches: true,
+  running: true,
+};
+const tvdb = {
+  namespace: "tvdb",
+  pluginId: "tvdb",
+  pluginName: "TVDB",
+  searches: true,
+  running: true,
+};
+const fanart = { namespace: "fanart", pluginId: "fanart", pluginName: "fanart.tv", running: true };
+const tvdbDisabled = { ...tvdb, running: false };
 
 /**
  * A fake Server with the Library Films, ordered `titleSources`, whose saved orders go to `saved`,
- * whose running title sources are `running`, and where `signedIn` is signed in.
+ * whose installed title sources are `listed`, and where `signedIn` is signed in.
  */
 function titleSourcesServer(
   titleSources: string[],
   {
     saved = () => {},
-    running = [tmdb, tvdb, fanart],
+    listed = [tmdb, tvdb, fanart],
     signedIn = admin,
   }: {
     saved?: (titleSources: string[]) => void;
-    running?: { namespace: string; pluginId: string; pluginName: string; searches?: boolean }[];
+    listed?: {
+      namespace: string;
+      pluginId: string;
+      pluginName: string;
+      searches?: boolean;
+      running: boolean;
+    }[];
     signedIn?: Permission[];
   } = {},
 ) {
@@ -44,7 +63,7 @@ function titleSourcesServer(
     libraries: [library],
     libraryService: {
       getLibrary: () => ({ library }),
-      listTitleSources: () => ({ titleSources: running }),
+      listTitleSources: () => ({ titleSources: listed }),
       updateLibrary: (request) => {
         saved(request.titleSources);
         return { library: { ...library, titleSources: request.titleSources } };
@@ -161,10 +180,7 @@ test("a source that doesn't search shows as artwork only, in its row and on its 
 });
 
 test("an order where no running source searches names why each can't, and links to the Plugins", async () => {
-  openApp(
-    "/admin/libraries/1",
-    titleSourcesServer(["tvdb", "fanart"], { running: [tmdb, fanart] }),
-  );
+  openApp("/admin/libraries/1", titleSourcesServer(["tvdb", "fanart"], { listed: [tmdb, fanart] }));
   await screen.findByRole("button", { name: "Remove fanart.tv" });
 
   const note = await screen.findByText(/no source above can search for titles/iu);
@@ -178,7 +194,7 @@ test("an order where no running source searches names why each can't, and links 
 test("the note names the Plugins without a link for a User who can't manage them", async () => {
   openApp(
     "/admin/libraries/1",
-    titleSourcesServer(["tvdb"], { running: [tmdb], signedIn: [Permission.MANAGE_LIBRARIES] }),
+    titleSourcesServer(["tvdb"], { listed: [tmdb], signedIn: [Permission.MANAGE_LIBRARIES] }),
   );
 
   const note = await screen.findByText(/no source above can search for titles/iu);
@@ -191,4 +207,29 @@ test("an order with a running source that searches says nothing of it", async ()
   await screen.findByRole("button", { name: "Remove TMDB" });
 
   expect(screen.queryByText(/no source above can search for titles/iu)).toBeNull();
+});
+
+test("a stored source whose Plugin isn't running shows by the Plugin's name", async () => {
+  openApp(
+    "/admin/libraries/1",
+    titleSourcesServer(["tmdb", "tvdb", "imdb"], { listed: [tmdb, tvdbDisabled] }),
+  );
+  await screen.findByRole("button", { name: "Remove TVDB" });
+
+  expect(titleSourcesShown()).toEqual(["TMDB", "TVDB · not running", "imdb · not available"]);
+  screen.getByRole("button", { name: "Move TVDB up" });
+});
+
+test("a source that isn't running can't be added", async () => {
+  openApp("/admin/libraries/1", titleSourcesServer(["tmdb"], { listed: [tmdb, tvdbDisabled] }));
+  await screen.findByRole("button", { name: "Remove TMDB" });
+
+  expect(screen.queryByRole("button", { name: /^Add/u })).toBeNull();
+});
+
+test("a searching source that isn't running doesn't count as one that searches", async () => {
+  openApp("/admin/libraries/1", titleSourcesServer(["tvdb"], { listed: [tmdb, tvdbDisabled] }));
+
+  const note = await screen.findByText(/no source above can search for titles/iu);
+  expect(note.textContent).toContain("No source above can search for titles: TVDB isn’t running.");
 });

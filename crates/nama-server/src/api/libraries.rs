@@ -1,6 +1,9 @@
 //! The Server's Libraries: `nama.v1.LibraryService`.
 
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
@@ -310,16 +313,30 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListTitleSourcesRequest>,
     ) -> ServiceResult<ListTitleSourcesResponse> {
-        let sources = self.title_sources.sources().await;
-        Response::ok(ListTitleSourcesResponse {
-            title_sources: (sources.into_iter())
-                .map(|source| TitleSource {
-                    plugin_name: self.plugins.name(&source.plugin),
-                    plugin_id: source.plugin.to_string(),
-                    searches: source.searches(),
+        let running = (self.title_sources.sources().await.into_iter()).map(|source| TitleSource {
+            plugin_name: self.plugins.name(&source.plugin),
+            plugin_id: source.plugin.to_string(),
+            searches: source.searches(),
+            namespace: source.namespace,
+            running: true,
+            ..Default::default()
+        });
+        let known =
+            (self.plugin_settings.title_sources_by_plugin().into_iter()).map(|(plugin, source)| {
+                TitleSource {
+                    plugin_name: self.plugins.name(&plugin),
+                    plugin_id: plugin.to_string(),
+                    searches: source.searches,
                     namespace: source.namespace,
+                    running: false,
                     ..Default::default()
-                })
+                }
+            });
+        let mut listed = HashSet::new();
+        Response::ok(ListTitleSourcesResponse {
+            // Running first, so a namespace a running source keeps is listed as running.
+            title_sources: (running.chain(known))
+                .filter(|source| listed.insert(source.namespace.clone()))
                 .collect(),
             ..Default::default()
         })

@@ -10005,7 +10005,7 @@ impl ::serde::Serialize for ListArtworkResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// An enabled title source, a Plugin that searches and describes titles.
+/// A title source, a Plugin that searches and describes titles, whether it is running or not.
 #[derive(Clone, Debug, Default)]
 pub struct TitleSourceView<'a> {
     /// The namespace it keeps titles under, which a Library's `title_sources` names it by.
@@ -10024,6 +10024,11 @@ pub struct TitleSourceView<'a> {
     ///
     /// Field 4: `searches`
     pub searches: bool,
+    /// Whether its Plugin is running, so a Library may add it now. One that isn't is disabled, or
+    /// enabled but not running, such as one missing a setting it needs.
+    ///
+    /// Field 5: `running`
+    pub running: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TitleSourceView<'a> {
@@ -10084,6 +10089,13 @@ impl<'a> ::buffa::MessageView<'a> for TitleSourceView<'a> {
                 )?;
                 view.searches = ::buffa::types::decode_bool(&mut cur)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.running = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -10110,6 +10122,7 @@ impl<'a> ::buffa::MessageView<'a> for TitleSourceView<'a> {
             plugin_id: self.plugin_id.to_string(),
             plugin_name: self.plugin_name.to_string(),
             searches: self.searches,
+            running: self.running,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -10131,6 +10144,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleSourceView<'a> {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_name) as u64;
         }
         if self.searches {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.running {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -10155,6 +10171,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleSourceView<'a> {
         }
         if self.searches {
             ::buffa::types::put_bool_field(4u32, self.searches, buf);
+        }
+        if self.running {
+            ::buffa::types::put_bool_field(5u32, self.running, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10188,6 +10207,9 @@ impl<'__a> ::serde::Serialize for TitleSourceView<'__a> {
         }
         if self.searches {
             __map.serialize_entry("searches", &self.searches)?;
+        }
+        if self.running {
+            __map.serialize_entry("running", &self.running)?;
         }
         __map.end()
     }
@@ -10307,6 +10329,14 @@ impl TitleSourceOwnedView {
     #[must_use]
     pub fn searches(&self) -> bool {
         self.0.reborrow().searches
+    }
+    /// Whether its Plugin is running, so a Library may add it now. One that isn't is disabled, or
+    /// enabled but not running, such as one missing a setting it needs.
+    ///
+    /// Field 5: `running`
+    #[must_use]
+    pub fn running(&self) -> bool {
+        self.0.reborrow().running
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TitleSourceView<'static>>>

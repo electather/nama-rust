@@ -745,7 +745,8 @@ pub trait LibraryService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the enabled title sources a Library's `title_sources` can name, in no set order.
+    /// Lists every title source the Server's Plugins have, running or not, each namespace once, in
+    /// no set order.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
