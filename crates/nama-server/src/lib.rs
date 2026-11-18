@@ -11,6 +11,7 @@ pub mod diagnostics;
 mod events;
 pub mod ffmpeg;
 mod forwarded;
+mod home_rows;
 pub mod images;
 mod library;
 #[cfg(test)]
@@ -37,6 +38,7 @@ use crate::{
     db::Database,
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
+    home_rows::HomeRows,
     images::{ImageStore, PluginLogos},
     library::{Contents, CustomImages, LocalImages},
     playback::Probing,
@@ -111,6 +113,7 @@ pub fn serve(
         events.clone(),
     );
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
+    let home_rows = HomeRows::new(Arc::clone(&db), points.clone());
     let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
     let artwork = Artwork::new(images.clone(), points.clone());
     let plugin_logos = PluginLogos::new(images.clone());
@@ -142,6 +145,7 @@ pub fn serve(
         probing.clone(),
         events.clone(),
         requests.clone(),
+        home_rows.clone(),
         settings,
         running.clone(),
         abilities.clone(),
@@ -162,7 +166,8 @@ pub fn serve(
             scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
         }
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
-        requests.start(plugins.take_came_up(), Duration::from_mins(1));
+        let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
+        requests.start(came_up, Duration::from_mins(1));
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.
@@ -181,6 +186,7 @@ pub fn serve(
         probing.shutdown().await;
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
+        home_rows.shutdown().await;
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

@@ -92,6 +92,19 @@ service BrowseService {
   rpc GetUnmatchedVersion(GetUnmatchedVersionRequest) returns (GetUnmatchedVersionResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Lists the Home rows Plugins give every User (ADR 0058): each enabled Plugin's, in Plugin id
+  // order, then in the order the Plugin gave them. A row with no title on the Server is left out.
+  // Never waits on a Plugin: rows past their time to live are refreshed in the background, and
+  // what was stored before is listed meanwhile, so a Plugin's first rows show on a later call.
+  rpc ListHomeRows(ListHomeRowsRequest) returns (ListHomeRowsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Lists a page of one Home row's titles that are on the Server, in the row's order, each in the
+  // oldest Library that has it. A row its Plugin no longer gives lists none. Fails with
+  // `invalid_argument` if `page.token` isn't one an earlier call for the same row returned.
+  rpc ListHomeRowTitles(ListHomeRowTitlesRequest) returns (ListHomeRowTitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -623,4 +636,42 @@ message GetUnmatchedVersionResponse {
   // The Version's first Unmatched Item: a file holding several Episodes holds one for each.
   UnmatchedItemSummary item = 1;
   Version version = 2;
+}
+
+message ListHomeRowsRequest {}
+
+message ListHomeRowsResponse {
+  repeated HomeRow rows = 1;
+}
+
+// A headed row of titles a Plugin gives for the home page. Its Plugin and key name it.
+message HomeRow {
+  // The Plugin that gives it.
+  string plugin_id = 1;
+  // What the Plugin tells it from its other rows by.
+  string key = 2;
+  // Plain text of at most 40 characters.
+  string heading = 3;
+}
+
+message ListHomeRowTitlesRequest {
+  // As `HomeRow.plugin_id`.
+  string plugin_id = 1;
+  // As `HomeRow.key`.
+  string key = 2;
+  PageRequest page = 3;
+}
+
+message ListHomeRowTitlesResponse {
+  repeated HomeRowTitle titles = 1;
+  // The rest of the row: the next page's token, and on the first page how many titles it shows.
+  PageResponse page = 2;
+}
+
+// A title in a Home row, as a search finds it.
+message HomeRowTitle {
+  oneof movie_or_show {
+    MovieInLibrary movie = 1;
+    ShowInLibrary show = 2;
+  }
 }

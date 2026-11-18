@@ -136,6 +136,12 @@ pub mod __buffa {
         reg.register_json_any(super::__UNMATCHED_ITEM_SUMMARY_JSON_ANY);
         reg.register_json_any(super::__GET_UNMATCHED_VERSION_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_UNMATCHED_VERSION_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_HOME_ROWS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_HOME_ROWS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__HOME_ROW_JSON_ANY);
+        reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
@@ -662,6 +668,30 @@ pub use self::__buffa::view::GetUnmatchedVersionRequestOwnedView;
 pub use self::__buffa::view::GetUnmatchedVersionResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetUnmatchedVersionResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowTitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowTitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowTitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowTitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetTrackPreferencesRequestView;
 #[doc(inline)]

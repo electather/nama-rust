@@ -450,7 +450,7 @@ fn ceilings_are_sorted_by_path_and_list_no_path_twice() {
 const ROWS: &[&[&str]] = &[
     &["api", "automation"],
     &["browse", "scanner", "plugin_settings"],
-    &["requests", "playback", "matching"],
+    &["requests", "playback", "matching", "home_rows"],
     &["library"],
     &["events", "connections", "users"],
     &["plugins"],

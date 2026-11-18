@@ -3,6 +3,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { BackdropGrid, LibraryCard } from "@/components/backdrop-card";
 import { ContinueWatching, continueWatchingRow } from "@/components/continue-watching";
+import { HomeRows } from "@/components/home-rows";
 import { Page } from "@/components/page";
 import { posterLink } from "@/components/poster";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
@@ -38,6 +39,7 @@ function Home() {
         </h2>
         <Libraries />
       </section>
+      <HomeRows />
     </Page>
   );
 }

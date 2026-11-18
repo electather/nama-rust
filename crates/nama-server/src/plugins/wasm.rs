@@ -43,6 +43,7 @@ mod blob_store;
 mod bundled;
 mod calls;
 mod contract;
+mod home_row;
 mod listing;
 mod load;
 mod plugin_log;

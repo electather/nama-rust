@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id FROM home_row_refreshes WHERE stale_at > ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_row_refreshes",
+            "name": "plugin_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a4e4081ae7e21c24a69f87502be41fad30a5d0b6a4e6019a9d46b23de0b184d4"
+}
