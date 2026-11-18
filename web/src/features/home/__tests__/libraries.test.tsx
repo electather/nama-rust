@@ -5,8 +5,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { fakeServer, newUser, openApp } from "./test-app";
+import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(() => {
   cleanup();

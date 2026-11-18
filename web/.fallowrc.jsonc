@@ -85,6 +85,7 @@
       { "name": "action-bar", "patterns": ["src/features/action-bar/**"] },
       { "name": "invites", "patterns": ["src/features/invites/**"] },
       { "name": "settings", "patterns": ["src/features/settings/**"] },
+      { "name": "home", "patterns": ["src/features/home/**"] },
       { "name": "app", "patterns": ["src/app/**"] },
       { "name": "routes", "patterns": ["src/routes/**"] },
       // The only files that import route files.
@@ -242,6 +243,18 @@
         ],
       },
       {
+        "from": "home",
+        "allow": [
+          "home",
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+          "legacy-components",
+          "legacy-lib",
+        ],
+      },
+      {
         "from": "app",
         "allow": [
           "app",
@@ -267,6 +280,7 @@
           "requests",
           "action-bar",
           "settings",
+          "home",
           "shared-components",
           "shared-ui",
           "shared-hooks",
