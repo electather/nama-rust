@@ -7,7 +7,10 @@ use nama_plugin_api::{
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
-use crate::plugins::{ExtensionPoints, Failing, Registry};
+use crate::{
+    log_capture::CapturedLog,
+    plugins::{ExtensionPoints, Failing, Registry},
+};
 
 const PLUGIN: PluginId = PluginId::from_static("flaky");
 
@@ -200,8 +203,8 @@ impl Plugin for Watches {
     }
 }
 
-#[tokio::test]
-async fn an_observers_failure_is_recorded_without_its_secret_until_it_observes_again() {
+/// A Registry with [`Watches`] enabled with [`KEY`] as its `api_key`, and its Extension Points.
+fn watching() -> (Registry, ExtensionPoints) {
     let plugins = Registry::new();
     let api_key = SettingValue::Text(KEY.to_owned());
     let settings = Settings::new([("api_key".to_owned(), api_key)].into());
@@ -209,10 +212,18 @@ async fn an_observers_failure_is_recorded_without_its_secret_until_it_observes_a
         .enable_with_settings(Arc::new(Watches), settings)
         .unwrap();
     let points = plugins.extension_points();
+    (plugins, points)
+}
+
+#[tokio::test]
+async fn an_observers_failure_is_recorded_without_its_secret_until_it_observes_again() {
+    let (_plugins, points) = watching();
     let words = PointKey::observe::<Words>();
 
     points.notify::<Words>(Err("the log is full"));
-    let failed = (recorded(&points, words, None).await).expect("the failure is recorded");
+    let failed = recorded(&points, words, None)
+        .await
+        .expect("the failure is recorded");
     points.notify::<Words>(Ok(()));
     let observed = recorded(&points, words, Some(failed.clone())).await;
 
@@ -221,6 +232,24 @@ async fn an_observers_failure_is_recorded_without_its_secret_until_it_observes_a
         ("the log is full with …", 1)
     );
     assert_eq!(observed, None);
+}
+
+#[tokio::test]
+async fn a_builtin_observers_failure_is_logged_once_without_its_secret() {
+    let (_plugins, points) = watching();
+
+    // The test's runtime has one thread, so the Observer's task logs to it.
+    let log = CapturedLog::start();
+    points.notify::<Words>(Err("the log is full"));
+    recorded(&points, PointKey::observe::<Words>(), None).await;
+    let log = log.finish();
+
+    let failed: Vec<&str> = (log.lines())
+        .filter(|line| line.contains("observer failed"))
+        .collect();
+    assert_eq!(failed.len(), 1, "{log}");
+    assert!(failed[0].contains("the log is full with …"), "{log}");
+    assert!(!log.contains(KEY), "{log}");
 }
 
 #[test]

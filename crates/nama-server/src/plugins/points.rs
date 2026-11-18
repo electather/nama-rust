@@ -71,12 +71,15 @@ impl ExtensionPoints {
         let delivered = contain_call(&entry.plugin, P::NAME, || {
             formatted(observer.observe(&event))
         });
-        // Not logged here: an Installed Plugin's Observer logs its own failure, as a Built-in may.
         match delivered.instrument(self.log_span(&entry.plugin)).await {
             Ok(Ok(())) => self.provider_answered(&entry.plugin, key),
             Ok(Err(failure)) => {
                 let error = failure.blanked(&entry.secrets).message;
                 self.provider_failed(&entry.plugin, key, &error);
+                // An Installed Plugin's Observer already logged it, in `call_method`.
+                if !self.read(|state| state.is_installed(&entry.plugin)) {
+                    warn!(plugin = %entry.plugin, point = P::NAME, error, "observer failed");
+                }
             }
             Err(message) => self.disable_after_panic(&entry, P::NAME, &message),
         }
