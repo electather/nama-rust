@@ -5,9 +5,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { admin, fakeServer, fill, openApp } from "./test-app";
-import { refused } from "./test-refusal";
+import { admin, fakeServer, fill, openApp } from "@/test-app";
+import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -97,10 +96,10 @@ test("a Library's title sources show in its order, and save unchanged", async ()
   );
   await screen.findByRole("button", { name: "Remove TVDB" });
 
-  expect(titleSourcesShown()).toEqual(["TVDB", "imdb · not available", "TMDB"]);
+  expect(titleSourcesShown()).toStrictEqual(["TVDB", "imdb · not available", "TMDB"]);
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(saved).toEqual(["tvdb", "imdb", "tmdb"]);
+  expect(saved).toStrictEqual(["tvdb", "imdb", "tmdb"]);
 });
 
 test("moving a title source up saves the new order", async () => {
@@ -118,14 +117,14 @@ test("moving a title source up saves the new order", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
   await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(saved).toEqual(["tvdb", "tmdb"]);
+  expect(saved).toStrictEqual(["tvdb", "tmdb"]);
 });
 
 test("the last title source can't be removed", async () => {
   openApp("/admin/libraries/1", titleSourcesServer(["tvdb", "tmdb"]));
   fireEvent.click(await screen.findByRole("button", { name: "Remove TVDB" }));
 
-  expect(titleSourcesShown()).toEqual(["TMDB"]);
+  expect(titleSourcesShown()).toStrictEqual(["TMDB"]);
   expect(screen.getByRole("button", { name: "Remove TMDB" }).hasAttribute("disabled")).toBe(true);
 });
 
@@ -167,7 +166,7 @@ test("creating a Library puts the title sources back to TMDB alone", async () =>
   fireEvent.click(screen.getByRole("button", { name: "Create Library" }));
 
   await screen.findByText("Shows is ready. Scan it to fill it.");
-  expect(titleSourcesShown()).toEqual(["TMDB"]);
+  expect(titleSourcesShown()).toStrictEqual(["TMDB"]);
 });
 
 test("a source that doesn't search shows as artwork only, in its row and on its add button", async () => {
@@ -175,7 +174,7 @@ test("a source that doesn't search shows as artwork only, in its row and on its 
   const add = await screen.findByRole("button", { name: "Add fanart.tv · Artwork only" });
   fireEvent.click(add);
 
-  expect(titleSourcesShown()).toEqual(["TMDB", "fanart.tv · Artwork only"]);
+  expect(titleSourcesShown()).toStrictEqual(["TMDB", "fanart.tv · Artwork only"]);
   screen.getByText(/artwork comes from every source in the order/iu);
 });
 
@@ -216,7 +215,7 @@ test("a stored source whose Plugin isn't running shows by the Plugin's name", as
   );
   await screen.findByRole("button", { name: "Remove TVDB" });
 
-  expect(titleSourcesShown()).toEqual(["TMDB", "TVDB · not running", "imdb · not available"]);
+  expect(titleSourcesShown()).toStrictEqual(["TMDB", "TVDB · not running", "imdb · not available"]);
   screen.getByRole("button", { name: "Move TVDB up" });
 });
 

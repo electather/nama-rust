@@ -2,8 +2,7 @@ import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
-
-import { admin, eventFeed, fakeServer, openApp } from "./test-app";
+import { admin, eventFeed, fakeServer, openApp } from "@/test-app";
 
 afterEach(cleanup);
 
@@ -33,7 +32,7 @@ test("removing a folder's missing items scans it so, and its warning goes once t
 
   fireEvent.click(screen.getByRole("button", { name: "Remove missing items" }));
   await waitFor(() => {
-    expect(removedIn).toEqual(["/srv/films"]);
+    expect(removedIn).toStrictEqual(["/srv/films"]);
   });
   events.send({ event: { case: "scanFinished", value: { libraryId: 1n, removed: 1n } } });
 

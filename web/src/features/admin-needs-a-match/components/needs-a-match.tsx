@@ -1,8 +1,8 @@
 import { LibraryFilter } from "@/features/admin-needs-a-match/components/library-filter";
 import { UnmatchedLists } from "@/features/admin-needs-a-match/components/unmatched-lists";
-import { useLibraries } from "@/features/admin-needs-a-match/data/use-libraries";
 import { pickedLibraries } from "@/features/admin-needs-a-match/lib/picked-libraries";
 import { Page } from "@/shared/components/page";
+import { useLibraries } from "@/shared/hooks/use-libraries";
 
 /**
  * The Needs a Match page: each Library's Unmatched Items, or only the `picked` one's, to Match by

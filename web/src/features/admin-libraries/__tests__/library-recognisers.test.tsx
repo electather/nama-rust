@@ -6,9 +6,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { LibraryKind, type LibrarySchema, type LibraryService } from "@/gen/nama/v1/library_pb";
 import { ExtensionPoint, PluginService, type PluginSummarySchema } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-
-import { admin, fakeServer, fill, openApp } from "./test-app";
-import { refused } from "./test-refusal";
+import { admin, fakeServer, fill, openApp } from "@/test-app";
+import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -99,8 +98,8 @@ test("a new Library sends the Recognisers picked, in their order, then the field
   createFilms();
 
   await screen.findByText("Films is ready. Scan it to fill it.");
-  expect(sent).toEqual(["dates", "anime"]);
-  expect(recognisersShown()).toEqual([]);
+  expect(sent).toStrictEqual(["dates", "anime"]);
+  expect(recognisersShown()).toStrictEqual([]);
 });
 
 test("a Library's Recognisers show in its order, and save unchanged", async () => {
@@ -120,14 +119,14 @@ test("a Library's Recognisers show in its order, and save unchanged", async () =
   );
   await screen.findByRole("button", { name: "Remove Anime numbers" });
 
-  expect(recognisersShown()).toEqual([
+  expect(recognisersShown()).toStrictEqual([
     "dates · not enabled",
     "gone · not available",
     "Anime numbers",
   ]);
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(sent).toEqual(["dates", "gone", "anime"]);
+  expect(sent).toStrictEqual(["dates", "gone", "anime"]);
 });
 
 test("removing a Library's last Recogniser saves an empty order, not none", async () => {
@@ -149,7 +148,7 @@ test("removing a Library's last Recogniser saves an empty order, not none", asyn
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
   await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(sent).toEqual([]);
+  expect(sent).toStrictEqual([]);
 });
 
 test("with no Recogniser installed the field says the Server's own Matching reads every file", async () => {
@@ -160,7 +159,7 @@ test("with no Recogniser installed the field says the Server's own Matching read
   );
   const field = screen.getByRole("group", { name: "Recognisers" });
   expect(field.getAttribute("aria-describedby")).toContain(hint.id);
-  expect(within(field).queryAllByRole("button")).toEqual([]);
+  expect(within(field).queryAllByRole("button")).toStrictEqual([]);
 });
 
 test("a refused create shows on the Recognisers field", async () => {

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { NeedsAMatch } from "@/features/admin-needs-a-match/components/needs-a-match";
-import { librariesQuery } from "@/features/admin-needs-a-match/data/use-libraries";
 import { unmatchedItemsQuery } from "@/features/admin-needs-a-match/data/use-unmatched-items";
+import { librariesQuery } from "@/shared/hooks/use-libraries";
 
 export const Route = createFileRoute("/_member/_admin/admin/needs-a-match")({
   validateSearch: (search: Record<string, unknown>): { library?: string } =>
