@@ -6,7 +6,7 @@ use sqlx::SqliteConnection;
 
 use super::{
     Caller, Error, NewDevice, Permissions, SignedIn, User, Users, checked_name,
-    codes::random_secret, hash_token, insert_device, insert_user, names::normalised, new_token,
+    codes::invite_token, hash_token, insert_device, insert_user, names::normalised, new_token,
     passwords::set_password, rate_limits::Attempt,
 };
 use crate::db::now;
@@ -55,7 +55,7 @@ impl Users {
             empty if empty.is_empty() => empty,
             note => checked_name("note", "an Invite's note", &note)?,
         };
-        let token = random_secret()?;
+        let token = invite_token()?;
         let token_hash = hash_token(&token);
         let by = by.clone();
         let invite = self

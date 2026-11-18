@@ -142,6 +142,19 @@ fn assert_invite_not_found<T: std::fmt::Debug>(result: Result<T, ConnectError>) 
 }
 
 #[tokio::test]
+async fn an_invite_token_carries_128_random_bits() {
+    let server = start(TestServer::builder()).await;
+    let client = users(server.client_config());
+
+    let first = token_of(&create_invite(&client, "", &[]).await.unwrap());
+    let second = token_of(&create_invite(&client, "", &[]).await.unwrap());
+
+    // 16 bytes, base64url-encoded without padding.
+    assert_eq!(first.len(), 22, "{first}");
+    assert_ne!(first, second);
+}
+
+#[tokio::test]
 async fn accepting_an_invite_creates_a_user_signed_in_with_its_permissions() {
     let server = start(TestServer::builder()).await;
     let picked = [Permission::ManageLibraries, Permission::Request];
