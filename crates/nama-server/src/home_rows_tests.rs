@@ -1,8 +1,12 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
-use nama_plugin_api::contract::{HomeRow, HomeRowTitle, HomeRows, TitleId, TitleKind};
+use nama_plugin_api::{
+    contract::{HomeRow, HomeRowTitle, HomeRows, TitleId, TitleKind},
+    metadata::ExternalId,
+};
 
-use super::{Kind, Title, kept};
+use super::{Kind, OnServer, Title, kept, shown};
+use crate::library::FoundMovie;
 
 fn movie(value: &str) -> HomeRowTitle {
     titled(TitleKind::TITLE_KIND_MOVIE, "tmdb", value)
@@ -97,4 +101,33 @@ fn a_repeated_key_and_titles_without_a_kind_or_a_well_formed_id_are_dropped() {
 
     assert_eq!(kept.len(), 1);
     assert_eq!(kept[0].titles, [Title(Kind::Show, "tvdb-1".to_owned())]);
+}
+
+#[test]
+fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
+    let id = |id: &str| -> ExternalId { id.parse().expect("a well-formed id") };
+    let matrix = FoundMovie {
+        library: 1,
+        id: id("tmdb-603"),
+        ids: [id("tmdb-603"), id("imdb-tt0133093")].into_iter().collect(),
+        title: "The Matrix".to_owned(),
+        release_date: None,
+        poster: None,
+    };
+    let titles = [
+        Title(Kind::Movie, "imdb-tt0133093".to_owned()),
+        Title(Kind::Movie, "tmdb-1".to_owned()),
+        Title(Kind::Movie, "tmdb-603".to_owned()),
+    ];
+    let on_server: HashMap<Title, OnServer> = [
+        (titles[0].clone(), OnServer::Movie(matrix.clone())),
+        (titles[2].clone(), OnServer::Movie(matrix)),
+    ]
+    .into_iter()
+    .collect();
+
+    let shown = shown(&titles, on_server);
+
+    let places: Vec<i64> = shown.iter().map(|(place, _)| *place).collect();
+    assert_eq!(places, [0]);
 }

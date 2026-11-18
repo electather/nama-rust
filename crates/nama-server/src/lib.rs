@@ -186,6 +186,7 @@ pub fn serve(
         probing.shutdown().await;
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
+        home_rows.shutdown().await;
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

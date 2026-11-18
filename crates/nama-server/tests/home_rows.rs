@@ -295,3 +295,30 @@ async fn opening_home_once_the_rows_are_stale_refreshes_them() {
 
     log.wait_for(&asked, 2).await;
 }
+
+#[tokio::test]
+async fn a_failed_refresh_is_not_tried_again_for_15_minutes() {
+    let log = Log::global();
+    let asked = ["test-plugin gives Home rows \"fail\""];
+    // Logged once the next try is put off.
+    let failed = [
+        "refreshing the Plugin's Home rows failed",
+        "test-plugin was set to fail",
+    ];
+    let server = installed(TestServer::builder().moves_clock(), "fail").await;
+    enable(&server).await;
+    log.wait_for(&failed, 1).await;
+
+    rows(&server).await;
+    // Time for a refresh home started to call the Plugin, which a failing one does at once.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let before = log.count(&asked);
+    server.advance_clock(Duration::from_mins(16));
+    rows(&server).await;
+
+    assert_eq!(
+        before, 1,
+        "home within 15 minutes of the failure refreshed it"
+    );
+    log.wait_for(&asked, 2).await;
+}

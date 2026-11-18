@@ -3,7 +3,7 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
@@ -16,8 +16,11 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{PageRequest, PageResponse};
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
-use tokio::sync::mpsc::{self, UnboundedReceiver};
-use tracing::warn;
+use tokio::{
+    sync::mpsc::{self, UnboundedReceiver},
+    task::JoinHandle,
+};
+use tracing::{error, warn};
 
 use crate::{
     db::{self, Database},
@@ -35,7 +38,8 @@ const MAX_ROWS: usize = 3;
 const MAX_TITLES: usize = 200;
 /// The longest heading, in characters.
 const MAX_HEADING: usize = 40;
-/// The shortest time to live, which also spaces out refreshes of a Plugin giving no rows.
+/// The shortest time to live, which also spaces out refreshes of a Plugin giving no rows or
+/// failing.
 const MIN_TTL: Duration = Duration::from_mins(15);
 const MAX_TTL: Duration = Duration::from_hours(7 * 24);
 
@@ -87,6 +91,9 @@ pub(crate) struct HomeRows {
     contents: Contents,
     /// The Plugins whose rows are being refreshed, so one refresh per Plugin runs at a time.
     refreshing: Arc<Mutex<HashSet<PluginId>>>,
+    /// The loop [`HomeRows::refresh_as_plugins_come_up`] starts, until
+    /// [`HomeRows::shutdown`] stops it.
+    passing_on: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 impl HomeRows {
@@ -97,6 +104,7 @@ impl HomeRows {
             db,
             points,
             refreshing: Arc::default(),
+            passing_on: Arc::default(),
         }
     }
 
@@ -128,7 +136,8 @@ impl HomeRows {
     }
 
     /// The `asked` page of the titles on the Server of the row `key` of the Plugin `plugin`, in
-    /// the row's order, a title it names twice once. A row no enabled source gives has none.
+    /// the row's order, a title it names twice, or by two of its ids, once. A row no enabled
+    /// source gives has none.
     pub(crate) async fn titles(
         &self,
         plugin: &PluginId,
@@ -142,10 +151,11 @@ impl HomeRows {
         } else {
             Vec::new()
         };
-        let mut on_server = self.on_server(&titles).await?;
-        let shown: Vec<(i64, OnServer)> = (titles.iter().zip(0..))
-            .filter_map(|(title, place)| Some((place, on_server.remove(title)?)))
-            .collect();
+        let on_server = self.on_server(&titles).await?;
+        // ponytail: pages in memory over at most `MAX_TITLES`, by place in the stored row, so a
+        // refresh between two pages can skip or repeat a title. Store the rows' titles as rows
+        // of their own if a row ever grows.
+        let shown = shown(&titles, on_server);
         let total = shown.len();
         let mut listed: Vec<_> = (shown.into_iter())
             .filter(|&(place, _)| page.after.is_none_or(|((), after)| place > after))
@@ -166,19 +176,35 @@ impl HomeRows {
     ) -> UnboundedReceiver<PluginId> {
         let (pass_on, passed) = mpsc::unbounded_channel();
         let this = self.clone();
-        tokio::spawn(async move {
+        let passing_on = tokio::spawn(async move {
             while let Some(plugin) = came_up.recv().await {
                 this.refresh(&plugin);
                 // Fails only once the reader stopped, when the Server no longer serves.
                 let _: Result<(), _> = pass_on.send(plugin);
             }
         });
+        *lock(&self.passing_on) = Some(passing_on);
         passed
     }
 
+    /// Stops what [`Self::refresh_as_plugins_come_up`] started, closing the queue it returned,
+    /// and logs a panic from it. Does nothing before it.
+    pub(crate) async fn shutdown(&self) {
+        let Some(passing_on) = lock(&self.passing_on).take() else {
+            return;
+        };
+        passing_on.abort();
+        if let Err(err) = passing_on.await
+            && err.is_panic()
+        {
+            error!("refreshing Home rows as Plugins come up panicked: {err}");
+        }
+    }
+
     /// Refreshes the Plugin `plugin`'s rows in the background, in its scope, so disabling it
-    /// cancels the refresh. Does nothing if it isn't an enabled Home row source, or its rows are
-    /// already being refreshed.
+    /// cancels the call. Rows a cancelled refresh still stores stay hidden, as [`Self::list`]
+    /// shows only enabled Plugins' rows. Does nothing if it isn't an enabled Home row source, or
+    /// its rows are already being refreshed.
     pub(crate) fn refresh(&self, plugin: &PluginId) {
         if !self.serves(plugin) {
             return;
@@ -213,10 +239,15 @@ impl HomeRows {
         let Some(answer) = answer else {
             return;
         };
-        // A failure keeps the stored rows, and the next stale visit tries again.
+        // A failure keeps the stored rows. It puts off the next try, so a Plugin whose service
+        // is down isn't called on every visit to home, and before the failure is logged, so a
+        // reader of the log knows the next try is put off.
         let given = match answer.result {
             Ok(given) => given,
             Err(Failure { message, .. }) => {
+                if let Err(err) = self.put_off(plugin).await {
+                    warn!(plugin = %plugin, "could not put off refreshing the Plugin's Home rows: {err}");
+                }
                 warn!(plugin = %plugin, error = message, "refreshing the Plugin's Home rows failed");
                 return;
             }
@@ -295,14 +326,22 @@ impl HomeRows {
                         .execute(&mut **tx)
                         .await?;
                     insert_rows(tx, &plugin, rows).await?;
-                    sqlx::query!(
-                        "INSERT INTO home_row_refreshes (plugin_id, stale_at) VALUES (?, ?)
-                         ON CONFLICT (plugin_id) DO UPDATE SET stale_at = excluded.stale_at",
-                        plugin,
-                        stale_at
-                    )
-                    .execute(&mut **tx)
-                    .await?;
+                    set_stale_at(tx, &plugin, stale_at).await?;
+                    Ok(())
+                })
+            })
+            .await
+    }
+
+    /// Keeps the Plugin `plugin`'s rows as they are, and refreshes them no sooner than
+    /// [`MIN_TTL`] from now.
+    async fn put_off(&self, plugin: &PluginId) -> Result<(), sqlx::Error> {
+        let plugin = plugin.as_str().to_owned();
+        let stale_at = db::now().saturating_add(i64::try_from(MIN_TTL.as_secs()).unwrap_or(0));
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    set_stale_at(tx, &plugin, stale_at).await?;
                     Ok(())
                 })
             })
@@ -414,6 +453,26 @@ fn kept(given: Given) -> (Vec<Row>, Duration) {
     (rows, fresh_for)
 }
 
+/// Those of `titles` that `on_server` has, each with its place in `titles`, in their order. A
+/// title `titles` names twice, or by two of its ids, shows once, at its first place.
+fn shown(titles: &[Title], mut on_server: HashMap<Title, OnServer>) -> Vec<(i64, OnServer)> {
+    let mut seen = HashSet::new();
+    (titles.iter().zip(0..))
+        .filter_map(|(title, place)| Some((place, on_server.remove(title)?)))
+        .filter(|(_, found)| seen.insert(found.browsed_as()))
+        .collect()
+}
+
+impl OnServer {
+    /// The Library and id browsing finds it by, which no other title on the Server shares.
+    fn browsed_as(&self) -> (Kind, i64, ExternalId) {
+        match self {
+            Self::Movie(movie) => (Kind::Movie, movie.library, movie.id.clone()),
+            Self::Show(show) => (Kind::Show, show.library, show.id.clone()),
+        }
+    }
+}
+
 /// The titles a row stores as JSON, `json`, or none if it doesn't read.
 fn titles_from_json(json: &str) -> Vec<Title> {
     serde_json::from_str(json).unwrap_or_default()
@@ -435,6 +494,23 @@ fn add_found(
         let key = Title(kind, id.to_string());
         found.entry(key).or_insert_with(|| title.clone());
     }
+}
+
+/// Refreshes the Plugin `plugin`'s rows once a User opens home after `stale_at`.
+async fn set_stale_at(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+    stale_at: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO home_row_refreshes (plugin_id, stale_at) VALUES (?, ?)
+         ON CONFLICT (plugin_id) DO UPDATE SET stale_at = excluded.stale_at",
+        plugin,
+        stale_at
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
 }
 
 /// Stores `rows` as the Plugin `plugin`'s, in their order.
@@ -505,9 +581,9 @@ impl Drop for Refreshing {
     }
 }
 
-// No code that could panic runs while it is held, so a poisoned lock's set is still whole.
-fn lock(set: &Mutex<HashSet<PluginId>>) -> std::sync::MutexGuard<'_, HashSet<PluginId>> {
-    set.lock().unwrap_or_else(PoisonError::into_inner)
+// No code that could panic runs while one is held, so a poisoned lock's value is still whole.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[cfg(test)]

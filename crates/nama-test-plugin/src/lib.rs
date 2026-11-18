@@ -412,7 +412,7 @@ mod home_rows {
     };
 
     /// The setting naming the keys of the rows it gives, comma-separated, all of them when
-    /// empty, or `loop` to loop until the Server interrupts it.
+    /// empty, `loop` to loop until the Server interrupts it, or `fail` to fail.
     pub(super) const ROWS: &str = "home_rows";
 
     /// Gives `picks`: Heat, Dune and Alien, which the fake TMDB knows; `again`: Alien; and
@@ -426,6 +426,9 @@ mod home_rows {
             nama_pdk::info!("test-plugin gives Home rows {asked:?}");
             if asked == "loop" {
                 super::exports::loop_forever();
+            }
+            if asked == "fail" {
+                return Err(Error::msg("test-plugin was set to fail"));
             }
             let rows = [
                 row("picks", "Picks", &[949, 438_631, 348]),
