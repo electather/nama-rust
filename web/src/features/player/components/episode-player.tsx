@@ -1,0 +1,57 @@
+import { DeletedWhilePlaying } from "@/features/player/components/deleted-while-playing";
+import { Player } from "@/features/player/components/player";
+import { useEpisodesToPlay } from "@/features/player/data/use-episodes-to-play";
+import { useAutoplayedEpisode } from "@/features/player/hooks/use-autoplayed-episode";
+import { useShowForLockScreen } from "@/features/player/hooks/use-show-for-lock-screen";
+import { nextEpisode } from "@/features/player/lib/next-episode";
+import type { PlayedSeason } from "@/features/player/lib/played-season";
+import { isGone } from "@/lib/browse";
+import { versionToPlay } from "@/shared/lib/version-to-play";
+
+/**
+ * Plays an Episode's Version, `version` if it names one and else the largest, from where you
+ * stopped, and counts down to the next Episode if the User has autoplay on. `streak` is how many
+ * Episodes in a row autoplay opened, ending with this one.
+ */
+export function EpisodePlayer({
+  input,
+  episodeNumber,
+  version,
+  streak,
+  params,
+}: {
+  input: PlayedSeason;
+  episodeNumber: number;
+  version: number | undefined;
+  streak: number | undefined;
+  params: { libraryId: string; showId: string };
+}) {
+  const { data, error } = useEpisodesToPlay(input);
+  const episode = data.episodes.find((each) => each.episodeNumber === episodeNumber);
+  const { libraryId, showId } = params;
+  const next = useAutoplayedEpisode({ ...input, episodeNumber });
+  const lockScreen = useShowForLockScreen(input, episodeNumber);
+  // An Event removed it, or its whole Season, since the loader ran.
+  if (!episode || isGone(error)) {
+    return <DeletedWhilePlaying />;
+  }
+  const { id, tracks } = versionToPlay(episode.versions, version);
+  return (
+    <Player
+      // The router keeps this route mounted when autoplay opens another Episode in it, which needs
+      // a player of its own.
+      key={`${input.seasonNumber}/${episodeNumber}`}
+      title={episode.title}
+      versionId={id}
+      tracks={tracks}
+      watchState={episode.watchState}
+      {...lockScreen}
+      back={{
+        to: "/libraries/$libraryId/shows/$showId",
+        params: { libraryId, showId },
+        search: { season: input.seasonNumber },
+      }}
+      next={nextEpisode(next, streak, { libraryId, showId })}
+    />
+  );
+}

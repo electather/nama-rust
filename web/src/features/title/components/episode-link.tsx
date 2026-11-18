@@ -2,12 +2,12 @@ import { Link } from "@tanstack/react-router";
 
 import { dateOf } from "@/features/title/lib/date-of";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
-import { versionToPlay } from "@/lib/browse";
 import { Still } from "@/shared/components/still";
 import { WatchedBar } from "@/shared/components/watch-state/watched-bar";
 import { posterLink } from "@/shared/lib/poster-classes";
 import { episodeName, metadataLine, runtimeOf } from "@/shared/lib/title-facts";
 import { versionLine } from "@/shared/lib/version-facts";
+import { versionToPlay } from "@/shared/lib/version-to-play";
 
 /** An Episode's Still, number, title, synopsis, facts and progress, as a link that plays it. */
 export function EpisodeLink({ episode }: { episode: Episode }) {

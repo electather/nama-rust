@@ -1,4 +1,4 @@
-import { BackToLibraries } from "@/app/route-error/back-to-libraries";
+import { BackToLibraries } from "@/shared/components/back-to-libraries";
 import { Page } from "@/shared/components/page";
 
 /** What a page needing a Permission the User lacks shows instead. */

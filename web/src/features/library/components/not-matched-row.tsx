@@ -1,5 +1,6 @@
-import { PlayUnmatched, parsedAs } from "@/components/unmatched-item";
 import type { UnmatchedItemSummary } from "@/gen/nama/v1/browse_pb";
+import { PlayUnmatched } from "@/shared/components/play-unmatched";
+import { parsedAs } from "@/shared/lib/unmatched-names";
 
 /** One Unmatched Item, by what its name says, with the button that plays it. */
 export function NotMatchedRow({

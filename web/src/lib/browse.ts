@@ -8,12 +8,10 @@ import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey, createQueryOptions } from "@connectrpc/connect-query";
 import { notFound } from "@tanstack/react-router";
 
-import { BrowseService, type Track, type Version } from "@/gen/nama/v1/browse_pb";
+import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ExternalIdSchema } from "@/gen/nama/v1/match_pb";
 import { isCode } from "@/shared/lib/connect-errors";
-import { metadataLine } from "@/shared/lib/title-facts";
-import { pictureOf, soundOf } from "@/shared/lib/version-facts";
 
 import type { RouterContext } from "./access";
 
@@ -82,72 +80,10 @@ export function externalIdFromParam(param: string) {
 /** Every browse query, including Continue Watching: what to refresh when Watch State changes. */
 export const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
 
-/**
- * A Track in a few words, such as "AAC · 5.1 · English · Commentary": its codec, picture size or
- * channels, language and title.
- */
-export function trackLine(track: Track) {
-  const { codec, language, title, kind } = track;
-  return metadataLine(
-    codecName(codec),
-    kind.case === "video" ? pictureOf(kind.value) : soundOf([track]),
-    language === undefined ? undefined : languageName(language),
-    title,
-  );
-}
-
-/** A codec, as ffprobe names it, by the name people know it by, or else in capitals. */
-export function codecName(codec: string) {
-  return codecNames.get(codec) ?? codec.toUpperCase();
-}
-
-const codecNames = new Map([
-  ["h264", "H.264"],
-  ["ac3", "Dolby Digital"],
-  ["eac3", "Dolby Digital Plus"],
-  ["truehd", "Dolby TrueHD"],
-  ["dts", "DTS"],
-  ["opus", "Opus"],
-  ["vorbis", "Vorbis"],
-  ["subrip", "SRT"],
-  ["mov_text", "Text"],
-  ["webvtt", "WebVTT"],
-  ["hdmv_pgs_subtitle", "PGS"],
-  ["dvd_subtitle", "VobSub"],
-]);
-
-const languageNames = new Intl.DisplayNames("en", { type: "language" });
-
-/** A language code as the file tags it, such as `eng`, by name, or as it is if it isn't one. */
-function languageName(code: string) {
-  try {
-    return languageNames.of(code) ?? code;
-  } catch {
-    // A file's tag can be anything, and `of` refuses what isn't a language code.
-    return code;
-  }
-}
-
-/** The Version to play when nobody chose one: the largest file. */
-function largestVersion(versions: Version[]) {
-  // The Server sends at least one.
-  return versions.reduce((largest, version) => (version.size > largest.size ? version : largest));
-}
-
 /** A whole number in the URL, such as a `$season`, or the router's not-found if it isn't one. */
 export function wholeNumberFromParam(param: string) {
   if (!/^\d{1,15}$/u.test(param)) {
     throw notFound();
   }
   return Number(param);
-}
-
-/** A player's search params: the Version `?version=` chose, if it names one by id. */
-export function versionSearch({ version }: Record<string, unknown>): { version?: number } {
-  return typeof version === "number" ? { version } : {};
-}
-
-/** The Version `chosen` names, or the largest when it names none of `versions`. */
-export function versionToPlay(versions: Version[], chosen?: number) {
-  return versions.find(({ id }) => Number(id) === chosen) ?? largestVersion(versions);
 }
