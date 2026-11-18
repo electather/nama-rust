@@ -562,9 +562,7 @@ async fn when_a_transcodes_session_ends_its_slot_frees_up_for_the_next() {
 async fn a_transcode_runs_on_the_gpu_an_admin_picked_and_its_plan_names_it() {
     let bin = tempfile::tempdir().unwrap();
     let (sys, dri) = (bin.path().join("sys"), bin.path().join("dri"));
-    fake::gpu(&sys, &dri, "renderD128", "0000:03:00.0", "0x1002");
-    fake::gpu(&sys, &dri, "renderD129", "0000:18:00.0", "0x1002");
-    fake::pci_function(&sys, "0000:18:00.2", "0x1022");
+    fake::two_amd_gpus_at(bin.path(), ["renderD129", "renderD128"]);
     let runs = bin.path().join("transcodes.log");
     // Passes every test encode, and logs a Transcode's arguments.
     let ffmpeg = format!(

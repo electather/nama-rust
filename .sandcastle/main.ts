@@ -453,6 +453,7 @@ async function waitUntilClosed(issue: Issue) {
 
 function handBack(issue: Issue, why: string) {
   log(`⚠ #${issue.number} → ${HUMAN}: ${why}`);
+  disarm(issue);
   gh("issue", "edit", String(issue.number), "--remove-label", READY, "--add-label", HUMAN);
   gh(
     "issue", "comment", String(issue.number), "--body",
@@ -463,6 +464,10 @@ function handBack(issue: Issue, why: string) {
     gh("issue", "comment", String(issue.parent), "--body", `🏭 #${issue.number} was handed back to a human: ${why}`);
   }
 }
+
+// A PR the factory lets go of is a person's to merge: babysit's auto-merge would merge it once someone made it green.
+// Fails harmlessly when there's no PR or auto-merge is off.
+const disarm = (issue: Issue) => ok("gh", "pr", "merge", branchOf(issue), "--disable-auto");
 
 // The reviewer writes the PR body with the `pr` skill; fall back to a stub if it didn't.
 function prBody(issue: Issue, reviewOut: string) {
@@ -726,6 +731,9 @@ async function mergePr(job: Job) {
 // The babysitter's whole job: green CI, then merge.
 async function babysit(job: Job): Promise<Outcome> {
   record({ kind: "pr", issue: job.issue.number, pr: job.pr });
+  // GitHub merges the PR the moment ci-ok passes, even while no factory runs; the factory still fixes, rebases and
+  // merges it itself, and a merge by GitHub ends this like one by hand (see track).
+  if (!ok("gh", "pr", "merge", job.pr, "--auto", "--squash")) log(`#${job.issue.number} couldn't turn on auto-merge`);
   try {
     stage(job.issue, "ci");
     await greenCi(job);
@@ -1286,6 +1294,7 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
       const why = `${(abort.signal.reason as Error).message} during ${stageOf.get(issue.number)?.stage ?? "start"}`;
       // The babysitter leaves the PR as it is: it may be a person's.
       if (loop === "implement" || loop === "main fix") ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
+      if (loop === "babysit") disarm(issue);
       log(`⊘ #${issue.number} cancelled: ${why}`);
       outcome = "cancelled";
       finish(issue, outcome, why);
