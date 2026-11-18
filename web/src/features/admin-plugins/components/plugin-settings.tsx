@@ -1,10 +1,11 @@
-import { SettingInput, forgottenTyped, settingsTyped } from "@/components/setting-fields";
 import { TestButton, testPassed, useSettingsTest } from "@/components/settings-test";
 import { useUpdatePluginSettings } from "@/features/admin-plugins/data/use-update-plugin-settings";
 import { saved, settingErrors } from "@/features/admin-plugins/lib/setting-errors";
 import type { PluginDetails } from "@/lib/plugins";
 import { FormEnd } from "@/shared/components/form-field/form-end";
+import { SettingInput } from "@/shared/components/setting-input/setting-input";
 import { onSubmitted } from "@/shared/lib/forms";
+import { forgottenTyped, settingsTyped } from "@/shared/lib/setting-values";
 
 /**
  * The form an Admin changes `plugin`'s settings with, checked against its schema as they type. A

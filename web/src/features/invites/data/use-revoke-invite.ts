@@ -2,7 +2,7 @@ import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { invitesKey } from "@/lib/users";
+import { invitesKey } from "@/shared/hooks/invites-key";
 
 /** Revokes an Invite, then refetches the pending ones. */
 export function useRevokeInvite() {

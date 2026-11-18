@@ -1,0 +1,15 @@
+import { useMutation } from "@connectrpc/connect-query";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { personalKey } from "@/features/settings/data/use-personal-settings";
+import { UserService } from "@/gen/nama/v1/user_pb";
+
+/** Saves a Plugin's Personal settings, then refetches them. */
+export function useUpdatePersonalSettings() {
+  const queryClient = useQueryClient();
+  return useMutation(UserService.method.updatePersonalSettings, {
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: personalKey });
+    },
+  });
+}
