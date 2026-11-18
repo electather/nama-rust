@@ -119,7 +119,6 @@ test("Match it, for an Admin, opens the Item's Match flow, and the note goes onc
   await waitFor(() => {
     expect(server.setMatches).toEqual([3n]);
   });
-  server.tellsTheApp();
 
   await waitFor(() => {
     expect(screen.queryByText("Not matched, so progress isn’t saved.")).toBeNull();

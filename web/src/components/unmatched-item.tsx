@@ -15,7 +15,7 @@ import {
   type UnmatchedItem,
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
-import { episodeName } from "@/lib/browse";
+import { browseKey, episodeName } from "@/lib/browse";
 // oxlint-disable-next-line import/max-dependencies -- an Unmatched Item's row both plays it and searches for and sets its Match
 import { unmatchedKey } from "@/lib/events";
 import { formText, onSubmitted, refusal } from "@/lib/forms";
@@ -211,9 +211,14 @@ function Candidates({
   libraryId: bigint;
 }) {
   const queryClient = useQueryClient();
-  // Matching an Episode's Show may Unmatch its other Episodes, which no Event announces.
+  // Matching an Episode's Show may Unmatch its other Episodes, which no Event announces. Browsing
+  // refetches too, so a player of the Item sees it Matched without waiting for the Event.
   const setMatch = useMutation(MatchService.method.setMatch, {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: unmatchedKey(libraryId) }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: unmatchedKey(libraryId) }),
+        queryClient.invalidateQueries({ queryKey: browseKey }),
+      ]),
   });
   return (
     <>
