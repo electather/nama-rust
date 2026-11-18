@@ -2,9 +2,9 @@ import { useMutation } from "@connectrpc/connect-query";
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ScanState, scanQuery } from "@/lib/events";
+import { Button } from "@/shared/ui/button";
 
 /**
  * How the Library `libraryId`'s scan is going, as its Events say. Before the first, nothing, or

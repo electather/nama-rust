@@ -273,6 +273,16 @@ export default defineConfig({
           "vitest/require-hook": "error",
         },
       },
+      // shadcn generates a component with its sub-parts and variants in one file, and a re-run of
+      // `shadcn add` is diffed against ours (src/shared/ui/AGENTS.md).
+      {
+        files: ["src/shared/ui/**"],
+        rules: {
+          "react/no-multi-comp": "off",
+          "react/only-export-components": "off",
+          "react/jsx-max-depth": "off",
+        },
+      },
       // Wrapper and fixture components stay inline in a test, and a fake may do nothing.
       {
         files: ["src/**/__tests__/**"],

@@ -3,7 +3,7 @@ import { useRouteContext } from "@tanstack/react-router";
 
 import { PluginLogLevel, type PluginLogLine, PluginService } from "@/gen/nama/v1/plugin_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { may } from "@/lib/permissions";
+import { may } from "@/shared/lib/permissions";
 
 const levels: Record<PluginLogLevel, string> = {
   [PluginLogLevel.UNSPECIFIED]: "",

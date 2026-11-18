@@ -1,8 +1,6 @@
 import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import type { ReactNode, RefObject } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import {
   type Video,
   clock,
@@ -12,6 +10,8 @@ import {
   togglePlay,
   useIsFullscreen,
 } from "@/lib/playback";
+import { Button } from "@/shared/ui/button";
+import { Slider } from "@/shared/ui/slider";
 
 /** Mute, and the volume beside it on screens wider than a phone's. */
 function VolumeControls({ video }: { video: Video }) {

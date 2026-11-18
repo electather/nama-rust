@@ -7,7 +7,7 @@ import { TitlePage } from "@/components/title-page";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, queryOrNotFound } from "@/lib/browse";
-import { may } from "@/lib/permissions";
+import { may } from "@/shared/lib/permissions";
 
 /** A Show from the title source, for picking its Seasons to Request. */
 export const Route = createFileRoute("/_member/shows/$showId")({

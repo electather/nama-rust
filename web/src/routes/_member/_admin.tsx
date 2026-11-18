@@ -1,8 +1,8 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 
-import { buttonVariants } from "@/components/ui/button";
 import { adminPages, adminPagesFor } from "@/lib/access";
+import { buttonVariants } from "@/shared/ui/button";
 
 // web/AGENTS.md, "Admin pages need a Permission".
 /**

@@ -3,8 +3,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import type { SubmitEvent } from "react";
 
 import { RefusalReason, RefusalSchema } from "@/gen/nama/v1/refusal_pb";
-
-import { permissionLabel } from "./permissions";
+import { permissionLabel } from "@/shared/lib/permissions";
 
 /** Why a form was refused: next to one of its fields, or for the `form` as a whole. */
 export interface FormErrors {
@@ -51,6 +50,7 @@ export function formText(form: FormData, name: string) {
  * gives for its code, or else a message for the whole form. A call the User cancelled wasn't
  * refused, so it has none.
  */
+// oxlint-disable-next-line max-params -- 35 callers pass these in order; an options object is a change of its own
 export function refusal(
   error: unknown,
   attempt: string,
@@ -129,7 +129,7 @@ function refusedField(error: unknown) {
   // `newPassword` and `folders`.
   return refusalOf(error)
     .field.replace(/\[\d+\]$/u, "")
-    .replaceAll(/_(\w)/gu, (_, letter: string) => letter.toUpperCase());
+    .replaceAll(/_(?<letter>\w)/gu, (_, letter: string) => letter.toUpperCase());
 }
 
 // web/AGENTS.md, "Read refusals by reason".

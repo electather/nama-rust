@@ -2,15 +2,16 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { PowerOff, TriangleAlert } from "lucide-react";
 
-import { AdminList, AdminRow } from "@/components/admin-list";
-import { Page } from "@/components/page";
 import { ExtensionPoints, PluginLogo } from "@/components/plugin-at-a-glance";
 import { PluginToggle } from "@/components/plugin-toggle";
-import { StateLabel } from "@/components/state-label";
-import { buttonVariants } from "@/components/ui/button";
 import { type PluginSummary, PluginService } from "@/gen/nama/v1/plugin_pb";
 // oxlint-disable-next-line import/max-dependencies -- each row puts together a Plugin’s logo, what it is, its state and how to enable or set it up
 import { kindAndVersion, pluginName } from "@/lib/plugins";
+import { AdminList } from "@/shared/components/admin-list/admin-list";
+import { AdminRow } from "@/shared/components/admin-list/admin-row";
+import { Page } from "@/shared/components/page";
+import { StateLabel } from "@/shared/components/state-label";
+import { buttonVariants } from "@/shared/ui/button";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins/")({
   loader: ({ context: { queryClient, transport } }) =>

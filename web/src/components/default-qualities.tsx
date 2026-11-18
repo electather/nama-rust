@@ -1,10 +1,11 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormEnd, FormSelect } from "@/components/form-field";
 import { ExtensionPoint, type Quality } from "@/gen/nama/v1/plugin_pb";
 import { type DefaultQuality, RequestService } from "@/gen/nama/v1/request_pb";
-import { formText, onSubmitted, refusal } from "@/lib/forms";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormSelect } from "@/shared/components/form-field/form-select";
+import { formText, onSubmitted, refusal } from "@/shared/lib/forms";
 
 const defaultsKey = createConnectQueryKey({
   schema: RequestService.method.listDefaultQualities,

@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import { posterGrid } from "@/components/poster";
+import { posterGrid } from "@/shared/lib/poster-classes";
 
 declare module "react" {
   interface CSSProperties {

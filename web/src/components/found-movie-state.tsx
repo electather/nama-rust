@@ -5,8 +5,6 @@ import { Library, Plus } from "lucide-react";
 import { QualityPicker, useQualityPicker } from "@/components/quality-picker";
 import { RequestProgress } from "@/components/request-progress";
 import { RequestStateLabel, isRequester, useReadBackAsked } from "@/components/request-state";
-import { StateLabel } from "@/components/state-label";
-import { Button } from "@/components/ui/button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   type FoundMovie,
@@ -14,9 +12,11 @@ import {
   type Request,
   RequestService,
 } from "@/gen/nama/v1/request_pb";
-import { titleParam } from "@/lib/browse";
+import { StateLabel } from "@/shared/components/state-label";
 // oxlint-disable-next-line import/max-dependencies -- the state puts together a Movie's Library link, its Request, the Quality picker and its download
-import { askRefusal } from "@/lib/forms";
+import { askRefusal } from "@/shared/lib/forms";
+import { titleParam } from "@/shared/lib/title-param";
+import { Button } from "@/shared/ui/button";
 
 /**
  * Where a Movie found in the title source is on its way to the Server: in a Library, linking

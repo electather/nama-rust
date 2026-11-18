@@ -5,7 +5,7 @@ import { useQualityPicker } from "@/components/quality-picker";
 import { useReadBackAsked } from "@/components/request-state";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type FoundShow, RequestService } from "@/gen/nama/v1/request_pb";
-import { askRefusal, onSubmitted, showHasQuality } from "@/lib/forms";
+import { askRefusal, onSubmitted, showHasQuality } from "@/shared/lib/forms";
 
 /**
  * Asking for the Seasons of `show` picked in a form, or for the Whole Show while `whole`. Either,

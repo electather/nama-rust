@@ -3,8 +3,7 @@ import { createConnectQueryKey } from "@connectrpc/connect-query";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
-
-import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "./forms";
+import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "@/shared/lib/forms";
 
 /** The query key of the Users, to refetch after a change to them. */
 export const usersKey = createConnectQueryKey({

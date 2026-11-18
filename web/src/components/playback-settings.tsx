@@ -8,7 +8,6 @@ import {
 } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormEnd, FormField, FormSelect } from "@/components/form-field";
 import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
@@ -18,6 +17,9 @@ import {
   PlaybackSettingsSchema,
   ServerService,
 } from "@/gen/nama/v1/server_pb";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { FormSelect } from "@/shared/components/form-field/form-select";
 import {
   type FormErrors,
   formText,
@@ -25,8 +27,8 @@ import {
   refusal,
   refusalOf,
   serverMessage,
-} from "@/lib/forms";
-import { belowOriginal, hardwareName } from "@/lib/playback-wording";
+} from "@/shared/lib/forms";
+import { belowOriginal, hardwareName } from "@/shared/lib/playback-names";
 
 const playbackSettingsKey = createConnectQueryKey({
   schema: ServerService.method.getPlaybackSettings,

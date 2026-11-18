@@ -9,10 +9,11 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useId } from "react";
 
-import { FormEnd, FormField } from "@/components/form-field";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { ImageSettingsSchema, ServerService } from "@/gen/nama/v1/server_pb";
-import { formText, onSubmitted, refusal, serverMessage } from "@/lib/forms";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { formText, onSubmitted, refusal, serverMessage } from "@/shared/lib/forms";
 
 const imageSettingsKey = createConnectQueryKey({
   schema: ServerService.method.getImageSettings,

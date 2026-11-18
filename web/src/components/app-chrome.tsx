@@ -3,10 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, type LinkProps, useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
+import { Button, buttonVariants } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
 
 /**
  * The bar above every signed-in page: where to go, searching your Libraries, and signing out.

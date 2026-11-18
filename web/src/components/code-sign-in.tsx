@@ -3,9 +3,7 @@ import { useMutation } from "@connectrpc/connect-query";
 import { QRCodeSVG } from "qrcode.react";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { FormField } from "@/components/form-field";
 import { SignInLayout, SignInPage } from "@/components/sign-in-layout";
-import { Button } from "@/components/ui/button";
 import {
   type PollSignInCodeResponse,
   SessionDelivery,
@@ -13,8 +11,10 @@ import {
   SignInService,
   type StartSignInCodeResponse,
 } from "@/gen/nama/v1/sign_in_pb";
-import { isCode } from "@/lib/connect-errors";
-import { type FormErrors, formText, refusal, serverMessage } from "@/lib/forms";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { isCode } from "@/shared/lib/connect-errors";
+import { type FormErrors, formText, refusal, serverMessage } from "@/shared/lib/forms";
+import { Button } from "@/shared/ui/button";
 
 const heading = "Sign in with a code";
 

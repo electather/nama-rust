@@ -7,11 +7,12 @@ import {
 } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormEnd, FormField } from "@/components/form-field";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
-import { formText, onSubmitted, refusal, serverMessage } from "@/lib/forms";
 import { invitesKey } from "@/lib/users";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { formText, onSubmitted, refusal, serverMessage } from "@/shared/lib/forms";
 
 const serverSettingsKey = createConnectQueryKey({
   schema: ServerService.method.getServerSettings,

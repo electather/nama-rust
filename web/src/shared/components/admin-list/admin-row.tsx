@@ -1,13 +1,5 @@
 import type { ReactNode } from "react";
 
-/** The list on an admin page, such as its Plugins, Libraries or Users. */
-export function AdminList({ children }: { children: ReactNode }) {
-  return (
-    // Pulled out by the rows' own padding, so what starts each row lines up with the heading.
-    <ul className="-mx-3 mt-8 flex max-w-2xl flex-col">{children}</ul>
-  );
-}
-
 /** One row of an `AdminList`, between an optional `start` and an `end` that wraps below when narrow. */
 export function AdminRow({
   start,

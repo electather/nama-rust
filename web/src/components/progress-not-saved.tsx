@@ -1,10 +1,10 @@
 import { useRouteContext } from "@tanstack/react-router";
 import { useId, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { FindAMatch, type ItemToMatch, parsedAs } from "@/components/unmatched-item";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { may } from "@/lib/permissions";
+import { may } from "@/shared/lib/permissions";
+import { Button } from "@/shared/ui/button";
 
 /**
  * Under the player's title bar: that `item`, Unmatched, keeps no Watch State (ADR 0013). With

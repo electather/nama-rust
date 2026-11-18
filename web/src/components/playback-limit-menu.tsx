@@ -1,16 +1,16 @@
 import { Gauge } from "lucide-react";
 import type { RefObject } from "react";
 
-import { Button } from "@/components/ui/button";
+import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
+import { belowOriginal } from "@/shared/lib/playback-names";
+import { Button } from "@/shared/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
-import { belowOriginal } from "@/lib/playback-wording";
+} from "@/shared/ui/dropdown-menu";
 
 /**
  * Picks the Playback Limit with `choose`: Original, or one of those `offered` below it. Absent when

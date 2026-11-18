@@ -1,16 +1,6 @@
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import {
   type Sort,
   type TitleListing,
@@ -19,6 +9,16 @@ import {
   sorts,
   watchedStates,
 } from "@/lib/title-listing";
+import { Button } from "@/shared/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/shared/ui/dropdown-menu";
+import { Input } from "@/shared/ui/input";
 
 /** What a choice menu shows for no choice, which lists every title. */
 const ANY = "";

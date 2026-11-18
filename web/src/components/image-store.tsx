@@ -2,13 +2,14 @@ import type { ConnectError } from "@connectrpc/connect";
 import { createConnectQueryKey, useMutation, useSuspenseQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormEnd, FormSelect } from "@/components/form-field";
-import { Progress } from "@/components/ui/progress";
 import { ExtensionPoint, PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type ImageStoreSwitch, ServerService } from "@/gen/nama/v1/server_pb";
-import { endSentence, formText, onSubmitted, refusal, refusalOf } from "@/lib/forms";
 import { pluginName } from "@/lib/plugins";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormSelect } from "@/shared/components/form-field/form-select";
+import { endSentence, formText, onSubmitted, refusal, refusalOf } from "@/shared/lib/forms";
+import { Progress } from "@/shared/ui/progress";
 
 const imageSettingsKey = createConnectQueryKey({
   schema: ServerService.method.getImageSettings,

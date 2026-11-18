@@ -1,17 +1,17 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Ellipsis } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import type { SetPlayedRequestSchema } from "@/gen/nama/v1/watch_state_pb";
+import { useSetPlayed } from "@/lib/watch-state";
+import { seasonName } from "@/shared/lib/title-facts";
+import { Button } from "@/shared/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import type { ExternalId } from "@/gen/nama/v1/match_pb";
-import type { SetPlayedRequestSchema } from "@/gen/nama/v1/watch_state_pb";
-import { seasonName } from "@/lib/browse";
-import { useSetPlayed } from "@/lib/watch-state";
+} from "@/shared/ui/dropdown-menu";
 
 /** What to mark: the Season shown, or the whole Show. */
 type Target = NonNullable<MessageInitShape<typeof SetPlayedRequestSchema>["target"]>;

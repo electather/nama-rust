@@ -1,7 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { onSubmitted } from "@/lib/forms";
+import { onSubmitted } from "@/shared/lib/forms";
+import { Button } from "@/shared/ui/button";
 
 export function SignInPage({
   heading,

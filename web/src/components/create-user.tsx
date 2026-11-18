@@ -1,10 +1,11 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormEnd, FormField } from "@/components/form-field";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
 import { createUserErrors, usersKey } from "@/lib/users";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { type FormErrors, formText, onSubmitted } from "@/shared/lib/forms";
 
 export function CreateUser() {
   const queryClient = useQueryClient();

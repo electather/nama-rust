@@ -3,11 +3,11 @@ import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { FormField } from "@/components/form-field";
 import { SignInLayout } from "@/components/sign-in-layout";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
-import { type FormErrors, formText, refusedFieldErrors, refusal } from "@/lib/forms";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { type FormErrors, formText, refusedFieldErrors, refusal } from "@/shared/lib/forms";
 
 export const Route = createFileRoute("/invite/$token")({
   component: AcceptInvite,

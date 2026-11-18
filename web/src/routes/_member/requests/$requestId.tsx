@@ -3,12 +3,12 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Page } from "@/components/page";
 import { RequestRow, ShowRequests } from "@/components/request-row";
-import { buttonVariants } from "@/components/ui/button";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { queryOrNotFound, wholeNumberFromParam } from "@/lib/browse";
-import { isCode } from "@/lib/connect-errors";
+import { Page } from "@/shared/components/page";
+import { isCode } from "@/shared/lib/connect-errors";
+import { buttonVariants } from "@/shared/ui/button";
 
 /** One Request, where a Notifier's link to it lands (`ServerUrl::request_link` on the Server). */
 export const Route = createFileRoute("/_member/requests/$requestId")({

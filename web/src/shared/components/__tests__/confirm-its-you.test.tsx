@@ -4,9 +4,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { admin, fakeServer, fill, newUser, openApp } from "./test-app";
-import { confirmItsYou, recentAuthenticationRequired, refused } from "./test-refusal";
+import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
+import { confirmItsYou, recentAuthenticationRequired, refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -63,7 +62,7 @@ test("without Recent Authentication, a password change goes through once you con
   await expect(
     screen.findByText("Password changed. Your other Devices were signed out."),
   ).resolves.toBeDefined();
-  expect(changedTo).toEqual(["battery staple"]);
+  expect(changedTo).toStrictEqual(["battery staple"]);
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
 
@@ -78,9 +77,11 @@ test("cancelling “Confirm it’s you” leaves the form as it was, without an 
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
   expect(screen.getByLabelText<HTMLInputElement>("New password").value).toBe("battery staple");
-  expect(screen.getAllByRole("alert").filter((alert) => alert.textContent !== "")).toEqual([]);
+  expect(screen.getAllByRole("alert").filter((alert) => alert.textContent !== "")).toStrictEqual(
+    [],
+  );
   await expect(screen.findByRole("button", { name: "Change password" })).resolves.toBeDefined();
-  expect(changedTo).toEqual([]);
+  expect(changedTo).toStrictEqual([]);
 });
 
 test("a wrong password in “Confirm it’s you” says so, and you can try again", async () => {
@@ -94,7 +95,7 @@ test("a wrong password in “Confirm it’s you” says so, and you can try agai
   await expect(
     screen.findByText("Password changed. Your other Devices were signed out."),
   ).resolves.toBeDefined();
-  expect(changedTo).toEqual(["battery staple"]);
+  expect(changedTo).toStrictEqual(["battery staple"]);
 });
 
 test("refused again after you confirm it’s you, the change shows an error, not the dialog", async () => {
@@ -171,7 +172,7 @@ test("without Recent Authentication, an Admin resets a password once they confir
   await waitFor(() => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
-  expect(resets).toEqual([[2n, "battery staple"]]);
+  expect(resets).toStrictEqual([[2n, "battery staple"]]);
 });
 
 test("changes refused together wait for one “Confirm it’s you”, then all go through", async () => {
@@ -191,7 +192,7 @@ test("changes refused together wait for one “Confirm it’s you”, then all g
     expect(promoted).toHaveLength(2);
   });
   const permissions = [...newUser, Permission.ADMIN];
-  expect(promoted).toEqual(
+  expect(promoted).toStrictEqual(
     expect.arrayContaining([
       [2n, permissions],
       [3n, permissions],

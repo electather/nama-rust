@@ -1,14 +1,14 @@
 import { useQuery } from "@connectrpc/connect-query";
 
-import { Button } from "@/components/ui/button";
+import { TitleKind } from "@/gen/nama/v1/match_pb";
+import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import { Button } from "@/shared/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
+} from "@/shared/ui/dropdown-menu";
 
 /** A Request's or a Followed Show's Quality, which approving it, or retrying a Request, can change. */
 export interface QualityTarget {

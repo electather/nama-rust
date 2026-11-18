@@ -2,8 +2,6 @@ import type { DescMessage } from "@bufbuild/protobuf";
 import { useMutation } from "@connectrpc/connect-query";
 
 import { ChangeButton, type QualityTarget, qualityTargetOf } from "@/components/change-button";
-import { ConfirmDialog } from "@/components/confirm-dialog";
-import { FormTextarea } from "@/components/form-field";
 import { useRefetchRequests } from "@/components/request-state";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
@@ -12,8 +10,10 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-import { seasonName } from "@/lib/browse";
-import { formText, refusal, showHasQuality } from "@/lib/forms";
+import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
+import { FormTextarea } from "@/shared/components/form-field/form-textarea";
+import { formText, refusal, showHasQuality } from "@/shared/lib/forms";
+import { seasonName } from "@/shared/lib/title-facts";
 
 /** The RPCs that change a Request by its ID, what it's called, and what cancelling one does. */
 const requestChanges = {

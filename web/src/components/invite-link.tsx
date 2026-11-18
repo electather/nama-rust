@@ -1,10 +1,10 @@
 import { Copy, Share } from "lucide-react";
 import { useState } from "react";
 
-import { FormField } from "@/components/form-field";
-import { Button } from "@/components/ui/button";
 import type { CreateInviteResponse, Invite } from "@/gen/nama/v1/user_pb";
-import { dayOf } from "@/lib/browse";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { dayOf } from "@/shared/lib/title-facts";
+import { Button } from "@/shared/ui/button";
 
 /** The link of the Invite just `created`, if one was, to copy or share: the Server sends nothing. */
 export function InviteLink({ created }: { created: CreateInviteResponse | undefined }) {

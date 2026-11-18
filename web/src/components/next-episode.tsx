@@ -2,10 +2,10 @@ import { Link, type LinkOptions, useNavigate } from "@tanstack/react-router";
 import { Play } from "lucide-react";
 import { useCallback, useEffect, useId, useReducer, useRef } from "react";
 
-import { Button, buttonVariants } from "@/components/ui/button";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
-import { episodeName } from "@/lib/browse";
 import { type Video, clock, play } from "@/lib/playback";
+import { episodeName } from "@/shared/lib/title-facts";
+import { Button, buttonVariants } from "@/shared/ui/button";
 
 const COUNTDOWN_SECONDS = 20;
 /** How many Episodes in a row autoplay starts with no input before the player asks instead. */

@@ -6,14 +6,10 @@ import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import {
-  externalIdFromParam,
-  metadataLine,
-  queryOrNotFound,
-  runtimeOf,
-  titleParam,
-} from "@/lib/browse";
-import { may } from "@/lib/permissions";
+import { externalIdFromParam, queryOrNotFound } from "@/lib/browse";
+import { may } from "@/shared/lib/permissions";
+import { metadataLine, runtimeOf } from "@/shared/lib/title-facts";
+import { titleParam } from "@/shared/lib/title-param";
 
 /** A Movie from the title source, for Requesting it. One a Library has opens there instead. */
 export const Route = createFileRoute("/_member/movies/$movieId")({

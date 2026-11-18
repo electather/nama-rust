@@ -1,8 +1,6 @@
 import { useQuery } from "@connectrpc/connect-query";
 import { useId } from "react";
 
-import { PosterGrid } from "@/components/poster";
-import { MovieInLibraryItem, ShowInLibraryItem } from "@/components/titles-in-library";
 import {
   BrowseService,
   type HomeRow as HomeRowMessage,
@@ -10,7 +8,10 @@ import {
   type MovieInLibrary,
   type ShowInLibrary,
 } from "@/gen/nama/v1/browse_pb";
-import { titleParam } from "@/lib/browse";
+import { PosterGrid } from "@/shared/components/poster/poster-grid";
+import { MovieInLibraryItem } from "@/shared/components/titles-in-library/movie-in-library-item";
+import { ShowInLibraryItem } from "@/shared/components/titles-in-library/show-in-library-item";
+import { titleParam } from "@/shared/lib/title-param";
 
 /** A row's one page on home: whole rows of posters at two and five columns. */
 const rowPage = { size: 10 };

@@ -4,11 +4,11 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ImageChoice } from "@/components/edit-images";
 import { DeleteLibrary, EditLibrary } from "@/components/library-form";
 import { EmptyFolders, ScanButton, ScanStatus } from "@/components/library-scan";
-import { Page } from "@/components/page";
 import { NotFound } from "@/components/route-error";
 import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import { queryOrNotFound } from "@/lib/browse";
 import { kindName } from "@/lib/libraries";
+import { Page } from "@/shared/components/page";
 
 /** The Library in the URL's id, or "not found" for one that isn't a number. */
 function libraryInput(libraryId: string) {

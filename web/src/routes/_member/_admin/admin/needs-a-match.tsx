@@ -3,8 +3,6 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useId, useState } from "react";
 
-import { Page } from "@/components/page";
-import { ShowMore } from "@/components/show-more";
 import { UnmatchedRow } from "@/components/unmatched-item";
 import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import {
@@ -12,7 +10,9 @@ import {
   MatchService,
   type UnmatchedItem,
 } from "@/gen/nama/v1/match_pb";
-import { pagedQuery, usePaged } from "@/lib/paged";
+import { Page } from "@/shared/components/page";
+import { ShowMore } from "@/shared/components/show-more";
+import { pagedQuery, usePaged } from "@/shared/hooks/use-paged";
 
 const librariesQuery = (transport: Transport) =>
   createQueryOptions(LibraryService.method.listLibraries, {}, { transport });

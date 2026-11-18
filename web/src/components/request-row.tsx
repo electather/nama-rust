@@ -13,8 +13,8 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { dayOf, metadataLine, seasonName, yearOf } from "@/lib/browse";
-import { may } from "@/lib/permissions";
+import { may } from "@/shared/lib/permissions";
+import { dayOf, metadataLine, seasonName, yearOf } from "@/shared/lib/title-facts";
 
 /** A Show's Followed Shows and Season Requests, listed together under it. */
 export interface ShowGroup {

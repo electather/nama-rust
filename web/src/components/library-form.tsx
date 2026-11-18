@@ -2,13 +2,16 @@ import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
-import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Choices, FormEnd, FormField, FormTextarea } from "@/components/form-field";
 import { RecognisersField } from "@/components/recognisers-field";
 import { TitleSourcesField } from "@/components/title-sources-field";
 import { type Library, LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
-import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
 import { foldersTyped, librariesKey, libraryErrors } from "@/lib/libraries";
+import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
+import { Choices } from "@/shared/components/form-field/choices";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { FormTextarea } from "@/shared/components/form-field/form-textarea";
+import { type FormErrors, formText, onSubmitted } from "@/shared/lib/forms";
 
 const kinds: [value: string, label: string][] = [
   ["movies", "Movies"],

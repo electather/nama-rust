@@ -6,7 +6,6 @@
 - **Suppressions name a reason.** To silence a lint, use `// oxlint-disable-next-line <rule> -- <reason>` on the line, never a whole file. For a type error, use `// @ts-expect-error <reason>`, never `@ts-ignore`. To raise a complexity limit, use a Fallow `thresholdOverrides` entry with a `reason`.
 - **Semantic tokens only.** Style with shadcn's semantic utilities (`bg-background`, `text-muted-foreground`, `bg-primary`). Never use Tailwind palette colours, raw colour values or `dark:` variants (ADR 0016). If a screen needs a colour that no token covers, add a token to `src/styles.css`.
 - **Logical properties.** Use `ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`, never `ml-`/`mr-`/`pl-`/`pr-`/`left-`/`right-`, so right-to-left languages can be added later.
-- **Owned components.** `src/components/ui/` is our code. Restyle what shadcn generates to `DESIGN.md`, and add a component only when a screen uses it. Re-running `shadcn add` overwrites the restyle, so diff it.
 - **Imports go one way.** `src/gen/` and the shadcn components import nothing from the app, and only the router imports a route file. `src/AGENTS.md`, "Layers", has the rest. Fallow enforces it.
 - **Read `src/AGENTS.md` before you add or move a file under `src/`.** It holds the feature layout and the rules for its folders.
 - **Admin pages need a Permission.** Every page under `src/routes/_member/_admin/` has a row in `adminPages` (`src/lib/access.ts`) naming the Permission it needs. The `_admin` layout refuses a page without one to everybody, and the row also puts it in the Admin nav.

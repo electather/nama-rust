@@ -1,13 +1,15 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Page } from "@/components/page";
-import { PosterGrid } from "@/components/poster";
-import { ShowMore } from "@/components/show-more";
-import { MovieInLibraryItem, ShowInLibraryItem } from "@/components/titles-in-library";
 import { BrowseService, type EpisodeInLibrary } from "@/gen/nama/v1/browse_pb";
-import { metadataLine, seasonName, titleParam } from "@/lib/browse";
-import { pagedQuery, usePaged } from "@/lib/paged";
+import { Page } from "@/shared/components/page";
+import { PosterGrid } from "@/shared/components/poster/poster-grid";
+import { ShowMore } from "@/shared/components/show-more";
+import { MovieInLibraryItem } from "@/shared/components/titles-in-library/movie-in-library-item";
+import { ShowInLibraryItem } from "@/shared/components/titles-in-library/show-in-library-item";
+import { pagedQuery, usePaged } from "@/shared/hooks/use-paged";
+import { metadataLine, seasonName } from "@/shared/lib/title-facts";
+import { titleParam } from "@/shared/lib/title-param";
 
 /** What the nav's search box found in the signed-in User's Libraries for `?query=`. */
 export const Route = createFileRoute("/_member/search")({

@@ -1,11 +1,11 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { useId, useState } from "react";
 
-import { AdminList } from "@/components/admin-list";
 import { CreateInvite } from "@/components/create-invite";
 import { InviteRow } from "@/components/invite-row";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
+import { AdminList } from "@/shared/components/admin-list/admin-list";
 
 /** The pending Invites, and a form to make one while the Server has a Server URL to link to. */
 export function Invites({ you }: { you: User | undefined }) {

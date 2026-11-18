@@ -3,16 +3,18 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Poster, posterLink } from "@/components/poster";
-import { ShowMore } from "@/components/show-more";
 import { TitleListControls } from "@/components/title-list-controls";
 import { VirtualPosterGrid } from "@/components/virtual-poster-grid";
 import { BrowseService, type ShowSummary } from "@/gen/nama/v1/browse_pb";
 import { WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
-// oxlint-disable-next-line import/max-dependencies -- a Library's grid puts together its pages, its sort and filter bar and its posters
-import { titleParam, yearOf } from "@/lib/browse";
-import { usePaged } from "@/lib/paged";
 import { type TitleListing, firstPageOf, isFiltered } from "@/lib/title-listing";
+import { Poster } from "@/shared/components/poster/poster";
+import { ShowMore } from "@/shared/components/show-more";
+import { usePaged } from "@/shared/hooks/use-paged";
+import { posterLink } from "@/shared/lib/poster-classes";
+import { yearOf } from "@/shared/lib/title-facts";
+// oxlint-disable-next-line import/max-dependencies -- a Library's grid puts together its pages, its sort and filter bar and its posters
+import { titleParam } from "@/shared/lib/title-param";
 
 /** What a Library's grid lists, and what `change` shows it as when the User sorts or filters. */
 export interface TitlesProps {

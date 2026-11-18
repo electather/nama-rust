@@ -17,7 +17,6 @@ import { BottomBar } from "@/components/player-controls";
 // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Tracks, Watch State, playback info and autoplay
 import { SubtitleTracks } from "@/components/subtitles-menu";
 import { TrackMenus } from "@/components/track-menus";
-import { buttonVariants } from "@/components/ui/button";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { playerOpened } from "@/lib/diagnostics";
@@ -27,6 +26,7 @@ import { usePlaybackPlan } from "@/lib/playback-plan";
 import { usePlaybackSource } from "@/lib/playback-source";
 import { wordReasons } from "@/lib/playback-wording";
 import { useWatchState } from "@/lib/watch-state";
+import { buttonVariants } from "@/shared/ui/button";
 
 /** What the player plays, and where "back" goes. */
 export interface PlayerProps extends NowPlaying {

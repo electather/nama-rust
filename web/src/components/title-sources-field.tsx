@@ -3,10 +3,10 @@ import { Link, useRouteContext } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { LibraryService, type TitleSource } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { may } from "@/lib/permissions";
+import { may } from "@/shared/lib/permissions";
+import { Button } from "@/shared/ui/button";
 
 /** A new Library's title sources, as the Server would set them. */
 const tmdbAlone = ["tmdb"];

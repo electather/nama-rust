@@ -1,13 +1,13 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { AdminList } from "@/components/admin-list";
 import { CreateUser } from "@/components/create-user";
 import { Invites } from "@/components/invites";
-import { Page } from "@/components/page";
 import { DefaultPermissionsEditor } from "@/components/permissions-editor";
 import { UserRow } from "@/components/user-row";
 import { UserService } from "@/gen/nama/v1/user_pb";
+import { AdminList } from "@/shared/components/admin-list/admin-list";
+import { Page } from "@/shared/components/page";
 
 export const Route = createFileRoute("/_member/_admin/admin/users")({
   loader: ({ context: { queryClient, transport } }) =>

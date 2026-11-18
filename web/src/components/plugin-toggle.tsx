@@ -3,10 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Ban, Power, PowerOff } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
-import { ConfirmModal } from "@/components/confirm-dialog";
 import { GrantedPermissions, pluginPermissions } from "@/components/plugin-at-a-glance";
-import { StateLabel } from "@/components/state-label";
-import { Button } from "@/components/ui/button";
 import {
   type PluginPermission,
   PluginService,
@@ -14,9 +11,12 @@ import {
   type Setting,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-// oxlint-disable-next-line import/max-dependencies -- enabling asks which requested Plugin Permissions to grant, in a dialog
-import { refusal, refusalOf } from "@/lib/forms";
 import { pluginName, pluginsKey } from "@/lib/plugins";
+import { ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
+import { StateLabel } from "@/shared/components/state-label";
+// oxlint-disable-next-line import/max-dependencies -- enabling asks which requested Plugin Permissions to grant, in a dialog
+import { refusal, refusalOf } from "@/shared/lib/forms";
+import { Button } from "@/shared/ui/button";
 
 /**
  * Whether the Plugin `summary` is enabled, a button to change that, and why the Server refused to,

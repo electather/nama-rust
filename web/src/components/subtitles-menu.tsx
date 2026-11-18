@@ -1,14 +1,6 @@
 import { Captions } from "lucide-react";
 import type { RefObject } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import { PickedTrackKind, type PlaybackSubtitle, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 import type { SubtitleChoice, usePlaybackPlan } from "@/lib/playback-plan";
@@ -19,6 +11,14 @@ import {
   usePickReporter,
   useSubtitles,
 } from "@/lib/subtitles";
+import { Button } from "@/shared/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/shared/ui/dropdown-menu";
 
 /**
  * The `<video>`'s `<track>`s, one per text subtitle, which the browser fetches only once shown.

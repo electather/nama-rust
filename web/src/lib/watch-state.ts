@@ -3,9 +3,9 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { type RefObject, useEffect } from "react";
 
 import { type ReportProgressRequest, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
+import { retryIfUnreachable } from "@/shared/lib/connect-errors";
 
 import { browseKey } from "./browse";
-import { retryIfUnreachable } from "./connect-errors";
 
 /**
  * Marks a Movie, Episode, Season or Show played or unplayed, then refetches what's on screen so

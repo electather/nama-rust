@@ -4,8 +4,8 @@ import { useState } from "react";
 
 import { CodeSignIn } from "@/components/code-sign-in";
 import { PasswordSignIn } from "@/components/password-sign-in";
-import { Button } from "@/components/ui/button";
 import { isSetupRequired } from "@/lib/access";
+import { Button } from "@/shared/ui/button";
 
 export const Route = createFileRoute("/sign-in")({
   // The router merges this over the raw search, so a refused `redirect` has to be overwritten.

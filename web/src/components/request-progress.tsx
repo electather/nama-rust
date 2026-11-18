@@ -1,9 +1,9 @@
 import { CircleArrowDown, Clock, FolderInput, TriangleAlert } from "lucide-react";
 
-import type { Shown } from "@/components/state-label";
-import { Progress } from "@/components/ui/progress";
 import { type Download, DownloadStatus, type Request } from "@/gen/nama/v1/request_pb";
-import { metadataLine, runtimeOf, sizeOf } from "@/lib/browse";
+import type { Shown } from "@/shared/components/state-label";
+import { metadataLine, runtimeOf, sizeOf } from "@/shared/lib/title-facts";
+import { Progress } from "@/shared/ui/progress";
 
 /** Each status in words, with its icon, so it never rests on colour alone. */
 const statuses: Partial<Record<DownloadStatus, Shown>> = {
