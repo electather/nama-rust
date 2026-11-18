@@ -261,8 +261,8 @@ async fn a_transcode_whose_hardware_fills_the_segment_folder_stays_on_hardware()
     assert_eq!(plan.playback_now().reasons, started.reasons);
     assert!(!plan.cpu_bound());
     assert!(log.finish().contains("is full"), "still warns");
-    let later = tokio::spawn(async move { plan.segment(1).await });
-    assert_eq!(later.await.unwrap().unwrap(), None, "the restart fails too");
+    let restarted = plan.segment(1).await.unwrap();
+    assert_eq!(restarted, None, "the restart fails too");
     assert_eq!(*lock(&starts), [("hardware", 0), ("hardware", 3)]);
     plans.stop_for(id, 7).await;
     subscription.next().await.unwrap();
