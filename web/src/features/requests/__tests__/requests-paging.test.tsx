@@ -8,8 +8,7 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-
-import { fakeServer, newUser, openApp, rowTitles } from "./test-app";
+import { fakeServer, newUser, openApp, rowTitles } from "@/test-app";
 
 afterEach(() => {
   cleanup();
@@ -66,7 +65,7 @@ test("show more lists the next page below the first, and goes after the last", a
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
 
   await screen.findByText("Dune");
-  expect(rowTitles()).toEqual(["Heat", "Dune"]);
+  expect(rowTitles()).toStrictEqual(["Heat", "Dune"]);
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
 });
 
@@ -80,15 +79,17 @@ function stubObserver(inView: boolean) {
     "IntersectionObserver",
     class {
       // oxlint-disable-next-line promise/prefer-await-to-callbacks -- it fakes the browser's callback API.
-      constructor(callback: typeof seen) {
+      public constructor(callback: typeof seen) {
         seen = callback;
       }
-      observe() {
+      // oxlint-disable-next-line class-methods-use-this -- it fakes the browser's API
+      public observe = () => {
         if (inView) {
           seen?.([{ isIntersecting: true }]);
         }
-      }
-      disconnect() {}
+      };
+      // oxlint-disable-next-line class-methods-use-this -- it fakes the browser's API
+      public disconnect = () => {};
     },
   );
   return () => seen?.([{ isIntersecting: true }]);
@@ -113,7 +114,7 @@ test("a page that leaves the end of the list in view loads the next one too", as
   );
 
   await screen.findByText("Alien");
-  expect(rowTitles()).toEqual(["Heat", "Dune", "Alien"]);
+  expect(rowTitles()).toStrictEqual(["Heat", "Dune", "Alien"]);
 });
 
 test("a Show's older Season Request joins its group when a later page loads", async () => {
@@ -122,7 +123,7 @@ test("a Show's older Season Request joins its group when a later page loads", as
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
 
   await screen.findByText("Season 1");
-  expect(rowTitles()).toEqual(["Dark", "Season 1", "Season 2", "Heat"]);
+  expect(rowTitles()).toStrictEqual(["Dark", "Season 1", "Season 2", "Heat"]);
 });
 
 test("changing the filter lists the newest of the new state from the first page", async () => {
@@ -135,7 +136,7 @@ test("changing the filter lists the newest of the new state from the first page"
   fireEvent.click(await screen.findByRole("menuitem", { name: "Pending" }));
 
   await waitFor(() => {
-    expect(rowTitles()).toEqual(["Heat"]);
+    expect(rowTitles()).toStrictEqual(["Heat"]);
   });
   expect(asked.at(-1)).toMatchObject({
     filter: { state: RequestState.PENDING },
