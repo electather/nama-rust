@@ -3,7 +3,7 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 
-/** The Server's Libraries, for the Needs a Match page's loader to load before it shows. */
+/** The Server's Libraries, for a page's loader to load before it shows. */
 export function librariesQuery(transport: Transport) {
   return {
     ...createQueryOptions(LibraryService.method.listLibraries, {}, { transport }),

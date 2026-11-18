@@ -5,9 +5,8 @@ import { afterEach, describe, expect, test } from "vite-plus/test";
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-
-import { admin, eventFeed, fakeServer, fill, openApp } from "./test-app";
-import { expectUnderField, refused } from "./test-refusal";
+import { admin, eventFeed, fakeServer, fill, openApp } from "@/test-app";
+import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -85,6 +84,7 @@ describe.each([
     ["Name", Code.InvalidArgument, { field: "name" }, "A Library's name can't be blank."],
     ["Name", Code.AlreadyExists, nameTaken, 'The Library "Films" already has this name.'],
     ["Folders", Code.InvalidArgument, { field: "folders[2]" }, "The folder srv is not absolute."],
+    // oxlint-disable-next-line max-params -- test.each hands a row's columns over as parameters
   ] as const)("a refused %s shows under its field", async (label, code, refusal, shown) => {
     openApp(path, serverRefusingLibraryChanges(refused(code, shown, refusal)));
     await screen.findByRole("button", { name: action });

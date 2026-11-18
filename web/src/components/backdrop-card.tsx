@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 
 import type { Library } from "@/gen/nama/v1/library_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { kindName } from "@/lib/libraries";
 import { Thumbhash } from "@/shared/components/thumbhash";
 import { ResumeBar } from "@/shared/components/watch-state/resume-bar";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
+import { kindName } from "@/shared/lib/library-kind";
 
 /** The `sizes` of an image as wide as a column of `BackdropGrid`, at each of its breakpoints. */
 const backdropGridSizes = "(min-width: 1024px) 315px, (min-width: 640px) 50vw, 100vw";
