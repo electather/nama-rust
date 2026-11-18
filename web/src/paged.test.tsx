@@ -49,8 +49,11 @@ test("usePaged holds at most 10 pages and keeps the first page's total size afte
     await act(() => result.current.fetchNextPage());
   }
 
-  const ids = result.current.data.pages.map((page) => page.requests[0]?.id);
-  expect(ids).toEqual([2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n]);
+  // TanStack Query flushes observer updates on a later macrotask, so the last pages can reach the render after `act` resolves.
+  await waitFor(() => {
+    const ids = result.current.data.pages.map((page) => page.requests[0]?.id);
+    expect(ids).toEqual([2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n]);
+  });
   expect(result.current.hasNextPage).toBe(false);
   expect(result.current.totalSize).toBe(12);
 });
