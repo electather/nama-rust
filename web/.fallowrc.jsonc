@@ -58,7 +58,6 @@
           "src/lib/playback-wording.ts",
           "src/lib/playback.ts",
           "src/lib/subtitles.ts",
-          "src/library-admin.test.tsx",
           "src/library-recognisers.test.tsx",
           "src/library-title-sources.test.tsx",
           "src/manage-requests.test.tsx",
@@ -76,7 +75,6 @@
           "src/plugins.test.tsx",
           "src/request-state-filter.test.tsx",
           "src/requests.test.tsx",
-          "src/routes/_member/_admin/admin/needs-a-match.tsx",
           "src/routes/_member/libraries/$libraryId/shows/$showId/index.tsx",
           "src/season-picker.test.tsx",
           "src/sign-in-code.test.tsx",
@@ -98,6 +96,7 @@
       { "name": "shared-components", "patterns": ["src/shared/components/**"] },
       { "name": "shared-hooks", "patterns": ["src/shared/hooks/**"] },
       { "name": "shared-lib", "patterns": ["src/shared/lib/**"] },
+      { "name": "admin-needs-a-match", "patterns": ["src/features/admin-needs-a-match/**"] },
       { "name": "admin-playback", "patterns": ["src/features/admin-playback/**"] },
       { "name": "invites", "patterns": ["src/features/invites/**"] },
       { "name": "app", "patterns": ["src/app/**"] },
@@ -127,6 +126,18 @@
       {
         "from": "shared-components",
         "allow": [
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+          "legacy-components",
+          "legacy-lib",
+        ],
+      },
+      {
+        "from": "admin-needs-a-match",
+        "allow": [
+          "admin-needs-a-match",
           "shared-components",
           "shared-ui",
           "shared-hooks",
@@ -175,6 +186,7 @@
         "from": "routes",
         "allow": [
           "app",
+          "admin-needs-a-match",
           "admin-playback",
           "invites",
           "shared-components",
