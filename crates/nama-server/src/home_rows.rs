@@ -307,7 +307,7 @@ impl HomeRows {
         )
         .fetch_optional(self.db.reader())
         .await?;
-        Ok(titles.as_deref().map(titles_from_json).unwrap_or_default())
+        Ok(titles.as_deref().map_or_default(titles_from_json))
     }
 
     /// Replaces the Plugin `plugin`'s rows with `rows`, fresh for `fresh_for`, in one write.
