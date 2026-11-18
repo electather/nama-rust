@@ -117,13 +117,9 @@ pub fn vaapi_on_two_gpus(root: &Path) -> Vec<super::Hardware> {
 pub fn vaapi_on_two_gpus_at(root: &Path, nodes: [&str; 2]) -> Vec<super::Hardware> {
     use super::{Accel, Hardware, find_gpus};
 
-    let (sys, dri) = (root.join("sys"), root.join("dri"));
-    let [integrated, dedicated] = nodes;
-    gpu(&sys, &dri, integrated, "0000:18:00.0", "0x1002");
-    pci_function(&sys, "0000:18:00.2", "0x1022");
-    gpu(&sys, &dri, dedicated, "0000:03:00.0", "0x1002");
+    two_amd_gpus_at(root, nodes);
     let mesa = "VAAPI driver: Mesa Gallium driver 26.2.6 for AMD Radeon RX 9070 XT (radeonsi)";
-    find_gpus(&dri, &sys.join("class/drm"))
+    find_gpus(&root.join("dri"), &root.join("sys/class/drm"))
         .into_iter()
         .map(|gpu| Hardware {
             accel: Accel::Vaapi,
@@ -135,4 +131,20 @@ pub fn vaapi_on_two_gpus_at(root: &Path, nodes: [&str; 2]) -> Vec<super::Hardwar
             tone_maps: false,
         })
         .collect()
+}
+
+/// An integrated AMD GPU at `0000:18:00.0`, beside its AMD PCI function at `0000:18:00.2`, and a
+/// dedicated AMD GPU at `0000:03:00.0`, on the render nodes `nodes` in that order, in a fake
+/// `/sys` and `/dev/dri` at `root/sys` and `root/dri`.
+///
+/// # Panics
+///
+/// If writing them fails.
+#[cfg(unix)]
+pub fn two_amd_gpus_at(root: &Path, nodes: [&str; 2]) {
+    let (sys, dri) = (root.join("sys"), root.join("dri"));
+    let [integrated, dedicated] = nodes;
+    gpu(&sys, &dri, integrated, "0000:18:00.0", "0x1002");
+    pci_function(&sys, "0000:18:00.2", "0x1022");
+    gpu(&sys, &dri, dedicated, "0000:03:00.0", "0x1002");
 }
