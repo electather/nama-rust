@@ -201,10 +201,28 @@ pub(super) async fn join(
     Ok(per_kind!(asked, join).rows_affected() > 0)
 }
 
+/// Records that the Followed Show `followed_show` asked for the Season Request `request`, whether
+/// it opened or joined it, so its Requesters count for that Season in [`who_requested`].
+pub(super) async fn link_followed_show(
+    conn: &mut SqliteConnection,
+    request: i64,
+    followed_show: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO request_followed_shows (request_id, followed_show_id) VALUES (?, ?)
+         ON CONFLICT DO NOTHING",
+        request,
+        followed_show
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
 /// The ids of the Users who Requested the Movie with any of `ids`, or its Season `season` if `ids`
 /// are a Show's, in id order: `None` if nothing Requested it. Any Request for it that isn't
-/// Declined counts, whatever its state, with its Followed Show's Requesters unless that was
-/// Declined.
+/// Declined counts, whatever its state, with the Requesters of each Followed Show that asked for
+/// it, unless that was Declined.
 pub(crate) async fn who_requested(
     conn: &mut SqliteConnection,
     ids: &ExternalIds,
@@ -216,7 +234,7 @@ pub(crate) async fn who_requested(
     // row, so it still counts as Requested.
     let rows = sqlx::query_scalar!(
         r#"WITH requested AS (
-               SELECT DISTINCT requests.id, requests.followed_show_id FROM requests
+               SELECT DISTINCT requests.id FROM requests
                JOIN request_title_ids AS title ON title.request_id = requests.id
                JOIN json_each(?1) AS wanted
                    ON title.namespace = wanted.key AND title.value = wanted.value
@@ -225,7 +243,8 @@ pub(crate) async fn who_requested(
            LEFT JOIN requesters ON requesters.request_id = requested.id
            UNION
            SELECT followed.user_id FROM requested
-           JOIN followed_shows ON followed_shows.id = requested.followed_show_id
+           JOIN request_followed_shows AS asked ON asked.request_id = requested.id
+           JOIN followed_shows ON followed_shows.id = asked.followed_show_id
            JOIN followed_show_requesters AS followed
                ON followed.followed_show_id = followed_shows.id
            WHERE followed_shows.state != 'declined'
