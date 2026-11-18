@@ -6,7 +6,8 @@ use super::{Inner, PLAN_FOLDER, RunningPlans, STOP_UNUSED_AFTER, TIDY_EVERY};
 use crate::server_settings::PlaybackSettings;
 
 /// Every [`TIDY_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`] and deletes the running
-/// ones' files from well behind playback, until `inner` is dropped or `cancel` is cancelled.
+/// ones' files from well behind or far ahead of playback, until `inner` is dropped or `cancel` is
+/// cancelled.
 pub(super) async fn tidy_plans(inner: Weak<Inner>, cancel: CancellationToken) {
     // Not at once, so a test's plans aren't tidied at whatever point its task first runs.
     let first = tokio::time::Instant::now() + TIDY_EVERY;
@@ -22,7 +23,7 @@ pub(super) async fn tidy_plans(inner: Weak<Inner>, cancel: CancellationToken) {
         };
         let plans = RunningPlans { inner };
         plans.stop_unused(STOP_UNUSED_AFTER).await;
-        plans.delete_behind_playback().await;
+        plans.delete_unkept_files().await;
     }
 }
 
