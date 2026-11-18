@@ -10,11 +10,14 @@ import {
   type Episode,
   type GetNextEpisodeRequestSchema,
 } from "@/gen/nama/v1/browse_pb";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { PlaybackService } from "@/gen/nama/v1/playback_pb";
 import {
+  episodeName,
   externalIdFromParam,
   isGone,
   libraryFromParam,
+  metadataLine,
   queryOrNotFound,
   versionSearch,
   versionToPlay,
@@ -49,6 +52,7 @@ function PlayEpisode() {
   const { version, streak } = Route.useSearch();
   const { libraryId, showId } = Route.useParams();
   const next = useAutoplayedEpisode({ ...input, episodeNumber });
+  const lockScreen = useShowForLockScreen(input, episodeNumber);
   // An Event removed it, or its whole Season, since the loader ran.
   if (!episode || isGone(error)) return <DeletedWhilePlaying />;
   const { id, tracks } = versionToPlay(episode.versions, version);
@@ -61,6 +65,7 @@ function PlayEpisode() {
       versionId={id}
       tracks={tracks}
       watchState={episode.watchState}
+      {...lockScreen}
       back={{
         to: "/libraries/$libraryId/shows/$showId",
         params: { libraryId, showId },
@@ -78,6 +83,28 @@ function useAutoplayedEpisode(episode: MessageInitShape<typeof GetNextEpisodeReq
   // Off until the Server says it's on, so a User who turned it off never sees a countdown.
   const on = useQuery(PlaybackService.method.getAutoplay, {}).data?.on === true;
   return on ? next : undefined;
+}
+
+/**
+ * What the lock screen shows beside the Episode's title: its Show and which Episode it is, by the
+ * Show's Poster. Nothing until the Show arrives, which the Episode doesn't wait for.
+ */
+function useShowForLockScreen(
+  {
+    libraryId,
+    showId,
+    seasonNumber,
+  }: { libraryId: bigint; showId: ExternalId; seasonNumber: number },
+  episodeNumber: number,
+) {
+  const { data } = useQuery(BrowseService.method.getShow, { libraryId, showId });
+  const show = data?.show;
+  return (
+    show && {
+      artist: metadataLine(show.title, episodeName(seasonNumber, episodeNumber, "short")),
+      posterUrl: show.posterUrl,
+    }
+  );
 }
 
 /** What the player autoplays next: `episode` of the Show `params` names, after one autoplay `streak` opened. */

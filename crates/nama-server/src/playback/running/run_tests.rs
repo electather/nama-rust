@@ -22,6 +22,7 @@ use super::{FallbackRun, Method, POLL_EVERY, Running, Runs, Timeline, keyframe_n
 use crate::{
     events::{Filter, event},
     ffmpeg::{Keyframe, hls_init},
+    log_capture::CapturedLog,
     server_settings::{HardwareChoice, PlaybackChange},
 };
 
@@ -333,10 +334,7 @@ async fn the_init_segment_is_served_once_ffmpeg_has_written_its_first_file() {
     let plans = running_plans(data.path()).await;
     let (id, _) = start_writing_nothing(&plans).await;
     let plan = hls(&plans, id, 7);
-    let dir = data
-        .path()
-        .join("transcodes")
-        .join(format!("nama-plan-{id}"));
+    let dir = plan.dir.clone();
     // ffmpeg makes it empty as it starts, and fills it in as the first file ends.
     fs::write(dir.join("init-0.mp4"), "").unwrap();
 
@@ -407,13 +405,10 @@ async fn a_tick_deletes_files_ending_more_than_five_minutes_behind_the_last_segm
 
     // At 360 seconds.
     plan.segment(60).await.unwrap().unwrap();
-    plans.delete_behind_playback().await;
+    plans.delete_unkept_files().await;
 
     // Keyframe 29 ends at 60 seconds, 5 minutes before.
-    assert_eq!(
-        keyframes_left(data.path(), id),
-        (29..200).collect::<Vec<_>>()
-    );
+    assert_eq!(keyframes_left(data.path(), id), Vec::from_iter(29..200));
 }
 
 #[cfg(unix)]
@@ -428,7 +423,7 @@ async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_it_no_longe
     // To 400 seconds, played to 360.
     write_keyframes(data.path(), id, 0..200);
     plan.segment(60).await.unwrap().unwrap();
-    plans.delete_behind_playback().await;
+    plans.delete_unkept_files().await;
 
     settings
         .change_playback(
@@ -443,18 +438,15 @@ async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_it_no_longe
         )
         .await
         .unwrap();
-    plans.delete_behind_playback().await;
+    plans.delete_unkept_files().await;
 
     // Keyframe 149 ends at 300 seconds, a minute before.
-    assert_eq!(
-        keyframes_left(data.path(), id),
-        (149..200).collect::<Vec<_>>()
-    );
+    assert_eq!(keyframes_left(data.path(), id), Vec::from_iter(149..200));
 }
 
 #[cfg(unix)]
 #[tokio::test]
-async fn a_tick_after_a_seek_back_keeps_the_files_ahead_of_it() {
+async fn a_tick_after_a_seek_back_deletes_the_files_more_than_two_minutes_ahead_of_it() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     let (id, _) = start_writing_nothing(&plans).await;
@@ -465,17 +457,15 @@ async fn a_tick_after_a_seek_back_keeps_the_files_ahead_of_it() {
     plan.segment(90).await.unwrap().unwrap();
 
     plan.segment(60).await.unwrap().unwrap();
-    plans.delete_behind_playback().await;
+    plans.delete_unkept_files().await;
 
-    assert_eq!(
-        keyframes_left(data.path(), id),
-        (29..300).collect::<Vec<_>>()
-    );
+    // Keyframe 240 starts at 480 seconds, 2 minutes ahead.
+    assert_eq!(keyframes_left(data.path(), id), Vec::from_iter(29..240));
 }
 
 #[cfg(unix)]
 #[tokio::test]
-async fn a_tick_deletes_the_stretches_of_earlier_seeks_behind_playback_and_keeps_those_ahead() {
+async fn a_tick_deletes_the_stretches_of_earlier_seeks_behind_and_far_ahead_of_playback() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     let (id, starts) = start_writing_nothing(&plans).await;
@@ -490,12 +480,34 @@ async fn a_tick_deletes_the_stretches_of_earlier_seeks_behind_playback_and_keeps
     write_keyframes(data.path(), id, 300..350);
     answer(seek).await.unwrap().unwrap();
 
-    // At 660 seconds.
+    // At 660 seconds, while ffmpeg runs on to 780.
     plan.segment(110).await.unwrap().unwrap();
-    plans.delete_behind_playback().await;
+    plans.delete_unkept_files().await;
 
-    let ahead: Vec<usize> = (300..350).chain(400..420).collect();
-    assert_eq!(keyframes_left(data.path(), id), ahead);
+    assert_eq!(keyframes_left(data.path(), id), Vec::from_iter(300..350));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_tick_keeps_what_ffmpeg_writes_for_a_seek_ahead_though_playback_skipped_back() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let (id, starts) = start_writing_nothing(&plans).await;
+    let plan = hls(&plans, id, 7);
+    write_keyframes(data.path(), id, 0..3);
+    let seeked = Arc::clone(&plan);
+    let seek = tokio::spawn(async move { seeked.segment(100).await });
+    assert_eq!(until_started(&starts, 2).await, [0, 300]);
+    write_keyframes(data.path(), id, 300..320);
+    answer(seek).await.unwrap().unwrap();
+
+    plan.segment(0).await.unwrap().unwrap();
+    plans.delete_unkept_files().await;
+
+    assert_eq!(
+        keyframes_left(data.path(), id),
+        Vec::from_iter((0..3).chain(300..320))
+    );
 }
 
 #[cfg(unix)]
@@ -511,7 +523,7 @@ async fn a_tick_deletes_the_init_files_of_earlier_runs_and_keeps_the_current_one
     until_started(&starts, 2).await;
     fs::write(dir.join(hls_init(399)), "init").unwrap();
 
-    plans.delete_behind_playback().await;
+    plans.delete_unkept_files().await;
 
     assert!(!dir.join(hls_init(0)).exists());
     assert!(dir.join(hls_init(399)).exists());
@@ -528,7 +540,7 @@ async fn skipping_back_past_what_a_tick_kept_restarts_ffmpeg_there_and_is_served
     let plan = hls(&plans, id, 7);
     write_keyframes(data.path(), id, 0..200);
     plan.segment(60).await.unwrap().unwrap();
-    plans.delete_behind_playback().await;
+    plans.delete_unkept_files().await;
 
     let back = tokio::spawn(async move { plan.segment(1).await });
 
@@ -736,13 +748,8 @@ async fn a_transcode_whose_hardware_fails_carries_on_in_software_and_says_so() {
 async fn ffmpeg_failing_on_a_full_disk_warns_naming_the_segment_folder_and_time_kept_behind() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
-    let log = tempfile::NamedTempFile::new().unwrap();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(Arc::new(log.reopen().unwrap()))
-        .with_ansi(false)
-        .finish();
     // This test's runtime runs on this thread alone, so the task watching ffmpeg logs here too.
-    let _logging = tracing::subscriber::set_default(subscriber);
+    let log = CapturedLog::start();
     let disk_full = |_: &Path, _: Keyframe| {
         tokio::process::Command::new("sh")
             .args([
@@ -752,7 +759,7 @@ async fn ffmpeg_failing_on_a_full_disk_warns_naming_the_segment_folder_and_time_
             .stderr(std::process::Stdio::piped())
             .spawn()
     };
-    plans
+    let id = plans
         .start_hls(
             playback(7),
             Method::Remux,
@@ -767,17 +774,12 @@ async fn ffmpeg_failing_on_a_full_disk_warns_naming_the_segment_folder_and_time_
         .await
         .unwrap();
 
-    let logged = || fs::read_to_string(log.path()).unwrap();
-    let warned = async {
-        while !logged().contains("is full") {
-            tokio::time::sleep(POLL_EVERY).await;
-        }
-    };
-    tokio::time::timeout(Duration::from_secs(10), warned)
-        .await
-        .unwrap();
+    let plan = hls(&plans, id, 7);
+    // Given up on once ffmpeg is marked stopped, after it logged why it failed.
+    let asked = tokio::spawn(async move { plan.segment(0).await });
+    assert_eq!(answer(asked).await.unwrap(), None);
 
-    let logged = logged();
+    let logged = log.finish();
     let warning = logged
         .lines()
         .find(|line| line.contains("is full"))

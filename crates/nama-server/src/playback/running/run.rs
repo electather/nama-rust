@@ -106,42 +106,74 @@ impl Running {
     }
 
     /// Deletes the files of keyframes ending more than `keep_behind_ms` before the start of the
-    /// last segment asked for, and the init files of every run but the current one. Files ahead
-    /// of it, and those the current run may still be writing, are kept.
-    pub(super) async fn delete_behind(&self, keep_behind_ms: i64) -> io::Result<()> {
+    /// last segment asked for, or starting [`RUN_AHEAD_MS`] or more past it, such as those a seek
+    /// back left (ADR 0062), and the init files of every run but the current one. Those behind
+    /// that the current run may still be writing are kept, and while it runs, those less than
+    /// [`RUN_AHEAD_MS`] past where it started, since a seek ahead started it there.
+    pub(super) async fn delete_unkept(&self, keep_behind_ms: i64) -> io::Result<()> {
         // Under the lock a restart takes, so the current run is the one whose init is kept.
         let ffmpeg = self.ffmpeg.lock().await;
         // `stop` takes the run under it, so a stopped plan has none.
-        let Some((run, _)) = ffmpeg.as_ref() else {
+        let Some((run, task)) = ffmpeg.as_ref() else {
             return Ok(());
         };
+        let running = !run.stopped.load(Ordering::Acquire);
         // A running run's walk in `note_written` stops at the first file gone, so what it may
-        // write after it last looked is kept.
-        let still_writing_from = if run.stopped.load(Ordering::Acquire) {
-            usize::MAX
-        } else {
+        // write after it last looked is kept, unless it's past where `written_far_ahead` stops
+        // the run, where the walk stopping does too.
+        let still_writing_from = if running {
             self.note_written(run).await
+        } else {
+            usize::MAX
         };
         let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
+        let ahead_from_ms = if running {
+            self.run_ahead_from_ms(run)
+        } else {
+            asked
+        };
         let keep_from_ms = asked - keep_behind_ms;
+        let keep_to_ms = ahead_from_ms + RUN_AHEAD_MS;
+        let mut deleted_unwalked = false;
+        let mut saw_walk_end = false;
         let mut entries = tokio::fs::read_dir(&self.dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            let behind = match keyframe_number(&name) {
+            let unkept = match keyframe_number(&name) {
                 Some(n) => {
-                    n < still_writing_from && self.timeline.keyframe_ms(n + 1) < keep_from_ms
+                    let far_ahead = self.timeline.keyframe_ms(n) >= keep_to_ms;
+                    deleted_unwalked |= far_ahead && n >= still_writing_from;
+                    saw_walk_end |= n == still_writing_from;
+                    far_ahead
+                        || (n < still_writing_from
+                            && self.timeline.keyframe_ms(n + 1) < keep_from_ms)
                 }
                 None => hls_init_from(&name).is_some_and(|from| from != run.from),
             };
             // Going on past one, which Windows refuses while a request reads it.
-            if behind && let Err(err) = tokio::fs::remove_file(entry.path()).await {
+            if unkept && let Err(err) = tokio::fs::remove_file(entry.path()).await {
                 tracing::warn!(
                     plan = self.id,
                     "could not delete {}: {err}",
                     entry.path().display()
                 );
             }
+        }
+        // ffmpeg writes its files in order, so it wrote one deleted past where the walk stopped
+        // only if it has written the file there since, which is still there or was seen and maybe
+        // deleted above. Its walk would then wait at the deleted one for good, so the run is
+        // stopped, and the request for it starts ffmpeg again; so it is too if that can't be told.
+        if deleted_unwalked
+            && (saw_walk_end
+                || !matches!(
+                    tokio::fs::try_exists(self.keyframe_path(still_writing_from)).await,
+                    Ok(false)
+                ))
+        {
+            task.abort();
+            self.note_written(run).await;
+            run.stopped.store(true, Ordering::Release);
         }
         Ok(())
     }
@@ -408,18 +440,31 @@ impl Running {
         loop {
             tokio::time::sleep(POLL_EVERY).await;
             let written_to = self.note_written(run).await;
-            let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
-            // An earlier segment asked for just after a seek mustn't stop the run it started.
-            let asked = asked.max(self.timeline.keyframe_ms(run.from));
-            if self.timeline.keyframe_ms(written_to).saturating_sub(asked) >= RUN_AHEAD_MS {
+            let from_ms = self.run_ahead_from_ms(run);
+            if self
+                .timeline
+                .keyframe_ms(written_to)
+                .saturating_sub(from_ms)
+                >= RUN_AHEAD_MS
+            {
                 return;
             }
         }
     }
 
+    /// Where `run`'s [`RUN_AHEAD_MS`] counts from: the start of the last segment asked for, or
+    /// where it started if later.
+    // An earlier segment asked for just after a seek mustn't stop, or delete what's written by,
+    // the run it started. `delete_unkept` relies on `written_far_ahead` using the same bound.
+    fn run_ahead_from_ms(&self, run: &FfmpegRun) -> i64 {
+        let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
+        asked.max(self.timeline.keyframe_ms(run.from))
+    }
+
     /// Notes in `run` how far it has written, and returns it. Walks on from where it last looked,
     /// not from where it started, whose files may be gone since.
-    // A file deleted before it's looked at stops the walk there, so `delete_behind` keeps those.
+    // A file deleted before it's looked at stops the walk there, so `delete_unkept` keeps those,
+    // but for those past where `written_far_ahead` stops the run anyway.
     async fn note_written(&self, run: &FfmpegRun) -> usize {
         let mut written_to = run.written_to.load(Ordering::Relaxed);
         while written_to < self.timeline.keyframes.len()

@@ -13,7 +13,8 @@ import { firstFramePlayed } from "./diagnostics";
 
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
 const CONTROLS_LINGER_MS = 3000;
-const SEEK_STEP_SECONDS = 10;
+/** How far the arrow keys and the media keys seek. */
+export const SEEK_STEP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
@@ -95,10 +96,10 @@ const shortcuts: Record<string, Shortcut> = {
     togglePlay(video);
   },
   ArrowLeft: ({ video }) => {
-    video.currentTime = Math.max(0, video.currentTime - SEEK_STEP_SECONDS);
+    seekBy(video, -SEEK_STEP_SECONDS);
   },
   ArrowRight: ({ video }) => {
-    video.currentTime += SEEK_STEP_SECONDS;
+    seekBy(video, SEEK_STEP_SECONDS);
   },
   ArrowUp: ({ video }) => {
     setVolume(video, video.volume + VOLUME_STEP);
@@ -183,6 +184,11 @@ export function useShortcuts(
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [videoRef, playerRef, back, wake, navigate]);
+}
+
+/** Seeks `seconds` forward, or back if negative, but not before the start. */
+export function seekBy(video: HTMLVideoElement, seconds: number) {
+  video.currentTime = Math.max(0, video.currentTime + seconds);
 }
 
 export function togglePlay(video: HTMLVideoElement) {

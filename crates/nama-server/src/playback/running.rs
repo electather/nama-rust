@@ -15,8 +15,9 @@
 //! and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked for, to start again at
 //! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending further
 //! before the last segment asked for than the Playback settings keep for skipping back are
-//! deleted, as are earlier runs' init files, so a plan's folder stops growing; one asked for again
-//! is written again.
+//! deleted, and so are earlier runs' init files and, unless ffmpeg is writing them, files starting
+//! [`RUN_AHEAD_MS`] or more past that segment. A plan's folder so holds at most the time kept
+//! behind plus [`RUN_AHEAD_MS`] (ADR 0062); a file asked for again is written again.
 //!
 //! A Transcode on hardware that fails carries on in software from the first file it hadn't
 //! written, takes its software fallback's reasons and publishes `PlaybackChanged`.
@@ -566,18 +567,18 @@ impl RunningPlans {
         }
     }
 
-    /// Deletes each running plan's files from well behind playback, as [`Running::delete_behind`]
-    /// says.
-    async fn delete_behind_playback(&self) {
+    /// Deletes each running plan's files from well behind or far ahead of playback, as
+    /// [`Running::delete_unkept`] says.
+    async fn delete_unkept_files(&self) {
         let running: Vec<Arc<Running>> = (lock(&self.inner.plans).values())
             .filter_map(|plan| plan.hls.clone())
             .collect();
         let keep_behind_ms = self.inner.settings.keep_behind_ms();
         for hls in running {
-            if let Err(err) = hls.delete_behind(keep_behind_ms).await {
+            if let Err(err) = hls.delete_unkept(keep_behind_ms).await {
                 tracing::warn!(
                     plan = hls.id,
-                    "could not delete files behind playback: {err}"
+                    "could not delete files behind or ahead of playback: {err}"
                 );
             }
         }
