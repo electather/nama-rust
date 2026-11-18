@@ -201,6 +201,24 @@ pub(super) async fn join(
     Ok(per_kind!(asked, join).rows_affected() > 0)
 }
 
+/// Records that the Followed Show `followed_show` asked for the Season Request `request`, whether
+/// it opened or joined it, so its Requesters count for that Season in [`who_requested`].
+pub(super) async fn link_followed_show(
+    conn: &mut SqliteConnection,
+    request: i64,
+    followed_show: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO request_followed_shows (request_id, followed_show_id) VALUES (?, ?)
+         ON CONFLICT DO NOTHING",
+        request,
+        followed_show
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
 /// The ids of the Users who Requested the Movie with any of `ids`, or its Season `season` if `ids`
 /// are a Show's, in id order: `None` if nothing Requested it. Any Request for it that isn't
 /// Declined counts, whatever its state, with the Requesters of each Followed Show that asked for

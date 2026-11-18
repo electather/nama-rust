@@ -382,6 +382,7 @@ impl SeasonsToAsk {
         asking: A,
     ) -> Result<Applied<Vec<Request>>, A::Error> {
         let today = today(conn).await?;
+        let followed_show = asking.followed_show().map(|followed| followed.id);
         let mut asked = Applied::quiet(Vec::with_capacity(self.seasons.len()));
         for season in &self.seasons {
             let matched = matched_episodes(conn, &self.show_id, season.number.into()).await?;
@@ -392,12 +393,13 @@ impl SeasonsToAsk {
             else {
                 continue;
             };
-            let wanted = self.wanted(season, asking.followed_show().map(|followed| followed.id));
-            let one = asking.ask(conn, wanted, opens_in).await?;
+            let one = asking
+                .ask(conn, self.wanted(season, followed_show), opens_in)
+                .await?;
             asking.cover(conn, season.number).await?;
             // Not in `cover`, which also covers Specials, for which no Request opens.
-            if let Some(followed_show) = asking.followed_show() {
-                link_followed_show(conn, one.value.id, followed_show.id).await?;
+            if let Some(followed_show) = followed_show {
+                asked::link_followed_show(conn, one.value.id, followed_show).await?;
             }
             asked.value.push(one.value);
             asked.events.extend(one.events);
@@ -418,24 +420,6 @@ impl SeasonsToAsk {
             quality: self.quality.clone(),
         }
     }
-}
-
-/// Records that the Followed Show `followed_show` asked for the Season Request `request`, whether
-/// it opened or joined it, so its Requesters count for that Season in [`asked::who_requested`].
-async fn link_followed_show(
-    conn: &mut SqliteConnection,
-    request: i64,
-    followed_show: i64,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        "INSERT INTO request_followed_shows (request_id, followed_show_id) VALUES (?, ?)
-         ON CONFLICT DO NOTHING",
-        request,
-        followed_show
-    )
-    .execute(&mut *conn)
-    .await?;
-    Ok(())
 }
 
 /// [`ask`]s for `wanted`, then approves the open Request `user` joined if it is Pending and `state`

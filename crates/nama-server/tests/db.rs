@@ -430,7 +430,7 @@ fn every_migration_after_the_table_files_is_named_by_utc_timestamp() {
     );
 }
 
-/// The migration `request_followed_shows`.
+/// The version of the migration that adds `request_followed_shows`.
 const REQUEST_FOLLOWED_SHOWS: i64 = 20_261_117_234_836;
 
 #[tokio::test]
@@ -442,8 +442,9 @@ async fn upgrading_to_request_followed_shows_links_each_request_to_the_followed_
         .create_if_missing(true);
     let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
     let migrations = sqlx::migrate!();
-    let before = migrations.iter().map(|m| m.version);
-    let before = before
+    let before = migrations
+        .iter()
+        .map(|m| m.version)
         .filter(|&version| version < REQUEST_FOLLOWED_SHOWS)
         .max();
     migrations.run_to(before.unwrap(), &mut conn).await.unwrap();

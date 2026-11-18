@@ -1,6 +1,7 @@
 -- Each Followed Show that asked for a Season Request, whether it opened or joined it, so its
 -- Requesters count for that Season (#989). `requests.followed_show_id` names only the one that
--- opened it, which decides and hands it off. Ending the Followed Show stops it counting.
+-- opened it, which decides and hands it off. Cancelling the Followed Show, or its last Requester
+-- withdrawing, deletes it and so its links.
 CREATE TABLE request_followed_shows (
     request_id INTEGER NOT NULL REFERENCES requests (id) ON DELETE CASCADE,
     followed_show_id INTEGER NOT NULL REFERENCES followed_shows (id) ON DELETE CASCADE,
