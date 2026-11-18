@@ -1,15 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { NotFound } from "@/app/route-error/not-found";
-import { MayDownloadAgain } from "@/components/delete-media";
-import { LibraryMovies, LibraryShows, type TitlesProps } from "@/components/library-titles";
-import { NotMatched, firstUnmatchedPage } from "@/components/not-matched";
+import { LibraryPage } from "@/features/library/components/library-page";
+import { firstUnmatchedPage } from "@/features/library/lib/first-unmatched-page";
+import { firstPageOf, listingFromSearch } from "@/features/library/lib/title-listing";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { deletedFromSearch, libraryFromParam, queryOrNotFound } from "@/lib/browse";
-// oxlint-disable-next-line import/max-dependencies -- the Library page puts together its titles, their filters, its Unmatched Items and a delete's notice
-import { firstPageOf, listingFromSearch } from "@/lib/title-listing";
-import { Page } from "@/shared/components/page";
 import { pagedQuery } from "@/shared/hooks/use-paged";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/")({
@@ -59,28 +56,16 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
 function Library() {
   const library = Route.useLoaderData();
   const search = Route.useSearch();
-  const { deleted, notTold = [] } = search;
   const navigate = Route.useNavigate();
-  const titles: TitlesProps = {
-    libraryId: library.id,
-    listing: listingFromSearch(search),
-    change: (changed) => {
-      void navigate({ search: changed });
-    },
-  };
   return (
-    <Page heading={library.name}>
-      {deleted !== undefined && (
-        <div className="mt-2">
-          <MayDownloadAgain title={deleted} fulfillers={notTold} />
-        </div>
-      )}
-      {library.kind === LibraryKind.SHOWS ? (
-        <LibraryShows {...titles} />
-      ) : (
-        <LibraryMovies {...titles} />
-      )}
-      <NotMatched libraryId={library.id} />
-    </Page>
+    <LibraryPage
+      library={library}
+      listing={listingFromSearch(search)}
+      deleted={search.deleted}
+      notTold={search.notTold ?? []}
+      change={(changed) => {
+        void navigate({ search: changed });
+      }}
+    />
   );
 }

@@ -1,12 +1,9 @@
-import { PlayUnmatched, parsedAs } from "@/components/unmatched-item";
-import { BrowseService, type UnmatchedItemSummary } from "@/gen/nama/v1/browse_pb";
+import { NotMatchedRow } from "@/features/library/components/not-matched-row";
+import { UnmatchedCount } from "@/features/library/components/unmatched-count";
+import { firstUnmatchedPage } from "@/features/library/lib/first-unmatched-page";
+import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { ShowMore } from "@/shared/components/show-more";
 import { usePaged } from "@/shared/hooks/use-paged";
-
-/** `ListUnmatched`'s first page of the Library `libraryId`'s Unmatched Items. */
-export function firstUnmatchedPage(libraryId: bigint) {
-  return { libraryId, page: { token: "" } };
-}
 
 /**
  * The Library `libraryId`'s Unmatched Items, folded away at the foot of its page by what their
@@ -25,7 +22,7 @@ export function NotMatched({ libraryId }: { libraryId: bigint }) {
     <details className="mt-12 max-w-3xl">
       <summary className="cursor-pointer font-medium">
         Not matched
-        <Count count={totalSize} />
+        <UnmatchedCount count={totalSize} />
       </summary>
       <p className="mt-2 max-w-prose text-sm text-pretty text-muted-foreground">
         The Server couldn’t tell which Movie or Episode these files are.
@@ -42,25 +39,5 @@ export function NotMatched({ libraryId }: { libraryId: bigint }) {
       </ul>
       {hasNextPage && <ShowMore load={fetchNextPage} loaded={data.pages.length} />}
     </details>
-  );
-}
-
-/** How many Items it lists, once the first page has said. */
-function Count({ count }: { count: number | undefined }) {
-  if (count === undefined) {
-    return null;
-  }
-  return (
-    <span className="ms-2 text-sm font-normal text-muted-foreground">{count.toLocaleString()}</span>
-  );
-}
-
-function NotMatchedRow({ item, libraryId }: { item: UnmatchedItemSummary; libraryId: bigint }) {
-  const name = parsedAs(item);
-  return (
-    <li className="flex items-center gap-3 border-b py-2 last:border-b-0">
-      <span className="min-w-0 flex-1">{name}</span>
-      <PlayUnmatched libraryId={libraryId} versionId={item.versionId} name={name} />
-    </li>
   );
 }

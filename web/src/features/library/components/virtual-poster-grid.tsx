@@ -1,13 +1,9 @@
-import { type VirtualItem, useWindowVirtualizer } from "@tanstack/react-virtual";
-import {
-  type ReactNode,
-  type RefObject,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { type ReactNode, useRef } from "react";
 
+import { usePosterColumns } from "@/features/library/hooks/use-poster-columns";
+import { useTopOf } from "@/features/library/hooks/use-top-of";
+import { paddingFor } from "@/features/library/lib/padding-for";
 import { posterGrid } from "@/shared/lib/poster-classes";
 
 declare module "react" {
@@ -17,46 +13,6 @@ declare module "react" {
     /** As `--rows-above`, for the rows below. */
     "--rows-below"?: string;
   }
-}
-
-/** `posterGrid`'s breakpoints, widest first, as Tailwind's `lg`, `md` and `sm` place them. */
-const wider = ["(min-width: 64rem)", "(min-width: 48rem)", "(min-width: 40rem)"];
-
-function subscribe(changed: () => void) {
-  const queries = wider.map((query) => matchMedia(query));
-  for (const query of queries) {
-    query.addEventListener("change", changed);
-  }
-  return () => {
-    for (const query of queries) {
-      query.removeEventListener("change", changed);
-    }
-  };
-}
-
-/** How many columns `posterGrid` has at the window's width now: 5, 4, 3 or 2. */
-function posterColumns() {
-  const widest = wider.findIndex((query) => matchMedia(query).matches);
-  return widest === -1 ? 2 : 5 - widest;
-}
-
-/** Where the element `ref` holds starts, down the page, once it is laid out. */
-function useTopOf(ref: RefObject<HTMLElement | null>) {
-  const [top, setTop] = useState(0);
-  useLayoutEffect(() => {
-    setTop((ref.current?.getBoundingClientRect().top ?? 0) + window.scrollY);
-  }, [ref]);
-  return top;
-}
-
-/**
- * The padding that stands in for the rows above and below `rows`, so the grid keeps its height
- * and columns: rows start below `top` and the last ends at `end`, both down the page.
- */
-function paddingFor(rows: VirtualItem[], end: number, top: number) {
-  const [start = top] = rows.map((row) => row.start);
-  const shownEnd = rows.reduce((_, row) => row.end, top);
-  return { above: `${start - top}px`, below: `${end - shownEnd}px` };
 }
 
 /** A poster's row's height at `lg`, with its caption, before it is measured. */
@@ -76,7 +32,7 @@ export function VirtualPosterGrid({
   posters: { key: string; poster: ReactNode }[];
   setSize: number | undefined;
 }) {
-  const columns = useSyncExternalStore(subscribe, posterColumns, () => 5);
+  const columns = usePosterColumns();
   const list = useRef<HTMLUListElement>(null);
   const top = useTopOf(list);
   // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders this component itself whenever the window scrolls

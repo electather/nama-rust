@@ -5,8 +5,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { BrowseService, type ListUnmatchedResponseSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-
-import { fakeServer, newUser, openApp } from "./test-app";
+import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
 
