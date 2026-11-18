@@ -2,10 +2,10 @@ import { useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
+import { usersKey } from "@/features/admin-users/data/use-users";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { signedInQuery } from "@/lib/access";
-import { defaultPermissionsKey, usersKey } from "@/lib/users";
 import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
 
 /** `SetPermissions` for `user`, as `you`, after which the Users and your own access are fresh. */
@@ -25,13 +25,5 @@ export function useSetPermissions(user: User, you: User | undefined) {
         await router.invalidate();
       }
     },
-  });
-}
-
-/** `SetDefaultPermissions`, after which the default Permissions are fresh. */
-export function useSetDefaultPermissions() {
-  const queryClient = useQueryClient();
-  return useSensitiveMutation(UserService.method.setDefaultPermissions, {
-    onSettled: () => queryClient.invalidateQueries({ queryKey: defaultPermissionsKey }),
   });
 }

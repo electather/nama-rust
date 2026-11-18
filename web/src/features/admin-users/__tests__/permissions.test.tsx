@@ -4,14 +4,20 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { admin, fakeServer, newUser, openApp, type ServerState } from "./test-app";
-import { refused } from "./test-refusal";
+import { admin, fakeServer, newUser, openApp, type ServerState } from "@/test-app";
+import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
+/** A User the fake Server keeps, whose Permissions a test changes. */
+interface Holder {
+  id: bigint;
+  name: string;
+  permissions: Permission[];
+}
+
 test("saved Permissions are there after reloading", async () => {
-  let alex = { id: 2n, name: "Alex", permissions: [...newUser] as Permission[] };
+  let alex: Holder = { id: 2n, name: "Alex", permissions: [...newUser] };
   const server = fakeServer(
     { signedIn: admin },
     {},
@@ -39,7 +45,7 @@ test("saved Permissions are there after reloading", async () => {
     true,
   );
   expect(screen.getByRole("checkbox", { name: "View Requests" })).toHaveProperty("checked", false);
-  expect(alex.permissions).toEqual([Permission.REQUEST, Permission.MANAGE_LIBRARIES]);
+  expect(alex.permissions).toStrictEqual([Permission.REQUEST, Permission.MANAGE_LIBRARIES]);
 });
 
 test("a checked parent Permission shows its children as covered", async () => {
@@ -137,7 +143,7 @@ test("removing your own Admin Permission leaves the Admin pages", async () => {
 
 test("removing your own Admin Permission but keeping Manage Users leaves only Users in the Admin nav", async () => {
   const state: ServerState = { signedIn: admin };
-  let sam = { id: 1n, name: "Sam", permissions: [...admin] as Permission[] };
+  let sam: Holder = { id: 1n, name: "Sam", permissions: [...admin] };
   openApp(
     "/admin/users",
     fakeServer(
@@ -196,7 +202,7 @@ test("without the Admin Permission, only a non-Admin's Permissions can be change
 });
 
 test("saved default Permissions are named on the Users page after reloading", async () => {
-  let defaults = [...newUser] as Permission[];
+  let defaults: Permission[] = [...newUser];
   const server = fakeServer(
     { signedIn: admin },
     {},
@@ -221,7 +227,7 @@ test("saved default Permissions are named on the Users page after reloading", as
   openApp("/admin/users", server);
 
   await expect(screen.findByText("Request Movies · View Requests")).resolves.toBeDefined();
-  expect(defaults).toEqual([Permission.VIEW_REQUESTS, Permission.REQUEST_MOVIE]);
+  expect(defaults).toStrictEqual([Permission.VIEW_REQUESTS, Permission.REQUEST_MOVIE]);
 });
 
 test("without the Admin Permission, default Permissions holding Admin can't be changed", async () => {
