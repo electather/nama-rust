@@ -1199,8 +1199,9 @@ export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
 
 /**
  * The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, or
- * `PERMISSION_ADMIN` for `ListPluginLogLines`, and fails with `permission_denied` without it. A secret setting's value never leaves the Server. Every call
- * but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails
+ * `PERMISSION_ADMIN` for `ListPluginLogLines`, and fails with `permission_denied` without it. A
+ * secret setting's value never leaves the Server. Every call but `GetPlugin` and
+ * `ListPluginLogLines` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails
  * with `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
  * settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
  *
@@ -1329,8 +1330,10 @@ export const PluginService: GenService<{
   },
   /**
    * Returns the last 100 lines of a Plugin's Plugin Log that passed the Server's log filter, newest
-   * first. The Server keeps them in memory only, for an enabled Plugin: disabling it clears them,
-   * and so does a restart. A Plugin that isn't enabled, or that the Server doesn't have, has none.
+   * first. The Server keeps them in memory only, from when the Plugin is enabled: disabling it
+   * clears them, and so does a restart. A Plugin that refused to start keeps what it logged trying
+   * until it is next enabled. Any other Plugin that isn't enabled, or that the Server doesn't have,
+   * has none.
    *
    * @generated from rpc nama.v1.PluginService.ListPluginLogLines
    */

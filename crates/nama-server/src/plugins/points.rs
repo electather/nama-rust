@@ -390,6 +390,7 @@ impl ExtensionPoints {
             state.points.retain(|_, entries| !entries.is_empty());
             // A Plugin enabled again, perhaps with its settings fixed, starts with a clean slate.
             self.failures.forget(id);
+            diagnostics::forget_plugin_lines(id);
             Ok(Some(Removed {
                 enabled,
                 _handlers: handlers,
@@ -533,8 +534,6 @@ impl Removed {
         if let Err(message) = log_span.in_scope(|| contain_sync(|| drop(self))) {
             error!(plugin = %id, message, "plugin panicked while being dropped");
         }
-        // After the drop, so what its `Drop` logged goes too.
-        diagnostics::forget_plugin_lines(id);
         info!(plugin = %id, "disabled plugin");
     }
 }

@@ -4,8 +4,8 @@ use tracing::Level;
 use tracing_subscriber::layer::SubscriberExt as _;
 
 use super::{
-    PluginLine, following_current, forget_plugin_lines, keep_plugin_line, layer, plugin_lines,
-    service_and_method,
+    PluginLine, following_current, forget_plugin_lines, keep_plugin_line, keep_plugin_lines, layer,
+    plugin_lines, service_and_method,
 };
 
 #[test]
@@ -60,17 +60,21 @@ fn following_current_joins_the_current_trace_without_holding_its_span_open() {
     });
 }
 
+fn line(at_ms: i64) -> PluginLine {
+    PluginLine {
+        at_ms,
+        level: Level::INFO,
+        text: format!("line {at_ms}"),
+    }
+}
+
 #[test]
-fn a_plugin_keeps_its_last_100_lines_newest_first_until_forgotten() {
+fn an_enabled_plugin_keeps_its_last_100_lines_newest_first_until_disabled() {
     // Its own id: the lines kept are process-wide, and other tests' Plugins log too.
     let plugin = PluginId::from_static("keeps-100");
+    keep_plugin_lines(&plugin);
     for at_ms in 0..101 {
-        let line = PluginLine {
-            at_ms,
-            level: Level::INFO,
-            text: format!("line {at_ms}"),
-        };
-        keep_plugin_line(plugin.to_string(), line);
+        keep_plugin_line(&plugin, line(at_ms));
     }
 
     let kept: Vec<i64> = plugin_lines(&plugin)
@@ -80,5 +84,17 @@ fn a_plugin_keeps_its_last_100_lines_newest_first_until_forgotten() {
     assert_eq!(kept, (1..101).rev().collect::<Vec<_>>());
 
     forget_plugin_lines(&plugin);
+    keep_plugin_line(&plugin, line(101));
+    assert_eq!(plugin_lines(&plugin), []);
+}
+
+#[test]
+fn a_plugin_enabled_again_starts_with_no_lines() {
+    let plugin = PluginId::from_static("enabled-again");
+    keep_plugin_lines(&plugin);
+    keep_plugin_line(&plugin, line(0));
+
+    keep_plugin_lines(&plugin);
+
     assert_eq!(plugin_lines(&plugin), []);
 }

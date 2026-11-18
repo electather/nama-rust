@@ -12,7 +12,7 @@ use tracing::{Level, enabled, event, warn};
 use super::without_secrets;
 use crate::{
     db,
-    diagnostics::{MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET},
+    diagnostics::{MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, cut_plugin_line},
 };
 
 /// How many lines a Plugin may log at once.
@@ -82,8 +82,8 @@ impl PluginLog {
     }
 
     /// Logs `text` at `level`, naming the Plugin, with its secrets blanked and cut at
-    /// [`MAX_PLUGIN_LINE_BYTES`], as written at `now_ms`. A line over the Plugin's rate is dropped and
-    /// counted, and the count logged once a minute; one the level filter drops isn't counted.
+    /// [`MAX_PLUGIN_LINE_BYTES`], as written at `now_ms`. A line over the Plugin's rate is dropped
+    /// and counted, and the count logged once a minute; one the level filter drops isn't counted.
     pub(super) fn write(&self, level: Level, text: &[u8], now_ms: i64) {
         self.warn_of_dropped(now_ms);
         // `tracing` fixes an event's level where it is written, so each level is written apart.
@@ -121,8 +121,7 @@ impl PluginLog {
             line.truncate(line.floor_char_boundary(kept));
         }
         if read_part || line.len() > MAX_PLUGIN_LINE_BYTES {
-            line.truncate(line.floor_char_boundary(MAX_PLUGIN_LINE_BYTES));
-            line.push_str(" [cut]");
+            cut_plugin_line(&mut line);
         }
         line
     }

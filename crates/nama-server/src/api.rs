@@ -432,8 +432,7 @@ fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<()
     Ok(())
 }
 
-/// Refuses `request` unless its caller, which [`identify_caller`] found, may make it, before any
-/// handler sees it.
+/// Refuses `request`, before any handler sees it, unless the caller [`identify_caller`] found may.
 async fn require_access(request: Request, next: Next) -> axum::response::Response {
     let caller = request.extensions().get::<Caller>();
     let path = request.uri().path();

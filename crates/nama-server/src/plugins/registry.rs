@@ -238,6 +238,7 @@ impl Registry {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
+        crate::diagnostics::keep_plugin_lines(id);
         refuse_bad_personal_settings(manifest)?;
         let schema = &manifest.settings;
         let settings = settings

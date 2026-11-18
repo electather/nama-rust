@@ -42,9 +42,7 @@ function LogSection({ id }: { id: string }) {
 
 function LogLines({ lines }: { lines: PluginLogLine[] }) {
   if (lines.length === 0) {
-    return (
-      <p className="mt-4 text-sm text-muted-foreground">Nothing logged since it was enabled.</p>
-    );
+    return <p className="mt-4 text-sm text-muted-foreground">Nothing logged yet.</p>;
   }
   return (
     <ol aria-labelledby="plugin-log" className="mt-4 divide-y text-sm">

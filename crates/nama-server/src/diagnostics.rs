@@ -61,9 +61,9 @@ pub(crate) const MAX_PLUGIN_LINE_BYTES: usize = 2048;
 /// How many of each Plugin's lines its Plugins page shows.
 const KEPT_PLUGIN_LINES: usize = 100;
 
-/// Each Plugin's last [`KEPT_PLUGIN_LINES`], oldest first, by its id. Process-wide, as the
-/// subscriber filling it is, and in memory only (ADR 0061).
-static PLUGIN_LINES: Mutex<BTreeMap<String, VecDeque<PluginLine>>> = Mutex::new(BTreeMap::new());
+/// Each enabled Plugin's last [`KEPT_PLUGIN_LINES`], oldest first. Process-wide, as the subscriber
+/// filling it is, and in memory only (ADR 0061).
+static PLUGIN_LINES: Mutex<BTreeMap<PluginId, VecDeque<PluginLine>>> = Mutex::new(BTreeMap::new());
 
 /// A line of a Plugin's Plugin Log, as its Plugins page shows it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,25 +88,41 @@ where
 /// The Plugin `plugin`'s last lines, newest first.
 pub(crate) fn plugin_lines(plugin: &PluginId) -> Vec<PluginLine> {
     let kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
-    kept.get(plugin.as_str())
+    kept.get(plugin)
         .map(|lines| lines.iter().rev().cloned().collect())
         .unwrap_or_default()
 }
 
-/// Forgets the Plugin `plugin`'s lines, once it is disabled.
-pub(crate) fn forget_plugin_lines(plugin: &PluginId) {
+/// Starts keeping the Plugin `plugin`'s lines afresh, as it is being enabled.
+pub(crate) fn keep_plugin_lines(plugin: &PluginId) {
     let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
-    kept.remove(plugin.as_str());
+    kept.insert(plugin.clone(), VecDeque::new());
 }
 
-/// Keeps `line` among `plugin`'s last lines, dropping its oldest past [`KEPT_PLUGIN_LINES`].
-fn keep_plugin_line(plugin: String, line: PluginLine) {
+/// Forgets the Plugin `plugin`'s lines and keeps no more, once it is disabled.
+pub(crate) fn forget_plugin_lines(plugin: &PluginId) {
     let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
-    let lines = kept.entry(plugin).or_default();
+    kept.remove(plugin);
+}
+
+/// Keeps `line` among `plugin`'s last lines, dropping its oldest past [`KEPT_PLUGIN_LINES`], if
+/// its lines are kept: a line from a Plugin that isn't enabled, such as one checking its settings
+/// or a call still running once it was disabled, is dropped.
+fn keep_plugin_line(plugin: &PluginId, line: PluginLine) {
+    let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(lines) = kept.get_mut(plugin) else {
+        return;
+    };
     if lines.len() == KEPT_PLUGIN_LINES {
         lines.pop_front();
     }
     lines.push_back(line);
+}
+
+/// Cuts `line` at [`MAX_PLUGIN_LINE_BYTES`] and marks it as cut.
+pub(crate) fn cut_plugin_line(line: &mut String) {
+    line.truncate(line.floor_char_boundary(MAX_PLUGIN_LINE_BYTES));
+    line.push_str(" [cut]");
 }
 
 /// The layer that exports the Server's spans through `provider`, each SQL query among them.
@@ -321,7 +337,7 @@ impl Visit for Query {
 struct KeepPluginLines;
 
 /// The Plugin a span under [`PLUGIN_TARGET`] names, kept in its extensions.
-struct SpanPlugin(String);
+struct SpanPlugin(PluginId);
 
 impl<S> Layer<S> for KeepPluginLines
 where
@@ -342,8 +358,11 @@ where
         let mut fields = LineFields::default();
         event.record(&mut fields);
         let metadata = event.metadata();
-        let named = (fields.plugin.take()).filter(|_| metadata.target() == PLUGIN_TARGET);
-        let Some(plugin) = named.or_else(|| enclosing_plugin(event, &ctx)) else {
+        let in_own_field = fields
+            .plugin
+            .take()
+            .filter(|_| metadata.target() == PLUGIN_TARGET);
+        let Some(plugin) = in_own_field.or_else(|| enclosing_plugin(event, &ctx)) else {
             return;
         };
         let line = PluginLine {
@@ -351,12 +370,12 @@ where
             level: *metadata.level(),
             text: fields.text(),
         };
-        keep_plugin_line(plugin, line);
+        keep_plugin_line(&plugin, line);
     }
 }
 
 /// The Plugin the innermost span around `event` under [`PLUGIN_TARGET`] names: a Built-in's.
-fn enclosing_plugin<S>(event: &Event<'_>, ctx: &Context<'_, S>) -> Option<String>
+fn enclosing_plugin<S>(event: &Event<'_>, ctx: &Context<'_, S>) -> Option<PluginId>
 where
     S: Subscriber + for<'span> LookupSpan<'span>,
 {
@@ -370,7 +389,7 @@ where
 /// names its Plugin.
 #[derive(Default)]
 struct LineFields {
-    plugin: Option<String>,
+    plugin: Option<PluginId>,
     message: String,
     /// ` name=value` for each other field.
     rest: String,
@@ -382,8 +401,7 @@ impl LineFields {
     fn text(self) -> String {
         let mut text = self.message + &self.rest;
         if text.len() > MAX_PLUGIN_LINE_BYTES {
-            text.truncate(text.floor_char_boundary(MAX_PLUGIN_LINE_BYTES));
-            text.push_str(" [cut]");
+            cut_plugin_line(&mut text);
         }
         text
     }
@@ -394,7 +412,7 @@ impl Visit for LineFields {
         // Writing to a `String` can't fail.
         let _: fmt::Result = match field.name() {
             "plugin" => {
-                self.plugin = Some(format!("{value:?}"));
+                self.plugin = Some(PluginId::from(format!("{value:?}")));
                 Ok(())
             }
             "message" => write!(self.message, "{value:?}"),
