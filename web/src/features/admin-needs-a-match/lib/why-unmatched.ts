@@ -1,5 +1,5 @@
-import { withYear } from "@/components/unmatched-item";
 import { type UnmatchedItem, UnmatchedReason } from "@/gen/nama/v1/match_pb";
+import { withYear } from "@/shared/lib/unmatched-names";
 
 // "en-GB" for "A, B or C", without the serial comma, as the rest of the app writes lists.
 const titleList = new Intl.ListFormat("en-GB", { type: "disjunction" });

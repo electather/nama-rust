@@ -1,7 +1,7 @@
 import type { ErrorComponentProps } from "@tanstack/react-router";
 
-import { DeletedWhilePlaying } from "@/app/route-error/deleted-while-playing";
 import { RouteError } from "@/app/route-error/route-error";
+import { DeletedWhilePlaying } from "@/features/player/components/deleted-while-playing";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { refusalOf } from "@/shared/lib/forms";
 

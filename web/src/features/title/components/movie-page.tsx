@@ -9,8 +9,8 @@ import { TitlePage } from "@/features/title/components/title-page";
 import { useMovie } from "@/features/title/data/use-movie";
 import { movieBadges } from "@/features/title/lib/movie-badges";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
-import { versionToPlay } from "@/lib/browse";
 import { runtimeOf, yearOf } from "@/shared/lib/title-facts";
+import { versionToPlay } from "@/shared/lib/version-to-play";
 
 /**
  * A Movie of a Library: its Title Logo over its backdrop, its facts, Play or Resume with a choice

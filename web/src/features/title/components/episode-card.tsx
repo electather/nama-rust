@@ -1,7 +1,7 @@
 import { DeleteEpisode } from "@/features/title/components/delete-episode";
 import { EpisodeLink } from "@/features/title/components/episode-link";
+import { useSetPlayed } from "@/features/title/data/use-set-played";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
-import { useSetPlayed } from "@/lib/watch-state";
 import { PlayedIconButton } from "@/shared/components/watch-state/played-icon-button";
 
 /**

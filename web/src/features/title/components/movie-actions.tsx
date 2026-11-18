@@ -2,11 +2,11 @@ import { useNavigate, useRouteContext } from "@tanstack/react-router";
 
 import { CantDeleteMovie } from "@/features/title/components/cant-delete-movie";
 import { EditImages } from "@/features/title/components/edit-images";
+import { useSetPlayed } from "@/features/title/data/use-set-played";
 import { movieImages } from "@/features/title/lib/title-images";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { useSetPlayed } from "@/lib/watch-state";
 import { DeleteMedia } from "@/shared/components/delete-media/delete-media";
 import { PlayedButton } from "@/shared/components/watch-state/played-button";
 import { deletedSearch } from "@/shared/lib/deleted-search";
