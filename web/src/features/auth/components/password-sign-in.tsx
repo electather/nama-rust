@@ -1,12 +1,12 @@
-import { Code } from "@connectrpc/connect";
-import { useMutation, useQuery } from "@connectrpc/connect-query";
 import type { ReactNode } from "react";
 
-import { ServerService } from "@/gen/nama/v1/server_pb";
-import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
+import { useSignIn } from "@/features/auth/data/use-sign-in";
+import { signInErrors } from "@/features/auth/lib/sign-in-errors";
+import { SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
 import { FormField } from "@/shared/components/form-field/form-field";
 import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
-import { type FormErrors, formText, refusal } from "@/shared/lib/forms";
+import { useServerName } from "@/shared/hooks/use-server-name";
+import { formText } from "@/shared/lib/forms";
 
 /** Signing this browser in with a username and password. */
 export function PasswordSignIn({
@@ -18,13 +18,13 @@ export function PasswordSignIn({
   /** Another way to sign in instead. */
   footer: ReactNode;
 }) {
-  const server = useQuery(ServerService.method.getServerInfo);
-  const signIn = useMutation(SignInService.method.signIn, { onSuccess: onSignedIn });
+  const serverName = useServerName();
+  const signIn = useSignIn(onSignedIn);
   const errors = signIn.error ? signInErrors(signIn.error) : {};
 
   return (
     <SignInLayout
-      heading={server.data ? `Sign in to ${server.data.name}` : "Sign in"}
+      heading={serverName === undefined ? "Sign in" : `Sign in to ${serverName}`}
       intro="Sign in with the username and password you were given for this Server."
       footer={footer}
       action={signIn.isPending ? "Signing in…" : "Sign in"}
@@ -48,11 +48,4 @@ export function PasswordSignIn({
       />
     </SignInLayout>
   );
-}
-
-function signInErrors(error: unknown): FormErrors {
-  return refusal(error, "sign in", {
-    // The Server doesn’t say whether it was the username or the password, so neither do we.
-    [Code.Unauthenticated]: { password: "That username and password don’t match." },
-  });
 }

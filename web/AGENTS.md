@@ -8,7 +8,6 @@
 - **Logical properties.** Use `ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`, never `ml-`/`mr-`/`pl-`/`pr-`/`left-`/`right-`, so right-to-left languages can be added later.
 - **Imports go one way.** `src/gen/` and the shadcn components import nothing from the app, and only the router imports a route file. `src/AGENTS.md`, "Layers", has the rest. Fallow enforces it.
 - **Read `src/AGENTS.md` before you add or move a file under `src/`.** It holds the feature layout and the rules for its folders.
-- **One person's cache.** Every flow that changes who is signed in (signing in, signing out, setting up) clears the query cache, so the next person sees only their own data.
 - **Read refusals by reason.** Choose a field or a reaction from the `Refusal` detail's `reason` and `field`, never from the message, which is only for showing.
 - **Sensitive changes ask "Confirm it’s you".** Call an RPC that needs Recent Authentication (`crates/nama-server/AGENTS.md`) with `useSensitiveMutation`, never connect-query's `useMutation`. `web/README.md` says how it works.
 - **Spans carry ids, not words.** A Diagnostics span's name and attributes hold only ids, counts, sizes, durations and outcomes, never a title, file path, name, IP address, search text or an error's message, since the Hub forwards them as they are (ADR 0054). Name a page by its route id, not its URL.

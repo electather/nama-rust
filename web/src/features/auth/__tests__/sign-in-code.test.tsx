@@ -5,9 +5,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { SignInCodeStatus } from "@/gen/nama/v1/sign_in_pb";
-
-import { fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
-import { confirmItsYou, recentAuthenticationRequired, refused } from "./test-refusal";
+import { fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
+import { confirmItsYou, recentAuthenticationRequired, refused } from "@/test-refusal";
 
 beforeEach(() => {
   // Polling waits seconds between tries; the tests move the clock on instead.
@@ -25,7 +24,9 @@ async function getCode() {
 }
 
 async function nextPoll() {
-  await act(() => vi.advanceTimersByTimeAsync(5000));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
 }
 
 /** A signed-out Server showing "ABCD-EFGH" for "Living room TV", until `approve()` is called. */
@@ -58,7 +59,7 @@ test("once the code is approved, polling signs the browser in", async () => {
 
   await getCode();
   await expect(screen.findByText("ABCD-EFGH")).resolves.toBeDefined();
-  expect(screen.getByText(`${window.location.origin}/code`)).toBeDefined();
+  expect(screen.getByText(`${globalThis.location.origin}/code`)).toBeDefined();
 
   await nextPoll();
   approve();
@@ -77,7 +78,8 @@ function decodeQr(svg: Element) {
   const scale = 4;
   const width = modules * scale;
   const rgba = new Uint8ClampedArray(width * width * 4).fill(255);
-  for (const [, x, y, length] of darkRuns.matchAll(/M(\d+)[ ,](\d+) ?h(\d+)/gu)) {
+  for (const { groups } of darkRuns.matchAll(/M(?<x>\d+)[ ,](?<y>\d+) ?h(?<length>\d+)/gu)) {
+    const { x = "0", y = "0", length = "0" } = groups ?? {};
     for (let px = Number(x) * scale; px < (Number(x) + Number(length)) * scale; px += 1) {
       for (let py = Number(y) * scale; py < (Number(y) + 1) * scale; py += 1) {
         rgba.fill(0, (py * width + px) * 4, (py * width + px) * 4 + 3);
@@ -92,7 +94,7 @@ test("the code shows a QR code that opens it at /code on a phone", async () => {
 
   await getCode();
   const qr = await screen.findByRole("img", { name: /Scan it with your phone/u });
-  expect(decodeQr(qr)).toBe(`${window.location.origin}/code?code=ABCD-EFGH`);
+  expect(decodeQr(qr)).toBe(`${globalThis.location.origin}/code?code=ABCD-EFGH`);
 });
 
 /** A Server whose first code, "ABCD-EFGH", has expired, and whose next is "JKMN-PQRS". */
@@ -202,11 +204,11 @@ test("looking up a code names the Device before it's approved", async () => {
 
   await lookUp("abcdefgh");
   await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
-  expect(approved).toEqual([]);
+  expect(approved).toStrictEqual([]);
 
   fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
   await expect(screen.findByText(/is signed in as you/u)).resolves.toBeDefined();
-  expect(approved).toEqual(["abcdefgh"]);
+  expect(approved).toStrictEqual(["abcdefgh"]);
 });
 
 test("a wrong code shows a plain error", async () => {
@@ -258,10 +260,11 @@ test("opening a scanned code looks it up, ready to approve", async () => {
   await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
   await expect(screen.findByText(/is signed in as you/u)).resolves.toBeDefined();
-  expect(approved).toEqual(["abcdefgh"]);
+  expect(approved).toStrictEqual(["abcdefgh"]);
 
   fireEvent.click(screen.getByRole("button", { name: "Sign in another Device" }));
-  expect((await screen.findByLabelText<HTMLInputElement>("Sign-in Code")).value).toBe("");
+  const field = await screen.findByLabelText<HTMLInputElement>("Sign-in Code");
+  expect(field.value).toBe("");
 });
 
 test("a scanned code that doesn't match shows it with a plain error", async () => {

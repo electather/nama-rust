@@ -30,7 +30,6 @@
           "src/access.test.tsx",
           "src/browse.test.tsx",
           "src/choose-quality.test.tsx",
-          "src/components/code-sign-in.tsx",
           "src/components/delete-media.tsx",
           "src/components/edit-images.tsx",
           "src/components/image-store.tsx",
@@ -66,7 +65,6 @@
           "src/requests.test.tsx",
           "src/routes/_member/libraries/$libraryId/shows/$showId/index.tsx",
           "src/season-picker.test.tsx",
-          "src/sign-in-code.test.tsx",
           "src/test-plugins.tsx",
           "src/title-page.test.tsx",
           "src/watch-state.test.tsx",
@@ -84,6 +82,7 @@
       { "name": "shared-components", "patterns": ["src/shared/components/**"] },
       { "name": "shared-hooks", "patterns": ["src/shared/hooks/**"] },
       { "name": "shared-lib", "patterns": ["src/shared/lib/**"] },
+      { "name": "auth", "patterns": ["src/features/auth/**"] },
       { "name": "admin-plugins", "patterns": ["src/features/admin-plugins/**"] },
       { "name": "admin-libraries", "patterns": ["src/features/admin-libraries/**"] },
       { "name": "admin-needs-a-match", "patterns": ["src/features/admin-needs-a-match/**"] },
@@ -117,6 +116,18 @@
       {
         "from": "shared-components",
         "allow": [
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+          "legacy-components",
+          "legacy-lib",
+        ],
+      },
+      {
+        "from": "auth",
+        "allow": [
+          "auth",
           "shared-components",
           "shared-ui",
           "shared-hooks",
@@ -214,6 +225,7 @@
         "from": "routes",
         "allow": [
           "app",
+          "auth",
           "admin-libraries",
           "admin-plugins",
           "admin-needs-a-match",
