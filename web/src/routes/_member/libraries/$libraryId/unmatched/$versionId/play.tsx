@@ -31,7 +31,7 @@ function PlayUnmatchedVersion() {
   const { item, version } = data;
   const params = Route.useParams();
   if (!item || !version) return <NotFound />;
-  // Matched since, it holds no Unmatched Item, and its progress is saved.
+  // Gone since means Matched, so its progress is saved, or its Version removed, which plays no more.
   const matched = isGone(error);
   return (
     <Player

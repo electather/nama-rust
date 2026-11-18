@@ -17,7 +17,7 @@ use crate::{
     browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
     library::{
         FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie, Listing,
-        Role, Slot, TitleSort, WatchState, Watched, artwork_url,
+        Role, Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
 };
@@ -299,11 +299,7 @@ impl BrowseService for BrowseServiceHandler {
             .await;
         let (unmatched, page) = listed.map_err(refused(Fields::LIBRARY))?;
         Response::ok(ListUnmatchedResponse {
-            items: (unmatched.into_iter())
-                .map(|unmatched| {
-                    unmatched_summary(unmatched.id, unmatched.version_id, unmatched.item)
-                })
-                .collect(),
+            items: (unmatched.into_iter()).map(unmatched_summary).collect(),
             page: page.into(),
             ..Default::default()
         })
@@ -322,7 +318,7 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         Response::ok(GetUnmatchedVersionResponse {
-            item: unmatched_summary(unmatched.id, unmatched.version_id, unmatched.item).into(),
+            item: unmatched_summary(unmatched).into(),
             version: version_to_proto(&version).into(),
             ..Default::default()
         })
@@ -589,14 +585,10 @@ fn episode_to_proto(
     }
 }
 
-/// An Unmatched Item as any User sees it: its id `item_id`, the Version `version_id` that holds it
-/// and what its file's name was parsed as, `item`, never where the file is (ADR 0062).
-pub(super) fn unmatched_summary(
-    item_id: i64,
-    version_id: i64,
-    item: Item,
-) -> proto::UnmatchedItemSummary {
-    let (kind, title, year, numbers) = match item {
+/// `unmatched` as any User sees it: its ids and what its file's name was parsed as, never where the
+/// file is (ADR 0062).
+pub(super) fn unmatched_summary(unmatched: Unmatched) -> proto::UnmatchedItemSummary {
+    let (kind, title, year, numbers) = match unmatched.item {
         Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
         Item::Episode {
             show,
@@ -612,8 +604,8 @@ pub(super) fn unmatched_summary(
         ),
     };
     proto::UnmatchedItemSummary {
-        item_id,
-        version_id,
+        item_id: unmatched.id,
+        version_id: unmatched.version_id,
         kind: kind.into(),
         title,
         year: year.and_then(int32),

@@ -110,6 +110,20 @@ test("an Unmatched Item says its progress isn’t saved, without Match it for a 
   expect(screen.queryByRole("button", { name: "Match it" })).toBeNull();
 });
 
+test("the note goes once the Item is Matched elsewhere while it plays", async () => {
+  const server = alienUnmatched([]);
+  openApp("/libraries/1/unmatched/7/play", server.transport);
+  await screen.findByText("Not matched, so progress isn’t saved.");
+
+  server.matches();
+  server.tellsTheApp();
+
+  await waitFor(() => {
+    expect(screen.queryByText("Not matched, so progress isn’t saved.")).toBeNull();
+  });
+  expect(screen.getByLabelText("Alien (1979)")).toBeDefined();
+});
+
 test("Match it, for an Admin, opens the Item's Match flow, and the note goes once it's Matched", async () => {
   const server = alienUnmatched([], admin);
   openApp("/libraries/1/unmatched/7/play", server.transport);
