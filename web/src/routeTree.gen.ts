@@ -18,6 +18,7 @@ import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSearchRouteImport } from './routes/_member/search'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as MemberMoviesMovieIdRouteImport } from './routes/_member/movies/$movieId'
 import { Route as MemberRequestsIndexRouteImport } from './routes/_member/requests/index'
 import { Route as MemberRequestsRequestIdRouteImport } from './routes/_member/requests/$requestId'
@@ -78,6 +79,11 @@ const MemberSettingsRoute = MemberSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => MemberRoute,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const MemberMoviesMovieIdRoute = MemberMoviesMovieIdRouteImport.update({
   id: '/movies/$movieId',
@@ -186,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/code': typeof MemberCodeRoute
   '/search': typeof MemberSearchRoute
   '/settings': typeof MemberSettingsRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
   '/requests/$requestId': typeof MemberRequestsRequestIdRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
@@ -212,6 +219,7 @@ export interface FileRoutesByTo {
   '/code': typeof MemberCodeRoute
   '/search': typeof MemberSearchRoute
   '/settings': typeof MemberSettingsRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
   '/requests/$requestId': typeof MemberRequestsRequestIdRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/_member/code': typeof MemberCodeRoute
   '/_member/search': typeof MemberSearchRoute
   '/_member/settings': typeof MemberSettingsRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/_member/': typeof MemberIndexRoute
   '/_member/movies/$movieId': typeof MemberMoviesMovieIdRoute
   '/_member/requests/$requestId': typeof MemberRequestsRequestIdRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/code'
     | '/search'
     | '/settings'
+    | '/invite/$token'
     | '/movies/$movieId'
     | '/requests/$requestId'
     | '/shows/$showId'
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/code'
     | '/search'
     | '/settings'
+    | '/invite/$token'
     | '/movies/$movieId'
     | '/requests/$requestId'
     | '/shows/$showId'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/_member/code'
     | '/_member/search'
     | '/_member/settings'
+    | '/invite/$token'
     | '/_member/'
     | '/_member/movies/$movieId'
     | '/_member/requests/$requestId'
@@ -346,6 +358,7 @@ export interface RootRouteChildren {
   MemberRoute: typeof MemberRouteWithChildren
   SetupRoute: typeof SetupRoute
   SignInRoute: typeof SignInRoute
+  InviteTokenRoute: typeof InviteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -412,6 +425,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings'
       preLoaderRoute: typeof MemberSettingsRouteImport
       parentRoute: typeof MemberRoute
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_member/movies/$movieId': {
       id: '/_member/movies/$movieId'
@@ -609,6 +629,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemberRoute: MemberRouteWithChildren,
   SetupRoute: SetupRoute,
   SignInRoute: SignInRoute,
+  InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

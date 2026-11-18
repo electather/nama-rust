@@ -342,6 +342,8 @@ pub mod __buffa {
         reg.register_json_any(super::__LOOK_UP_SIGN_IN_CODE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__APPROVE_SIGN_IN_CODE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__APPROVE_SIGN_IN_CODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__ACCEPT_INVITE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__ACCEPT_INVITE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__POLL_SIGN_IN_CODE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__POLL_SIGN_IN_CODE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CREATE_USER_REQUEST_JSON_ANY);
@@ -364,6 +366,13 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_DEFAULT_PERMISSIONS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_DEFAULT_PERMISSIONS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_DEFAULT_PERMISSIONS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__INVITE_JSON_ANY);
+        reg.register_json_any(super::__CREATE_INVITE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_INVITE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_INVITES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_INVITES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REVOKE_INVITE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REVOKE_INVITE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGIN_CONNECTIONS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGIN_CONNECTIONS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_CONNECTION_JSON_ANY);
@@ -1466,6 +1475,14 @@ pub use self::__buffa::view::ApproveSignInCodeResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ApproveSignInCodeResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::AcceptInviteRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::AcceptInviteRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AcceptInviteResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::AcceptInviteResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::PollSignInCodeRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::PollSignInCodeRequestOwnedView;
@@ -1553,6 +1570,34 @@ pub use self::__buffa::view::SetDefaultPermissionsRequestOwnedView;
 pub use self::__buffa::view::SetDefaultPermissionsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetDefaultPermissionsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::InviteView;
+#[doc(inline)]
+pub use self::__buffa::view::InviteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateInviteRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateInviteRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateInviteResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateInviteResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListInvitesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListInvitesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListInvitesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListInvitesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RevokeInviteRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RevokeInviteRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RevokeInviteResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RevokeInviteResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginConnectionsRequestView;
 #[doc(inline)]

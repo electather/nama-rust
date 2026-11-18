@@ -3,23 +3,24 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use buffa::EnumValue;
+use buffa::{EnumValue, Enumeration as _};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
     Manifest, PluginId,
     settings::{SettingKind, SettingValue, Settings},
 };
 use nama_proto::nama::v1::{
-    self as proto, ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest,
-    CreateUserResponse, DeletePersonalSettingsRequest, DeletePersonalSettingsResponse,
-    DeletePluginConnectionRequest, DeletePluginConnectionResponse, DeleteUserRequest,
-    DeleteUserResponse, GetDefaultPermissionsRequest, GetDefaultPermissionsResponse,
-    ListDevicesRequest, ListDevicesResponse, ListNotificationPreferencesRequest,
-    ListNotificationPreferencesResponse, ListPersonalSettingsRequest, ListPersonalSettingsResponse,
-    ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListUsersRequest,
-    ListUsersResponse, NotificationKind, NotificationPreference, Permission, PluginConnection,
-    PluginConnectionState, RefusalReason, ResetPasswordRequest, ResetPasswordResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, SetDefaultPermissionsRequest,
+    self as proto, ChangePasswordRequest, ChangePasswordResponse, CreateInviteRequest,
+    CreateInviteResponse, CreateUserRequest, CreateUserResponse, DeletePersonalSettingsRequest,
+    DeletePersonalSettingsResponse, DeletePluginConnectionRequest, DeletePluginConnectionResponse,
+    DeleteUserRequest, DeleteUserResponse, GetDefaultPermissionsRequest,
+    GetDefaultPermissionsResponse, ListDevicesRequest, ListDevicesResponse, ListInvitesRequest,
+    ListInvitesResponse, ListNotificationPreferencesRequest, ListNotificationPreferencesResponse,
+    ListPersonalSettingsRequest, ListPersonalSettingsResponse, ListPluginConnectionsRequest,
+    ListPluginConnectionsResponse, ListUsersRequest, ListUsersResponse, NotificationKind,
+    NotificationPreference, Permission, PluginConnection, PluginConnectionState, RefusalReason,
+    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
     SetDefaultPermissionsResponse, SetNotificationPreferenceRequest,
     SetNotificationPreferenceResponse, SetPermissionsRequest, SetPermissionsResponse,
     StartPluginConnectionRequest, StartPluginConnectionResponse, UpdatePersonalSettingsRequest,
@@ -33,6 +34,7 @@ use crate::{
     library::{CustomImageUrls, CustomImages},
     plugin_settings::{PluginSettings, StoredPlugin},
     plugins::Listed,
+    server_settings::ServerUrl,
     users::{
         self, Caller, Permissions, Users, delete_personal_settings, notification_preferences_of,
         personal_settings_of, replace_personal_settings, set_notification_preference,
@@ -62,6 +64,8 @@ pub(super) struct UserServiceHandler {
     pub(super) plugin_logos: PluginLogos,
     /// Where the Personal settings are stored.
     pub(super) db: Arc<Database>,
+    /// What Invites' links start with.
+    pub(super) server_url: ServerUrl,
 }
 
 #[expect(
@@ -230,6 +234,53 @@ impl UserService for UserServiceHandler {
             .set_default_permissions(&caller(&ctx)?.user, permissions)
             .await?;
         Response::ok(SetDefaultPermissionsResponse::default())
+    }
+
+    async fn create_invite(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, CreateInviteRequest>,
+    ) -> ServiceResult<CreateInviteResponse> {
+        let request = request.to_owned_message();
+        let permissions = permissions_from_proto(request.permissions)?;
+        // Read before the Invite is made, so one made always gets its link.
+        let link_base = self.server_url.link("invite").ok_or_else(|| {
+            refuse(
+                RefusalReason::REFUSAL_REASON_SERVER_URL_REQUIRED,
+                "set the Server URL first, so an Invite has a link",
+            )
+        })?;
+        let created = self
+            .users
+            .create_invite(&caller(&ctx)?.user, &request.note, permissions)
+            .await?;
+        Response::ok(CreateInviteResponse {
+            invite: invite_to_proto(created.invite).into(),
+            url: format!("{link_base}/{}", created.token),
+            ..Default::default()
+        })
+    }
+
+    async fn list_invites(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, ListInvitesRequest>,
+    ) -> ServiceResult<ListInvitesResponse> {
+        let invites = self.users.invites().await.map_err(database_failed)?;
+        Response::ok(ListInvitesResponse {
+            invites: invites.into_iter().map(invite_to_proto).collect(),
+            server_url_set: self.server_url.link("invite").is_some(),
+            ..Default::default()
+        })
+    }
+
+    async fn revoke_invite(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, RevokeInviteRequest>,
+    ) -> ServiceResult<RevokeInviteResponse> {
+        self.users.revoke_invite(request.invite_id).await?;
+        Response::ok(RevokeInviteResponse::default())
     }
 
     async fn list_plugin_connections(
@@ -591,6 +642,18 @@ pub(super) fn user_to_proto(user: users::User) -> proto::User {
     }
 }
 
+fn invite_to_proto(invite: users::Invite) -> proto::Invite {
+    proto::Invite {
+        id: invite.id,
+        note: invite.note,
+        creator_name: invite.creator_name,
+        permissions: permissions_to_proto(invite.permissions),
+        created_at: invite.created_at,
+        expires_at: invite.expires_at,
+        ..Default::default()
+    }
+}
+
 /// A Device as clients see it, where `is_current` says whether it is the one calling.
 pub(super) fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
     proto::Device {
@@ -634,6 +697,15 @@ impl From<users::Error> for ConnectError {
             }
             users::Error::NoSuchDevice => {
                 refuse(R::REFUSAL_REASON_DEVICE_NOT_FOUND, message).field("device_id")
+            }
+            users::Error::InviteNotFound { field } => {
+                refuse(R::REFUSAL_REASON_INVITE_NOT_FOUND, message).field(field)
+            }
+            // Only making an Invite takes Permissions to grant.
+            users::Error::NotGrantable(permission) => {
+                refuse(R::REFUSAL_REASON_PERMISSION_REQUIRED, message)
+                    .field("permissions")
+                    .param("permission", &permission.proto_name())
             }
             // A polled Sign-in Code names no User.
             users::Error::ApprovingUserDeleted => refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message),

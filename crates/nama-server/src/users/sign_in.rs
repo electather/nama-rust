@@ -1,7 +1,8 @@
 //! Sign-in attempts, Setup included: one place that names the signing-in Device, lets the attempt
 //! past the sign-in limits, checks its proof or the Setup Code and has [`Users`] issue the session,
-//! in that order. Sign-in Codes go through it too. Reauthenticating follows the same order, giving
-//! an existing Device Recent Authentication in place of a session, and signing out ends one.
+//! in that order. Sign-in Codes and accepting Invites go through it too. Reauthenticating follows
+//! the same order, giving an existing Device Recent Authentication in place of a session, and
+//! signing out ends one.
 //!
 //! Guessable requests go through it (the crate's `AGENTS.md`, "Guessable requests").
 
@@ -147,6 +148,31 @@ impl SignIn {
         Ok(self
             .users
             .sign_in_as(Proved::Method { user, method }, device)
+            .await?)
+    }
+
+    /// Creates a User named `name` with `password` from the Invite whose link carries `token`, and
+    /// signs `device` in as them, at `now`. A token of no working Invite counts as a failed attempt
+    /// from the client IP; a name or password refused once the token checked out doesn't.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is its own fact about the attempt, and a struct would only rename them"
+    )]
+    pub(crate) async fn accept_invite(
+        &self,
+        token: &str,
+        name: &str,
+        password: &str,
+        device: NewDevice,
+        now: Instant,
+    ) -> Result<SignedIn, Error> {
+        let device = named(device)?;
+        let attempt = self.limits.admit(device.ip_address, None, now)?;
+        self.users.ensure_invite_works(&attempt, token).await?;
+        self.limits.succeeded(&attempt);
+        Ok(self
+            .users
+            .accept_invite(token, name, password, device)
             .await?)
     }
 

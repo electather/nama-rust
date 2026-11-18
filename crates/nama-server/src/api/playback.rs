@@ -22,7 +22,7 @@ use crate::{
     server_settings::{PlaybackLimit, PlaybackSettings},
 };
 
-use super::{caller, client_ip, database_failed, refuse, unknown_enum_value, version_not_found};
+use super::{caller, client_ip, database_failed, refuse, unknown_enum_value};
 
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 pub(super) struct PlaybackServiceHandler {
@@ -487,4 +487,14 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
             .collect(),
         ..Default::default()
     }
+}
+
+/// The refusal of a request whose `version_id` names no Version.
+fn version_not_found() -> ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+        "there is no such Version",
+    )
+    .field("version_id")
+    .into()
 }

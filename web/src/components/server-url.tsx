@@ -11,6 +11,7 @@ import { FormEnd, FormField } from "@/components/form-field";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { formText, onSubmitted, refusal, serverMessage } from "@/lib/forms";
+import { invitesKey } from "@/lib/users";
 
 const serverSettingsKey = createConnectQueryKey({
   schema: ServerService.method.getServerSettings,
@@ -25,12 +26,17 @@ export function serverSettingsQuery(transport: Transport) {
   };
 }
 
-/** The form a User who manages settings sets the Server URL with, which Requests are linked at. */
+/** The form a User who manages settings sets the Server URL with, which Requests and Invites link to. */
 export function ServerUrl() {
   const queryClient = useQueryClient();
   const { settings } = useSuspenseQuery(ServerService.method.getServerSettings, {}).data;
   const update = useMutation(ServerService.method.updateServerSettings, {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: serverSettingsKey }),
+    onSuccess: () =>
+      // The Invites say whether one can be made, which takes a Server URL.
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: serverSettingsKey }),
+        queryClient.invalidateQueries({ queryKey: invitesKey }),
+      ]),
   });
   const errors = serverUrlErrors(update.error);
 
@@ -50,7 +56,7 @@ export function ServerUrl() {
         placeholder="https://nama.example.com"
         required={false}
         defaultValue={settings?.url}
-        hint="The address people use to reach this Server. Messages about Requests, such as Telegram’s, link to them there. Leave it empty for no links."
+        hint="The address people use to reach this Server. Messages about Requests, such as Telegram’s, link to them there, and Invites’ links start with it. Leave it empty for no links, and no Invites."
         error={errors.serverUrl}
       />
       <FormEnd

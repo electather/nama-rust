@@ -18,6 +18,12 @@ export const defaultPermissionsKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
+/** The query key of the pending Invites, to refetch after making or revoking one. */
+export const invitesKey = createConnectQueryKey({
+  schema: UserService.method.listInvites,
+  cardinality: "finite",
+});
+
 /** The query key of every User's Devices, to refetch after a change that signs some out. */
 export const devicesKey = createConnectQueryKey({
   schema: UserService.method.listDevices,
@@ -47,6 +53,22 @@ export function createUserErrors(error: unknown): FormErrors {
     [Code.AlreadyExists]: { name: "Another User already has that name." },
     [Code.InvalidArgument]: refusedFieldErrors(error, ["name", "password"]),
   });
+}
+
+/** Why making an Invite was refused, if it was, next to the field it's about. */
+export function createInviteErrors(error: unknown): FormErrors {
+  if (error === null) return {};
+  return refusal(error, "make the Invite", {
+    [Code.InvalidArgument]: refusedFieldErrors(error, ["note"]),
+  });
+}
+
+/** Why revoking an Invite was refused, as a sentence. */
+export function revokeInviteRefusal(error: unknown) {
+  return refusal(error, "revoke this Invite", {
+    // Accepted or revoked meanwhile, it's no longer pending anyway.
+    [Code.NotFound]: { form: "This Invite was already used or revoked." },
+  }).form;
 }
 
 /** Why the Server refused to change your own password, next to the field it's about. */

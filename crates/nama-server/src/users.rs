@@ -5,6 +5,8 @@
 
 use std::{net::IpAddr, ops::RangeInclusive, sync::Arc};
 
+use buffa::Enumeration as _;
+use nama_proto::nama::v1::Permission;
 use sha2::{Digest, Sha256};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::sync::broadcast;
@@ -17,6 +19,7 @@ use crate::{
 
 mod codes;
 mod device_names;
+mod invites;
 mod managing;
 mod names;
 mod notification_preferences;
@@ -31,6 +34,7 @@ mod sign_in_codes;
 
 pub use codes::SetupCode;
 pub(crate) use codes::random_secret;
+pub(crate) use invites::Invite;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 use names::checked_name;
 pub(crate) use names::name_key;
@@ -248,6 +252,15 @@ pub enum Error {
     /// The User has no Device with this ID.
     #[error("that User has no such Device")]
     NoSuchDevice,
+    /// No working Invite has the token or ID given in the request field `field`.
+    #[error("that Invite was used, revoked or has expired")]
+    InviteNotFound {
+        /// The request field it is about, as clients name it.
+        field: &'static str,
+    },
+    /// An Invite can't grant this Permission: it's `PERMISSION_ADMIN`, or its creator lacks it.
+    #[error("an Invite can't grant {}", .0.proto_name())]
+    NotGrantable(Permission),
     /// The User who approved a Sign-in Code was deleted before it signed its Device in.
     #[error("the User who approved this code no longer exists")]
     ApprovingUserDeleted,

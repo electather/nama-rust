@@ -3,7 +3,7 @@
 use nama_proto::nama::v1::Permission;
 use sqlx::SqliteConnection;
 
-use super::{Error, Permissions, User, Users, until_heard};
+use super::{Error, Permissions, User, Users, invites::delete_invites_by, until_heard};
 use crate::db::now;
 
 impl Users {
@@ -145,6 +145,9 @@ async fn update_permissions(
     .await?;
     if updated.rows_affected() == 0 {
         return Err(Error::NoSuchUser);
+    }
+    if !permissions.allow(Permission::ManageUsers) {
+        delete_invites_by(conn, user).await?;
     }
     ensure_an_admin_left(conn).await
 }

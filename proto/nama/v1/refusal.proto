@@ -25,8 +25,9 @@ enum RefusalReason {
 
   // `unauthenticated`: the call needs a signed-in Device.
   REFUSAL_REASON_SIGN_IN_REQUIRED = 1;
-  // `permission_denied`: the call needs a Permission the caller lacks. Params: `permission`, the
-  // `Permission` value's name (`PERMISSION_MANAGE_USERS`).
+  // `permission_denied`: the call needs a Permission the caller lacks, or asks an Invite for one it
+  // never grants, such as `PERMISSION_ADMIN`. Params: `permission`, the `Permission` value's name
+  // (`PERMISSION_MANAGE_USERS`).
   REFUSAL_REASON_PERMISSION_REQUIRED = 2;
   // `unauthenticated`: no User has this name and password. Which of the two is wrong isn't said.
   REFUSAL_REASON_WRONG_NAME_OR_PASSWORD = 3;
@@ -286,4 +287,9 @@ enum RefusalReason {
   // deleting it, so the images stay where they are. The message says what failed. `field` is
   // `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
   REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79;
+  // `not_found`: no Invite works with the token or ID given: it was used, revoked or expired, or
+  // its creator was deleted or lost `PERMISSION_MANAGE_USERS`. `field` is `token` or `invite_id`.
+  REFUSAL_REASON_INVITE_NOT_FOUND = 87;
+  // `failed_precondition`: the Server has no Server URL, so an Invite would have no link.
+  REFUSAL_REASON_SERVER_URL_REQUIRED = 88;
 }
