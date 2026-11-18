@@ -3,8 +3,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ListUnmatchedItemsRequest, MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
-
-import { admin, fakeServer, openApp } from "./test-app";
+import { admin, fakeServer, openApp } from "@/test-app";
 
 afterEach(cleanup);
 
@@ -43,5 +42,5 @@ test("needs a Match lists a Library's next page of Items with Show more", async 
   await expect(screen.findByText("/srv/films/Heat.mkv")).resolves.toBeDefined();
   expect(screen.getByText("/srv/films/Alien.mkv")).toBeDefined();
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
-  expect(asked.map((request) => request.filter?.libraryId)).toEqual([films.id, films.id]);
+  expect(asked.map((request) => request.filter?.libraryId)).toStrictEqual([films.id, films.id]);
 });

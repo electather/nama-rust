@@ -3,74 +3,22 @@ import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Play } from "lucide-react";
-import { useId, useState } from "react";
+import { useState } from "react";
 
 import {
   MatchService,
   type SetMatchResponse,
   type TitleCandidate,
-  TitleKind,
+  type TitleKind,
   type UnmatchedItem,
-  UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
 import { browseKey } from "@/lib/browse";
-// oxlint-disable-next-line import/max-dependencies -- an Unmatched Item's row both plays it and searches for and sets its Match
+// oxlint-disable-next-line import/max-dependencies -- an Unmatched Item is played, searched for and Matched from here
 import { unmatchedKey } from "@/lib/events";
 import { FormField } from "@/shared/components/form-field/form-field";
 import { formText, onSubmitted, refusal } from "@/shared/lib/forms";
 import { episodeName } from "@/shared/lib/title-facts";
 import { Button, buttonVariants } from "@/shared/ui/button";
-
-/**
- * An Unmatched Item: what its file's name was parsed as, and the file. Opening it searches the
- * title source for its title, to Match it by hand.
- */
-export function UnmatchedRow({
-  item,
-  libraryId,
-  open,
-  onToggle,
-}: {
-  item: UnmatchedItem;
-  libraryId: bigint;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const panel = useId();
-  const parsed = parsedAs(item);
-  const action = open ? "Close" : "Find a Match";
-  return (
-    <li className="border-b p-3 last:border-b-0">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <div className="flex min-w-0 flex-1 basis-64 flex-col">
-          <span className="font-medium">
-            {parsed}
-            <span className="ms-2 text-sm font-normal text-muted-foreground">
-              {item.kind === TitleKind.SHOW ? "Episode" : "Movie"}
-            </span>
-          </span>
-          <span className="text-sm empty:hidden">{whyUnmatched(item)}</span>
-          <span className="text-sm wrap-anywhere text-muted-foreground">{item.path}</span>
-        </div>
-        <PlayUnmatched libraryId={libraryId} versionId={item.versionId} name={parsed} />
-        <Button
-          variant="ghost"
-          aria-label={`${action} for ${parsed}`}
-          aria-expanded={open}
-          aria-controls={panel}
-          onClick={onToggle}
-        >
-          {action}
-        </Button>
-      </div>
-      {open && (
-        <div id={panel} className="pt-4 pb-3">
-          <FindAMatch item={item} libraryId={libraryId} />
-        </div>
-      )}
-    </li>
-  );
-}
 
 /** Plays the Version `versionId` of the Library `libraryId`, which holds the Unmatched Item `name`. */
 export function PlayUnmatched({
@@ -107,30 +55,8 @@ export function parsedAs(item: Pick<UnmatchedItem, "title" | "year" | "season" |
   return `${title} · ${episodeName(item.season, item.episode, "full")}`;
 }
 
-// "en-GB" for "A, B or C", without the serial comma, as the rest of the app writes lists.
-const titleList = new Intl.ListFormat("en-GB", { type: "disjunction" });
-
-/** Why `item` is Unmatched, which says how to fix it, or "" if not known. */
-function whyUnmatched({ reason, tiedTitles }: UnmatchedItem) {
-  if (reason !== UnmatchedReason.AMBIGUOUS) {
-    return unmatchedBecause[reason] ?? "";
-  }
-  const tied = tiedTitles.map((title) => withYear(title.title, title.year));
-  return `More than one title fits: ${titleList.format(tied)}.`;
-}
-
-const unmatchedBecause: Partial<Record<UnmatchedReason, string>> = {
-  [UnmatchedReason.NO_TITLE_FITS]:
-    "No title fits its name. Renaming the file or adding an ID Hint may help.",
-  [UnmatchedReason.UNKNOWN_ID_HINT]: "Its ID Hint names no title.",
-  [UnmatchedReason.NOT_IN_SHOW]:
-    "Its Show has no such Episode. Matching it to another Show may help.",
-  [UnmatchedReason.CLEARED_BY_HAND]: "Unmatched by hand.",
-  [UnmatchedReason.NO_SEARCHING_SOURCE]:
-    "None of its Library’s title sources can search for titles. Once one can, the next scan tries again.",
-};
-
-function withYear(title: string, year: number | undefined) {
+/** `title`, followed by `year` in brackets if it's known, such as "Alien (1979)". */
+export function withYear(title: string, year: number | undefined) {
   return year === undefined ? title : `${title} (${year})`;
 }
 

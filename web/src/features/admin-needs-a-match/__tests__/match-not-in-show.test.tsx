@@ -9,8 +9,7 @@ import {
   type UnmatchedItemSchema,
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
-
-import { admin, fakeServer, openApp } from "./test-app";
+import { admin, fakeServer, openApp } from "@/test-app";
 
 afterEach(cleanup);
 
