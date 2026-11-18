@@ -9,8 +9,7 @@ import {
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { SortDirection } from "@/gen/nama/v1/page_pb";
-
-import { fakeServer, newUser, openApp } from "./test-app";
+import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(() => {
   cleanup();
@@ -32,7 +31,8 @@ function thousandMovies(asked: ListMoviesRequest[]) {
       listGenres: () => ({ genres: ["Crime", "Horror"] }),
       listMovies: (request) => {
         asked.push(request);
-        const first = Number(request.page?.token ?? "") || 0;
+        const token = Number(request.page?.token ?? "");
+        const first = Number.isNaN(token) ? 0 : token;
         const size = request.page?.size ?? 50;
         const count = Math.min(size, LIBRARY_SIZE - first);
         const movies = Array.from({ length: count }, (_, at) => {
@@ -52,14 +52,15 @@ function endAlwaysInView() {
   vi.stubGlobal(
     "IntersectionObserver",
     class {
-      seen: (entries: { isIntersecting: boolean }[]) => void;
-      constructor(seen: (entries: { isIntersecting: boolean }[]) => void) {
+      public seen: (entries: { isIntersecting: boolean }[]) => void;
+      public constructor(seen: (entries: { isIntersecting: boolean }[]) => void) {
         this.seen = seen;
       }
-      observe() {
+      public observe() {
         this.seen([{ isIntersecting: true }]);
       }
-      disconnect() {}
+      // oxlint-disable-next-line class-methods-use-this -- the stand-in watches nothing, so it has nothing to stop
+      public disconnect() {}
     },
   );
 }
@@ -79,7 +80,7 @@ test("the grid loads a 1,000-title Library page by page, keeping only the rows n
     expect(asked).toHaveLength(LIBRARY_SIZE / 100);
   });
 
-  expect(asked.map(({ page }) => page?.size)).toEqual(Array.from({ length: 10 }, () => 100));
+  expect(asked.map(({ page }) => page?.size)).toStrictEqual(Array.from({ length: 10 }, () => 100));
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   expect(document.querySelectorAll("li[aria-posinset]").length).toBeLessThan(100);
 });
@@ -123,7 +124,7 @@ test("choosing two genres asks for the titles with either", async () => {
   await screen.findByRole("button", { name: "Genre: Crime +1" });
 
   await waitFor(() => {
-    expect(asked.at(-1)?.filter?.genres).toEqual(["Crime", "Horror"]);
+    expect(asked.at(-1)?.filter?.genres).toStrictEqual(["Crime", "Horror"]);
   });
   expect(asked.at(-1)?.page?.token).toBe("");
 });
