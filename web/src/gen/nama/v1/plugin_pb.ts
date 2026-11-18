@@ -489,8 +489,8 @@ export type PluginLogLine = Message<"nama.v1.PluginLogLine"> & {
   level: PluginLogLevel;
 
   /**
-   * What it says, with the Plugin's secret settings blanked. A line over 2 KiB is cut there and
-   * ends ` [cut]`.
+   * What it says, with an Installed Plugin's secret settings blanked. A line over 2 KiB is cut
+   * there and ends ` [cut]`.
    *
    * @generated from field: string text = 3;
    */

@@ -114,18 +114,30 @@ fn kept_texts(plugin: &PluginId, log: impl FnOnce()) -> Vec<String> {
 }
 
 #[test]
-fn a_builtins_span_keeps_its_own_lines_but_not_the_servers() {
+fn a_builtins_span_keeps_its_own_crates_lines_but_not_the_servers_or_a_dependencys() {
     let plugin = PluginId::from_static("span-builtin");
     let kept = kept_texts(&plugin, || {
         let span = tracing::error_span!(target: PLUGIN_TARGET, "plugin", plugin = %plugin);
         span.in_scope(|| {
             tracing::info!(target: "nama_plugin_tmdb", "fetched");
             tracing::error!(plugin = %plugin, "the Store failed");
+            tracing::info!(target: "hyper_util::client::legacy", "connecting");
         });
         tracing::info!(target: "nama_plugin_tmdb", "outside its span");
     });
 
     assert_eq!(kept, ["fetched"]);
+}
+
+#[test]
+fn a_builtins_settings_check_span_keeps_none_of_its_lines() {
+    let plugin = PluginId::from_static("checked-builtin");
+    let kept = kept_texts(&plugin, || {
+        let span = tracing::error_span!(target: PLUGIN_TARGET, "check", plugin = %plugin);
+        span.in_scope(|| tracing::info!(target: "nama_plugin_tmdb", "checking"));
+    });
+
+    assert_eq!(kept, Vec::<String>::new());
 }
 
 #[test]

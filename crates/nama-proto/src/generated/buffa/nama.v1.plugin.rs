@@ -4081,8 +4081,8 @@ pub struct PluginLogLine {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub level: ::buffa::EnumValue<PluginLogLevel>,
-    /// What it says, with the Plugin's secret settings blanked. A line over 2 KiB is cut there and
-    /// ends ` [cut]`.
+    /// What it says, with an Installed Plugin's secret settings blanked. A line over 2 KiB is cut
+    /// there and ends ` [cut]`.
     ///
     /// Field 3: `text`
     #[serde(

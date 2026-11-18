@@ -434,7 +434,7 @@ impl Registry {
         let checked = check_fresh(id, &make, &secrets, &settings, |plugin, settings| {
             Some(plugin.settings_check()?.check(settings))
         });
-        let checked = checked.instrument(self.log_span(id)).await?;
+        let checked = checked.instrument(self.check_span(id)).await?;
         checked.ok_or_else(no_check)
     }
 
@@ -474,7 +474,7 @@ impl Registry {
         let checked = check_fresh(id, &make, &secrets, &asked, |plugin, (saved, values)| {
             Some(plugin.personal_settings_check()?.check(saved, values))
         });
-        checked.instrument(self.log_span(id)).await.map(drop)
+        checked.instrument(self.check_span(id)).await.map(drop)
     }
 
     /// The ids of the enabled Plugins, sorted.

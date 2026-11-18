@@ -6240,8 +6240,8 @@ pub struct PluginLogLineView<'a> {
     pub at_ms: i64,
     /// Field 2: `level`
     pub level: ::buffa::EnumValue<super::super::PluginLogLevel>,
-    /// What it says, with the Plugin's secret settings blanked. A line over 2 KiB is cut there and
-    /// ends ` [cut]`.
+    /// What it says, with an Installed Plugin's secret settings blanked. A line over 2 KiB is cut
+    /// there and ends ` [cut]`.
     ///
     /// Field 3: `text`
     pub text: &'a str,
@@ -6508,8 +6508,8 @@ impl PluginLogLineOwnedView {
     pub fn level(&self) -> ::buffa::EnumValue<super::super::PluginLogLevel> {
         self.0.reborrow().level
     }
-    /// What it says, with the Plugin's secret settings blanked. A line over 2 KiB is cut there and
-    /// ends ` [cut]`.
+    /// What it says, with an Installed Plugin's secret settings blanked. A line over 2 KiB is cut
+    /// there and ends ` [cut]`.
     ///
     /// Field 3: `text`
     #[must_use]

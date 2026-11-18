@@ -220,8 +220,8 @@ message PluginLogLine {
   // When it was logged, in milliseconds since the Unix epoch.
   int64 at_ms = 1;
   PluginLogLevel level = 2;
-  // What it says, with the Plugin's secret settings blanked. A line over 2 KiB is cut there and
-  // ends ` [cut]`.
+  // What it says, with an Installed Plugin's secret settings blanked. A line over 2 KiB is cut
+  // there and ends ` [cut]`.
   string text = 3;
 }
 

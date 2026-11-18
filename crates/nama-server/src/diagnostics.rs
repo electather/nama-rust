@@ -55,6 +55,15 @@ const SQL_TARGET: &str = "sqlx::query";
 /// The target of a Plugin's lines and of the span naming a Built-in on stdout.
 pub(crate) const PLUGIN_TARGET: &str = "nama::plugin";
 
+/// The name of the span under [`PLUGIN_TARGET`] that a call to an enabled Built-in runs in. A
+/// settings check's span is named apart: its lines come from no enablement, so no Plugin Log keeps
+/// them (ADR 0061).
+pub(crate) const PLUGIN_SPAN: &str = "plugin";
+
+/// How a Built-in's own target starts, since its package is `nama-plugin-<folder>`
+/// (`plugins/AGENTS.md`).
+const BUILTIN_TARGET_PREFIX: &str = "nama_plugin_";
+
 /// The most of a Plugin Log line kept, in bytes, so a Plugin can't fill the log with one.
 pub(crate) const MAX_PLUGIN_LINE_BYTES: usize = 2048;
 
@@ -75,8 +84,9 @@ pub(crate) struct PluginLine {
 }
 
 /// The layer that keeps each Plugin's last lines for its Plugins page: those under the target
-/// `nama::plugin`, naming their Plugin in a `plugin` field, and those logged in a span under it,
-/// which names a Built-in. Filter it as stdout is, so it keeps the lines stdout shows.
+/// `nama::plugin`, naming their Plugin in a `plugin` field, and a Built-in's own logged in the
+/// span under it that a call to it runs in. Filter it as stdout is, so it keeps the lines stdout
+/// shows.
 #[must_use]
 pub fn plugin_lines_layer<S>() -> impl Layer<S>
 where
@@ -337,7 +347,7 @@ impl Visit for Query {
 /// See [`plugin_lines_layer`].
 struct KeepPluginLines;
 
-/// The Plugin a span under [`PLUGIN_TARGET`] names, kept in its extensions.
+/// The Built-in a [`PLUGIN_SPAN`] names, kept in its extensions.
 struct SpanPlugin(PluginId);
 
 impl<S> Layer<S> for KeepPluginLines
@@ -345,7 +355,8 @@ where
     S: Subscriber + for<'span> LookupSpan<'span>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        if attrs.metadata().target() != PLUGIN_TARGET {
+        let metadata = attrs.metadata();
+        if metadata.target() != PLUGIN_TARGET || metadata.name() != PLUGIN_SPAN {
             return;
         }
         let mut fields = LineFields::default();
@@ -366,9 +377,9 @@ where
             };
             (plugin, fields.text())
         } else {
-            // The Server's own lines, such as its Kernel's failures, aren't the Plugin's to show,
-            // even logged inside a Built-in's call.
-            if is_servers_own(metadata.target()) {
+            // Only the Built-in's own: the Server's, such as its Kernel's failures, and those of a
+            // crate it calls, such as its HTTP client's, aren't the Plugin's to show.
+            if !metadata.target().starts_with(BUILTIN_TARGET_PREFIX) {
                 return;
             }
             let Some(plugin) = enclosing_plugin(event, &ctx) else {
@@ -390,12 +401,7 @@ where
     }
 }
 
-/// Whether `target` is the Server's own, which [`PLUGIN_TARGET`] isn't.
-fn is_servers_own(target: &str) -> bool {
-    target.starts_with(env!("CARGO_CRATE_NAME")) || target == SQL_TARGET
-}
-
-/// The Plugin the innermost span around `event` under [`PLUGIN_TARGET`] names: a Built-in's.
+/// The Built-in the innermost [`PLUGIN_SPAN`] around `event` names.
 fn enclosing_plugin<S>(event: &Event<'_>, ctx: &Context<'_, S>) -> Option<PluginId>
 where
     S: Subscriber + for<'span> LookupSpan<'span>,

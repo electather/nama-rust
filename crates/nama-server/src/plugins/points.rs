@@ -11,7 +11,7 @@ use nama_plugin_api::{ObservePoint, Observer, PluginId, PointKey, blob_store::Bl
 use nama_proto::nama::v1::PluginKind;
 use tracing::{Instrument as _, Span, error, info, warn};
 
-use crate::diagnostics::{self, PLUGIN_TARGET};
+use crate::diagnostics::{self, PLUGIN_SPAN, PLUGIN_TARGET};
 
 use super::{
     Answer, ProviderError, contain_call, contain_sync,
@@ -425,6 +425,15 @@ impl ExtensionPoints {
         builtin_log_span(plugin)
     }
 
+    /// The span a check of the Plugin `plugin`'s settings runs in: as [`Self::log_span`], but
+    /// named `check`, since a check has no enablement and so no Plugin Log keeps its lines.
+    pub(super) fn check_span(&self, plugin: &PluginId) -> Span {
+        if self.read(|state| state.is_installed(plugin)) {
+            return Span::none();
+        }
+        tracing::error_span!(target: PLUGIN_TARGET, "check", plugin = %plugin)
+    }
+
     fn is_current(&self, entry: &Entry) -> bool {
         self.read(|state| {
             state
@@ -511,7 +520,7 @@ impl State {
 /// it for one.
 pub(super) fn builtin_log_span(plugin: &PluginId) -> Span {
     // `error`, so a level filter that keeps any of the Plugin's lines keeps the span naming it.
-    tracing::error_span!(target: PLUGIN_TARGET, "plugin", plugin = %plugin)
+    tracing::error_span!(target: PLUGIN_TARGET, PLUGIN_SPAN, plugin = %plugin)
 }
 
 /// What disabling a Plugin removed: its enablement and its handlers, kept until its scope is

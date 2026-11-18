@@ -27,7 +27,8 @@ use nama_proto::nama::v1::{
 use nama_server::plugins::Registry;
 use server::{TestServer, WAIT};
 
-/// A Built-in Plugin that logs as it starts.
+/// A Built-in Plugin that logs as it starts. Its lines name the target its crate would have, as a
+/// Built-in's package is `nama-plugin-<folder>`: the Plugins page keeps no other crate's.
 struct Chatty;
 
 impl Plugin for Chatty {
@@ -36,7 +37,7 @@ impl Plugin for Chatty {
     }
 
     fn register(&self, _registrar: &mut Registrar) -> Result<(), PluginError> {
-        tracing::warn!("chatty is starting");
+        tracing::warn!(target: "nama_plugin_chatty", "chatty is starting");
         Ok(())
     }
 }
@@ -50,7 +51,7 @@ impl Plugin for Refusing {
     }
 
     fn register(&self, _registrar: &mut Registrar) -> Result<(), PluginError> {
-        tracing::warn!("refusing is starting");
+        tracing::warn!(target: "nama_plugin_refusing", "refusing is starting");
         Err("no thanks".into())
     }
 }
