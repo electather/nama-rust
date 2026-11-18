@@ -403,18 +403,10 @@ impl ExtensionPoints {
     /// its id themselves. A Plugin the Registry doesn't list, enabled directly, runs in-process, so
     /// it counts as Built-in.
     pub(super) fn log_span(&self, plugin: &PluginId) -> Span {
-        if self.is_installed(plugin) {
+        if self.read(|state| state.is_installed(plugin)) {
             return Span::none();
         }
-        // `error`, so a level filter that keeps any of the Plugin's lines keeps the span naming it.
-        tracing::error_span!(target: PLUGIN_TARGET, "plugin", plugin = %plugin)
-    }
-
-    fn is_installed(&self, plugin: &PluginId) -> bool {
-        self.read(|state| {
-            (state.known.get(plugin))
-                .is_some_and(|known| known.kind == PluginKind::PLUGIN_KIND_INSTALLED)
-        })
+        builtin_log_span(plugin)
     }
 
     fn is_current(&self, entry: &Entry) -> bool {
@@ -447,8 +439,8 @@ impl ExtensionPoints {
             .is_some();
         // A Built-in Plugin is only disabled until a restart, since saving the last Authenticator
         // disabled would stop the Server starting.
-        let installed = self.is_installed(&entry.plugin);
-        let crashed = self.read(|state| state.crashed.clone().filter(|_| installed));
+        let crashed = self
+            .read(|state| (state.crashed.clone()).filter(|_| state.is_installed(&entry.plugin)));
         if disabled && let Some(crashed) = crashed {
             // Nothing saves it once the Server stops serving.
             let _stopped = crashed.send(entry.plugin.clone());
@@ -488,6 +480,22 @@ impl<R, K> Asked<R, K> {
             Self::Absent | Self::Panicked => None,
         }
     }
+}
+
+impl State {
+    /// Whether the Server lists `plugin` as Installed: one it doesn't list, enabled directly, runs
+    /// in-process.
+    fn is_installed(&self, plugin: &PluginId) -> bool {
+        (self.known.get(plugin))
+            .is_some_and(|known| known.kind == PluginKind::PLUGIN_KIND_INSTALLED)
+    }
+}
+
+/// The span naming the Built-in Plugin `plugin` on stdout, as [`ExtensionPoints::log_span`] gives
+/// it for one.
+pub(super) fn builtin_log_span(plugin: &PluginId) -> Span {
+    // `error`, so a level filter that keeps any of the Plugin's lines keeps the span naming it.
+    tracing::error_span!(target: PLUGIN_TARGET, "plugin", plugin = %plugin)
 }
 
 /// What disabling a Plugin removed: its enablement and its handlers, kept until its scope is

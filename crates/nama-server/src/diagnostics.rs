@@ -64,7 +64,8 @@ where
     }
     .with_filter(filter_fn(|metadata| metadata.target() == SQL_TARGET));
     // Lines logged for stdout quote file paths and names, which a span mustn't carry (ADR 0054).
-    // The span naming a Built-in is for stdout: the Plugin call span it sits in names it already.
+    // The span naming a Built-in is for stdout: in a trace, the `plugin call` span inside it names
+    // the Plugin already.
     let spans_only = exported_filter().and(filter_fn(|metadata| {
         metadata.is_span() && metadata.target() != PLUGIN_TARGET
     }));

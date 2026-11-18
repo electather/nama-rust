@@ -174,6 +174,7 @@ impl Registry {
                 message,
             })
         })?;
+        // Outside the span, which would prefix the Server's own line with the Plugin's name again.
         info!(plugin = %id, version = %manifest.version, registrations, "enabled plugin");
         Ok(())
     }
@@ -370,10 +371,8 @@ impl Registry {
     /// stopping. The Plugins stay enabled in memory.
     pub async fn shutdown(&self) {
         let scopes: Vec<(PluginId, Scope)> = self.read(|state| {
-            let plugins = state.plugins.iter();
-            plugins
-                .map(|(id, enabled)| (id.clone(), enabled.scope.clone()))
-                .collect()
+            let scope = |(id, enabled): (&PluginId, &Enabled)| (id.clone(), enabled.scope.clone());
+            state.plugins.iter().map(scope).collect()
         });
         let closing = scopes
             .into_iter()

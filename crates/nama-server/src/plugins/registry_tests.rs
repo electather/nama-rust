@@ -158,3 +158,16 @@ async fn an_installed_plugins_lines_get_no_span_naming_it() {
     assert!(logged.contains("logging ticked"), "{logged}");
     assert!(!logged.contains(" plugin{"), "{logged}");
 }
+
+#[test]
+fn a_builtins_drop_after_describing_it_is_in_a_span_naming_it() {
+    let log = CapturedLog::start();
+    Registry::new().describe_builtin(|| Arc::new(Logging));
+    let logged = log.finish();
+
+    let line = logged
+        .lines()
+        .find(|line| line.ends_with("logging dropped"))
+        .unwrap_or_else(|| panic!("nothing dropped: {logged}"));
+    assert!(line.contains(" plugin{plugin=logging}:"), "{line}");
+}
