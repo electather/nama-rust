@@ -1,5 +1,5 @@
-import { DeviceList } from "@/components/device-list";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
+import { DeviceList } from "@/shared/components/device-list/device-list";
 
 /** `user`'s Devices, under a heading. */
 export function UserDevices({ user }: { user: User }) {

@@ -1,18 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ChangePassword } from "@/components/change-password";
-import { DefaultQualities } from "@/components/default-qualities";
-import { DeviceList, yourDevicesQuery } from "@/components/device-list";
-import { ImageSettingsForm, imageSettingsQuery } from "@/components/image-settings";
-import { ImageStore } from "@/components/image-store";
-import { NotificationPreferences } from "@/components/notification-preferences";
-import { PersonalSettings } from "@/components/personal-settings";
-import { PluginConnections } from "@/components/plugin-connections";
-// oxlint-disable-next-line import/max-dependencies -- Settings puts together a section per thing a User sets, from their password to the Server's own
-import { ServerUrl, serverSettingsQuery } from "@/components/server-url";
-import { TrackPreferences, trackPreferencesQuery } from "@/components/track-preferences";
+import { SettingsPage } from "@/features/settings/components/settings-page";
+import { imageSettingsQuery } from "@/features/settings/data/use-image-settings";
+import { serverSettingsQuery } from "@/features/settings/data/use-server-settings";
+import { trackPreferencesQuery } from "@/features/settings/data/use-track-preferences";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { Page } from "@/shared/components/page";
+import { yourDevicesQuery } from "@/shared/hooks/use-devices";
 import { may } from "@/shared/lib/permissions";
 
 export const Route = createFileRoute("/_member/settings")({
@@ -30,47 +23,5 @@ export const Route = createFileRoute("/_member/settings")({
 
 function Settings() {
   const { signedIn } = Route.useRouteContext();
-  return (
-    <Page heading="Settings">
-      <section aria-labelledby="password" className="mt-10 max-w-sm">
-        <h2 id="password" className="font-medium">
-          Password
-        </h2>
-        <ChangePassword />
-      </section>
-      <section aria-labelledby="devices" className="mt-12 max-w-2xl">
-        <h2 id="devices" className="font-medium">
-          Devices
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Where you’re signed in. Revoking a Device signs it out.
-        </p>
-        <div className="mt-4">
-          <DeviceList />
-        </div>
-      </section>
-      <TrackPreferences />
-      {may(signedIn.user, Permission.CHOOSE_QUALITY) && <DefaultQualities />}
-      <PluginConnections />
-      <PersonalSettings />
-      <NotificationPreferences />
-      {may(signedIn.user, Permission.MANAGE_SETTINGS) && (
-        <section aria-labelledby="server" className="mt-12 max-w-md">
-          <h2 id="server" className="font-medium">
-            Server
-          </h2>
-          <ServerUrl />
-        </section>
-      )}
-      {may(signedIn.user, Permission.MANAGE_SETTINGS) && (
-        <section aria-labelledby="images" className="mt-12 max-w-md">
-          <h2 id="images" className="font-medium">
-            Images
-          </h2>
-          <ImageSettingsForm />
-          <ImageStore />
-        </section>
-      )}
-    </Page>
-  );
+  return <SettingsPage user={signedIn.user} />;
 }

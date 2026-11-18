@@ -1,5 +1,5 @@
-import { refusedSettings } from "@/components/setting-refusals";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
+import { refusedSettings } from "@/shared/lib/setting-refusals";
 
 /**
  * Why the Server refused to save or test the settings, by whichever it refused. A `null` error

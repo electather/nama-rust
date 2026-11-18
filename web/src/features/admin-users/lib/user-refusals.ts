@@ -1,8 +1,8 @@
 import { Code } from "@connectrpc/connect";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { noLongerHere } from "@/lib/users";
 import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "@/shared/lib/forms";
+import { noLongerHere } from "@/shared/lib/no-longer-here";
 
 /**
  * Why the Server refused to `attempt` (such as "delete this User") a change to the User called
