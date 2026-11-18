@@ -19,7 +19,7 @@ pub(crate) use titles::{
 
 use crate::{
     library::contents::{ImageRef, Metadata},
-    plugins::{Answer, ExtensionPoints, Failure, ProviderError},
+    plugins::{Answer, ExtensionPoints, Failure, FailureKind, ProviderError},
 };
 
 /// Why the title source gave no answer.
@@ -144,15 +144,15 @@ impl TitleSources {
             if self.only.as_ref().is_some_and(|only| *only != plugin) {
                 continue;
             }
-            let answered = self
+            let described = self
                 .plugins
-                .ask(&plugin, |source: Arc<dyn TitleSource>| async move {
+                .read_provider(&plugin, |source: &dyn TitleSource| {
                     let namespace = source.namespace().to_owned();
                     let answers = METHODS.into_iter().filter(|&m| source.answers(m)).collect();
-                    Ok::<_, MetadataError>((namespace, source.lookup_namespaces(), answers))
+                    (namespace, source.lookup_namespaces(), answers)
                 })
                 .await;
-            let Ok((_, (namespace, mut looks_up, answers))) = meaning(answered) else {
+            let Some((namespace, mut looks_up, answers)) = described else {
                 continue;
             };
             if !well_formed(&namespace) {
@@ -473,6 +473,13 @@ enum Refusal {
 impl From<MetadataError> for Refusal {
     fn from(error: MetadataError) -> Self {
         Self::Refused(error)
+    }
+}
+
+/// A failure only when the source is [`Unanswered::Unavailable`]: having no such title is an answer.
+impl FailureKind for Unanswered {
+    fn is_failure(&self) -> bool {
+        *self == Self::Unavailable
     }
 }
 

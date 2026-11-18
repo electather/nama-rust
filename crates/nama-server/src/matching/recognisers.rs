@@ -11,7 +11,7 @@ use std::{
 };
 
 use nama_plugin_api::{
-    PluginId, PointKey,
+    PluginId,
     contract::{self as wire, TitleRecognised, TitleToRecognise},
     metadata::{ExternalId, ExternalIds},
     recogniser::{Recogniser, RecogniserMethod},
@@ -131,48 +131,43 @@ impl Recognisers {
     }
 
     /// The well-formed ids the Plugin `plugin`'s Recogniser names for `asked`, in its order;
-    /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Records whether
-    /// the call failed for the Admin to see, and counts a failure for [`Self::failures_log`].
+    /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Counts a failure
+    /// for [`Self::failures_log`].
     async fn ask(
         &self,
         plugin: &PluginId,
         asked: &TitleToRecognise,
     ) -> Result<Option<Vec<ExternalId>>, Miss> {
-        let answered = (self.plugins)
-            .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
-                if !recogniser.recognises(RecogniserMethod::Title) {
-                    return Ok(None);
-                }
-                recogniser.recognise_title(asked).await.map(Some)
+        let serves = (self.plugins)
+            .read_provider(plugin, |recogniser: &dyn Recogniser| {
+                recogniser.recognises(RecogniserMethod::Title)
             })
             .await;
-        let point = PointKey::provide::<dyn Recogniser>();
+        if serves != Some(true) {
+            return Ok(None);
+        }
+        let answered = (self.plugins)
+            .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
+                recogniser.recognise_title(asked).await
+            })
+            .await;
         match answered {
             Some(Answer {
-                result: Ok(Some(recognised)),
+                result: Ok(recognised),
                 ..
-            }) => {
-                self.plugins.provider_answered(plugin, point);
-                Ok(Some(well_formed(plugin, &recognised)))
-            }
+            }) => Ok(Some(well_formed(plugin, &recognised))),
             Some(Answer {
                 result: Err(failure),
                 ..
             }) => {
-                self.plugins
-                    .provider_failed(plugin, point, &failure.message);
                 let mut failed = self.failures();
                 let (titles, last) = failed.entry(plugin.clone()).or_default();
                 *titles = titles.saturating_add(1);
                 *last = failure.message;
                 Err(Miss::RecogniserFailed)
             }
-            // Doesn't serve `recognise_title`, isn't enabled or a Recogniser, or it panicked,
-            // which disabled it.
-            Some(Answer {
-                result: Ok(None), ..
-            })
-            | None => Ok(None),
+            // No longer enabled or a Recogniser, or it panicked, which disabled it.
+            None => Ok(None),
         }
     }
 }

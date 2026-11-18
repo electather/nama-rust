@@ -106,6 +106,20 @@ pub trait ProviderError<K> {
     fn failure(self) -> Failure<K>;
 }
 
+/// Whether a [`Failure`] of this kind counts as the Provider failing, which the Plugins page
+/// shows, or is an answer, such as "no such title".
+pub trait FailureKind {
+    /// Whether the Provider failed, rather than answered.
+    fn is_failure(&self) -> bool;
+}
+
+/// Always a failure.
+impl FailureKind for () {
+    fn is_failure(&self) -> bool {
+        true
+    }
+}
+
 // For any lifetime, not just `PluginError`'s `'static`: an `async` caller's error may be inferred
 // with a shorter one.
 impl ProviderError<()> for Box<dyn std::error::Error + Send + Sync + '_> {

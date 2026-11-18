@@ -488,6 +488,23 @@ async fn a_title_by_id_stops_at_a_failing_source() {
 }
 
 #[tokio::test]
+async fn a_source_finding_no_such_title_clears_its_failure_while_an_unavailable_one_records_one() {
+    let (metadata, _) = two(Answers::NotFound, Answers::Fails);
+    let (aa, bb) = (PluginId::from_static("aa"), PluginId::from_static("bb"));
+    let point = PointKey::provide::<dyn TitleSource>();
+    metadata.plugins.provider_failed(&aa, point, "timed out");
+
+    let not_found = metadata.show_by(&ExternalId::new("aa", "1").unwrap()).await;
+    let unavailable = metadata.show_by(&ExternalId::new("bb", "1").unwrap()).await;
+
+    assert_eq!(not_found.unwrap_err(), Unanswered::NotFound);
+    assert_eq!(unavailable.unwrap_err(), Unanswered::Unavailable);
+    assert_eq!(metadata.plugins.failing(&aa, point), None);
+    let failing = metadata.plugins.failing(&bb, point).unwrap();
+    assert_eq!(failing.in_a_row, 1);
+}
+
+#[tokio::test]
 async fn a_source_not_in_the_order_is_never_asked() {
     let (metadata, sources_asked) = two(Answers::Has, Answers::NotFound);
     let only_bb = metadata.in_order(order(&["bb"]));

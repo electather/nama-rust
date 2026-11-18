@@ -351,6 +351,9 @@ fn namespaces(ids: &[ExternalId]) -> impl Iterator<Item = &str> {
 
 /// The namespaces `fulfiller` needs when a title, known by ids in `namespaces`, has an id in none
 /// of them, so the Kernel doesn't ask it about the title.
+///
+/// ponytail: each caller reads this inside its `ask`, not with `read_provider`, so an unmet need
+/// clears the Fulfiller's recorded failure though its service wasn't called (`plugins/AGENTS.md`).
 pub(crate) fn unmet<'a, Kind: 'static>(
     fulfiller: &dyn Fulfiller<Kind>,
     mut namespaces: impl Iterator<Item = &'a str>,

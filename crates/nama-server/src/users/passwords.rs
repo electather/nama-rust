@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     db::now,
-    plugins::{Failure, ProviderError},
+    plugins::{Failure, FailureKind, ProviderError},
 };
 
 /// What a User is shown for their password among their Sign-in Methods.
@@ -265,6 +265,13 @@ enum Hashing {
     Failed,
 }
 
+/// A failure unless the password was [`Hashing::Rejected`], which is the Authenticator's answer.
+impl FailureKind for Hashing {
+    fn is_failure(&self) -> bool {
+        matches!(self, Self::Failed)
+    }
+}
+
 impl ProviderError<Hashing> for PasswordError {
     fn failure(self) -> Failure<Hashing> {
         match self {
@@ -377,3 +384,7 @@ pub(super) async fn set_password(
     .fetch_one(conn)
     .await
 }
+
+#[cfg(test)]
+#[path = "passwords_tests.rs"]
+mod tests;

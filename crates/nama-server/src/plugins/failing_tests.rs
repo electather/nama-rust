@@ -1,15 +1,16 @@
-use std::{error::Error, sync::Arc};
+use std::{collections::BTreeMap, error::Error, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, ObservePoint, Observer, Plugin, PluginError, PluginId, PointKey, Priority,
     Registrar,
+    fulfiller::TryAgainIn,
     recogniser::Recogniser,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
 use crate::{
     log_capture::CapturedLog,
-    plugins::{ExtensionPoints, Failing, Registry},
+    plugins::{ExtensionPoints, Failing, FailureKind, ProviderError, Registry, Retryable},
 };
 
 const PLUGIN: PluginId = PluginId::from_static("flaky");
@@ -88,18 +89,31 @@ impl Plugin for Idle {
     }
 }
 
-/// A Provider that is only ever told, whose call alone decides whether it fails.
+/// A Provider whose call alone decides whether it fails.
 trait Told: Send + Sync {}
 
-/// A Plugin that provides a [`Told`].
+/// A Plugin that provides a [`Told`], with a secret `api_key` setting.
 struct Listens;
 
 impl Told for Listens {}
 
 impl Plugin for Listens {
     fn manifest(&self) -> Manifest {
+        let api_key = SettingField {
+            key: "api_key".to_owned(),
+            label: "API key".to_owned(),
+            description: String::new(),
+            kind: SettingKind::Secret,
+            required: false,
+            default: None,
+            min: None,
+            max: None,
+        };
         Manifest {
             extension_points: vec![PointKey::provide::<dyn Told>()],
+            settings: SettingsSchema {
+                fields: vec![api_key],
+            },
             ..Idle.manifest()
         }
     }
@@ -213,6 +227,89 @@ fn watching() -> (Registry, ExtensionPoints) {
         .unwrap();
     let points = plugins.extension_points();
     (plugins, points)
+}
+
+/// A Registry with [`Listens`] enabled, and its Extension Points.
+fn listening() -> (Registry, ExtensionPoints) {
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(Listens)).unwrap();
+    let points = plugins.extension_points();
+    (plugins, points)
+}
+
+/// Asks `points`' [`Told`], the call ending in `result`, and returns what is recorded after.
+async fn ask<E: ProviderError<K>, K: FailureKind>(
+    points: &ExtensionPoints,
+    result: impl Fn() -> Result<(), E>,
+) -> Option<Failing> {
+    let answered = points
+        .ask(&PLUGIN, |_: Arc<dyn Told>| std::future::ready(result()))
+        .await;
+    assert!(answered.is_some(), "the Provider was asked");
+    points.failing(&PLUGIN, PointKey::provide::<dyn Told>())
+}
+
+fn failed(message: &'static str) -> Result<(), PluginError> {
+    Err(message.into())
+}
+
+#[tokio::test]
+async fn an_asked_providers_failure_is_recorded_at_its_point_until_a_call_answers() {
+    let (_plugins, points) = listening();
+
+    let failing = ask(&points, || failed("the service is down")).await;
+    let answered = ask(&points, || Ok::<_, PluginError>(())).await;
+
+    let failing = failing.expect("the failure is recorded");
+    assert_eq!(
+        (failing.last_error.as_str(), failing.in_a_row),
+        ("the service is down", 1)
+    );
+    assert_eq!(answered, None);
+}
+
+#[tokio::test]
+async fn reading_what_a_provider_says_of_itself_keeps_its_failure() {
+    let (_plugins, points) = listening();
+    ask(&points, || failed("the service is down")).await;
+
+    let read = points
+        .read_provider::<dyn Told, _>(&PLUGIN, |_| "told")
+        .await;
+
+    assert_eq!(read, Some("told"));
+    let failing = points.failing(&PLUGIN, PointKey::provide::<dyn Told>());
+    assert_eq!(failing.map(|failing| failing.in_a_row), Some(1));
+}
+
+#[tokio::test]
+async fn a_fulfillers_try_again_in_records_no_failure_and_clears_an_earlier_one() {
+    let (_plugins, points) = listening();
+    let down = || Err::<(), _>(Retryable("the service is down".into()));
+    let try_again = || Err::<(), _>(Retryable(TryAgainIn(Duration::from_secs(5)).into()));
+
+    let failing = ask(&points, down).await;
+    let waiting = ask(&points, try_again).await;
+
+    assert!(failing.is_some());
+    assert_eq!(waiting, None);
+}
+
+#[tokio::test]
+async fn a_failures_recorded_message_has_the_plugins_secret_settings_blanked() {
+    let plugins = Registry::new();
+    let settings = BTreeMap::from([(
+        "api_key".to_owned(),
+        SettingValue::Text("key_secret".to_owned()),
+    )]);
+    plugins
+        .enable_with_settings(Arc::new(Listens), Settings::new(settings))
+        .unwrap();
+    let points = plugins.extension_points();
+
+    let failing = ask(&points, || failed("GET /movie?api_key=key_secret: 401")).await;
+
+    assert_eq!(failing.unwrap().last_error, "GET /movie?api_key=…: 401");
 }
 
 #[tokio::test]
