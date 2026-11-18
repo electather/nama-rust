@@ -135,14 +135,14 @@ impl ExtensionPoints {
             .into_iter();
         let mut asked = Asked::Absent;
         for entry in entries.by_ref() {
-            let this = self.ask_if_current(&entry, &call).await;
+            let outcome = self.ask_if_current(&entry, &call).await;
             self.drop_contained(entry, ());
-            match this {
+            match outcome {
                 Asked::Answered(_) => {
-                    asked = this;
+                    asked = outcome;
                     break;
                 }
-                Asked::Panicked => asked = this,
+                Asked::Panicked => asked = outcome,
                 Asked::Absent => {}
             }
         }
