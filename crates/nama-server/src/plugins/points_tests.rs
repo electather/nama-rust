@@ -48,8 +48,11 @@ impl Gated {
 }
 
 impl Observer<Knocks> for Gated {
-    fn observe<'a>(&'a self, (): &'a ()) -> BoxFuture<'a, ()> {
-        Box::pin(self.wait())
+    fn observe<'a>(&'a self, (): &'a ()) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async {
+            self.wait().await;
+            Ok(())
+        })
     }
 }
 

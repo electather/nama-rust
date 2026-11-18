@@ -78,9 +78,10 @@ impl ObservePoint for Numbers {
 struct Forward(&'static str, mpsc::UnboundedSender<(&'static str, u32)>);
 
 impl Observer<Numbers> for Forward {
-    fn observe<'a>(&'a self, event: &'a u32) -> BoxFuture<'a, ()> {
+    fn observe<'a>(&'a self, event: &'a u32) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
             let _: Result<(), _> = self.1.send((self.0, *event));
+            Ok(())
         })
     }
 }
@@ -126,7 +127,7 @@ async fn observers_are_told_events_until_their_plugin_is_disabled() {
 struct PanicOnEvent;
 
 impl Observer<Numbers> for PanicOnEvent {
-    fn observe<'a>(&'a self, _event: &'a u32) -> BoxFuture<'a, ()> {
+    fn observe<'a>(&'a self, _event: &'a u32) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async { panic!("observer bug") })
     }
 }
@@ -135,7 +136,7 @@ impl Observer<Numbers> for PanicOnEvent {
 struct PanicAtOnce;
 
 impl Observer<Numbers> for PanicAtOnce {
-    fn observe<'a>(&'a self, _event: &'a u32) -> BoxFuture<'a, ()> {
+    fn observe<'a>(&'a self, _event: &'a u32) -> BoxFuture<'a, Result<(), PluginError>> {
         panic!("observer bug")
     }
 }
@@ -266,8 +267,8 @@ async fn a_plugin_that_panics_giving_its_manifest_is_not_enabled() {
 struct PanicOnDrop;
 
 impl Observer<Numbers> for PanicOnDrop {
-    fn observe<'a>(&'a self, _event: &'a u32) -> BoxFuture<'a, ()> {
-        Box::pin(async {})
+    fn observe<'a>(&'a self, _event: &'a u32) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async { Ok(()) })
     }
 }
 

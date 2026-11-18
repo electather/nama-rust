@@ -31,7 +31,8 @@ use super::{
 #[derive(Clone, Default)]
 pub struct ExtensionPoints {
     state: Arc<RwLock<State>>,
-    /// Which Providers' last calls failed, which asking and telling record and the Admin is shown.
+    /// Which Providers' and Observers' last calls failed, which asking, telling and notifying record
+    /// and the Admin is shown.
     failures: Arc<Failures>,
 }
 
@@ -39,7 +40,9 @@ impl ExtensionPoints {
     /// Tells every Observer at `P` about `event`, without waiting for them.
     ///
     /// Each Observer runs as its own task, so a slow one doesn't hold up the others, and two
-    /// events may reach one Observer in either order. Must be called within a Tokio runtime.
+    /// events may reach one Observer in either order. A failure is recorded for the Plugins page,
+    /// without the Plugin's secret settings, until the Observer handles an event; one that panics
+    /// is disabled. Must be called within a Tokio runtime.
     pub fn notify<P: ObservePoint>(&self, event: P::Event) {
         let observers = self.entries(PointKey::observe::<P>());
         if observers.is_empty() {
@@ -65,12 +68,33 @@ impl ExtensionPoints {
     ) {
         // The Plugin may have been disabled since `notify`.
         if self.is_current(&entry) {
-            let delivered = contain_call(&entry.plugin, P::NAME, || observer.observe(&event));
-            if let Err(message) = delivered.instrument(self.log_span(&entry.plugin)).await {
-                self.disable_after_panic(&entry, P::NAME, &message);
-            }
+            self.observe_contained::<P>(&entry, &observer, &event).await;
         }
         self.drop_contained(entry, observer);
+    }
+
+    async fn observe_contained<P: ObservePoint>(
+        &self,
+        entry: &Entry,
+        observer: &Arc<dyn Observer<P>>,
+        event: &Arc<P::Event>,
+    ) {
+        let key = PointKey::observe::<P>();
+        let delivered = contain_call(&entry.plugin, P::NAME, || {
+            formatted(observer.observe(event))
+        });
+        match delivered.instrument(self.log_span(&entry.plugin)).await {
+            Ok(Ok(())) => self.provider_answered(&entry.plugin, key),
+            Ok(Err(failure)) => {
+                let error = failure.blanked(&entry.secrets).message;
+                self.provider_failed(&entry.plugin, key, &error);
+                // An Installed Plugin's Observer already logged it, in `call_method`.
+                if !self.read(|state| state.is_installed(&entry.plugin)) {
+                    warn!(plugin = %entry.plugin, point = P::NAME, error, "observer failed");
+                }
+            }
+            Err(message) => self.disable_after_panic(entry, P::NAME, &message),
+        }
     }
 
     /// Asks the Provider of `T` that comes first: those the admin ranked with
@@ -293,9 +317,9 @@ impl ExtensionPoints {
         }
     }
 
-    /// Records that the Plugin `plugin`'s Provider at `point` failed with `message`, a
-    /// [`Failure`](super::Failure)'s, and returns its run of failures so far. Records nothing and
-    /// returns `None` once the Plugin is disabled, such as a call its disabling interrupted. The
+    /// Records that the Plugin `plugin`'s Provider or Observer at `point` failed with `message`, a
+    /// [`Failure`](super::Failure)'s, and returns its run of failures so far, so a caller can log only
+    /// the first of a run. Records nothing and returns `None` once the Plugin is disabled, such as a call its disabling interrupted. The
     /// record lives in memory: a success or disabling the Plugin clears it, and a restart forgets
     /// it.
     pub(crate) fn provider_failed(
@@ -316,13 +340,13 @@ impl ExtensionPoints {
         })
     }
 
-    /// Records that the Plugin `plugin`'s Provider at `point` answered, which clears what
+    /// Records that the Plugin `plugin`'s Provider or Observer at `point` answered, which clears what
     /// [`Self::provider_failed`] recorded.
     pub(crate) fn provider_answered(&self, plugin: &PluginId, point: PointKey) {
         self.failures.answered(plugin, point);
     }
 
-    /// The Plugin `plugin`'s Provider at `point`, if its last recorded call failed.
+    /// The Plugin `plugin`'s Provider or Observer at `point`, if its last recorded call failed.
     #[must_use]
     pub fn failing(&self, plugin: &PluginId, point: PointKey) -> Option<Failing> {
         self.failures.get(plugin, point)
