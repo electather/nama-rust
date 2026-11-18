@@ -46,7 +46,7 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
         <section
           id={panelId}
           aria-label="Playback info"
-          className="absolute inset-e-0 top-full mt-2 w-72 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
+          className="absolute inset-e-0 top-full mt-2 w-72 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-pop"
         >
           <h2 className="font-medium">{methodName(plan.method)}</h2>
           <Reasons texts={decided} />

@@ -20,7 +20,7 @@ export function VersionChoice({
         onChange={(event) => {
           onChoose(Number(event.target.value));
         }}
-        className="h-9 max-w-64 truncate rounded-lg border border-input bg-transparent px-3 text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25"
+        className="h-8 max-w-64 truncate rounded-lg border border-input bg-input/30 px-2.5 text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {versions.map((option) => (
           <option key={String(option.id)} value={String(option.id)}>

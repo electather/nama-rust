@@ -21,7 +21,6 @@ export function BottomBar({
     <div className="pointer-events-auto bg-linear-to-t from-scrim px-2 pt-10 pb-2 group-data-controls-hidden:pointer-events-none sm:px-4 sm:pb-4">
       <div className="px-2">
         <Slider
-          progress
           label="Position"
           valueText={`${clock(time)} of ${clock(duration)}`}
           disabled={duration === 0}

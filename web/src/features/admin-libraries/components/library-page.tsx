@@ -26,7 +26,7 @@ export function LibraryPage({ id }: { id: bigint }) {
       </ul>
       <EmptyFolders library={library} />
       {/* Pulled back by the buttons' own padding, so the first one's words line up with the name. */}
-      <div className="-ms-4 mt-6 flex flex-wrap items-center gap-1">
+      <div className="-ms-2.5 mt-6 flex flex-wrap items-center gap-1">
         <ScanButton library={library} />
         <DeleteLibrary library={library} />
       </div>

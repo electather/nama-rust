@@ -46,7 +46,7 @@ export function ConfirmModal({
       aria-describedby={`${id}-description`}
       onClose={onClose}
       // Floats above the page, so it alone gets a shadow (DESIGN.md, "Elevation").
-      className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-sm"
+      className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-float backdrop:bg-scrim sm:max-w-sm"
     >
       <ConfirmForm
         key={openings}

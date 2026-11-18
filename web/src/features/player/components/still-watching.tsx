@@ -30,9 +30,9 @@ export function StillWatching({
         void navigate(back);
       }}
       // Floats above the player, so it gets a shadow (DESIGN.md, "Elevation").
-      className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-sm"
+      className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-float backdrop:bg-scrim sm:max-w-sm"
     >
-      <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+      <h2 id={titleId} className="text-section">
         Are you still watching?
       </h2>
       <div className="mt-6 flex gap-2">

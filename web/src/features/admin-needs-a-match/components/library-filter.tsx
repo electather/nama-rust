@@ -25,7 +25,7 @@ export function LibraryFilter({
           const library = event.target.value;
           onPick(library === "" ? undefined : library);
         }}
-        className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25"
+        className="h-8 rounded-lg border border-input bg-input/30 px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <option value="">All Libraries</option>
         {libraries.map((library) => (

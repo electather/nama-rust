@@ -21,7 +21,7 @@ export function RequestActions({
   return (
     // Pulled back by the buttons' own padding, so the first one's words line up with the title.
     // Hidden when it has no buttons, so it adds no space to the row.
-    <div className="-ms-4 mt-1 flex basis-full flex-wrap gap-1 empty:hidden">
+    <div className="-ms-2.5 mt-1 flex basis-full flex-wrap gap-1 empty:hidden">
       {canWithdraw(request, you) && <Withdraw {...target} />}
       {manage && <Manage state={request.state} {...target} />}
     </div>

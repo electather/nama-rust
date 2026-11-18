@@ -2,7 +2,7 @@ import { Check } from "lucide-react";
 
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
-/** The mark in a poster's corner once it's played: a green check, named for screen readers. */
+/** The mark in a poster's corner once it's played: a `primary` check, named for screen readers. */
 export function PlayedMark({ state }: { state: WatchState | undefined }) {
   if (state?.played !== true) {
     return null;

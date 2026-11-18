@@ -22,7 +22,7 @@ export function RequestList({
   const followedShows = data.pages.flatMap((page) => page.followedShows);
   return (
     <>
-      <div className="-ms-4 mt-8">
+      <div className="-ms-2.5 mt-8">
         <StateFilterMenu chosen={filter} choose={choose} />
       </div>
       {requests.length + followedShows.length === 0 ? (

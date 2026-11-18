@@ -54,7 +54,7 @@ export function ShowPage({
       </div>
       <SeasonShown {...show} seasons={data.seasons} current={seasonNumber} />
       {/* Out of the way below the Episodes, and pulled out by the buttons' own padding. */}
-      <div className="-ms-4 mt-6 flex max-w-3xl flex-wrap gap-2 empty:hidden">
+      <div className="-ms-2.5 mt-6 flex max-w-3xl flex-wrap gap-2 empty:hidden">
         <EditImages
           title={data.show.title}
           {...showImages(

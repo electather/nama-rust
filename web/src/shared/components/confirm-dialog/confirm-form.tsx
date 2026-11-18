@@ -39,7 +39,7 @@ export function ConfirmForm({
         void confirm(typed);
       })}
     >
-      <h2 id={`${id}-title`} className="text-lg font-semibold tracking-tight text-balance">
+      <h2 id={`${id}-title`} className="text-section text-balance">
         {title}
       </h2>
       <p id={`${id}-description`} className="text-sm text-pretty text-muted-foreground">
@@ -50,7 +50,7 @@ export function ConfirmForm({
         {error}
       </p>
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button variant="ghost" onClick={close}>
+        <Button variant="outline" onClick={close}>
           {dismiss}
         </Button>
         <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>

@@ -28,7 +28,7 @@ export function NextEpisodeOverlay({
     // shadow (DESIGN.md, "Elevation").
     <aside
       aria-label="Next Episode"
-      className="absolute inset-x-4 bottom-32 z-30 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg sm:inset-x-auto sm:inset-e-6 sm:w-80"
+      className="absolute inset-x-4 bottom-32 z-30 rounded-xl border bg-popover p-4 text-popover-foreground shadow-float sm:inset-x-auto sm:inset-e-6 sm:w-80"
     >
       <p className="text-sm text-muted-foreground">
         {episodeName(episode.seasonNumber, episode.episodeNumber, "full")}

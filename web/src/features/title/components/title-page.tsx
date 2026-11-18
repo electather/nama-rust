@@ -7,7 +7,7 @@ import { TitleHero } from "@/features/title/components/title-hero";
 /**
  * A Movie's or Show's page: its Title Logo, or else its title as text, over its backdrop, then
  * `children`. The backdrop sits under the scrim, so the title keeps its contrast whatever the
- * image (DESIGN.md, "The Legible Over Art Rule"). Only the title goes over the art: Quiet ink
+ * image (DESIGN.md, "The Legible Over Art Rule"). Only the title goes over the art: `muted-foreground`
  * wouldn't keep 4.5:1 there. Its `backdropThumbhash` shows until the backdrop loads.
  */
 export function TitlePage({

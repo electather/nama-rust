@@ -22,9 +22,9 @@ export function MatchDialog({
       ref={dialog}
       aria-labelledby={heading}
       // Its own pointer events: it inherits none from the title bar while the controls hide.
-      className="pointer-events-auto m-auto w-full max-w-sm rounded-xl border bg-popover p-6 text-start text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-lg"
+      className="pointer-events-auto m-auto w-full max-w-sm rounded-xl border bg-popover p-6 text-start text-popover-foreground shadow-float backdrop:bg-scrim sm:max-w-lg"
     >
-      <h2 id={heading} className="mb-4 text-lg font-semibold tracking-tight text-balance">
+      <h2 id={heading} className="mb-4 text-section text-balance">
         Match {parsedAs(item)}
       </h2>
       {opened && <FindAMatch item={item} libraryId={libraryId} />}

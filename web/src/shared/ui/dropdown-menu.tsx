@@ -2,9 +2,9 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "cn";
 import { Check } from "lucide-react";
 
-// shadcn's base-nova dropdown menu, trimmed to the parts we use. DESIGN.md: menus float, so they
-// are Raised black with a hairline and a shadow, and open on an exponential ease-out; a
-// highlighted item turns Muted. Items are 44px tall, as large as a fingertip.
+// shadcn's base-nova dropdown menu, trimmed to the parts we use. DESIGN.md, "Menus": `popover`
+// with a hairline and `shadow-pop`, opening on an exponential ease-out; a highlighted item turns
+// `muted`, and the chosen one is semibold.
 
 function DropdownMenu(props: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
@@ -33,7 +33,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "z-50 max-h-(--available-height) min-w-48 origin-(--transform-origin) overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg duration-150 ease-out-expo outline-none motion-reduce:animate-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0",
+            "z-50 grid max-h-(--available-height) min-w-60 origin-(--transform-origin) gap-0.5 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-pop duration-150 ease-out-expo outline-none motion-reduce:animate-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0",
             className,
           )}
           {...props}
@@ -44,7 +44,7 @@ function DropdownMenuContent({
 }
 
 const itemClassName =
-  "flex min-h-11 cursor-default items-center gap-2 rounded-lg px-3 text-sm outline-hidden select-none data-highlighted:bg-muted data-disabled:pointer-events-none data-disabled:text-muted-foreground";
+  "flex min-h-10 cursor-default items-center gap-2.5 rounded-sm px-2.5 text-sm text-foreground-soft outline-hidden select-none data-checked:font-semibold data-checked:text-foreground data-disabled:pointer-events-none data-disabled:text-muted-foreground data-highlighted:bg-muted data-highlighted:text-foreground [&_svg]:text-muted-foreground data-highlighted:[&_svg]:text-foreground-soft";
 
 function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
   return (
@@ -66,7 +66,7 @@ function DropdownMenuRadioItem({ className, children, ...props }: MenuPrimitive.
   return (
     <MenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
-      className={cn(itemClassName, "ps-2", className)}
+      className={cn(itemClassName, className)}
       {...props}
     >
       <span className="flex size-4 shrink-0 items-center justify-center">
@@ -88,7 +88,7 @@ function DropdownMenuCheckboxItem({
   return (
     <MenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
-      className={cn(itemClassName, "ps-2", className)}
+      className={cn(itemClassName, className)}
       {...props}
     >
       <span className="flex size-4 shrink-0 items-center justify-center">

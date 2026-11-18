@@ -1,39 +1,34 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { cn } from "cn";
 
-// DESIGN.md: an inactive track in Muted, a progress fill in Signal Green and any other level in
-// ink (The One Voice Rule), and the green focus ring at full strength, since the slider sits over
-// video. A disabled thumb is Quiet ink, never faded, as DESIGN.md says of a disabled button.
-// Restyled from shadcn's to one value, so its thumb can carry the label.
+// DESIGN.md, "Sliders": a rimmed `well`, filled with `primary-tint` up to a `primary` block handle
+// that stays inside it. Restyled from shadcn's to one value, so its thumb can carry the label.
 function Slider({
   className,
   label,
   valueText,
-  progress = false,
   ...props
 }: SliderPrimitive.Root.Props<number> & {
   /** Names the slider for assistive technology. */
   label: string;
   /** The value in words, such as "4:05 of 1:42:10". */
   valueText?: string;
-  /** Whether the value is progress, such as a position in a video, which fills in the accent. */
-  progress?: boolean;
 }) {
   return (
     <SliderPrimitive.Root
-      className={cn("w-full", className)}
+      className={cn(
+        "h-8 w-full rounded-md border border-input bg-well p-0.5 outline-offset-2 outline-ring has-focus-visible:outline-2 data-disabled:opacity-50",
+        className,
+      )}
       data-slot="slider"
       thumbAlignment="edge"
       {...props}
     >
-      <SliderPrimitive.Control className="relative flex h-6 w-full touch-none items-center select-none">
-        <SliderPrimitive.Track
-          data-slot="slider-track"
-          className="relative h-1 grow overflow-hidden rounded-full bg-muted select-none"
-        >
+      <SliderPrimitive.Control className="relative flex size-full touch-none items-center select-none">
+        <SliderPrimitive.Track data-slot="slider-track" className="h-full grow select-none">
           <SliderPrimitive.Indicator
             data-slot="slider-range"
-            className={cn("h-full", progress ? "bg-primary" : "bg-foreground")}
+            className="rounded-sm bg-primary-tint"
           />
         </SliderPrimitive.Track>
         {/* Focus lands on the thumb's hidden range input, so the ring follows `has-focus-visible`. */}
@@ -41,7 +36,7 @@ function Slider({
           data-slot="slider-thumb"
           aria-label={label}
           aria-valuetext={valueText}
-          className="relative block size-3.5 shrink-0 rounded-full bg-foreground ring-ring/50 transition-shadow select-none after:absolute after:-inset-2 hover:ring-3 has-focus-visible:ring-3 has-focus-visible:ring-ring motion-reduce:transition-none data-disabled:pointer-events-none data-disabled:bg-muted-foreground"
+          className="block h-full w-2 shrink-0 rounded-sm bg-primary select-none after:absolute after:-inset-2 data-disabled:pointer-events-none"
         />
       </SliderPrimitive.Control>
     </SliderPrimitive.Root>

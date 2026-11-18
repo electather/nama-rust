@@ -9,7 +9,7 @@ export function RequestLayout({ children }: { children: ReactNode }) {
   return (
     <Page heading="Request">
       {/* Pulled back by the button's own padding, so its words line up with the heading. */}
-      <div className="-ms-4 mt-2">
+      <div className="-ms-2.5 mt-2">
         <Link to="/requests" className={buttonVariants({ variant: "ghost" })}>
           All Requests
         </Link>

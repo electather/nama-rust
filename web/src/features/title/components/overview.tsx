@@ -47,7 +47,7 @@ export function Overview({ text }: { text: string }) {
       {clamped && (
         // Pulled out by the button's own padding, so its text lines up with the overview's. It
         // stays once open, so keyboard focus isn't dropped.
-        <div className="-ms-4">
+        <div className="-ms-2.5">
           <Button
             variant="ghost"
             aria-expanded={open}

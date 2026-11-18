@@ -20,7 +20,7 @@ export function CantPlay({ back, reasons }: { back: LinkOptions; reasons: string
           This browser can’t play it. Another browser, or another Version, may play.
         </p>
       )}
-      <div className="-ms-4 mt-6">
+      <div className="-ms-2.5 mt-6">
         <BackLink back={back} variant="ghost">
           Back
         </BackLink>

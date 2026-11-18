@@ -28,7 +28,7 @@ export function ChangeImage({
   const { upload, pick, change, pending, error } = useChangeImage(image.path, rules);
   return (
     <>
-      <div className="-ms-3 mt-2 flex flex-wrap">
+      <div className="-ms-2.5 mt-2 flex flex-wrap">
         <UploadButton name={image.name} accept={rules.accept} pending={pending} onPicked={upload} />
         {image.custom && (
           <Button

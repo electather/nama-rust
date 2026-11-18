@@ -24,9 +24,9 @@ export function EditImagesDialog({
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-description`}
       // Floats above the page, so it alone gets a shadow (DESIGN.md, "Elevation").
-      className="m-auto w-full max-w-sm rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-lg"
+      className="m-auto w-full max-w-sm rounded-xl border bg-popover p-6 text-popover-foreground shadow-float backdrop:bg-scrim sm:max-w-lg"
     >
-      <h2 id={`${id}-title`} className="text-lg font-semibold tracking-tight text-balance">
+      <h2 id={`${id}-title`} className="text-section text-balance">
         Images of {title}
       </h2>
       <p id={`${id}-description`} className="mt-2 text-sm text-pretty text-muted-foreground">
