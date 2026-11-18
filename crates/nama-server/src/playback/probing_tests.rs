@@ -80,6 +80,16 @@ impl Fixture {
     /// Stores the file at `relative` as holding Alien, at its size and modified time now, as a
     /// scan would.
     pub(super) async fn store(&self, relative: &str) {
+        let alien = Item::Movie {
+            title: "Alien".to_owned(),
+            year: Some(1979),
+            hint: None,
+        };
+        self.store_holding(relative, vec![alien]).await;
+    }
+
+    /// Stores the file at `relative` as holding `items`, as [`Self::store`] does.
+    async fn store_holding(&self, relative: &str, items: Vec<Item>) {
         let path = self.path(relative);
         let metadata = fs::metadata(&path).unwrap();
         let modified = metadata.modified().unwrap();
@@ -93,11 +103,7 @@ impl Fixture {
                     .as_nanos(),
             )
             .unwrap(),
-            items: vec![Item::Movie {
-                title: "Alien".to_owned(),
-                year: Some(1979),
-                hint: None,
-            }],
+            items,
         };
         self.contents.apply(self.library, vec![file]).await.unwrap();
     }
@@ -275,12 +281,13 @@ async fn without_ffprobe_probing_a_version_right_away_reports_that_probing_is_un
 }
 
 #[tokio::test]
-async fn probing_a_file_that_isnt_a_version_reports_no_such_version() {
+async fn probing_a_file_holding_no_item_reports_no_such_version() {
     let media = Fixture::new().await;
-    let alien = "Alien (1979)/Alien (1979).mkv";
-    media.write(alien, 10).await;
+    let home_video = "home video.mkv";
+    fs::write(media.path(home_video), [0_u8; 10]).unwrap();
+    media.store_holding(home_video, Vec::new()).await;
 
-    let probed = media.current(alien).await;
+    let probed = media.current(home_video).await;
 
     assert!(matches!(probed, Err(Error::NoSuchVersion(_))), "{probed:?}");
 }

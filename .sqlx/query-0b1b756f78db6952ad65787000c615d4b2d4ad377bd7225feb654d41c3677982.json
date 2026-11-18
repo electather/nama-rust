@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_items.id AS \"id!\", library_files.path,\n                      library_items.added_at, library_items.kind AS \"kind: ItemKind\",\n                      library_items.title, library_items.year, library_items.hint,\n                      library_items.season, library_items.episode,\n                      item_matches.unmatched_reason AS \"unmatched_reason?: ReasonColumn\",\n                      item_matches.tied_titles AS \"tied_titles?\",\n                      item_matches.item_id IS NULL AS \"undecided!: bool\",\n                      EXISTS (SELECT 1 FROM match_pins\n                              WHERE match_pins.library_id = library_files.library_id\n                                AND match_pins.kind = library_items.kind\n                                AND match_pins.title = library_items.title\n                                AND match_pins.year IS library_items.year\n                                AND match_pins.hint IS library_items.hint\n                                AND match_pins.pinned_id IS NULL) AS \"cleared!: bool\"\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?1\n                 AND item_matches.state IS NOT 'matched' AND (?2 IS NULL\n                                OR CASE WHEN ?5\n                                   THEN (library_items.added_at, library_items.id) < (?2, ?3)\n                                   ELSE (library_items.added_at, library_items.id) > (?2, ?3) END)\n                           ORDER BY CASE WHEN ?5 THEN library_items.added_at END DESC,\n                                    library_items.added_at,\n                                    CASE WHEN ?5 THEN library_items.id END DESC,\n                                    library_items.id\n                           LIMIT ?4",
+  "query": "SELECT library_items.id AS \"id!\", library_files.id AS \"version_id!\",\n                      library_files.path, library_items.added_at, library_items.kind AS \"kind: ItemKind\",\n                      library_items.title, library_items.year, library_items.hint,\n                      library_items.season, library_items.episode,\n                      item_matches.unmatched_reason AS \"unmatched_reason?: ReasonColumn\",\n                      item_matches.tied_titles AS \"tied_titles?\",\n                      item_matches.item_id IS NULL AS \"undecided!: bool\",\n                      EXISTS (SELECT 1 FROM match_pins\n                              WHERE match_pins.library_id = library_files.library_id\n                                AND match_pins.kind = library_items.kind\n                                AND match_pins.title = library_items.title\n                                AND match_pins.year IS library_items.year\n                                AND match_pins.hint IS library_items.hint\n                                AND match_pins.pinned_id IS NULL) AS \"cleared!: bool\"\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?1\n                 AND item_matches.state IS NOT 'matched' AND (?2 IS NULL\n                                OR CASE WHEN ?5\n                                   THEN (library_files.path, library_items.id) < (?2, ?3)\n                                   ELSE (library_files.path, library_items.id) > (?2, ?3) END)\n                           ORDER BY CASE WHEN ?5 THEN library_files.path END DESC,\n                                    library_files.path,\n                                    CASE WHEN ?5 THEN library_items.id END DESC,\n                                    library_items.id\n                           LIMIT ?4",
   "describe": {
     "columns": [
       {
@@ -15,8 +15,19 @@
         }
       },
       {
-        "name": "path",
+        "name": "version_id!",
         "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "added_at",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "kind: ItemKind",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "title",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -60,7 +71,7 @@
       },
       {
         "name": "year",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "hint",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "season",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "episode",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "unmatched_reason?: ReasonColumn",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,7 +126,7 @@
       },
       {
         "name": "tied_titles?",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -126,13 +137,13 @@
       },
       {
         "name": "undecided!: bool",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Null",
         "origin": "Expression"
       },
       {
         "name": "cleared!: bool",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Null",
         "origin": "Expression"
       }
@@ -141,6 +152,7 @@
       "Right": 5
     },
     "nullable": [
+      null,
       null,
       false,
       false,
@@ -156,5 +168,5 @@
       null
     ]
   },
-  "hash": "3f652e8df4a47f89b17f1c730418cbfd7649265af210c9908924dfd52260ecfa"
+  "hash": "0b1b756f78db6952ad65787000c615d4b2d4ad377bd7225feb654d41c3677982"
 }

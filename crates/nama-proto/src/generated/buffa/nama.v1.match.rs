@@ -2487,6 +2487,16 @@ pub struct UnmatchedItem {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub tied_titles: ::buffa::alloc::vec::Vec<TitleCandidate>,
+    /// The Version that holds it, to play it by.
+    ///
+    /// Field 10: `version_id`
+    #[serde(
+        rename = "versionId",
+        alias = "version_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub version_id: i64,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2503,6 +2513,7 @@ impl ::core::fmt::Debug for UnmatchedItem {
             .field("episode", &self.episode)
             .field("reason", &self.reason)
             .field("tied_titles", &self.tied_titles)
+            .field("version_id", &self.version_id)
             .finish()
     }
 }
@@ -2594,6 +2605,9 @@ impl ::buffa::Message for UnmatchedItem {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.version_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.version_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2641,6 +2655,9 @@ impl ::buffa::Message for UnmatchedItem {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.version_id != 0i64 {
+            ::buffa::types::put_int64_field(10u32, self.version_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2731,6 +2748,13 @@ impl ::buffa::Message for UnmatchedItem {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.tied_titles.push(elem);
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.version_id = ::buffa::types::decode_int64(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2748,6 +2772,7 @@ impl ::buffa::Message for UnmatchedItem {
         self.episode = ::core::option::Option::None;
         self.reason = ::buffa::EnumValue::from(0);
         self.tied_titles.clear();
+        self.version_id = 0i64;
         self.__buffa_unknown_fields.clear();
     }
 }

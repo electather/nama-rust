@@ -292,8 +292,9 @@ impl Contents {
         })
     }
 
-    /// The path of the Version `version` and the file stored there, or `None` unless some Item of
-    /// the file is Matched, so unmatched files are never served or probed.
+    /// The path of the Version `version` and the file stored there, or `None` unless the file
+    /// holds an Item, Matched or not (ADR 0062), so a file whose name didn't parse is never served
+    /// or probed.
     pub(crate) async fn version_file(
         &self,
         version: i64,
@@ -302,9 +303,7 @@ impl Contents {
             "SELECT path, size, modified_ns, parser_version FROM library_files
              WHERE id = ?
                AND EXISTS (SELECT 1 FROM library_items
-                           JOIN item_matches ON item_matches.item_id = library_items.id
-                           WHERE library_items.file_id = library_files.id
-                             AND item_matches.state = 'matched')",
+                           WHERE library_items.file_id = library_files.id)",
             version
         )
         .fetch_optional(self.db.reader())

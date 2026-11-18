@@ -65,6 +65,7 @@ function openDark(
     {},
     (router) => {
       router.service(BrowseService, {
+        listUnmatched: () => ({}),
         getShow: () => ({
           show: { id: darkId, title: "Dark" },
           seasons: [{ number: 1 }, { number: 2 }],

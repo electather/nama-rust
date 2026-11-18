@@ -26,7 +26,7 @@ function serverToBrowse(
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, { listGenres: () => ({}), ...browse });
+    router.service(BrowseService, { listGenres: () => ({}), listUnmatched: () => ({}), ...browse });
     if (events) router.service(EventService, { subscribe: () => events });
   });
 }
