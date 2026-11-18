@@ -55,7 +55,7 @@ function switchTo(store: Awaited<ReturnType<typeof imageStore>>, pluginId: strin
   fireEvent.click(store.getByRole("button", { name: "Switch image store" }));
 }
 
-test("the image store picker lists local disk and the enabled Blob store Plugins only", async () => {
+test("with local disk in use, the picker chooses it and offers only the enabled Blob store Plugins", async () => {
   openSettings({});
 
   const store = await imageStore();
@@ -64,6 +64,7 @@ test("the image store picker lists local disk and the enabled Blob store Plugins
 
   const options = store.getAllByRole("option").map((option) => option.textContent);
   expect(options).toEqual(["Local disk", "S3"]);
+  expect(store.getByLabelText<HTMLSelectElement>("Keep images on").value).toBe("");
 });
 
 test("switching the image store shows the copy's progress, then the new store", async () => {
@@ -115,13 +116,16 @@ test("switching back to local disk names no Plugin", async () => {
   await expect.poll(() => switches).toEqual([""]);
 });
 
-test("an enabled Blob store Plugin in use adds no option to the picker", async () => {
+test("an enabled Blob store Plugin in use is chosen in the picker, adding no option", async () => {
   openSettings({ getImageSettings: () => ({ settings: { storePluginId: "s3" } }) });
 
   const store = await imageStore();
   await store.findByRole("option", { name: "S3" });
 
-  const options = store.getAllByRole("option").map((option) => option.textContent);
+  const picker = store.getByLabelText<HTMLSelectElement>("Keep images on");
+  expect(picker.value).toBe("s3");
+  expect(picker.selectedOptions[0]?.textContent).toBe("S3");
+  const options = [...picker.options].map((option) => option.textContent);
   expect(options).toEqual(["Local disk", "S3"]);
 });
 
@@ -263,4 +267,26 @@ test("picking local disk or S3 while a disabled Blob store Plugin is in use swit
   await expect.poll(() => switches).toEqual([""]);
   switchTo(store, "s3");
   await expect.poll(() => switches).toEqual(["", "s3"]);
+});
+
+test("switching untouched from an enabled Blob store Plugin in use asks for it, not local disk", async () => {
+  const switches: string[] = [];
+  openSettings({
+    getImageSettings: () => ({ settings: { storePluginId: "s3" } }),
+    switchImageStore: ({ pluginId }) => {
+      switches.push(pluginId);
+      throw refused(Code.FailedPrecondition, "the image store is already in use", {
+        reason: RefusalReason.IMAGE_STORE_IN_USE,
+        field: "plugin_id",
+        params: { pluginId },
+      });
+    },
+  });
+
+  const store = await imageStore();
+  await store.findByRole("option", { name: "S3" });
+  fireEvent.click(store.getByRole("button", { name: "Switch image store" }));
+
+  expect(await store.findByText("S3 already keeps the images.")).toBeDefined();
+  expect(switches).toEqual(["s3"]);
 });

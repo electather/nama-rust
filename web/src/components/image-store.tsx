@@ -1,10 +1,5 @@
 import type { ConnectError } from "@connectrpc/connect";
-import {
-  createConnectQueryKey,
-  useMutation,
-  useQuery,
-  useSuspenseQuery,
-} from "@connectrpc/connect-query";
+import { createConnectQueryKey, useMutation, useSuspenseQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { FormEnd, FormSelect } from "@/components/form-field";
@@ -73,9 +68,12 @@ export function ImageStore() {
   );
 }
 
-/** Every Plugin, enabled or not, or none while the list loads. */
+/**
+ * Every Plugin, enabled or not. Suspends while the list loads, so the picker mounts with the store in
+ * use among its options: an uncontrolled select applies its `defaultValue` only at mount.
+ */
 function usePlugins() {
-  return useQuery(PluginService.method.listPlugins, {}).data?.summaries ?? [];
+  return useSuspenseQuery(PluginService.method.listPlugins, {}).data.summaries;
 }
 
 /** Whether `plugin` may keep the images: an enabled Blob store Plugin. */
