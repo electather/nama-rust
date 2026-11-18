@@ -7,7 +7,7 @@ Walking each Library's folders, storing the video files in them and what their n
 - **A scan writes in batches under the scan lock.** A scan holds the Library's scan lock (`library::ScanLocks`) from reading what is stored through Matching, and stores its changes in batches of `BATCH_SIZE`, so other writes don't wait long behind it.
 - **Recognisers see what the name parser couldn't place.** `recognised.rs` asks the Library's enabled Recognisers, in the Library's order, about the files the name parser made no Item of (ADR 0050).
 - **Name parser version.** A change to how names are parsed or how Matching decides that could turn an Unmatched Item into a Match bumps `PARSER_VERSION` in `../library/versions.rs`, so the next scan parses stored files again and retries their automatic Unmatched decisions (ADR 0023). So does a change to what Matching stores about an automatic Unmatched decision, such as why it was made, so decisions stored before it get it.
-- **Private modules.** Every file of the area is a private module; neighbours import only what `scanner.rs` re-exports, such as `read_only_folder` for Browse and `DoomedFile` for the `api` part for libraries, and items inside default to `pub(super)`. The area's unit tests share the `Fixture` in `scanner_tests.rs` in this folder.
+- **Unit tests.** The area's unit tests share the `Fixture` in `scanner_tests.rs` in this folder.
 
 ### Neighbours
 

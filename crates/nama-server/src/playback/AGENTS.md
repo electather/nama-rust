@@ -12,7 +12,6 @@ Planning how a Device plays a Version, running the plans, serving their files an
 - **Probe version.** A change to what probing reads from a file, or how, bumps `PROBE_VERSION` in `tracks.rs`, so the next pass after a scan probes every file again (ADR 0023's pattern).
 - **Probe failure version.** A change that may let ffprobe read files it lastingly failed on before, without changing what probing reads from a file that it could read, bumps `PROBE_FAILURE_VERSION` in `tracks.rs`, so the next pass tries again only those files, and the next Remux lists the keyframes it couldn't before.
 - **WebVTT version.** A change to the WebVTT a subtitle source makes bumps `WEBVTT_VERSION` in `subtitles.rs`, so what the cache kept from before is made again.
-- **Private modules.** Every playback module is a private `mod` of `../playback.rs`; neighbours import only what it re-exports (such as `playback::Probing` or `playback::SubtitleCache`), and items inside default to `pub(super)`.
 
 ### Neighbours
 
