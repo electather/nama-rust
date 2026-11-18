@@ -11,7 +11,7 @@ use std::{
 };
 
 use nama_plugin_api::{
-    PluginId, PointKey,
+    PluginId,
     contract::{self as wire, TitleRecognised, TitleToRecognise},
     metadata::{ExternalId, ExternalIds},
     recogniser::{Recogniser, RecogniserMethod},
@@ -131,8 +131,8 @@ impl Recognisers {
     }
 
     /// The well-formed ids the Plugin `plugin`'s Recogniser names for `asked`, in its order;
-    /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Records whether
-    /// the call failed for the Admin to see, and counts a failure for [`Self::failures_log`].
+    /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Counts a failure
+    /// for [`Self::failures_log`].
     async fn ask(
         &self,
         plugin: &PluginId,
@@ -146,21 +146,15 @@ impl Recognisers {
                 recogniser.recognise_title(asked).await.map(Some)
             })
             .await;
-        let point = PointKey::provide::<dyn Recogniser>();
         match answered {
             Some(Answer {
                 result: Ok(Some(recognised)),
                 ..
-            }) => {
-                self.plugins.provider_answered(plugin, point);
-                Ok(Some(well_formed(plugin, &recognised)))
-            }
+            }) => Ok(Some(well_formed(plugin, &recognised))),
             Some(Answer {
                 result: Err(failure),
                 ..
             }) => {
-                self.plugins
-                    .provider_failed(plugin, point, &failure.message);
                 let mut failed = self.failures();
                 let (titles, last) = failed.entry(plugin.clone()).or_default();
                 *titles = titles.saturating_add(1);

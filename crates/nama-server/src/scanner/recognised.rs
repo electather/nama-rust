@@ -9,7 +9,7 @@ use std::{
 };
 
 use nama_plugin_api::{
-    PluginId, PointKey,
+    PluginId,
     contract::{
         self, FileRecognised, FileToRecognise, RecognisedEpisodes, RecognisedMovie, TitleId,
         file_recognised::Recognised,
@@ -160,7 +160,6 @@ async fn ask(
         .into(),
         ..FileToRecognise::default()
     };
-    let point = PointKey::provide::<dyn Recogniser>();
     for plugin in recognisers {
         let answered = plugins
             .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
@@ -175,12 +174,8 @@ async fn ask(
         let recognised = match answer.result {
             Ok(Some(recognised)) => recognised,
             Ok(None) => continue,
-            Err(failure) => {
-                plugins.provider_failed(&answer.plugin, point, &failure.message);
-                return Err((answer.plugin, failure.message));
-            }
+            Err(failure) => return Err((answer.plugin, failure.message)),
         };
-        plugins.provider_answered(&answer.plugin, point);
         if recognised.recognised.is_none() {
             continue;
         }

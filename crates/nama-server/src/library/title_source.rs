@@ -19,7 +19,7 @@ pub(crate) use titles::{
 
 use crate::{
     library::contents::{ImageRef, Metadata},
-    plugins::{Answer, ExtensionPoints, Failure, ProviderError},
+    plugins::{Answer, ExtensionPoints, Failure, FailureKind, ProviderError},
 };
 
 /// Why the title source gave no answer.
@@ -473,6 +473,13 @@ enum Refusal {
 impl From<MetadataError> for Refusal {
     fn from(error: MetadataError) -> Self {
         Self::Refused(error)
+    }
+}
+
+/// A failure only when the source is [`Unanswered::Unavailable`]: having no such title is an answer.
+impl FailureKind for Unanswered {
+    fn is_failure(&self) -> bool {
+        *self == Self::Unavailable
     }
 }
 

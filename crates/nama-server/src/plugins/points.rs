@@ -14,7 +14,7 @@ use tracing::{Instrument as _, Span, error, info, warn};
 use crate::diagnostics::{self, PLUGIN_SPAN, PLUGIN_TARGET};
 
 use super::{
-    Answer, ProviderError, contain_call, contain_sync,
+    Answer, Failure, FailureKind, ProviderError, contain_call, contain_sync,
     failing::{Failing, Failures},
     formatted,
     registry::{Enabled, Entry, MakeKernel, State},
@@ -29,7 +29,7 @@ use super::{
 #[derive(Clone, Default)]
 pub struct ExtensionPoints {
     state: Arc<RwLock<State>>,
-    /// Which Providers' last calls failed, which callers record and the Admin is shown.
+    /// Which Providers' last calls failed, which asking and telling record and the Admin is shown.
     failures: Arc<Failures>,
 }
 
@@ -81,6 +81,7 @@ impl ExtensionPoints {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
+        K: FailureKind,
     {
         self.ask_in_turn(None, call).await.answered()
     }
@@ -97,6 +98,7 @@ impl ExtensionPoints {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
+        K: FailureKind,
     {
         self.ask_one(plugin, call).await.answered()
     }
@@ -112,6 +114,7 @@ impl ExtensionPoints {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
+        K: FailureKind,
     {
         self.ask_in_turn(Some(plugin), call).await
     }
@@ -119,6 +122,8 @@ impl ExtensionPoints {
     /// Asks the Providers of `T` in the order [`ExtensionPoints::ask_first`] describes,
     /// considering only `only`'s if given, until one answers without panicking. With none
     /// answering, [`Asked::Panicked`] if any of them panicked.
+    ///
+    /// Records the answer for the Plugins page.
     async fn ask_in_turn<T, R, K, E, F>(
         &self,
         only: Option<&PluginId>,
@@ -128,6 +133,7 @@ impl ExtensionPoints {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
+        K: FailureKind,
     {
         let point = PointKey::provide::<T>();
         let mut entries = self.ranked_entries(point);
@@ -144,6 +150,7 @@ impl ExtensionPoints {
             match called.instrument(self.log_span(&entry.plugin)).await {
                 Ok(result) => {
                     let result = result.map_err(|failure| failure.blanked(&entry.secrets));
+                    self.record(&entry.plugin, point, &result);
                     return Asked::Answered(Answer {
                         plugin: entry.plugin,
                         result,
@@ -156,6 +163,22 @@ impl ExtensionPoints {
             }
         }
         asked
+    }
+
+    /// Records the Plugin `plugin`'s answer at `point`: a failure whose kind
+    /// [counts](FailureKind::is_failure), or else an answer.
+    fn record<R, K: FailureKind>(
+        &self,
+        plugin: &PluginId,
+        point: PointKey,
+        result: &Result<R, Failure<K>>,
+    ) {
+        match result {
+            Err(failure) if failure.kind.is_failure() => {
+                self.provider_failed(plugin, point, &failure.message);
+            }
+            _ => self.provider_answered(plugin, point),
+        }
     }
 
     /// Tells every Provider of `T`, given the id of the Plugin providing it, each as its own task,
@@ -241,7 +264,7 @@ impl ExtensionPoints {
     /// the Plugin clears it, and a restart forgets it.
     #[expect(
         clippy::must_use_candidate,
-        reason = "a caller that logs each scan's tally itself only records the failure"
+        reason = "asking records the failure without reading the run"
     )]
     pub fn provider_failed(
         &self,

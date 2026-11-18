@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use nama_plugin_api::{PluginError, fulfiller::TryAgainIn};
 
-use super::{Failure, ProviderError};
+use super::{Failure, FailureKind, ProviderError};
 
 /// How many times in a row the Kernel asks a Fulfiller again after it said to try again, for one
 /// Request or deleted title, before it gives up (ADR 0047).
@@ -15,6 +15,13 @@ pub(crate) const RETRIES: u32 = 10;
 
 /// A Fulfiller's error, whose kind is how long it said to wait when it said to try again.
 pub(crate) struct Retryable(pub(crate) PluginError);
+
+/// A failure unless the Fulfiller said to try again, since the service can't act yet.
+impl FailureKind for Option<Duration> {
+    fn is_failure(&self) -> bool {
+        self.is_none()
+    }
+}
 
 impl ProviderError<Option<Duration>> for Retryable {
     fn failure(self) -> Failure<Option<Duration>> {
