@@ -944,7 +944,7 @@ async fn ffmpegs_own_playlist(folder: &Path, url: &str) -> String {
     written(&folder.join(format!("nama-plan-{id}")).join("ffmpeg.m3u8")).await
 }
 
-/// What the file at `path` holds once it ends in a newline, so it never returns a write half done.
+/// What the file at `path` holds once it ends in a newline, so its last line isn't half written.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
