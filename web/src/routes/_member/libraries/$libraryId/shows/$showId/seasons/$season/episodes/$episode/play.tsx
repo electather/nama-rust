@@ -5,10 +5,13 @@ import { type NextEpisode, streakSearch } from "@/components/next-episode";
 import { Player } from "@/components/player";
 import { DeletedWhilePlaying, NotFound, PlayerError } from "@/components/route-error";
 import { BrowseService, type Episode } from "@/gen/nama/v1/browse_pb";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import {
+  episodeName,
   externalIdFromParam,
   isGone,
   libraryFromParam,
+  metadataLine,
   queryOrNotFound,
   versionSearch,
   versionToPlay,
@@ -44,6 +47,7 @@ function PlayEpisode() {
   const { libraryId, showId } = Route.useParams();
   // Not suspended: the Episode plays while the Server finds the next one.
   const nextQuery = useQuery(BrowseService.method.getNextEpisode, { ...input, episodeNumber });
+  const lockScreen = useShowForLockScreen(input, episodeNumber);
   // An Event removed it, or its whole Season, since the loader ran.
   if (!episode || isGone(error)) return <DeletedWhilePlaying />;
   const { id, tracks } = versionToPlay(episode.versions, version);
@@ -56,6 +60,7 @@ function PlayEpisode() {
       versionId={id}
       tracks={tracks}
       watchState={episode.watchState}
+      {...lockScreen}
       back={{
         to: "/libraries/$libraryId/shows/$showId",
         params: { libraryId, showId },
@@ -63,6 +68,28 @@ function PlayEpisode() {
       }}
       next={nextEpisode(nextQuery.data?.next, streak, { libraryId, showId })}
     />
+  );
+}
+
+/**
+ * What the lock screen shows beside the Episode's title: its Show and which Episode it is, by the
+ * Show's Poster. Nothing until the Show arrives, which the Episode doesn't wait for.
+ */
+function useShowForLockScreen(
+  {
+    libraryId,
+    showId,
+    seasonNumber,
+  }: { libraryId: bigint; showId: ExternalId; seasonNumber: number },
+  episodeNumber: number,
+) {
+  const { data } = useQuery(BrowseService.method.getShow, { libraryId, showId });
+  const show = data?.show;
+  return (
+    show && {
+      artist: metadataLine(show.title, episodeName(seasonNumber, episodeNumber, "short")),
+      posterUrl: show.posterUrl,
+    }
   );
 }
 
