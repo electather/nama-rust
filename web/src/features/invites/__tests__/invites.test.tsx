@@ -139,7 +139,7 @@ test("opening an Invite's link, picking a name and password lands signed in", as
   fill("Password", "correct horse");
   fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
-  await expect(screen.findByRole("link", { name: "Settings" })).resolves.toBeDefined();
+  await expect(screen.findByRole("button", { name: "Your menu" })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/");
   expect(sent?.token).toBe("abc");
   expect(sent?.delivery).toBe(SessionDelivery.COOKIE);

@@ -149,7 +149,15 @@
       },
       {
         "from": "app",
-        "allow": ["app", "player", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": [
+          "app",
+          "action-bar",
+          "player",
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+        ],
       },
       {
         "from": "routes",

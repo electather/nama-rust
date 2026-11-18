@@ -66,7 +66,7 @@ test("an unknown Movie shows the not-found page, under the app chrome", async ()
   openApp("/libraries/1/movies/tmdb-404", transport);
 
   await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
-  expect(screen.getByRole("link", { name: "Libraries" })).toBeDefined();
+  expect(screen.getByRole("link", { name: "Home" })).toBeDefined();
 });
 
 /** A fake Server with a Show of `seasons`, each holding one Episode titled after its Season. */

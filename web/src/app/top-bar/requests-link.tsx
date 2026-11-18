@@ -1,6 +1,6 @@
-import { NavLink } from "@/app/app-chrome/nav-link";
-import { PendingBadge } from "@/app/app-chrome/pending-badge";
 import { usePendingRequestCount } from "@/app/data/use-pending-request-count";
+import { PendingBadge } from "@/app/top-bar/pending-badge";
+import { TopBarLink } from "@/app/top-bar/top-bar-link";
 
 /**
  * The link to Requests, with how many are Pending for a Request manager. Request Events refetch the
@@ -9,12 +9,12 @@ import { usePendingRequestCount } from "@/app/data/use-pending-request-count";
 export function RequestsLink({ managesRequests }: { managesRequests: boolean }) {
   const pending = usePendingRequestCount(managesRequests);
   if (pending === 0) {
-    return <NavLink to="/requests">Requests</NavLink>;
+    return <TopBarLink to="/requests">Requests</TopBarLink>;
   }
   return (
-    <NavLink to="/requests" aria-label={`Requests, ${pending} Pending`}>
+    <TopBarLink to="/requests" aria-label={`Requests, ${pending} Pending`}>
       Requests
       <PendingBadge pending={pending} />
-    </NavLink>
+    </TopBarLink>
   );
 }
