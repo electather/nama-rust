@@ -61,6 +61,7 @@ function openAlien(
     {},
     (router) => {
       router.service(BrowseService, {
+        listUnmatched: () => ({}),
         getMovie: () => ({
           movie: { title: "Alien", versions: [ALIEN_2160P, ALIEN_1080P] },
           readOnlyFolder: readOnlyFolder(),

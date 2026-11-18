@@ -47,9 +47,15 @@ export interface ServerState {
   serverService?: Partial<ServiceImpl<typeof ServerService>>;
   /** How the fake Server answers the rest of `LibraryService`, such as deleting media. */
   libraryService?: Partial<ServiceImpl<typeof LibraryService>>;
-  /** How the fake Server answers `PlaybackService` RPCs, over its default: no Track Preferences. */
+  /** How the fake Server answers `PlaybackService` RPCs, over `defaultPlayback`. */
   playbackService?: Partial<ServiceImpl<typeof PlaybackService>>;
 }
+
+/** How the fake Server answers `PlaybackService` by default: no Track Preferences, and autoplay on. */
+const defaultPlayback: Partial<ServiceImpl<typeof PlaybackService>> = {
+  getTrackPreferences: () => ({}),
+  getAutoplay: () => ({ on: true }),
+};
 
 /**
  * A fake Server in `state`, with handlers for the rest of `SignInService` and `UserService`.
@@ -98,8 +104,8 @@ export function fakeServer(
       listLibraries: () => ({ libraries: state.libraries ?? [] }),
       ...state.libraryService,
     });
-    // Settings shows your own Track Preferences. A test's own `PlaybackService` in `more` replaces this.
-    router.service(PlaybackService, { getTrackPreferences: () => ({}), ...state.playbackService });
+    // A test's own `PlaybackService` in `more` replaces this.
+    router.service(PlaybackService, { ...defaultPlayback, ...state.playbackService });
     // Every signed-in page follows the Server's Events.
     router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });
     more(router);

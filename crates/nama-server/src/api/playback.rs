@@ -1,23 +1,27 @@
 //! How each signed-in User's Device plays a Version: `nama.v1.PlaybackService`.
 
+use std::sync::Arc;
+
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
-    self as proto, GetTrackPreferencesRequest, GetTrackPreferencesResponse, PickedTrackKind,
-    PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, RefusalReason,
-    ReportTrackPickRequest, ReportTrackPickResponse, SetAudioPreferenceRequest,
-    SetAudioPreferenceResponse, SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse,
-    StopPlaybackRequest, StopPlaybackResponse, SubtitleKind, UsersAudioPreference,
-    UsersSubtitlePreference,
+    self as proto, GetAutoplayRequest, GetAutoplayResponse, GetTrackPreferencesRequest,
+    GetTrackPreferencesResponse, PickedTrackKind, PlanPlaybackRequest, PlanPlaybackResponse,
+    PlaybackService, RefusalReason, ReportTrackPickRequest, ReportTrackPickResponse,
+    SetAudioPreferenceRequest, SetAudioPreferenceResponse, SetAutoplayRequest, SetAutoplayResponse,
+    SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse, StopPlaybackRequest,
+    StopPlaybackResponse, SubtitleKind, UsersAudioPreference, UsersSubtitlePreference,
 };
 
 use crate::{
+    db::Database,
     ffmpeg::Abilities,
     playback::{
         self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, Method, NAMED_LIMITS,
         PickedLimit, Planned, Preferred, Probing, ProbingError, RunningPlans, StartError,
         StartedPlan, SubtitlePreference, TrackKind, TrackPreferenceError, TrackPreferences,
-        is_language, limit_to_proto, method_to_proto, reason_to_proto, track_to_proto,
+        is_autoplay_on, is_language, limit_to_proto, method_to_proto, reason_to_proto,
+        set_autoplay, track_to_proto,
     },
     server_settings::{PlaybackLimit, PlaybackSettings},
 };
@@ -31,6 +35,7 @@ pub(super) struct PlaybackServiceHandler {
     pub(super) running: RunningPlans,
     pub(super) settings: PlaybackSettings,
     pub(super) preferences: TrackPreferences,
+    pub(super) db: Arc<Database>,
 }
 
 #[expect(
@@ -226,6 +231,31 @@ impl PlaybackService for PlaybackServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(SetAudioPreferenceResponse::default())
+    }
+
+    async fn get_autoplay(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetAutoplayRequest>,
+    ) -> ServiceResult<GetAutoplayResponse> {
+        let on = is_autoplay_on(&self.db, caller(&ctx)?.user.id)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(GetAutoplayResponse {
+            on,
+            ..Default::default()
+        })
+    }
+
+    async fn set_autoplay(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetAutoplayRequest>,
+    ) -> ServiceResult<SetAutoplayResponse> {
+        set_autoplay(&self.db, caller(&ctx)?.user.id, request.on)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(SetAutoplayResponse::default())
     }
 }
 

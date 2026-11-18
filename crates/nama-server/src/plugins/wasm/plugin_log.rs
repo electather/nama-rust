@@ -10,10 +10,7 @@ use nama_plugin_api::PluginId;
 use tracing::{Level, enabled, event, warn};
 
 use super::without_secrets;
-use crate::db;
-
-/// The target every Installed Plugin's line is logged under.
-const TARGET: &str = "nama::plugin";
+use crate::{db, diagnostics::PLUGIN_TARGET};
 
 /// The most of a line logged, in bytes, so a Plugin can't fill the log with one (ADR 0061).
 const MAX_LINE_BYTES: usize = 2048;
@@ -92,8 +89,8 @@ impl PluginLog {
         // `tracing` fixes an event's level where it is written, so each level is written apart.
         macro_rules! write_at {
             ($level:expr) => {
-                if enabled!(target: TARGET, $level) && self.lock().take(now_ms) {
-                    event!(target: TARGET, $level, plugin = %self.plugin, "{}", self.line(text));
+                if enabled!(target: PLUGIN_TARGET, $level) && self.lock().take(now_ms) {
+                    event!(target: PLUGIN_TARGET, $level, plugin = %self.plugin, "{}", self.line(text));
                 }
             };
         }

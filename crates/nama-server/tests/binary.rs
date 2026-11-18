@@ -163,6 +163,9 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     // The log-events Built-in Plugin is enabled by default and observes the start.
     let observed_line = wait_for_line(&lines, "observed server started");
     assert!(observed_line.contains("From File"), "{observed_line}");
+    // A Built-in's line names it in the Registry's span, and no span of the Server's own shows.
+    let named = " plugin{plugin=log-events}: nama_plugin_log_events:";
+    assert!(observed_line.contains(named), "{observed_line}");
 
     // HTTP/1.0 so the response isn't chunked and ends when the connection closes.
     let mut stream = TcpStream::connect(addr).unwrap();

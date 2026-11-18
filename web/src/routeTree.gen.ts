@@ -35,6 +35,7 @@ import { Route as MemberAdminAdminPluginsPluginIdRouteImport } from './routes/_m
 import { Route as MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/index'
 import { Route as MemberLibrariesLibraryIdMoviesMovieIdPlayRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/play'
 import { Route as MemberLibrariesLibraryIdShowsShowIdIndexRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/index'
+import { Route as MemberLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport } from './routes/_member/libraries/$libraryId/unmatched/$versionId/play'
 import { Route as MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
 
 const MemberRoute = MemberRouteImport.update({
@@ -175,6 +176,12 @@ const MemberLibrariesLibraryIdShowsShowIdIndexRoute =
     path: '/libraries/$libraryId/shows/$showId/',
     getParentRoute: () => MemberRoute,
   } as any)
+const MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute =
+  MemberLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport.update({
+    id: '/libraries/$libraryId/unmatched/$versionId/play',
+    path: '/libraries/$libraryId/unmatched/$versionId/play',
+    getParentRoute: () => MemberRoute,
+  } as any)
 const MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute =
   MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport.update(
     {
@@ -207,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
   '/admin/plugins/': typeof MemberAdminAdminPluginsIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
   '/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
   '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
@@ -234,6 +242,7 @@ export interface FileRoutesByTo {
   '/admin/libraries': typeof MemberAdminAdminLibrariesIndexRoute
   '/admin/plugins': typeof MemberAdminAdminPluginsIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/libraries/$libraryId/movies/$movieId': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
   '/libraries/$libraryId/shows/$showId': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
   '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
@@ -264,6 +273,7 @@ export interface FileRoutesById {
   '/_member/_admin/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
   '/_member/_admin/admin/plugins/': typeof MemberAdminAdminPluginsIndexRoute
   '/_member/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/_member/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/_member/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
   '/_member/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
   '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
@@ -293,6 +303,7 @@ export interface FileRouteTypes {
     | '/admin/libraries/'
     | '/admin/plugins/'
     | '/libraries/$libraryId/movies/$movieId/play'
+    | '/libraries/$libraryId/unmatched/$versionId/play'
     | '/libraries/$libraryId/movies/$movieId/'
     | '/libraries/$libraryId/shows/$showId/'
     | '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
@@ -320,6 +331,7 @@ export interface FileRouteTypes {
     | '/admin/libraries'
     | '/admin/plugins'
     | '/libraries/$libraryId/movies/$movieId/play'
+    | '/libraries/$libraryId/unmatched/$versionId/play'
     | '/libraries/$libraryId/movies/$movieId'
     | '/libraries/$libraryId/shows/$showId'
     | '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
@@ -349,6 +361,7 @@ export interface FileRouteTypes {
     | '/_member/_admin/admin/libraries/'
     | '/_member/_admin/admin/plugins/'
     | '/_member/libraries/$libraryId/movies/$movieId/play'
+    | '/_member/libraries/$libraryId/unmatched/$versionId/play'
     | '/_member/libraries/$libraryId/movies/$movieId/'
     | '/_member/libraries/$libraryId/shows/$showId/'
     | '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
@@ -545,6 +558,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberLibrariesLibraryIdShowsShowIdIndexRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/libraries/$libraryId/unmatched/$versionId/play': {
+      id: '/_member/libraries/$libraryId/unmatched/$versionId/play'
+      path: '/libraries/$libraryId/unmatched/$versionId/play'
+      fullPath: '/libraries/$libraryId/unmatched/$versionId/play'
+      preLoaderRoute: typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': {
       id: '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
       path: '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
@@ -595,6 +615,7 @@ interface MemberRouteChildren {
   MemberRequestsIndexRoute: typeof MemberRequestsIndexRoute
   MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
+  MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute: typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   MemberLibrariesLibraryIdMoviesMovieIdIndexRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
   MemberLibrariesLibraryIdShowsShowIdIndexRoute: typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
   MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute: typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
@@ -614,6 +635,8 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute:
     MemberLibrariesLibraryIdMoviesMovieIdPlayRoute,
+  MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute:
+    MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute,
   MemberLibrariesLibraryIdMoviesMovieIdIndexRoute:
     MemberLibrariesLibraryIdMoviesMovieIdIndexRoute,
   MemberLibrariesLibraryIdShowsShowIdIndexRoute:

@@ -131,12 +131,21 @@ pub mod __buffa {
         reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__LIST_UNMATCHED_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_UNMATCHED_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNMATCHED_ITEM_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__GET_UNMATCHED_VERSION_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_UNMATCHED_VERSION_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_AUDIO_PREFERENCE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_AUDIO_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_AUTOPLAY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_AUTOPLAY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_AUTOPLAY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_AUTOPLAY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USERS_AUDIO_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
@@ -631,6 +640,26 @@ pub use self::__buffa::view::EpisodeInLibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::EpisodeInLibraryOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnmatchedItemSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::UnmatchedItemSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::GetTrackPreferencesRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::GetTrackPreferencesRequestOwnedView;
@@ -654,6 +683,22 @@ pub use self::__buffa::view::SetAudioPreferenceRequestOwnedView;
 pub use self::__buffa::view::SetAudioPreferenceResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetAudioPreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UsersAudioPreferenceView;
 #[doc(inline)]

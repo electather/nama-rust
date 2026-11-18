@@ -8,6 +8,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
+import { AutoplayPreference } from "@/components/autoplay-preference";
 import { Choices, FormEnd, FormField } from "@/components/form-field";
 import {
   PlaybackService,
@@ -48,7 +49,8 @@ function kindOf(value: string) {
 
 /**
  * The signed-in User's own Track Preferences: the subtitles and audio everything they play starts
- * with, unless they picked others in that Show or Movie (ADR 0035).
+ * with, unless they picked others in that Show or Movie (ADR 0035), and whether the next Episode
+ * plays by itself.
  */
 export function TrackPreferences() {
   const { data } = useSuspenseQuery(PlaybackService.method.getTrackPreferences, {});
@@ -63,6 +65,7 @@ export function TrackPreferences() {
       </p>
       <SubtitlesForm saved={data.subtitle} />
       <AudioForm saved={data.audio} />
+      <AutoplayPreference />
     </section>
   );
 }

@@ -5,18 +5,19 @@ use std::{ffi::OsStr, path::Path};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
-    GetNextEpisodeResponse, GetShowRequest, GetShowResponse, ListContinueWatchingRequest,
-    ListContinueWatchingResponse, ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest,
-    ListGenresResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
-    MovieSort, Permission, RefusalReason, SearchLibrariesRequest, SearchLibrariesResponse,
-    ShowSort, SortDirection, WatchedFilter,
+    GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
+    GetUnmatchedVersionResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
+    ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest, ListGenresResponse,
+    ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
+    ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission, RefusalReason,
+    SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection, WatchedFilter,
 };
 
 use crate::{
     browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
     library::{
-        FoundEpisode, FoundMovie, FoundShow, ImageRef, LibraryKind, LibraryMovie, Listing, Role,
-        Slot, TitleSort, WatchState, Watched, artwork_url,
+        FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie, Listing,
+        Role, Slot, TitleSort, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
 };
@@ -286,6 +287,44 @@ impl BrowseService for BrowseServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn list_unmatched(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListUnmatchedRequest>,
+    ) -> ServiceResult<ListUnmatchedResponse> {
+        let request = request.to_owned_message();
+        let listed = (self.browse)
+            .unmatched(request.library_id, &request.page)
+            .await;
+        let (unmatched, page) = listed.map_err(refused(Fields::LIBRARY))?;
+        Response::ok(ListUnmatchedResponse {
+            items: (unmatched.into_iter())
+                .map(|unmatched| unmatched_summary(unmatched.item, unmatched.version_id))
+                .collect(),
+            page: page.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn get_unmatched_version(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, GetUnmatchedVersionRequest>,
+    ) -> ServiceResult<GetUnmatchedVersionResponse> {
+        let found = (self.browse)
+            .unmatched_version(request.library_id, request.version_id)
+            .await;
+        let (unmatched, version) = found.map_err(refused(Fields {
+            version: "version_id",
+            ..Fields::LIBRARY
+        }))?;
+        Response::ok(GetUnmatchedVersionResponse {
+            item: unmatched_summary(unmatched.item, unmatched.version_id).into(),
+            version: version_to_proto(&version).into(),
+            ..Default::default()
+        })
+    }
 }
 
 /// A `MovieFilter` or `ShowFilter`, which differ only in their type.
@@ -548,6 +587,40 @@ fn episode_to_proto(
         watch_state: watch_state.map(watch_state_to_proto).into(),
         ..Default::default()
     }
+}
+
+/// An Unmatched Item as any User sees it: the Version `version_id` that holds it and what its file's
+/// name was parsed as, `item`, never where the file is (ADR 0062).
+pub(super) fn unmatched_summary(item: Item, version_id: i64) -> proto::UnmatchedItemSummary {
+    let (kind, title, year, numbers) = match item {
+        Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
+        Item::Episode {
+            show,
+            year,
+            season,
+            episode,
+            ..
+        } => (
+            proto::TitleKind::TITLE_KIND_SHOW,
+            show,
+            year,
+            Some((season, episode)),
+        ),
+    };
+    proto::UnmatchedItemSummary {
+        version_id,
+        kind: kind.into(),
+        title,
+        year: year.and_then(int32),
+        season: numbers.and_then(|(season, _)| int32(season)),
+        episode: numbers.and_then(|(_, episode)| int32(episode)),
+        ..Default::default()
+    }
+}
+
+/// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
+fn int32(n: i64) -> Option<i32> {
+    i32::try_from(n).ok()
 }
 
 /// A Version as clients see it: its file's name, not the folders it is in.

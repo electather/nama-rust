@@ -24,6 +24,8 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct Unmatched {
     pub(crate) id: i64,
+    /// The Version that holds it.
+    pub(crate) version_id: i64,
     pub(crate) path: String,
     pub(crate) item: Item,
     /// `None` while Matching hasn't decided, or for an Unmatched reason not stored.
@@ -36,7 +38,7 @@ pub(crate) struct Unmatched {
 }
 
 /// Where an Unmatched Item sits in either order [`Contents::unmatched`] lists in: when a scan
-/// found it, and its file's path.
+/// found it, and its file's path, which is empty when listing by when found (ADR 0062).
 pub(crate) type UnmatchedPlace = (i64, String);
 
 /// Hands `$query!` the SQL for the Items of the Library `?1` that need a Match, one row each in
@@ -44,8 +46,8 @@ pub(crate) type UnmatchedPlace = (i64, String);
 macro_rules! unmatched_sql {
     ($query:ident) => {
         $query!(
-            r#"SELECT library_items.id AS "id!", library_files.path,
-                      library_items.added_at, library_items.kind AS "kind: ItemKind",
+            r#"SELECT library_items.id AS "id!", library_files.id AS "version_id!",
+                      library_files.path, library_items.added_at, library_items.kind AS "kind: ItemKind",
                       library_items.title, library_items.year, library_items.hint,
                       library_items.season, library_items.episode,
                       item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
@@ -70,6 +72,7 @@ macro_rules! unmatched_sql {
 /// A row of [`Contents::unmatched`], before it is read into an [`Unmatched`].
 struct UnmatchedRow {
     id: i64,
+    version_id: i64,
     path: String,
     added_at: i64,
     kind: ItemKind,
@@ -85,6 +88,18 @@ struct UnmatchedRow {
 }
 
 impl UnmatchedRow {
+    /// Where the row sits in the list, as its page token carries it: the path only when listing
+    /// `by_found` doesn't, since a token is readable and a User who may not see paths pages by when
+    /// found (ADR 0062).
+    fn place(&self, by_found: bool) -> (UnmatchedPlace, i64) {
+        let path = if by_found {
+            String::new()
+        } else {
+            self.path.clone()
+        };
+        ((self.added_at, path), self.id)
+    }
+
     /// The row read in full, `None` if its Item no longer reads as one, or an error if its
     /// stored reason doesn't.
     fn into_unmatched(self) -> Option<Result<Unmatched, sqlx::Error>> {
@@ -104,6 +119,7 @@ impl UnmatchedRow {
         Some(reason.map(|reason| Unmatched {
             undecided: self.undecided,
             id: self.id,
+            version_id: self.version_id,
             path: self.path,
             item,
             reason,
@@ -427,12 +443,13 @@ impl Contents {
         let mut tx = self.db.reader().begin().await?;
         // ponytail: SQLite sorts every Unmatched Item of the Library to list one page; index
         // `added_at` if Libraries with tens of thousands of them turn up.
-        let mut rows = if sort == UnmatchedItemSort::UNMATCHED_ITEM_SORT_FOUND {
+        let by_found = sort == UnmatchedItemSort::UNMATCHED_ITEM_SORT_FOUND;
+        let mut rows = if by_found {
             unmatched_sql!(by_found).fetch_all(&mut *tx).await?
         } else {
             unmatched_sql!(by_path).fetch_all(&mut *tx).await?
         };
-        let mut paging = page.finish(&mut rows, |row| ((row.added_at, row.path.clone()), row.id));
+        let mut paging = page.finish(&mut rows, |row| row.place(by_found));
         if page.is_first() {
             let total = unmatched_sql!(count).fetch_one(&mut *tx).await?;
             paging.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
@@ -442,6 +459,29 @@ impl Contents {
             .filter_map(UnmatchedRow::into_unmatched)
             .collect::<Result<_, _>>()?;
         Ok((unmatched, paging))
+    }
+
+    /// The first Unmatched Item, by id, of the Library `library`'s Version `version`, or `None` if
+    /// the Library has no such Version or it holds no Unmatched Item.
+    pub(crate) async fn unmatched_in_version(
+        &self,
+        library: i64,
+        version: i64,
+    ) -> Result<Option<Unmatched>, sqlx::Error> {
+        macro_rules! in_version {
+            ($unmatched:literal) => {
+                sqlx::query_as!(
+                    UnmatchedRow,
+                    $unmatched + " AND library_files.id = ?2 ORDER BY library_items.id LIMIT 1",
+                    library,
+                    version,
+                )
+            };
+        }
+        let row = unmatched_sql!(in_version)
+            .fetch_optional(self.db.reader())
+            .await?;
+        row.and_then(UnmatchedRow::into_unmatched).transpose()
     }
 
     /// Forgets what Matching left Unmatched in the Library `library`, so it decides those Items

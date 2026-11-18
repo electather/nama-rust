@@ -1,10 +1,12 @@
 import { Code } from "@connectrpc/connect";
 import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { Play } from "lucide-react";
 import { useId, useState } from "react";
 
 import { FormField } from "@/components/form-field";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   MatchService,
   type SetMatchResponse,
@@ -14,6 +16,7 @@ import {
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
 import { episodeName } from "@/lib/browse";
+// oxlint-disable-next-line import/max-dependencies -- an Unmatched Item's row both plays it and searches for and sets its Match
 import { unmatchedKey } from "@/lib/events";
 import { formText, onSubmitted, refusal } from "@/lib/forms";
 
@@ -38,7 +41,7 @@ export function UnmatchedRow({
   return (
     <li className="border-b px-3 py-3 last:border-b-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 basis-64 flex-col">
           <span className="font-medium">
             {parsed}
             <span className="ms-2 text-sm font-normal text-muted-foreground">
@@ -48,6 +51,7 @@ export function UnmatchedRow({
           <span className="text-sm empty:hidden">{whyUnmatched(item)}</span>
           <span className="text-sm wrap-anywhere text-muted-foreground">{item.path}</span>
         </div>
+        <PlayUnmatched libraryId={libraryId} versionId={item.versionId} name={parsed} />
         <Button
           variant="ghost"
           aria-label={`${action} for ${parsed}`}
@@ -67,11 +71,34 @@ export function UnmatchedRow({
   );
 }
 
+/** Plays the Version `versionId` of the Library `libraryId`, which holds the Unmatched Item `name`. */
+export function PlayUnmatched({
+  libraryId,
+  versionId,
+  name,
+}: {
+  libraryId: bigint;
+  versionId: bigint;
+  name: string;
+}) {
+  return (
+    <Link
+      to="/libraries/$libraryId/unmatched/$versionId/play"
+      params={{ libraryId: String(libraryId), versionId: String(versionId) }}
+      aria-label={`Play ${name}`}
+      className={buttonVariants({ variant: "ghost" })}
+    >
+      <Play aria-hidden />
+      Play
+    </Link>
+  );
+}
+
 /**
  * What an Item's file name was parsed as, such as "Alien (1979)", "Severance · Season 1, Episode 2"
  * or "Severance · Specials, Episode 2".
  */
-function parsedAs(item: UnmatchedItem) {
+export function parsedAs(item: Pick<UnmatchedItem, "title" | "year" | "season" | "episode">) {
   const title = withYear(item.title, item.year);
   if (item.season === undefined || item.episode === undefined) return title;
   return `${title} · ${episodeName(item.season, item.episode, "full")}`;

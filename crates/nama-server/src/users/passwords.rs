@@ -7,6 +7,7 @@ use nama_plugin_api::{
     auth::{Authenticator, PasswordError},
 };
 use sqlx::SqliteConnection;
+use tracing::Span;
 
 use super::{
     Caller, Error, Permissions, User, Users, managing::ensure_may_change, name_key,
@@ -251,7 +252,10 @@ async fn verify_where_blocking_is_fine(
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Result<T, PluginError> {
-    Ok(tokio::task::spawn_blocking(work).await?)
+    // `spawn_blocking` doesn't carry the span over, and the one naming a Built-in must reach its
+    // lines (ADR 0061).
+    let span = Span::current();
+    Ok(tokio::task::spawn_blocking(move || span.in_scope(work)).await?)
 }
 
 /// What an Authenticator's failure to hash a password means for the User.

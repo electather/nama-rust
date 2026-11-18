@@ -28,6 +28,7 @@ function thousandMovies(asked: ListMoviesRequest[]) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
+      listUnmatched: () => ({}),
       listGenres: () => ({ genres: ["Crime", "Horror"] }),
       listMovies: (request) => {
         asked.push(request);

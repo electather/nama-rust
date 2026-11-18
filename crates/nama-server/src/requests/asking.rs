@@ -382,6 +382,7 @@ impl SeasonsToAsk {
         asking: A,
     ) -> Result<Applied<Vec<Request>>, A::Error> {
         let today = today(conn).await?;
+        let followed_show = asking.followed_show().map(|followed| followed.id);
         let mut asked = Applied::quiet(Vec::with_capacity(self.seasons.len()));
         for season in &self.seasons {
             let matched = matched_episodes(conn, &self.show_id, season.number.into()).await?;
@@ -392,9 +393,14 @@ impl SeasonsToAsk {
             else {
                 continue;
             };
-            let wanted = self.wanted(season, asking.followed_show().map(|followed| followed.id));
-            let one = asking.ask(conn, wanted, opens_in).await?;
+            let one = asking
+                .ask(conn, self.wanted(season, followed_show), opens_in)
+                .await?;
             asking.cover(conn, season.number).await?;
+            // Not in `cover`, which also covers Specials, for which no Request opens.
+            if let Some(followed_show) = followed_show {
+                asked::link_followed_show(conn, one.value.id, followed_show).await?;
+            }
             asked.value.push(one.value);
             asked.events.extend(one.events);
             asked.hand_off.extend(one.hand_off);

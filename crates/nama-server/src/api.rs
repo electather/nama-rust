@@ -151,6 +151,7 @@ pub(crate) fn router(
             running,
             settings: playback,
             preferences: TrackPreferences::new(Arc::clone(&db)),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(RequestServiceHandler {
             requests,
@@ -291,6 +292,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_GET_NEXT_EPISODE_SPEC.procedure,       Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
     (proto::BROWSE_SERVICE_SEARCH_LIBRARIES_SPEC.procedure,       Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_UNMATCHED_SPEC.procedure,         Access::SignedIn),
+    (proto::BROWSE_SERVICE_GET_UNMATCHED_VERSION_SPEC.procedure,  Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
@@ -300,6 +303,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLAYBACK_SERVICE_GET_TRACK_PREFERENCES_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_SET_SUBTITLE_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC.procedure, Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_GET_AUTOPLAY_SPEC.procedure,         Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC.procedure,         Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),

@@ -429,3 +429,44 @@ fn every_migration_after_the_table_files_is_named_by_utc_timestamp() {
          crates/nama-server/README.md, \"Adding a migration\""
     );
 }
+
+/// The version of the migration that adds `request_followed_shows`.
+const REQUEST_FOLLOWED_SHOWS: i64 = 20_261_117_234_836;
+
+#[tokio::test]
+async fn upgrading_to_request_followed_shows_links_each_request_to_the_followed_show_that_opened_it()
+ {
+    let data_dir = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data_dir.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = migrations
+        .iter()
+        .map(|m| m.version)
+        .filter(|&version| version < REQUEST_FOLLOWED_SHOWS)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    sqlx::raw_sql(
+        "INSERT INTO followed_shows (id, show_id, title, state, created_at)
+         VALUES (7, 'tmdb-70523', 'Dark', 'pending', 0);
+         INSERT INTO requests (id, title_id, season, title, state, created_at, followed_show_id)
+         VALUES (1, 'tmdb-70523', 1, 'Dark', 'pending', 0, 7),
+                (2, 'tmdb-70523', 2, 'Dark', 'pending', 0, NULL);",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let db = Database::open(data_dir.path()).await.unwrap();
+    let linked: Vec<(i64, i64)> =
+        sqlx::query_as("SELECT request_id, followed_show_id FROM request_followed_shows")
+            .fetch_all(db.reader())
+            .await
+            .unwrap();
+    db.close().await;
+
+    assert_eq!(linked, [(1, 7)]);
+}

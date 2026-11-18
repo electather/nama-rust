@@ -11,13 +11,15 @@ use nama_proto::nama::v1::{
 };
 
 use super::{
-    Method, Running, RunningPlans, RunningTranscodes, Runs, Timeline, lock, sweep_leftovers,
+    FallbackRun, Method, POLL_EVERY, Running, RunningPlans, RunningTranscodes, Runs, Timeline,
+    lock, sweep_leftovers,
 };
 use crate::{
     db::Database,
     events::{EventBus, Filter, event},
     ffmpeg::{Ffmpeg, Keyframe},
     library::Contents,
+    log_capture::CapturedLog,
     playback::{Probing, subtitles},
     plugins::ExtensionPoints,
     server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
@@ -193,6 +195,92 @@ async fn a_transcode_on_hardware_counts_as_cpu_bound_once_it_fell_back_and_a_rem
             all: 1,
             cpu_bound: 1
         }
+    );
+}
+
+// The fake ffmpegs are `sh`, failing as ffmpeg does on a full disk, and `sleep`.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_transcode_whose_hardware_fills_the_segment_folder_stays_on_hardware() {
+    let log = CapturedLog::start();
+    let data = tempfile::tempdir().unwrap();
+    let db = database(data.path()).await;
+    let events = event_bus(&db);
+    let plans = plans_with(
+        &db,
+        settings(&db, data.path().join("transcodes")).playback(),
+        &events,
+    );
+    let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
+    let starts = Arc::new(Mutex::new(vec![]));
+    let (on_hardware, in_software) = (Arc::clone(&starts), Arc::clone(&starts));
+    let hardware = move |_: &Path, from: Keyframe| {
+        lock(&on_hardware).push(("hardware", from.n));
+        tokio::process::Command::new("sh")
+            .args([
+                "-c",
+                "echo 'av_interleaved_write_frame(): No space left on device' >&2; exit 1",
+            ])
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+    };
+    let software = move |_: &Path, from: Keyframe| {
+        lock(&in_software).push(("software", from.n));
+        tokio::process::Command::new("sleep")
+            .arg("600")
+            .kill_on_drop(true)
+            .spawn()
+    };
+    let started = Playback {
+        reasons: only_reason(PlaybackReasonKind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE),
+        ..playback(7)
+    };
+    let id = plans
+        .start_hls(
+            started.clone(),
+            Method::Transcode,
+            every_two_seconds(),
+            0,
+            Runs {
+                run: Box::new(hardware),
+                fallback: Some(FallbackRun {
+                    run: Box::new(software),
+                    reasons: only_reason(
+                        PlaybackReasonKind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
+                    ),
+                }),
+                cpu_bound: false,
+            },
+        )
+        .await
+        .unwrap();
+    let plan = hls(&plans, id, 7);
+    tokio::time::sleep(POLL_EVERY * 3).await;
+
+    assert_eq!(*lock(&starts), [("hardware", 0)]);
+    assert_eq!(plan.playback_now().reasons, started.reasons);
+    assert!(!plan.cpu_bound());
+    assert!(log.finish().contains("is full"), "still warns");
+    let restarted = plan.segment(1).await.unwrap();
+    assert_eq!(restarted, None, "the restart fails too");
+    assert_eq!(*lock(&starts), [("hardware", 0), ("hardware", 3)]);
+    plans.stop_for(id, 7).await;
+    subscription.next().await.unwrap();
+    let ended = subscription.next().await.unwrap();
+    assert_eq!(
+        ended.message,
+        Some(
+            event(PlaybackEnded {
+                playback: Playback {
+                    plan_id: id,
+                    ..started
+                }
+                .into(),
+                ..Default::default()
+            })
+            .into()
+        ),
+        "ends as it started, with no PlaybackChanged before"
     );
 }
 
