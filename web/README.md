@@ -41,7 +41,8 @@ How strict they are:
 - **oxfmt**: formats, sorts imports, and sorts Tailwind classes against `src/styles.css`, in `className` and in `cn` and `cva` calls. No lint rule checks either order.
 - **oxlint**: the `typescript`, `react`, `jsx-a11y`, `import`, `unicorn`, `promise` and `oxc` plugins, plus `vitest` for tests. Two ESLint plugins run inside it: [`@shadcn/lint`](https://github.com/shadcn-ui/lint) for the design system (no raw palette colours, arbitrary values, inline styles, unknown or dynamic classes, or `className` restyles of `src/components/ui/` components) and [`eslint-plugin-better-tailwindcss`](https://github.com/schoero/eslint-plugin-better-tailwindcss) for classes that conflict, repeat, are deprecated or have a canonical or shorter spelling, and for left/right classes ("Logical properties" in `AGENTS.md`). Every category is on in full, `nursery`, `style` and `restriction` included. Every rule is `error`, never `warn`. A rule left off, such as one that's taste only or one Fallow already covers, is turned off in `vite.config.ts` with a comment saying why.
 - **TypeScript**: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`, `isolatedModules`, `erasableSyntaxOnly`, `forceConsistentCasingInFileNames`, and unreachable code and unused labels as errors. Unused locals are reported by oxlint, not tsc.
-- **Fallow**: every rule is `error`, except `coverage-gaps`, which needs the runtime coverage sidecar. Any duplicated code fails. The complexity limits are 15 cyclomatic and 15 cognitive. Generated code is ignored, and so are unused exports in `src/components/ui/`, since shadcn files export every sub-part. An unused file there still fails.
+- **Fallow**: every rule is `error`, except `coverage-gaps`, which needs the runtime coverage sidecar. Any duplicated code fails. The complexity limits are 15 cyclomatic and 15 cognitive, and a file holds at most 200 lines (400 for a test in `__tests__/`), except the legacy files listed in `.fallowrc.jsonc`. Zones enforce which folder imports which, and the rule pack in `fallow-rules.jsonc` enforces data hooks, Suspense and dynamic loading in the new folders. Generated code is ignored, and so are unused exports in the shadcn components, since shadcn files export every sub-part. An unused file there still fails.
+- **The new folders** (`src/app/`, `src/features/`, `src/shared/`) get stricter oxlint rules on top, listed in `src/AGENTS.md`.
 
 ## Generated client
 
@@ -66,6 +67,8 @@ playwright screenshot --viewport-size 180,180 "file://$PWD/public/icon.svg" publ
 ```
 
 ## How the app is put together
+
+The app is organised by feature (ADR 0064). [`src/AGENTS.md`](src/AGENTS.md) has the layout, which folder imports which, and the rules for each folder. Code is moving into that layout (#1132), so some of the paths below are still the legacy ones.
 
 - **Data**: all server state goes through connect-query and TanStack Query. Route loaders prefetch with `queryClient.query({ …, staleTime: "static" })`, which only fetches what isn’t cached yet. One app-wide `Subscribe` stream turns Events into query invalidations. There's no client-state library and no form library: forms are native `<form>`s with mutations, the Server validates, and Connect error details are shown next to the field.
 - **Errors**: a global query and mutation error handler sends `unauthenticated` to `/sign-in?redirect=…`. `permission_denied` shows a "You can’t open this page" page. Anything else shows the route's `errorComponent` in plain words, never an error code. A page whose loader throws `notFound()`, such as an unknown Movie, sets its own `notFoundComponent`: the router only looks for one from the throwing route upwards, and without it the root's replaces the app chrome too.
@@ -106,4 +109,4 @@ While the Server needs setup, every page redirects to `/setup`. A pathless `_mem
 
 ## Tests
 
-Vitest with Testing Library on happy-dom. Test behaviour (redirects, forms, error and empty states), not markup snapshots. There's no end-to-end suite in M2.
+Vitest with Testing Library on happy-dom, run from `__tests__/` folders (and, until they move, the flat tests in `src/`). Test behaviour (redirects, forms, error and empty states), not markup snapshots. There's no end-to-end suite in M2.
