@@ -4,6 +4,7 @@ use std::{
     collections::BTreeSet,
     fmt,
     future::Future,
+    ops::{Deref, DerefMut},
     sync::{Arc, PoisonError, RwLock},
 };
 
@@ -47,9 +48,9 @@ impl ExtensionPoints {
         let span = diagnostics::following_current(tracing::info_span!(parent: None, "notify"));
         for entry in observers {
             let Some(observer) = entry.registration.observer::<P>() else {
-                self.drop_contained(entry, ());
                 continue;
             };
+            let observer = self.contained(entry.plugin.clone(), observer);
             let delivering = self.clone().deliver(entry, observer, Arc::clone(&event));
             tokio::spawn(delivering.instrument(span.clone()));
         }
@@ -57,18 +58,17 @@ impl ExtensionPoints {
 
     async fn deliver<P: ObservePoint>(
         self,
-        entry: Entry,
-        observer: Arc<dyn Observer<P>>,
+        entry: Contained<Entry>,
+        observer: Contained<Arc<dyn Observer<P>>>,
         event: Arc<P::Event>,
     ) {
         // The Plugin may have been disabled since `notify`.
         if self.is_current(&entry) {
-            let delivered = contain_call(&entry.plugin, P::NAME, || observer.observe(&event));
-            if let Err(message) = delivered.instrument(self.log_span(&entry.plugin)).await {
+            let delivered = self.call_contained(&entry, P::NAME, || observer.observe(&event));
+            if let Err(message) = delivered.await {
                 self.disable_after_panic(&entry, P::NAME, &message);
             }
         }
-        self.drop_contained(entry, observer);
     }
 
     /// Asks the Provider of `T` that comes first: those the admin ranked with
@@ -130,13 +130,9 @@ impl ExtensionPoints {
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
     {
-        let mut entries = self
-            .ranked_entries(PointKey::provide::<T>(), only)
-            .into_iter();
         let mut asked = Asked::Absent;
-        for entry in entries.by_ref() {
+        for entry in self.ranked_entries(PointKey::provide::<T>(), only) {
             let outcome = self.ask_if_current(&entry, &call).await;
-            self.drop_contained(entry, ());
             match outcome {
                 Asked::Answered(_) => {
                     asked = outcome;
@@ -145,10 +141,6 @@ impl ExtensionPoints {
                 Asked::Panicked => asked = outcome,
                 Asked::Absent => {}
             }
-        }
-        // Left unasked, they may hold the last handles on other Plugins disabled during a call.
-        for unasked in entries {
-            self.drop_contained(unasked, ());
         }
         asked
     }
@@ -172,8 +164,8 @@ impl ExtensionPoints {
             return Asked::Absent;
         }
         let point = entry.registration.point().name();
-        let called = contain_call(&entry.plugin, point, || formatted(call(provider)));
-        match called.instrument(self.log_span(&entry.plugin)).await {
+        let called = self.call_contained(entry, point, || formatted(call(provider)));
+        match called.await {
             Ok(result) => Asked::Answered(Answer {
                 plugin: entry.plugin.clone(),
                 result: result.map_err(|failure| failure.blanked(&entry.secrets)),
@@ -200,59 +192,57 @@ impl ExtensionPoints {
         let span = diagnostics::following_current(tracing::info_span!(parent: None, "tell"));
         for entry in self.entries(PointKey::provide::<T>()) {
             let Some(provider) = entry.registration.provider::<T>() else {
-                self.drop_contained(entry, ());
                 continue;
             };
+            let provider = self.contained(entry.plugin.clone(), provider);
             let telling = self.clone().tell_one(entry, provider, call.clone());
             tokio::spawn(telling.instrument(span.clone()));
         }
     }
 
-    /// The task [`ExtensionPoints::tell_each`] runs for one Provider.
+    /// The task [`ExtensionPoints::tell_each`] runs for one Provider: calls `call` with `provider`,
+    /// recording and logging its failure, unless `entry`'s Plugin has been disabled since.
     async fn tell_one<T, E, F>(
         self,
-        entry: Entry,
-        provider: Arc<T>,
+        entry: Contained<Entry>,
+        provider: Contained<Arc<T>>,
         call: impl FnOnce(PluginId, Arc<T>) -> F,
     ) where
         T: ?Sized,
         F: Future<Output = Result<(), E>>,
         E: ProviderError<()>,
     {
-        self.tell_if_current(&entry, Arc::clone(&provider), call)
-            .await;
-        self.drop_contained(entry, provider);
-    }
-
-    /// Calls `call` with `provider`, recording and logging its failure, unless `entry`'s Plugin has
-    /// been disabled since [`ExtensionPoints::tell_each`].
-    async fn tell_if_current<T, E, F>(
-        &self,
-        entry: &Entry,
-        provider: Arc<T>,
-        call: impl FnOnce(PluginId, Arc<T>) -> F,
-    ) where
-        T: ?Sized,
-        F: Future<Output = Result<(), E>>,
-        E: ProviderError<()>,
-    {
-        if !self.is_current(entry) {
+        if !self.is_current(&entry) {
             return;
         }
         let key = entry.registration.point();
         let point = key.name();
-        let called = contain_call(&entry.plugin, point, || {
-            formatted(call(entry.plugin.clone(), provider))
+        let called = self.call_contained(&entry, point, || {
+            formatted(call(entry.plugin.clone(), Arc::clone(&provider)))
         });
-        match called.instrument(self.log_span(&entry.plugin)).await {
+        match called.await {
             Ok(Ok(())) => self.provider_answered(&entry.plugin, key),
             Ok(Err(failure)) => {
                 let error = failure.blanked(&entry.secrets).message;
                 self.provider_failed(&entry.plugin, key, &error);
                 warn!(plugin = %entry.plugin, point, error, "provider failed");
             }
-            Err(message) => self.disable_after_panic(entry, point, &message),
+            Err(message) => self.disable_after_panic(&entry, point, &message),
         }
+    }
+
+    /// [`contain_call`] in [`Self::log_span`]. The pending call is Plugin code, so a caller dropped
+    /// mid-call drops it contained too.
+    async fn call_contained<F: Future>(
+        &self,
+        entry: &Entry,
+        point: &str,
+        call: impl FnOnce() -> F,
+    ) -> Result<F::Output, String> {
+        let called =
+            contain_call(&entry.plugin, point, call).instrument(self.log_span(&entry.plugin));
+        let mut called = self.contained(entry.plugin.clone(), Box::pin(called));
+        called.as_mut().await
     }
 
     /// Records that the Plugin `plugin`'s Provider at `point` failed with `message`, a
@@ -340,12 +330,13 @@ impl ExtensionPoints {
 
     /// The handlers at `point` in the order [`ExtensionPoints::ask_first`] asks them, only
     /// `only`'s if given.
-    fn ranked_entries(&self, point: PointKey, only: Option<&PluginId>) -> Vec<Entry> {
-        self.read(|state| {
+    fn ranked_entries(&self, point: PointKey, only: Option<&PluginId>) -> Vec<Contained<Entry>> {
+        let entries = self.read(|state| {
             let entries = state.ranked(point).into_iter();
             let kept = entries.filter(|entry| only.is_none_or(|plugin| entry.plugin == *plugin));
             kept.cloned().collect()
-        })
+        });
+        self.contain_each(entries)
     }
 
     /// Sets what makes the Kernel's functions each enabled Plugin calls, given its id and the
@@ -499,23 +490,27 @@ impl ExtensionPoints {
         }
     }
 
-    /// Drops `entry` and `handler`, contained and in the span naming its Plugin: a call that held
-    /// them may hold the last handles on a Plugin disabled meanwhile, and its `Drop` is Plugin code.
-    fn drop_contained(&self, entry: Entry, handler: impl Sized) {
-        let plugin = entry.plugin.clone();
-        let dropped = self
-            .log_span(&plugin)
-            .in_scope(|| contain_sync(|| drop((handler, entry))));
-        if let Err(message) = dropped {
-            error!(plugin = %plugin, message, "plugin panicked while being dropped");
-        }
+    /// A snapshot of the handlers at `point`, in the order they run.
+    fn entries(&self, point: PointKey) -> Vec<Contained<Entry>> {
+        let entries = self.read(|state| state.points.get(&point).cloned().unwrap_or_default());
+        self.contain_each(entries)
     }
 
-    /// A snapshot of the handlers at `point`, in the order they run. Its caller drops each through
-    /// [`ExtensionPoints::drop_contained`]: once the lock is released, a clone may be the last
+    /// Holds each of `entries` [`Contained`]: once the lock is released, a clone may be the last
     /// handle on a Plugin disabled meanwhile.
-    fn entries(&self, point: PointKey) -> Vec<Entry> {
-        self.read(|state| state.points.get(&point).cloned().unwrap_or_default())
+    fn contain_each(&self, entries: Vec<Entry>) -> Vec<Contained<Entry>> {
+        entries
+            .into_iter()
+            .map(|entry| self.contained(entry.plugin.clone(), entry))
+            .collect()
+    }
+
+    fn contained<T>(&self, plugin: PluginId, held: T) -> Contained<T> {
+        Contained {
+            points: self.clone(),
+            plugin,
+            held: Some(held),
+        }
     }
 
     // No Plugin code runs while the lock is held (not even a Plugin's `Drop`), so a poisoned lock's
@@ -526,6 +521,54 @@ impl ExtensionPoints {
 
     pub(super) fn write<T>(&self, f: impl FnOnce(&mut State) -> T) -> T {
         f(&mut self.state.write().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+/// Holds a handle on the Plugin `plugin`, or its pending call, and drops it contained and in the
+/// span naming the Plugin however its holder ends, even dropped mid-`.await`: it may be the last
+/// handle on a Plugin disabled meanwhile, and its `Drop` is Plugin code. A panic there is logged;
+/// it disables nothing, and a dropped call records no failure. Never made or dropped under the
+/// State lock, which its `Drop` takes.
+struct Contained<T> {
+    points: ExtensionPoints,
+    plugin: PluginId,
+    /// `Some` until dropped.
+    held: Option<T>,
+}
+
+impl<T> Deref for Contained<T> {
+    type Target = T;
+
+    #[expect(
+        clippy::expect_used,
+        reason = "only `drop` takes it, after which nothing derefs"
+    )]
+    fn deref(&self) -> &T {
+        self.held.as_ref().expect("held until dropped")
+    }
+}
+
+impl<T> DerefMut for Contained<T> {
+    #[expect(
+        clippy::expect_used,
+        reason = "only `drop` takes it, after which nothing derefs"
+    )]
+    fn deref_mut(&mut self) -> &mut T {
+        self.held.as_mut().expect("held until dropped")
+    }
+}
+
+impl<T> Drop for Contained<T> {
+    fn drop(&mut self) {
+        let held = self.held.take();
+        // Needs no runtime, so a task dropped as the runtime shuts down is contained too.
+        let dropped = self
+            .points
+            .log_span(&self.plugin)
+            .in_scope(|| contain_sync(|| drop(held)));
+        if let Err(message) = dropped {
+            error!(plugin = %self.plugin, message, "plugin panicked while being dropped");
+        }
     }
 }
 
