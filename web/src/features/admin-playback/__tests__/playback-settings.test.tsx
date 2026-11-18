@@ -9,9 +9,8 @@ import {
   type ServerService,
   type UpdatePlaybackSettingsRequest,
 } from "@/gen/nama/v1/server_pb";
-
-import { admin, fakeServer, fill, openApp } from "./test-app";
-import { expectUnderField, refused } from "./test-refusal";
+import { admin, fakeServer, fill, openApp } from "@/test-app";
+import { expectUnderField, refused } from "@/test-refusal";
 
 /**
  * Opens the Playback page on a Server answering as `serverService` says, with no hardware and
@@ -120,7 +119,7 @@ test("an Admin picks an API on one GPU from one option per pair", async () => {
     getPlaybackSettings: () => ({ settings: {} }),
   });
 
-  await expect(hardwareOffered()).resolves.toEqual([
+  await expect(hardwareOffered()).resolves.toStrictEqual([
     "Automatic",
     "Off",
     "AMD Radeon RX 9070 XT · VAAPI",
@@ -168,7 +167,7 @@ test("a saved GPU that didn't pass is offered as not found and stays chosen", as
     }),
   });
 
-  await expect(hardwareOffered()).resolves.toEqual([
+  await expect(hardwareOffered()).resolves.toStrictEqual([
     "Automatic",
     "Off",
     "Integrated GPU (AMD Ryzen 9 7950X3D) · VAAPI",
@@ -292,7 +291,7 @@ test("an Admin sets the default Playback Limit for remote playback, which starts
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
   await expect(screen.findByText("Saved.")).resolves.toBeDefined();
-  expect(offered).toEqual(["Original", "1080p", "720p", "480p"]);
+  expect(offered).toStrictEqual(["Original", "1080p", "720p", "480p"]);
   expect(updates).toMatchObject([
     {
       settings: {

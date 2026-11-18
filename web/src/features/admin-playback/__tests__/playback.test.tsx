@@ -3,8 +3,7 @@ import { expect, test } from "vite-plus/test";
 
 import { HardwareAcceleration, ToneMapping } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { admin, fakeServer, openApp } from "./test-app";
+import { admin, fakeServer, openApp } from "@/test-app";
 
 test("an Admin sees the path and version of the ffmpeg and ffprobe the Server found", async () => {
   openApp(
@@ -126,7 +125,7 @@ test("an Admin sees a row for each API on each GPU that passed its test", async 
   );
 
   const rows = await screen.findAllByRole("heading", { name: /· VAAPI$/u });
-  expect(rows.map((row) => row.textContent)).toEqual([
+  expect(rows.map((row) => row.textContent)).toStrictEqual([
     "AMD Radeon RX 9070 XT · VAAPI",
     "Integrated GPU (AMD Ryzen 9 7950X3D) · VAAPI",
   ]);
