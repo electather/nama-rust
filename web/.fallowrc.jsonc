@@ -86,6 +86,7 @@
       { "name": "admin-playback", "patterns": ["src/features/admin-playback/**"] },
       { "name": "admin-users", "patterns": ["src/features/admin-users/**"] },
       { "name": "requests", "patterns": ["src/features/requests/**"] },
+      { "name": "action-bar", "patterns": ["src/features/action-bar/**"] },
       { "name": "invites", "patterns": ["src/features/invites/**"] },
       { "name": "app", "patterns": ["src/app/**"] },
       { "name": "routes", "patterns": ["src/routes/**"] },
@@ -220,6 +221,18 @@
         ],
       },
       {
+        "from": "action-bar",
+        "allow": [
+          "action-bar",
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+          "legacy-components",
+          "legacy-lib",
+        ],
+      },
+      {
         "from": "app",
         "allow": [
           "app",
@@ -243,6 +256,7 @@
           "admin-users",
           "invites",
           "requests",
+          "action-bar",
           "shared-components",
           "shared-ui",
           "shared-hooks",
