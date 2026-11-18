@@ -97,8 +97,7 @@ where
 pub(crate) fn plugin_lines(plugin: &PluginId) -> Vec<PluginLine> {
     let kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
     kept.get(plugin)
-        .map(|lines| lines.iter().rev().cloned().collect())
-        .unwrap_or_default()
+        .map_or_default(|lines| lines.iter().rev().cloned().collect())
 }
 
 /// Starts keeping the Plugin `plugin`'s lines, as it is being enabled. Lines it already has are
