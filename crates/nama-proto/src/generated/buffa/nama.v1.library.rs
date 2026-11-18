@@ -5758,7 +5758,7 @@ pub const __LIST_ARTWORK_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
     from_json: ::buffa::type_registry::any_from_json::<ListArtworkResponse>,
     is_wkt: false,
 };
-/// An enabled title source, a Plugin that searches and describes titles.
+/// A title source, a Plugin that searches and describes titles, whether it is running or not.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -5801,6 +5801,16 @@ pub struct TitleSource {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub searches: bool,
+    /// Whether its Plugin is running, so a Library may add it now. One that isn't is disabled, or
+    /// enabled but not running, such as one missing a setting it needs.
+    ///
+    /// Field 5: `running`
+    #[serde(
+        rename = "running",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub running: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -5812,6 +5822,7 @@ impl ::core::fmt::Debug for TitleSource {
             .field("plugin_id", &self.plugin_id)
             .field("plugin_name", &self.plugin_name)
             .field("searches", &self.searches)
+            .field("running", &self.running)
             .finish()
     }
 }
@@ -5854,6 +5865,9 @@ impl ::buffa::Message for TitleSource {
         if self.searches {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.running {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5875,6 +5889,9 @@ impl ::buffa::Message for TitleSource {
         }
         if self.searches {
             ::buffa::types::put_bool_field(4u32, self.searches, buf);
+        }
+        if self.running {
+            ::buffa::types::put_bool_field(5u32, self.running, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5917,6 +5934,13 @@ impl ::buffa::Message for TitleSource {
                 )?;
                 self.searches = ::buffa::types::decode_bool(buf)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.running = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5929,6 +5953,7 @@ impl ::buffa::Message for TitleSource {
         self.plugin_id.clear();
         self.plugin_name.clear();
         self.searches = false;
+        self.running = false;
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -773,7 +773,9 @@ async fn list_title_sources_names_tmdb_by_its_namespace() {
         plugin_id: "tmdb".to_owned(),
         plugin_name: "TMDB".to_owned(),
         searches: true,
+        running: true,
         ..Default::default()
     };
-    assert_eq!(listed, [tmdb]);
+    let running: Vec<_> = listed.into_iter().filter(|source| source.running).collect();
+    assert_eq!(running, [tmdb]);
 }
