@@ -70,6 +70,14 @@ pub type OwnedPollSignInCodeRequestView = ::buffa::view::OwnedView<
 pub type OwnedPollSignInCodeResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::PollSignInCodeResponseView<'static>,
 >;
+///Shorthand for `OwnedView<AcceptInviteRequestView<'static>>`.
+pub type OwnedAcceptInviteRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::AcceptInviteRequestView<'static>,
+>;
+///Shorthand for `OwnedView<AcceptInviteResponseView<'static>>`.
+pub type OwnedAcceptInviteResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::AcceptInviteResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SetupResponse>
 for crate::messages::nama::v1::__buffa::view::SetupResponseView<'_> {
     fn encode(
@@ -376,6 +384,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::AcceptInviteResponse>
+for crate::messages::nama::v1::__buffa::view::AcceptInviteResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::AcceptInviteResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::AcceptInviteResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const SIGN_IN_SERVICE_SERVICE_NAME: &str = "nama.v1.SignInService";
 /// Static [`Spec`](::connectrpc::Spec) for the `Setup` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -432,6 +474,12 @@ pub const SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connect
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `AcceptInvite` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_ACCEPT_INVITE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/AcceptInvite",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Signing Devices in to a Server as Users, and finding out who is signed in (ADR 0014).
 ///
 /// A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
@@ -441,8 +489,8 @@ pub const SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connect
 /// A Device that goes unused for 90 days expires, and its session stops working.
 ///
 /// Guessing is slowed down: after 10 failed `SignIn`s and `Reauthenticate`s for one name, or 50
-/// failed `Setup`s, `SignIn`s and `Reauthenticate`s together from one IP address, within 15
-/// minutes, further attempts fail with `resource_exhausted`, without being checked, and a
+/// failed `Setup`s, `SignIn`s, `Reauthenticate`s and `AcceptInvite`s together from one IP address,
+/// within 15 minutes, further attempts fail with `resource_exhausted`, without being checked, and a
 /// `Retry-After` header gives the seconds to wait. A successful `SignIn` or `Reauthenticate` clears
 /// its name's failures. In the same way, after 10 failed `LookUpSignInCode`s and
 /// `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
@@ -737,6 +785,35 @@ pub trait SignInService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Creates a User with an Invite's link, under the name and password they pick, and signs the
+    /// calling Device in as them, using the Invite up. They get the Invite's Permissions, less any its
+    /// creator has since lost. Fails with `not_found` and `REFUSAL_REASON_INVITE_NOT_FOUND` if the
+    /// Invite was used, revoked or expired, or its creator was deleted or lost
+    /// `PERMISSION_MANAGE_USERS`, which counts toward the limits above. Fails with `already_exists`
+    /// if another User has the name, ignoring case, and `invalid_argument` if a name or the password
+    /// breaks the rules; the Invite stays valid after either.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn accept_invite<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::AcceptInviteRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::AcceptInviteResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -1024,6 +1101,35 @@ impl<S: SignInService> SignInServiceExt for S {
                 },
             )
             .with_spec(SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "AcceptInvite",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::AcceptInviteRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::AcceptInviteRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.accept_invite(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::AcceptInviteResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_ACCEPT_INVITE_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1130,6 +1236,12 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC),
+                )
+            }
+            "AcceptInvite" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_ACCEPT_INVITE_SPEC),
                 )
             }
             _ => None,
@@ -1334,6 +1446,28 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::PollSignInCodeResponse,
+                        >(format)
+                })
+            }
+            "AcceptInvite" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::AcceptInviteRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::AcceptInviteRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::AcceptInviteRequest,
+                    >::from_parts(&req, &body);
+                    svc.accept_invite(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::AcceptInviteResponse,
                         >(format)
                 })
             }
@@ -1835,6 +1969,51 @@ where
                 &self.transport,
                 &self.config,
                 SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the AcceptInvite RPC. Sends a request to /nama.v1.SignInService/AcceptInvite.
+    pub async fn accept_invite(
+        &self,
+        request: crate::messages::nama::v1::AcceptInviteRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::AcceptInviteResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.accept_invite_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the AcceptInvite RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn accept_invite_with_options(
+        &self,
+        request: crate::messages::nama::v1::AcceptInviteRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::AcceptInviteResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_ACCEPT_INVITE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

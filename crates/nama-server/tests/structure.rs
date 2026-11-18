@@ -267,7 +267,8 @@ fn is_test_file(path: &str) -> bool {
 
 /// Whether `line` is a `#[cfg(test)]` or `#[cfg(all(test, ...))]` attribute, which turns its
 /// item on only under test.
-// ponytail: `test` nested inside an `any(...)` within the `all(...)` is not seen.
+// ponytail: matches the trimmed line exactly, so a test-only `#[cfg(test)] // why` or
+// `#[cfg( test )]` is not seen.
 fn is_test_only_cfg(line: &str) -> bool {
     let line = line.trim();
     line == "#[cfg(test)]"

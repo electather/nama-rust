@@ -17,10 +17,11 @@ import {
 } from "@/gen/nama/v1/event_pb";
 import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { PluginService } from "@/gen/nama/v1/plugin_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
-import { UserService } from "@/gen/nama/v1/user_pb";
 // oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads, through the app's own interceptors
+import { UserService } from "@/gen/nama/v1/user_pb";
 import { traceCalls } from "@/lib/diagnostics";
 
 import { getRouter } from "./router";
@@ -58,6 +59,19 @@ const defaultPlayback: Partial<ServiceImpl<typeof PlaybackService>> = {
 };
 
 /**
+ * How the fake Server answers `UserService` by default: Settings lists nothing of yours, and the
+ * Users page the default Permissions and no Invites.
+ */
+const defaultUsers: Partial<ServiceImpl<typeof UserService>> = {
+  listDevices: () => ({}),
+  listPluginConnections: () => ({}),
+  listPersonalSettings: () => ({}),
+  listNotificationPreferences: () => ({}),
+  getDefaultPermissions: () => ({ permissions: newUser }),
+  listInvites: () => ({}),
+};
+
+/**
  * A fake Server in `state`, with handlers for the rest of `SignInService` and `UserService`.
  * `more` adds other services, such as `BrowseService`.
  */
@@ -90,20 +104,14 @@ export function fakeServer(
       },
       ...signIn,
     });
-    // Settings lists what's yours, from Devices to notification preferences, so every fake Server does.
-    // The Users page shows the default Permissions, so every fake Server has them.
-    router.service(UserService, {
-      listDevices: () => ({}),
-      listPluginConnections: () => ({}),
-      listPersonalSettings: () => ({}),
-      listNotificationPreferences: () => ({}),
-      getDefaultPermissions: () => ({ permissions: newUser }),
-      ...users,
-    });
+    router.service(UserService, { ...defaultUsers, ...users });
     router.service(LibraryService, {
       listLibraries: () => ({ libraries: state.libraries ?? [] }),
       ...state.libraryService,
     });
+    // Settings' image store picker waits for the Plugins. A test's own `PluginService` in `more`
+    // replaces this.
+    router.service(PluginService, { listPlugins: () => ({}) });
     // A test's own `PlaybackService` in `more` replaces this.
     router.service(PlaybackService, { ...defaultPlayback, ...state.playbackService });
     // Every signed-in page follows the Server's Events.

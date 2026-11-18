@@ -4,7 +4,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
-    mem,
+    iter, mem,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -14,7 +14,9 @@ use walkdir::{DirEntry, WalkDir};
 
 use super::{Error, Planned, Summary, names};
 use crate::{
-    library::{Change, FoundImages, LibraryKind, LocalImageFile, PARSER_VERSION, Role, Stored},
+    library::{
+        Change, FoundImages, LibraryKind, LocalImageFile, LocalRole, PARSER_VERSION, Role, Stored,
+    },
     playback::{Sidecar, VersionSidecars, is_sidecar},
 };
 
@@ -32,6 +34,9 @@ const IMAGE_EXTENSIONS: &[&str] = &["jpeg", "jpg", "png", "webp"];
 /// Jellyfin and Kodi name them (`docs/research/jellyfin-and-plex-images.md`, "Overriding").
 const POSTER_NAMES: &[&str] = &["poster", "folder", "cover", "default", "movie"];
 const BACKDROP_NAMES: &[&str] = &["fanart", "backdrop", "background", "art"];
+/// The name, without the extension, of an image in a Show's folder standing in for its Poster,
+/// besides those of [`POSTER_NAMES`].
+const SHOW_POSTER_NAME: &str = "show";
 
 #[derive(Debug)]
 struct Found {
@@ -258,7 +263,7 @@ impl Walked {
     }
 }
 
-/// The images a walk found that may stand in for a Movie's, and the folders and files it couldn't
+/// The images a walk found that may stand in for a title's, and the folders and files it couldn't
 /// read.
 #[derive(Debug)]
 pub(super) struct FoundLocalImages {
@@ -266,13 +271,15 @@ pub(super) struct FoundLocalImages {
     unreadable: Vec<PathBuf>,
 }
 
-/// How an image's name ties it to a video: named after it goes first.
+/// How closely an image is tied to a video: a closer tie goes first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Naming {
+enum Tie {
     /// Such as `Up (2009)-poster.jpg`.
     AfterVideo,
     /// Such as `poster.jpg`.
     Alone,
+    /// Such as `season01-poster.jpg` in a Show's folder.
+    SeasonInShowFolder,
 }
 
 impl Walked {
@@ -286,59 +293,136 @@ impl Walked {
 }
 
 impl FoundLocalImages {
-    /// The ids of `versions`, stored files by path, whose images the walk read, and the image found
-    /// beside each that stands in for each role. A Version in a folder the walk couldn't read, or
-    /// beside something it couldn't, is left out, so its images stay as stored. An image named alone
-    /// stands in for every video in its folder, except in one of the Library's own folders, where
-    /// it would for every Movie; one named after a video goes first, then the first by path.
-    pub(super) fn beside(self, versions: &HashMap<String, Stored>) -> (Vec<i64>, FoundImages) {
-        let mut read = Vec::new();
-        let mut videos_in: HashMap<&Path, Vec<(&OsStr, i64)>> = HashMap::new();
-        for (path, version) in versions {
-            let path = Path::new(path);
-            let (Some(folder), Some(stem)) = (path.parent(), path.file_stem()) else {
-                continue;
-            };
-            let unread =
-                |missed: &PathBuf| folder.starts_with(missed) || missed.parent() == Some(folder);
-            if !self.unreadable.iter().any(unread) {
-                read.push(version.id);
-                videos_in
-                    .entry(folder)
-                    .or_default()
-                    .push((stem, version.id));
-            }
-        }
-        (read, tied_images(self.images, &videos_in))
+    /// The ids of `versions`, stored files by path in a Library of `kind`, whose images the walk
+    /// read, and the image found that stands in for each role of each. `seasons` holds the Season
+    /// of each Version that holds an Episode. A Version in a folder the walk couldn't read, or
+    /// beside something it couldn't, is left out, so its images stay as stored; so is one in a
+    /// Shows Library that holds no Episode. Which images count is up to [`Video::ties`]; of those,
+    /// the closer tie goes first, then the first by path.
+    pub(super) fn beside(
+        self,
+        kind: LibraryKind,
+        versions: &HashMap<String, Stored>,
+        seasons: &HashMap<i64, i64>,
+    ) -> (Vec<i64>, FoundImages) {
+        let unread = |folder: &Path| {
+            (self.unreadable.iter())
+                .any(|missed| folder.starts_with(missed) || missed.parent() == Some(folder))
+        };
+        let videos: Vec<Video<'_>> = (versions.iter())
+            .filter_map(|(path, version)| Video::at(kind, Path::new(path), version.id, seasons))
+            .filter(|video| !video.folders().any(unread))
+            .collect();
+        let read = videos.iter().map(|video| video.version).collect();
+        (read, tied_images(self.images, &videos))
     }
 }
 
-/// Of `images`, the one standing in for each role of each video in `videos_in`, which holds each
-/// folder's videos by their names without the extension, with their Version ids.
-fn tied_images(
-    mut images: Vec<Found>,
-    videos_in: &HashMap<&Path, Vec<(&OsStr, i64)>>,
-) -> FoundImages {
+/// A stored video, and where the images that may stand in for its title's are.
+struct Video<'a> {
+    version: i64,
+    /// Its name without the extension.
+    stem: &'a OsStr,
+    /// Its own folder, or an Episode's Show's.
+    folder: &'a Path,
+    /// An Episode's Season number, and its Season's folder if it is in one.
+    episode: Option<(i64, Option<&'a Path>)>,
+}
+
+impl<'a> Video<'a> {
+    /// The video at `path`, stored as `version` in a Library of `kind`. In a Shows Library, `None`
+    /// unless `seasons`, the Season of each Version that holds an Episode, has `version`.
+    fn at(
+        kind: LibraryKind,
+        path: &'a Path,
+        version: i64,
+        seasons: &HashMap<i64, i64>,
+    ) -> Option<Self> {
+        let stem = path.file_stem()?;
+        let (folder, episode) = match kind {
+            LibraryKind::Movies => (path.parent()?, None),
+            LibraryKind::Shows => {
+                let season = *seasons.get(&version)?;
+                let (show_folder, season_folder) = names::episode_folders(path)?;
+                (show_folder, Some((season, season_folder)))
+            }
+        };
+        Some(Self {
+            version,
+            stem,
+            folder,
+            episode,
+        })
+    }
+
+    /// The folders the images that may stand in for its title's are in.
+    fn folders(&self) -> impl Iterator<Item = &'a Path> {
+        let season_folder = self.episode.and_then(|(_, folder)| folder);
+        iter::once(self.folder).chain(season_folder)
+    }
+
+    /// How the image at `image`, in one of its [`folders`](Self::folders), stands in for its
+    /// title's, if it does. `in_library_folder` if the image is in one of the Library's own
+    /// folders, where only one named after a Movie's file does.
+    ///
+    /// A Movie's are the images beside its file (`poster.jpg`, `Up (2009)-poster.jpg`). An
+    /// Episode's Show's are those named alone in the Show's folder (`poster.jpg`, `show.jpg`),
+    /// even with the Episode straight in it, and its Season's Poster is `poster.jpg` in the
+    /// Season's folder, else `season01-poster.jpg` in the Show's.
+    fn ties(&self, image: &Path, in_library_folder: bool) -> Vec<(Tie, LocalRole)> {
+        let Some((season, season_folder)) = self.episode else {
+            let tie = image_role(image, self.stem, in_library_folder);
+            return tie
+                .map(|(tie, role)| (tie, LocalRole::Title(role)))
+                .into_iter()
+                .collect();
+        };
+        let Some(name) = image_name(image).filter(|_| !in_library_folder) else {
+            return Vec::new();
+        };
+        if image.parent() == season_folder {
+            let poster = POSTER_NAMES.contains(&name.as_str());
+            let tie = poster.then_some((Tie::Alone, LocalRole::SeasonPoster));
+            return tie.into_iter().collect();
+        }
+        let show_role = if name == SHOW_POSTER_NAME {
+            Some(Role::Poster)
+        } else {
+            role_in_name(&name)
+        };
+        let show = show_role.map(|role| (Tie::Alone, LocalRole::Title(role)));
+        let season = (season_in_name(&name) == Some(season))
+            .then_some((Tie::SeasonInShowFolder, LocalRole::SeasonPoster));
+        show.into_iter().chain(season).collect()
+    }
+}
+
+/// Of `images`, the one standing in for each role of each of `videos`.
+fn tied_images(mut images: Vec<Found>, videos: &[Video<'_>]) -> FoundImages {
+    let mut videos_in: HashMap<&Path, Vec<&Video<'_>>> = HashMap::new();
+    for video in videos {
+        for folder in video.folders() {
+            videos_in.entry(folder).or_default().push(video);
+        }
+    }
     images.sort_by(|a, b| a.path.cmp(&b.path));
-    let mut best: HashMap<(i64, Role), (Naming, LocalImageFile)> = HashMap::new();
+    let mut best: HashMap<(i64, LocalRole), (Tie, LocalImageFile)> = HashMap::new();
     for image in images {
         let path = Path::new(&image.path);
         let in_library_folder = image.relative.parent() == Some(Path::new(""));
-        let videos = path.parent().and_then(|folder| videos_in.get(folder));
-        let tied = (videos.into_iter().flatten()).filter_map(|&(stem, version)| {
-            Some((version, image_role(path, stem, in_library_folder)?))
+        let beside = path.parent().and_then(|folder| videos_in.get(folder));
+        let ties = (beside.into_iter().flatten()).flat_map(|video| {
+            let ties = video.ties(path, in_library_folder).into_iter();
+            ties.map(|(tie, role)| ((video.version, role), tie))
         });
-        for (version, (naming, role)) in tied {
-            if best
-                .get(&(version, role))
-                .is_none_or(|(kept, _)| naming < *kept)
-            {
+        for (key, tie) in ties {
+            if best.get(&key).is_none_or(|(kept, _)| tie < *kept) {
                 let file = LocalImageFile {
                     path: image.path.clone(),
                     size: image.size,
                     modified_ns: image.modified_ns,
                 };
-                best.insert((version, role), (naming, file));
+                best.insert(key, (tie, file));
             }
         }
     }
@@ -347,19 +431,19 @@ fn tied_images(
         .collect()
 }
 
-/// How the image at `image` stands in for the video named `video` without its extension, and for
-/// which of its images, if it does. `in_library_folder` if the image is in one of the Library's
-/// own folders, where only one named after the video does.
-fn image_role(image: &Path, video: &OsStr, in_library_folder: bool) -> Option<(Naming, Role)> {
+/// How the image at `image` stands in for the Movie whose file is named `video` without its
+/// extension, and for which of its images, if it does. `in_library_folder` if the image is in one
+/// of the Library's own folders, where only one named after the video does.
+fn image_role(image: &Path, video: &OsStr, in_library_folder: bool) -> Option<(Tie, Role)> {
     let name = image_name(image)?;
     let video = video.to_str()?.to_lowercase();
     let after_video = (name.strip_prefix(&video))
         .and_then(|rest| rest.strip_prefix('-'))
         .and_then(role_in_name);
     match after_video {
-        Some(role) => Some((Naming::AfterVideo, role)),
+        Some(role) => Some((Tie::AfterVideo, role)),
         None if in_library_folder => None,
-        None => role_in_name(&name).map(|role| (Naming::Alone, role)),
+        None => role_in_name(&name).map(|role| (Tie::Alone, role)),
     }
 }
 
@@ -372,7 +456,9 @@ fn image_name(path: &Path) -> Option<String> {
     }
     let name = path.file_stem()?.to_str()?.to_lowercase();
     let named = |role: &str| role_in_name(role).is_some();
-    let tied = named(&name) || name.rsplit_once('-').is_some_and(|(_, role)| named(role));
+    let tied = named(&name)
+        || name == SHOW_POSTER_NAME
+        || name.rsplit_once('-').is_some_and(|(_, role)| named(role));
     tied.then_some(name)
 }
 
@@ -385,6 +471,17 @@ fn role_in_name(name: &str) -> Option<Role> {
     } else {
         None
     }
+}
+
+/// The Season whose Poster an image named `name` in a Show's folder is, as Jellyfin names them:
+/// `season01-poster`, any number of digits, or `season-specials-poster` for Season 0.
+fn season_in_name(name: &str) -> Option<i64> {
+    let season = name.strip_prefix("season")?.strip_suffix("-poster")?;
+    if season == "-specials" {
+        return Some(0);
+    }
+    // `parse` alone would take `+2`.
+    (season.bytes().all(|byte| byte.is_ascii_digit())).then(|| season.parse().ok())?
 }
 
 /// The sidecar subtitles a walk found, and the folders and files it couldn't read.

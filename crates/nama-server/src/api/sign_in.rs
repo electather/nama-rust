@@ -11,12 +11,12 @@ use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult,
 };
 use nama_proto::nama::v1::{
-    ApproveSignInCodeRequest, ApproveSignInCodeResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
-    ReauthenticateResponse, RefusalReason, SessionDelivery, SetupRequest, SetupResponse,
-    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, WhoAmIRequest,
-    WhoAmIResponse, reauthenticate_request::Proof,
+    AcceptInviteRequest, AcceptInviteResponse, ApproveSignInCodeRequest, ApproveSignInCodeResponse,
+    LookUpSignInCodeRequest, LookUpSignInCodeResponse, PollSignInCodeRequest,
+    PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, RefusalReason,
+    SessionDelivery, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
+    SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
+    StartSignInCodeResponse, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
 };
 
 use crate::users::{
@@ -230,6 +230,37 @@ impl SignInService for SignInServiceHandler {
             &ctx,
             |caller, token| PollSignInCodeResponse {
                 status: SignInCodeStatus::SIGN_IN_CODE_STATUS_SIGNED_IN.into(),
+                user: user_to_proto(caller.user).into(),
+                device: device_to_proto(caller.device, true).into(),
+                token,
+                ..Default::default()
+            },
+        ))
+    }
+
+    async fn accept_invite(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, AcceptInviteRequest>,
+    ) -> ServiceResult<AcceptInviteResponse> {
+        let request = request.to_owned_message();
+        let delivery = delivery(request.delivery)?;
+        let device = new_device(request.device_name, &ctx)?;
+        let signed_in = self
+            .sign_in
+            .accept_invite(
+                &request.token,
+                &request.name,
+                &request.password,
+                device,
+                Instant::now(),
+            )
+            .await?;
+        Ok(hand_out_session(
+            signed_in,
+            delivery,
+            &ctx,
+            |caller, token| AcceptInviteResponse {
                 user: user_to_proto(caller.user).into(),
                 device: device_to_proto(caller.device, true).into(),
                 token,

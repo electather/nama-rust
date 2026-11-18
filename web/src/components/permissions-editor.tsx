@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
-import { type ComponentProps, useId, useState } from "react";
+import { type ComponentProps, type ReactNode, useId, useState } from "react";
 
 import { FormEnd } from "@/components/form-field";
 import { useSetDefaultPermissions, useSetPermissions } from "@/components/use-set-permissions";
@@ -9,6 +9,7 @@ import { onSubmitted, refusal } from "@/lib/forms";
 import {
   type PermissionChoice,
   isCovered,
+  labelsOf,
   mayChangeDefaultPermissions,
   mayChangePermissions,
   permissionChoices,
@@ -26,7 +27,7 @@ function UserPermissionsForm({ user, you }: { user: User; you: User | undefined 
   return (
     <PermissionsForm
       initial={user.permissions}
-      you={you}
+      offer={permissionsToOffer(you)}
       onSave={(permissions) => {
         save.mutate({ userId: user.id, permissions });
       }}
@@ -85,7 +86,7 @@ function DefaultPermissionsForm({
   return (
     <PermissionsForm
       initial={initial}
-      you={you}
+      offer={permissionsToOffer(you)}
       onSave={(permissions) => {
         save.mutate({ permissions });
       }}
@@ -101,24 +102,21 @@ function DefaultPermissionsForm({
   );
 }
 
-/** `permissions` by their labels, in the order the Users page lists them, or "None". */
-function labelsOf(permissions: Permission[]) {
-  const labels = permissionChoices
-    .filter((choice) => permissions.includes(choice.permission))
-    .map((choice) => choice.label);
-  return labels.length === 0 ? "None" : labels.join(" · ");
-}
-
-/** Permissions as checkboxes, with each one's children under it, which `onSave` gets together. */
-function PermissionsForm({
+/**
+ * The Permissions of `offer` as checkboxes, with each one's children under it, after any other
+ * `fields`. `onSave` gets those checked together, and what was typed.
+ */
+export function PermissionsForm({
   initial,
-  you,
+  offer,
+  fields,
   onSave,
   end,
 }: {
   initial: Permission[];
-  you: User | undefined;
-  onSave: (permissions: Permission[]) => void;
+  offer: PermissionChoice[];
+  fields?: ReactNode;
+  onSave: (permissions: Permission[], typed: FormData) => void;
   end: ComponentProps<typeof FormEnd>;
 }) {
   const [held, setHeld] = useState(initial);
@@ -128,15 +126,16 @@ function PermissionsForm({
   return (
     <form
       className="flex flex-col gap-4"
-      onSubmit={onSubmitted(() => {
+      onSubmit={onSubmitted((typed) => {
         // A covered Permission is sent as it's held, so unchecking its parent later brings it back.
-        onSave(held);
+        onSave(held, typed);
       })}
     >
+      {fields}
       <fieldset>
         <legend className="text-sm font-medium">Permissions</legend>
         <ul className="mt-3 flex flex-col gap-3">
-          {permissionsToOffer(you)
+          {offer
             .filter((choice) => choice.parent === undefined)
             .map((choice) => (
               <li key={choice.permission}>

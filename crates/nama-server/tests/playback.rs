@@ -944,7 +944,7 @@ async fn ffmpegs_own_playlist(folder: &Path, url: &str) -> String {
     written(&folder.join(format!("nama-plan-{id}")).join("ffmpeg.m3u8")).await
 }
 
-/// What the file at `path` holds once something writes it.
+/// What the file at `path` holds once it ends in a newline, so its last line isn't half written.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -952,7 +952,9 @@ async fn ffmpegs_own_playlist(folder: &Path, url: &str) -> String {
 async fn written(path: &Path) -> String {
     tokio::time::timeout(WAIT, async {
         loop {
-            if let Ok(written) = fs::read_to_string(path) {
+            if let Ok(written) = fs::read_to_string(path)
+                && written.ends_with('\n')
+            {
                 return written;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;

@@ -1,19 +1,22 @@
 //! Images beside the media: a Poster or Backdrop that Jellyfin, Kodi and the like leave beside a
-//! Movie's file, such as `poster.jpg` or `fanart.jpg`, which stands in for the downloaded one.
-//! A Custom Image still goes first: unlike in Jellyfin, a file beside the media never replaces an
-//! admin's choice (#732).
+//! Movie's file or in a Show's or Season's folder, such as `poster.jpg` or `fanart.jpg`, which
+//! stands in for the downloaded one. A Custom Image still goes first: unlike in Jellyfin, a file
+//! beside the media never replaces an admin's choice (#732, #1016).
 //!
 //! A scan finds them, and [`LocalImages`] keeps a copy of each in the [`ImageStore`], under
 //! `local-images/<library>/<version>`, if it is what a Custom Image may be; one that isn't is
 //! skipped, and the scan logs it. The Server only reads the files, never writes or deletes them.
-//! The rows are in `local_images`, which [`Contents`] owns. Of a Movie's Items, the image beside
-//! the first-added one shows: adding another Item of a Movie never changes its Poster.
+//! The rows are in `local_images`, which [`Contents`] owns, each recorded beside a Version: an
+//! Episode's for its Show's and Season's images. Of a title's Items, the image beside the
+//! first-added one shows: adding another Item of a Movie, or Episode of a Show, never changes its
+//! Poster.
 //!
 //! Clients fetch them at their [`LocalImageUrls`] entry, under `/media/`, resized by `?width=` as
 //! a downloaded image is, served to anyone with a session.
 
 use std::{
     collections::{HashMap, HashSet},
+    hash::Hash,
     io, iter,
     sync::Arc,
 };
@@ -34,7 +37,7 @@ use crate::{
     images::{Asked, ImageStore, LOCAL_IMAGES_DIR, UploadError},
     library::{
         Role,
-        contents::{Contents, LocalImage, LocalImageFile},
+        contents::{Contents, LocalImage, LocalImageFile, LocalRole, TitleLocalImage},
         custom_images::served_type,
     },
     server_settings::ImageSettings,
@@ -44,7 +47,11 @@ use crate::{
 const DIR: &str = LOCAL_IMAGES_DIR;
 
 /// What an image beside the media may stand in for.
-const ROLES: [Role; 2] = [Role::Poster, Role::Backdrop];
+const ROLES: [LocalRole; 3] = [
+    LocalRole::Title(Role::Poster),
+    LocalRole::Title(Role::Backdrop),
+    LocalRole::SeasonPoster,
+];
 
 /// The images beside the media, copied into the store.
 #[derive(Debug, Clone)]
@@ -54,12 +61,17 @@ pub(crate) struct LocalImages {
 }
 
 /// The images found beside a Library's Versions, by Version id and what each stands in for.
-pub(crate) type FoundImages = HashMap<(i64, Role), LocalImageFile>;
+pub(crate) type FoundImages = HashMap<(i64, LocalRole), LocalImageFile>;
 
-/// The URL of each Matched Movie's image beside its first-added Item that has one, by each of the
-/// Movie's ids and role: see [`LocalImages::urls`].
+/// The URL of each Matched title's image beside its first-added Item that has one, by each of the
+/// title's ids: see [`LocalImages::urls`]. Movies, Shows and Seasons apart, since a Show and a
+/// Movie can share an id such as `tmdb-1`.
 #[derive(Debug, Default)]
-pub(crate) struct LocalImageUrls(HashMap<(ExternalId, Role), String>);
+pub(crate) struct LocalImageUrls {
+    movies: HashMap<(ExternalId, Role), String>,
+    shows: HashMap<(ExternalId, Role), String>,
+    seasons: HashMap<(ExternalId, i64), String>,
+}
 
 impl LocalImageUrls {
     /// The URL of the image beside the Movie `id`'s media that stands in for its `role`, by `id`
@@ -70,10 +82,70 @@ impl LocalImageUrls {
         ids: &ExternalIds,
         role: Role,
     ) -> Option<String> {
-        iter::once(id.clone())
-            .chain(ids.iter())
-            .find_map(|id| self.0.get(&(id, role)).cloned())
+        first_of(&self.movies, id, ids, |id| (id, role))
     }
+
+    /// As [`LocalImageUrls::of_movie`], for the Show `id`.
+    pub(crate) fn of_show(&self, id: &ExternalId, ids: &ExternalIds, role: Role) -> Option<String> {
+        first_of(&self.shows, id, ids, |id| (id, role))
+    }
+
+    /// As [`LocalImageUrls::of_movie`], for the Poster of the Show `id`'s Season `number`.
+    pub(crate) fn of_season(
+        &self,
+        id: &ExternalId,
+        ids: &ExternalIds,
+        number: i64,
+    ) -> Option<String> {
+        first_of(&self.seasons, id, ids, |id| (id, number))
+    }
+
+    /// Files each of `images` under its title's ids; of one title's, the first is kept.
+    fn filed(images: Vec<TitleLocalImage>) -> Self {
+        let mut urls = Self::default();
+        for image in images {
+            let (ids, url) = (&image.ids, url(image.library, &image.stored));
+            match (image.role, image.season) {
+                (LocalRole::Title(role), None) => {
+                    insert_first(&mut urls.movies, ids, |id| (id, role), &url);
+                }
+                (LocalRole::Title(role), Some(_)) => {
+                    insert_first(&mut urls.shows, ids, |id| (id, role), &url);
+                }
+                (LocalRole::SeasonPoster, Some(number)) => {
+                    insert_first(&mut urls.seasons, ids, |id| (id, number), &url);
+                }
+                (LocalRole::SeasonPoster, None) => {}
+            }
+        }
+        urls
+    }
+}
+
+/// Inserts `url` in `map` under each of `ids`, as `key` makes it a key, unless an earlier one is
+/// there.
+fn insert_first<K: Eq + Hash>(
+    map: &mut HashMap<K, String>,
+    ids: &ExternalIds,
+    key: impl Fn(ExternalId) -> K,
+    url: &str,
+) {
+    for id in ids.iter() {
+        map.entry(key(id)).or_insert_with(|| url.to_owned());
+    }
+}
+
+/// The value `map` has under the key `key` makes of `id`, or else of the first of `ids` it has one
+/// under.
+fn first_of<K: Eq + Hash>(
+    map: &HashMap<K, String>,
+    id: &ExternalId,
+    ids: &ExternalIds,
+    key: impl Fn(ExternalId) -> K,
+) -> Option<String> {
+    iter::once(id.clone())
+        .chain(ids.iter())
+        .find_map(|id| map.get(&key(id)).cloned())
 }
 
 impl LocalImages {
@@ -133,6 +205,8 @@ impl LocalImages {
         found: &FoundImages,
     ) -> sqlx::Result<()> {
         let mut kept = Vec::new();
+        // ponytail: a Show's image is copied once for each Episode Version it stands in for; copy
+        // each path once per batch if scans of long Shows get slow.
         let beside = |&version| ROLES.map(|role| (version, role));
         for (version, role) in versions.iter().flat_map(beside) {
             let Some(file) = found.get(&(version, role)) else {
@@ -205,7 +279,7 @@ impl LocalImages {
         }
     }
 
-    /// Where clients fetch each Matched Movie's image beside its first-added Item that has one.
+    /// Where clients fetch each Matched title's image beside its first-added Item that has one.
     ///
     /// # Errors
     ///
@@ -213,14 +287,8 @@ impl LocalImages {
     // ponytail: reads every image beside the media for each response that shows images, as
     // `CustomImages::urls` does. Query by title if that ever grows.
     pub(crate) async fn urls(&self) -> sqlx::Result<LocalImageUrls> {
-        let mut urls = HashMap::new();
-        for image in self.contents.movies_local_images().await? {
-            let url = url(image.library, &image.stored);
-            for id in image.ids.iter() {
-                urls.entry((id, image.role)).or_insert_with(|| url.clone());
-            }
-        }
-        Ok(LocalImageUrls(urls))
+        let images = self.contents.titles_local_images().await?;
+        Ok(LocalImageUrls::filed(images))
     }
 
     /// The thumbhash of each copy resized so far, by the URL clients fetch it at.
@@ -289,3 +357,7 @@ async fn serve(
         StatusCode::INTERNAL_SERVER_ERROR.into_response()
     })
 }
+
+#[cfg(test)]
+#[path = "local_images_tests.rs"]
+mod tests;

@@ -1,6 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::{collections::HashMap, net::IpAddr, sync::Arc};
+use std::{net::IpAddr, sync::Arc};
 
 use axum::{
     extract::Request,
@@ -8,10 +8,9 @@ use axum::{
     middleware::{self, Next},
     response::IntoResponse,
 };
-use buffa::MessageName;
-use buffa::{EnumValue, Enumeration};
+use buffa::{EnumValue, Enumeration, MessageName};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
 
 use crate::{
@@ -25,15 +24,14 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImageUrls, CustomImages, Libraries, LocalImageUrls, LocalImages,
-        Role, Slot, TitleKind, TitleSources, artwork_router, custom_images_router,
-        local_images_router,
+        Artwork, Contents, CustomImages, Libraries, LocalImages, TitleKind, TitleSources,
+        artwork_router, custom_images_router, local_images_router,
     },
     playback::{Probing, RunningPlans, TrackPreferences, running_router},
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
-    server_settings::{self, ImageSettings},
+    server_settings,
     users::{
         Caller, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
         in_session_cookie,
@@ -49,6 +47,7 @@ mod playback;
 mod plugins;
 mod requests;
 mod server;
+mod shown_images;
 mod sign_in;
 mod users;
 mod watch_states;
@@ -61,6 +60,7 @@ use playback::PlaybackServiceHandler;
 use plugins::PluginServiceHandler;
 use requests::RequestServiceHandler;
 use server::ServerServiceHandler;
+use shown_images::{ImageSources, ShownImages};
 use sign_in::SignInServiceHandler;
 use users::UserServiceHandler;
 use watch_states::WatchStateServiceHandler;
@@ -117,6 +117,7 @@ pub(crate) fn router(
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
+    let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -184,6 +185,7 @@ pub(crate) fn router(
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
             db,
+            server_url,
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);
@@ -267,6 +269,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
     (proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
     (proto::SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC.procedure,     Access::Anyone),
+    (proto::SIGN_IN_SERVICE_ACCEPT_INVITE_SPEC.procedure,         Access::Anyone),
     (proto::LIBRARY_SERVICE_CREATE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_LIST_LIBRARIES_SPEC.procedure,        Access::SignedIn),
     (proto::LIBRARY_SERVICE_GET_LIBRARY_SPEC.procedure,           MANAGE_LIBRARIES),
@@ -314,6 +317,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           MANAGE_USERS),
     (proto::USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
     (proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
+    (proto::USER_SERVICE_CREATE_INVITE_SPEC.procedure,            MANAGE_USERS),
+    (proto::USER_SERVICE_LIST_INVITES_SPEC.procedure,             MANAGE_USERS),
+    (proto::USER_SERVICE_REVOKE_INVITE_SPEC.procedure,            MANAGE_USERS),
     (proto::USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC.procedure,  Access::SignedIn),
     (proto::USER_SERVICE_START_PLUGIN_CONNECTION_SPEC.procedure,  Access::SignedIn),
     (proto::USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC.procedure, Access::SignedIn),
@@ -459,16 +465,6 @@ fn unlisted(path: &str) -> ConnectError {
     let path = path.strip_prefix('/').unwrap_or(path);
     ConnectError::unimplemented(format!("method not found: {path}"))
         .with_http_status(StatusCode::NOT_FOUND)
-}
-
-/// The refusal of a request whose `version_id` names no Version.
-fn version_not_found() -> ConnectError {
-    refuse(
-        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
-        "there is no such Version",
-    )
-    .field("version_id")
-    .into()
 }
 
 /// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.
@@ -647,7 +643,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_IMAGE_STORE_SWITCHING
         | R::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK
         | R::REFUSAL_REASON_FOLDER_OVERLAPS
-        | R::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE
+        | R::REFUSAL_REASON_SERVER_URL_REQUIRED => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -662,7 +659,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_REQUEST_NOT_FOUND
         | R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND
         | R::REFUSAL_REASON_PLUGIN_NOT_FOUND
-        | R::REFUSAL_REASON_TITLE_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_TITLE_NOT_FOUND
+        | R::REFUSAL_REASON_INVITE_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN
         | R::REFUSAL_REASON_LIBRARY_NAME_TAKEN
         | R::REFUSAL_REASON_FOLDER_TAKEN => ErrorCode::AlreadyExists,
@@ -730,59 +728,6 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
         ConnectError::unavailable("the Server is busy; try again")
     } else {
         ConnectError::internal("the Server's database failed")
-    }
-}
-
-/// What a response shows of images: the Custom Images, and else the images beside a Movie's media,
-/// in place of the downloaded ones, and the thumbhash of each image resized so far, by URL.
-struct ShownImages {
-    custom: CustomImageUrls,
-    local: LocalImageUrls,
-    thumbhashes: HashMap<String, Vec<u8>>,
-}
-
-impl ShownImages {
-    /// The URL of the image the Movie `id`, with every id `ids`, shows in place of its downloaded
-    /// `role`: its Custom Image, or else the image beside its media (`src/library/AGENTS.md`).
-    fn movie_image(&self, id: &ExternalId, ids: &ExternalIds, role: Role) -> Option<String> {
-        (self.custom.of_title(id, ids, |id| Slot::movie(id, role)))
-            .or_else(|| self.local.of_movie(id, ids, role))
-    }
-
-    /// The thumbhash to send beside `url`, if the image there has one.
-    fn thumbhash(&self, url: Option<&str>) -> Option<Vec<u8>> {
-        self.thumbhashes.get(url?).cloned()
-    }
-}
-
-/// Where a response finds the images it shows: see [`ImageSources::shown`].
-#[derive(Clone)]
-struct ImageSources {
-    custom_images: CustomImages,
-    local_images: LocalImages,
-    artwork: Artwork,
-    settings: ImageSettings,
-}
-
-impl ImageSources {
-    /// What a response shows of images, with no thumbhashes while resizing is off (ADR 0039).
-    async fn shown(&self) -> Result<ShownImages, ConnectError> {
-        let custom = self.custom_images.urls().await.map_err(database_failed)?;
-        let local = self.local_images.urls().await.map_err(database_failed)?;
-        let mut thumbhashes = HashMap::new();
-        if self.settings.resizing().is_some() {
-            let artwork = self.artwork.thumbhashes().await.map_err(database_failed)?;
-            let custom_images = self.custom_images.thumbhashes().await;
-            let local_images = self.local_images.thumbhashes().await;
-            thumbhashes.extend(artwork);
-            thumbhashes.extend(custom_images.map_err(database_failed)?);
-            thumbhashes.extend(local_images.map_err(database_failed)?);
-        }
-        Ok(ShownImages {
-            custom,
-            local,
-            thumbhashes,
-        })
     }
 }
 

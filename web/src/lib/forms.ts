@@ -11,6 +11,7 @@ export interface FormErrors {
   form?: string;
   setupCode?: string;
   name?: string;
+  note?: string;
   password?: string;
   deviceName?: string;
   signInCode?: string;

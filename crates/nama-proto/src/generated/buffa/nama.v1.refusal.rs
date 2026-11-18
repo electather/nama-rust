@@ -11,8 +11,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_UNSPECIFIED = 0i32,
     /// `unauthenticated`: the call needs a signed-in Device.
     REFUSAL_REASON_SIGN_IN_REQUIRED = 1i32,
-    /// `permission_denied`: the call needs a Permission the caller lacks. Params: `permission`, the
-    /// `Permission` value's name (`PERMISSION_MANAGE_USERS`).
+    /// `permission_denied`: the call needs a Permission the caller lacks, or asks an Invite for one it
+    /// never grants, such as `PERMISSION_ADMIN`. Params: `permission`, the `Permission` value's name
+    /// (`PERMISSION_MANAGE_USERS`).
     REFUSAL_REASON_PERMISSION_REQUIRED = 2i32,
     /// `unauthenticated`: no User has this name and password. Which of the two is wrong isn't said.
     REFUSAL_REASON_WRONG_NAME_OR_PASSWORD = 3i32,
@@ -254,6 +255,11 @@ pub enum RefusalReason {
     /// deleting it, so the images stay where they are. The message says what failed. `field` is
     /// `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
     REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79i32,
+    /// `not_found`: no Invite works with the token or ID given: it was used, revoked or expired, or
+    /// its creator was deleted or lost `PERMISSION_MANAGE_USERS`. `field` is `token` or `invite_id`.
+    REFUSAL_REASON_INVITE_NOT_FOUND = 87i32,
+    /// `failed_precondition`: the Server has no Server URL, so an Invite would have no link.
+    REFUSAL_REASON_SERVER_URL_REQUIRED = 88i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -508,6 +514,12 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ImageStoreFailedCheck: Self = Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_INVITE_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const InviteNotFound: Self = Self::REFUSAL_REASON_INVITE_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SERVER_URL_REQUIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ServerUrlRequired: Self = Self::REFUSAL_REASON_SERVER_URL_REQUIRED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -789,6 +801,10 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
                 )
             }
+            87i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_INVITE_NOT_FOUND),
+            88i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_URL_REQUIRED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -958,6 +974,10 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK => {
                 "REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK"
+            }
+            Self::REFUSAL_REASON_INVITE_NOT_FOUND => "REFUSAL_REASON_INVITE_NOT_FOUND",
+            Self::REFUSAL_REASON_SERVER_URL_REQUIRED => {
+                "REFUSAL_REASON_SERVER_URL_REQUIRED"
             }
         }
     }
@@ -1239,6 +1259,12 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
                 )
             }
+            "REFUSAL_REASON_INVITE_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_INVITE_NOT_FOUND)
+            }
+            "REFUSAL_REASON_SERVER_URL_REQUIRED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_URL_REQUIRED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1328,6 +1354,8 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_IMAGE_STORE_IN_USE,
             Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING,
             Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
+            Self::REFUSAL_REASON_INVITE_NOT_FOUND,
+            Self::REFUSAL_REASON_SERVER_URL_REQUIRED,
         ]
     }
 }

@@ -78,6 +78,30 @@ pub type OwnedSetDefaultPermissionsRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetDefaultPermissionsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<CreateInviteRequestView<'static>>`.
+pub type OwnedCreateInviteRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateInviteRequestView<'static>,
+>;
+///Shorthand for `OwnedView<CreateInviteResponseView<'static>>`.
+pub type OwnedCreateInviteResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateInviteResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ListInvitesRequestView<'static>>`.
+pub type OwnedListInvitesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListInvitesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListInvitesResponseView<'static>>`.
+pub type OwnedListInvitesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListInvitesResponseView<'static>,
+>;
+///Shorthand for `OwnedView<RevokeInviteRequestView<'static>>`.
+pub type OwnedRevokeInviteRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RevokeInviteRequestView<'static>,
+>;
+///Shorthand for `OwnedView<RevokeInviteResponseView<'static>>`.
+pub type OwnedRevokeInviteResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RevokeInviteResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ListPluginConnectionsRequestView<'static>>`.
 pub type OwnedListPluginConnectionsRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListPluginConnectionsRequestView<'static>,
@@ -490,6 +514,108 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateInviteResponse>
+for crate::messages::nama::v1::__buffa::view::CreateInviteResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateInviteResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateInviteResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListInvitesResponse>
+for crate::messages::nama::v1::__buffa::view::ListInvitesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListInvitesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListInvitesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::RevokeInviteResponse>
+for crate::messages::nama::v1::__buffa::view::RevokeInviteResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::RevokeInviteResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RevokeInviteResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPluginConnectionsResponse>
 for crate::messages::nama::v1::__buffa::view::ListPluginConnectionsResponseView<'_> {
     fn encode(
@@ -838,6 +964,24 @@ pub const USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC: ::connectrpc::Spec = ::conn
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `CreateInvite` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_CREATE_INVITE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/CreateInvite",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListInvites` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_LIST_INVITES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ListInvites",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `RevokeInvite` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_REVOKE_INVITE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/RevokeInvite",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Static [`Spec`](::connectrpc::Spec) for the `ListPluginConnections` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.UserService/ListPluginConnections",
@@ -886,7 +1030,7 @@ pub const USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC: ::connectrpc::Spec = ::
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
-/// Managing the Server's Users, their Devices, Plugin Connections, Personal settings and
+/// Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings and
 /// notification preferences. Every RPC but `ListDevices`, `RevokeDevice`, `ChangePassword`, the
 /// Plugin Connection ones, the Personal settings ones and the notification preference ones needs
 /// `PERMISSION_MANAGE_USERS`,
@@ -1196,6 +1340,82 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetDefaultPermissionsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Makes an Invite: a single-use link, valid for 7 days, with which one person creates their own
+    /// User with `SignInService.AcceptInvite`. The link is in the response only: the Server keeps a
+    /// hash of its token. Fails with `failed_precondition` and `REFUSAL_REASON_SERVER_URL_REQUIRED`
+    /// while the Server has no Server URL to link to, `permission_denied` and
+    /// `REFUSAL_REASON_PERMISSION_REQUIRED` for `PERMISSION_ADMIN` or a Permission the caller lacks,
+    /// and `invalid_argument` if the note breaks the rules for a name.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn create_invite<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::CreateInviteRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::CreateInviteResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists every pending Invite, oldest first, whoever made it. Used and expired ones, and those
+    /// whose creator was deleted or lost `PERMISSION_MANAGE_USERS`, are left out: they no longer work.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_invites<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListInvitesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListInvitesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Revokes a pending Invite, whoever made it, so its link stops working. Fails with `not_found`
+    /// and `REFUSAL_REASON_INVITE_NOT_FOUND` if no Invite has the ID.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn revoke_invite<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::RevokeInviteRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::RevokeInviteResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1725,6 +1945,93 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "CreateInvite",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::CreateInviteRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::CreateInviteRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.create_invite(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::CreateInviteResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_CREATE_INVITE_SPEC)
+            .route_view_idempotent(
+                USER_SERVICE_SERVICE_NAME,
+                "ListInvites",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListInvitesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListInvitesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_invites(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListInvitesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_LIST_INVITES_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "RevokeInvite",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::RevokeInviteRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::RevokeInviteRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.revoke_invite(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::RevokeInviteResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_REVOKE_INVITE_SPEC)
             .route_view_idempotent(
                 USER_SERVICE_SERVICE_NAME,
                 "ListPluginConnections",
@@ -2071,6 +2378,24 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .with_spec(USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC),
                 )
             }
+            "CreateInvite" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_CREATE_INVITE_SPEC),
+                )
+            }
+            "ListInvites" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(USER_SERVICE_LIST_INVITES_SPEC),
+                )
+            }
+            "RevokeInvite" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_REVOKE_INVITE_SPEC),
+                )
+            }
             "ListPluginConnections" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
@@ -2343,6 +2668,70 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SetDefaultPermissionsResponse,
+                        >(format)
+                })
+            }
+            "CreateInvite" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::CreateInviteRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::CreateInviteRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::CreateInviteRequest,
+                    >::from_parts(&req, &body);
+                    svc.create_invite(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::CreateInviteResponse,
+                        >(format)
+                })
+            }
+            "ListInvites" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListInvitesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListInvitesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListInvitesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_invites(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::ListInvitesResponse>(format)
+                })
+            }
+            "RevokeInvite" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::RevokeInviteRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::RevokeInviteRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::RevokeInviteRequest,
+                    >::from_parts(&req, &body);
+                    svc.revoke_invite(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::RevokeInviteResponse,
                         >(format)
                 })
             }
@@ -3082,6 +3471,141 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the CreateInvite RPC. Sends a request to /nama.v1.UserService/CreateInvite.
+    pub async fn create_invite(
+        &self,
+        request: crate::messages::nama::v1::CreateInviteRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CreateInviteResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.create_invite_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the CreateInvite RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn create_invite_with_options(
+        &self,
+        request: crate::messages::nama::v1::CreateInviteRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CreateInviteResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_CREATE_INVITE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListInvites RPC. Sends a request to /nama.v1.UserService/ListInvites.
+    pub async fn list_invites(
+        &self,
+        request: crate::messages::nama::v1::ListInvitesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListInvitesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_invites_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListInvites RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_invites_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListInvitesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListInvitesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_LIST_INVITES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the RevokeInvite RPC. Sends a request to /nama.v1.UserService/RevokeInvite.
+    pub async fn revoke_invite(
+        &self,
+        request: crate::messages::nama::v1::RevokeInviteRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::RevokeInviteResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.revoke_invite_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the RevokeInvite RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn revoke_invite_with_options(
+        &self,
+        request: crate::messages::nama::v1::RevokeInviteRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::RevokeInviteResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_REVOKE_INVITE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

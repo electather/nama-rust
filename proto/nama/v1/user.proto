@@ -5,7 +5,7 @@ package nama.v1;
 import "nama/v1/plugin.proto";
 import "nama/v1/sign_in.proto";
 
-// Managing the Server's Users, their Devices, Plugin Connections, Personal settings and
+// Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings and
 // notification preferences. Every RPC but `ListDevices`, `RevokeDevice`, `ChangePassword`, the
 // Plugin Connection ones, the Personal settings ones and the notification preference ones needs
 // `PERMISSION_MANAGE_USERS`,
@@ -69,6 +69,23 @@ service UserService {
   // Replaces the default Permissions. Users created before keep the Permissions they have. Fails
   // with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't know.
   rpc SetDefaultPermissions(SetDefaultPermissionsRequest) returns (SetDefaultPermissionsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Makes an Invite: a single-use link, valid for 7 days, with which one person creates their own
+  // User with `SignInService.AcceptInvite`. The link is in the response only: the Server keeps a
+  // hash of its token. Fails with `failed_precondition` and `REFUSAL_REASON_SERVER_URL_REQUIRED`
+  // while the Server has no Server URL to link to, `permission_denied` and
+  // `REFUSAL_REASON_PERMISSION_REQUIRED` for `PERMISSION_ADMIN` or a Permission the caller lacks,
+  // and `invalid_argument` if the note breaks the rules for a name.
+  rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse);
+  // Lists every pending Invite, oldest first, whoever made it. Used and expired ones, and those
+  // whose creator was deleted or lost `PERMISSION_MANAGE_USERS`, are left out: they no longer work.
+  rpc ListInvites(ListInvitesRequest) returns (ListInvitesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Revokes a pending Invite, whoever made it, so its link stops working. Fails with `not_found`
+  // and `REFUSAL_REASON_INVITE_NOT_FOUND` if no Invite has the ID.
+  rpc RevokeInvite(RevokeInviteRequest) returns (RevokeInviteResponse) {
     option idempotency_level = IDEMPOTENT;
   }
   // Lists the enabled Plugins the caller can connect to, such as Telegram, by id, with whether
@@ -210,6 +227,56 @@ message SetDefaultPermissionsRequest {
 }
 
 message SetDefaultPermissionsResponse {}
+
+// A pending Invite, as Users who manage Users see it.
+message Invite {
+  // Assigned by the Server, and never reused.
+  int64 id = 1;
+  // Who it's for, as its creator noted it, such as "Mum", or empty. Never the new User's name.
+  string note = 2;
+  // The name of the User who made it.
+  string creator_name = 3;
+  // What the User it creates gets: those picked, less any its creator has since lost, in the order
+  // of `Permission`'s values, each once.
+  repeated Permission permissions = 4;
+  // When it was made, in seconds since the Unix epoch.
+  int64 created_at = 5;
+  // When it stops working, in seconds since the Unix epoch.
+  int64 expires_at = 6;
+}
+
+message CreateInviteRequest {
+  // Who it's for, such as "Mum": up to 64 characters once trimmed, by the rules for a name, or
+  // empty.
+  string note = 1;
+  // Every Permission the User it creates is to get. Never `PERMISSION_ADMIN`, nor one the caller
+  // lacks.
+  repeated Permission permissions = 2;
+}
+
+message CreateInviteResponse {
+  // The Invite just made.
+  Invite invite = 1;
+  // The link to hand on, `<Server URL>/invite/<token>`. The token works through any address the
+  // Server answers on.
+  string url = 2;
+}
+
+message ListInvitesRequest {}
+
+message ListInvitesResponse {
+  // Oldest first.
+  repeated Invite invites = 1;
+  // Whether the Server has a Server URL, without which `CreateInvite` is refused.
+  bool server_url_set = 2;
+}
+
+message RevokeInviteRequest {
+  // The ID of the Invite to revoke.
+  int64 invite_id = 1;
+}
+
+message RevokeInviteResponse {}
 
 message ListPluginConnectionsRequest {}
 
