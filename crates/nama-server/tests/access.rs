@@ -77,10 +77,11 @@ const MANAGE_SETTINGS: [&str; 13] = [
 ];
 
 /// The RPCs only an Admin may call, which need `PERMISSION_ADMIN`.
-const ADMIN: [&str; 3] = [
+const ADMIN: [&str; 4] = [
     "/nama.v1.ServerService/GetPlaybackStatus",
     "/nama.v1.ServerService/GetPlaybackSettings",
     "/nama.v1.ServerService/UpdatePlaybackSettings",
+    "/nama.v1.PluginService/ListPluginLogLines",
 ];
 
 /// Every RPC that manages every User's Requests and Followed Shows, which needs

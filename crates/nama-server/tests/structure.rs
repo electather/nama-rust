@@ -460,10 +460,10 @@ const ROWS: &[&[&str]] = &[
         "ffmpeg",
         "forwarded",
         "web",
+        "diagnostics",
         "db",
         "page",
         "config",
-        "diagnostics",
         "log_capture",
     ],
 ];

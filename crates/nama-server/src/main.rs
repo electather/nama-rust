@@ -250,8 +250,10 @@ fn init_tracing() -> Option<Exporting> {
     let not_own_span = filter_fn(|metadata| {
         !(metadata.is_span() && metadata.target().starts_with(env!("CARGO_CRATE_NAME")))
     });
+    // One filter for both, so the Plugins page keeps the Plugin Log lines stdout shows (ADR 0061).
     let stdout = tracing_subscriber::fmt::layer()
         .with_ansi(io::stdout().is_terminal())
+        .and_then(diagnostics::plugin_lines_layer())
         .with_filter(filter.and(not_own_span));
     // Empty counts as unset, as the OpenTelemetry spec says of every `OTEL_*` variable.
     let endpoint = env::var_os(OTLP_ENDPOINT).filter(|endpoint| !endpoint.is_empty());

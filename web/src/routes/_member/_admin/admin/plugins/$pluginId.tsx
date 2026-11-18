@@ -8,13 +8,14 @@ import {
   PointFailures,
 } from "@/components/plugin-at-a-glance";
 import { Page } from "@/components/page";
+import { PluginLog } from "@/components/plugin-log";
 import { PluginQualities } from "@/components/plugin-qualities";
 import { PluginSettings } from "@/components/plugin-settings";
 import { PluginToggle } from "@/components/plugin-toggle";
 import { NotFound } from "@/components/route-error";
 import { PluginService } from "@/gen/nama/v1/plugin_pb";
+// oxlint-disable-next-line import/max-dependencies -- the page puts together a section per part of a Plugin's setup: settings, Qualities, log
 import { queryOrNotFound } from "@/lib/browse";
-// oxlint-disable-next-line import/max-dependencies -- the page puts together a section per part of a Plugin's setup: settings, Qualities
 import { hasSummary, kindAndVersion, type PluginDetails, pluginName } from "@/lib/plugins";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins/$pluginId")({
@@ -50,6 +51,7 @@ function PluginPage() {
           <LogoChoice summary={summary} />
           <Settings plugin={plugin} />
           <PluginQualities plugin={plugin} />
+          <PluginLog id={summary.id} />
         </>
       ) : (
         <p className="mt-6 max-w-prose text-sm text-pretty text-muted-foreground">

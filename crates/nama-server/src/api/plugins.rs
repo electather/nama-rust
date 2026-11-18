@@ -23,8 +23,10 @@ use nama_proto::nama::v1::{
     ListPluginsResponse, PluginService, RefusalReason, TestPluginSettingsRequest,
     TestPluginSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
 };
+use tracing::Level;
 
 use crate::{
+    diagnostics::{self, PluginLine},
     images::PluginLogos,
     library::{CustomImageUrls, CustomImages, Slot},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
@@ -35,7 +37,8 @@ use crate::{
 use super::{database_failed, refuse};
 
 /// `nama.v1.PluginService`: the Server's Plugins and their settings. Needs
-/// `PERMISSION_MANAGE_SETTINGS`, which [`require_access`](super::require_access) enforces.
+/// `PERMISSION_MANAGE_SETTINGS`, or `PERMISSION_ADMIN` for a Plugin's log lines, which
+/// [`require_access`](super::require_access) enforces.
 pub(super) struct PluginServiceHandler {
     /// Each Plugin with what is stored for it, which every change to one goes through.
     pub(super) plugin_settings: PluginSettings,
@@ -206,6 +209,22 @@ impl PluginService for PluginServiceHandler {
             .map_err(|err| invalid_qualities(err, &id))?;
         Response::ok(proto::ReplaceQualitiesResponse {
             qualities,
+            ..Default::default()
+        })
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "the lines are in memory, but the generated trait's methods are async"
+    )]
+    async fn list_plugin_log_lines(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, proto::ListPluginLogLinesRequest>,
+    ) -> ServiceResult<proto::ListPluginLogLinesResponse> {
+        let lines = diagnostics::plugin_lines(&PluginId::from(request.id.to_owned()));
+        Response::ok(proto::ListPluginLogLinesResponse {
+            lines: lines.into_iter().map(plugin_line_to_proto).collect(),
             ..Default::default()
         })
     }
@@ -478,6 +497,22 @@ fn plugin_to_proto(
         checks_settings: plugin.checks_settings,
         settings,
         summary: plugin_summary_to_proto(plugin, stored, granted, logo).into(),
+        ..Default::default()
+    }
+}
+
+fn plugin_line_to_proto(line: PluginLine) -> proto::PluginLogLine {
+    let level = match line.level {
+        Level::ERROR => proto::PluginLogLevel::PLUGIN_LOG_LEVEL_ERROR,
+        Level::WARN => proto::PluginLogLevel::PLUGIN_LOG_LEVEL_WARN,
+        Level::INFO => proto::PluginLogLevel::PLUGIN_LOG_LEVEL_INFO,
+        // The proto has no `trace`: only a Built-in logs at it, and it is detail as `debug` is.
+        _ => proto::PluginLogLevel::PLUGIN_LOG_LEVEL_DEBUG,
+    };
+    proto::PluginLogLine {
+        at_ms: line.at_ms,
+        level: level.into(),
+        text: line.text,
         ..Default::default()
     }
 }

@@ -186,7 +186,7 @@ fn reason_to_proto(
 
 /// `unmatched` as listed, where `searching` says whether some source in its Library's order
 /// searches, without which Matching can't decide it.
-fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::UnmatchedItem {
+fn unmatched_to_proto(mut unmatched: Unmatched, searching: bool) -> proto::UnmatchedItem {
     let (reason, tied_titles) = if unmatched.cleared {
         (
             proto::UnmatchedReason::UNMATCHED_REASON_CLEARED_BY_HAND,
@@ -198,9 +198,11 @@ fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::Unmatched
             Vec::new(),
         )
     } else {
-        reason_to_proto(unmatched.reason)
+        reason_to_proto(unmatched.reason.take())
     };
+    let path = std::mem::take(&mut unmatched.path);
     let proto::UnmatchedItemSummary {
+        item_id,
         version_id,
         kind,
         title,
@@ -208,11 +210,11 @@ fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::Unmatched
         season,
         episode,
         ..
-    } = unmatched_summary(unmatched.item, unmatched.version_id);
+    } = unmatched_summary(unmatched);
     proto::UnmatchedItem {
-        item_id: unmatched.id,
+        item_id,
         version_id,
-        path: unmatched.path,
+        path,
         kind,
         title,
         year,

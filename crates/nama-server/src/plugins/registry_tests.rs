@@ -171,3 +171,22 @@ fn a_builtins_drop_after_describing_it_is_in_a_span_naming_it() {
         .unwrap_or_else(|| panic!("nothing dropped: {logged}"));
     assert!(line.contains(" plugin{plugin=logging}:"), "{line}");
 }
+
+#[tokio::test]
+async fn a_builtins_lines_while_its_settings_are_checked_are_in_a_check_span_naming_it() {
+    let registry = Registry::new();
+    registry.describe_builtin(|| Arc::new(Logging));
+    let log = CapturedLog::start();
+
+    registry
+        .check_personal_settings(&LOGGING, Settings::default(), &BTreeMap::new())
+        .await
+        .unwrap();
+
+    let logged = log.finish();
+    let line = logged
+        .lines()
+        .find(|line| line.ends_with("logging dropped"))
+        .unwrap_or_else(|| panic!("nothing dropped: {logged}"));
+    assert!(line.contains(" check{plugin=logging}:"), "{line}");
+}

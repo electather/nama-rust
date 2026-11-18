@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-18, #1029
+
+- None that `buf breaking` reports: in `nama/v1/library.proto`, `TitleSource` gains `running` (5).
+- `ListTitleSources` lists every title source the Server's Plugins have, each namespace once, where it listed only the running ones; `running` says which are running.
+- A client built before offers a source that isn't running as one to add, and takes one that isn't running but searches for a source that can search; it must regenerate and read `running`. The web app is the only client.
+
 ## 2026-11-17, #880
 
 - None that `buf breaking` reports: in `nama/v1/match.proto`, `ListUnmatchedItemsRequest.library_id` (1) is deleted with its number and name reserved.

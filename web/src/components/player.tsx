@@ -41,6 +41,8 @@ export interface PlayerProps extends NowPlaying {
   back: LinkOptions;
   /** The Episode to count down to and play after this one, if there is one. */
   next?: NextEpisode | undefined;
+  /** A note under the title bar while it plays, such as that progress isn't saved. */
+  note?: ReactNode;
 }
 
 /**
@@ -72,7 +74,12 @@ function PlannedPlayer(props: PlannedProps) {
       title={props.title}
       back={props.back}
       playbackInfo={<PlaybackInfo plan={plan} />}
-      notice={<DroppedChoice justChose={planned.justChose} plan={plan} />}
+      notice={
+        <>
+          {props.note}
+          <DroppedChoice justChose={planned.justChose} plan={plan} />
+        </>
+      }
     />
   );
   return (

@@ -64,7 +64,8 @@ service LibraryService {
   // Library, title, Season or Version, and with `failed_precondition` if a file it would delete is
   // in a Library folder the Server couldn't write to when it last scanned the Library.
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
-  // Lists the enabled title sources a Library's `title_sources` can name, in no set order.
+  // Lists every title source the Server's Plugins have, running or not, each namespace once, in
+  // no set order.
   rpc ListTitleSources(ListTitleSourcesRequest) returns (ListTitleSourcesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -352,7 +353,7 @@ message ListArtworkResponse {
   repeated string backdrop_urls = 2;
 }
 
-// An enabled title source, a Plugin that searches and describes titles.
+// A title source, a Plugin that searches and describes titles, whether it is running or not.
 message TitleSource {
   // The namespace it keeps titles under, which a Library's `title_sources` names it by.
   string namespace = 1;
@@ -362,4 +363,7 @@ message TitleSource {
   string plugin_name = 3;
   // Whether it searches for titles; a source that doesn't only adds artwork and ids it looks up.
   bool searches = 4;
+  // Whether its Plugin is running, so a Library may add it now. One that isn't is disabled, or
+  // enabled but not running, such as one missing a setting it needs.
+  bool running = 5;
 }

@@ -110,24 +110,7 @@ async fn an_order_where_no_source_searches_is_refused_whether_it_is_enabled_or_n
     let while_disabled = libraries
         .create_library(library_in(&dir, "Disabled", &["fanart"]))
         .await;
-    let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
-    // fanart.tv fetches nothing until artwork is asked for, so any key does.
-    let key = text("key");
-    plugins
-        .update_plugin_settings(UpdatePluginSettingsRequest {
-            id: "fanart".to_owned(),
-            settings: std::iter::once(("api_key".to_owned(), key)).collect(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    plugins
-        .enable_plugin(EnablePluginRequest {
-            id: "fanart".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    enable_fanart(&server).await;
 
     let fanart_alone = libraries
         .create_library(library_in(&dir, "Fanart", &["fanart"]))
@@ -152,6 +135,7 @@ async fn an_order_where_no_source_searches_is_refused_whether_it_is_enabled_or_n
     }
     with_tmdb.unwrap();
     let searches: Vec<_> = (listed.iter())
+        .filter(|source| source.running)
         .map(|source| (source.namespace.as_str(), source.searches))
         .collect();
     assert_eq!(searches, [("fanart", false)]);
@@ -182,6 +166,32 @@ async fn an_order_may_name_an_installed_source_before_it_is_enabled() {
 
     let created = created.unwrap().into_owned().library.into_option().unwrap();
     assert_eq!(created.title_sources, ["tvdb"]);
+}
+
+#[tokio::test]
+async fn every_source_the_server_has_is_listed_once_with_whether_it_is_running() {
+    let server = TestServer::builder().start().await;
+    enable_fanart(&server).await;
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let listed = libraries
+        .list_title_sources(ListTitleSourcesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .title_sources;
+
+    let named = |namespace: &str| {
+        let mut keeping = (listed.iter()).filter(|source| source.namespace == namespace);
+        let source = keeping.next().unwrap();
+        assert!(keeping.next().is_none(), "{namespace} is listed once");
+        (source.plugin_name.as_str(), source.running)
+    };
+    // TMDB is enabled by default but can't run without an API key; TVDB is disabled by default.
+    assert_eq!(
+        [named("fanart"), named("tmdb"), named("tvdb")],
+        [("fanart.tv", true), ("TMDB", false), ("TVDB", false)]
+    );
 }
 
 #[tokio::test]
@@ -297,6 +307,30 @@ async fn undecided_items_list_no_searching_source_until_their_source_is_enabled_
         Vec::<EnumValue<UnmatchedReason>>::new()
     );
     assert_eq!(movies(&server, &library).await, [tmdb(348)]);
+}
+
+/// Enables fanart.tv, which fetches nothing until artwork is asked for, so any key does.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn enable_fanart(server: &TestServer) {
+    let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
+    plugins
+        .update_plugin_settings(UpdatePluginSettingsRequest {
+            id: "fanart".to_owned(),
+            settings: std::iter::once(("api_key".to_owned(), text("key"))).collect(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    plugins
+        .enable_plugin(EnablePluginRequest {
+            id: "fanart".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
 }
 
 /// The reason of each item `library` lists as needing a Match.
