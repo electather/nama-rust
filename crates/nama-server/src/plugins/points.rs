@@ -486,7 +486,9 @@ impl ExtensionPoints {
         }
     }
 
-    /// A snapshot of the handlers at `point`, in the order they run.
+    /// A snapshot of the handlers at `point`, in the order they run. Its caller drops each through
+    /// [`ExtensionPoints::drop_contained`]: once the lock is released, a clone may be the last
+    /// handle on a Plugin disabled meanwhile.
     fn entries(&self, point: PointKey) -> Vec<Entry> {
         self.read(|state| state.points.get(&point).cloned().unwrap_or_default())
     }
