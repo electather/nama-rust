@@ -2,6 +2,8 @@
 //! Shows' and Seasons' downloaded Posters and Backdrops: see `crate::library::local_images`, which
 //! keeps their copies in the image store.
 
+use std::collections::HashMap;
+
 use nama_plugin_api::metadata::ExternalIds;
 use sqlx::SqliteConnection;
 
@@ -96,6 +98,25 @@ impl Contents {
                     content_type: row.content_type,
                 })
             })
+            .collect())
+    }
+
+    /// The Season of the Episodes each of the Library `library`'s Versions holds, by Version id,
+    /// the lowest if they span several; a Version holding no Episode is left out. Read from the
+    /// stored Items, so an Episode a Recogniser placed counts as a parsed one does.
+    pub(crate) async fn episode_seasons(&self, library: i64) -> sqlx::Result<HashMap<i64, i64>> {
+        let rows = sqlx::query!(
+            r#"SELECT library_items.file_id AS "version!", MIN(library_items.season) AS "season!: i64"
+               FROM library_items
+               JOIN library_files ON library_files.id = library_items.file_id
+               WHERE library_files.library_id = ? AND library_items.kind = 'episode'
+               GROUP BY library_items.file_id"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok((rows.into_iter())
+            .map(|row| (row.version, row.season))
             .collect())
     }
 

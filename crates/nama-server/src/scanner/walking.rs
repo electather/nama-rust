@@ -15,8 +15,7 @@ use walkdir::{DirEntry, WalkDir};
 use super::{Error, Planned, Summary, names};
 use crate::{
     library::{
-        Change, FoundImages, Item, LibraryKind, LocalImageFile, LocalRole, PARSER_VERSION, Role,
-        Stored,
+        Change, FoundImages, LibraryKind, LocalImageFile, LocalRole, PARSER_VERSION, Role, Stored,
     },
     playback::{Sidecar, VersionSidecars, is_sidecar},
 };
@@ -295,21 +294,23 @@ impl Walked {
 
 impl FoundLocalImages {
     /// The ids of `versions`, stored files by path in a Library of `kind`, whose images the walk
-    /// read, and the image found that stands in for each role of each. A Version in a folder the
-    /// walk couldn't read, or beside something it couldn't, is left out, so its images stay as
-    /// stored; so is one a Shows Library's names make no Episode of. Which images count is up to
-    /// [`Video::ties`]; of those, the closer tie goes first, then the first by path.
+    /// read, and the image found that stands in for each role of each. `seasons` holds the Season
+    /// of each Version that holds an Episode. A Version in a folder the walk couldn't read, or
+    /// beside something it couldn't, is left out, so its images stay as stored; so is one in a
+    /// Shows Library that holds no Episode. Which images count is up to [`Video::ties`]; of those,
+    /// the closer tie goes first, then the first by path.
     pub(super) fn beside(
         self,
         kind: LibraryKind,
         versions: &HashMap<String, Stored>,
+        seasons: &HashMap<i64, i64>,
     ) -> (Vec<i64>, FoundImages) {
         let unread = |folder: &Path| {
             (self.unreadable.iter())
                 .any(|missed| folder.starts_with(missed) || missed.parent() == Some(folder))
         };
         let videos: Vec<Video<'_>> = (versions.iter())
-            .filter_map(|(path, version)| Video::at(kind, Path::new(path), version.id))
+            .filter_map(|(path, version)| Video::at(kind, Path::new(path), version.id, seasons))
             .filter(|video| !video.folders().any(unread))
             .collect();
         let read = videos.iter().map(|video| video.version).collect();
@@ -330,19 +331,19 @@ struct Video<'a> {
 
 impl<'a> Video<'a> {
     /// The video at `path`, stored as `version` in a Library of `kind`. In a Shows Library, `None`
-    /// unless its name gives an Episode.
-    fn at(kind: LibraryKind, path: &'a Path, version: i64) -> Option<Self> {
+    /// unless `seasons`, the Season of each Version that holds an Episode, has `version`.
+    fn at(
+        kind: LibraryKind,
+        path: &'a Path,
+        version: i64,
+        seasons: &HashMap<i64, i64>,
+    ) -> Option<Self> {
         let stem = path.file_stem()?;
         let (folder, episode) = match kind {
             LibraryKind::Movies => (path.parent()?, None),
             LibraryKind::Shows => {
+                let season = *seasons.get(&version)?;
                 let (show_folder, season_folder) = names::episode_folders(path)?;
-                // Absolute, as only the Show's and Season's folders and the name count.
-                let items = names::parse(kind, path)?;
-                let season = items.into_iter().find_map(|item| match item {
-                    Item::Episode { season, .. } => Some(season),
-                    Item::Movie { .. } => None,
-                })?;
                 (show_folder, Some((season, season_folder)))
             }
         };
@@ -372,7 +373,7 @@ impl<'a> Video<'a> {
         let Some((season, season_folder)) = self.episode else {
             let tie = image_role(image, self.stem, in_library_folder);
             return tie
-                .map(|(naming, role)| (naming, LocalRole::Title(role)))
+                .map(|(tie, role)| (tie, LocalRole::Title(role)))
                 .into_iter()
                 .collect();
         };
@@ -412,16 +413,16 @@ fn tied_images(mut images: Vec<Found>, videos: &[Video<'_>]) -> FoundImages {
         let beside = path.parent().and_then(|folder| videos_in.get(folder));
         let ties = (beside.into_iter().flatten()).flat_map(|video| {
             let ties = video.ties(path, in_library_folder).into_iter();
-            ties.map(|(naming, role)| ((video.version, role), naming))
+            ties.map(|(tie, role)| ((video.version, role), tie))
         });
-        for (key, naming) in ties {
-            if best.get(&key).is_none_or(|(kept, _)| naming < *kept) {
+        for (key, tie) in ties {
+            if best.get(&key).is_none_or(|(kept, _)| tie < *kept) {
                 let file = LocalImageFile {
                     path: image.path.clone(),
                     size: image.size,
                     modified_ns: image.modified_ns,
                 };
-                best.insert(key, (naming, file));
+                best.insert(key, (tie, file));
             }
         }
     }

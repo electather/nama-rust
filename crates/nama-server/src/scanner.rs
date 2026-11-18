@@ -705,10 +705,9 @@ impl Scanner {
         }
     }
 
-    /// Copies the images beside each of the Library `id`'s Versions, as a Library of `kind` ties
-    /// them, whose found ones differ from those stored, or whose copies are gone, in batches, then
-    /// deletes the copies none has any more. After the scan's files are stored, so new Versions
-    /// have ids.
+    /// Copies the images a Library of `kind` ties to the Library `id`'s Versions that differ from
+    /// those stored, or whose copies are gone, in batches, then deletes those none has any more.
+    /// After the scan's files and Items are stored, so new Versions have ids and Seasons.
     async fn store_local_images(
         &self,
         kind: LibraryKind,
@@ -717,7 +716,8 @@ impl Scanner {
         cancel: &CancellationToken,
     ) -> Result<(), Error> {
         let versions = self.inner.contents.stored(id).await?;
-        let (read, found) = found.beside(kind, &versions);
+        let seasons = self.inner.contents.episode_seasons(id).await?;
+        let (read, found) = found.beside(kind, &versions, &seasons);
         let changed = self.inner.local_images.changed(id, read, &found).await?;
         for batch in changed.chunks(BATCH_SIZE) {
             if cancel.is_cancelled() {

@@ -57,7 +57,7 @@ fn a_season_poster_in_the_shows_folder_is_named_after_its_number_or_specials() {
 #[test]
 fn a_show_jpg_in_the_shows_folder_is_the_shows_poster() {
     let path = Path::new("/l/Dark (2017)/Season 01/Dark - S01E01.mkv");
-    let video = Video::at(LibraryKind::Shows, path, 1).unwrap();
+    let video = Video::at(LibraryKind::Shows, path, 1, &HashMap::from([(1, 1)])).unwrap();
 
     let ties = video.ties(Path::new("/l/Dark (2017)/Show.jpg"), false);
 
@@ -106,7 +106,9 @@ fn in_a_shows_library_images_in_the_shows_and_seasons_folders_stand_in_for_the_s
         unreadable: Vec::new(),
     };
 
-    let (mut read, tied) = images.beside(LibraryKind::Shows, &versions);
+    let seasons = HashMap::from([(1, 1), (2, 2), (3, 0)]);
+
+    let (mut read, tied) = images.beside(LibraryKind::Shows, &versions, &seasons);
 
     read.sort_unstable();
     assert_eq!(read, [1, 2, 3]);
@@ -130,4 +132,52 @@ fn in_a_shows_library_images_in_the_shows_and_seasons_folders_stand_in_for_the_s
         ]
     });
     assert_eq!(tied, shown.into_iter().chain(show_images).collect());
+}
+
+#[test]
+fn an_episode_its_name_doesnt_give_takes_its_season_from_the_stored_items_and_a_file_without_one_is_left_out()
+ {
+    let stored = |id| Stored {
+        id,
+        size: 1,
+        modified_ns: 1,
+        parser_version: PARSER_VERSION,
+    };
+    let versions = HashMap::from([
+        ("/l/Dark (2017)/Season 01/Dark 01.mkv".to_owned(), stored(1)),
+        ("/l/Dark (2017)/Season 01/Notes.mkv".to_owned(), stored(2)),
+    ]);
+    let image = |relative: &str| Found {
+        path: format!("/l/{relative}"),
+        relative: PathBuf::from(relative),
+        size: 1,
+        modified_ns: 1,
+    };
+    let images = FoundLocalImages {
+        images: ["Dark (2017)/poster.jpg", "Dark (2017)/season01-poster.jpg"]
+            .map(image)
+            .into(),
+        unreadable: Vec::new(),
+    };
+
+    let (read, tied) = images.beside(LibraryKind::Shows, &versions, &HashMap::from([(1, 1)]));
+
+    assert_eq!(read, [1]);
+    let mut tied: Vec<_> = (tied.iter())
+        .map(|(&key, file)| (key, file.path.as_str()))
+        .collect();
+    tied.sort_by_key(|&(_, path)| path);
+    assert_eq!(
+        tied,
+        [
+            (
+                (1, LocalRole::Title(Role::Poster)),
+                "/l/Dark (2017)/poster.jpg"
+            ),
+            (
+                (1, LocalRole::SeasonPoster),
+                "/l/Dark (2017)/season01-poster.jpg"
+            ),
+        ]
+    );
 }
