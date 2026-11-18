@@ -9,8 +9,7 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-
-import { eventFeed, fakeServer, newUser, openApp } from "./test-app";
+import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
 
@@ -50,7 +49,7 @@ test("a handed-off Request shows the Quality its service used, else the profile 
   );
 
   const rows = await screen.findAllByRole("listitem");
-  expect(rows.map((row) => row.textContent)).toEqual([
+  expect(rows.map((row) => row.textContent)).toStrictEqual([
     "DuneHD · Requested by GraceProcessing",
     "DuneUltra-HD (set in the service) · Requested by GraceProcessing",
   ]);
@@ -104,7 +103,7 @@ test("a Processing Request lists its downloads with their status in words, and e
     within(downloads)
       .getAllByRole("listitem")
       .map((row) => row.textContent),
-  ).toEqual([
+  ).toStrictEqual([
     "Dune.2021.2160pImporting · 100% · 4 GB · 1 h 30 min left",
     "Dune.2021.ExtrasNeeds attention · 30%It stopped, and whoever runs the Server needs to look at it. Radarr said: Automatic import is not possible.",
   ]);

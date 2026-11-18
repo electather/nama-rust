@@ -9,8 +9,7 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-
-import { eventFeed, fakeServer, newUser, openApp, rowTitles } from "./test-app";
+import { eventFeed, fakeServer, newUser, openApp, rowTitles } from "@/test-app";
 
 afterEach(cleanup);
 
@@ -57,7 +56,7 @@ test("the Requests page shows each Request's Movie, its Quality, its state in wo
   );
 
   const rows = await screen.findAllByRole("listitem");
-  expect(rows.map((row) => row.textContent)).toEqual([
+  expect(rows.map((row) => row.textContent)).toStrictEqual([
     "Heat1995 · Requested by you and AdaPendingWithdraw",
     "Dune4K · Requested by GraceApproved",
   ]);
@@ -97,11 +96,11 @@ test("the Requests page groups a Show's Season Requests, in Season order, with t
     within(seasons)
       .getAllByRole("listitem")
       .map((row) => row.textContent),
-  ).toEqual([
+  ).toStrictEqual([
     "Season 12017 · Requested by youPendingWithdraw",
     "Season 22017 · Requested by youApproved",
   ]);
-  expect(rowTitles()).toEqual(["Dark", "Season 1", "Season 2", "Heat", "Dune"]);
+  expect(rowTitles()).toStrictEqual(["Dark", "Season 1", "Season 2", "Heat", "Dune"]);
 });
 
 /** Sam's Followed Show of Dark, Approved. */
@@ -128,7 +127,7 @@ test("a Followed Show lists above its Show's Season Requests", async () => {
     within(dark)
       .getAllByRole("listitem")
       .map((row) => row.textContent),
-  ).toEqual([
+  ).toStrictEqual([
     "Followed ShowRequested by youApprovedWithdraw",
     "Season 12017 · Requested by youApproved",
   ]);
@@ -261,11 +260,11 @@ test("a Season Request shows as Partially Available, then Available, as a scan M
   const someMatched = await season1Becomes(RequestState.PARTIALLY_AVAILABLE, "Partially Available");
   const allMatched = await season1Becomes(RequestState.AVAILABLE, "Available");
 
-  expect(someMatched).toEqual([
+  expect(someMatched).toStrictEqual([
     "Season 12017 · Requested by youPartially Available",
     "Season 22017 · Requested by youPendingWithdraw",
   ]);
-  expect(allMatched).toEqual([
+  expect(allMatched).toStrictEqual([
     "Season 12017 · Requested by youAvailable",
     "Season 22017 · Requested by youPendingWithdraw",
   ]);

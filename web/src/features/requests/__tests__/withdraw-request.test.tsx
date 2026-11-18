@@ -3,8 +3,7 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { type RequestSchema, RequestService, RequestState } from "@/gen/nama/v1/request_pb";
-
-import { fakeServer, newUser, openApp } from "./test-app";
+import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
 

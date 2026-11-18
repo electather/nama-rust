@@ -13,9 +13,8 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { admin, fakeServer, newUser, openApp } from "./test-app";
-import { refused } from "./test-refusal";
+import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -131,7 +130,7 @@ test("a User without Manage Requests isn't offered Approve, Decline, Cancel or R
 
   await screen.findByText("Heat");
   expect(screen.getByText("Reason: Radarr is unreachable")).toBeDefined();
-  expect(screen.queryByRole("button", { name: /^(Approve|Decline|Cancel|Retry)/u })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^(?:Approve|Decline|Cancel|Retry)/u })).toBeNull();
 });
 
 test("a Failed Request links a User with Manage settings to its Fulfiller's Plugin", async () => {
