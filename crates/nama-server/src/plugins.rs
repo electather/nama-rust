@@ -237,27 +237,27 @@ pub(crate) fn log_not_enabled(id: &PluginId, err: &EnableError) {
     }
 }
 
-/// What the Plugin `make` makes says about itself, as [`asked`] gets it, or `None`, logged, if it
-/// panics being made.
+/// What the Built-in Plugin `make` makes says about itself: its Manifest and whether it has a
+/// settings check, or `None`, logged, if it panics being made or giving them. All of it is Plugin
+/// code, so a panic in it is contained.
 fn what_it_says(make: &dyn Fn() -> Arc<dyn Plugin>) -> Option<(Manifest, bool)> {
     let plugin = contain_sync(make)
         .inspect_err(|message| error!(message, "a plugin panicked while being made"))
         .ok()?;
-    let said = asked(&*plugin);
-    // A panic dropping it is moot: what it said about itself is already read.
-    let _dropped = contain_sync(|| drop(plugin));
-    said
-}
-
-/// `plugin`'s Manifest and whether it has a settings check, or `None`, logged, if it panics
-/// giving them: both are Plugin code, so a panic in them is contained.
-fn asked(plugin: &dyn Plugin) -> Option<(Manifest, bool)> {
-    let manifest = contain_sync(|| plugin.manifest())
-        .inspect_err(|message| {
+    let manifest = match contain_sync(|| plugin.manifest()) {
+        Ok(manifest) => manifest,
+        Err(message) => {
             error!(message, "a plugin panicked while giving its manifest");
-        })
-        .ok()?;
-    let checks_settings = contain_sync(|| plugin.settings_check().is_some())
+            // A panic dropping it is moot: it said nothing about itself.
+            let _dropped = contain_sync(|| drop(plugin));
+            return None;
+        }
+    };
+    let span = points::builtin_log_span(&manifest.id);
+    let checks_settings = span.in_scope(|| contain_sync(|| plugin.settings_check().is_some()));
+    // A panic dropping it is moot: what it said about itself is already read.
+    let _dropped = span.in_scope(|| contain_sync(|| drop(plugin)));
+    let checks_settings = checks_settings
         .inspect_err(|message| {
             error!(plugin = %manifest.id, message, "a plugin panicked while describing itself");
         })
