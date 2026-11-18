@@ -196,6 +196,9 @@ impl Fixture {
             // A folder not made yet holds no originals.
             .filter_map(Result::ok)
             .filter(|entry| entry.file_type().is_file())
+            // A dotfile is a write still under way (`synced_beside` in `src/images.rs`): no key
+            // names one, and its rename can take it away before it is read.
+            .filter(|entry| !entry.file_name().as_encoded_bytes().starts_with(b"."))
             .map(|file| {
                 let bytes = fs::read(file.path()).unwrap();
                 (key_in(data_dir, file.path()), bytes)
