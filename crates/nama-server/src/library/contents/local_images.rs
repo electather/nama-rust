@@ -1,11 +1,39 @@
-//! The images a scan found beside the Movies' files, which stand in for their downloaded Posters and
-//! Backdrops: see `crate::library::local_images`, which keeps their copies in the image store.
+//! The images a scan found beside the Movies' and Episodes' files, which stand in for their Movies',
+//! Shows' and Seasons' downloaded Posters and Backdrops: see `crate::library::local_images`, which
+//! keeps their copies in the image store.
 
 use nama_plugin_api::metadata::ExternalIds;
 use sqlx::SqliteConnection;
 
 use super::{Contents, ids_from_json, ids_sql};
 use crate::library::Role;
+
+/// What an image beside a Version stands in for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum LocalRole {
+    /// An image of the title the Version is listed under: its Movie or its Episode's Show.
+    Title(Role),
+    /// The Poster of its Episode's Season.
+    SeasonPoster,
+}
+
+impl LocalRole {
+    /// As the database names it.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Title(role) => role.name(),
+            Self::SeasonPoster => "season_poster",
+        }
+    }
+
+    /// The role [`LocalRole::name`] gives `name`, if any.
+    fn named(name: &str) -> Option<Self> {
+        match name {
+            "season_poster" => Some(Self::SeasonPoster),
+            _ => Role::named(name).map(Self::Title),
+        }
+    }
+}
 
 /// An image file beside a Version, as a scan finds it: all a scan compares with what's stored.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,19 +48,22 @@ pub(crate) struct LocalImageFile {
 #[derive(Debug)]
 pub(crate) struct LocalImage {
     pub(crate) version: i64,
-    pub(crate) role: Role,
+    pub(crate) role: LocalRole,
     pub(crate) file: LocalImageFile,
     /// The version the image store took from its bytes.
     pub(crate) stored: String,
     pub(crate) content_type: String,
 }
 
-/// A Matched Movie's image beside one of its Versions: see [`Contents::movies_local_images`].
+/// A Matched title's image beside one of its Versions: see [`Contents::titles_local_images`].
 #[derive(Debug)]
-pub(crate) struct MovieLocalImage {
-    /// Every id the Version's Match gives the Movie.
+pub(crate) struct TitleLocalImage {
+    /// Every id the Version's Match gives the Movie, or the Episode's Show.
     pub(crate) ids: ExternalIds,
-    pub(crate) role: Role,
+    pub(crate) role: LocalRole,
+    /// The Season of the Episode the Version holds, whose Show's or Season's the image is; `None`
+    /// for a Movie's.
+    pub(crate) season: Option<i64>,
     pub(crate) library: i64,
     pub(crate) stored: String,
 }
@@ -55,7 +86,7 @@ impl Contents {
             .filter_map(|row| {
                 Some(LocalImage {
                     version: row.version_id,
-                    role: Role::named(&row.role)?,
+                    role: LocalRole::named(&row.role)?,
                     file: LocalImageFile {
                         path: row.path,
                         size: row.size,
@@ -80,21 +111,21 @@ impl Contents {
             .await
     }
 
-    /// Every Matched Movie's images beside its Versions, those of the first-added Item first: by
-    /// when it was added, then by its id (#732).
-    pub(crate) async fn movies_local_images(&self) -> sqlx::Result<Vec<MovieLocalImage>> {
+    /// Every Matched Movie's and Show's images beside its Versions, those of the first-added Item
+    /// first: by when it was added, then by its id (#732).
+    pub(crate) async fn titles_local_images(&self) -> sqlx::Result<Vec<TitleLocalImage>> {
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
                     r#"SELECT library_files.library_id AS "library!", local_images.role,
-                              local_images.stored, "#
+                              local_images.stored, library_items.season, "#
                         + $ids
-                        + r#"'title') AS "ids?: String"
+                        + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS "ids?: String"
                        FROM local_images
                        JOIN library_files ON library_files.id = local_images.version_id
                        JOIN library_items ON library_items.file_id = local_images.version_id
                        JOIN item_matches ON item_matches.item_id = library_items.id
-                       WHERE library_items.kind = 'movie' AND item_matches.state = 'matched'
+                       WHERE item_matches.state = 'matched'
                        ORDER BY library_items.added_at, library_items.id"#
                 )
             };
@@ -102,9 +133,10 @@ impl Contents {
         let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
         Ok((rows.into_iter())
             .filter_map(|row| {
-                Some(MovieLocalImage {
+                Some(TitleLocalImage {
                     ids: ids_from_json(row.ids.as_deref()),
-                    role: Role::named(&row.role)?,
+                    role: LocalRole::named(&row.role)?,
+                    season: row.season,
                     library: row.library,
                     stored: row.stored,
                 })

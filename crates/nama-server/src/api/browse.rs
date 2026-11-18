@@ -411,9 +411,7 @@ fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::Movie
 
 fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLibrary {
     let downloaded = (show.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
-    let poster_url = (images.custom)
-        .of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster))
-        .or(downloaded);
+    let poster_url = (images.show_image(&show.id, &show.ids, Role::Poster)).or(downloaded);
     proto::ShowInLibrary {
         library_id: show.library,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
@@ -520,22 +518,22 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 }
 
 /// A Show as clients see it, without its Seasons, with its images as URLs on this Server and their
-/// thumbhashes, and its Custom Images in `images` in place of the downloaded ones.
+/// thumbhashes, the ones `images` shows in place of the downloaded ones.
 fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
     let artwork_url = |image: &ImageRef| artwork_url(image.plugin.as_str(), &image.path);
-    let custom_poster =
-        (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster));
-    let custom_backdrop =
-        (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Backdrop));
-    let (poster_is_custom, backdrop_is_custom) =
-        (custom_poster.is_some(), custom_backdrop.is_some());
-    let poster_url = custom_poster.or_else(|| show.poster().map(artwork_url));
-    let backdrop_url = custom_backdrop.or_else(|| show.backdrop.as_ref().map(artwork_url));
+    let is_custom = |role| {
+        (images.custom)
+            .of_title(&show.id, &show.ids, |id| Slot::show(id, role))
+            .is_some()
+    };
+    let shown = |role| images.show_image(&show.id, &show.ids, role);
+    let poster_url = shown(Role::Poster).or_else(|| show.poster().map(artwork_url));
+    let backdrop_url = shown(Role::Backdrop).or_else(|| show.backdrop.as_ref().map(artwork_url));
     proto::Show {
         id: external_id_to_proto(&show.id).into(),
         title: show.title.clone(),
-        custom_poster: poster_is_custom,
-        custom_backdrop: backdrop_is_custom,
+        custom_poster: is_custom(Role::Poster),
+        custom_backdrop: is_custom(Role::Backdrop),
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
         poster_url,
@@ -550,17 +548,17 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
 }
 
 /// The URL of the Poster of `show`'s Season `number`, its Custom Image in `images` if it has one,
-/// and whether it is.
+/// and whether it is; else the image beside its media, else the downloaded one.
 fn season_poster(show: &Show, number: i64, images: &ShownImages) -> (Option<String>, bool) {
     if let Some(url) = (images.custom).of_title(&show.id, &show.ids, |id| Slot::season(id, number))
     {
         return (Some(url), true);
     }
+    let local = images.local.of_season(&show.id, &show.ids, number);
     let downloaded = (show.seasons.get(&number)).and_then(|season| season.poster.as_ref());
-    (
-        downloaded.map(|image| artwork_url(image.plugin.as_str(), &image.path)),
-        false,
-    )
+    let url =
+        local.or_else(|| downloaded.map(|image| artwork_url(image.plugin.as_str(), &image.path)));
+    (url, false)
 }
 
 /// An Episode as clients see it, with its Still as a URL on this Server and its thumbhash from

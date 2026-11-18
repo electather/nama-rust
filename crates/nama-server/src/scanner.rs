@@ -12,12 +12,12 @@
 //! are written in batches of [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
 //! Once the Server is serving, a Library is also scanned when its folders change (see [`watch`]).
 //!
-//! Files are only listed and their metadata read, never opened, except the images beside a Movie's
-//! file. A scan also stores the sidecar subtitles beside each Version, such as `Movie.en.srt`,
-//! replacing a Version's only when they changed, and apart from its Tracks, so a changed sidecar
-//! never probes its video again. In a Movies Library it copies the images beside each Version,
-//! such as `poster.jpg`, that stand in for its downloaded ones, again only when they changed (see
-//! [`crate::library::LocalImages`]). Other sidecars, such as `.nfo` files, are ignored.
+//! Files are only listed and their metadata read, never opened, except the images that stand in
+//! for downloaded ones. A scan also stores the sidecar subtitles beside each Version, such as
+//! `Movie.en.srt`, replacing a Version's only when they changed, and apart from its Tracks, so a
+//! changed sidecar never probes its video again. It copies the images beside each Version, such as
+//! `poster.jpg`, or for an Episode in its Show's or Season's folder, again only when they changed
+//! (see [`crate::library::LocalImages`]). Other sidecars, such as `.nfo` files, are ignored.
 //! Deleting media deletes every sidecar too (see [`deleting`]).
 //! A scan also records which of the Library's folders the Server can't write to, so a delete from
 //! one is refused before anyone tries (ADR 0038).
@@ -634,9 +634,8 @@ impl Scanner {
                 .publish(std::iter::once(progress).chain(items).collect());
         }
         self.store_sidecars(id, sidecars, &cancel).await?;
-        if library.kind == LibraryKind::Movies {
-            self.store_local_images(id, images, &cancel).await?;
-        }
+        self.store_local_images(library.kind, id, images, &cancel)
+            .await?;
         tracing::info!(library = id, ?summary, "scanned a Library");
         if let Some(probing) = &self.inner.probing {
             // Before `ScanFinished`, so a client that waited for the scan isn't served a gone or
@@ -706,17 +705,19 @@ impl Scanner {
         }
     }
 
-    /// Copies the images beside each of the Library `id`'s Versions whose found ones differ from
-    /// those stored, or whose copies are gone, in batches, then deletes the copies none has any more. After the scan's files
-    /// are stored, so new Versions have ids.
+    /// Copies the images beside each of the Library `id`'s Versions, as a Library of `kind` ties
+    /// them, whose found ones differ from those stored, or whose copies are gone, in batches, then
+    /// deletes the copies none has any more. After the scan's files are stored, so new Versions
+    /// have ids.
     async fn store_local_images(
         &self,
+        kind: LibraryKind,
         id: i64,
         found: FoundLocalImages,
         cancel: &CancellationToken,
     ) -> Result<(), Error> {
         let versions = self.inner.contents.stored(id).await?;
-        let (read, found) = found.beside(&versions);
+        let (read, found) = found.beside(kind, &versions);
         let changed = self.inner.local_images.changed(id, read, &found).await?;
         for batch in changed.chunks(BATCH_SIZE) {
             if cancel.is_cancelled() {

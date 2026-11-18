@@ -1,6 +1,6 @@
 ## Scanner
 
-Walking each Library's folders, storing the video files in them and what their names say they hold, the sidecar subtitles beside them and, in a Movies Library, copies of the images beside them (`LocalImages`), watching the folders for changes, and deleting media.
+Walking each Library's folders, storing the video files in them and what their names say they hold, the sidecar subtitles beside them, copies of the images beside them or in a Show's or Season's folder (`LocalImages`), watching the folders for changes, and deleting media.
 
 - **One path for Library changes.** Outside tests, creating, updating or deleting a Library goes through `Scanner::create_library`, `update_library` or `delete_library`, which alone do what must follow it (re-watching folders, cleaning a deleted Library's cached subtitles, Custom Image and copies of the images beside its media) in a task that outlives the caller (ADR 0029). Handlers read through `Libraries`.
 - **One path for deleting media.** Every delete of media files, the API's and later the cleanup Plugin's (#700), goes through `Scanner::delete_media`, or `Scanner::start_delete` for a Plugin, which starts it without waiting and logs its failure; either deletes under the Library's scan lock in a task that outlives the caller, ends the Playback Plans playing what goes first, removes the Versions through `Contents`, logs who deleted what and cancels the open Requests still waiting on it through `Requests::apply` (ADR 0038).
