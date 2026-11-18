@@ -78,6 +78,22 @@ An Admin sees which ffmpeg the Server found, and its version, on the Playback pa
 
 A Server logs to stdout and sends nothing anywhere else (ADR 0054). To see where its time goes, set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OpenTelemetry Collector's OTLP/HTTP address, such as `http://otel-collector:4318`. The Server then also exports its logs, and a trace for each API call, Scan, probe, image resize and ffmpeg launch, with a span for each SQL query and Plugin call in it. Spans carry ids, counts and durations, never titles, file paths or names; the logs are those on stdout. The standard `OTEL_*` variables configure the rest, such as `OTEL_SERVICE_NAME` and `OTEL_TRACES_SAMPLER`. The Server exports over plain HTTP only, so an HTTPS backend needs a Collector in front of it. The web app then records its own spans too, for each API call, page change and playback start, and sends them through its Server, which forwards them to the same endpoint; with the variable unset, the web app doesn't even download the code that records them.
 
+### Finding a slow request
+
+[`docker/otel-lgtm.yml`](docker/otel-lgtm.yml) runs [`grafana/otel-lgtm`](https://github.com/grafana/docker-otel-lgtm), a Collector, Tempo, Loki, Prometheus and Grafana in one container, to look at a Server's Diagnostics on your own machine. It works with `docker compose` and `podman compose` alike:
+
+```sh
+docker compose -f docker/otel-lgtm.yml up -d
+```
+
+Run the Server pointed at it, such as from a checkout:
+
+```sh
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 OTEL_SERVICE_NAME=nama-server cargo run -p nama-server
+```
+
+Use the app until it's slow, then open Grafana at <http://localhost:3000>; it needs no sign-in. Under Explore, pick Tempo, switch to TraceQL and search for one ConnectRPC method, such as `{name="nama.v1.BrowseService/ListMovies"}`, then sort the results by Duration and open the slowest; `{span.rpc.service="nama.v1.BrowseService" && duration > 200ms}` finds every slow call to a service. A trace takes about 30 seconds to show up in a search. Under Explore with Loki, `{service_name="nama-server"}` shows the Server's logs; a line logged during a trace has a "Trace:" link among its fields that opens that trace. Everything is lost when the container is removed.
+
 ## Checks
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, and every warning fails it:
