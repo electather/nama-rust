@@ -310,7 +310,7 @@ impl Running {
     /// Waits for `ffmpeg`, doing the run `run`, to stop, or stops it once it has written far
     /// enough ahead, then logs why if it failed and marks it stopped.
     async fn watch(self: Arc<Self>, ffmpeg: Child, run: Arc<FfmpegRun>) {
-        let failed = tokio::select! {
+        let worth_falling_back = tokio::select! {
             output = ffmpeg.wait_with_output() => self.log_failure(output),
             // Dropping the child stops ffmpeg.
             () = self.written_far_ahead(&run) => false,
@@ -318,7 +318,7 @@ impl Running {
         // What it wrote since last looked, for its fallback, `will_write` and `init`, which reads
         // it once marked stopped, so before.
         self.note_written(&run).await;
-        if failed {
+        if worth_falling_back {
             self.fall_back(&run).await;
         }
         run.stopped.store(true, Ordering::Release);
@@ -361,7 +361,8 @@ impl Running {
         }
     }
 
-    /// Logs why ffmpeg failed, if it did, and says whether it did.
+    /// Logs why ffmpeg failed, if it did, and says whether it failed in a way a run in software
+    /// might get past.
     fn log_failure(&self, output: io::Result<Output>) -> bool {
         match output {
             Ok(Output { status, .. }) if status.success() => false,
@@ -374,6 +375,8 @@ impl Running {
                 );
                 if stderr.contains(DISK_FULL) {
                     self.warn_disk_full();
+                    // Software would write the same files to the same full folder.
+                    return false;
                 }
                 true
             }
