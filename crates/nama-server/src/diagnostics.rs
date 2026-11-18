@@ -93,13 +93,14 @@ pub(crate) fn plugin_lines(plugin: &PluginId) -> Vec<PluginLine> {
         .unwrap_or_default()
 }
 
-/// Starts keeping the Plugin `plugin`'s lines afresh, as it is being enabled.
+/// Starts keeping the Plugin `plugin`'s lines, as it is being enabled. Lines it already has are
+/// kept: they are another enabling's, racing this one, since disabling it forgets them.
 pub(crate) fn keep_plugin_lines(plugin: &PluginId) {
     let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
-    kept.insert(plugin.clone(), VecDeque::new());
+    kept.entry(plugin.clone()).or_default();
 }
 
-/// Forgets the Plugin `plugin`'s lines and keeps no more, once it is disabled.
+/// Forgets the Plugin `plugin`'s lines and keeps no more, once it is disabled or failed to enable.
 pub(crate) fn forget_plugin_lines(plugin: &PluginId) {
     let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
     kept.remove(plugin);
@@ -355,23 +356,43 @@ where
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        let mut fields = LineFields::default();
-        event.record(&mut fields);
         let metadata = event.metadata();
-        let in_own_field = fields
-            .plugin
-            .take()
-            .filter(|_| metadata.target() == PLUGIN_TARGET);
-        let Some(plugin) = in_own_field.or_else(|| enclosing_plugin(event, &ctx)) else {
-            return;
+        let mut fields = LineFields::default();
+        let (plugin, text) = if metadata.target() == PLUGIN_TARGET {
+            // An Installed Plugin's line, named in its own field and cut already.
+            event.record(&mut fields);
+            let Some(plugin) = fields.plugin.take() else {
+                return;
+            };
+            (plugin, fields.text())
+        } else {
+            // The Server's own lines, such as its Kernel's failures, aren't the Plugin's to show,
+            // even logged inside a Built-in's call.
+            if is_servers_own(metadata.target()) {
+                return;
+            }
+            let Some(plugin) = enclosing_plugin(event, &ctx) else {
+                return;
+            };
+            event.record(&mut fields);
+            let mut text = fields.text();
+            if text.len() > MAX_PLUGIN_LINE_BYTES {
+                cut_plugin_line(&mut text);
+            }
+            (plugin, text)
         };
         let line = PluginLine {
             at_ms: db::now_ms(),
             level: *metadata.level(),
-            text: fields.text(),
+            text,
         };
         keep_plugin_line(&plugin, line);
     }
+}
+
+/// Whether `target` is the Server's own, which [`PLUGIN_TARGET`] isn't.
+fn is_servers_own(target: &str) -> bool {
+    target.starts_with(env!("CARGO_CRATE_NAME")) || target == SQL_TARGET
 }
 
 /// The Plugin the innermost span around `event` under [`PLUGIN_TARGET`] names: a Built-in's.
@@ -396,18 +417,22 @@ struct LineFields {
 }
 
 impl LineFields {
-    /// The line's text, cut at [`MAX_PLUGIN_LINE_BYTES`]. An Installed Plugin's line, cut already,
-    /// comes out the same.
     fn text(self) -> String {
-        let mut text = self.message + &self.rest;
-        if text.len() > MAX_PLUGIN_LINE_BYTES {
-            cut_plugin_line(&mut text);
-        }
-        text
+        self.message + &self.rest
     }
 }
 
 impl Visit for LineFields {
+    // `plugin = %id` reaches `record_debug`, but `plugin = id.as_str()` here, whose `Debug` would
+    // quote it.
+    fn record_str(&mut self, field: &Field, value: &str) {
+        if field.name() == "plugin" {
+            self.plugin = Some(PluginId::from(value.to_owned()));
+        } else {
+            self.record_debug(field, &value);
+        }
+    }
+
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         // Writing to a `String` can't fail.
         let _: fmt::Result = match field.name() {

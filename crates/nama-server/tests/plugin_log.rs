@@ -41,6 +41,20 @@ impl Plugin for Chatty {
     }
 }
 
+/// A Built-in Plugin that logs as it starts, then refuses to.
+struct Refusing;
+
+impl Plugin for Refusing {
+    fn manifest(&self) -> Manifest {
+        Manifest::new(PluginId::from_static("refusing"))
+    }
+
+    fn register(&self, _registrar: &mut Registrar) -> Result<(), PluginError> {
+        tracing::warn!("refusing is starting");
+        Err("no thanks".into())
+    }
+}
+
 fn plugins(server: &TestServer) -> PluginServiceClient<HttpClient> {
     PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
@@ -101,6 +115,16 @@ async fn an_admin_reads_a_builtin_plugins_lines_but_not_the_servers_own() {
     let line = lines.first().unwrap();
     assert_eq!(line.level, PluginLogLevel::PLUGIN_LOG_LEVEL_WARN);
     assert!(line.at_ms > 0, "{line:?}");
+}
+
+#[tokio::test]
+async fn a_plugin_that_refused_to_start_has_no_lines() {
+    Log::global();
+    let registry = Registry::new();
+    registry.enable(Arc::new(Refusing)).unwrap_err();
+    let server = TestServer::builder().plugins(registry).start().await;
+
+    assert_eq!(log_lines(&plugins(&server), "refusing").await.unwrap(), []);
 }
 
 #[tokio::test]

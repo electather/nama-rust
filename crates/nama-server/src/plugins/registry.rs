@@ -167,11 +167,12 @@ impl Registry {
         };
         let id = &manifest.id;
         let enabling = || contain_sync(|| self.enable_as(&manifest, plugin, settings, granted));
-        let enabled = self.log_span(id).in_scope(enabling);
-        let registrations = enabled.unwrap_or_else(|message| {
-            Err(EnableError::Panicked {
-                plugin: id.clone(),
-                message,
+        let registrations = self.keeping_lines(id, || {
+            (self.log_span(id).in_scope(enabling)).unwrap_or_else(|message| {
+                Err(EnableError::Panicked {
+                    plugin: id.clone(),
+                    message,
+                })
             })
         })?;
         // Outside the span, which would prefix the Server's own line with the Plugin's name again.
@@ -238,7 +239,6 @@ impl Registry {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
-        crate::diagnostics::keep_plugin_lines(id);
         refuse_bad_personal_settings(manifest)?;
         let schema = &manifest.settings;
         let settings = settings

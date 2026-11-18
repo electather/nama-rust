@@ -1331,9 +1331,8 @@ export const PluginService: GenService<{
   /**
    * Returns the last 100 lines of a Plugin's Plugin Log that passed the Server's log filter, newest
    * first. The Server keeps them in memory only, from when the Plugin is enabled: disabling it
-   * clears them, and so does a restart. A Plugin that refused to start keeps what it logged trying
-   * until it is next enabled. Any other Plugin that isn't enabled, or that the Server doesn't have,
-   * has none.
+   * clears them, and so does a restart. A Plugin that isn't enabled, or that the Server doesn't
+   * have, has none.
    *
    * @generated from rpc nama.v1.PluginService.ListPluginLogLines
    */

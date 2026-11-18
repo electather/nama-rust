@@ -369,6 +369,21 @@ impl ExtensionPoints {
         })
     }
 
+    /// Runs `enabling` the Plugin `id`, keeping the Plugin Log lines it logs from the start, and
+    /// forgets them if it fails, unless a racing enabling won, whose lines they are.
+    pub(super) fn keeping_lines<T, E>(
+        &self,
+        id: &PluginId,
+        enabling: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E> {
+        diagnostics::keep_plugin_lines(id);
+        let enabled = enabling();
+        if enabled.is_err() && !self.read(|state| state.plugins.contains_key(id)) {
+            diagnostics::forget_plugin_lines(id);
+        }
+        enabled
+    }
+
     /// Removes the Plugin `id` and everything it registered if `check`, given the state and its
     /// enablement if it is enabled, lets it, all under one lock. Returns what was removed, which
     /// [`Removed::close`] or [`Removed::close_later`] drops.
