@@ -19,7 +19,9 @@ const statuses: Partial<Record<DownloadStatus, Shown>> = {
  */
 export function RequestProgress({ request }: { request: Request | undefined }) {
   const downloads = request?.downloads ?? [];
-  if (downloads.length === 0) return null;
+  if (downloads.length === 0) {
+    return null;
+  }
   const overall = Math.floor(overallPercent(downloads));
   return (
     <div className="mt-2 flex w-full flex-col gap-1.5">

@@ -67,7 +67,9 @@ function slowServer() {
   const asked = (n: number) =>
     waitFor(() => {
       const ask = held[n];
-      if (!ask) throw new Error(`plan request ${n} not sent yet`);
+      if (!ask) {
+        throw new Error(`plan request ${n} not sent yet`);
+      }
       return ask;
     });
   return { transport, asked };
@@ -108,7 +110,7 @@ test("choosing another audio Track shows it's getting ready until that plan come
 
   const second = await server.asked(1);
   expect(second.request.audioTrack).toBe(2);
-  expect(await screen.findByText(READY, {}, PAST_NOTICEABLE_WAIT)).toBeDefined();
+  await expect(screen.findByText(READY, {}, PAST_NOTICEABLE_WAIT)).resolves.toBeDefined();
 
   second.answer(directPlay("/media/versions/7?audio=2", 2));
 
@@ -142,7 +144,7 @@ test("a Server that fails to plan the Version says it couldn't get it ready, not
   );
   openApp(PLAYER, failing);
 
-  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(screen.getByText("The Server couldn’t get it ready to play.")).toBeDefined();
   expect(screen.getByRole("link", { name: "Back" })).toBeDefined();
   expect(screen.queryByText("Something went wrong")).toBeNull();

@@ -1,8 +1,7 @@
 import type { Transport } from "@connectrpc/connect";
 import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
-import { type RefObject, useEffect } from "react";
-
 import type Hls from "hls.js";
+import { type RefObject, useEffect } from "react";
 
 import { PlaybackMethod, type PlaybackPlan, PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { playsHlsNatively } from "@/lib/device-decoding";
@@ -45,10 +44,14 @@ function playThroughHlsJs(
   const start = async () => {
     // Fetched only for HLS, which Direct Play never needs.
     const { default: HlsJs } = await import("hls.js");
-    if (left) return;
+    if (left) {
+      return;
+    }
     hls = new HlsJs();
     hls.on(HlsJs.Events.ERROR, (_event, { fatal }) => {
-      if (fatal) onCantPlay(video);
+      if (fatal) {
+        onCantPlay(video);
+      }
     });
     hls.loadSource(url);
     hls.attachMedia(video);
@@ -96,17 +99,21 @@ function keepPlaying(transport: Transport, planId: bigint, url: string) {
   // whose Transcode would count toward the limit for that minute. A page the browser keeps to go
   // back to plays on when it does. ponytail: best effort, as the page may go before it's sent.
   const leaving = ({ persisted }: PageTransitionEvent) => {
-    if (!persisted) void stopPlan(transport, planId);
+    if (!persisted) {
+      void stopPlan(transport, planId);
+    }
   };
   window.addEventListener("pagehide", leaving);
   return () => {
     clearInterval(asking);
     window.removeEventListener("pagehide", leaving);
-    if (stoppedEarly.delete(planId)) return;
+    if (stoppedEarly.delete(planId)) {
+      return;
+    }
     const stop = setTimeout(() => {
       letGo.delete(planId);
       void tellStopped(transport, planId);
-    });
+    }, 0);
     letGo.set(planId, stop);
   };
 }

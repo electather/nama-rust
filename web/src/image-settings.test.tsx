@@ -33,7 +33,7 @@ test("a User who manages settings turns resizing off and limits its cache on Set
   fill("Space for resized images", "512");
   fireEvent.click(screen.getByRole("button", { name: "Save image settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates).toMatchObject([{ settings: { resizeImages: false, resizedCacheMib: 512 } }]);
 });
 

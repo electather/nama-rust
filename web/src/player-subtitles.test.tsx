@@ -9,6 +9,7 @@ import { fakeServer, newUser, openApp } from "./test-app";
 
 /** The playlist each hls.js player loaded. */
 const hlsJs = vi.hoisted(() => ({ played: [] as string[] }));
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
   default: class {
     static Events = { ERROR: "hlsError" };
@@ -225,7 +226,7 @@ test.each(ways)("a subtitle in $how stays on through a seek", async (way) => {
   expect(playing(video)).toEqual(way.plays);
 });
 
-test("Space in the subtitle menu picks a subtitle without playing or pausing", async () => {
+test("space in the subtitle menu picks a subtitle without playing or pausing", async () => {
   openApp(PLAYER, server().transport);
   const { video, modes } = await player();
   const [play, pause] = [vi.spyOn(video, "play"), vi.spyOn(video, "pause")];

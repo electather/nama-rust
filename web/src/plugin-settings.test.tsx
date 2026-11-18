@@ -113,10 +113,10 @@ test("saving sends what was typed, leaving out blanks and a set secret", async (
   expect(id).toBe("tmdb");
   expect(Object.keys(settings)).toEqual(["language"]);
   expect(settings["language"]?.value).toEqual({ case: "textValue", value: "fr-FR" });
-  expect(await screen.findByText("Saved, and in use now.")).toBeDefined();
+  await expect(screen.findByText("Saved, and in use now.")).resolves.toBeDefined();
 });
 
-test("Replace lets a set secret be typed again, and sends it", async () => {
+test("replace lets a set secret be typed again, and sends it", async () => {
   const { sent, submit } = openToSave("tmdb");
   fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Replace API key" }));
   fireEvent.change(await input("TMDB", "API key"), { target: { value: "new-key" } });
@@ -126,7 +126,7 @@ test("Replace lets a set secret be typed again, and sends it", async () => {
   expect((await sent).settings["api_key"]?.value).toEqual({ case: "textValue", value: "new-key" });
 });
 
-test("Forget lets a set secret be left blank to forget it, and sends its key", async () => {
+test("forget lets a set secret be left blank to forget it, and sends its key", async () => {
   const { sent, submit } = openToSave("tmdb");
   fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Forget API key" }));
 
@@ -209,7 +209,9 @@ test("a Plugin no longer on the Server says so for the form", async () => {
 
   fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Save" }));
 
-  expect(await screen.findByText("This Plugin isn’t on the Server any more.")).toBeDefined();
+  await expect(
+    screen.findByText("This Plugin isn’t on the Server any more."),
+  ).resolves.toBeDefined();
 });
 
 /** The Libraries setting of the cleanup Plugin's details page, once its Libraries show. */

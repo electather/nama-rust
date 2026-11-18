@@ -33,7 +33,9 @@ export function AudioMenu({
   /** Where the menu opens: inside the player, so it shows in full screen. */
   container: RefObject<HTMLDivElement | null>;
 }) {
-  if (audio.length < 2) return null;
+  if (audio.length < 2) {
+    return null;
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="overlay" size="icon" aria-label="Audio" />}>

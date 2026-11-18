@@ -3,7 +3,6 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-title";
 import { Page } from "@/components/page";
 import { RequestRow, type ShowGroup, ShowRequests } from "@/components/request-row";
-import { ShowMore } from "@/components/show-more";
 import {
   type StateFilter,
   StateFilterMenu,
@@ -12,6 +11,7 @@ import {
   isStateFilter,
   listedIn,
 } from "@/components/request-state-filter";
+import { ShowMore } from "@/components/show-more";
 import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { pagedQuery, usePaged } from "@/lib/paged";
@@ -108,11 +108,12 @@ function RequestList() {
   const requests = data.pages.flatMap((page) => page.requests);
   const followedShows = data.pages.flatMap((page) => page.followedShows);
   const navigate = Route.useNavigate();
-  const choose = (state: StateFilter) =>
+  const choose = (state: StateFilter) => {
     void navigate({ search: (search) => ({ ...search, state }) });
+  };
   return (
     <>
-      <div className="mt-8 -ms-4">
+      <div className="-ms-4 mt-8">
         <StateFilterMenu chosen={filter} choose={choose} />
       </div>
       {requests.length + followedShows.length === 0 ? (
@@ -146,7 +147,9 @@ function groupShows(requests: Request[], followedShows: FollowedShow[]) {
   newestFirst.sort((a, b) => Number(b.createdAt - a.createdAt));
   const grouped = newestFirst.flatMap((asked): (Request | FollowedShow | ShowGroup)[] => {
     const show = showOf(asked);
-    if (show === undefined) return [asked];
+    if (show === undefined) {
+      return [asked];
+    }
     const known = shows.get(keyOf(show));
     const group = known ?? newGroup(show);
     addTo(group, asked);
@@ -163,7 +166,9 @@ type Show = Pick<ShowGroup, "showId" | "showTitle">;
 
 /** The Show a Followed Show or a Season Request is of; a Movie's Request has none. */
 function showOf(asked: Request | FollowedShow): Show | undefined {
-  if (asked.$typeName === "nama.v1.FollowedShow") return asked;
+  if (asked.$typeName === "nama.v1.FollowedShow") {
+    return asked;
+  }
   const { movieOrSeason } = asked;
   return movieOrSeason.case === "season" ? movieOrSeason.value : undefined;
 }
@@ -178,8 +183,11 @@ function newGroup({ showId, showTitle }: Show): ShowGroup {
 }
 
 function addTo(group: ShowGroup, asked: Request | FollowedShow) {
-  if (asked.$typeName === "nama.v1.FollowedShow") group.followed.push(asked);
-  else group.seasons.push(asked);
+  if (asked.$typeName === "nama.v1.FollowedShow") {
+    group.followed.push(asked);
+  } else {
+    group.seasons.push(asked);
+  }
 }
 
 function seasonNumber(request: Request) {

@@ -49,7 +49,9 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
 
   const ask = useCallback(() => {
     // Changes refused while the dialog is already open wait for the same answer.
-    if (answer.current) return answer.current;
+    if (answer.current) {
+      return answer.current;
+    }
     answer.current = new Promise<boolean>((resolve) => {
       give.current = resolve;
     });
@@ -144,8 +146,12 @@ export function useSensitiveMutation<I extends DescMessage, O extends DescMessag
       try {
         return await call();
       } catch (error) {
-        if (refusalOf(error).reason !== RefusalReason.RECENT_AUTHENTICATION_REQUIRED) throw error;
-        if (!(await ask())) throw new ConnectError("the User cancelled", Code.Canceled);
+        if (refusalOf(error).reason !== RefusalReason.RECENT_AUTHENTICATION_REQUIRED) {
+          throw error;
+        }
+        if (!(await ask())) {
+          throw new ConnectError("the User cancelled", Code.Canceled);
+        }
         return call();
       }
     },

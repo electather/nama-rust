@@ -67,7 +67,9 @@ function NeedsAMatch() {
 
 /** The Libraries the filter `picked` shows: every one without it, none if it names no Library. */
 function pickedLibraries(libraries: Library[], picked: string | undefined) {
-  if (picked === undefined) return libraries;
+  if (picked === undefined) {
+    return libraries;
+  }
   const library = libraries.find(({ id }) => String(id) === picked);
   return library && [library];
 }

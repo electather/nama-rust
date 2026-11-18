@@ -72,7 +72,9 @@ export async function findDeviceDecoding() {
 
 /** The subtitle formats this Device has what their renderers need to draw. */
 function drawnFormats() {
-  if (!("WebAssembly" in globalThis)) return [];
+  if (!("WebAssembly" in globalThis)) {
+    return [];
+  }
   const bitmaps = [SubtitleFormat.PGS, SubtitleFormat.VOBSUB];
   // ASS's renderer runs in a Web Worker.
   return "Worker" in globalThis ? [...bitmaps, SubtitleFormat.ASS] : bitmaps;
@@ -80,7 +82,9 @@ function drawnFormats() {
 
 /** How many audio channels this Device plays out at once, such as 6 for 5.1, or 0 if it can't say. */
 function audioChannels() {
-  if (!("AudioContext" in window)) return 0;
+  if (!("AudioContext" in window)) {
+    return 0;
+  }
   const context = new AudioContext();
   const channels = context.destination.maxChannelCount;
   void context.close();

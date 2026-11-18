@@ -42,7 +42,9 @@ function openSettingsNeedingRecentAuthentication(alwaysRefuse = false) {
       },
       {
         changePassword: ({ newPassword }) => {
-          if (alwaysRefuse || !reauthenticated) throw recentAuthenticationRequired();
+          if (alwaysRefuse || !reauthenticated) {
+            throw recentAuthenticationRequired();
+          }
           changedTo.push(newPassword);
           return {};
         },
@@ -58,9 +60,9 @@ test("without Recent Authentication, a password change goes through once you con
   await submitPasswordChange();
   await confirmItsYou();
 
-  expect(
-    await screen.findByText("Password changed. Your other Devices were signed out."),
-  ).toBeDefined();
+  await expect(
+    screen.findByText("Password changed. Your other Devices were signed out."),
+  ).resolves.toBeDefined();
   expect(changedTo).toEqual(["battery staple"]);
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
@@ -77,7 +79,7 @@ test("cancelling “Confirm it’s you” leaves the form as it was, without an 
   });
   expect(screen.getByLabelText<HTMLInputElement>("New password").value).toBe("battery staple");
   expect(screen.getAllByRole("alert").filter((alert) => alert.textContent !== "")).toEqual([]);
-  expect(await screen.findByRole("button", { name: "Change password" })).toBeDefined();
+  await expect(screen.findByRole("button", { name: "Change password" })).resolves.toBeDefined();
   expect(changedTo).toEqual([]);
 });
 
@@ -86,12 +88,12 @@ test("a wrong password in “Confirm it’s you” says so, and you can try agai
 
   await submitPasswordChange();
   const dialog = await confirmItsYou("not my password");
-  expect(await within(dialog).findByText("That isn’t your password.")).toBeDefined();
+  await expect(within(dialog).findByText("That isn’t your password.")).resolves.toBeDefined();
   await confirmItsYou();
 
-  expect(
-    await screen.findByText("Password changed. Your other Devices were signed out."),
-  ).toBeDefined();
+  await expect(
+    screen.findByText("Password changed. Your other Devices were signed out."),
+  ).resolves.toBeDefined();
   expect(changedTo).toEqual(["battery staple"]);
 });
 
@@ -101,7 +103,7 @@ test("refused again after you confirm it’s you, the change shows an error, not
   await submitPasswordChange();
   await confirmItsYou();
 
-  expect(await screen.findByText("Sign in again to do this.")).toBeDefined();
+  await expect(screen.findByText("Sign in again to do this.")).resolves.toBeDefined();
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
 
@@ -133,13 +135,19 @@ function openUsersNeedingRecentAuthentication() {
           ],
         }),
         resetPassword: ({ userId, newPassword }) => {
-          if (!reauthenticated) throw recentAuthenticationRequired();
+          if (!reauthenticated) {
+            throw recentAuthenticationRequired();
+          }
           resets.push([userId, newPassword]);
           return {};
         },
         setPermissions: ({ userId, permissions }) => {
-          if (!reauthenticated) throw recentAuthenticationRequired();
-          if (permissions.includes(Permission.ADMIN)) promoted.push([userId, permissions]);
+          if (!reauthenticated) {
+            throw recentAuthenticationRequired();
+          }
+          if (permissions.includes(Permission.ADMIN)) {
+            promoted.push([userId, permissions]);
+          }
           return {};
         },
       },

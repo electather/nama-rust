@@ -28,7 +28,9 @@ const labels: Record<NotificationKind, string> = {
  */
 export function NotificationPreferences() {
   const { data } = useQuery(UserService.method.listNotificationPreferences, {});
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
   return (
     <section aria-labelledby="notifications" className="mt-12 max-w-2xl">
       <h2 id="notifications" className="font-medium">

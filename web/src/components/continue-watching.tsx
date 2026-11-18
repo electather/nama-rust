@@ -29,7 +29,9 @@ export function ContinueWatching() {
   const { data } = useSuspenseQuery(BrowseService.method.listContinueWatching, continueWatchingRow);
   const { lastHidden, hide, undo } = useHideFromContinueWatching();
   const cards = data.entries.flatMap(entryCard);
-  if (cards.length === 0 && !lastHidden) return null;
+  if (cards.length === 0 && !lastHidden) {
+    return null;
+  }
   return (
     <section aria-labelledby="continue-watching" className="mt-10">
       <h2 id="continue-watching" className="font-medium">
@@ -65,14 +67,20 @@ interface Card {
 }
 
 function entryCard({ libraryId, movieOrEpisode }: ContinueWatchingEntry): Card[] {
-  if (movieOrEpisode.case === "movie") return movieCard(libraryId, movieOrEpisode.value);
-  if (movieOrEpisode.case === "episode") return episodeCard(libraryId, movieOrEpisode.value);
+  if (movieOrEpisode.case === "movie") {
+    return movieCard(libraryId, movieOrEpisode.value);
+  }
+  if (movieOrEpisode.case === "episode") {
+    return episodeCard(libraryId, movieOrEpisode.value);
+  }
   return [];
 }
 
 function movieCard(library: bigint, movie: Movie): Card[] {
   // Protobuf message fields are always optional; the Server sets it.
-  if (!movie.id) return [];
+  if (!movie.id) {
+    return [];
+  }
   const libraryId = String(library);
   const movieId = titleParam(movie.id);
   return [
@@ -102,7 +110,9 @@ function movieCard(library: bigint, movie: Movie): Card[] {
 /** An Episode shows its Show's Backdrop, saying which Episode it is, such as "S1, E3". */
 function episodeCard(library: bigint, { show, episode }: ContinueWatchingEpisode): Card[] {
   // Protobuf message fields are always optional; the Server sets them.
-  if (!show?.id || !episode) return [];
+  if (!show?.id || !episode) {
+    return [];
+  }
   const libraryId = String(library);
   const showId = titleParam(show.id);
   const season = String(episode.seasonNumber);

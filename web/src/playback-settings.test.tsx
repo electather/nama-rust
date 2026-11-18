@@ -6,7 +6,7 @@ import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   HardwareAcceleration,
-  ServerService,
+  type ServerService,
   type UpdatePlaybackSettingsRequest,
 } from "@/gen/nama/v1/server_pb";
 
@@ -43,7 +43,10 @@ test("an Admin sets the segment folder, Keep for skipping back and the Transcode
     }),
   });
 
-  expect(await screen.findByLabelText("Segment folder")).toHaveProperty("value", "/srv/segments");
+  await expect(screen.findByLabelText("Segment folder")).resolves.toHaveProperty(
+    "value",
+    "/srv/segments",
+  );
   expect(screen.getByLabelText("Keep for skipping back")).toHaveProperty("value", "12");
   expect(screen.getByLabelText("Transcodes at once")).toHaveProperty("value", "2");
   fill("Segment folder", "/dev/shm/nama");
@@ -51,7 +54,7 @@ test("an Admin sets the segment folder, Keep for skipping back and the Transcode
   fill("Transcodes at once", "1");
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates).toMatchObject([
     { settings: { segmentFolder: "/dev/shm/nama", keepBehindMinutes: 3, maxTranscodes: 1 } },
   ]);
@@ -67,7 +70,7 @@ test("an Admin who leaves Keep for skipping back and Transcodes at once empty se
   fill("Transcodes at once", "");
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates[0]?.settings?.keepBehindMinutes).toBeUndefined();
   expect(updates[0]?.settings?.maxTranscodes).toBeUndefined();
 });
@@ -85,7 +88,7 @@ test("an Admin chooses hardware acceleration that passed its test", async () => 
   fireEvent.change(choice, { target: { value: String(HardwareAcceleration.QSV) } });
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates).toMatchObject([{ settings: { hardwareAcceleration: HardwareAcceleration.QSV } }]);
 });
 
@@ -117,7 +120,7 @@ test("an Admin picks an API on one GPU from one option per pair", async () => {
     getPlaybackSettings: () => ({ settings: {} }),
   });
 
-  expect(await hardwareOffered()).toEqual([
+  await expect(hardwareOffered()).resolves.toEqual([
     "Automatic",
     "Off",
     "AMD Radeon RX 9070 XT · VAAPI",
@@ -129,7 +132,7 @@ test("an Admin picks an API on one GPU from one option per pair", async () => {
   });
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates).toMatchObject([
     { settings: { hardwareAcceleration: HardwareAcceleration.VAAPI, gpu: { id: "0000:18:00.0" } } },
   ]);
@@ -143,12 +146,12 @@ test("a saved API with no GPU shows the first GPU it passed on chosen, which sav
     }),
   });
 
-  expect(
-    await screen.findByRole("option", { name: "AMD Radeon RX 9070 XT · VAAPI", selected: true }),
-  ).toBeDefined();
+  await expect(
+    screen.findByRole("option", { name: "AMD Radeon RX 9070 XT · VAAPI", selected: true }),
+  ).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates).toMatchObject([
     { settings: { hardwareAcceleration: HardwareAcceleration.VAAPI, gpu: { id: "0000:03:00.0" } } },
   ]);
@@ -165,7 +168,7 @@ test("a saved GPU that didn't pass is offered as not found and stays chosen", as
     }),
   });
 
-  expect(await hardwareOffered()).toEqual([
+  await expect(hardwareOffered()).resolves.toEqual([
     "Automatic",
     "Off",
     "Integrated GPU (AMD Ryzen 9 7950X3D) · VAAPI",
@@ -180,7 +183,7 @@ test("a saved GPU that didn't pass is offered as not found and stays chosen", as
   ).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates).toMatchObject([
     { settings: { hardwareAcceleration: HardwareAcceleration.VAAPI, gpu: { id: "0000:03:00.0" } } },
   ]);
@@ -218,10 +221,12 @@ test("a saved hardware acceleration that didn't pass its test stays chosen", asy
     }),
   });
 
-  expect(await screen.findByRole("option", { name: "NVIDIA NVENC", selected: true })).toBeDefined();
+  await expect(
+    screen.findByRole("option", { name: "NVIDIA NVENC", selected: true }),
+  ).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates).toMatchObject([
     { settings: { hardwareAcceleration: HardwareAcceleration.NVENC } },
   ]);
@@ -286,7 +291,7 @@ test("an Admin sets the default Playback Limit for remote playback, which starts
   fireEvent.change(select, { target: { value: String(PlaybackLimit.PLAYBACK_LIMIT_720P) } });
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(offered).toEqual(["Original", "1080p", "720p", "480p"]);
   expect(updates).toMatchObject([
     {

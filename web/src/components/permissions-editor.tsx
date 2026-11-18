@@ -157,9 +157,11 @@ interface CheckboxProps {
 
 function ChildPermissions({ parent, ...props }: CheckboxProps & { parent: Permission }) {
   const children = permissionChoices.filter((choice) => choice.parent === parent);
-  if (children.length === 0) return null;
+  if (children.length === 0) {
+    return null;
+  }
   return (
-    <ul className="mt-3 ms-7 flex flex-col gap-3">
+    <ul className="ms-7 mt-3 flex flex-col gap-3">
       {children.map((choice) => (
         <li key={choice.permission}>
           <PermissionCheckbox choice={choice} {...props} />

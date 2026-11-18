@@ -132,7 +132,9 @@ export function EditImages({ title, images }: TitleImages & { title: string }) {
   const id = useId();
   // How many times it has opened, which keys the list, so each opening asks for the artwork anew.
   const [opened, setOpened] = useState(0);
-  if (!may(signedIn.user, Permission.MANAGE_LIBRARIES)) return null;
+  if (!may(signedIn.user, Permission.MANAGE_LIBRARIES)) {
+    return null;
+  }
   function open() {
     dialog.current?.showModal();
     setOpened(opened + 1);

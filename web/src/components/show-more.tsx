@@ -18,16 +18,20 @@ export function ShowMore({
   // new intersection, and a new observer reports the button's visibility straight away.
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) button.current?.click();
+      if (entries.some((entry) => entry.isIntersecting)) {
+        button.current?.click();
+      }
     });
-    if (button.current) observer.observe(button.current);
+    if (button.current) {
+      observer.observe(button.current);
+    }
     return () => {
       observer.disconnect();
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `loaded` is what re-runs it; keying the button to remount would lose a keyboard User's focus
   }, [loaded]);
   return (
-    <div className="mt-2 -ms-4">
+    <div className="-ms-4 mt-2">
       <Button
         ref={button}
         variant="ghost"

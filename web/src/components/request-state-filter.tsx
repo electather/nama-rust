@@ -47,7 +47,9 @@ export async function defaultFilter(
   { queryClient, transport }: RouterContext,
   user: User | undefined,
 ): Promise<StateFilter> {
-  if (!may(user, Permission.MANAGE_REQUESTS)) return "all";
+  if (!may(user, Permission.MANAGE_REQUESTS)) {
+    return "all";
+  }
   // Not `staleTime: "static"` like other route queries: a count cached from earlier could be out of
   // date and open the page on the wrong filter.
   const { count } = await queryClient.query(

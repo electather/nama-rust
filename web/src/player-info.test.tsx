@@ -1,3 +1,4 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -9,7 +10,6 @@ import {
   PlaybackReasonKind,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
-import type { MessageInitShape } from "@bufbuild/protobuf";
 
 import { fakeServer, newUser, openApp } from "./test-app";
 
@@ -129,7 +129,7 @@ test("playback info leads with the reasons that decided the plan, in its own wor
   expect(panel.queryByText(serverText)).toBeNull();
 });
 
-test("Esc closes playback info and stays in the player, wherever focus is", async () => {
+test("esc closes playback info and stays in the player, wherever focus is", async () => {
   await openInfo(server);
 
   // As after clicking the video, which takes no focus.
@@ -214,7 +214,7 @@ test("a plan that can't play lists the reasons that decided it, in this app's wo
   ];
   openApp("/libraries/1/movies/tmdb-603/play", serverPlaying({ tracks, reasons }));
 
-  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
     "This Device can’t decode HEVC video, so it can’t be Direct Played or Remuxed.",
     "This Device can’t decode 10-bit H.264 video, so it can’t be Direct Played or Remuxed.",

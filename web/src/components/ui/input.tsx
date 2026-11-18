@@ -1,9 +1,9 @@
 import { Input as InputPrimitive } from "@base-ui/react/input";
 import { cn } from "cn";
-import type * as React from "react";
+import type { ComponentProps } from "react";
 
 // DESIGN.md, "Inputs": transparent, 14% hairline, 10px radius, and a green border and ring on focus.
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+function Input({ className, type, ...props }: ComponentProps<"input">) {
   return (
     <InputPrimitive
       type={type}

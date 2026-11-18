@@ -131,7 +131,7 @@ test("a Plugin without settings says so on its details page", async () => {
 test("the details page of a Plugin the Server doesn't have says it isn't found", async () => {
   openPlugin("no-such-plugin");
 
-  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
 });
 
 test("disabling an enabled Plugin on its details page asks the Server to", async () => {
@@ -287,7 +287,7 @@ test("enabling a Plugin on its details page shows it enabled there and on the li
 
   fireEvent.click(page.getByRole("button", { name: "Enable log-events" }));
 
-  expect(await page.findByText("Enabled")).toBeDefined();
+  await expect(page.findByText("Enabled")).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("link", { name: "Plugins" }));
-  expect(await (await row("log-events")).findByText("Enabled")).toBeDefined();
+  await expect((await row("log-events")).findByText("Enabled")).resolves.toBeDefined();
 });

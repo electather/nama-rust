@@ -39,7 +39,7 @@ export function UnmatchedRow({
   const parsed = parsedAs(item);
   const action = open ? "Close" : "Find a Match";
   return (
-    <li className="border-b px-3 py-3 last:border-b-0">
+    <li className="border-b p-3 last:border-b-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <div className="flex min-w-0 flex-1 basis-64 flex-col">
           <span className="font-medium">
@@ -100,7 +100,9 @@ export function PlayUnmatched({
  */
 export function parsedAs(item: Pick<UnmatchedItem, "title" | "year" | "season" | "episode">) {
   const title = withYear(item.title, item.year);
-  if (item.season === undefined || item.episode === undefined) return title;
+  if (item.season === undefined || item.episode === undefined) {
+    return title;
+  }
   return `${title} · ${episodeName(item.season, item.episode, "full")}`;
 }
 
@@ -109,7 +111,9 @@ const titleList = new Intl.ListFormat("en-GB", { type: "disjunction" });
 
 /** Why `item` is Unmatched, which says how to fix it, or "" if not known. */
 function whyUnmatched({ reason, tiedTitles }: UnmatchedItem) {
-  if (reason !== UnmatchedReason.AMBIGUOUS) return unmatchedBecause[reason] ?? "";
+  if (reason !== UnmatchedReason.AMBIGUOUS) {
+    return unmatchedBecause[reason] ?? "";
+  }
   const tied = tiedTitles.map((title) => withYear(title.title, title.year));
   return `More than one title fits: ${titleList.format(tied)}.`;
 }
@@ -249,12 +253,16 @@ function Candidates({
  * closes once its Item is Matched, so it shows this only while its own Episode is still Unmatched.
  */
 function notInShow(item: ItemToMatch, { matched, unmatched }: SetMatchResponse) {
-  if (unmatched === 0n || item.season === undefined || item.episode === undefined) return "";
+  if (unmatched === 0n || item.season === undefined || item.episode === undefined) {
+    return "";
+  }
   return `That Show has no ${episodeName(item.season, item.episode, "full")}.${alsoMatched(matched)}`;
 }
 
 function alsoMatched(othersMatched: bigint) {
-  if (othersMatched === 0n) return "";
+  if (othersMatched === 0n) {
+    return "";
+  }
   const others = othersMatched === 1n ? "1 other Episode" : `${othersMatched} other Episodes`;
   return ` ${others} Matched to it.`;
 }

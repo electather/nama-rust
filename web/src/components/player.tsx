@@ -1,6 +1,6 @@
+import { Link, type LinkOptions } from "@tanstack/react-router";
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { type PointerEvent, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 
@@ -12,12 +12,12 @@ import {
   useAutoplay,
   useNextEpisode,
 } from "@/components/next-episode";
-import { BottomBar } from "@/components/player-controls";
 import { PlaybackInfo } from "@/components/playback-info";
-import { buttonVariants } from "@/components/ui/button";
+import { BottomBar } from "@/components/player-controls";
 // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Tracks, Watch State, playback info and autoplay
 import { SubtitleTracks } from "@/components/subtitles-menu";
 import { TrackMenus } from "@/components/track-menus";
+import { buttonVariants } from "@/components/ui/button";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { playerOpened } from "@/lib/diagnostics";
@@ -66,9 +66,12 @@ type PlannedProps = PlayerProps & { autoplay: Autoplay };
 function PlannedPlayer(props: PlannedProps) {
   const planned = usePlaybackPlan(props);
   const { plan } = planned;
-  if (plan.url === "")
+  if (plan.url === "") {
     return <CantPlay back={props.back} reasons={wordReasons(plan.reasons).decided} />;
-  if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
+  }
+  if (planned.gaveUp) {
+    return <CantPlay back={props.back} reasons={[]} />;
+  }
   const topBar = (
     <TopBar
       title={props.title}
@@ -91,7 +94,9 @@ function PlannedPlayer(props: PlannedProps) {
 
 // A click pauses or plays; a tap only brings the controls back.
 function clickToToggle(event: PointerEvent<HTMLVideoElement>) {
-  if (event.pointerType === "mouse") togglePlay(event.currentTarget);
+  if (event.pointerType === "mouse") {
+    togglePlay(event.currentTarget);
+  }
 }
 
 // oxlint-disable-next-line eslint/max-lines-per-function -- it wires the video to its controls, Watch State and autoplay
@@ -167,7 +172,7 @@ function TopBar({
 }) {
   return (
     <div className="bg-linear-to-b from-scrim pb-10">
-      <header className="pointer-events-auto flex group-data-controls-hidden:pointer-events-none items-center gap-2 px-2 pt-2 sm:px-4 sm:pt-4">
+      <header className="pointer-events-auto flex items-center gap-2 px-2 pt-2 group-data-controls-hidden:pointer-events-none sm:px-4 sm:pt-4">
         <BackLink back={back} variant="overlay" size="icon" label="Back">
           <ArrowLeft aria-hidden />
         </BackLink>
@@ -223,7 +228,7 @@ function CantPlay({ back, reasons }: { back: LinkOptions; reasons: string[] }) {
           This browser can’t play it. Another browser, or another Version, may play.
         </p>
       )}
-      <div className="mt-6 -ms-4">
+      <div className="-ms-4 mt-6">
         <BackLink back={back} variant="ghost">
           Back
         </BackLink>

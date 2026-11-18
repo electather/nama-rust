@@ -57,7 +57,7 @@ function episodeEntry(
   } as const;
 }
 
-test("Home asks for one page of Continue Watching, a row's worth", async () => {
+test("home asks for one page of Continue Watching, a row's worth", async () => {
   const asked: ListContinueWatchingRequest[] = [];
   openApp(
     "/",
@@ -139,7 +139,7 @@ function logo(name: string) {
   return `/media/artwork/tmdb/%2F${name}-logo.png`;
 }
 
-test("Continue Watching cards show each title's Title Logo in place of its title", async () => {
+test("continue Watching cards show each title's Title Logo in place of its title", async () => {
   const dark = {
     id: { namespace: "tmdb", value: "70523" },
     title: "Dark",
@@ -171,9 +171,9 @@ test("Continue Watching cards show each title's Title Logo in place of its title
   );
 });
 
-test("Continue Watching hides when there's nothing", async () => {
+test("continue Watching hides when there's nothing", async () => {
   openHome();
-  expect(await screen.findByRole("heading", { name: "Libraries" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Libraries" })).resolves.toBeDefined();
   expect(screen.queryByRole("heading", { name: "Continue Watching" })).toBeNull();
 });
 
@@ -253,7 +253,7 @@ test("hiding a Show from Continue Watching takes its card away, and Undo brings 
   expect(document.activeElement).toBe(undo);
 
   fireEvent.click(undo);
-  expect(await screen.findByRole("link", { name: /Dark/u })).toBeDefined();
+  await expect(screen.findByRole("link", { name: /Dark/u })).resolves.toBeDefined();
   expect(asked).toEqual([
     { case: "showId", hidden: true },
     { case: "showId", hidden: false },

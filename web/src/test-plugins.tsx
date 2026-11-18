@@ -207,7 +207,9 @@ function pluginServer(
       listPlugins: () => ({ summaries: plugins.map((listed) => summaryOf(listed)) }),
       getPlugin: ({ id }) => {
         const found = plugins.find((listed) => listed.id === id);
-        if (!found) throw new ConnectError(`there is no Plugin ${id}`, Code.NotFound);
+        if (!found) {
+          throw new ConnectError(`there is no Plugin ${id}`, Code.NotFound);
+        }
         // Sending it drops what `Plugin` has no field for: those are the summary's.
         return { plugin: { ...found, summary: summaryOf(found) } };
       },
@@ -244,7 +246,9 @@ export function openPluginAsAdmin(
 /** The Plugins list's row for the Plugin shown as `name`: its name, or its id without one. */
 export async function row(name: string) {
   const listed = (await screen.findByRole("link", { name })).closest("li");
-  if (listed === null) throw new Error(`${name} has no row`);
+  if (listed === null) {
+    throw new Error(`${name} has no row`);
+  }
   return within(listed);
 }
 

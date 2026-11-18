@@ -75,7 +75,9 @@ test("the player says what it plays was deleted once an Event says it's gone", a
   server.deletes();
   server.tellsTheApp();
 
-  expect(await screen.findByRole("heading", { name: "Deleted from the Server" })).toBeDefined();
+  await expect(
+    screen.findByRole("heading", { name: "Deleted from the Server" }),
+  ).resolves.toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
 });
 
@@ -87,5 +89,7 @@ test("a player that fails as its Version is deleted, before the Event comes, say
   server.deletes();
   fireEvent.error(video);
 
-  expect(await screen.findByRole("heading", { name: "Deleted from the Server" })).toBeDefined();
+  await expect(
+    screen.findByRole("heading", { name: "Deleted from the Server" }),
+  ).resolves.toBeDefined();
 });

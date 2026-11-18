@@ -35,7 +35,7 @@ test("a Plugin that has logged nothing says so", async () => {
   openPluginAsAdmin("tmdb", { listPluginLogLines: () => ({ lines: [] }) });
   const page = await plugin("TMDB");
 
-  expect(await page.findByText(/Nothing logged/u)).toBeTruthy();
+  await expect(page.findByText(/Nothing logged/u)).resolves.toBeDefined();
 });
 
 test("someone who manages settings but isn't an Admin sees no Plugin Log", async () => {

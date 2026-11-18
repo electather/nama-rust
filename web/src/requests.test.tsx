@@ -1,11 +1,11 @@
-import { type MessageInitShape } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import {
-  FollowedShowSchema,
-  RequestSchema,
+  type FollowedShowSchema,
+  type RequestSchema,
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
@@ -151,7 +151,7 @@ test("a Season Request a scan opens for a Followed Show shows up under it withou
   requests = [season3];
   events.send({ event: { case: "requestCreated", value: { request: season3 } } });
 
-  expect(await within(dark).findByText("Season 3")).toBeDefined();
+  await expect(within(dark).findByText("Season 3")).resolves.toBeDefined();
   expect(within(dark).getByText("Available")).toBeDefined();
 });
 
@@ -174,7 +174,7 @@ test("a Pending Followed Show approved elsewhere shows as Approved without a rel
   followed = followedDark;
   events.send({ event: { case: "followedShowStateChanged", value: { followedShow: followed } } });
 
-  expect(await screen.findByText("Approved")).toBeDefined();
+  await expect(screen.findByText("Approved")).resolves.toBeDefined();
 });
 
 test("the Requests page says so when there are none", async () => {
@@ -183,7 +183,7 @@ test("the Requests page says so when there are none", async () => {
     server(() => []),
   );
 
-  expect(await screen.findByText("No Requests yet.")).toBeDefined();
+  await expect(screen.findByText("No Requests yet.")).resolves.toBeDefined();
 });
 
 test("a Request made elsewhere shows up without a reload", async () => {
@@ -198,7 +198,7 @@ test("a Request made elsewhere shows up without a reload", async () => {
   requests = [dune];
   events.send({ event: { case: "requestCreated", value: { request: dune } } });
 
-  expect(await screen.findByText("Dune")).toBeDefined();
+  await expect(screen.findByText("Dune")).resolves.toBeDefined();
 });
 
 test.each([
@@ -218,7 +218,7 @@ test.each([
   requests = [changed];
   events.send({ event: { case: "requestStateChanged", value: { request: changed } } });
 
-  expect(await screen.findByText(label)).toBeDefined();
+  await expect(screen.findByText(label)).resolves.toBeDefined();
 });
 
 test("a Request its Fulfiller didn't take shows as Failed with the reason, without a reload", async () => {
@@ -234,7 +234,7 @@ test("a Request its Fulfiller didn't take shows as Failed with the reason, witho
   requests = [failed];
   events.send({ event: { case: "requestStateChanged", value: { request: failed } } });
 
-  expect(await screen.findByText("Failed")).toBeDefined();
+  await expect(screen.findByText("Failed")).resolves.toBeDefined();
   expect(screen.getByText("Reason: Radarr is unreachable")).toBeDefined();
 });
 
@@ -286,7 +286,7 @@ test.each([
   requests = [];
   events.send({ event: { case: removal, value: { request } } });
 
-  expect(await screen.findByText("No Requests yet.")).toBeDefined();
+  await expect(screen.findByText("No Requests yet.")).resolves.toBeDefined();
 });
 
 test("a Declined Request shows its Requesters why", async () => {
@@ -295,6 +295,6 @@ test("a Declined Request shows its Requesters why", async () => {
     server(() => [{ ...heat, state: RequestState.DECLINED, declineReason: "Not out on disc yet" }]),
   );
 
-  expect(await screen.findByText("Declined")).toBeDefined();
+  await expect(screen.findByText("Declined")).resolves.toBeDefined();
   expect(screen.getByText("Reason: Not out on disc yet")).toBeDefined();
 });

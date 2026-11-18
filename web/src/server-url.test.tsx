@@ -27,11 +27,14 @@ test("a User who manages settings changes the Server URL on Settings", async () 
     }),
   );
 
-  expect(await screen.findByLabelText("Server URL")).toHaveProperty("value", "http://nama.lan");
+  await expect(screen.findByLabelText("Server URL")).resolves.toHaveProperty(
+    "value",
+    "http://nama.lan",
+  );
   fill("Server URL", "https://nama.example.com");
   fireEvent.click(screen.getByRole("button", { name: "Save Server URL" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(updates).toMatchObject([{ settings: { url: "https://nama.example.com" } }]);
 });
 

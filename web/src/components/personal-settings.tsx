@@ -20,7 +20,9 @@ const personalKey = createConnectQueryKey({
  */
 export function PersonalSettings() {
   const { data, dataUpdatedAt } = useQuery(UserService.method.listPersonalSettings);
-  if (!data || data.plugins.length === 0) return null;
+  if (!data || data.plugins.length === 0) {
+    return null;
+  }
   return (
     <section aria-labelledby="personal" className="mt-12 max-w-md">
       <h2 id="personal" className="font-medium">
@@ -115,6 +117,8 @@ function usePersonalChanges(name: string) {
 
 /** Why the Server refused to save or forget `name`'s settings, by whichever it refused. */
 function settingErrors(saving: unknown, forgetting: unknown, name: string) {
-  if (saving !== null) return refusedSettings(saving, `save your ${name} settings`);
+  if (saving !== null) {
+    return refusedSettings(saving, `save your ${name} settings`);
+  }
   return forgetting === null ? {} : refusedSettings(forgetting, `forget your ${name} settings`);
 }

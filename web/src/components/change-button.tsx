@@ -104,7 +104,9 @@ function QualityMenu({
 }) {
   const { data } = useQuery(RequestService.method.listOfferedQualities, { kind });
   const others = data?.qualities.filter((quality) => quality.id !== current) ?? [];
-  if (others.length === 0) return null;
+  if (others.length === 0) {
+    return null;
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

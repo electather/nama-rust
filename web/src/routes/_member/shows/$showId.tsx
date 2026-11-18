@@ -13,7 +13,9 @@ import { may } from "@/lib/permissions";
 export const Route = createFileRoute("/_member/shows/$showId")({
   beforeLoad: ({ context }) => {
     // Only search results link here, and only for those who may Request Shows.
-    if (!may(context.signedIn.user, Permission.REQUEST_TV)) throw notFound();
+    if (!may(context.signedIn.user, Permission.REQUEST_TV)) {
+      throw notFound();
+    }
   },
   loader: async ({ context, params }) => {
     const input = { showId: externalIdFromParam(params.showId) };
@@ -28,7 +30,9 @@ function ShowToRequest() {
   const input = Route.useLoaderData();
   const { signedIn } = Route.useRouteContext();
   const { show } = useSuspenseQuery(RequestService.method.lookUpShow, input).data;
-  if (!show) return <NotFound />;
+  if (!show) {
+    return <NotFound />;
+  }
   return (
     <TitlePage
       title={show.title}

@@ -24,8 +24,11 @@ export function useAskForShow(show: FoundShow) {
   });
   const showId = show.id;
   const askWithoutPicking = (seasonNumbers: number[], onSuccess: () => void) => {
-    if (whole) follow.mutate({ showId }, { onSuccess });
-    else ask.mutate({ showId, seasonNumbers }, { onSuccess });
+    if (whole) {
+      follow.mutate({ showId }, { onSuccess });
+    } else {
+      ask.mutate({ showId, seasonNumbers }, { onSuccess });
+    }
   };
   const submit = onSubmitted((picked, form) => {
     const onSuccess = () => {
@@ -36,7 +39,9 @@ export function useAskForShow(show: FoundShow) {
     setAwaitingQuality({ seasonNumbers, onSuccess });
     // With no Season picked, the Server's refusal says to pick one, so there's no Quality to ask.
     const picking = (whole || seasonNumbers.length > 0) && picker.open();
-    if (!picking) askWithoutPicking(seasonNumbers, onSuccess);
+    if (!picking) {
+      askWithoutPicking(seasonNumbers, onSuccess);
+    }
   });
   const onPick = (quality: bigint) => {
     const { seasonNumbers, onSuccess } = awaitingQuality;

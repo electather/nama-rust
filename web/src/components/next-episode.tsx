@@ -51,22 +51,27 @@ export function useNextEpisode(autoplay: Autoplay, video: Video, wake: () => voi
   const asking = isStillWatchingDue(due, touched);
   // Again whenever it starts playing: until it's answered, nothing plays, whatever pressed Play.
   useEffect(() => {
-    if (asking && state.playing)
+    if (asking && state.playing) {
       control((element) => {
         element.pause();
       });
+    }
   }, [asking, state.playing, control]);
   // Input while it asks isn't an answer: only Keep watching is.
   const onInput = useCallback(() => {
     wake();
-    if (!asking) touch();
+    if (!asking) {
+      touch();
+    }
   }, [wake, asking, touch]);
 
   return {
     onInput,
     playNext: () => {
       // The question still waits for an answer if the video ends under it.
-      if (next && !cancelled && !asking) void navigate(next.link(streakAfter(next, touched)));
+      if (next && !cancelled && !asking) {
+        void navigate(next.link(streakAfter(next, touched)));
+      }
     },
     cancel: autoplay.cancel,
     countdown: asking ? undefined : due,
@@ -101,9 +106,12 @@ export function NextEpisodeOverlay({
   nextEpisode: ReturnType<typeof useNextEpisode>;
   back: LinkOptions;
 }) {
-  if (nextEpisode.asking)
+  if (nextEpisode.asking) {
     return <StillWatching back={back} onKeepWatching={nextEpisode.keepWatching} />;
-  if (!nextEpisode.countdown) return null;
+  }
+  if (!nextEpisode.countdown) {
+    return null;
+  }
   const {
     countdown: { episode },
     secondsLeft,
@@ -113,7 +121,7 @@ export function NextEpisodeOverlay({
     // shadow (DESIGN.md, "Elevation").
     <aside
       aria-label="Next Episode"
-      className="absolute inset-x-4 bottom-32 z-30 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg sm:inset-x-auto sm:end-6 sm:w-80"
+      className="absolute inset-x-4 bottom-32 z-30 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg sm:inset-x-auto sm:inset-e-6 sm:w-80"
     >
       <p className="text-sm text-muted-foreground">
         {episodeName(episode.seasonNumber, episode.episodeNumber, "full")}

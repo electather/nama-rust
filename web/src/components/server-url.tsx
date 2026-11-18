@@ -72,7 +72,9 @@ export function ServerUrl() {
 
 /** Why the Server refused the Server URL, under its field, or `{}` while it hasn't. */
 function serverUrlErrors(error: ConnectError | null) {
-  if (error === null) return {};
+  if (error === null) {
+    return {};
+  }
   return refusal(
     error,
     "save the Server URL",

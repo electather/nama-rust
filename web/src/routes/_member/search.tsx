@@ -22,7 +22,9 @@ export const Route = createFileRoute("/_member/search")({
   // The router keeps the last results up while the next keystroke's load, so the page doesn't
   // flash, and its "Try again" loads them again.
   loader: async ({ context: { queryClient, transport }, deps: { query } }) => {
-    if (query === undefined) return;
+    if (query === undefined) {
+      return;
+    }
     await queryClient.infiniteQuery({
       ...pagedQuery(BrowseService.method.searchLibraries, firstPageOf(query), transport),
       staleTime: "static",
@@ -105,7 +107,9 @@ function FoundSection({
   count: number;
   children: ReactNode;
 }) {
-  if (count === 0) return null;
+  if (count === 0) {
+    return null;
+  }
   return (
     <section aria-label={heading} className="mt-10">
       <h2 className="font-medium">{heading}</h2>

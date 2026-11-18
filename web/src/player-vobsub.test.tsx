@@ -21,6 +21,7 @@ const bitsub = vi.hoisted(() => ({
   failsToStart: false,
   disposed: 0,
 }));
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("libbitsub", () => ({
   VobSubRenderer: class {
     constructor({
@@ -110,6 +111,7 @@ function server(asked: PlanPlaybackRequest[]) {
 
 /** Opens the player on [`server`], its subtitles fetched as `MKS`, as `asked` records its plans. */
 async function playing(asked: PlanPlaybackRequest[]) {
+  // oxlint-disable-next-line vitest/prefer-mock-promise-shorthand, vitest/prefer-mock-return-shorthand -- a Response's body reads once, so each fetch needs its own.
   vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("MKS")));
   openApp(PLAYER, server(asked));
   const video = await screen.findByLabelText<HTMLVideoElement>("Alien");

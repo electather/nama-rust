@@ -12,7 +12,9 @@ import { kindName } from "@/lib/libraries";
 
 /** The Library in the URL's id, or "not found" for one that isn't a number. */
 function libraryInput(libraryId: string) {
-  if (!/^\d+$/u.test(libraryId)) throw notFound();
+  if (!/^\d+$/u.test(libraryId)) {
+    throw notFound();
+  }
   return { id: BigInt(libraryId) };
 }
 
@@ -29,7 +31,9 @@ function LibraryPage() {
     LibraryService.method.getLibrary,
     libraryInput(libraryId),
   ).data;
-  if (!library) throw notFound();
+  if (!library) {
+    throw notFound();
+  }
   return (
     <Page heading={library.name}>
       <p className="mt-1 text-sm text-muted-foreground">{kindName(library.kind)}</p>
@@ -40,7 +44,7 @@ function LibraryPage() {
       </ul>
       <EmptyFolders library={library} />
       {/* Pulled back by the buttons' own padding, so the first one's words line up with the name. */}
-      <div className="mt-6 -ms-4 flex flex-wrap items-center gap-1">
+      <div className="-ms-4 mt-6 flex flex-wrap items-center gap-1">
         <ScanButton library={library} />
         <DeleteLibrary library={library} />
       </div>

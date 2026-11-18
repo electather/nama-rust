@@ -8,6 +8,7 @@ import { PlaybackLimit, PlaybackMethod, PlaybackService } from "@/gen/nama/v1/pl
 
 import { fakeServer, newUser, openApp } from "./test-app";
 
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
   default: class {
     static Events = { ERROR: "hlsError" };

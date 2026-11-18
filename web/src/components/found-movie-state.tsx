@@ -3,12 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { Library, Plus } from "lucide-react";
 
 import { QualityPicker, useQualityPicker } from "@/components/quality-picker";
-import {
-  RequestProgress,
-  RequestStateLabel,
-  isRequester,
-  useReadBackAsked,
-} from "@/components/request-state";
+import { RequestProgress } from "@/components/request-progress";
+import { RequestStateLabel, isRequester, useReadBackAsked } from "@/components/request-state";
 import { StateLabel } from "@/components/state-label";
 import { Button } from "@/components/ui/button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -102,7 +98,9 @@ function RequestButton({ movie, primary }: { movie: MovieHit | FoundMovie; prima
           aria-haspopup={picker.hasPopup}
           disabled={ask.isPending || picker.loading}
           onClick={() => {
-            if (!picker.open()) ask.mutate({ movieId });
+            if (!picker.open()) {
+              ask.mutate({ movieId });
+            }
           }}
         >
           <Plus aria-hidden className="size-4" />

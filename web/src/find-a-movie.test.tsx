@@ -88,7 +88,7 @@ test("a Movie found that isn't on the Server shows as Pending once Requested, wi
   const results = await search("Dune");
   fireEvent.click(await within(results).findByRole("button", { name: "Request Dune" }));
 
-  expect(await within(results).findByText("Pending")).toBeDefined();
+  await expect(within(results).findByText("Pending")).resolves.toBeDefined();
   expect(within(results).queryByRole("button", { name: "Request Dune" })).toBeNull();
 });
 
@@ -110,7 +110,7 @@ test("a Movie someone else Requested shows its state, and Requesting it joins", 
   await screen.findByLabelText("Find a Movie or Show");
 
   const results = await search("Heat");
-  expect(await within(results).findByText("Approved")).toBeDefined();
+  await expect(within(results).findByText("Approved")).resolves.toBeDefined();
   fireEvent.click(within(results).getByRole("button", { name: "Request Heat" }));
 
   await waitFor(() => {
@@ -140,11 +140,11 @@ test("a Movie's page shows its Request state after Requesting it, without a relo
     searchableServer([{ ...notOnTheServer, overview: "Paul Atreides travels to Arrakis." }]),
   );
 
-  expect(await screen.findByRole("heading", { name: "Dune" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Dune" })).resolves.toBeDefined();
   expect(screen.getByText("Paul Atreides travels to Arrakis.")).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Request Dune" }));
 
-  expect(await screen.findByText("Pending")).toBeDefined();
+  await expect(screen.findByText("Pending")).resolves.toBeDefined();
 });
 
 test("a Movie's page shows how far its Processing Request's download has got", async () => {
@@ -172,7 +172,7 @@ test("a Movie's page for one in a Library opens it there", async () => {
 test("a Movie's page is not found for a User who may not Request Movies", async () => {
   openApp("/movies/tmdb-438631", searchableServer([notOnTheServer], [Permission.VIEW_REQUESTS]));
 
-  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
 });
 
 test("a Movie's page looks up an id of any namespace", async () => {
@@ -181,16 +181,16 @@ test("a Movie's page looks up an id of any namespace", async () => {
     searchableServer([{ ...notOnTheServer, id: { namespace: "anidb", value: "1" } }]),
   );
 
-  expect(await screen.findByRole("heading", { name: "Dune" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Dune" })).resolves.toBeDefined();
 });
 
 test("a Movie's page is not found when no title source has its id", async () => {
   openApp("/movies/anidb-1", searchableServer([notOnTheServer]));
 
-  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
 });
 
-test("Requesting a Movie a scan Matched meanwhile shows it in its Library", async () => {
+test("requesting a Movie a scan Matched meanwhile shows it in its Library", async () => {
   const movie = create(MovieHitSchema, notOnTheServer);
   const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
     router.service(RequestService, {
@@ -211,6 +211,8 @@ test("Requesting a Movie a scan Matched meanwhile shows it in its Library", asyn
   const results = await search("Dune");
   fireEvent.click(await within(results).findByRole("button", { name: "Request Dune" }));
 
-  expect(await within(results).findByRole("link", { name: "Dune in your Library" })).toBeDefined();
+  await expect(
+    within(results).findByRole("link", { name: "Dune in your Library" }),
+  ).resolves.toBeDefined();
   expect(within(results).queryByRole("button", { name: "Request Dune" })).toBeNull();
 });

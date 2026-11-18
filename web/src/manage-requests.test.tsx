@@ -62,7 +62,9 @@ const changedAt = BigInt(Date.UTC(2026, 10, 9, 12) / 1000);
 /** Changes `request`'s Quality to the offered one with the id `qualityId`, as Sam, if given. */
 function changeQuality(request: Request, qualityId: bigint | undefined) {
   const quality = hdAnd4k.find(({ id }) => id === qualityId);
-  if (!quality) return;
+  if (!quality) {
+    return;
+  }
   request.qualityChange = create(QualityChangeSchema, {
     changedBy: "Sam",
     changedAt,
@@ -96,7 +98,9 @@ function managedServer(permissions: Permission[], ...requests: Request[]) {
       listOfferedQualities: () => ({ qualities: hdAnd4k }),
       approveRequest: ({ id, qualityId }) => {
         const request = held.get(id);
-        if (request?.state === RequestState.PENDING) changeQuality(request, qualityId);
+        if (request?.state === RequestState.PENDING) {
+          changeQuality(request, qualityId);
+        }
         return decide(id, RequestState.APPROVED);
       },
       declineRequest: ({ id, reason }) => decide(id, RequestState.DECLINED, reason),
@@ -157,7 +161,7 @@ test("approving a Pending Request shows it Approved", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
 
-  expect(await screen.findByText("Approved")).toBeDefined();
+  await expect(screen.findByText("Approved")).resolves.toBeDefined();
   expect(screen.queryByRole("button", { name: "Approve Heat" })).toBeNull();
 });
 
@@ -175,7 +179,7 @@ test("a Season Request's actions name its Show and Season, and approve it at ano
   fireEvent.click(await screen.findByRole("button", { name: /^Approve Dark Specials at/u }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "HD" }));
 
-  expect(await screen.findByText("Approved")).toBeDefined();
+  await expect(screen.findByText("Approved")).resolves.toBeDefined();
 });
 
 test("declining a Request asks why, then shows it Declined with the reason", async () => {
@@ -188,7 +192,7 @@ test("declining a Request asks why, then shows it Declined with the reason", asy
   });
   fireEvent.click(within(dialog).getByRole("button", { name: "Decline" }));
 
-  expect(await screen.findByText("Reason: Not out on disc yet")).toBeDefined();
+  await expect(screen.findByText("Reason: Not out on disc yet")).resolves.toBeDefined();
   expect(screen.getByText("Declined")).toBeDefined();
 });
 
@@ -199,7 +203,7 @@ test("cancelling a Request, once confirmed, removes it", async () => {
   const dialog = await screen.findByRole("alertdialog", { name: "Cancel the Request for Dune?" });
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancel Request" }));
 
-  expect(await screen.findByText("No Requests yet.")).toBeDefined();
+  await expect(screen.findByText("No Requests yet.")).resolves.toBeDefined();
 });
 
 test("approving a Request someone else declined meanwhile says so, and shows it Declined", async () => {
@@ -210,8 +214,8 @@ test("approving a Request someone else declined meanwhile says so, and shows it 
   request.state = RequestState.DECLINED;
   fireEvent.click(approve);
 
-  expect(await screen.findByText("Heat was already approved or declined.")).toBeDefined();
-  expect(await screen.findByText("Declined")).toBeDefined();
+  await expect(screen.findByText("Heat was already approved or declined.")).resolves.toBeDefined();
+  await expect(screen.findByText("Declined")).resolves.toBeDefined();
 });
 
 test("retrying a Failed Request shows it Processing, without its reason", async () => {
@@ -219,7 +223,7 @@ test("retrying a Failed Request shows it Processing, without its reason", async 
 
   fireEvent.click(await screen.findByRole("button", { name: "Retry Alien" }));
 
-  expect(await screen.findByText("Processing")).toBeDefined();
+  await expect(screen.findByText("Processing")).resolves.toBeDefined();
   expect(screen.queryByText("Reason: Radarr is unreachable")).toBeNull();
   expect(screen.queryByRole("button", { name: "Retry Alien" })).toBeNull();
 });
@@ -232,8 +236,8 @@ test("retrying a Request that stopped being Failed meanwhile says so", async () 
   request.state = RequestState.PROCESSING;
   fireEvent.click(retry);
 
-  expect(await screen.findByText("Alien isn’t Failed any more.")).toBeDefined();
-  expect(await screen.findByText("Processing")).toBeDefined();
+  await expect(screen.findByText("Alien isn’t Failed any more.")).resolves.toBeDefined();
+  await expect(screen.findByText("Processing")).resolves.toBeDefined();
 });
 
 test("a Request manager approves a 4K Request at the other Quality, HD, and it says who changed it when", async () => {
@@ -245,7 +249,7 @@ test("a Request manager approves a 4K Request at the other Quality, HD, and it s
   fireEvent.click(await screen.findByRole("menuitem", { name: "HD" }));
 
   expect(others.map((item) => item.textContent)).toStrictEqual(["HD"]);
-  expect(await screen.findByText("Approved")).toBeDefined();
+  await expect(screen.findByText("Approved")).resolves.toBeDefined();
   expect(screen.getByText(/HD, changed from 4K by Sam on .*9.*2026/u)).toBeDefined();
   expect(screen.queryByRole("button", { name: /^Approve Heat/u })).toBeNull();
 });
@@ -257,7 +261,7 @@ test("a Request manager retries a Failed Request at another Quality", async () =
   fireEvent.click(await screen.findByRole("button", { name: "Retry Alien at another Quality" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "4K" }));
 
-  expect(await screen.findByText("Processing")).toBeDefined();
+  await expect(screen.findByText("Processing")).resolves.toBeDefined();
   expect(screen.getByText(/4K, changed from HD by Sam on .*9.*2026/u)).toBeDefined();
 });
 
@@ -293,5 +297,7 @@ test("approving a Season at another Quality than its Show's says each Season tak
   );
   fireEvent.click(await screen.findByRole("menuitem", { name: "HD" }));
 
-  expect(await screen.findByText("Each Season of this Show takes its Quality, 4K.")).toBeDefined();
+  await expect(
+    screen.findByText("Each Season of this Show takes its Quality, 4K."),
+  ).resolves.toBeDefined();
 });

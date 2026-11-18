@@ -42,7 +42,7 @@ function openHome(asked: ListHomeRowTitlesRequest[] = []) {
   openApp("/", transport);
 }
 
-test("Home shows each Plugin's row after the Libraries, in order, with its titles' posters", async () => {
+test("home shows each Plugin's row after the Libraries, in order, with its titles' posters", async () => {
   openHome();
 
   const shows = await screen.findByRole("region", { name: "Trending Shows" });
@@ -58,7 +58,7 @@ test("Home shows each Plugin's row after the Libraries, in order, with its title
   );
 });
 
-test("Home leaves out a row with no titles, and asks each row for one page", async () => {
+test("home leaves out a row with no titles, and asks each row for one page", async () => {
   const asked: ListHomeRowTitlesRequest[] = [];
   openHome(asked);
 

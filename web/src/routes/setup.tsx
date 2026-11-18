@@ -12,7 +12,9 @@ import { type FormErrors, formText, refusedFieldErrors, refusal } from "@/lib/fo
 
 export const Route = createFileRoute("/setup")({
   beforeLoad: async ({ context }) => {
-    if (!(await isSetupRequired(context))) throw redirect({ to: "/" });
+    if (!(await isSetupRequired(context))) {
+      throw redirect({ to: "/" });
+    }
   },
   component: Setup,
 });

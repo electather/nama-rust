@@ -16,7 +16,9 @@ export function AutoplayPreference() {
   const set = useMutation(PlaybackService.method.setAutoplay, {
     onSettled: () => queryClient.invalidateQueries({ queryKey: autoplayKey }),
   });
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
   // Shows the choice being saved until the Server's comes back with it.
   const on = set.isPending ? set.variables.on : data.on;
   return (

@@ -26,7 +26,9 @@ function EnterCode() {
   // `mutate` keeps its identity across renders, unlike `lookUp`, so a re-render doesn't look the scanned code up again.
   const { mutate } = lookUp;
   useEffect(() => {
-    if (scanned !== undefined) mutate({ code: scanned });
+    if (scanned !== undefined) {
+      mutate({ code: scanned });
+    }
   }, [scanned, mutate]);
   const startOver = () => {
     lookUp.reset();
@@ -47,7 +49,7 @@ function EnterCode() {
           />
         ) : (
           <Approve
-            code={lookUp.variables?.code ?? ""}
+            code={lookUp.variables.code ?? ""}
             deviceName={lookUp.data.deviceName}
             onDone={startOver}
           />
@@ -114,7 +116,9 @@ function Approve({
 }) {
   const approve = useSensitiveMutation(SignInService.method.approveSignInCode);
   const errors = approve.error ? codeErrors(approve.error) : {};
-  if (approve.isSuccess) return <Approved deviceName={deviceName} onDone={onDone} />;
+  if (approve.isSuccess) {
+    return <Approved deviceName={deviceName} onDone={onDone} />;
+  }
 
   return (
     <>
@@ -151,7 +155,7 @@ function Approved({ deviceName, onDone }: { deviceName: string; onDone: () => vo
         <strong className="font-medium text-foreground">{deviceName}</strong> is signed in as you.
         It may take a few seconds to notice.
       </p>
-      <div className="mt-6 -ms-4">
+      <div className="-ms-4 mt-6">
         <Button variant="ghost" onClick={onDone}>
           Sign in another Device
         </Button>

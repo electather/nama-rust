@@ -46,7 +46,7 @@ test("a User whose subtitles are off picks a language by name, and which subtitl
   fireEvent.click(screen.getByLabelText("Forced only, for signs and foreign dialogue"));
   fireEvent.click(screen.getByRole("button", { name: "Save subtitles" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(set).toMatchObject([{ subtitle: { language: "de", kind: SubtitleKind.FORCED } }]);
 });
 
@@ -64,7 +64,7 @@ test("a User's own subtitles show as they set them, and picking Off turns them o
   expect(screen.queryByLabelText(FOREIGN_AUDIO_ONLY)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Save subtitles" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(set).toHaveLength(1);
   expect(set[0]?.subtitle?.language).toBeUndefined();
 });
@@ -93,7 +93,7 @@ test("full subtitles can start only over audio in another language", async () =>
   fireEvent.click(foreignAudioOnly);
   fireEvent.click(screen.getByRole("button", { name: "Save subtitles" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(set).toMatchObject([
     { subtitle: { language: "de", kind: SubtitleKind.FULL, foreignAudioOnly: true } },
   ]);
@@ -111,7 +111,7 @@ test("choosing Forced only hides the switch and turns it off", async () => {
   expect(screen.queryByLabelText(FOREIGN_AUDIO_ONLY)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Save subtitles" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(set).toMatchObject([{ subtitle: { kind: SubtitleKind.FORCED, foreignAudioOnly: false } }]);
 });
 
@@ -139,7 +139,7 @@ test("a User's audio starts at the file's default until they pick a language, wh
   expect(audio.placeholder).toBe("File’s default");
   fill("Audio", "Japanese");
   fireEvent.click(screen.getByRole("button", { name: "Save audio" }));
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   cleanup();
   openApp("/settings", transport);
 
@@ -153,7 +153,7 @@ test("picking File’s default clears a User's audio language", async () => {
   await screen.findByLabelText("Audio");
   fill("Audio", "File’s default");
   fireEvent.click(screen.getByRole("button", { name: "Save audio" }));
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   cleanup();
   openApp("/settings", transport);
 

@@ -40,7 +40,10 @@ interface Row {
 let nextKey = 0;
 
 function keyed(qualities: Quality[]): Row[] {
-  return qualities.map((quality) => ({ key: nextKey++, quality }));
+  return qualities.map((quality) => {
+    nextKey += 1;
+    return { key: nextKey, quality };
+  });
 }
 
 /**
@@ -150,7 +153,9 @@ function useProfiles(plugin: PluginDetails, rows: Row[]) {
 
 /** A flag under each of `rows` whose saved profile `plugin` doesn't offer now, as `profiles` says. */
 function profilesGone(rows: Row[], profiles: Choice[] | undefined, plugin: PluginDetails) {
-  if (profiles === undefined) return {};
+  if (profiles === undefined) {
+    return {};
+  }
   const gone = rows.filter(
     ({ quality: { profileId } }) =>
       profileId !== "" && !profiles.some(({ value }) => value === profileId),
@@ -177,7 +182,9 @@ function qualityErrors(
 ): Record<string, string | undefined> {
   const { reason, field } = refusalOf(error);
   const named = refusedInput(field, rows);
-  if (named === undefined) return { form: formRefused(error) };
+  if (named === undefined) {
+    return { form: formRefused(error) };
+  }
   const [row, input] = named;
   return { [`${input}-${row.key}`]: inputRefused(plugin)[input][reason] ?? serverMessage(error) };
 }

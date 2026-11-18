@@ -70,7 +70,9 @@ export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
  * refused nothing.
  */
 function settingErrors(saving: unknown, testing: unknown) {
-  if (saving !== null) return refusedSettings(saving, "save the settings");
+  if (saving !== null) {
+    return refusedSettings(saving, "save the settings");
+  }
   return testing === null ? {} : refusedSettings(testing, "test the settings");
 }
 

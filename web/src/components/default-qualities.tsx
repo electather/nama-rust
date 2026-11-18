@@ -29,7 +29,9 @@ const fulfillerLabels: Partial<Record<ExtensionPoint, string>> = {
  */
 export function DefaultQualities() {
   const { data } = useQuery(RequestService.method.listDefaultQualities, {});
-  if (!data || data.defaults.length === 0) return null;
+  if (!data || data.defaults.length === 0) {
+    return null;
+  }
   return (
     <section aria-labelledby="default-quality" className="mt-12 max-w-sm">
       <h2 id="default-quality" className="font-medium">

@@ -3,8 +3,8 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { PowerOff, TriangleAlert } from "lucide-react";
 
 import { AdminList, AdminRow } from "@/components/admin-list";
-import { ExtensionPoints, PluginLogo } from "@/components/plugin-at-a-glance";
 import { Page } from "@/components/page";
+import { ExtensionPoints, PluginLogo } from "@/components/plugin-at-a-glance";
 import { PluginToggle } from "@/components/plugin-toggle";
 import { StateLabel } from "@/components/state-label";
 import { buttonVariants } from "@/components/ui/button";
@@ -66,7 +66,9 @@ function NeedsAttention() {
 
 function EnableOrSetUp({ plugin }: { plugin: PluginSummary }) {
   // Enabling it would only be refused, so it goes to its settings form instead.
-  if (!plugin.enabled && plugin.settingsMissing) return <SetUp plugin={plugin} />;
+  if (!plugin.enabled && plugin.settingsMissing) {
+    return <SetUp plugin={plugin} />;
+  }
   return <PluginToggle summary={plugin} />;
 }
 

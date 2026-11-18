@@ -152,7 +152,9 @@ function TitleCount({
   count: number | undefined;
   titles: { one: string; many: string };
 }) {
-  if (count === undefined) return null;
+  if (count === undefined) {
+    return null;
+  }
   return (
     <p className="mt-1 text-sm text-muted-foreground">
       {count.toLocaleString()} {count === 1 ? titles.one : titles.many}

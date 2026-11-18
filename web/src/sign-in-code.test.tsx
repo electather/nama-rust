@@ -38,7 +38,9 @@ function serverWaitingForApproval() {
     },
     pollSignInCode: ({ handle }) => {
       expect(handle).toBe("secret");
-      if (state.signedIn === undefined) return { status: SignInCodeStatus.WAITING };
+      if (state.signedIn === undefined) {
+        return { status: SignInCodeStatus.WAITING };
+      }
       return { status: SignInCodeStatus.SIGNED_IN };
     },
   });
@@ -55,7 +57,7 @@ test("once the code is approved, polling signs the browser in", async () => {
   const router = openApp("/sign-in?redirect=%2Fsettings", transport);
 
   await getCode();
-  expect(await screen.findByText("ABCD-EFGH")).toBeDefined();
+  await expect(screen.findByText("ABCD-EFGH")).resolves.toBeDefined();
   expect(screen.getByText(`${window.location.origin}/code`)).toBeDefined();
 
   await nextPoll();
@@ -76,8 +78,8 @@ function decodeQr(svg: Element) {
   const width = modules * scale;
   const rgba = new Uint8ClampedArray(width * width * 4).fill(255);
   for (const [, x, y, length] of darkRuns.matchAll(/M(\d+)[ ,](\d+) ?h(\d+)/gu)) {
-    for (let px = Number(x) * scale; px < (Number(x) + Number(length)) * scale; px++) {
-      for (let py = Number(y) * scale; py < (Number(y) + 1) * scale; py++) {
+    for (let px = Number(x) * scale; px < (Number(x) + Number(length)) * scale; px += 1) {
+      for (let py = Number(y) * scale; py < (Number(y) + 1) * scale; py += 1) {
         rgba.fill(0, (py * width + px) * 4, (py * width + px) * 4 + 3);
       }
     }
@@ -116,7 +118,7 @@ test("an expired code offers a new one", async () => {
   await getCode();
   await nextPoll();
   fireEvent.click(await screen.findByRole("button", { name: "Get a new code" }));
-  expect(await screen.findByText("JKMN-PQRS")).toBeDefined();
+  await expect(screen.findByText("JKMN-PQRS")).resolves.toBeDefined();
   expect(screen.queryByText("ABCD-EFGH")).toBeNull();
 });
 
@@ -136,7 +138,7 @@ test("a code the Server forgot, after a restart, counts as expired", async () =>
 
   await getCode();
   await nextPoll();
-  expect(await screen.findByRole("button", { name: "Get a new code" })).toBeDefined();
+  await expect(screen.findByRole("button", { name: "Get a new code" })).resolves.toBeDefined();
 });
 
 test("too many waiting sign-ins says so, not that there were too many tries", async () => {
@@ -153,7 +155,9 @@ test("too many waiting sign-ins says so, not that there were too many tries", as
   openApp("/sign-in", transport);
 
   await getCode();
-  expect(await screen.findByText(/Too many Devices are waiting to sign in/u)).toBeDefined();
+  await expect(
+    screen.findByText(/Too many Devices are waiting to sign in/u),
+  ).resolves.toBeDefined();
 });
 
 /** Refuses any code but the one "Living room TV" shows, as the Server would match it. */
@@ -197,11 +201,11 @@ test("looking up a code names the Device before it's approved", async () => {
   await screen.findByRole("heading", { name: "Sign in a Device" });
 
   await lookUp("abcdefgh");
-  expect(await screen.findByText("Living room TV")).toBeDefined();
+  await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
   expect(approved).toEqual([]);
 
   fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
-  expect(await screen.findByText(/is signed in as you/u)).toBeDefined();
+  await expect(screen.findByText(/is signed in as you/u)).resolves.toBeDefined();
   expect(approved).toEqual(["abcdefgh"]);
 });
 
@@ -210,7 +214,7 @@ test("a wrong code shows a plain error", async () => {
   await screen.findByRole("heading", { name: "Sign in a Device" });
 
   await lookUp("WRONG-123");
-  expect(await screen.findByText(/That code doesn’t match/u)).toBeDefined();
+  await expect(screen.findByText(/That code doesn’t match/u)).resolves.toBeDefined();
   expect(screen.queryByRole("button", { name: "Sign it in" })).toBeNull();
 });
 
@@ -222,7 +226,9 @@ function serverNeedingRecentAuthentication() {
     {
       lookUpSignInCode: () => ({ deviceName: "Living room TV" }),
       approveSignInCode: () => {
-        if (!reauthenticated) throw recentAuthenticationRequired();
+        if (!reauthenticated) {
+          throw recentAuthenticationRequired();
+        }
         return {};
       },
       reauthenticate: () => {
@@ -238,20 +244,20 @@ test("without Recent Authentication, a code is approved once you confirm it’s 
   await screen.findByRole("heading", { name: "Sign in a Device" });
 
   await lookUp("abcdefgh");
-  expect(await screen.findByText("Living room TV")).toBeDefined();
+  await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
   await confirmItsYou();
 
-  expect(await screen.findByText(/is signed in as you/u)).toBeDefined();
+  await expect(screen.findByText(/is signed in as you/u)).resolves.toBeDefined();
 });
 
 test("opening a scanned code looks it up, ready to approve", async () => {
   const approved: string[] = [];
   openApp("/code?code=abcdefgh", serverWithCode(approved));
 
-  expect(await screen.findByText("Living room TV")).toBeDefined();
+  await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
-  expect(await screen.findByText(/is signed in as you/u)).toBeDefined();
+  await expect(screen.findByText(/is signed in as you/u)).resolves.toBeDefined();
   expect(approved).toEqual(["abcdefgh"]);
 
   fireEvent.click(screen.getByRole("button", { name: "Sign in another Device" }));
@@ -261,7 +267,7 @@ test("opening a scanned code looks it up, ready to approve", async () => {
 test("a scanned code that doesn't match shows it with a plain error", async () => {
   openApp("/code?code=WRONG-123", serverWithCode());
 
-  expect(await screen.findByText(/That code doesn’t match/u)).toBeDefined();
+  await expect(screen.findByText(/That code doesn’t match/u)).resolves.toBeDefined();
   expect(screen.getByLabelText<HTMLInputElement>("Sign-in Code").value).toBe("WRONG-123");
 });
 
@@ -271,6 +277,6 @@ test("opening a scanned code signed out comes back to it after signing in", asyn
   fireEvent.change(await screen.findByLabelText("Username"), { target: { value: "Sam" } });
   fill("Password", "correct horse");
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-  expect(await screen.findByText("Living room TV")).toBeDefined();
+  await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
   expect(screen.getByRole("button", { name: "Sign it in" })).toBeDefined();
 });

@@ -59,8 +59,12 @@ function OwnInput({
   checksRequired: boolean;
   forgettable: boolean;
 }) {
-  if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;
-  if (setting.secretSet) return <SetSecret {...{ setting, error, forgettable }} />;
+  if (setting.kind === SettingKind.BOOL) {
+    return <BoolInput setting={setting} />;
+  }
+  if (setting.secretSet) {
+    return <SetSecret {...{ setting, error, forgettable }} />;
+  }
   const required = checksRequired && blankIsMissing(setting);
   return <TypedInput setting={setting} error={error} required={required} />;
 }
@@ -208,21 +212,27 @@ function BoolInput({ setting }: { setting: Setting }) {
 }
 
 /** What a setting is for, then what leaving it blank does: to a set secret, `secretBlank`. */
-function hint(
-  { description, required, defaultValue, secretSet }: Setting,
-  secretBlank: "keep" | "forget" = "keep",
-) {
-  const blank = defaultValue
-    ? `Blank uses ${valueText(defaultValue)}.`
-    : secretSet
-      ? `Leave it blank to ${secretBlank} the one that’s set.`
-      : required && "Required.";
-  return [description, blank].filter(Boolean).join(" ");
+function hint(setting: Setting, secretBlank: "keep" | "forget" = "keep") {
+  return [setting.description, blankHint(setting, secretBlank)].filter(Boolean).join(" ");
+}
+
+function blankHint({ required, defaultValue, secretSet }: Setting, secretBlank: "keep" | "forget") {
+  if (defaultValue) {
+    return `Blank uses ${valueText(defaultValue)}.`;
+  }
+  if (secretSet) {
+    return `Leave it blank to ${secretBlank} the one that’s set.`;
+  }
+  return required ? "Required." : "";
 }
 
 function valueText(setting: SettingValue | undefined) {
-  if (setting?.value.case === undefined) return "";
-  if (setting.value.case === "libraryIds") return setting.value.value.ids.join(",");
+  if (setting?.value.case === undefined) {
+    return "";
+  }
+  if (setting.value.case === "libraryIds") {
+    return setting.value.value.ids.join(",");
+  }
   return String(setting.value.value);
 }
 
@@ -242,15 +252,21 @@ export function forgottenTyped(typed: FormData) {
 
 function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingValue["value"] {
   // An unticked checkbox isn't in the form data at all.
-  if (kind === SettingKind.BOOL) return { case: "boolValue", value: typed.has(key) };
-  if (kind === SettingKind.LIBRARIES) return librariesTyped(typed, key);
+  if (kind === SettingKind.BOOL) {
+    return { case: "boolValue", value: typed.has(key) };
+  }
+  if (kind === SettingKind.LIBRARIES) {
+    return librariesTyped(typed, key);
+  }
   return textTyped(typed, key, kind);
 }
 
 /** The setting `key` of `kind` as typed into a text input, a number for an INTEGER one. */
 function textTyped(typed: FormData, key: string, kind: SettingKind): SettingValue["value"] {
   const text = formText(typed, key);
-  if (text === "") return { case: undefined };
+  if (text === "") {
+    return { case: undefined };
+  }
   // The input only takes whole numbers (`step` 1), but may write one as `1e3` or `1.0`, which
   // `BigInt` alone refuses. ponytail: past 2^53 a number loses precision on the way.
   return kind === SettingKind.INTEGER

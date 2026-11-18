@@ -63,7 +63,9 @@ function RequestsLink({ managesRequests }: { managesRequests: boolean }) {
     { enabled: managesRequests },
   );
   const pending = data?.count ?? 0;
-  if (pending === 0) return <NavLink to="/requests">Requests</NavLink>;
+  if (pending === 0) {
+    return <NavLink to="/requests">Requests</NavLink>;
+  }
   return (
     <NavLink to="/requests" aria-label={`Requests, ${pending} Pending`}>
       Requests
@@ -75,7 +77,7 @@ function RequestsLink({ managesRequests }: { managesRequests: boolean }) {
 // DESIGN.md "State labels": a hairline pill, so its edge stays when the ghost link fills on hover.
 function PendingBadge({ pending }: { pending: number }) {
   return (
-    <span className="ms-1.5 rounded-full border px-1.5 text-sm tabular-nums text-foreground">
+    <span className="ms-1.5 rounded-full border px-1.5 text-sm text-foreground tabular-nums">
       {pending > 99 ? "99+" : pending}
     </span>
   );
@@ -92,7 +94,7 @@ function SearchBox() {
   const { query } = useSearch({ strict: false });
   return (
     // On phones it takes a row of its own under the links, its edge lined up with theirs.
-    <search className="order-last mt-2 w-full px-2.5 sm:order-none sm:ms-auto sm:mt-0 sm:w-56 sm:px-0">
+    <search className="order-last mt-2 w-full px-2.5 sm:order-0 sm:ms-auto sm:mt-0 sm:w-56 sm:px-0">
       <Input
         type="search"
         aria-label="Search your Libraries"

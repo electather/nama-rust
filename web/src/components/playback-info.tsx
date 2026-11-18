@@ -20,7 +20,9 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
   const { decided, context } = wordReasons(plan.reasons);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (!open || event.key !== "Escape") return;
+      if (!open || event.key !== "Escape") {
+        return;
+      }
       // Esc otherwise leaves the player (`useShortcuts`), wherever focus is, so this listens on the
       // document too, and first.
       event.preventDefault();
@@ -49,7 +51,7 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
         <section
           id={panelId}
           aria-label="Playback info"
-          className="absolute end-0 top-full mt-2 w-72 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
+          className="absolute inset-e-0 top-full mt-2 w-72 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
         >
           <h2 className="font-medium">{methodName(plan.method)}</h2>
           <Reasons texts={decided} />
@@ -62,7 +64,9 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
 }
 
 function Reasons({ texts }: { texts: string[] }) {
-  if (texts.length === 0) return null;
+  if (texts.length === 0) {
+    return null;
+  }
   return (
     <ul className="mt-1 space-y-1 text-muted-foreground">
       {texts.map((text) => (
@@ -74,7 +78,9 @@ function Reasons({ texts }: { texts: string[] }) {
 
 /** The reasons that are only context, folded away until opened. */
 function MoreReasons({ texts }: { texts: string[] }) {
-  if (texts.length === 0) return null;
+  if (texts.length === 0) {
+    return null;
+  }
   return (
     <details className="mt-2">
       <summary className="cursor-pointer">More</summary>

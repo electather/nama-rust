@@ -1,7 +1,6 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-
-import type { MessageInitShape } from "@bufbuild/protobuf";
 
 import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
@@ -16,6 +15,7 @@ import { fakeServer, newUser, openApp } from "./test-app";
 
 /** What each PGS renderer drew, as text, whether the next one fails to start, and how many ended. */
 const bitsub = vi.hoisted(() => ({ drawn: [] as string[], failsToStart: false, disposed: 0 }));
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("libbitsub", () => ({
   PgsRenderer: class {
     constructor({

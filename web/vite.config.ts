@@ -58,22 +58,36 @@ export default defineConfig({
     reporters: ci ? ["default", "json"] : ["default"],
     outputFile: { json: "test-results/vitest.json" },
   },
+  // The formatter owns import and class order, so no lint rule competes with it.
   fmt: {
     ignorePatterns: generated,
+    sortImports: true,
+    sortTailwindcss: { stylesheet: "src/styles.css", functions: ["cn", "cva"] },
   },
   lint: {
     ignorePatterns: generated,
     plugins: ["typescript", "react", "jsx-a11y", "import", "unicorn", "promise", "oxc", "vitest"],
     jsPlugins: [
+      // Runs inside oxlint, so it doesn't break "Only `vp`" (web/AGENTS.md).
+      "eslint-plugin-better-tailwindcss",
       { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
       // Design-system rules, read from components.json and src/styles.css.
       { name: "shadcn", specifier: "@shadcn/lint" },
     ],
+    // Nursery rules change between oxlint versions. vite-plus is pinned in the workspace catalog,
+    // so an upgrade is a deliberate PR that fixes whatever new nursery hits appear.
     categories: {
       correctness: "error",
       suspicious: "error",
       pedantic: "error",
       perf: "error",
+      style: "error",
+      restriction: "error",
+      nursery: "error",
+    },
+    env: { browser: true, es2024: true },
+    settings: {
+      "better-tailwindcss": { entryPoint: "src/styles.css" },
     },
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
@@ -83,12 +97,47 @@ export default defineConfig({
       "shadcn/no-inline-styles": "error",
       "shadcn/no-unknown-classes": "error",
       "shadcn/require-static-classes": "error",
-      // Picked from `restriction`.
-      eqeqeq: "error",
-      "no-console": "error",
-      "no-debugger": "error",
-      "no-alert": "error",
-      "no-var": "error",
+      "better-tailwindcss/no-conflicting-classes": "error",
+      "better-tailwindcss/no-duplicate-classes": "error",
+      "better-tailwindcss/no-deprecated-classes": "error",
+      "better-tailwindcss/no-unnecessary-whitespace": "error",
+      "better-tailwindcss/no-concatenated-classes": "error",
+      "better-tailwindcss/enforce-canonical-classes": "error",
+      "better-tailwindcss/enforce-shorthand-classes": "error",
+      // web/AGENTS.md, "Logical properties": only left and right. Block-axis and sizing classes
+      // (`mt-*`, `top-*`, `border-b`, `w-full`, `size-4`) stay, since `mbs-*` and `inline-full`
+      // would change nothing for right-to-left. A pattern sees the class with its variants.
+      "better-tailwindcss/enforce-logical-properties": [
+        "error",
+        {
+          ignore: [
+            "(^|:)-?(scroll-)?[mp][tb]-",
+            "(^|:)-?(top|bottom)-",
+            "(^|:)border-[tb](-|$)",
+            "(^|:)(min-|max-)?[hw]-",
+            "(^|:)size-",
+          ],
+        },
+      ],
+      // `enforce-consistent-class-order` is left off: the formatter sorts classes.
+      // `enforce-consistent-line-wrapping` is left off: it fights the formatter.
+      "func-style": ["error", "declaration", { allowArrowFunctions: true }],
+      curly: ["error", "all"],
+      // `void promise` marks a promise deliberately not awaited; nothing else uses `void`.
+      "no-void": ["error", { allowAsStatement: true }],
+      "oxc/no-barrel-file": ["error", { threshold: 0 }],
+      // A mixed import marks its types inline. An all-type import stays `import type`, since
+      // `import { type A }` leaves a side-effect import behind under `verbatimModuleSyntax`
+      // (`no-import-type-side-effects`). So `consistent-type-specifier-style` stays off: its
+      // `prefer-inline` rewrites every `import type` into exactly that.
+      "typescript/consistent-type-imports": ["error", { fixStyle: "inline-type-imports" }],
+      "import/consistent-type-specifier-style": "off",
+      "typescript/consistent-type-definitions": ["error", "interface"],
+      // `$param` route files are named by TanStack Router.
+      "unicorn/filename-case": ["error", { case: "kebabCase", ignore: [String.raw`^\$`] }],
+      "react/jsx-filename-extension": ["error", { extensions: [".tsx"] }],
+      // Tests are flat `test`s, inside a `describe` too.
+      "vitest/consistent-test-it": ["error", { fn: "test", withinDescribe: "test" }],
       "typescript/no-explicit-any": "error",
       "typescript/no-non-null-assertion": "error",
       // The router's `redirect()` and `notFound()` are thrown, and aren't `Error`s.
@@ -111,7 +160,92 @@ export default defineConfig({
       // React props (`children: ReactNode`) and library callback arguments can't be deeply
       // readonly, so this flags every component and callback.
       "typescript/prefer-readonly-parameter-types": "off",
+      // The formatter sorts imports.
+      "sort-imports": "off",
+      // Taste only: strictness should buy bug-catching, not churn.
+      "one-var": "off",
+      "sort-keys": "off",
+      "no-ternary": "off",
+      "init-declarations": "off",
+      "id-length": "off",
+      // Mostly test data.
+      "no-magic-numbers": "off",
+      // Its fix breaks `ponytail:` markers and comments that start with an identifier.
+      "capitalized-comments": "off",
+      // They contradict named exports.
+      "import/no-named-export": "off",
+      "import/prefer-default-export": "off",
+      "import/group-exports": "off",
+      "import/exports-last": "off",
+      // React, the DOM and protobuf all use `null`.
+      "unicorn/no-null": "off",
+      // `exactOptionalPropertyTypes` needs `undefined`.
+      "no-undefined": "off",
+      // Files read top-down: a component first, the helpers it uses after.
+      "no-use-before-define": "off",
+      // shadcn's components pass `{...props}` on.
+      "react/jsx-props-no-spreading": "off",
+      // shadcn's `no-restyle` covers it.
+      "react/forbid-component-props": "off",
+      // Fallow's complexity and file-size limits cover them.
+      "max-statements": "off",
+      "import/max-dependencies": "off",
+      "max-lines": "off",
+      "max-lines-per-function": "off",
+      "vitest/max-expects": "off",
+      // Callback APIs (timers, events, `<img>` loading) have to be wrapped in a promise.
+      "promise/avoid-new": "off",
+      // Rules for old ES targets.
+      "oxc/no-async-await": "off",
+      "oxc/no-optional-chaining": "off",
+      "oxc/no-rest-spread-properties": "off",
+      // They contradict how the tests are written: flat `test`s, `beforeEach` setup, imported
+      // globals, and Vitest's default timeout.
+      "vitest/require-top-level-describe": "off",
+      "vitest/prefer-expect-assertions": "off",
+      "vitest/require-test-timeout": "off",
+      "vitest/no-hooks": "off",
+      "vitest/no-importing-vitest-globals": "off",
+      // They conflict with `prefer-strict-boolean-matchers`.
+      "vitest/prefer-to-be-truthy": "off",
+      "vitest/prefer-to-be-falsy": "off",
+      // React Compiler port messages, not findings. (`react_perf` isn't loaded: inline handlers
+      // are fine in React 19.)
+      "react/todo": "off",
+      // Components return JSX, and the router's types can't be written out by hand.
+      "typescript/explicit-function-return-type": "off",
+      "typescript/explicit-module-boundary-types": "off",
+      // Comes with the PR that adds translations.
+      "react/jsx-no-literals": "off",
+      // Need a person to fix every hit, so they're on only where code has moved into the feature
+      // layout (#1133). Legacy code meets them as it moves.
+      "react/no-multi-comp": "off",
+      "react/only-export-components": "off",
+      "react/jsx-handler-names": "off",
+      "react/jsx-max-depth": "off",
+      "typescript/promise-function-async": "off",
+      "typescript/explicit-member-accessibility": "off",
+      "max-params": "off",
+      "prefer-named-capture-group": "off",
+      "class-methods-use-this": "off",
+      "no-empty-function": "off",
+      "unicorn/prefer-global-this": "off",
+      "unicorn/no-await-expression-member": "off",
+      "unicorn/no-array-reduce": "off",
+      "promise/prefer-await-to-then": "off",
+      "vitest/prefer-strict-equal": "off",
+      "vitest/require-hook": "off",
     },
+    overrides: [
+      // An ambient module declaration (`declare module "…"`) has to be a script.
+      { files: ["src/*.d.ts"], rules: { "import/unambiguous": "off" } },
+      // Vite reads its config's default export, in Node.
+      {
+        files: ["vite.config.ts"],
+        env: { node: true },
+        rules: { "import/no-default-export": "off", "import/no-nodejs-modules": "off" },
+      },
+    ],
     options: { typeAware: true, typeCheck: true },
   },
 });

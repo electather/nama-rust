@@ -65,11 +65,15 @@ export function wordReasons(reasons: PlaybackReason[]) {
  */
 function reasonText({ kind, params, text }: PlaybackReason) {
   const wording = wordings[kind];
-  if (wording === undefined) return text;
+  if (wording === undefined) {
+    return text;
+  }
   try {
     return wording(named(params));
   } catch (error) {
-    if (error instanceof Unworded) return text;
+    if (error instanceof UnwordedError) {
+      return text;
+    }
     throw error;
   }
 }
@@ -150,10 +154,12 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
 };
 
 /** Thrown by a wording whose reason lacks a param it needs, or holds one this app can't name. */
-class Unworded extends Error {}
+class UnwordedError extends Error {
+  public override name = "UnwordedError";
+}
 
 function unworded(): never {
-  throw new Unworded();
+  throw new UnwordedError();
 }
 
 /** A reason's `params`, each named the way the rest of the app names it. */
@@ -180,7 +186,11 @@ function count(decimal: string) {
 
 /** What `names` calls the value of `schema` a param holds by its name there (`PLAYBACK_LIMIT_720P`). */
 function nameOf<T extends number>(schema: GenEnum<T>, names: Map<T, string>, param: string) {
-  for (const [value, name] of names) if (schema.value[value].name === param) return name;
+  for (const [value, name] of names) {
+    if (schema.value[value].name === param) {
+      return name;
+    }
+  }
   return unworded();
 }
 
@@ -192,7 +202,9 @@ const containerNames = new Map<Container, string>([
 
 /** A `Container` value's name, or else ffprobe's name for one the schema lacks, in capitals. */
 function containerName(name: string) {
-  if (!name.startsWith("CONTAINER_")) return name.toUpperCase();
+  if (!name.startsWith("CONTAINER_")) {
+    return name.toUpperCase();
+  }
   return nameOf(ContainerSchema, containerNames, name);
 }
 

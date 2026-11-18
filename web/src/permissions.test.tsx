@@ -34,7 +34,7 @@ test("saved Permissions are there after reloading", async () => {
   openApp("/admin/users", server);
   fireEvent.click(await screen.findByText("Alex"));
 
-  expect(await screen.findByRole("checkbox", { name: "Manage Libraries" })).toHaveProperty(
+  await expect(screen.findByRole("checkbox", { name: "Manage Libraries" })).resolves.toHaveProperty(
     "checked",
     true,
   );
@@ -93,7 +93,7 @@ test.each([
   fireEvent.click(await screen.findByRole("checkbox", { name: "Admin" }));
   fireEvent.click(screen.getByRole("button", { name: "Save Permissions" }));
 
-  expect(await screen.findByText(shown)).toBeDefined();
+  await expect(screen.findByText(shown)).resolves.toBeDefined();
 });
 
 test("removing your own Admin Permission leaves the Admin pages", async () => {
@@ -129,7 +129,9 @@ test("removing your own Admin Permission leaves the Admin pages", async () => {
   fireEvent.click(await screen.findByRole("checkbox", { name: "Admin" }));
   fireEvent.click(screen.getByRole("button", { name: "Save Permissions" }));
 
-  expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
+  await expect(
+    screen.findByRole("heading", { name: "You can’t open this page" }),
+  ).resolves.toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
@@ -186,7 +188,9 @@ test("without the Admin Permission, only a non-Admin's Permissions can be change
   fireEvent.click(screen.getByText("Alex"));
   fireEvent.click(screen.getByText("Pat"));
 
-  expect(await screen.findAllByRole("button", { name: "Save Permissions" })).toHaveLength(1);
+  await expect(screen.findAllByRole("button", { name: "Save Permissions" })).resolves.toHaveLength(
+    1,
+  );
   expect(screen.getByRole("checkbox", { name: "Request" })).toBeDefined();
   expect(screen.queryByRole("checkbox", { name: "Admin" })).toBeNull();
 });
@@ -207,7 +211,7 @@ test("saved default Permissions are named on the Users page after reloading", as
   );
   openApp("/admin/users", server);
 
-  expect(await screen.findByText("Request · View Requests")).toBeDefined();
+  await expect(screen.findByText("Request · View Requests")).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Change" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Request" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Request Movies" }));
@@ -216,7 +220,7 @@ test("saved default Permissions are named on the Users page after reloading", as
   cleanup();
   openApp("/admin/users", server);
 
-  expect(await screen.findByText("Request Movies · View Requests")).toBeDefined();
+  await expect(screen.findByText("Request Movies · View Requests")).resolves.toBeDefined();
   expect(defaults).toEqual([Permission.VIEW_REQUESTS, Permission.REQUEST_MOVIE]);
 });
 

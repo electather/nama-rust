@@ -31,7 +31,9 @@ export function ArtworkChoices({
   onPicked: (url: string) => void;
 }) {
   const id = useId();
-  if (urls.length === 0) return null;
+  if (urls.length === 0) {
+    return null;
+  }
   return (
     <>
       <p id={id} className="mt-2 text-sm text-muted-foreground">

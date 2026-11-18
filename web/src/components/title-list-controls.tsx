@@ -35,7 +35,7 @@ export interface BarProps {
  */
 export function TitleListControls({ genres, ...bar }: BarProps & { genres: string[] }) {
   return (
-    <div className="mt-6 flex flex-wrap items-center gap-x-1 gap-y-2 -ms-4">
+    <div className="-ms-4 mt-6 flex flex-wrap items-center gap-x-1 gap-y-2">
       <SortControls {...bar} />
       <FilterControls genres={genres} {...bar} />
     </div>
@@ -183,7 +183,9 @@ function GenreMenu({ listing, change, genres }: BarProps & { genres: string[] })
 
 /** "All", "Crime", "Crime +2": the genres turned on, short enough for a phone's bar. */
 function chosenGenres([first, ...more]: string[]) {
-  if (first === undefined) return "All";
+  if (first === undefined) {
+    return "All";
+  }
   return more.length === 0 ? first : `${first} +${more.length}`;
 }
 
@@ -211,8 +213,11 @@ function YearInput({
         onChange={(event) => {
           const text = event.target.value;
           setTyped(text);
-          if (text === "") change();
-          else if (/^\d{4}$/u.test(text)) change(Number(text));
+          if (text === "") {
+            change();
+          } else if (/^\d{4}$/u.test(text)) {
+            change(Number(text));
+          }
         }}
       />
     </div>

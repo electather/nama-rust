@@ -33,7 +33,9 @@ function HomeRow({ row }: { row: HomeRowMessage }) {
     page: rowPage,
   });
   const items = data?.titles.flatMap(titleItem) ?? [];
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return null;
+  }
   return (
     <section aria-labelledby={headingId} className="mt-10">
       <h2 id={headingId} className="font-medium">
@@ -46,8 +48,12 @@ function HomeRow({ row }: { row: HomeRowMessage }) {
 
 function titleItem({ movieOrShow }: HomeRowTitle) {
   const { case: kind, value } = movieOrShow;
-  if (kind === "movie") return [<MovieInLibraryItem key={key(value)} movie={value} />];
-  if (kind === "show") return [<ShowInLibraryItem key={key(value)} show={value} />];
+  if (kind === "movie") {
+    return [<MovieInLibraryItem key={key(value)} movie={value} />];
+  }
+  if (kind === "show") {
+    return [<ShowInLibraryItem key={key(value)} show={value} />];
+  }
   return [];
 }
 

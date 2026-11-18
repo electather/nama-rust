@@ -112,9 +112,9 @@ test("a failed test shows the Plugin’s error and leaves the choice locked", as
 
   await pressTest();
 
-  expect(
-    await (await plugin("test-choices")).findByText("The service refused the API key."),
-  ).toBeDefined();
+  await expect(
+    (await plugin("test-choices")).findByText("The service refused the API key."),
+  ).resolves.toBeDefined();
   expect((await profile()).disabled).toBe(true);
 });
 

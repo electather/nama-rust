@@ -45,7 +45,9 @@ function server(
     router.service(RequestService, {
       getRequest: () => {
         const found = request();
-        if (found === undefined) throw new ConnectError("no such Request", Code.NotFound);
+        if (found === undefined) {
+          throw new ConnectError("no such Request", Code.NotFound);
+        }
         return { request: found };
       },
       listRequests: () => ({ requests: [heat] }),
@@ -87,7 +89,7 @@ test.each(["/requests/9", "/requests/heat", "/requests/99999999999999999999"])(
       server(() => {}),
     );
 
-    expect(await screen.findByText(removed)).toBeDefined();
+    await expect(screen.findByText(removed)).resolves.toBeDefined();
     expect(screen.getByRole("link", { name: "All Requests" })).toBeDefined();
   },
 );
@@ -104,7 +106,7 @@ test("a Request cancelled while its page is open says it was removed, without a 
   request = undefined;
   events.send({ event: { case: "requestCancelled", value: { request: heat } } });
 
-  expect(await screen.findByText(removed)).toBeDefined();
+  await expect(screen.findByText(removed)).resolves.toBeDefined();
   expect(screen.queryByText("Heat")).toBeNull();
 });
 
@@ -117,5 +119,5 @@ test("a link Telegram sent to a Request's row lands on the Request's page", asyn
   await waitFor(() => {
     expect(router.state.location.pathname).toBe("/requests/2");
   });
-  expect(await screen.findByText("Heat")).toBeDefined();
+  await expect(screen.findByText("Heat")).resolves.toBeDefined();
 });

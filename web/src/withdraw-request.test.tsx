@@ -1,4 +1,4 @@
-import { type MessageInitShape } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -40,11 +40,11 @@ test("withdrawing from your Pending Request takes you off it", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: "Withdraw from Heat" }));
 
-  expect(await screen.findByText("Requested by Ada")).toBeDefined();
+  await expect(screen.findByText("Requested by Ada")).resolves.toBeDefined();
   expect(screen.queryByRole("button", { name: "Withdraw from Heat" })).toBeNull();
 });
 
-test("Withdraw is offered only on your own Pending Requests", async () => {
+test("withdraw is offered only on your own Pending Requests", async () => {
   openApp(
     "/requests",
     server(

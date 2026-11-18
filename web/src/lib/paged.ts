@@ -51,7 +51,9 @@ export function usePaged<I extends DescMessage, O extends DescMessage>(
   const query = useSuspenseInfiniteQuery(pagedQuery(method, input, useTransport()));
   const counted = totalSizeIn(query.data.pages[0]);
   const [totalSize, setTotalSize] = useState(counted);
-  if (counted !== undefined && counted !== totalSize) setTotalSize(counted);
+  if (counted !== undefined && counted !== totalSize) {
+    setTotalSize(counted);
+  }
   return { ...query, totalSize };
 }
 

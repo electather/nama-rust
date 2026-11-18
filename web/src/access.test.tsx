@@ -53,7 +53,9 @@ test.each(["/", "/libraries/1", "/sign-in", "/admin/users"])(
   async (path) => {
     const router = openApp(path, fakeServer({ setupRequired: true }));
 
-    expect(await screen.findByRole("heading", { name: "Set up Living Room" })).toBeDefined();
+    await expect(
+      screen.findByRole("heading", { name: "Set up Living Room" }),
+    ).resolves.toBeDefined();
     expect(router.state.location.pathname).toBe("/setup");
   },
 );
@@ -70,7 +72,7 @@ test("setting up creates the first Admin and lands on the home page", async () =
   const router = openApp("/setup", transport);
 
   await submitSetup("ABCD-EFGH");
-  expect(await screen.findByRole("link", { name: "Admin" })).toBeDefined();
+  await expect(screen.findByRole("link", { name: "Admin" })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/");
 });
 
@@ -156,7 +158,9 @@ test("signing in never redirects to another site", async () => {
 test("a User who manages nothing opening an Admin page is told they can't, and has no Admin link", async () => {
   openApp("/admin/users", fakeServer({ signedIn: newUser }));
 
-  expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
+  await expect(
+    screen.findByRole("heading", { name: "You can’t open this page" }),
+  ).resolves.toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
@@ -198,7 +202,9 @@ test.each(["/admin/users", "/admin/plugins", "/admin/plugins/tmdb"])(
   async (path) => {
     openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
 
-    expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
+    await expect(
+      screen.findByRole("heading", { name: "You can’t open this page" }),
+    ).resolves.toBeDefined();
     expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
   },
 );
@@ -210,7 +216,7 @@ test("a wrong password shows an error and keeps the username", async () => {
   );
 
   await submitSignIn("wrong");
-  expect(await screen.findByText("That username and password don’t match.")).toBeDefined();
+  await expect(screen.findByText("That username and password don’t match.")).resolves.toBeDefined();
   expect(screen.getByLabelText<HTMLInputElement>("Username").value).toBe("Sam");
   expect(router.state.location.pathname).toBe("/sign-in");
 });
@@ -222,7 +228,7 @@ test("a rate-limited sign-in says to try again in a moment", async () => {
   );
 
   await submitSignIn();
-  expect(await screen.findByText(/try again in a moment/iu)).toBeDefined();
+  await expect(screen.findByText(/try again in a moment/iu)).resolves.toBeDefined();
 });
 
 test("signing out goes to /sign-in", async () => {

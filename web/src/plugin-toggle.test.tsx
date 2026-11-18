@@ -2,7 +2,7 @@ import { Code, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { PluginKind, PluginPermission, PluginService } from "@/gen/nama/v1/plugin_pb";
+import { PluginKind, PluginPermission, type PluginService } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
 import { openPlugin, openPlugins, plugin, row } from "./test-plugins";

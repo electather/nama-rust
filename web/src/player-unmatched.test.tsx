@@ -73,13 +73,13 @@ function alienUnmatched(planned: bigint[], signedIn: ServerState["signedIn"] = n
   };
 }
 
-test("Play on a Not matched Item plays its Version, titled by what its name says", async () => {
+test("play on a Not matched Item plays its Version, titled by what its name says", async () => {
   const planned: bigint[] = [];
   openApp("/libraries/1", alienUnmatched(planned).transport);
 
   fireEvent.click(await screen.findByRole("link", { name: "Play Alien (1979)" }));
 
-  expect(await screen.findByLabelText("Alien (1979)")).toBeDefined();
+  await expect(screen.findByLabelText("Alien (1979)")).resolves.toBeDefined();
   expect(planned).toEqual([7n]);
 });
 
@@ -95,8 +95,8 @@ test("an Unmatched Item Matched while it plays keeps playing", async () => {
   });
   // The refusal reaches the page a few ticks after the Server sends it.
   await act(async () => {
-    await new Promise((settled) => {
-      setTimeout(settled, 20);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
     });
   });
 
@@ -106,7 +106,7 @@ test("an Unmatched Item Matched while it plays keeps playing", async () => {
 test("an Unmatched Item says its progress isn’t saved, without Match it for a member", async () => {
   openApp("/libraries/1/unmatched/7/play", alienUnmatched([]).transport);
 
-  expect(await screen.findByText("Not matched, so progress isn’t saved.")).toBeDefined();
+  await expect(screen.findByText("Not matched, so progress isn’t saved.")).resolves.toBeDefined();
   expect(screen.queryByRole("button", { name: "Match it" })).toBeNull();
 });
 
@@ -124,7 +124,7 @@ test("the note goes once the Item is Matched elsewhere while it plays", async ()
   expect(screen.getByLabelText("Alien (1979)")).toBeDefined();
 });
 
-test("Match it, for an Admin, opens the Item's Match flow, and the note goes once it's Matched", async () => {
+test("match it, for an Admin, opens the Item's Match flow, and the note goes once it's Matched", async () => {
   const server = alienUnmatched([], admin);
   openApp("/libraries/1/unmatched/7/play", server.transport);
 
@@ -140,7 +140,7 @@ test("Match it, for an Admin, opens the Item's Match flow, and the note goes onc
   expect(screen.getByLabelText("Alien (1979)")).toBeDefined();
 });
 
-test("Needs a Match plays each Unmatched Item's Version", async () => {
+test("needs a Match plays each Unmatched Item's Version", async () => {
   const films = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, folders: ["/srv/films"] };
   const item = { ...ALIEN, itemId: 3n, path: "/srv/films/Alien (1979).mkv" };
   openApp(

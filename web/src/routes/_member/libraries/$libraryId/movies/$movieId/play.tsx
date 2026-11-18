@@ -21,7 +21,9 @@ function PlayMovie() {
   const { version } = Route.useSearch();
   const params = Route.useParams();
   // An Event removed it since the loader ran.
-  if (!movie || isGone(error)) return <DeletedWhilePlaying />;
+  if (!movie || isGone(error)) {
+    return <DeletedWhilePlaying />;
+  }
   const { id, tracks } = versionToPlay(movie.versions, version);
   return (
     <Player

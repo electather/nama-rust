@@ -246,7 +246,9 @@ function limitPicked(value: string) {
 
 /** Why the Server refused the Playback settings, under their field, or `{}` while it hasn't. */
 function playbackSettingsErrors(error: ConnectError | null) {
-  if (error === null) return {};
+  if (error === null) {
+    return {};
+  }
   return refusal(
     error,
     "save the playback settings",

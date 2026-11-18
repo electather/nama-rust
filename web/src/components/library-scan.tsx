@@ -24,7 +24,9 @@ export function ScanStatus({ libraryId, idle }: { libraryId: bigint; idle?: stri
 
 /** The scan's progress as a bar, while it's counting files. */
 function ScanBar({ scan }: { scan: ScanState | undefined }) {
-  if (scan?.$typeName !== "nama.v1.ScanProgress") return null;
+  if (scan?.$typeName !== "nama.v1.ScanProgress") {
+    return null;
+  }
   return (
     <progress
       value={Number(scan.filesDone)}
@@ -36,7 +38,9 @@ function ScanBar({ scan }: { scan: ScanState | undefined }) {
 }
 
 function scanSentence(scan: ScanState) {
-  if (scan.$typeName === "nama.v1.ScanStarted") return "Scanning…";
+  if (scan.$typeName === "nama.v1.ScanStarted") {
+    return "Scanning…";
+  }
   if (scan.$typeName === "nama.v1.ScanProgress") {
     return `Scanning: ${scan.filesDone} of ${scan.filesTotal} files`;
   }
@@ -72,7 +76,9 @@ export function ScanButton({ library }: { library: Library }) {
  * unmounted drive does, with a way to remove what's missing from it once the Admin knows it's gone.
  */
 export function EmptyFolders({ library }: { library: Library }) {
-  if (library.emptyFolders.length === 0) return null;
+  if (library.emptyFolders.length === 0) {
+    return null;
+  }
   return (
     <ul aria-label="Folders that look empty" className="mt-6 flex max-w-xl flex-col gap-3">
       {library.emptyFolders.map((folder) => (

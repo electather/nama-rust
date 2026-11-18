@@ -31,7 +31,9 @@ export function PluginConnections() {
           : false,
     },
   );
-  if (!data || data.connections.length === 0) return null;
+  if (!data || data.connections.length === 0) {
+    return null;
+  }
   return (
     <section aria-labelledby="connections" className="mt-12 max-w-2xl">
       <h2 id="connections" className="font-medium">
@@ -152,7 +154,9 @@ function failure(error: ConnectError | null, attempt: string) {
 
 /** Where the User's connection to the Plugin `name` is, in plain words. */
 function status(state: PluginConnectionState, name: string) {
-  if (state === PluginConnectionState.WAITING) return `Open ${name} and press Start.`;
+  if (state === PluginConnectionState.WAITING) {
+    return `Open ${name} and press Start.`;
+  }
   return state === PluginConnectionState.CONNECTED ? "Connected" : "Not connected";
 }
 

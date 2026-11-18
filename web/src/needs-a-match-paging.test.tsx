@@ -34,13 +34,13 @@ function pagingServer(titles: string[], asked: ListUnmatchedItemsRequest[]) {
   });
 }
 
-test("Needs a Match lists a Library's next page of Items with Show more", async () => {
+test("needs a Match lists a Library's next page of Items with Show more", async () => {
   const asked: ListUnmatchedItemsRequest[] = [];
   openApp("/admin/needs-a-match", pagingServer(["Alien", "Heat"], asked));
 
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
 
-  expect(await screen.findByText("/srv/films/Heat.mkv")).toBeDefined();
+  await expect(screen.findByText("/srv/films/Heat.mkv")).resolves.toBeDefined();
   expect(screen.getByText("/srv/films/Alien.mkv")).toBeDefined();
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   expect(asked.map((request) => request.filter?.libraryId)).toEqual([films.id, films.id]);

@@ -113,15 +113,20 @@ function ConfirmForm({
     try {
       await onConfirm(typed);
       close();
-    } catch (caught) {
-      setError(refusal(caught));
+    } catch (error_) {
+      setError(refusal(error_));
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={onSubmitted((typed) => void confirm(typed))}>
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={onSubmitted((typed) => {
+        void confirm(typed);
+      })}
+    >
       <h2 id={`${id}-title`} className="text-lg font-semibold tracking-tight text-balance">
         {title}
       </h2>

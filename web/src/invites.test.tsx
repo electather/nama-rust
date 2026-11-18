@@ -9,7 +9,7 @@ import {
   type CreateInviteRequest,
   InviteSchema,
   type ListInvitesResponseSchema,
-  UserService,
+  type UserService,
 } from "@/gen/nama/v1/user_pb";
 
 import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
@@ -46,7 +46,7 @@ test("without a Server URL, the Users page offers no way to make an Invite", asy
     ),
   );
 
-  expect(await screen.findByText(/needs this Server’s Server URL/u)).toBeDefined();
+  await expect(screen.findByText(/needs this Server’s Server URL/u)).resolves.toBeDefined();
   expect(screen.queryByRole("button", { name: "Make an Invite" })).toBeNull();
 });
 
@@ -140,7 +140,7 @@ test("opening an Invite's link, picking a name and password lands signed in", as
   fill("Password", "correct horse");
   fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
-  expect(await screen.findByRole("link", { name: "Settings" })).toBeDefined();
+  await expect(screen.findByRole("link", { name: "Settings" })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/");
   expect(sent?.token).toBe("abc");
   expect(sent?.delivery).toBe(SessionDelivery.COOKIE);
@@ -169,5 +169,5 @@ test("a taken name is shown next to its field, and an Invite that no longer work
   refusal = refused(Code.NotFound, "gone", { reason: RefusalReason.INVITE_NOT_FOUND });
   fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
-  expect(await screen.findByText(/This Invite no longer works/u)).toBeDefined();
+  await expect(screen.findByText(/This Invite no longer works/u)).resolves.toBeDefined();
 });

@@ -56,7 +56,7 @@ export function ImageSettingsForm() {
         min={1}
         required={false}
         defaultValue={settings.resizedCacheMib}
-        hint={`The most disk, in MiB, the resized copies take. Past it, those shown least recently are deleted, and made again when they’re next shown. Leave it empty for 1024\u00A0MiB.`}
+        hint="The most disk, in MiB, the resized copies take. Past it, those shown least recently are deleted, and made again when they’re next shown. Leave it empty for 1024 MiB."
         error={errors.resizedCacheMib}
       />
       <FormEnd
@@ -105,7 +105,9 @@ function typedSettings(typed: FormData) {
 
 /** Why the Server refused the image settings, under their field, or `{}` while it hasn't. */
 function imageSettingsErrors(error: ConnectError | null) {
-  if (error === null) return {};
+  if (error === null) {
+    return {};
+  }
   return refusal(
     error,
     "save the image settings",

@@ -37,7 +37,9 @@ export async function queryOrNotFound<I extends DescMessage, O extends DescMessa
       staleTime: "static",
     });
   } catch (error) {
-    if (isCode(error, Code.NotFound) || isCode(error, Code.InvalidArgument)) throw notFound();
+    if (isCode(error, Code.NotFound) || isCode(error, Code.InvalidArgument)) {
+      throw notFound();
+    }
     throw error;
   }
 }
@@ -53,7 +55,9 @@ export function isGone(error: unknown) {
 export async function libraryFromParam(context: RouterContext, param: string) {
   const { libraries } = await queryOrNotFound(context, LibraryService.method.listLibraries, {});
   const library = libraries.find(({ id }) => String(id) === param);
-  if (!library) throw notFound();
+  if (!library) {
+    throw notFound();
+  }
   return library;
 }
 
@@ -76,7 +80,9 @@ export function titleParam(id: ExternalId | undefined) {
 export function externalIdFromParam(param: string) {
   const [, namespace, value] = /^([a-z0-9]+)-(.+)$/u.exec(param) ?? [];
   try {
-    if (namespace === undefined || value === undefined) throw notFound();
+    if (namespace === undefined || value === undefined) {
+      throw notFound();
+    }
     return create(ExternalIdSchema, { namespace, value: decodeURIComponent(value) });
   } catch {
     throw notFound();
@@ -259,7 +265,9 @@ function largestVersion(versions: Version[]) {
 
 /** A whole number in the URL, such as a `$season`, or the router's not-found if it isn't one. */
 export function wholeNumberFromParam(param: string) {
-  if (!/^\d{1,15}$/u.test(param)) throw notFound();
+  if (!/^\d{1,15}$/u.test(param)) {
+    throw notFound();
+  }
   return Number(param);
 }
 

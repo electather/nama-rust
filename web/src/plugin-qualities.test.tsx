@@ -156,5 +156,5 @@ test("a Fulfiller for Shows has Qualities too", async () => {
 
   await plugin("Sonarr");
 
-  expect(await screen.findByRole("heading", { name: "Qualities" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Qualities" })).resolves.toBeDefined();
 });

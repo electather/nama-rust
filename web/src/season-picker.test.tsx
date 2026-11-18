@@ -1,7 +1,10 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   DownloadStatus,
   FollowedShowSchema,
@@ -12,11 +15,6 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { Code } from "@connectrpc/connect";
-
-import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
-import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
 import { eventFeed, fakeServer, fill, newUser, openApp } from "./test-app";
 import { refused } from "./test-refusal";
@@ -92,7 +90,9 @@ const dark = {
 /** The row of the picker that lists the Season named `name`. */
 function seasonRow(name: string) {
   const row = screen.getByRole("checkbox", { name }).closest("li");
-  if (row === null) throw new Error(`${name} has no row`);
+  if (row === null) {
+    throw new Error(`${name} has no row`);
+  }
   return row;
 }
 
@@ -103,13 +103,13 @@ function checkbox(name: string) {
 test("picking Seasons 1 and 2 and Requesting them shows both as Pending, without a reload", async () => {
   const { transport, asked } = showServer(dark);
   openApp("/shows/tmdb-70523", transport);
-  expect(await screen.findByRole("heading", { name: "Dark" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Dark" })).resolves.toBeDefined();
 
   fireEvent.click(checkbox("Season 1"));
   fireEvent.click(checkbox("Season 2"));
   fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
 
-  expect(await within(seasonRow("Season 1")).findByText("Pending")).toBeDefined();
+  await expect(within(seasonRow("Season 1")).findByText("Pending")).resolves.toBeDefined();
   expect(within(seasonRow("Season 2")).getByText("Pending")).toBeDefined();
   expect(within(seasonRow("Season 3")).queryByText("Pending")).toBeNull();
   expect(asked).toEqual([[1, 2]]);
@@ -132,7 +132,7 @@ test("a Season someone else Requests meanwhile shows its state from the Events s
   show.seasons[2] = create(FoundSeasonSchema, { seasonNumber: 3, request });
   events.send({ event: { case: "requestCreated", value: { request } } });
 
-  expect(await within(seasonRow("Season 3")).findByText("Pending")).toBeDefined();
+  await expect(within(seasonRow("Season 3")).findByText("Pending")).resolves.toBeDefined();
   expect(checkbox("Season 3").disabled).toBe(false);
 });
 
@@ -202,7 +202,7 @@ test("a Season someone else Requested shows its state, and Requesting it joins",
   expect(within(seasonRow("Season 1")).getByText("Approved")).toBeDefined();
 });
 
-test("Requesting with no Season picked says to pick one", async () => {
+test("requesting with no Season picked says to pick one", async () => {
   const { transport, asked } = showServer(dark);
   openApp("/shows/tmdb-70523", transport);
   await screen.findByRole("heading", { name: "Dark" });
@@ -250,7 +250,7 @@ test("a User who may Request only Shows searches only Shows", async () => {
   fill("Find a Show", "Dark");
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
-  expect(await screen.findByRole("region", { name: "Shows for “Dark”" })).toBeDefined();
+  await expect(screen.findByRole("region", { name: "Shows for “Dark”" })).resolves.toBeDefined();
   expect(screen.queryByRole("region", { name: "Movies for “Dark”" })).toBeNull();
 });
 
@@ -258,7 +258,7 @@ test("a Show's page is not found for a User who may not Request Shows", async ()
   const { transport } = showServer(dark, [Permission.REQUEST_MOVIE]);
   openApp("/shows/tmdb-70523", transport);
 
-  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
 });
 
 test("picking Whole Show leaves out the Seasons, and Requesting it shows it Pending", async () => {
@@ -271,7 +271,7 @@ test("picking Whole Show leaves out the Seasons, and Requesting it shows it Pend
   const seasonsWhilePicked = [checkbox("Season 1").disabled, checkbox("Season 3").disabled];
   fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
 
-  expect(await within(seasonRow("Whole Show")).findByText("Pending")).toBeDefined();
+  await expect(within(seasonRow("Whole Show")).findByText("Pending")).resolves.toBeDefined();
   expect(seasonsWhilePicked).toEqual([true, true]);
   expect(followed).toEqual(["tmdb-70523"]);
   expect(asked).toEqual([]);

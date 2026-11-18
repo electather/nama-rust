@@ -56,8 +56,10 @@ export function getRouter(transport: Transport = sameOrigin) {
     const now = (await whoIsSignedIn({ queryClient, transport }))?.user;
     // The Server lists Permissions in one order, so the same set joins the same.
     const changed =
-      now?.id !== before?.id || now?.permissions.join() !== before?.permissions.join();
-    if (changed) await router.invalidate();
+      now?.id !== before?.id || now?.permissions.join(",") !== before?.permissions.join(",");
+    if (changed) {
+      await router.invalidate();
+    }
   }
 
   return router;

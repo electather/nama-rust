@@ -84,7 +84,9 @@ function SubtitlesForm({ saved }: { saved: UsersSubtitlePreference | undefined }
       onSubmit={onSubmitted((typed) => {
         const subtitle = wanted(language, typed);
         setUnlisted(subtitle === undefined);
-        if (subtitle !== undefined) save.mutate({ subtitle });
+        if (subtitle !== undefined) {
+          save.mutate({ subtitle });
+        }
       })}
     >
       <LanguageField
@@ -151,7 +153,9 @@ function AudioForm({ saved }: { saved: UsersAudioPreference | undefined }) {
       onSubmit={onSubmitted(() => {
         const audio = wantedAudio(language);
         setUnlisted(audio === undefined);
-        if (audio !== undefined) save.mutate({ audio });
+        if (audio !== undefined) {
+          save.mutate({ audio });
+        }
       })}
     >
       <LanguageField
@@ -259,7 +263,9 @@ function comparable(text: string) {
  * `undefined` for a language not on the list. The switch is off unless shown and checked.
  */
 function wanted(typed: string, chosen: FormData) {
-  if (isNone(typed, OFF)) return {};
+  if (isNone(typed, OFF)) {
+    return {};
+  }
   const language = languageCode(typed);
   const kind = kindOf(formText(chosen, "kind"));
   const foreignAudioOnly = chosen.has("foreignAudioOnly");
@@ -268,7 +274,9 @@ function wanted(typed: string, chosen: FormData) {
 
 /** The Audio Preference the language `typed` asks for, `undefined` for a language not on the list. */
 function wantedAudio(typed: string) {
-  if (isNone(typed, FILES_DEFAULT)) return {};
+  if (isNone(typed, FILES_DEFAULT)) {
+    return {};
+  }
   const language = languageCode(typed);
   return language === undefined ? undefined : { language };
 }
@@ -280,7 +288,9 @@ function savedKind(saved: UsersSubtitlePreference | undefined) {
 
 /** Why the `attempt` to save the language `typed` was refused with `error`, if it was. */
 function languageErrors(error: unknown, typed: string, attempt: string) {
-  if (error === null || error === undefined) return {};
+  if (error === null || error === undefined) {
+    return {};
+  }
   return refusal(
     error,
     attempt,

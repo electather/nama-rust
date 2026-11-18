@@ -12,13 +12,13 @@ import {
   PlaybackService,
   VideoCodec,
 } from "@/gen/nama/v1/playback_pb";
-
 import type { WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
 
 import { fakeServer, newUser, openApp } from "./test-app";
 
 /** What each hls.js player was given: the playlist it loads and the `<video>` it plays in. */
 const hlsJs = vi.hoisted(() => ({ played: [] as { url: string; video: HTMLMediaElement }[] }));
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
   default: class {
     static Events = { ERROR: "hlsError" };
@@ -95,7 +95,9 @@ const serverPlanning = ({
         asked.push(request);
         const failed =
           !ignoresFailures && request.failedMethods.includes(PlaybackMethod.DIRECT_PLAY);
-        if (failed) return { plan: { reasons: saying(directPlayFailed) } };
+        if (failed) {
+          return { plan: { reasons: saying(directPlayFailed) } };
+        }
         return { plan: planned(request) };
       },
     });
@@ -155,7 +157,7 @@ test("a file the browser fails to load is planned again from where it started, w
 
   fireEvent.error(await findVideo());
 
-  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(screen.getByText(directPlayFailed)).toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
   expect(asked.map((request) => request.failedMethods)).toEqual([[], [PlaybackMethod.DIRECT_PLAY]]);
@@ -165,8 +167,12 @@ test("a file the browser fails to load is planned again from where it started, w
 /** As the real Server plans a file in a container the Device decodes: Direct Play, then a Remux. */
 const remuxOnceDirectPlayFails: Planned = (request) => {
   const failed = (method: PlaybackMethod) => request.failedMethods.includes(method);
-  if (failed(PlaybackMethod.REMUX)) return { reasons: saying(directPlayFailed, "Remux failed") };
-  if (failed(PlaybackMethod.DIRECT_PLAY)) return { ...remux(), reasons: saying(directPlayFailed) };
+  if (failed(PlaybackMethod.REMUX)) {
+    return { reasons: saying(directPlayFailed, "Remux failed") };
+  }
+  if (failed(PlaybackMethod.DIRECT_PLAY)) {
+    return { ...remux(), reasons: saying(directPlayFailed) };
+  }
   return directPlay(request);
 };
 
@@ -198,7 +204,7 @@ test("a Direct Play that fails mid-film goes on as a Remux from there, until tha
 
   fireEvent.error(remuxing);
 
-  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(screen.getByText("Remux failed")).toBeDefined();
 });
 
@@ -214,14 +220,14 @@ test("a method that fails again gives up instead of asking for plans in a loop",
 
   fireEvent.error(await findVideo());
 
-  expect(await screen.findByText(/This browser can’t play it/u)).toBeDefined();
+  await expect(screen.findByText(/This browser can’t play it/u)).resolves.toBeDefined();
   expect(asked).toHaveLength(2);
 });
 
 test("a Version whose plan says it can't play shows the reasons that decided it instead of the player", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: cantPlay }));
 
-  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(screen.getByText(cantDecode)).toBeDefined();
   expect(screen.queryByText("Hardware acceleration is off")).toBeNull();
   expect(screen.queryByText(/This browser can’t play it/u)).toBeNull();
@@ -240,6 +246,7 @@ test("the plan request says what this Device decodes", async () => {
   });
   vi.stubGlobal(
     "AudioContext",
+    // oxlint-disable-next-line prefer-arrow-callback -- the player calls it with `new`, which an arrow can't answer.
     vi.fn(function audioContext() {
       return { destination: { maxChannelCount: 6 }, close: () => Promise.resolve() };
     }),
@@ -295,6 +302,6 @@ test("a Remux plays its HLS playlist natively in a browser with HLS of its own",
 test("an address with no title to play keeps the app chrome, so there's a way out", async () => {
   openApp("/libraries/2/movies/tmdb-603/play", server);
 
-  expect(await screen.findByText("Page not found")).toBeDefined();
+  await expect(screen.findByText("Page not found")).resolves.toBeDefined();
   expect(screen.getByRole("navigation", { name: "Main" })).toBeDefined();
 });

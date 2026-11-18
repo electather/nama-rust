@@ -101,19 +101,26 @@ async function follow(
   resubscribing = false,
 ) {
   const catchUp = () => {
-    if (resubscribing) forgetMissed(queryClient);
-    else void queryClient.invalidateQueries({ queryKey: unmatchedKey() });
+    if (resubscribing) {
+      forgetMissed(queryClient);
+    } else {
+      void queryClient.invalidateQueries({ queryKey: unmatchedKey() });
+    }
   };
   try {
     const client = createClient(EventService, transport);
     const responses = client.subscribe({ types }, { signal, onHeader: catchUp });
-    for await (const response of responses) apply(response, queryClient);
+    for await (const response of responses) {
+      apply(response, queryClient);
+    }
   } catch {
     // The Server went away or hung up, or the session ended and the routes' access checks will
     // notice. Subscribing again below is all there is to do.
   }
   setTimeout(() => {
-    if (!signal.aborted) void follow(transport, queryClient, signal, true);
+    if (!signal.aborted) {
+      void follow(transport, queryClient, signal, true);
+    }
   }, RESUBSCRIBE_MS);
 }
 
@@ -207,7 +214,9 @@ function refreshBrowsing({ event }: Event, queryClient: QueryClient) {
 
 /** Refetches a Library when its scan finishes, which records the folders that look empty. */
 function refreshLibrary({ event }: Event, queryClient: QueryClient) {
-  if (event.case !== "scanFinished") return;
+  if (event.case !== "scanFinished") {
+    return;
+  }
   const input = { id: event.value.libraryId };
   const method = LibraryService.method.getLibrary;
   const queryKey = createConnectQueryKey({ schema: method, input, cardinality: "finite" });
