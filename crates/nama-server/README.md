@@ -70,7 +70,7 @@ Commit the changes under `.sqlx/`. CI's `rust-check` job runs `cargo sqlx prepar
 
 ## Serving the web app
 
-The `web` feature embeds the web app's build output (`web/dist/client`) and serves it (`src/web.rs`). It's off by default, so building and testing the Server needs no Node. Release builds turn it on in `dist-workspace.toml`. To work with it, build the web app first (see `web/README.md`):
+The `web` feature embeds the web app's build output (`web/dist`) and serves it (`src/web.rs`). It's off by default, so building and testing the Server needs no Node. Release builds turn it on in `dist-workspace.toml`. To work with it, build the web app first (see `web/README.md`):
 
 ```sh
 vp -C web build

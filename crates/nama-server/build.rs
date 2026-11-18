@@ -5,9 +5,8 @@
 //! its folder's name. `bundling.rs` picks those folders.
 //!
 //! With the `web` feature, it also embeds the built web app so a release is one binary (ADR 0004).
-//! It writes `web_assets.rs` to `OUT_DIR` for `src/web.rs`: `SHELL`, the prerendered
-//! `_shell.html`, and `asset`, which looks up every file `vp build` wrote to `web/dist/client` by
-//! its URL path.
+//! It writes `web_assets.rs` to `OUT_DIR` for `src/web.rs`: `SHELL`, the app's `index.html`, and
+//! `asset`, which looks up every file `vp build` wrote to `web/dist` by its URL path.
 
 use std::{
     env,
@@ -28,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if env::var_os("CARGO_FEATURE_WEB").is_none() {
         return Ok(());
     }
-    let client = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../../web/dist/client");
+    let client = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../../web/dist");
     println!("cargo:rerun-if-changed={}", client.display());
     let client = client.canonicalize().map_err(|err| {
         format!(
@@ -39,7 +38,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut files = Vec::new();
     list_files(&client, &mut files)?;
-    let shell = client.join("_shell.html");
+    let shell = client.join("index.html");
     if !files.contains(&shell) {
         return Err(format!("{} is missing: run `vp build` in web/", shell.display()).into());
     }

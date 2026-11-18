@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- Dark only for now (ADR 0016). -->
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nama</title>
+    <!-- Living-room black (DESIGN.md), as in `public/manifest.webmanifest`: a meta tag can't read a token. -->
+    <meta name="theme-color" content="#0a0a0a" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
