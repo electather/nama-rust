@@ -177,6 +177,9 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REPLACE_QUALITIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REPLACE_QUALITIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLUGIN_LOG_LINES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLUGIN_LOG_LINES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_LOG_LINE_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_SUMMARY_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_JSON_ANY);
         reg.register_json_any(super::__EXTENSION_POINT_FAILURE_JSON_ANY);
@@ -814,6 +817,18 @@ pub use self::__buffa::view::ReplaceQualitiesRequestOwnedView;
 pub use self::__buffa::view::ReplaceQualitiesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ReplaceQualitiesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginLogLinesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginLogLinesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginLogLinesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginLogLinesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginLogLineView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginLogLineOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::PluginSummaryView;
 #[doc(inline)]

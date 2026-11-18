@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/plugin.proto.
  */
 export const file_nama_v1_plugin: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiLSAQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRIZChFmb3Jnb3R0ZW5fc2VjcmV0cxgDIAMoCRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIlkKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkSNgoTZ3JhbnRlZF9wZXJtaXNzaW9ucxgCIAMoDjIZLm5hbWEudjEuUGx1Z2luUGVybWlzc2lvbiIWChRFbmFibGVQbHVnaW5SZXNwb25zZSKzAQoZVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdBIKCgJpZBgBIAEoCRJCCghzZXR0aW5ncxgCIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdC5TZXR0aW5nc0VudHJ5GkYKDVNldHRpbmdzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWU6AjgBIqgBChpUZXN0UGx1Z2luU2V0dGluZ3NSZXNwb25zZRJBCgdjaG9pY2VzGAEgAygLMjAubmFtYS52MS5UZXN0UGx1Z2luU2V0dGluZ3NSZXNwb25zZS5DaG9pY2VzRW50cnkaRwoMQ2hvaWNlc0VudHJ5EgsKA2tleRgBIAEoCRImCgV2YWx1ZRgCIAEoCzIXLm5hbWEudjEuU2V0dGluZ0Nob2ljZXM6AjgBIjIKDlNldHRpbmdDaG9pY2VzEiAKB2Nob2ljZXMYASADKAsyDy5uYW1hLnYxLkNob2ljZSImCgZDaG9pY2USDQoFdmFsdWUYASABKAkSDQoFbGFiZWwYAiABKAkiIgoURGlzYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFwoVRGlzYWJsZVBsdWdpblJlc3BvbnNlImAKB1F1YWxpdHkSCgoCaWQYASABKAMSEgoKcHJvZmlsZV9pZBgCIAEoCRIMCgRuYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhIKCmlzX2RlZmF1bHQYBSABKAgiIgoUTGlzdFF1YWxpdGllc1JlcXVlc3QSCgoCaWQYASABKAkiPAoVTGlzdFF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eSJKChdSZXBsYWNlUXVhbGl0aWVzUmVxdWVzdBIKCgJpZBgBIAEoCRIjCglxdWFsaXRpZXMYAiADKAsyEC5uYW1hLnYxLlF1YWxpdHkiPwoYUmVwbGFjZVF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eSKRAwoNUGx1Z2luU3VtbWFyeRIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEiEKBGtpbmQYAyABKA4yEy5uYW1hLnYxLlBsdWdpbktpbmQSDwoHZW5hYmxlZBgEIAEoCBIWCg5yZWZ1c2VkX3JlYXNvbhgFIAEoCRIYChBzZXR0aW5nc19taXNzaW5nGAYgASgIEgwKBG5hbWUYByABKAkSEwoLZGVzY3JpcHRpb24YCCABKAkSMQoQZXh0ZW5zaW9uX3BvaW50cxgJIAMoDjIXLm5hbWEudjEuRXh0ZW5zaW9uUG9pbnQSEAoIbG9nb191cmwYCyABKAkSEwoLY3VzdG9tX2xvZ28YDCABKAgSOAoVcmVxdWVzdGVkX3Blcm1pc3Npb25zGA0gAygOMhkubmFtYS52MS5QbHVnaW5QZXJtaXNzaW9uEjYKE2dyYW50ZWRfcGVybWlzc2lvbnMYDiADKA4yGS5uYW1hLnYxLlBsdWdpblBlcm1pc3Npb25KBAgKEAtSCGxvZ29fc3ZnIssCCgZQbHVnaW4SJwoHc3VtbWFyeRgMIAEoCzIWLm5hbWEudjEuUGx1Z2luU3VtbWFyeRIiCghzZXR0aW5ncxgFIAMoCzIQLm5hbWEudjEuU2V0dGluZxIXCg9jaGVja3Nfc2V0dGluZ3MYBiABKAgSMAoIZmFpbHVyZXMYDiADKAsyHi5uYW1hLnYxLkV4dGVuc2lvblBvaW50RmFpbHVyZUoECAEQAkoECAIQA0oECAMQBEoECAQQBUoECAcQCEoECAgQCUoECAkQCkoECAoQC0oECAsQDEoECA0QDlICaWRSB3ZlcnNpb25SBGtpbmRSB2VuYWJsZWRSDnJlZnVzZWRfcmVhc29uUgRuYW1lUgtkZXNjcmlwdGlvblIQZXh0ZW5zaW9uX3BvaW50c1IIbG9nb19zdmdSEnJlY29nbmlzZXJfZmFpbHVyZSJ7ChVFeHRlbnNpb25Qb2ludEZhaWx1cmUSJgoFcG9pbnQYASABKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50EhIKCmxhc3RfZXJyb3IYAiABKAkSDQoFYXRfbXMYAyABKAMSFwoPZmFpbGVkX2luX2Ffcm93GAQgASgNIqQCCgdTZXR0aW5nEgsKA2tleRgBIAEoCRINCgVsYWJlbBgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCRIiCgRraW5kGAQgASgOMhQubmFtYS52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIsCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWUSJAoFdmFsdWUYByABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRISCgpzZWNyZXRfc2V0GAggASgIEhYKCW1pbl92YWx1ZRgJIAEoA0gAiAEBEhYKCW1heF92YWx1ZRgKIAEoA0gBiAEBQgwKCl9taW5fdmFsdWVCDAoKX21heF92YWx1ZSKIAQoMU2V0dGluZ1ZhbHVlEhQKCnRleHRfdmFsdWUYASABKAlIABIUCgpib29sX3ZhbHVlGAIgASgISAASFwoNaW50ZWdlcl92YWx1ZRgDIAEoA0gAEioKC2xpYnJhcnlfaWRzGAQgASgLMhMubmFtYS52MS5MaWJyYXJ5SWRzSABCBwoFdmFsdWUiGQoKTGlicmFyeUlkcxILCgNpZHMYASADKAMqXgoKUGx1Z2luS2luZBIbChdQTFVHSU5fS0lORF9VTlNQRUNJRklFRBAAEhgKFFBMVUdJTl9LSU5EX0JVSUxUX0lOEAESGQoVUExVR0lOX0tJTkRfSU5TVEFMTEVEEAIqjAIKEFBsdWdpblBlcm1pc3Npb24SIQodUExVR0lOX1BFUk1JU1NJT05fVU5TUEVDSUZJRUQQABIbChdQTFVHSU5fUEVSTUlTU0lPTl9TVE9SRRABEiQKIFBMVUdJTl9QRVJNSVNTSU9OX1JFQURfTElCUkFSSUVTEAISJwojUExVR0lOX1BFUk1JU1NJT05fUkVBRF9XQVRDSF9TVEFURVMQAxIiCh5QTFVHSU5fUEVSTUlTU0lPTl9ERUxFVEVfTUVESUEQBBIgChxQTFVHSU5fUEVSTUlTU0lPTl9SRUFEX1VTRVJTEAUSIwofUExVR0lOX1BFUk1JU1NJT05fUkVBRF9SRVFVRVNUUxAGKq4DCg5FeHRlbnNpb25Qb2ludBIfChtFWFRFTlNJT05fUE9JTlRfVU5TUEVDSUZJRUQQABIjCh9FWFRFTlNJT05fUE9JTlRfTU9WSUVfRlVMRklMTEVSEAESIgoeRVhURU5TSU9OX1BPSU5UX1NIT1dfRlVMRklMTEVSEAISHAoYRVhURU5TSU9OX1BPSU5UX05PVElGSUVSEAMSHQoZRVhURU5TSU9OX1BPSU5UX0NPTk5FQ1RPUhAEEiEKHUVYVEVOU0lPTl9QT0lOVF9BVVRIRU5USUNBVE9SEAUSIAocRVhURU5TSU9OX1BPSU5UX1RJVExFX1NPVVJDRRAGEiMKH0VYVEVOU0lPTl9QT0lOVF9FVkVOVFNfT0JTRVJWRVIQBxIrCidFWFRFTlNJT05fUE9JTlRfU0VSVkVSX1NUQVJURURfT0JTRVJWRVIQCBIeChpFWFRFTlNJT05fUE9JTlRfUkVDT0dOSVNFUhAJEh4KGkVYVEVOU0lPTl9QT0lOVF9CTE9CX1NUT1JFEAoSHgoaRVhURU5TSU9OX1BPSU5UX0FVVE9NQVRJT04QCyrXAQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhcKE1NFVFRJTkdfS0lORF9DSE9JQ0UQBRIUChBTRVRUSU5HX0tJTkRfVVJMEAYSGgoWU0VUVElOR19LSU5EX0xJQlJBUklFUxAHMsoFCg1QbHVnaW5TZXJ2aWNlEk0KC0xpc3RQbHVnaW5zEhsubmFtYS52MS5MaXN0UGx1Z2luc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3RQbHVnaW5zUmVzcG9uc2UiA5ACARJHCglHZXRQbHVnaW4SGS5uYW1hLnYxLkdldFBsdWdpblJlcXVlc3QaGi5uYW1hLnYxLkdldFBsdWdpblJlc3BvbnNlIgOQAgESaAoUVXBkYXRlUGx1Z2luU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVBsdWdpblNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXNwb25zZSIDkAICElAKDEVuYWJsZVBsdWdpbhIcLm5hbWEudjEuRW5hYmxlUGx1Z2luUmVxdWVzdBodLm5hbWEudjEuRW5hYmxlUGx1Z2luUmVzcG9uc2UiA5ACAhJdChJUZXN0UGx1Z2luU2V0dGluZ3MSIi5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QaIy5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlElMKDURpc2FibGVQbHVnaW4SHS5uYW1hLnYxLkRpc2FibGVQbHVnaW5SZXF1ZXN0Gh4ubmFtYS52MS5EaXNhYmxlUGx1Z2luUmVzcG9uc2UiA5ACAhJTCg1MaXN0UXVhbGl0aWVzEh0ubmFtYS52MS5MaXN0UXVhbGl0aWVzUmVxdWVzdBoeLm5hbWEudjEuTGlzdFF1YWxpdGllc1Jlc3BvbnNlIgOQAgESXAoQUmVwbGFjZVF1YWxpdGllcxIgLm5hbWEudjEuUmVwbGFjZVF1YWxpdGllc1JlcXVlc3QaIS5uYW1hLnYxLlJlcGxhY2VRdWFsaXRpZXNSZXNwb25zZSIDkAICYgZwcm90bzM");
+  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiLSAQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRIZChFmb3Jnb3R0ZW5fc2VjcmV0cxgDIAMoCRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIlkKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkSNgoTZ3JhbnRlZF9wZXJtaXNzaW9ucxgCIAMoDjIZLm5hbWEudjEuUGx1Z2luUGVybWlzc2lvbiIWChRFbmFibGVQbHVnaW5SZXNwb25zZSKzAQoZVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdBIKCgJpZBgBIAEoCRJCCghzZXR0aW5ncxgCIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdC5TZXR0aW5nc0VudHJ5GkYKDVNldHRpbmdzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWU6AjgBIqgBChpUZXN0UGx1Z2luU2V0dGluZ3NSZXNwb25zZRJBCgdjaG9pY2VzGAEgAygLMjAubmFtYS52MS5UZXN0UGx1Z2luU2V0dGluZ3NSZXNwb25zZS5DaG9pY2VzRW50cnkaRwoMQ2hvaWNlc0VudHJ5EgsKA2tleRgBIAEoCRImCgV2YWx1ZRgCIAEoCzIXLm5hbWEudjEuU2V0dGluZ0Nob2ljZXM6AjgBIjIKDlNldHRpbmdDaG9pY2VzEiAKB2Nob2ljZXMYASADKAsyDy5uYW1hLnYxLkNob2ljZSImCgZDaG9pY2USDQoFdmFsdWUYASABKAkSDQoFbGFiZWwYAiABKAkiIgoURGlzYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFwoVRGlzYWJsZVBsdWdpblJlc3BvbnNlImAKB1F1YWxpdHkSCgoCaWQYASABKAMSEgoKcHJvZmlsZV9pZBgCIAEoCRIMCgRuYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhIKCmlzX2RlZmF1bHQYBSABKAgiIgoUTGlzdFF1YWxpdGllc1JlcXVlc3QSCgoCaWQYASABKAkiPAoVTGlzdFF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eSJKChdSZXBsYWNlUXVhbGl0aWVzUmVxdWVzdBIKCgJpZBgBIAEoCRIjCglxdWFsaXRpZXMYAiADKAsyEC5uYW1hLnYxLlF1YWxpdHkiPwoYUmVwbGFjZVF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eSInChlMaXN0UGx1Z2luTG9nTGluZXNSZXF1ZXN0EgoKAmlkGAEgASgJIkMKGkxpc3RQbHVnaW5Mb2dMaW5lc1Jlc3BvbnNlEiUKBWxpbmVzGAEgAygLMhYubmFtYS52MS5QbHVnaW5Mb2dMaW5lIlQKDVBsdWdpbkxvZ0xpbmUSDQoFYXRfbXMYASABKAMSJgoFbGV2ZWwYAiABKA4yFy5uYW1hLnYxLlBsdWdpbkxvZ0xldmVsEgwKBHRleHQYAyABKAkikQMKDVBsdWdpblN1bW1hcnkSCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSFgoOcmVmdXNlZF9yZWFzb24YBSABKAkSGAoQc2V0dGluZ3NfbWlzc2luZxgGIAEoCBIMCgRuYW1lGAcgASgJEhMKC2Rlc2NyaXB0aW9uGAggASgJEjEKEGV4dGVuc2lvbl9wb2ludHMYCSADKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50EhAKCGxvZ29fdXJsGAsgASgJEhMKC2N1c3RvbV9sb2dvGAwgASgIEjgKFXJlcXVlc3RlZF9wZXJtaXNzaW9ucxgNIAMoDjIZLm5hbWEudjEuUGx1Z2luUGVybWlzc2lvbhI2ChNncmFudGVkX3Blcm1pc3Npb25zGA4gAygOMhkubmFtYS52MS5QbHVnaW5QZXJtaXNzaW9uSgQIChALUghsb2dvX3N2ZyLLAgoGUGx1Z2luEicKB3N1bW1hcnkYDCABKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnkSIgoIc2V0dGluZ3MYBSADKAsyEC5uYW1hLnYxLlNldHRpbmcSFwoPY2hlY2tzX3NldHRpbmdzGAYgASgIEjAKCGZhaWx1cmVzGA4gAygLMh4ubmFtYS52MS5FeHRlbnNpb25Qb2ludEZhaWx1cmVKBAgBEAJKBAgCEANKBAgDEARKBAgEEAVKBAgHEAhKBAgIEAlKBAgJEApKBAgKEAtKBAgLEAxKBAgNEA5SAmlkUgd2ZXJzaW9uUgRraW5kUgdlbmFibGVkUg5yZWZ1c2VkX3JlYXNvblIEbmFtZVILZGVzY3JpcHRpb25SEGV4dGVuc2lvbl9wb2ludHNSCGxvZ29fc3ZnUhJyZWNvZ25pc2VyX2ZhaWx1cmUiewoVRXh0ZW5zaW9uUG9pbnRGYWlsdXJlEiYKBXBvaW50GAEgASgOMhcubmFtYS52MS5FeHRlbnNpb25Qb2ludBISCgpsYXN0X2Vycm9yGAIgASgJEg0KBWF0X21zGAMgASgDEhcKD2ZhaWxlZF9pbl9hX3JvdxgEIAEoDSKkAgoHU2V0dGluZxILCgNrZXkYASABKAkSDQoFbGFiZWwYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSIgoEa2luZBgEIAEoDjIULm5hbWEudjEuU2V0dGluZ0tpbmQSEAoIcmVxdWlyZWQYBSABKAgSLAoNZGVmYXVsdF92YWx1ZRgGIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlEiQKBXZhbHVlGAcgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWUSEgoKc2VjcmV0X3NldBgIIAEoCBIWCgltaW5fdmFsdWUYCSABKANIAIgBARIWCgltYXhfdmFsdWUYCiABKANIAYgBAUIMCgpfbWluX3ZhbHVlQgwKCl9tYXhfdmFsdWUiiAEKDFNldHRpbmdWYWx1ZRIUCgp0ZXh0X3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYAyABKANIABIqCgtsaWJyYXJ5X2lkcxgEIAEoCzITLm5hbWEudjEuTGlicmFyeUlkc0gAQgcKBXZhbHVlIhkKCkxpYnJhcnlJZHMSCwoDaWRzGAEgAygDKqABCg5QbHVnaW5Mb2dMZXZlbBIgChxQTFVHSU5fTE9HX0xFVkVMX1VOU1BFQ0lGSUVEEAASGgoWUExVR0lOX0xPR19MRVZFTF9ERUJVRxABEhkKFVBMVUdJTl9MT0dfTEVWRUxfSU5GTxACEhkKFVBMVUdJTl9MT0dfTEVWRUxfV0FSThADEhoKFlBMVUdJTl9MT0dfTEVWRUxfRVJST1IQBCpeCgpQbHVnaW5LaW5kEhsKF1BMVUdJTl9LSU5EX1VOU1BFQ0lGSUVEEAASGAoUUExVR0lOX0tJTkRfQlVJTFRfSU4QARIZChVQTFVHSU5fS0lORF9JTlNUQUxMRUQQAiqMAgoQUGx1Z2luUGVybWlzc2lvbhIhCh1QTFVHSU5fUEVSTUlTU0lPTl9VTlNQRUNJRklFRBAAEhsKF1BMVUdJTl9QRVJNSVNTSU9OX1NUT1JFEAESJAogUExVR0lOX1BFUk1JU1NJT05fUkVBRF9MSUJSQVJJRVMQAhInCiNQTFVHSU5fUEVSTUlTU0lPTl9SRUFEX1dBVENIX1NUQVRFUxADEiIKHlBMVUdJTl9QRVJNSVNTSU9OX0RFTEVURV9NRURJQRAEEiAKHFBMVUdJTl9QRVJNSVNTSU9OX1JFQURfVVNFUlMQBRIjCh9QTFVHSU5fUEVSTUlTU0lPTl9SRUFEX1JFUVVFU1RTEAYqrgMKDkV4dGVuc2lvblBvaW50Eh8KG0VYVEVOU0lPTl9QT0lOVF9VTlNQRUNJRklFRBAAEiMKH0VYVEVOU0lPTl9QT0lOVF9NT1ZJRV9GVUxGSUxMRVIQARIiCh5FWFRFTlNJT05fUE9JTlRfU0hPV19GVUxGSUxMRVIQAhIcChhFWFRFTlNJT05fUE9JTlRfTk9USUZJRVIQAxIdChlFWFRFTlNJT05fUE9JTlRfQ09OTkVDVE9SEAQSIQodRVhURU5TSU9OX1BPSU5UX0FVVEhFTlRJQ0FUT1IQBRIgChxFWFRFTlNJT05fUE9JTlRfVElUTEVfU09VUkNFEAYSIwofRVhURU5TSU9OX1BPSU5UX0VWRU5UU19PQlNFUlZFUhAHEisKJ0VYVEVOU0lPTl9QT0lOVF9TRVJWRVJfU1RBUlRFRF9PQlNFUlZFUhAIEh4KGkVYVEVOU0lPTl9QT0lOVF9SRUNPR05JU0VSEAkSHgoaRVhURU5TSU9OX1BPSU5UX0JMT0JfU1RPUkUQChIeChpFWFRFTlNJT05fUE9JTlRfQVVUT01BVElPThALKtcBCgtTZXR0aW5nS2luZBIcChhTRVRUSU5HX0tJTkRfVU5TUEVDSUZJRUQQABIVChFTRVRUSU5HX0tJTkRfVEVYVBABEhcKE1NFVFRJTkdfS0lORF9TRUNSRVQQAhIVChFTRVRUSU5HX0tJTkRfQk9PTBADEhgKFFNFVFRJTkdfS0lORF9JTlRFR0VSEAQSFwoTU0VUVElOR19LSU5EX0NIT0lDRRAFEhQKEFNFVFRJTkdfS0lORF9VUkwQBhIaChZTRVRUSU5HX0tJTkRfTElCUkFSSUVTEAcyrgYKDVBsdWdpblNlcnZpY2USTQoLTGlzdFBsdWdpbnMSGy5uYW1hLnYxLkxpc3RQbHVnaW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdFBsdWdpbnNSZXNwb25zZSIDkAIBEkcKCUdldFBsdWdpbhIZLm5hbWEudjEuR2V0UGx1Z2luUmVxdWVzdBoaLm5hbWEudjEuR2V0UGx1Z2luUmVzcG9uc2UiA5ACARJoChRVcGRhdGVQbHVnaW5TZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlIgOQAgISUAoMRW5hYmxlUGx1Z2luEhwubmFtYS52MS5FbmFibGVQbHVnaW5SZXF1ZXN0Gh0ubmFtYS52MS5FbmFibGVQbHVnaW5SZXNwb25zZSIDkAICEl0KElRlc3RQbHVnaW5TZXR0aW5ncxIiLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdBojLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2USUwoNRGlzYWJsZVBsdWdpbhIdLm5hbWEudjEuRGlzYWJsZVBsdWdpblJlcXVlc3QaHi5uYW1hLnYxLkRpc2FibGVQbHVnaW5SZXNwb25zZSIDkAICElMKDUxpc3RRdWFsaXRpZXMSHS5uYW1hLnYxLkxpc3RRdWFsaXRpZXNSZXF1ZXN0Gh4ubmFtYS52MS5MaXN0UXVhbGl0aWVzUmVzcG9uc2UiA5ACARJcChBSZXBsYWNlUXVhbGl0aWVzEiAubmFtYS52MS5SZXBsYWNlUXVhbGl0aWVzUmVxdWVzdBohLm5hbWEudjEuUmVwbGFjZVF1YWxpdGllc1Jlc3BvbnNlIgOQAgISYgoSTGlzdFBsdWdpbkxvZ0xpbmVzEiIubmFtYS52MS5MaXN0UGx1Z2luTG9nTGluZXNSZXF1ZXN0GiMubmFtYS52MS5MaXN0UGx1Z2luTG9nTGluZXNSZXNwb25zZSIDkAIBYgZwcm90bzM");
 
 /**
  * @generated from message nama.v1.ListPluginsRequest
@@ -433,6 +433,78 @@ export const ReplaceQualitiesResponseSchema: GenMessage<ReplaceQualitiesResponse
   messageDesc(file_nama_v1_plugin, 18);
 
 /**
+ * @generated from message nama.v1.ListPluginLogLinesRequest
+ */
+export type ListPluginLogLinesRequest = Message<"nama.v1.ListPluginLogLinesRequest"> & {
+  /**
+   * The Plugin's id, such as `tmdb`.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message nama.v1.ListPluginLogLinesRequest.
+ * Use `create(ListPluginLogLinesRequestSchema)` to create a new message.
+ */
+export const ListPluginLogLinesRequestSchema: GenMessage<ListPluginLogLinesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 19);
+
+/**
+ * @generated from message nama.v1.ListPluginLogLinesResponse
+ */
+export type ListPluginLogLinesResponse = Message<"nama.v1.ListPluginLogLinesResponse"> & {
+  /**
+   * Newest first.
+   *
+   * @generated from field: repeated nama.v1.PluginLogLine lines = 1;
+   */
+  lines: PluginLogLine[];
+};
+
+/**
+ * Describes the message nama.v1.ListPluginLogLinesResponse.
+ * Use `create(ListPluginLogLinesResponseSchema)` to create a new message.
+ */
+export const ListPluginLogLinesResponseSchema: GenMessage<ListPluginLogLinesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 20);
+
+/**
+ * One line a Plugin logged.
+ *
+ * @generated from message nama.v1.PluginLogLine
+ */
+export type PluginLogLine = Message<"nama.v1.PluginLogLine"> & {
+  /**
+   * When it was logged, in milliseconds since the Unix epoch.
+   *
+   * @generated from field: int64 at_ms = 1;
+   */
+  atMs: bigint;
+
+  /**
+   * @generated from field: nama.v1.PluginLogLevel level = 2;
+   */
+  level: PluginLogLevel;
+
+  /**
+   * What it says, with the Plugin's secret settings blanked. A line over 2 KiB is cut there and
+   * ends ` [cut]`.
+   *
+   * @generated from field: string text = 3;
+   */
+  text: string;
+};
+
+/**
+ * Describes the message nama.v1.PluginLogLine.
+ * Use `create(PluginLogLineSchema)` to create a new message.
+ */
+export const PluginLogLineSchema: GenMessage<PluginLogLine> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 21);
+
+/**
  * What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings and whether it
  * has a settings check.
  *
@@ -542,7 +614,7 @@ export type PluginSummary = Message<"nama.v1.PluginSummary"> & {
  * Use `create(PluginSummarySchema)` to create a new message.
  */
 export const PluginSummarySchema: GenMessage<PluginSummary> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 19);
+  messageDesc(file_nama_v1_plugin, 22);
 
 /**
  * A unit of trusted functionality that plugs into a Server.
@@ -586,7 +658,7 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
  * Use `create(PluginSchema)` to create a new message.
  */
 export const PluginSchema: GenMessage<Plugin> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 20);
+  messageDesc(file_nama_v1_plugin, 23);
 
 /**
  * An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call
@@ -629,7 +701,7 @@ export type ExtensionPointFailure = Message<"nama.v1.ExtensionPointFailure"> & {
  * Use `create(ExtensionPointFailureSchema)` to create a new message.
  */
 export const ExtensionPointFailureSchema: GenMessage<ExtensionPointFailure> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 21);
+  messageDesc(file_nama_v1_plugin, 24);
 
 /**
  * One setting a Plugin takes, as its schema declares it, and its stored value.
@@ -711,7 +783,7 @@ export type Setting = Message<"nama.v1.Setting"> & {
  * Use `create(SettingSchema)` to create a new message.
  */
 export const SettingSchema: GenMessage<Setting> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 22);
+  messageDesc(file_nama_v1_plugin, 25);
 
 /**
  * A setting's value, of the setting's kind.
@@ -762,7 +834,7 @@ export type SettingValue = Message<"nama.v1.SettingValue"> & {
  * Use `create(SettingValueSchema)` to create a new message.
  */
 export const SettingValueSchema: GenMessage<SettingValue> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 23);
+  messageDesc(file_nama_v1_plugin, 26);
 
 /**
  * The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.
@@ -781,7 +853,54 @@ export type LibraryIds = Message<"nama.v1.LibraryIds"> & {
  * Use `create(LibraryIdsSchema)` to create a new message.
  */
 export const LibraryIdsSchema: GenMessage<LibraryIds> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 24);
+  messageDesc(file_nama_v1_plugin, 27);
+
+/**
+ * How much a Plugin Log line matters.
+ *
+ * @generated from enum nama.v1.PluginLogLevel
+ */
+export const PluginLogLevel = {
+  /**
+   * @generated from enum value: PLUGIN_LOG_LEVEL_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Detail for following what the Plugin does, also a Built-in Plugin's `trace` lines.
+   *
+   * @generated from enum value: PLUGIN_LOG_LEVEL_DEBUG = 1;
+   */
+  DEBUG: 1,
+
+  /**
+   * @generated from enum value: PLUGIN_LOG_LEVEL_INFO = 2;
+   */
+  INFO: 2,
+
+  /**
+   * @generated from enum value: PLUGIN_LOG_LEVEL_WARN = 3;
+   */
+  WARN: 3,
+
+  /**
+   * @generated from enum value: PLUGIN_LOG_LEVEL_ERROR = 4;
+   */
+  ERROR: 4,
+} as const;
+
+/**
+ * How much a Plugin Log line matters.
+ *
+ * @generated from enum nama.v1.PluginLogLevel
+ */
+export type PluginLogLevel = (typeof PluginLogLevel)[keyof typeof PluginLogLevel] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.PluginLogLevel.
+ */
+export const PluginLogLevelSchema: GenEnum<PluginLogLevel> = /*@__PURE__*/
+  enumDesc(file_nama_v1_plugin, 0);
 
 /**
  * Where a Plugin comes from.
@@ -821,7 +940,7 @@ export type PluginKind = (typeof PluginKind)[keyof typeof PluginKind] | UnknownE
  * Describes the enum nama.v1.PluginKind.
  */
 export const PluginKindSchema: GenEnum<PluginKind> = /*@__PURE__*/
-  enumDesc(file_nama_v1_plugin, 0);
+  enumDesc(file_nama_v1_plugin, 1);
 
 /**
  * What an Admin lets a Plugin do in the Server, as its Manifest requests (ADR 0049). These are
@@ -890,7 +1009,7 @@ export type PluginPermission = (typeof PluginPermission)[keyof typeof PluginPerm
  * Describes the enum nama.v1.PluginPermission.
  */
 export const PluginPermissionSchema: GenEnum<PluginPermission> = /*@__PURE__*/
-  enumDesc(file_nama_v1_plugin, 1);
+  enumDesc(file_nama_v1_plugin, 2);
 
 /**
  * A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
@@ -998,7 +1117,7 @@ export type ExtensionPoint = (typeof ExtensionPoint)[keyof typeof ExtensionPoint
  * Describes the enum nama.v1.ExtensionPoint.
  */
 export const ExtensionPointSchema: GenEnum<ExtensionPoint> = /*@__PURE__*/
-  enumDesc(file_nama_v1_plugin, 2);
+  enumDesc(file_nama_v1_plugin, 3);
 
 /**
  * What kind of value a setting takes.
@@ -1076,11 +1195,11 @@ export type SettingKind = (typeof SettingKind)[keyof typeof SettingKind] | Unkno
  * Describes the enum nama.v1.SettingKind.
  */
 export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
-  enumDesc(file_nama_v1_plugin, 3);
+  enumDesc(file_nama_v1_plugin, 4);
 
 /**
- * The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
- * `permission_denied` without it. A secret setting's value never leaves the Server. Every call
+ * The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, or
+ * `PERMISSION_ADMIN` for `ListPluginLogLines`, and fails with `permission_denied` without it. A secret setting's value never leaves the Server. Every call
  * but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails
  * with `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
  * settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
@@ -1207,6 +1326,18 @@ export const PluginService: GenService<{
     methodKind: "unary";
     input: typeof ReplaceQualitiesRequestSchema;
     output: typeof ReplaceQualitiesResponseSchema;
+  },
+  /**
+   * Returns the last 100 lines of a Plugin's Plugin Log that passed the Server's log filter, newest
+   * first. The Server keeps them in memory only, for an enabled Plugin: disabling it clears them,
+   * and so does a restart. A Plugin that isn't enabled, or that the Server doesn't have, has none.
+   *
+   * @generated from rpc nama.v1.PluginService.ListPluginLogLines
+   */
+  listPluginLogLines: {
+    methodKind: "unary";
+    input: typeof ListPluginLogLinesRequestSchema;
+    output: typeof ListPluginLogLinesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_plugin, 0);

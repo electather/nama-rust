@@ -1,10 +1,12 @@
 //! Diagnostics: the spans the Server records about itself, and the web app's that it forwards,
-//! exported only to an endpoint its admin sets (ADR 0054). What a span may carry is a rule in
+//! exported only to an endpoint its admin sets (ADR 0054), and each Plugin's recent Plugin Log
+//! lines, kept for its Plugins page (ADR 0061). What a span may carry is a rule in
 //! `crates/nama-server/AGENTS.md`.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap, VecDeque},
     env,
+    fmt::{self, Write as _},
     sync::{Arc, Mutex, OnceLock, PoisonError},
     time::{Duration, Instant, SystemTime},
 };
@@ -20,6 +22,7 @@ use connectrpc::{
     ConnectError, Interceptor, NextStream, PayloadStream,
     interceptor::{Next as NextUnary, StreamRequest, StreamResponse, UnaryRequest, UnaryResponse},
 };
+use nama_plugin_api::PluginId;
 use opentelemetry::{
     KeyValue,
     propagation::TextMapPropagator as _,
@@ -31,9 +34,10 @@ use opentelemetry_sdk::{
     trace::{SdkTracer, SdkTracerProvider},
 };
 use tracing::{
-    Dispatch, Event, Instrument as _, Span, Subscriber,
+    Dispatch, Event, Instrument as _, Level, Span, Subscriber,
     dispatcher::WeakDispatch,
     field::{Field, Visit},
+    span::{Attributes, Id},
 };
 use tracing_opentelemetry::{OpenTelemetrySpanExt as _, SetParentError, get_otel_context};
 use tracing_subscriber::{
@@ -43,11 +47,67 @@ use tracing_subscriber::{
     registry::LookupSpan,
 };
 
+use crate::db;
+
 /// The target sqlx logs each query it ran under, once it has run.
 const SQL_TARGET: &str = "sqlx::query";
 
 /// The target of a Plugin's lines and of the span naming a Built-in on stdout.
 pub(crate) const PLUGIN_TARGET: &str = "nama::plugin";
+
+/// The most of a Plugin Log line kept, in bytes, so a Plugin can't fill the log with one.
+pub(crate) const MAX_PLUGIN_LINE_BYTES: usize = 2048;
+
+/// How many of each Plugin's lines its Plugins page shows.
+const KEPT_PLUGIN_LINES: usize = 100;
+
+/// Each Plugin's last [`KEPT_PLUGIN_LINES`], oldest first, by its id. Process-wide, as the
+/// subscriber filling it is, and in memory only (ADR 0061).
+static PLUGIN_LINES: Mutex<BTreeMap<String, VecDeque<PluginLine>>> = Mutex::new(BTreeMap::new());
+
+/// A line of a Plugin's Plugin Log, as its Plugins page shows it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PluginLine {
+    pub(crate) at_ms: i64,
+    pub(crate) level: Level,
+    /// Cut at [`MAX_PLUGIN_LINE_BYTES`]. An Installed Plugin's arrives with its secrets blanked.
+    pub(crate) text: String,
+}
+
+/// The layer that keeps each Plugin's last lines for its Plugins page: those under the target
+/// `nama::plugin`, naming their Plugin in a `plugin` field, and those logged in a span under it,
+/// which names a Built-in. Filter it as stdout is, so it keeps the lines stdout shows.
+#[must_use]
+pub fn plugin_lines_layer<S>() -> impl Layer<S>
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
+    KeepPluginLines
+}
+
+/// The Plugin `plugin`'s last lines, newest first.
+pub(crate) fn plugin_lines(plugin: &PluginId) -> Vec<PluginLine> {
+    let kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
+    kept.get(plugin.as_str())
+        .map(|lines| lines.iter().rev().cloned().collect())
+        .unwrap_or_default()
+}
+
+/// Forgets the Plugin `plugin`'s lines, once it is disabled.
+pub(crate) fn forget_plugin_lines(plugin: &PluginId) {
+    let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
+    kept.remove(plugin.as_str());
+}
+
+/// Keeps `line` among `plugin`'s last lines, dropping its oldest past [`KEPT_PLUGIN_LINES`].
+fn keep_plugin_line(plugin: String, line: PluginLine) {
+    let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
+    let lines = kept.entry(plugin).or_default();
+    if lines.len() == KEPT_PLUGIN_LINES {
+        lines.pop_front();
+    }
+    lines.push_back(line);
+}
 
 /// The layer that exports the Server's spans through `provider`, each SQL query among them.
 ///
@@ -254,7 +314,93 @@ impl Visit for Query {
         }
     }
 
-    fn record_debug(&mut self, _field: &Field, _value: &dyn std::fmt::Debug) {}
+    fn record_debug(&mut self, _field: &Field, _value: &dyn fmt::Debug) {}
+}
+
+/// See [`plugin_lines_layer`].
+struct KeepPluginLines;
+
+/// The Plugin a span under [`PLUGIN_TARGET`] names, kept in its extensions.
+struct SpanPlugin(String);
+
+impl<S> Layer<S> for KeepPluginLines
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
+    fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+        if attrs.metadata().target() != PLUGIN_TARGET {
+            return;
+        }
+        let mut fields = LineFields::default();
+        attrs.record(&mut fields);
+        if let (Some(plugin), Some(span)) = (fields.plugin, ctx.span(id)) {
+            span.extensions_mut().insert(SpanPlugin(plugin));
+        }
+    }
+
+    fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        let mut fields = LineFields::default();
+        event.record(&mut fields);
+        let metadata = event.metadata();
+        let named = (fields.plugin.take()).filter(|_| metadata.target() == PLUGIN_TARGET);
+        let Some(plugin) = named.or_else(|| enclosing_plugin(event, &ctx)) else {
+            return;
+        };
+        let line = PluginLine {
+            at_ms: db::now_ms(),
+            level: *metadata.level(),
+            text: fields.text(),
+        };
+        keep_plugin_line(plugin, line);
+    }
+}
+
+/// The Plugin the innermost span around `event` under [`PLUGIN_TARGET`] names: a Built-in's.
+fn enclosing_plugin<S>(event: &Event<'_>, ctx: &Context<'_, S>) -> Option<String>
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
+    ctx.event_scope(event)?.find_map(|span| {
+        let extensions = span.extensions();
+        (extensions.get::<SpanPlugin>()).map(|SpanPlugin(plugin)| plugin.clone())
+    })
+}
+
+/// A line's fields as stdout shows them: its message, then each other field but `plugin`, which
+/// names its Plugin.
+#[derive(Default)]
+struct LineFields {
+    plugin: Option<String>,
+    message: String,
+    /// ` name=value` for each other field.
+    rest: String,
+}
+
+impl LineFields {
+    /// The line's text, cut at [`MAX_PLUGIN_LINE_BYTES`]. An Installed Plugin's line, cut already,
+    /// comes out the same.
+    fn text(self) -> String {
+        let mut text = self.message + &self.rest;
+        if text.len() > MAX_PLUGIN_LINE_BYTES {
+            text.truncate(text.floor_char_boundary(MAX_PLUGIN_LINE_BYTES));
+            text.push_str(" [cut]");
+        }
+        text
+    }
+}
+
+impl Visit for LineFields {
+    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
+        // Writing to a `String` can't fail.
+        let _: fmt::Result = match field.name() {
+            "plugin" => {
+                self.plugin = Some(format!("{value:?}"));
+                Ok(())
+            }
+            "message" => write!(self.message, "{value:?}"),
+            name => write!(self.rest, " {name}={value:?}"),
+        };
+    }
 }
 
 /// How many times one Device may post its spans in [`POSTS_WINDOW`]: its exporter sends a batch

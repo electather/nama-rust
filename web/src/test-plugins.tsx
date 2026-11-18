@@ -194,12 +194,14 @@ const libraries = [
 /**
  * A fake Server with `libraries` that lists `plugins`, gets each by id, and answers other calls
  * with `changes`, and other `LibraryService` calls, such as listing the Libraries, with `library`.
+ * A User with `signedIn` is signed in to it: by default, one who manages settings.
  */
 function pluginServer(
   changes: Partial<ServiceImpl<typeof PluginService>>,
   library: Partial<ServiceImpl<typeof LibraryService>> = {},
+  signedIn: Permission[] = [Permission.MANAGE_SETTINGS],
 ) {
-  const state = { signedIn: [Permission.MANAGE_SETTINGS], libraries, libraryService: library };
+  const state = { signedIn, libraries, libraryService: library };
   return fakeServer(state, {}, {}, (router) => {
     router.service(PluginService, {
       listPlugins: () => ({ summaries: plugins.map((listed) => summaryOf(listed)) }),
@@ -229,6 +231,14 @@ export function openPlugin(
   library: Partial<ServiceImpl<typeof LibraryService>> = {},
 ) {
   openApp(`/admin/plugins/${id}`, pluginServer(changes, library));
+}
+
+/** Opens the Plugin `id`'s details page as `openPlugin` does, signed in as an Admin. */
+export function openPluginAsAdmin(
+  id: string,
+  changes: Partial<ServiceImpl<typeof PluginService>> = {},
+) {
+  openApp(`/admin/plugins/${id}`, pluginServer(changes, {}, [Permission.ADMIN]));
 }
 
 /** The Plugins list's row for the Plugin shown as `name`: its name, or its id without one. */

@@ -354,6 +354,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC.procedure,   MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_LIST_QUALITIES_SPEC.procedure,         MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC.procedure,      MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_LIST_PLUGIN_LOG_LINES_SPEC.procedure,  ADMIN),
 ];
 
 /// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media

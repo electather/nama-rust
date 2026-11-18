@@ -533,6 +533,8 @@ impl Removed {
         if let Err(message) = log_span.in_scope(|| contain_sync(|| drop(self))) {
             error!(plugin = %id, message, "plugin panicked while being dropped");
         }
+        // After the drop, so what its `Drop` logged goes too.
+        diagnostics::forget_plugin_lines(id);
         info!(plugin = %id, "disabled plugin");
     }
 }

@@ -6,6 +6,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use tracing_subscriber::layer::SubscriberExt as _;
+
 use crate::server::WAIT;
 
 /// Everything the Server logs, to this test binary's one global subscriber: a thread-local one
@@ -26,7 +28,8 @@ impl Log {
             let subscriber = tracing_subscriber::fmt()
                 .with_max_level(tracing::Level::INFO)
                 .with_writer(move || writer.clone())
-                .finish();
+                .finish()
+                .with(nama_server::diagnostics::plugin_lines_layer());
             tracing::subscriber::set_global_default(subscriber).unwrap();
             log
         })

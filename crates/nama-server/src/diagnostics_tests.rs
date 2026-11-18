@@ -1,7 +1,12 @@
+use nama_plugin_api::PluginId;
 use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider};
+use tracing::Level;
 use tracing_subscriber::layer::SubscriberExt as _;
 
-use super::{following_current, layer, service_and_method};
+use super::{
+    PluginLine, following_current, forget_plugin_lines, keep_plugin_line, layer, plugin_lines,
+    service_and_method,
+};
 
 #[test]
 fn service_and_method_names_the_service_and_method_of_a_connect_path() {
@@ -53,4 +58,27 @@ fn following_current_joins_the_current_trace_without_holding_its_span_open() {
             caller_data.span_context.trace_id()
         );
     });
+}
+
+#[test]
+fn a_plugin_keeps_its_last_100_lines_newest_first_until_forgotten() {
+    // Its own id: the lines kept are process-wide, and other tests' Plugins log too.
+    let plugin = PluginId::from_static("keeps-100");
+    for at_ms in 0..101 {
+        let line = PluginLine {
+            at_ms,
+            level: Level::INFO,
+            text: format!("line {at_ms}"),
+        };
+        keep_plugin_line(plugin.to_string(), line);
+    }
+
+    let kept: Vec<i64> = plugin_lines(&plugin)
+        .iter()
+        .map(|line| line.at_ms)
+        .collect();
+    assert_eq!(kept, (1..101).rev().collect::<Vec<_>>());
+
+    forget_plugin_lines(&plugin);
+    assert_eq!(plugin_lines(&plugin), []);
 }
