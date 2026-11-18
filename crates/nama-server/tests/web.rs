@@ -21,7 +21,7 @@ async fn a_deep_link_serves_the_app() {
     assert!(
         String::from_utf8(body)
             .unwrap()
-            .starts_with("<!DOCTYPE html>")
+            .starts_with("<!doctype html>")
     );
 }
 
@@ -50,7 +50,7 @@ async fn the_app_s_stylesheet_is_served() {
 async fn the_app_s_webassembly_is_served_as_such() {
     let server = TestServer::builder().start().await;
     // Only a chunk loaded on demand names it, not the shell, so it's found where `vp build` wrote it.
-    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/client/assets");
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
     let wasm = std::fs::read_dir(assets)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
@@ -79,7 +79,7 @@ async fn the_app_s_manifest_is_served_as_such() {
 #[tokio::test]
 async fn the_app_ships_the_ass_renderer_s_notices_and_not_its_asm_js_worker() {
     let server = TestServer::builder().start().await;
-    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/client/assets");
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
     let legacy = std::fs::read_dir(assets)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())

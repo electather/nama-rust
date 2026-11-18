@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { type Plugin, defineConfig } from "vite-plus";
 
@@ -12,7 +12,6 @@ const serverUrl = process.env["NAMA_SERVER_URL"] ?? "http://localhost:7980";
 // their notices to ship with it. Its package lists them all in one file.
 const libassNotices: Plugin = {
   name: "libass-notices",
-  applyToEnvironment: (environment) => environment.name === "client",
   generateBundle() {
     const notices = import.meta.resolve("@jellyfin/libass-wasm/dist/js/COPYRIGHT");
     this.emitFile({
@@ -32,9 +31,14 @@ const generated = ["src/gen/**", "src/routeTree.gen.ts"];
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },
-  // SPA mode: the build prerenders one `_shell.html` that the Server embeds and serves for every
-  // page (ADR 0004). The router's automatic code splitting is on by default.
-  plugins: [tailwindcss(), tanstackStart({ spa: { enabled: true } }), viteReact(), libassNotices],
+  // The build's `index.html` is what the Server embeds and serves for every page (ADR 0004). The
+  // router plugin goes before React's, which would otherwise transform the routes first.
+  plugins: [
+    tailwindcss(),
+    tanstackRouter({ target: "react", autoCodeSplitting: true }),
+    viteReact(),
+    libassNotices,
+  ],
   server: {
     proxy: {
       // Connect paths (`/nama.v1.ServerService/GetServerInfo` and the like) and media: the same
@@ -47,9 +51,6 @@ export default defineConfig({
       "/diagnostics/": serverUrl,
     },
   },
-  // The build prerenders `_shell.html` through a preview server. Where `localhost` resolves to
-  // `::1` first, it listens on IPv6 while the prerender's fetch dials 127.0.0.1 and is refused.
-  preview: { host: "127.0.0.1" },
   test: {
     environment: "happy-dom",
     retry: ci ? 2 : 0,

@@ -1,6 +1,6 @@
 # web
 
-The web app: React and TanStack Start in SPA mode, built into static files that the Server embeds and serves (ADR 0004). The decisions behind it are in issue #27 and ADRs 0016 and 0017. The web app shell issue (#28) sets up everything described here.
+The web app: React and TanStack Router, built with Vite into static files that the Server embeds and serves (ADRs 0004 and 0063). The decisions behind it are in issue #27 and ADRs 0016 and 0017. The web app shell issue (#28) sets up everything described here.
 
 ## Toolchain
 
@@ -101,7 +101,7 @@ playwright screenshot --viewport-size 180,180 "file://$PWD/public/icon.svg" publ
 | `/admin/plugins`, `/admin/plugins/$pluginId`                       | Manage settings                           | Plugins, enabling or disabling them, and each one's details page, with a form to change and test its settings                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `/admin/playback`                                                  | Admin                                     | Whether the Server found ffmpeg and ffprobe, with their paths and versions, which it needs to Remux and Transcode, whether its ffmpeg lacks libx264, which every Transcode needs, or zscale, which tone-maps HDR in software, the hardware acceleration that passed its test, and its Playback settings: the segment folder, how much is kept for skipping back, what Transcodes run on and the most it runs at once                                                                                                                               |
 
-While the Server needs setup, every page redirects to `/setup`. A pathless `_member` layout requires a session, and an `_admin` layout inside it requires the Permission that `adminPages` (`src/lib/access.ts`) lists for the page. The Admin Permission covers them all. Put a signed-in page under `src/routes/_member/`, and an Admin page under `src/routes/_member/_admin/`. These checks run in the `beforeLoad` of `/setup`, `/sign-in` and `_member`, through `src/lib/access.ts`, not in the root's: the build prerenders the root into the SPA shell, and the browser reuses what the root's `beforeLoad` returned there instead of running it again. Movie and Show IDs in URLs are the external IDs the API returns. When no `version` is given, the player plays the largest Version.
+While the Server needs setup, every page redirects to `/setup`. A pathless `_member` layout requires a session, and an `_admin` layout inside it requires the Permission that `adminPages` (`src/lib/access.ts`) lists for the page. The Admin Permission covers them all. Put a signed-in page under `src/routes/_member/`, and an Admin page under `src/routes/_member/_admin/`. These checks run in the `beforeLoad` of `/setup`, `/sign-in` and `_member`, through `src/lib/access.ts`. Movie and Show IDs in URLs are the external IDs the API returns. When no `version` is given, the player plays the largest Version.
 
 ## Tests
 
