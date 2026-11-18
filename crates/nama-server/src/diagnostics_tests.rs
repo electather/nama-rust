@@ -5,7 +5,7 @@ use tracing_subscriber::layer::SubscriberExt as _;
 
 use super::{
     MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, PluginLine, following_current, forget_plugin_lines,
-    keep_plugin_line, keep_plugin_lines, layer, plugin_lines, plugin_lines_layer,
+    keep_plugin_lines, layer, plugin_lines, plugin_lines_layer, push_plugin_line,
     service_and_method,
 };
 
@@ -75,7 +75,7 @@ fn an_enabled_plugin_keeps_its_last_100_lines_newest_first_until_disabled() {
     let plugin = PluginId::from_static("keeps-100");
     keep_plugin_lines(&plugin);
     for at_ms in 0..101 {
-        keep_plugin_line(&plugin, line(at_ms));
+        push_plugin_line(&plugin, line(at_ms));
     }
 
     let kept: Vec<i64> = plugin_lines(&plugin)
@@ -85,7 +85,7 @@ fn an_enabled_plugin_keeps_its_last_100_lines_newest_first_until_disabled() {
     assert_eq!(kept, (1..101).rev().collect::<Vec<_>>());
 
     forget_plugin_lines(&plugin);
-    keep_plugin_line(&plugin, line(101));
+    push_plugin_line(&plugin, line(101));
     assert_eq!(plugin_lines(&plugin), []);
 }
 
@@ -93,7 +93,7 @@ fn an_enabled_plugin_keeps_its_last_100_lines_newest_first_until_disabled() {
 fn a_plugin_enabled_again_after_a_disable_starts_with_no_lines() {
     let plugin = PluginId::from_static("enabled-again");
     keep_plugin_lines(&plugin);
-    keep_plugin_line(&plugin, line(0));
+    push_plugin_line(&plugin, line(0));
 
     // A racing enabling keeps what the other kept.
     keep_plugin_lines(&plugin);

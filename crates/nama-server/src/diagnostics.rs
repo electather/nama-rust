@@ -83,10 +83,8 @@ pub(crate) struct PluginLine {
     pub(crate) text: String,
 }
 
-/// The layer that keeps each Plugin's last lines for its Plugins page: those under the target
-/// `nama::plugin`, naming their Plugin in a `plugin` field, and a Built-in's own logged in the
-/// span under it that a call to it runs in. Filter it as stdout is, so it keeps the lines stdout
-/// shows.
+/// The layer that keeps each enabled Plugin's last Plugin Log lines for its Plugins page. Filter
+/// it as stdout is, so it keeps the lines stdout shows.
 #[must_use]
 pub fn plugin_lines_layer<S>() -> impl Layer<S>
 where
@@ -116,10 +114,11 @@ pub(crate) fn forget_plugin_lines(plugin: &PluginId) {
     kept.remove(plugin);
 }
 
-/// Keeps `line` among `plugin`'s last lines, dropping its oldest past [`KEPT_PLUGIN_LINES`], if
-/// its lines are kept: a line from a Plugin that isn't enabled, such as one checking its settings
-/// or a call still running once it was disabled, is dropped.
-fn keep_plugin_line(plugin: &PluginId, line: PluginLine) {
+/// Adds `line` to `plugin`'s last lines, dropping its oldest past [`KEPT_PLUGIN_LINES`], if its
+/// lines are kept: a line from a Plugin that isn't enabled, such as one checking its settings, is
+/// dropped. A line carries no enablement, so one from a call still running after a disable lands
+/// in the next enabling's lines.
+fn push_plugin_line(plugin: &PluginId, line: PluginLine) {
     let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
     let Some(lines) = kept.get_mut(plugin) else {
         return;
@@ -397,7 +396,7 @@ where
             level: *metadata.level(),
             text,
         };
-        keep_plugin_line(&plugin, line);
+        push_plugin_line(&plugin, line);
     }
 }
 
