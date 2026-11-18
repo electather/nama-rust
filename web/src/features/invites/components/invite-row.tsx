@@ -1,8 +1,6 @@
-import { useMutation } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
-
-import { type Invite, UserService } from "@/gen/nama/v1/user_pb";
-import { invitesKey, revokeInviteRefusal } from "@/lib/users";
+import { useRevokeInvite } from "@/features/invites/data/use-revoke-invite";
+import { revokeInviteRefusal } from "@/features/invites/lib/invite-refusals";
+import type { Invite } from "@/gen/nama/v1/user_pb";
 import { AdminRow } from "@/shared/components/admin-list/admin-row";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
 import { labelsOf } from "@/shared/lib/permissions";
@@ -10,11 +8,7 @@ import { dayOf } from "@/shared/lib/title-facts";
 
 /** A pending Invite: who it's for, who made it, until when and what it grants, to revoke. */
 export function InviteRow({ invite }: { invite: Invite }) {
-  const queryClient = useQueryClient();
-  const revoke = useMutation(UserService.method.revokeInvite, {
-    // Refused or not, the list may be out of date.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: invitesKey }),
-  });
+  const revoke = useRevokeInvite();
   const name = invite.note === "" ? "Invite" : `Invite for ${invite.note}`;
   return (
     <AdminRow
@@ -24,7 +18,9 @@ export function InviteRow({ invite }: { invite: Invite }) {
           name={`Revoke ${name}`}
           title={`Revoke ${name}?`}
           description="Its link stops working. Nobody can create a User with it."
-          onConfirm={() => revoke.mutateAsync({ inviteId: invite.id })}
+          onConfirm={async () => {
+            await revoke.mutateAsync({ inviteId: invite.id });
+          }}
           refusal={revokeInviteRefusal}
         />
       }

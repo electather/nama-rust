@@ -101,6 +101,7 @@
       { "name": "shared-components", "patterns": ["src/shared/components/**"] },
       { "name": "shared-hooks", "patterns": ["src/shared/hooks/**"] },
       { "name": "shared-lib", "patterns": ["src/shared/lib/**"] },
+      { "name": "invites", "patterns": ["src/features/invites/**"] },
       { "name": "app", "patterns": ["src/app/**"] },
       { "name": "routes", "patterns": ["src/routes/**"] },
       // The only files that import route files.
@@ -137,6 +138,18 @@
         ],
       },
       {
+        "from": "invites",
+        "allow": [
+          "invites",
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+          "legacy-components",
+          "legacy-lib",
+        ],
+      },
+      {
         "from": "app",
         "allow": [
           "app",
@@ -152,6 +165,7 @@
         "from": "routes",
         "allow": [
           "app",
+          "invites",
           "shared-components",
           "shared-ui",
           "shared-hooks",

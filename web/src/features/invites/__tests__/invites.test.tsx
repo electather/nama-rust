@@ -11,9 +11,8 @@ import {
   type ListInvitesResponseSchema,
   type UserService,
 } from "@/gen/nama/v1/user_pb";
-
-import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
-import { expectUnderField, refused } from "./test-refusal";
+import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
+import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -74,7 +73,7 @@ test("making an Invite sends its note and the default Permissions, and shows its
   expect(link).toHaveProperty("value", "https://nama.example.com/invite/abc");
   expect(screen.getByRole("button", { name: "Copy link" })).toBeDefined();
   expect(sent?.note).toBe("Mum");
-  expect(sent?.permissions).toEqual(newUser);
+  expect(sent?.permissions).toStrictEqual(newUser);
 });
 
 test("an Invite offers only the Permissions you hold, and never Admin", async () => {
