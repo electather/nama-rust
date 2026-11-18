@@ -4,7 +4,7 @@ import { NotFound } from "@/app/route-error/not-found";
 import { PlayerError } from "@/app/route-error/player-error";
 import { UnmatchedPlayer } from "@/features/player/components/unmatched-player";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { queryOrNotFound, wholeNumberFromParam } from "@/lib/browse";
+import { queryOrNotFound, wholeNumberFromParam } from "@/shared/hooks/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/unmatched/$versionId/play")({
   loader: async ({ context, params }) => {

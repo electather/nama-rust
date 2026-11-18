@@ -5,8 +5,8 @@ import { useDisablePlugin } from "@/features/admin-plugins/data/use-disable-plug
 import { useEnablePlugin } from "@/features/admin-plugins/data/use-enable-plugin";
 import { refusedChange } from "@/features/admin-plugins/lib/refused-change";
 import type { PluginSummary, Setting } from "@/gen/nama/v1/plugin_pb";
-import { pluginName } from "@/lib/plugins";
 import { StateLabel } from "@/shared/components/state-label";
+import { pluginName } from "@/shared/lib/plugins";
 import { Button } from "@/shared/ui/button";
 
 /** A Plugin's state and a button to enable or disable it, with why the Server refused. */

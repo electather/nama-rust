@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { Setup } from "@/features/auth/components/setup";
-import { isSetupRequired } from "@/lib/access";
+import { isSetupRequired } from "@/shared/hooks/access";
 
 export const Route = createFileRoute("/setup")({
   beforeLoad: async ({ context }) => {

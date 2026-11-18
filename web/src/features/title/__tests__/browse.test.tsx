@@ -10,7 +10,7 @@ import {
   SubscribeResponseSchema,
 } from "@/gen/nama/v1/event_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { externalIdFromParam } from "@/lib/browse";
+import { externalIdFromParam } from "@/shared/hooks/browse";
 import { titleParam } from "@/shared/lib/title-param";
 import { fakeServer, newUser, openApp } from "@/test-app";
 

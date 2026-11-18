@@ -9,8 +9,8 @@ import { PluginSettingsSection } from "@/features/admin-plugins/components/plugi
 import { PluginToggle } from "@/features/admin-plugins/components/plugin-toggle";
 import { PointFailures } from "@/features/admin-plugins/components/point-failures";
 import { usePlugin } from "@/features/admin-plugins/data/use-plugin";
-import { hasSummary, pluginName } from "@/lib/plugins";
 import { Page } from "@/shared/components/page";
+import { hasSummary, pluginName } from "@/shared/lib/plugins";
 
 /** The Plugin `id`'s page: what it is, its state, and a section per part of its setup. */
 // oxlint-disable-next-line import/max-dependencies -- the page puts together a section per part of a Plugin's setup: settings, Qualities, log

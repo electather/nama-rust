@@ -2,8 +2,8 @@ import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { MatchService } from "@/gen/nama/v1/match_pb";
-import { browseKey } from "@/lib/browse";
-import { unmatchedKey } from "@/lib/events";
+import { browseKey } from "@/shared/hooks/browse";
+import { unmatchedKey } from "@/shared/hooks/unmatched-key";
 
 /**
  * Matches an Unmatched Item of the Library `libraryId` to a title, then refetches its Unmatched

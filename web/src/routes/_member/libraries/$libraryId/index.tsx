@@ -6,7 +6,7 @@ import { firstUnmatchedPage } from "@/features/library/lib/first-unmatched-page"
 import { firstPageOf, listingFromSearch } from "@/features/library/lib/title-listing";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { libraryFromParam, queryOrNotFound } from "@/lib/browse";
+import { libraryFromParam, queryOrNotFound } from "@/shared/hooks/browse";
 import { pagedQuery } from "@/shared/hooks/use-paged";
 import { deletedFromSearch } from "@/shared/lib/deleted-search";
 

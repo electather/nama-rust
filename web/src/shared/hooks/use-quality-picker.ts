@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import type { Quality } from "@/gen/nama/v1/plugin_pb";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { signedInQuery } from "@/lib/access";
+import { signedInQuery } from "@/shared/hooks/access";
 import { may } from "@/shared/lib/permissions";
 
 /**

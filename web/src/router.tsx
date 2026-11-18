@@ -6,9 +6,9 @@ import { createRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { RouteError } from "@/app/route-error/route-error";
-import { signedInQuery, whoIsSignedIn } from "@/lib/access";
-import { traceCalls, traceRouteChanges } from "@/lib/diagnostics";
+import { signedInQuery, whoIsSignedIn } from "@/shared/hooks/access";
 import { isCode, retryIfUnreachable } from "@/shared/lib/connect-errors";
+import { traceCalls, traceRouteChanges } from "@/shared/lib/diagnostics";
 
 // oxlint-disable-next-line import/max-dependencies -- the router puts together the transport, the query cache, the routes and their Diagnostics
 import { routeTree } from "./routeTree.gen";

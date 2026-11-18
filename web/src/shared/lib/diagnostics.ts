@@ -1,12 +1,11 @@
 import type { Interceptor } from "@connectrpc/connect";
 import type { AnyRouter } from "@tanstack/react-router";
 
-import { type RouterContext, serverInfo } from "./access";
-
 // Nothing here imports OpenTelemetry, so the SDK is downloaded only when the Server exports
 // Diagnostics (ADR 0054).
 type Recorder = Awaited<ReturnType<typeof load>>;
 
+// oxlint-disable-next-line vitest/require-hook -- module state, not test setup
 let exporting = false;
 let loading: Promise<Recorder> | undefined;
 let recorder: Recorder | undefined;
@@ -16,11 +15,11 @@ function active() {
 }
 
 /**
- * Records the web app's Diagnostics from now on if the Server exports them, loading the SDK only
- * then. Only for a signed-in Device: the Server refuses anyone else's.
+ * Records the web app's Diagnostics from now on if the Server `exportsDiagnostics`, loading the SDK
+ * only then. Only for a signed-in Device: the Server refuses anyone else's.
  */
-export async function recordDiagnosticsIfExported(context: RouterContext) {
-  exporting = (await serverInfo(context)).exportsDiagnostics;
+export async function recordDiagnosticsIfExported(exportsDiagnostics: boolean) {
+  exporting = exportsDiagnostics;
   if (!exporting) {
     return;
   }
@@ -33,7 +32,7 @@ export async function recordDiagnosticsIfExported(context: RouterContext) {
 }
 
 async function load() {
-  const loaded = await import("./diagnostics-recorder");
+  const loaded = await import("@/shared/lib/diagnostics-recorder");
   addEventListener("error", (event) => active()?.recordError(kindOf(event.error)));
   addEventListener("unhandledrejection", (event) => active()?.recordError(kindOf(event.reason)));
   return loaded;
@@ -44,10 +43,13 @@ function kindOf(error: unknown) {
 }
 
 /** Traces each ConnectRPC call while Diagnostics are recorded, sending its `traceparent`. */
-export const traceCalls: Interceptor = (next) => (request) =>
-  active()?.traceCall(next)(request) ?? next(request);
+export const traceCalls: Interceptor = (next) => async (request) => {
+  const response = await (active()?.traceCall(next)(request) ?? next(request));
+  return response;
+};
 
 // When the last route change started; 0, the page's own start, before any.
+// oxlint-disable-next-line vitest/require-hook -- module state, not test setup
 let navigatedAt = 0;
 
 /** Records each route change, from leaving one page to the next one's data having loaded. */

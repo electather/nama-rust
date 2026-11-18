@@ -3,7 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { NotFound } from "@/app/route-error/not-found";
 import { LibraryPage } from "@/features/admin-libraries/components/library-page";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
-import { queryOrNotFound } from "@/lib/browse";
+import { queryOrNotFound } from "@/shared/hooks/browse";
 
 /** The Library in the URL's id, or "not found" for one that isn't a number. */
 function libraryInput(libraryId: string) {

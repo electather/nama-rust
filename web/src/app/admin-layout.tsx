@@ -1,6 +1,6 @@
 import { Link, Outlet } from "@tanstack/react-router";
 
-import type { adminPagesFor } from "@/lib/access";
+import type { adminPagesFor } from "@/shared/hooks/access";
 import { buttonVariants } from "@/shared/ui/button";
 
 /** Admin pages, under a nav of the ones the User may open. */

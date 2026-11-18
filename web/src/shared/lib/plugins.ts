@@ -1,14 +1,4 @@
-import { createConnectQueryKey } from "@connectrpc/connect-query";
-
-import {
-  type Plugin,
-  PluginKind,
-  PluginService,
-  type PluginSummary,
-} from "@/gen/nama/v1/plugin_pb";
-
-/** The query key of the Plugins list and of each Plugin, to refetch both after a change. */
-export const pluginsKey = createConnectQueryKey({ schema: PluginService, cardinality: "finite" });
+import { type Plugin, PluginKind, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 
 /** Where a Plugin comes from, and its version if the Server knows it. */
 export function kindAndVersion({ kind, version }: { kind: PluginKind; version: string }) {

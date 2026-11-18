@@ -2,7 +2,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { AdminLayout } from "@/app/admin-layout";
-import { adminPages, adminPagesFor } from "@/lib/access";
+import { adminPages, adminPagesFor } from "@/shared/hooks/access";
 
 // src/routes/_member/_admin/AGENTS.md, "Admin pages need a Permission".
 /**

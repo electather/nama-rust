@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { NotFound } from "@/app/route-error/not-found";
 import { MoviePage } from "@/features/title/components/movie-page";
-import { loadMovie } from "@/lib/browse";
+import { loadMovie } from "@/shared/hooks/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/")({
   loader: ({ context, params }) => loadMovie(context, params),

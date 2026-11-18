@@ -4,9 +4,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-
-import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
-import { expectUnderField, refused } from "./test-refusal";
+import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
+import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -107,24 +106,27 @@ function serverRefusingSetupField(field: string, message: string) {
 }
 
 test.each([
-  [
-    "name",
-    "Username",
-    "a User's name needs 1 to 64 characters",
-    "A User's name needs 1 to 64 characters.",
-  ],
-  [
-    "password",
-    "Password",
-    "the password needs at least 8 characters",
-    "The password needs at least 8 characters.",
-  ],
-])("a refused %s on Setup is shown under its field", async (field, label, message, shown) => {
-  openApp("/setup", serverRefusingSetupField(field, message));
+  {
+    field: "name",
+    label: "Username",
+    message: "a User's name needs 1 to 64 characters",
+    shown: "A User's name needs 1 to 64 characters.",
+  },
+  {
+    field: "password",
+    label: "Password",
+    message: "the password needs at least 8 characters",
+    shown: "The password needs at least 8 characters.",
+  },
+])(
+  "a refused $field on Setup is shown under its field",
+  async ({ field, label, message, shown }) => {
+    openApp("/setup", serverRefusingSetupField(field, message));
 
-  await submitSetup("ABCD-EFGH");
-  await expectUnderField(label, shown);
-});
+    await submitSetup("ABCD-EFGH");
+    await expectUnderField(label, shown);
+  },
+);
 
 test("a refused Device name on Setup isn't shown under the name or password", async () => {
   openApp(
@@ -142,7 +144,7 @@ test("signed out, a page sends you to sign in and back again", async () => {
   const router = openApp("/libraries/1", serverToSignInTo());
 
   await submitSignIn();
-  expect(router.state.location.search).toEqual({ redirect: "/libraries/1" });
+  expect({ ...router.state.location.search }).toStrictEqual({ redirect: "/libraries/1" });
   await screen.findByRole("button", { name: "Sign out" });
   expect(router.state.location.pathname).toBe("/libraries/1");
 });
@@ -165,23 +167,33 @@ test("a User who manages nothing opening an Admin page is told they can't, and h
 });
 
 test.each([
-  [
-    "Manage Libraries",
-    Permission.MANAGE_LIBRARIES,
-    "/admin/libraries",
-    ["Libraries", "Needs a Match"],
-  ],
-  ["Manage Users", Permission.MANAGE_USERS, "/admin/users", ["Users"]],
-  ["Manage settings", Permission.MANAGE_SETTINGS, "/admin/plugins", ["Plugins"]],
-  [
-    "Admin",
-    Permission.ADMIN,
-    "/admin/libraries",
-    ["Libraries", "Needs a Match", "Users", "Plugins", "Playback"],
-  ],
+  {
+    name: "Manage Libraries",
+    permission: Permission.MANAGE_LIBRARIES,
+    landing: "/admin/libraries",
+    pages: ["Libraries", "Needs a Match"],
+  },
+  {
+    name: "Manage Users",
+    permission: Permission.MANAGE_USERS,
+    landing: "/admin/users",
+    pages: ["Users"],
+  },
+  {
+    name: "Manage settings",
+    permission: Permission.MANAGE_SETTINGS,
+    landing: "/admin/plugins",
+    pages: ["Plugins"],
+  },
+  {
+    name: "Admin",
+    permission: Permission.ADMIN,
+    landing: "/admin/libraries",
+    pages: ["Libraries", "Needs a Match", "Users", "Plugins", "Playback"],
+  },
 ])(
-  "with only the %s Permission, Admin opens on %s and lists only the pages it allows",
-  async (_, permission, landing, pages) => {
+  "with only the $name Permission, Admin opens on $landing and lists only the pages it allows",
+  async ({ permission, landing, pages }) => {
     const router = openApp(
       "/admin",
       fakeServer({ signedIn: [permission] }, {}, { listUsers: () => ({}) }),
@@ -192,7 +204,7 @@ test.each([
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(pages);
+    ).toStrictEqual(pages);
     expect(router.state.location.pathname).toBe(landing);
   },
 );
@@ -260,7 +272,7 @@ test("a session that has ended sends you to sign in and back again", async () =>
 
   fireEvent.click(signOut);
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
-  expect(router.state.location.search).toEqual({ redirect: "/settings" });
+  expect({ ...router.state.location.search }).toStrictEqual({ redirect: "/settings" });
 });
 
 test("an `unauthenticated` refusal while still signed in keeps you on the page", async () => {

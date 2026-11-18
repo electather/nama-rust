@@ -1,6 +1,6 @@
 import { Puzzle } from "lucide-react";
 
-import { pluginName } from "@/lib/plugins";
+import { pluginName } from "@/shared/lib/plugins";
 
 /**
  * A Plugin's logo on a neutral tile, or a generic puzzle piece when it has none. Only ever an image

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 
-import { pluginsKey } from "@/lib/plugins";
+import { pluginsKey } from "@/features/admin-plugins/data/plugins-key";
 
 /** Refetches the list and each details page, for a change that may leave either out of date. */
 export function useRefreshPlugins() {

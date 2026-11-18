@@ -4,9 +4,9 @@ import { EnableOrSetUp } from "@/features/admin-plugins/components/enable-or-set
 import { ExtensionPoints } from "@/features/admin-plugins/components/extension-points";
 import { NeedsAttention } from "@/features/admin-plugins/components/needs-attention";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { kindAndVersion, pluginName } from "@/lib/plugins";
 import { AdminRow } from "@/shared/components/admin-list/admin-row";
 import { PluginLogo } from "@/shared/components/plugin-logo";
+import { kindAndVersion, pluginName } from "@/shared/lib/plugins";
 
 /** One Plugin on the list: its logo, what it is, its state and how to enable or set it up. */
 export function PluginRow({ plugin }: { plugin: PluginSummary }) {

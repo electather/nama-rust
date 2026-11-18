@@ -1,4 +1,4 @@
-import type { ScanState } from "@/lib/events";
+import type { ScanState } from "@/shared/hooks/scan-query";
 
 /** How a scan is going, as a sentence. */
 export function scanSentence(scan: ScanState) {

@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { fakeServer, newUser, openApp } from "./test-app";
+import { fakeServer, newUser, openApp } from "@/test-app";
 
 /** The `traceparent` the app sends with Settings' `ListDevices`, against a Server that exports Diagnostics or not. */
 async function traceparentSent(exportsDiagnostics: boolean) {

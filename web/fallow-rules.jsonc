@@ -1,5 +1,4 @@
-// Fallow rule pack: rules for the feature layout's folders (web/src/AGENTS.md). Legacy code keeps
-// what it does until it moves.
+// Fallow rule pack: rules for the feature layout's folders (web/src/AGENTS.md).
 {
   "$schema": "./node_modules/fallow/rule-pack-schema.json",
   "version": 1,

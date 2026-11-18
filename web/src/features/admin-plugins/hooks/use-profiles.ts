@@ -1,7 +1,7 @@
 import { useOfferedProfiles } from "@/features/admin-plugins/data/use-offered-profiles";
 import { profilesGone, qualityProfile, type Row } from "@/features/admin-plugins/lib/qualities";
-import { type PluginDetails, pluginName } from "@/lib/plugins";
 import { serverMessage } from "@/shared/lib/forms";
+import { type PluginDetails, pluginName } from "@/shared/lib/plugins";
 
 /**
  * The profiles `plugin`'s settings check offers on its stored settings, why there are none when it

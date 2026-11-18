@@ -3,7 +3,8 @@ import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { input, openPlugin, openPlugins, plugin, row, tmdbLogo } from "@/test-plugins";
+import { tmdbLogo } from "@/test-plugin-list";
+import { input, openPlugin, openPlugins, plugin, row } from "@/test-plugins";
 import { refused } from "@/test-refusal";
 
 afterEach(cleanup);

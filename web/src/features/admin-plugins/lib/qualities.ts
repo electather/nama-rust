@@ -1,7 +1,7 @@
 import { type Choice, ExtensionPoint, type Quality, SettingKind } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { type PluginDetails, pluginName } from "@/lib/plugins";
 import { formText, refusal, refusalOf, serverMessage } from "@/shared/lib/forms";
+import { type PluginDetails, pluginName } from "@/shared/lib/plugins";
 
 /** The choice setting whose choices a Fulfiller's Qualities offer (`qualities.rs` on the Server). */
 export const qualityProfile = "quality_profile";

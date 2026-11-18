@@ -1,8 +1,8 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { pluginsKey } from "@/features/admin-plugins/data/plugins-key";
 import { PluginService } from "@/gen/nama/v1/plugin_pb";
-import { pluginsKey } from "@/lib/plugins";
 
 /** Saves a Plugin's settings, and refreshes the Plugins once it succeeds. */
 export function useUpdatePluginSettings() {

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 
-import { requestsKey } from "@/lib/events";
+import { requestsKey } from "@/shared/hooks/requests-key";
 
 /** Mutation options that refetch the Requests once a change to one is done or refused. */
 export function useRefetchRequests() {

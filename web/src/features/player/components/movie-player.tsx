@@ -4,7 +4,7 @@ import { DeletedWhilePlaying } from "@/features/player/components/deleted-while-
 import { Player } from "@/features/player/components/player";
 import { useMovieToPlay } from "@/features/player/data/use-movie-to-play";
 import type { GetMovieRequestSchema } from "@/gen/nama/v1/browse_pb";
-import { isGone } from "@/lib/browse";
+import { isGone } from "@/shared/hooks/browse";
 import { versionToPlay } from "@/shared/lib/version-to-play";
 
 /** Plays a Movie's Version, `version` if it names one and else the largest, from where you stopped. */

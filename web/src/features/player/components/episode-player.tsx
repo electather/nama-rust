@@ -5,7 +5,7 @@ import { useAutoplayedEpisode } from "@/features/player/hooks/use-autoplayed-epi
 import { useShowForLockScreen } from "@/features/player/hooks/use-show-for-lock-screen";
 import { nextEpisode } from "@/features/player/lib/next-episode";
 import type { PlayedSeason } from "@/features/player/lib/played-season";
-import { isGone } from "@/lib/browse";
+import { isGone } from "@/shared/hooks/browse";
 import { versionToPlay } from "@/shared/lib/version-to-play";
 
 /**

@@ -2,7 +2,7 @@ import { useMutation } from "@connectrpc/connect-query";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 
 import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
-import { browseKey } from "@/lib/browse";
+import { browseKey } from "@/shared/hooks/browse";
 import { retryIfUnreachable } from "@/shared/lib/connect-errors";
 
 /**

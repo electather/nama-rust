@@ -4,7 +4,7 @@ import { NotFound } from "@/app/route-error/not-found";
 import { MovieToRequest } from "@/features/title/components/movie-to-request";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { externalIdFromParam, queryOrNotFound } from "@/lib/browse";
+import { externalIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
 import { may } from "@/shared/lib/permissions";
 import { titleParam } from "@/shared/lib/title-param";
 

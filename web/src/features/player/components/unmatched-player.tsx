@@ -5,7 +5,7 @@ import { Player } from "@/features/player/components/player";
 import { ProgressNotSaved } from "@/features/player/components/progress-not-saved";
 import { useUnmatchedVersion } from "@/features/player/data/use-unmatched-version";
 import type { GetUnmatchedVersionRequestSchema } from "@/gen/nama/v1/browse_pb";
-import { isGone } from "@/lib/browse";
+import { isGone } from "@/shared/hooks/browse";
 import { parsedAs } from "@/shared/lib/unmatched-names";
 
 /** Plays an Unmatched Item's Version, which keeps no Watch State (ADR 0013). */

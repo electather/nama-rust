@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { SignIn } from "@/features/auth/components/sign-in";
 import { pathOnThisServer } from "@/features/auth/lib/path-on-this-server";
-import { isSetupRequired } from "@/lib/access";
+import { isSetupRequired } from "@/shared/hooks/access";
 
 export const Route = createFileRoute("/sign-in")({
   // The router merges this over the raw search, so a refused `redirect` has to be overwritten.

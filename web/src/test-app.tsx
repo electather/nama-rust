@@ -22,7 +22,7 @@ import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server
 import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 // oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads, through the app's own interceptors
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { traceCalls } from "@/lib/diagnostics";
+import { traceCalls } from "@/shared/lib/diagnostics";
 
 import { getRouter } from "./router";
 
