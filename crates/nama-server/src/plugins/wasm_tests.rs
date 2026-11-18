@@ -19,10 +19,11 @@ use nama_plugin_proto::{
 use super::{
     Running, allowed_hosts,
     bundled::{BUNDLED, bundling},
-    check_exports, compile, delivery, extism_config, is_crash,
+    check_exports, compile, delivery, extism_config, failure_cause, is_crash,
     load::{check_allowed_hosts, decode, judge, load, settings_schema, write_cache_config},
     points,
     services::POINTS,
+    without_secrets,
 };
 use crate::log_capture::CapturedLog;
 
@@ -42,6 +43,21 @@ fn a_trap_or_timeout_is_a_crash_and_a_returned_or_host_error_is_not() {
     assert!(is_crash(&extism::Error::msg("oom")));
     assert!(!is_crash(&refused));
     assert!(!is_crash(&extism::Error::msg("the service is down")));
+}
+
+#[test]
+fn a_failure_cause_has_its_control_characters_escaped() {
+    let cause = failure_cause(&extism::Error::msg("ok\nforged\r\t\u{1b}[31mé"));
+
+    assert_eq!(cause, r"ok\nforged\r\t\u{1b}[31mé");
+}
+
+#[test]
+fn a_secret_holding_a_newline_is_blanked_in_an_escaped_failure_cause() {
+    let secret = "pem\nkey".to_owned();
+    let cause = failure_cause(&extism::Error::msg(format!("GET {secret}")));
+
+    assert_eq!(without_secrets(cause, &[secret]), "GET …");
 }
 
 fn field(key: &str, kind: SettingKind) -> SettingField {
