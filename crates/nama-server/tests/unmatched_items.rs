@@ -141,15 +141,30 @@ async fn a_user_without_permissions_lists_unmatched_items_by_parsed_name_newest_
         .unwrap()
         .into_owned();
 
-    let parsed: Vec<_> = (listed.items.iter())
-        .map(|item| (item.kind.as_known(), item.title.as_str(), item.year))
+    // Files found in one second tie on when, so the scan's directory order decides which is
+    // newer: the higher id.
+    let mut by_id: Vec<_> = (listed.items.iter())
+        .map(|item| {
+            (
+                item.version_id,
+                item.kind.as_known(),
+                item.title.as_str(),
+                item.year,
+            )
+        })
+        .collect();
+    assert!(by_id.iter().all(|&(id, ..)| id > 0));
+    assert!(by_id.is_sorted_by(|a, b| a.0 > b.0));
+    by_id.sort_by_key(|&(_, _, title, _)| title);
+    let parsed: Vec<_> = by_id
+        .iter()
+        .map(|&(_, kind, title, year)| (kind, title, year))
         .collect();
     let movie = Some(TitleKind::TITLE_KIND_MOVIE);
     assert_eq!(
         parsed,
-        [(movie, "Heat", Some(1995)), (movie, "Alien", Some(1979))]
+        [(movie, "Alien", Some(1979)), (movie, "Heat", Some(1995))]
     );
-    assert!(listed.items.iter().all(|item| item.version_id > 0));
     assert_eq!(listed.page.total_size, Some(2));
 }
 
@@ -192,24 +207,20 @@ async fn a_users_page_token_holds_no_path_and_lists_the_next_page() {
     };
 
     let first = browse.list_unmatched(page(1, String::new())).await;
-    let token = first
-        .unwrap()
-        .into_owned()
-        .page
-        .into_option()
-        .unwrap()
-        .next_token;
+    let first = first.unwrap().into_owned();
+    let token = first.page.into_option().unwrap().next_token;
     let second = browse.list_unmatched(page(0, token.clone())).await;
 
     let cursor = String::from_utf8(URL_SAFE_NO_PAD.decode(&token).unwrap()).unwrap();
-    assert!(!cursor.contains("Heat"), "{cursor}");
+    assert!(!cursor.contains(".mkv"), "{cursor}");
     let second = second.unwrap().into_owned();
-    let titles: Vec<_> = second
-        .items
-        .iter()
-        .map(|item| item.title.as_str())
-        .collect();
-    assert_eq!(titles, ["Alien"]);
+    // Which film is newer depends on the scan's directory order, so the pages just split them.
+    let mut titles = vec![
+        first.items[0].title.as_str(),
+        second.items[0].title.as_str(),
+    ];
+    titles.sort_unstable();
+    assert_eq!((second.items.len(), titles), (1, vec!["Alien", "Heat"]));
 }
 
 #[tokio::test]
