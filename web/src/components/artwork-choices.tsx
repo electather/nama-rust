@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { useId } from "react";
 
-import { useSrcSet } from "@/lib/image-sizes";
+import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 /** Artwork to pick as an image: its URLs, best first, and the shape to show them in. */
 export interface Choices {

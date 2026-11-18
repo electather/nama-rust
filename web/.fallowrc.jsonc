@@ -5,10 +5,7 @@
   // Generated code: `buf generate` writes src/gen/, the router plugin writes the route tree.
   "ignorePatterns": ["src/gen/**", "src/routeTree.gen.ts"],
   // shadcn files export every sub-part of a component, used or not.
-  "ignoreExports": [
-    { "file": "src/components/ui/**", "exports": ["*"] },
-    { "file": "src/shared/ui/**", "exports": ["*"] },
-  ],
+  "ignoreExports": [{ "file": "src/shared/ui/**", "exports": ["*"] }],
   // Run by `buf generate` in proto/, never imported.
   "ignoreDependencies": ["@bufbuild/protoc-gen-es"],
   // web/src/AGENTS.md, "File size". Fallow sets limits by glob, not by zone.
@@ -57,7 +54,6 @@
           "src/edit-images.test.tsx",
           "src/find-a-movie.test.tsx",
           "src/image-store.test.tsx",
-          "src/lib/browse.ts",
           "src/lib/events.ts",
           "src/lib/playback-plan.ts",
           "src/lib/playback-wording.ts",
@@ -110,7 +106,6 @@
       // The only files that import route files.
       { "name": "router", "patterns": ["src/main.tsx", "src/router.tsx", "src/routeTree.gen.ts"] },
       // Code not yet moved into the feature layout (#1133). A18 (#1150) removes these zones.
-      { "name": "legacy-ui", "patterns": ["src/components/ui/**"] },
       { "name": "legacy-components", "patterns": ["src/components/**"] },
       { "name": "legacy-lib", "patterns": ["src/lib/**"] },
     ],
@@ -120,15 +115,15 @@
     "rules": [
       {
         "from": "shared-lib",
-        "allow": ["shared-lib", "legacy-ui", "legacy-components", "legacy-lib"],
+        "allow": ["shared-lib", "legacy-components", "legacy-lib"],
       },
       {
         "from": "shared-hooks",
-        "allow": ["shared-hooks", "shared-lib", "legacy-ui", "legacy-components", "legacy-lib"],
+        "allow": ["shared-hooks", "shared-lib", "legacy-components", "legacy-lib"],
       },
       {
         "from": "shared-ui",
-        "allow": ["shared-ui", "legacy-ui", "legacy-components", "legacy-lib"],
+        "allow": ["shared-ui", "legacy-components", "legacy-lib"],
       },
       {
         "from": "shared-components",
@@ -137,7 +132,6 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-ui",
           "legacy-components",
           "legacy-lib",
         ],
@@ -150,7 +144,6 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-ui",
           "legacy-components",
           "legacy-lib",
         ],
@@ -163,7 +156,6 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-ui",
           "legacy-components",
           "legacy-lib",
         ],
@@ -178,17 +170,14 @@
           "shared-ui",
           "shared-hooks",
           "shared-lib",
-          "legacy-ui",
           "legacy-components",
           "legacy-lib",
         ],
       },
-      { "from": "legacy-ui", "allow": ["legacy-ui"] },
       {
         "from": "legacy-components",
         "allow": [
           "legacy-components",
-          "legacy-ui",
           "legacy-lib",
           "shared-components",
           "shared-ui",

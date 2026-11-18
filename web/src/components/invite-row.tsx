@@ -1,12 +1,12 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { AdminRow } from "@/components/admin-list";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { type Invite, UserService } from "@/gen/nama/v1/user_pb";
-import { dayOf } from "@/lib/browse";
-import { labelsOf } from "@/lib/permissions";
 import { invitesKey, revokeInviteRefusal } from "@/lib/users";
+import { AdminRow } from "@/shared/components/admin-list/admin-row";
+import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
+import { labelsOf } from "@/shared/lib/permissions";
+import { dayOf } from "@/shared/lib/title-facts";
 
 /** A pending Invite: who it's for, who made it, until when and what it grants, to revoke. */
 export function InviteRow({ invite }: { invite: Invite }) {

@@ -13,16 +13,15 @@ import {
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { PlaybackService } from "@/gen/nama/v1/playback_pb";
 import {
-  episodeName,
   externalIdFromParam,
   isGone,
   libraryFromParam,
-  metadataLine,
   queryOrNotFound,
   versionSearch,
   versionToPlay,
   wholeNumberFromParam,
 } from "@/lib/browse";
+import { episodeName, metadataLine } from "@/shared/lib/title-facts";
 
 export const Route = createFileRoute(
   "/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",

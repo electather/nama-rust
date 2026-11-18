@@ -3,14 +3,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MayDownloadAgain } from "@/components/delete-media";
 import { LibraryMovies, LibraryShows, type TitlesProps } from "@/components/library-titles";
 import { NotMatched, firstUnmatchedPage } from "@/components/not-matched";
-import { Page } from "@/components/page";
 import { NotFound } from "@/components/route-error";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { deletedFromSearch, libraryFromParam, queryOrNotFound } from "@/lib/browse";
-import { pagedQuery } from "@/lib/paged";
 // oxlint-disable-next-line import/max-dependencies -- the Library page puts together its titles, their filters, its Unmatched Items and a delete's notice
 import { firstPageOf, listingFromSearch } from "@/lib/title-listing";
+import { Page } from "@/shared/components/page";
+import { pagedQuery } from "@/shared/hooks/use-paged";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/")({
   // The title whose page had the delete's result is gone, so the Fulfillers not told come here.

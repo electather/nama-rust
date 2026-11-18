@@ -3,7 +3,7 @@ import { cn } from "cn";
 import { type ChangeEvent, useState } from "react";
 
 import { ArtworkChoices, type Choices } from "@/components/artwork-choices";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/button";
 
 /** The most bytes the Server takes for an image: 20 MiB. */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;

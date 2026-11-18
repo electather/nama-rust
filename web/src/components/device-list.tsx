@@ -2,13 +2,13 @@ import { Code, type Transport } from "@connectrpc/connect";
 import { createQueryOptions, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { Device, User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { dayOf } from "@/lib/browse";
-import { isCode } from "@/lib/connect-errors";
-import { refusal } from "@/lib/forms";
 import { devicesKey, noLongerHere } from "@/lib/users";
+import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
+import { isCode } from "@/shared/lib/connect-errors";
+import { refusal } from "@/shared/lib/forms";
+import { dayOf } from "@/shared/lib/title-facts";
 
 /** A `user`'s Devices, each but this one with a button to revoke it. Your own without a `user`. */
 export function DeviceList({ user }: { user?: User }) {

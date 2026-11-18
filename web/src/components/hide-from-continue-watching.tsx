@@ -2,15 +2,15 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Ellipsis } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import type { SetHiddenFromContinueWatchingRequestSchema } from "@/gen/nama/v1/watch_state_pb";
+import { useSetHiddenFromContinueWatching } from "@/lib/watch-state";
+import { Button } from "@/shared/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import type { SetHiddenFromContinueWatchingRequestSchema } from "@/gen/nama/v1/watch_state_pb";
-import { useSetHiddenFromContinueWatching } from "@/lib/watch-state";
+} from "@/shared/ui/dropdown-menu";
 
 /** A card's title, keyed as the row lists it, and what hiding it from Continue Watching asks. */
 export interface Hiding {

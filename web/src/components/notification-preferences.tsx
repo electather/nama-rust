@@ -2,7 +2,7 @@ import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connec
 import { useQueryClient } from "@tanstack/react-query";
 
 import { NotificationKind, type NotificationPreference, UserService } from "@/gen/nama/v1/user_pb";
-import { refusal } from "@/lib/forms";
+import { refusal } from "@/shared/lib/forms";
 
 const preferencesKey = createConnectQueryKey({
   schema: UserService.method.listNotificationPreferences,

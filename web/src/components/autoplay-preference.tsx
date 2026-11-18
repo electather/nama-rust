@@ -2,7 +2,7 @@ import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connec
 import { useQueryClient } from "@tanstack/react-query";
 
 import { PlaybackService } from "@/gen/nama/v1/playback_pb";
-import { refusal } from "@/lib/forms";
+import { refusal } from "@/shared/lib/forms";
 
 const autoplayKey = createConnectQueryKey({
   schema: PlaybackService.method.getAutoplay,

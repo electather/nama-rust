@@ -1,9 +1,9 @@
 import { type ReactNode, useCallback, useState } from "react";
 
-import { Thumbhash } from "@/components/thumbhash";
-import { Button } from "@/components/ui/button";
-import { metadataLine } from "@/lib/browse";
-import { useSrcSet } from "@/lib/image-sizes";
+import { Thumbhash } from "@/shared/components/thumbhash";
+import { useSrcSet } from "@/shared/hooks/use-src-set";
+import { metadataLine } from "@/shared/lib/title-facts";
+import { Button } from "@/shared/ui/button";
 
 /**
  * A Movie's or Show's page: its Title Logo, or else its title as text, over its backdrop, then

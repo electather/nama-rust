@@ -3,8 +3,13 @@ import { createConnectQueryKey } from "@connectrpc/connect-query";
 
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-
-import { type FormErrors, refusalOf, refusedFieldErrors, refusal, serverMessage } from "./forms";
+import {
+  type FormErrors,
+  refusalOf,
+  refusedFieldErrors,
+  refusal,
+  serverMessage,
+} from "@/shared/lib/forms";
 
 /** The query key of the Libraries, and of each one, to refetch after a change to them. */
 export const librariesKey = createConnectQueryKey({

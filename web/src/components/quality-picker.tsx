@@ -2,13 +2,13 @@ import { useQuery as useConnectQuery, useTransport } from "@connectrpc/connect-q
 import { useQuery } from "@tanstack/react-query";
 import { type RefObject, useId, useRef, useState } from "react";
 
-import { ConfirmModal } from "@/components/confirm-dialog";
 import type { Quality } from "@/gen/nama/v1/plugin_pb";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { signedInQuery } from "@/lib/access";
-import { formText } from "@/lib/forms";
-import { may } from "@/lib/permissions";
+import { ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
+import { formText } from "@/shared/lib/forms";
+import { may } from "@/shared/lib/permissions";
 
 /**
  * The Quality picker for Requesting a Movie or a Show's Seasons, as `kind` says, which `open`

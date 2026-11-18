@@ -1,11 +1,12 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { type ComponentProps, type ReactNode, useId, useState } from "react";
 
-import { FormEnd } from "@/components/form-field";
 import { useSetDefaultPermissions, useSetPermissions } from "@/components/use-set-permissions";
 import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { onSubmitted, refusal } from "@/lib/forms";
+import { onlyAdminRefusal } from "@/lib/users";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { onSubmitted, refusal } from "@/shared/lib/forms";
 import {
   type PermissionChoice,
   isCovered,
@@ -14,8 +15,7 @@ import {
   mayChangePermissions,
   permissionChoices,
   permissionsToOffer,
-} from "@/lib/permissions";
-import { onlyAdminRefusal } from "@/lib/users";
+} from "@/shared/lib/permissions";
 
 /** `user`'s Permissions as checkboxes, or nothing when `you` may not change them. */
 export function PermissionsEditor({ user, you }: { user: User; you: User | undefined }) {

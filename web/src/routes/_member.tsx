@@ -1,12 +1,12 @@
 import { Outlet, createFileRoute, redirect, useMatches } from "@tanstack/react-router";
 
 import { AppChrome } from "@/components/app-chrome";
-import { ConfirmItsYou } from "@/components/confirm-its-you";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { adminPagesFor, isSetupRequired, whoIsSignedIn } from "@/lib/access";
 import { recordDiagnosticsIfExported } from "@/lib/diagnostics";
 import { useEvents } from "@/lib/events";
-import { may } from "@/lib/permissions";
+import { ConfirmItsYou } from "@/shared/components/confirm-its-you/confirm-its-you";
+import { may } from "@/shared/lib/permissions";
 
 /** Pages for signed-in Users, under the app chrome unless they fill the screen. */
 export const Route = createFileRoute("/_member")({

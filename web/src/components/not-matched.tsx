@@ -1,7 +1,7 @@
-import { ShowMore } from "@/components/show-more";
 import { PlayUnmatched, parsedAs } from "@/components/unmatched-item";
 import { BrowseService, type UnmatchedItemSummary } from "@/gen/nama/v1/browse_pb";
-import { usePaged } from "@/lib/paged";
+import { ShowMore } from "@/shared/components/show-more";
+import { usePaged } from "@/shared/hooks/use-paged";
 
 /** `ListUnmatched`'s first page of the Library `libraryId`'s Unmatched Items. */
 export function firstUnmatchedPage(libraryId: bigint) {

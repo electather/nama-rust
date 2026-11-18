@@ -2,15 +2,12 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { CircleCheck, CircleSlash } from "lucide-react";
 
-import { AdminList, AdminRow } from "@/components/admin-list";
-import { Page } from "@/components/page";
 import {
   hardwareLabel,
   PlaybackSettingsForm,
   playbackSettingsQuery,
   playbackStatusQuery,
 } from "@/components/playback-settings";
-import { StateLabel } from "@/components/state-label";
 import {
   type FoundHardware,
   type FoundProgram,
@@ -18,6 +15,10 @@ import {
   ServerService,
   ToneMapping,
 } from "@/gen/nama/v1/server_pb";
+import { AdminList } from "@/shared/components/admin-list/admin-list";
+import { AdminRow } from "@/shared/components/admin-list/admin-row";
+import { Page } from "@/shared/components/page";
+import { StateLabel } from "@/shared/components/state-label";
 
 export const Route = createFileRoute("/_member/_admin/admin/playback")({
   loader: ({ context: { queryClient, transport } }) =>

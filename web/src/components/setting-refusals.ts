@@ -1,5 +1,5 @@
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { refusal, refusalOf, serverMessage } from "@/lib/forms";
+import { refusal, refusalOf, serverMessage } from "@/shared/lib/forms";
 
 /** Why the Server refused the `attempt`: next to the setting its Refusal names, or for the form. */
 export function refusedSettings(

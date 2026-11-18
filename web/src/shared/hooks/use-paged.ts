@@ -34,7 +34,7 @@ export function pagedQuery<I extends DescMessage, O extends DescMessage>(
 ) {
   const { maxPages, ...connectPaging } = paging;
   return {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connect-query can't see that a generic `I` has the `page.token` `input`'s type promises
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/consistent-type-assertions -- connect-query can't see that a generic `I` has the `page.token` `input`'s type promises
     ...createInfiniteQueryOptions(method, input as never, { transport, ...connectPaging } as never),
     maxPages,
   };

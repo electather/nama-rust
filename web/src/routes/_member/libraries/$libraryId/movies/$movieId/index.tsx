@@ -5,19 +5,12 @@ import { type ReactNode, useState } from "react";
 import { MovieActions } from "@/components/movie-actions";
 import { NotFound } from "@/components/route-error";
 import { Overview, TitleFacts, TitlePage } from "@/components/title-page";
-import { PlayOrResume } from "@/components/watch-state";
 import { BrowseService, HdrFormat, type Version } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import {
-  loadMovie,
-  metadataLine,
-  runtimeOf,
-  sizeOf,
-  timeLeft,
-  versionLine,
-  versionToPlay,
-  yearOf,
-} from "@/lib/browse";
+import { loadMovie, versionToPlay } from "@/lib/browse";
+import { PlayOrResume } from "@/shared/components/watch-state/play-or-resume";
+import { metadataLine, runtimeOf, sizeOf, timeLeft, yearOf } from "@/shared/lib/title-facts";
+import { versionLine } from "@/shared/lib/version-facts";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/")({
   loader: ({ context, params }) => loadMovie(context, params),

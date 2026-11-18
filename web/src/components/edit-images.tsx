@@ -6,14 +6,15 @@ import { useId, useRef, useState } from "react";
 
 import type { Choices } from "@/components/artwork-choices";
 import { ChangeImage, type ImageRules } from "@/components/change-image";
-import { Button } from "@/components/ui/button";
 import type { Movie, Season, Show } from "@/gen/nama/v1/browse_pb";
 import { LibraryService, type ListArtworkRequestSchema } from "@/gen/nama/v1/library_pb";
 // oxlint-disable-next-line import/max-dependencies -- the dialog puts together a title's images, changing each and its artwork lists
 import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { seasonName, titleParam } from "@/lib/browse";
-import { may } from "@/lib/permissions";
+import { may } from "@/shared/lib/permissions";
+import { seasonName } from "@/shared/lib/title-facts";
+import { titleParam } from "@/shared/lib/title-param";
+import { Button } from "@/shared/ui/button";
 
 /** One of a title's images as the Server sends it, and where its Custom Image goes. */
 export interface EditableImage {

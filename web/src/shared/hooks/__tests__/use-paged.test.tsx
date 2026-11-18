@@ -6,7 +6,7 @@ import { type ReactNode, Suspense } from "react";
 import { expect, test } from "vite-plus/test";
 
 import { RequestService } from "@/gen/nama/v1/request_pb";
-import { usePaged } from "@/lib/paged";
+import { usePaged } from "@/shared/hooks/use-paged";
 
 /** A fake Server whose list has `count` pages, with each page's index as the token that lists it. */
 function pagesOf(count: number) {
@@ -46,13 +46,15 @@ test("usePaged holds at most 10 pages and keeps the first page's total size afte
 
   for (let fetched = 1; fetched < 12; fetched += 1) {
     // oxlint-disable-next-line no-await-in-loop -- each page asks with the token the one before gave
-    await act(() => result.current.fetchNextPage());
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
   }
 
   // TanStack Query flushes observer updates on a later macrotask, so the last pages can reach the render after `act` resolves.
   await waitFor(() => {
     const ids = result.current.data.pages.map((page) => page.requests[0]?.id);
-    expect(ids).toEqual([2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n]);
+    expect(ids).toStrictEqual([2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n]);
   });
   expect(result.current.hasNextPage).toBe(false);
   expect(result.current.totalSize).toBe(12);

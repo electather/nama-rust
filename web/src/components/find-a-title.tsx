@@ -2,13 +2,15 @@ import { useQuery } from "@connectrpc/connect-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { FormField } from "@/components/form-field";
 import { FoundMovieState } from "@/components/found-movie-state";
-import { Poster, PosterGrid, posterLink } from "@/components/poster";
-import { Button } from "@/components/ui/button";
 import { type MovieHit, RequestService, type ShowHit } from "@/gen/nama/v1/request_pb";
-import { titleParam } from "@/lib/browse";
-import { formText, onSubmitted } from "@/lib/forms";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { Poster } from "@/shared/components/poster/poster";
+import { PosterGrid } from "@/shared/components/poster/poster-grid";
+import { formText, onSubmitted } from "@/shared/lib/forms";
+import { posterLink } from "@/shared/lib/poster-classes";
+import { titleParam } from "@/shared/lib/title-param";
+import { Button } from "@/shared/ui/button";
 
 /** Which kinds of title the signed-in User may Request, and so search for. */
 export interface Searchable {

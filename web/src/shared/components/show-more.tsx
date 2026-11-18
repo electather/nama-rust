@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/button";
 
 /**
  * A "Show more" button that calls `load`, an infinite query's `fetchNextPage`, when pressed or

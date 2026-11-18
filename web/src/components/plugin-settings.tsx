@@ -1,13 +1,13 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormEnd } from "@/components/form-field";
 import { SettingInput, forgottenTyped, settingsTyped } from "@/components/setting-fields";
 import { refusedSettings } from "@/components/setting-refusals";
 import { TestButton, testPassed, useSettingsTest } from "@/components/settings-test";
 import { PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { onSubmitted } from "@/lib/forms";
 import { type PluginDetails, pluginsKey } from "@/lib/plugins";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { onSubmitted } from "@/shared/lib/forms";
 
 /**
  * The form an Admin changes `plugin`'s settings with, checked against its schema as they type. A

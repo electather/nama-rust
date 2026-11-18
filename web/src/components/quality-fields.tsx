@@ -1,6 +1,7 @@
-import { FormField, FormSelect } from "@/components/form-field";
-import { Button } from "@/components/ui/button";
 import type { Choice, Quality } from "@/gen/nama/v1/plugin_pb";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { FormSelect } from "@/shared/components/form-field/form-select";
+import { Button } from "@/shared/ui/button";
 
 /** The button that adds an empty Quality to the list. */
 export function AddQuality({ onAdd }: { onAdd: () => void }) {

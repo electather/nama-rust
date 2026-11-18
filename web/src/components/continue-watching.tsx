@@ -9,14 +9,15 @@ import {
   type Hiding,
   useHideFromContinueWatching,
 } from "@/components/hide-from-continue-watching";
-import { posterLink } from "@/components/poster";
 import {
   BrowseService,
   type ContinueWatchingEntry,
   type ContinueWatchingEpisode,
   type Movie,
 } from "@/gen/nama/v1/browse_pb";
-import { episodeName, metadataLine, timeLeft, titleParam } from "@/lib/browse";
+import { posterLink } from "@/shared/lib/poster-classes";
+import { episodeName, metadataLine, timeLeft } from "@/shared/lib/title-facts";
+import { titleParam } from "@/shared/lib/title-param";
 
 /** Home's one page of Continue Watching: whole rows at one, two and three columns. */
 export const continueWatchingRow = { page: { size: 6 } };

@@ -2,9 +2,6 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
 import { useState } from "react";
 
-import { ConfirmDialog } from "@/components/confirm-dialog";
-import { useSensitiveMutation } from "@/components/confirm-its-you";
-import { FormSelect } from "@/components/form-field";
 import type { Version } from "@/gen/nama/v1/browse_pb";
 import {
   type DeleteMediaResponse,
@@ -14,8 +11,12 @@ import {
   type MediaToDeleteSchema,
   type RequestToCancel,
 } from "@/gen/nama/v1/library_pb";
-import { episodeName, metadataLine, seasonName, sizeOf, versionLine } from "@/lib/browse";
-import { formText, refusal } from "@/lib/forms";
+import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
+import { FormSelect } from "@/shared/components/form-field/form-select";
+import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
+import { formText, refusal } from "@/shared/lib/forms";
+import { episodeName, metadataLine, seasonName, sizeOf } from "@/shared/lib/title-facts";
+import { versionLine } from "@/shared/lib/version-facts";
 
 /** The choice that deletes every Version, where any other choice is one Version's id. */
 const EVERY_VERSION = "every";

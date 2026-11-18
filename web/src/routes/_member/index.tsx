@@ -4,11 +4,11 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { BackdropGrid, LibraryCard } from "@/components/backdrop-card";
 import { ContinueWatching, continueWatchingRow } from "@/components/continue-watching";
 import { HomeRows } from "@/components/home-rows";
-import { Page } from "@/components/page";
-import { posterLink } from "@/components/poster";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
+import { Page } from "@/shared/components/page";
+import { posterLink } from "@/shared/lib/poster-classes";
 
 export const Route = createFileRoute("/_member/")({
   loader: ({ context: { queryClient, transport } }) =>

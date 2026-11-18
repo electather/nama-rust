@@ -2,11 +2,11 @@ import { Code } from "@connectrpc/connect";
 import { useMutation, useQuery } from "@connectrpc/connect-query";
 import type { ReactNode } from "react";
 
-import { FormField } from "@/components/form-field";
 import { SignInLayout } from "@/components/sign-in-layout";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
-import { type FormErrors, formText, refusal } from "@/lib/forms";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { type FormErrors, formText, refusal } from "@/shared/lib/forms";
 
 /** Signing this browser in with a username and password. */
 export function PasswordSignIn({

@@ -2,8 +2,8 @@ import { useQuery } from "@connectrpc/connect-query";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useId, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { ExtensionPoint, type PluginSummary, PluginService } from "@/gen/nama/v1/plugin_pb";
+import { Button } from "@/shared/ui/button";
 
 const none: string[] = [];
 

@@ -7,8 +7,8 @@ import type { ReactNode } from "react";
 
 import { RouteError } from "@/components/route-error";
 import { signedInQuery, whoIsSignedIn } from "@/lib/access";
-import { isCode, retryIfUnreachable } from "@/lib/connect-errors";
 import { traceCalls, traceRouteChanges } from "@/lib/diagnostics";
+import { isCode, retryIfUnreachable } from "@/shared/lib/connect-errors";
 
 // oxlint-disable-next-line import/max-dependencies -- the router puts together the transport, the query cache, the routes and their Diagnostics
 import { routeTree } from "./routeTree.gen";

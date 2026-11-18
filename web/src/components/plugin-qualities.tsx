@@ -3,7 +3,6 @@ import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { FormEnd } from "@/components/form-field";
 import { AddQuality, QualityFields } from "@/components/quality-fields";
 import {
   type Choice,
@@ -14,8 +13,9 @@ import {
   SettingKind,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { formText, onSubmitted, refusal, refusalOf, serverMessage } from "@/lib/forms";
 import { type PluginDetails, pluginName } from "@/lib/plugins";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { formText, onSubmitted, refusal, refusalOf, serverMessage } from "@/shared/lib/forms";
 
 /** The choice setting whose choices a Fulfiller's Qualities offer (`qualities.rs` on the Server). */
 const qualityProfile = "quality_profile";

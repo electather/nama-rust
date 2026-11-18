@@ -4,9 +4,8 @@ import { type QueryClient, queryOptions } from "@tanstack/react-query";
 
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { Permission, SignInService, type User } from "@/gen/nama/v1/sign_in_pb";
-
-import { isCode } from "./connect-errors";
-import { may } from "./permissions";
+import { isCode } from "@/shared/lib/connect-errors";
+import { may } from "@/shared/lib/permissions";
 
 /** What every route's `beforeLoad` gets from the router. */
 export interface RouterContext {

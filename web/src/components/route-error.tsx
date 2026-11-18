@@ -1,11 +1,11 @@
 import { Code } from "@connectrpc/connect";
 import { Link, type ErrorComponentProps, useRouter } from "@tanstack/react-router";
 
-import { Page } from "@/components/page";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { isCode } from "@/lib/connect-errors";
-import { refusalOf } from "@/lib/forms";
+import { Page } from "@/shared/components/page";
+import { isCode } from "@/shared/lib/connect-errors";
+import { refusalOf } from "@/shared/lib/forms";
+import { Button, buttonVariants } from "@/shared/ui/button";
 
 /** What a page shows instead when it fails, in plain words and never an error code. */
 export function RouteError({ error }: ErrorComponentProps) {

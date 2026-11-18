@@ -13,8 +13,8 @@ import {
   PlaybackService,
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
-import { retryIfUnreachable } from "@/lib/connect-errors";
 import { stopDrawing } from "@/lib/device-decoding";
+import { retryIfUnreachable } from "@/shared/lib/connect-errors";
 
 /** How a subtitle turned on is getting on: being read out of the file, shown, or not to be had. */
 export type SubtitleState = "loading" | "ready" | "failed";

@@ -1,10 +1,11 @@
 import { useQuery } from "@connectrpc/connect-query";
 
 import { Overview, TitleFacts } from "@/components/title-page";
-import { PlayOrResume } from "@/components/watch-state";
 import { BrowseService, type ContinueWatchingEntry, type Show } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
-import { episodeName, metadataLine, timeLeft, titleParam, yearOf } from "@/lib/browse";
+import { PlayOrResume } from "@/shared/components/watch-state/play-or-resume";
+import { episodeName, metadataLine, timeLeft, yearOf } from "@/shared/lib/title-facts";
+import { titleParam } from "@/shared/lib/title-param";
 
 /**
  * The top of a Show's page under its title: its genres, first air year and Content Rating, Resume

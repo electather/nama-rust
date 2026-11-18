@@ -9,7 +9,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
 import { AutoplayPreference } from "@/components/autoplay-preference";
-import { Choices, FormEnd, FormField } from "@/components/form-field";
 import {
   PlaybackService,
   SubtitleKind,
@@ -17,8 +16,11 @@ import {
   type UsersSubtitlePreference,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { formText, onSubmitted, refusal } from "@/lib/forms";
 import { languageCode, languageName, languages } from "@/lib/languages";
+import { Choices } from "@/shared/components/form-field/choices";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { formText, onSubmitted, refusal } from "@/shared/lib/forms";
 
 const preferencesKey = createConnectQueryKey({
   schema: PlaybackService.method.getTrackPreferences,

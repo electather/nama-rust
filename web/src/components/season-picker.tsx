@@ -6,10 +6,10 @@ import { QualityPicker } from "@/components/quality-picker";
 import { RequestProgress } from "@/components/request-progress";
 import { qualityName } from "@/components/request-row";
 import { RequestStateLabel, isRequester } from "@/components/request-state";
-import { StateLabel } from "@/components/state-label";
-import { Button } from "@/components/ui/button";
 import type { FollowedShow, FoundSeason, FoundShow } from "@/gen/nama/v1/request_pb";
-import { seasonName, yearOf } from "@/lib/browse";
+import { StateLabel } from "@/shared/components/state-label";
+import { seasonName, yearOf } from "@/shared/lib/title-facts";
+import { Button } from "@/shared/ui/button";
 
 /**
  * `show`'s Seasons, each with where it is on its way to the Server, to pick and Request in one go,

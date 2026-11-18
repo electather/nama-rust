@@ -1,11 +1,11 @@
 import { Info } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { PlaybackPlan } from "@/gen/nama/v1/playback_pb";
 import { trackLine } from "@/lib/browse";
 import { methodName, wordReasons } from "@/lib/playback-wording";
+import { Button } from "@/shared/ui/button";
 
 const trackKindNames: Record<NonNullable<Track["kind"]["case"]>, string> = {
   video: "Video",

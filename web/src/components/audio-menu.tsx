@@ -1,17 +1,18 @@
 import { AudioLines } from "lucide-react";
 import type { RefObject } from "react";
 
-import { Button } from "@/components/ui/button";
+import type { Track } from "@/gen/nama/v1/browse_pb";
+import { trackLabel } from "@/lib/subtitles";
+import { metadataLine } from "@/shared/lib/title-facts";
+import { soundOf } from "@/shared/lib/version-facts";
+import { Button } from "@/shared/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import type { Track } from "@/gen/nama/v1/browse_pb";
-import { metadataLine, soundOf } from "@/lib/browse";
-import { trackLabel } from "@/lib/subtitles";
+} from "@/shared/ui/dropdown-menu";
 
 /**
  * Picks which of the Version's audio Tracks plays, by its place in `tracks`, with `choose`, from

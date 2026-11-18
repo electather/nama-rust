@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 
 import { ChangeImage, type ImageRules } from "@/components/change-image";
-import { type Shown, StateLabel } from "@/components/state-label";
 import {
   ExtensionPoint,
   type ExtensionPointFailure,
@@ -27,6 +26,7 @@ import {
   type PluginSummary,
 } from "@/gen/nama/v1/plugin_pb";
 import { pluginName } from "@/lib/plugins";
+import { type Shown, StateLabel } from "@/shared/components/state-label";
 
 /** Each Extension Point in plain words, with the icon the web picks for it. */
 const points: Partial<Record<ExtensionPoint, Shown>> = {

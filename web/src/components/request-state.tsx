@@ -10,11 +10,11 @@ import {
   X,
 } from "lucide-react";
 
-import { type Shown, StateLabel } from "@/components/state-label";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type Request, RequestState } from "@/gen/nama/v1/request_pb";
 import { requestsKey } from "@/lib/events";
-import { refusalOf } from "@/lib/forms";
+import { type Shown, StateLabel } from "@/shared/components/state-label";
+import { refusalOf } from "@/shared/lib/forms";
 
 /** Each state in the Glossary's words, with its icon, so it never rests on colour alone. */
 const states: Partial<Record<RequestState, Shown>> = {

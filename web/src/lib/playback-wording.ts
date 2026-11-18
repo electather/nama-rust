@@ -4,18 +4,20 @@ import { HdrFormat, HdrFormatSchema } from "@/gen/nama/v1/browse_pb";
 import {
   Container,
   ContainerSchema,
-  PlaybackLimit,
   PlaybackLimitSchema,
   PlaybackMethod,
   PlaybackMethodSchema,
   type PlaybackReason,
   PlaybackReasonKind,
 } from "@/gen/nama/v1/playback_pb";
-import { HardwareAcceleration, HardwareAccelerationSchema } from "@/gen/nama/v1/server_pb";
-import { channelsName, codecName } from "@/lib/browse";
+import { HardwareAccelerationSchema } from "@/gen/nama/v1/server_pb";
+import { codecName } from "@/lib/browse";
+import { belowOriginal, hardwareNames } from "@/shared/lib/playback-names";
+import { channelsName } from "@/shared/lib/version-facts";
 
 // Playback Reasons, and the names of methods, Playback Limits and hardware their sentences use,
-// are worded here, so a translation library plugs in here later (#690).
+// are worded here and in `@/shared/lib/playback-names`, so a translation library plugs in there
+// later (#690).
 
 const methodNames = new Map<PlaybackMethod, string>([
   [PlaybackMethod.DIRECT_PLAY, "Direct Play"],
@@ -26,27 +28,6 @@ const methodNames = new Map<PlaybackMethod, string>([
 /** How a plan plays by `method`, by name, or that it can't play here. */
 export function methodName(method: PlaybackMethod) {
   return methodNames.get(method) ?? "Can’t play here";
-}
-
-/** The Playback Limits below Original, largest first, by the names the player's menu shows. */
-export const belowOriginal = [
-  { limit: PlaybackLimit.PLAYBACK_LIMIT_1080P, name: "1080p" },
-  { limit: PlaybackLimit.PLAYBACK_LIMIT_720P, name: "720p" },
-  { limit: PlaybackLimit.PLAYBACK_LIMIT_480P, name: "480p" },
-];
-
-const hardwareNames = new Map<HardwareAcceleration, string>([
-  [HardwareAcceleration.UNSPECIFIED, "Automatic"],
-  [HardwareAcceleration.OFF, "Off"],
-  [HardwareAcceleration.VAAPI, "VAAPI"],
-  [HardwareAcceleration.QSV, "Intel QSV"],
-  [HardwareAcceleration.NVENC, "NVIDIA NVENC"],
-  [HardwareAcceleration.VIDEOTOOLBOX, "Apple VideoToolbox"],
-]);
-
-/** A hardware acceleration API's name in plain words, as the Server's own messages say it. */
-export function hardwareName(api: HardwareAcceleration) {
-  return hardwareNames.get(api) ?? `API ${api}`;
 }
 
 /** Why a Version can’t play when the Server failed to work out its plan. */

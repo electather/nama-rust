@@ -1,8 +1,6 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useState } from "react";
 
-import { FormSelect } from "@/components/form-field";
-import { Button } from "@/components/ui/button";
 import {
   type Choice,
   type Plugin,
@@ -10,6 +8,8 @@ import {
   type Setting,
   type SettingChoices,
 } from "@/gen/nama/v1/plugin_pb";
+import { FormSelect } from "@/shared/components/form-field/form-select";
+import { Button } from "@/shared/ui/button";
 
 /**
  * Testing a Plugin's settings: the test itself, and the choices for each choice setting that the

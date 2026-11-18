@@ -1,7 +1,6 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { Page } from "@/components/page";
 import {
   ExtensionPoints,
   LogoChoice,
@@ -17,6 +16,7 @@ import { PluginService } from "@/gen/nama/v1/plugin_pb";
 // oxlint-disable-next-line import/max-dependencies -- the page puts together a section per part of a Plugin's setup: settings, Qualities, log
 import { queryOrNotFound } from "@/lib/browse";
 import { hasSummary, kindAndVersion, type PluginDetails, pluginName } from "@/lib/plugins";
+import { Page } from "@/shared/components/page";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins/$pluginId")({
   loader: ({ context, params }) =>

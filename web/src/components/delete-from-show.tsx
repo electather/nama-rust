@@ -4,8 +4,10 @@ import { DeleteMedia, MayDownloadAgain } from "@/components/delete-media";
 import type { Episode, Season } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { deletedSearch, seasonName, titleParam } from "@/lib/browse";
-import { may } from "@/lib/permissions";
+import { deletedSearch } from "@/lib/browse";
+import { may } from "@/shared/lib/permissions";
+import { seasonName } from "@/shared/lib/title-facts";
+import { titleParam } from "@/shared/lib/title-param";
 
 /** Whether the signed-in User may delete media. */
 function useMayDelete() {

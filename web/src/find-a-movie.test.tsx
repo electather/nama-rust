@@ -13,7 +13,7 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { titleParam } from "@/lib/browse";
+import { titleParam } from "@/shared/lib/title-param";
 
 import { fakeServer, fill, newUser, openApp } from "./test-app";
 import { refused } from "./test-refusal";

@@ -1,12 +1,13 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
-import { AdminList, AdminRow } from "@/components/admin-list";
 import { CreateLibrary } from "@/components/library-form";
 import { ScanButton, ScanStatus } from "@/components/library-scan";
-import { Page } from "@/components/page";
 import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import { kindName } from "@/lib/libraries";
+import { AdminList } from "@/shared/components/admin-list/admin-list";
+import { AdminRow } from "@/shared/components/admin-list/admin-row";
+import { Page } from "@/shared/components/page";
 
 export const Route = createFileRoute("/_member/_admin/admin/libraries/")({
   loader: ({ context: { queryClient, transport } }) =>

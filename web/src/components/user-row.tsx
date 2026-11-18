@@ -4,7 +4,7 @@ import { DeviceList } from "@/components/device-list";
 import { PermissionsEditor } from "@/components/permissions-editor";
 import { DeleteUser, ResetPassword } from "@/components/user-dialogs";
 import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
-import { may } from "@/lib/permissions";
+import { may } from "@/shared/lib/permissions";
 
 /**
  * A User, marked if an Admin or `you`, opening to manage them, their Permissions and their Devices.

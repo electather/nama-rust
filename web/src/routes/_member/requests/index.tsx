@@ -1,7 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-title";
-import { Page } from "@/components/page";
 import { RequestRow, type ShowGroup, ShowRequests } from "@/components/request-row";
 import {
   type StateFilter,
@@ -11,11 +10,12 @@ import {
   isStateFilter,
   listedIn,
 } from "@/components/request-state-filter";
-import { ShowMore } from "@/components/show-more";
 import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { pagedQuery, usePaged } from "@/lib/paged";
-import { may } from "@/lib/permissions";
+import { Page } from "@/shared/components/page";
+import { ShowMore } from "@/shared/components/show-more";
+import { pagedQuery, usePaged } from "@/shared/hooks/use-paged";
+import { may } from "@/shared/lib/permissions";
 
 export const Route = createFileRoute("/_member/requests/")({
   beforeLoad: async ({ context, location, search }) => {

@@ -1,28 +1,8 @@
-import type { ReactNode } from "react";
-
-import { Thumbhash } from "@/components/thumbhash";
-import { PlayedMark, WatchedBar } from "@/components/watch-state";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { useSrcSet } from "@/lib/image-sizes";
-
-/** The classes for a link wrapping a `Poster` or a card, which shows focus around it. */
-export const posterLink =
-  "block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
-
-/**
- * The classes of a grid of posters: 2 columns, 3 from `sm`, 4 from `md` and 5 from `lg`, as
- * `posterColumns` counts them.
- */
-export const posterGrid =
-  "mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
-
-/** A grid of posters, or what to say instead when there are none. */
-export function PosterGrid({ empty, children }: { empty: ReactNode; children: ReactNode[] }) {
-  if (children.length === 0) {
-    return empty;
-  }
-  return <ul className={posterGrid}>{children}</ul>;
-}
+import { Thumbhash } from "@/shared/components/thumbhash";
+import { PlayedMark } from "@/shared/components/watch-state/played-mark";
+import { WatchedBar } from "@/shared/components/watch-state/watched-bar";
+import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 /**
  * A title's poster with its name and a line of metadata under it, and your Watch State: a played

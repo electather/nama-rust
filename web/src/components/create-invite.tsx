@@ -1,14 +1,14 @@
 import { useMutation, useSuspenseQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormField } from "@/components/form-field";
 import { InviteLink } from "@/components/invite-link";
 import { PermissionsForm } from "@/components/permissions-editor";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { formText } from "@/lib/forms";
-import { permissionsToInvite } from "@/lib/permissions";
 import { createInviteErrors, invitesKey } from "@/lib/users";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { formText } from "@/shared/lib/forms";
+import { permissionsToInvite } from "@/shared/lib/permissions";
 
 /** The form that makes an Invite, starting from the default Permissions `you` may pass on. */
 export function CreateInvite({ you }: { you: User | undefined }) {

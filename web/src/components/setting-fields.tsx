@@ -1,10 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { useId, useState } from "react";
 
-import { FormField } from "@/components/form-field";
 import { LibraryPicker } from "@/components/library-picker";
 import { ChoiceInput } from "@/components/settings-test";
-import { Button } from "@/components/ui/button";
 import {
   type Choice,
   LibraryIdsSchema,
@@ -12,7 +10,9 @@ import {
   SettingKind,
   type SettingValue,
 } from "@/gen/nama/v1/plugin_pb";
-import { formText } from "@/lib/forms";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { formText } from "@/shared/lib/forms";
+import { Button } from "@/shared/ui/button";
 
 /**
  * One setting's input, by its kind. Shared by the Admin's Plugin settings and a User's Personal

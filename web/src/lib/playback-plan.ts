@@ -15,13 +15,13 @@ import {
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { isCode } from "@/lib/connect-errors";
 import { findDeviceDecoding } from "@/lib/device-decoding";
-// oxlint-disable-next-line import/max-dependencies -- the plan puts together the Device's decoding, Watch State and why the Server couldn't plan
-import { refusalOf, serverMessage } from "@/lib/forms";
 import { stopPlan } from "@/lib/playback-source";
 import { serverFailedToPlan } from "@/lib/playback-wording";
 import { toMs } from "@/lib/watch-state";
+import { isCode } from "@/shared/lib/connect-errors";
+// oxlint-disable-next-line import/max-dependencies -- the plan puts together the Device's decoding, Watch State and why the Server couldn't plan
+import { refusalOf, serverMessage } from "@/shared/lib/forms";
 
 /** What the player asks a plan for, beside the Version. */
 interface Asking {

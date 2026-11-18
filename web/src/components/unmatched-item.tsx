@@ -5,8 +5,6 @@ import { Link } from "@tanstack/react-router";
 import { Play } from "lucide-react";
 import { useId, useState } from "react";
 
-import { FormField } from "@/components/form-field";
-import { Button, buttonVariants } from "@/components/ui/button";
 import {
   MatchService,
   type SetMatchResponse,
@@ -15,10 +13,13 @@ import {
   type UnmatchedItem,
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
-import { browseKey, episodeName } from "@/lib/browse";
+import { browseKey } from "@/lib/browse";
 // oxlint-disable-next-line import/max-dependencies -- an Unmatched Item's row both plays it and searches for and sets its Match
 import { unmatchedKey } from "@/lib/events";
-import { formText, onSubmitted, refusal } from "@/lib/forms";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { formText, onSubmitted, refusal } from "@/shared/lib/forms";
+import { episodeName } from "@/shared/lib/title-facts";
+import { Button, buttonVariants } from "@/shared/ui/button";
 
 /**
  * An Unmatched Item: what its file's name was parsed as, and the file. Opening it searches the

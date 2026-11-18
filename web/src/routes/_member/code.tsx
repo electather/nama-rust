@@ -3,12 +3,13 @@ import { useMutation } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { useSensitiveMutation } from "@/components/confirm-its-you";
-import { FormEnd, FormField } from "@/components/form-field";
-import { Page } from "@/components/page";
-import { Button } from "@/components/ui/button";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
-import { type FormErrors, formText, onSubmitted, refusal } from "@/lib/forms";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { Page } from "@/shared/components/page";
+import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
+import { type FormErrors, formText, onSubmitted, refusal } from "@/shared/lib/forms";
+import { Button } from "@/shared/ui/button";
 
 export const Route = createFileRoute("/_member/code")({
   // `?code=` is what a phone opens by scanning the QR code a signing-in Device shows.

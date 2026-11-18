@@ -6,14 +6,14 @@ import { DeviceList, yourDevicesQuery } from "@/components/device-list";
 import { ImageSettingsForm, imageSettingsQuery } from "@/components/image-settings";
 import { ImageStore } from "@/components/image-store";
 import { NotificationPreferences } from "@/components/notification-preferences";
-import { Page } from "@/components/page";
 import { PersonalSettings } from "@/components/personal-settings";
 import { PluginConnections } from "@/components/plugin-connections";
 // oxlint-disable-next-line import/max-dependencies -- Settings puts together a section per thing a User sets, from their password to the Server's own
 import { ServerUrl, serverSettingsQuery } from "@/components/server-url";
 import { TrackPreferences, trackPreferencesQuery } from "@/components/track-preferences";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { may } from "@/lib/permissions";
+import { Page } from "@/shared/components/page";
+import { may } from "@/shared/lib/permissions";
 
 export const Route = createFileRoute("/_member/settings")({
   loader: ({ context: { queryClient, transport, signedIn } }) =>

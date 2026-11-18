@@ -1,12 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 
-import { ConfirmDialog } from "@/components/confirm-dialog";
-import { useSensitiveMutation } from "@/components/confirm-its-you";
-import { FormField } from "@/components/form-field";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { formText } from "@/lib/forms";
 import { devicesKey, onlyAdminRefusal, resetPasswordRefusal, usersKey } from "@/lib/users";
+import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
+import { formText } from "@/shared/lib/forms";
 
 /** Sets `user`'s password for an Admin to pass on, once confirmed. */
 export function ResetPassword({ user }: { user: User }) {

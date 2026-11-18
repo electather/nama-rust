@@ -5,29 +5,27 @@ import { BackdropGrid, Still } from "@/components/backdrop-card";
 import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
 import { EditImages, showImages } from "@/components/edit-images";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
-import { posterLink } from "@/components/poster";
 import { NotFound } from "@/components/route-error";
 import { ShowIntro } from "@/components/show-intro";
 import { TitlePage } from "@/components/title-page";
-// oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
-import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
 import {
   type DeletedSearch,
   dateOf,
   deletedFromSearch,
-  episodeName,
   externalIdFromParam,
   isGone,
   libraryFromParam,
-  metadataLine,
   queryOrNotFound,
-  runtimeOf,
-  seasonName,
-  versionLine,
   versionToPlay,
 } from "@/lib/browse";
 import { useSetPlayed } from "@/lib/watch-state";
+// oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
+import { PlayedIconButton } from "@/shared/components/watch-state/played-icon-button";
+import { WatchedBar } from "@/shared/components/watch-state/watched-bar";
+import { posterLink } from "@/shared/lib/poster-classes";
+import { episodeName, metadataLine, runtimeOf, seasonName } from "@/shared/lib/title-facts";
+import { versionLine } from "@/shared/lib/version-facts";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
   validateSearch: (search): { season?: number } & DeletedSearch => {

@@ -1,10 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useSensitiveMutation } from "@/components/confirm-its-you";
-import { FormEnd, FormField } from "@/components/form-field";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { formText, onSubmitted } from "@/lib/forms";
 import { changePasswordErrors, devicesKey } from "@/lib/users";
+import { FormEnd } from "@/shared/components/form-field/form-end";
+import { FormField } from "@/shared/components/form-field/form-field";
+import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
+import { formText, onSubmitted } from "@/shared/lib/forms";
 
 /** The form the signed-in User changes their own password with, which signs out their other Devices. */
 export function ChangePassword() {

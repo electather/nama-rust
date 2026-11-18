@@ -2,9 +2,9 @@ import type { ConnectError } from "@connectrpc/connect";
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
 import { type PluginConnection, PluginConnectionState, UserService } from "@/gen/nama/v1/user_pb";
-import { refusal } from "@/lib/forms";
+import { refusal } from "@/shared/lib/forms";
+import { Button } from "@/shared/ui/button";
 
 const connectionsKey = createConnectQueryKey({
   schema: UserService.method.listPluginConnections,

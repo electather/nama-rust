@@ -2,17 +2,17 @@ import { createQueryOptions } from "@connectrpc/connect-query";
 import { ChevronDown } from "lucide-react";
 
 import { requestStateName } from "@/components/request-state";
-import { Button } from "@/components/ui/button";
+import { RequestService, RequestState } from "@/gen/nama/v1/request_pb";
+import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
+import type { RouterContext } from "@/lib/access";
+import { may } from "@/shared/lib/permissions";
+import { Button } from "@/shared/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { RequestService, RequestState } from "@/gen/nama/v1/request_pb";
-import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
-import type { RouterContext } from "@/lib/access";
-import { may } from "@/lib/permissions";
+} from "@/shared/ui/dropdown-menu";
 
 /** The Requests page's `state` search parameter values, in the order the filter offers them. */
 const stateFilters = {
