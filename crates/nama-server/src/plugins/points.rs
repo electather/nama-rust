@@ -29,7 +29,8 @@ use super::{
 #[derive(Clone, Default)]
 pub struct ExtensionPoints {
     state: Arc<RwLock<State>>,
-    /// Which Providers' last calls failed, which callers record and the Admin is shown.
+    /// Which Providers' and Observers' last calls failed, which callers record and the Admin is
+    /// shown.
     failures: Arc<Failures>,
 }
 
@@ -245,7 +246,7 @@ impl ExtensionPoints {
         }
     }
 
-    /// Records that the Plugin `plugin`'s Provider at `point` failed with `message`, a
+    /// Records that the Plugin `plugin`'s Provider or Observer at `point` failed with `message`, a
     /// [`Failure`](super::Failure)'s, and returns its run of failures so far, so a caller can log
     /// only the first of a run. Records nothing and returns `None` once the Plugin is disabled,
     /// such as a call its disabling interrupted. The record lives in memory: a success or disabling
@@ -272,13 +273,13 @@ impl ExtensionPoints {
         })
     }
 
-    /// Records that the Plugin `plugin`'s Provider at `point` answered, which clears what
-    /// [`Self::provider_failed`] recorded.
+    /// Records that the Plugin `plugin`'s Provider or Observer at `point` answered, which clears
+    /// what [`Self::provider_failed`] recorded.
     pub fn provider_answered(&self, plugin: &PluginId, point: PointKey) {
         self.failures.answered(plugin, point);
     }
 
-    /// The Plugin `plugin`'s Provider at `point`, if its last recorded call failed.
+    /// The Plugin `plugin`'s Provider or Observer at `point`, if its last recorded call failed.
     #[must_use]
     pub fn failing(&self, plugin: &PluginId, point: PointKey) -> Option<Failing> {
         self.failures.get(plugin, point)

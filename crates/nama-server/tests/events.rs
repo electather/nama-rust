@@ -273,9 +273,10 @@ async fn a_failing_observer_shows_its_failure_on_its_plugin_under_its_observe_po
     let failures = loop {
         let got = client.get_plugin(request.clone()).await.unwrap();
         let failures = got.into_owned().plugin.into_option().unwrap().failures;
-        if !failures.is_empty() || waiting.elapsed() > WAIT {
+        if !failures.is_empty() {
             break failures;
         }
+        assert!(waiting.elapsed() < WAIT, "no failure shown on {FAILS}");
         tokio::time::sleep(Duration::from_millis(10)).await;
     };
     let [failure] = failures.as_slice() else {
