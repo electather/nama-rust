@@ -167,11 +167,12 @@ impl Registry {
         };
         let id = &manifest.id;
         let enabling = || contain_sync(|| self.enable_as(&manifest, plugin, settings, granted));
-        let enabled = self.log_span(id).in_scope(enabling);
-        let registrations = enabled.unwrap_or_else(|message| {
-            Err(EnableError::Panicked {
-                plugin: id.clone(),
-                message,
+        let registrations = self.keeping_lines(id, || {
+            (self.log_span(id).in_scope(enabling)).unwrap_or_else(|message| {
+                Err(EnableError::Panicked {
+                    plugin: id.clone(),
+                    message,
+                })
             })
         })?;
         // Outside the span, which would prefix the Server's own line with the Plugin's name again.
@@ -433,7 +434,7 @@ impl Registry {
         let checked = check_fresh(id, &make, &secrets, &settings, |plugin, settings| {
             Some(plugin.settings_check()?.check(settings))
         });
-        let checked = checked.instrument(self.log_span(id)).await?;
+        let checked = checked.instrument(self.check_span(id)).await?;
         checked.ok_or_else(no_check)
     }
 
@@ -473,7 +474,7 @@ impl Registry {
         let checked = check_fresh(id, &make, &secrets, &asked, |plugin, (saved, values)| {
             Some(plugin.personal_settings_check()?.check(saved, values))
         });
-        checked.instrument(self.log_span(id)).await.map(drop)
+        checked.instrument(self.check_span(id)).await.map(drop)
     }
 
     /// The ids of the enabled Plugins, sorted.
