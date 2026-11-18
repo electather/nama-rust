@@ -365,6 +365,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC.procedure,   MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_LIST_QUALITIES_SPEC.procedure,         MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC.procedure,      MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_LIST_PLUGIN_LOG_LINES_SPEC.procedure,  ADMIN),
 ];
 
 /// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
@@ -442,8 +443,7 @@ fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<()
     Ok(())
 }
 
-/// Refuses `request` unless its caller, which [`identify_caller`] found, may make it, before any
-/// handler sees it.
+/// Refuses `request`, before any handler sees it, unless the caller [`identify_caller`] found may.
 async fn require_access(request: Request, next: Next) -> axum::response::Response {
     let caller = request.extensions().get::<Caller>();
     let path = request.uri().path();

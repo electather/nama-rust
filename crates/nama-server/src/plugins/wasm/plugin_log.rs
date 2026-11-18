@@ -9,11 +9,11 @@ use extism::{CurrentPlugin, UserData, Val};
 use nama_plugin_api::PluginId;
 use tracing::{Level, enabled, event, warn};
 
-use super::without_secrets;
-use crate::{db, diagnostics::PLUGIN_TARGET};
-
-/// The most of a line logged, in bytes, so a Plugin can't fill the log with one (ADR 0061).
-const MAX_LINE_BYTES: usize = 2048;
+use super::{printable, without_secrets};
+use crate::{
+    db,
+    diagnostics::{MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, cut_plugin_line},
+};
 
 /// How many lines a Plugin may log at once.
 const BURST: u64 = 50;
@@ -82,8 +82,8 @@ impl PluginLog {
     }
 
     /// Logs `text` at `level`, naming the Plugin, with its secrets blanked and cut at
-    /// [`MAX_LINE_BYTES`], as written at `now_ms`. A line over the Plugin's rate is dropped and
-    /// counted, and the count logged once a minute; one the level filter drops isn't counted.
+    /// [`MAX_PLUGIN_LINE_BYTES`], as written at `now_ms`. A line over the Plugin's rate is dropped
+    /// and counted, and the count logged once a minute; one the level filter drops isn't counted.
     pub(super) fn write(&self, level: Level, text: &[u8], now_ms: i64) {
         self.warn_of_dropped(now_ms);
         // `tracing` fixes an event's level where it is written, so each level is written apart.
@@ -102,12 +102,14 @@ impl PluginLog {
         }
     }
 
-    /// `text` as the line logged: blanked, then cut.
+    /// `text` as the line logged: blanked, made [`printable`], then cut.
     fn line(&self, text: &[u8]) -> String {
         // Only what can reach the cut is read, so a huge line costs no more than a short one,
         // with room for a secret that starts before the cut to be read whole.
         let longest_secret = self.secrets.iter().map(String::len).max().unwrap_or(0);
-        let read = text.get(..MAX_LINE_BYTES + longest_secret).unwrap_or(text);
+        let read = text
+            .get(..MAX_PLUGIN_LINE_BYTES + longest_secret)
+            .unwrap_or(text);
         let read_part = read.len() < text.len();
         // Blanked before cutting, so a cut can't leave the start of a secret showing.
         let mut line = without_secrets(String::from_utf8_lossy(read).into_owned(), &self.secrets);
@@ -118,9 +120,11 @@ impl PluginLog {
             let kept = line.len().saturating_sub(longest_secret + 3);
             line.truncate(line.floor_char_boundary(kept));
         }
-        if read_part || line.len() > MAX_LINE_BYTES {
-            line.truncate(line.floor_char_boundary(MAX_LINE_BYTES));
-            line.push_str(" [cut]");
+        // Escaped after the trim above, which counts a secret's bytes as written, and before the
+        // cut, so the cut holds for the escaped line.
+        let mut line = printable(&line);
+        if read_part || line.len() > MAX_PLUGIN_LINE_BYTES {
+            cut_plugin_line(&mut line);
         }
         line
     }

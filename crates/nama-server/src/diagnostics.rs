@@ -1,10 +1,12 @@
 //! Diagnostics: the spans the Server records about itself, and the web app's that it forwards,
-//! exported only to an endpoint its admin sets (ADR 0054). What a span may carry is a rule in
+//! exported only to an endpoint its admin sets (ADR 0054), and each Plugin's recent Plugin Log
+//! lines, kept for its Plugins page (ADR 0061). What a span may carry is a rule in
 //! `crates/nama-server/AGENTS.md`.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap, VecDeque},
     env,
+    fmt::{self, Write as _},
     sync::{Arc, Mutex, OnceLock, PoisonError},
     time::{Duration, Instant, SystemTime},
 };
@@ -20,6 +22,7 @@ use connectrpc::{
     ConnectError, Interceptor, NextStream, PayloadStream,
     interceptor::{Next as NextUnary, StreamRequest, StreamResponse, UnaryRequest, UnaryResponse},
 };
+use nama_plugin_api::PluginId;
 use opentelemetry::{
     KeyValue,
     propagation::TextMapPropagator as _,
@@ -31,9 +34,10 @@ use opentelemetry_sdk::{
     trace::{SdkTracer, SdkTracerProvider},
 };
 use tracing::{
-    Dispatch, Event, Instrument as _, Span, Subscriber,
+    Dispatch, Event, Instrument as _, Level, Span, Subscriber,
     dispatcher::WeakDispatch,
     field::{Field, Visit},
+    span::{Attributes, Id},
 };
 use tracing_opentelemetry::{OpenTelemetrySpanExt as _, SetParentError, get_otel_context};
 use tracing_subscriber::{
@@ -43,11 +47,92 @@ use tracing_subscriber::{
     registry::LookupSpan,
 };
 
+use crate::db;
+
 /// The target sqlx logs each query it ran under, once it has run.
 const SQL_TARGET: &str = "sqlx::query";
 
 /// The target of a Plugin's lines and of the span naming a Built-in on stdout.
 pub(crate) const PLUGIN_TARGET: &str = "nama::plugin";
+
+/// The name of the span under [`PLUGIN_TARGET`] that a call to an enabled Built-in runs in. A
+/// settings check's span is named apart: its lines come from no enablement, so no Plugin Log keeps
+/// them (ADR 0061).
+pub(crate) const PLUGIN_SPAN: &str = "plugin";
+
+/// How a Built-in's own target starts, since its package is `nama-plugin-<folder>`
+/// (`plugins/AGENTS.md`).
+const BUILTIN_TARGET_PREFIX: &str = "nama_plugin_";
+
+/// The most of a Plugin Log line kept, in bytes, so a Plugin can't fill the log with one.
+pub(crate) const MAX_PLUGIN_LINE_BYTES: usize = 2048;
+
+/// How many of each Plugin's lines its Plugins page shows.
+const KEPT_PLUGIN_LINES: usize = 100;
+
+/// Each enabled Plugin's last [`KEPT_PLUGIN_LINES`], oldest first. Process-wide, as the subscriber
+/// filling it is, and in memory only (ADR 0061).
+static PLUGIN_LINES: Mutex<BTreeMap<PluginId, VecDeque<PluginLine>>> = Mutex::new(BTreeMap::new());
+
+/// A line of a Plugin's Plugin Log, as its Plugins page shows it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PluginLine {
+    pub(crate) at_ms: i64,
+    pub(crate) level: Level,
+    /// Cut at [`MAX_PLUGIN_LINE_BYTES`]. An Installed Plugin's arrives with its secrets blanked.
+    pub(crate) text: String,
+}
+
+/// The layer that keeps each enabled Plugin's last Plugin Log lines for its Plugins page. Filter
+/// it as stdout is, so it keeps the lines stdout shows.
+#[must_use]
+pub fn plugin_lines_layer<S>() -> impl Layer<S>
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
+    KeepPluginLines
+}
+
+/// The Plugin `plugin`'s last lines, newest first.
+pub(crate) fn plugin_lines(plugin: &PluginId) -> Vec<PluginLine> {
+    let kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
+    kept.get(plugin)
+        .map_or_default(|lines| lines.iter().rev().cloned().collect())
+}
+
+/// Starts keeping the Plugin `plugin`'s lines, as it is being enabled. Lines it already has are
+/// kept: they are another enabling's, racing this one, since disabling it forgets them.
+pub(crate) fn keep_plugin_lines(plugin: &PluginId) {
+    let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
+    kept.entry(plugin.clone()).or_default();
+}
+
+/// Forgets the Plugin `plugin`'s lines and keeps no more, once it is disabled or failed to enable.
+pub(crate) fn forget_plugin_lines(plugin: &PluginId) {
+    let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
+    kept.remove(plugin);
+}
+
+/// Adds `line` to `plugin`'s last lines, dropping its oldest past [`KEPT_PLUGIN_LINES`], if its
+/// lines are kept: a line from a Plugin that isn't enabled, such as one checking its settings, is
+/// dropped. A line carries no enablement, so one from a call still running after a disable lands
+/// in the next enabling's lines.
+fn push_plugin_line(plugin: &PluginId, line: PluginLine) {
+    let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(lines) = kept.get_mut(plugin) else {
+        return;
+    };
+    if lines.len() == KEPT_PLUGIN_LINES {
+        lines.pop_front();
+    }
+    lines.push_back(line);
+}
+
+/// Cuts `line` at [`MAX_PLUGIN_LINE_BYTES`] and marks it as cut.
+pub(crate) fn cut_plugin_line(line: &mut String) {
+    line.truncate(line.floor_char_boundary(MAX_PLUGIN_LINE_BYTES));
+    line.push_str(" [cut]");
+}
 
 /// The layer that exports the Server's spans through `provider`, each SQL query among them.
 ///
@@ -254,7 +339,115 @@ impl Visit for Query {
         }
     }
 
-    fn record_debug(&mut self, _field: &Field, _value: &dyn std::fmt::Debug) {}
+    fn record_debug(&mut self, _field: &Field, _value: &dyn fmt::Debug) {}
+}
+
+/// See [`plugin_lines_layer`].
+struct KeepPluginLines;
+
+/// The Built-in a [`PLUGIN_SPAN`] names, kept in its extensions.
+struct SpanPlugin(PluginId);
+
+impl<S> Layer<S> for KeepPluginLines
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
+    fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+        let metadata = attrs.metadata();
+        if metadata.target() != PLUGIN_TARGET || metadata.name() != PLUGIN_SPAN {
+            return;
+        }
+        let mut fields = LineFields::default();
+        attrs.record(&mut fields);
+        if let (Some(plugin), Some(span)) = (fields.plugin, ctx.span(id)) {
+            span.extensions_mut().insert(SpanPlugin(plugin));
+        }
+    }
+
+    fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        let metadata = event.metadata();
+        let mut fields = LineFields::default();
+        let (plugin, text) = if metadata.target() == PLUGIN_TARGET {
+            // An Installed Plugin's line, named in its own field and cut already.
+            event.record(&mut fields);
+            let Some(plugin) = fields.plugin.take() else {
+                return;
+            };
+            (plugin, fields.text())
+        } else {
+            // Only the Built-in's own: the Server's, such as its Kernel's failures, and those of a
+            // crate it calls, such as its HTTP client's, aren't the Plugin's to show.
+            if !metadata.target().starts_with(BUILTIN_TARGET_PREFIX) {
+                return;
+            }
+            let Some(plugin) = enclosing_plugin(event, &ctx) else {
+                return;
+            };
+            event.record(&mut fields);
+            let mut text = fields.text();
+            if text.len() > MAX_PLUGIN_LINE_BYTES {
+                cut_plugin_line(&mut text);
+            }
+            (plugin, text)
+        };
+        let line = PluginLine {
+            at_ms: db::now_ms(),
+            level: *metadata.level(),
+            text,
+        };
+        push_plugin_line(&plugin, line);
+    }
+}
+
+/// The Built-in the innermost [`PLUGIN_SPAN`] around `event` names.
+fn enclosing_plugin<S>(event: &Event<'_>, ctx: &Context<'_, S>) -> Option<PluginId>
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
+    ctx.event_scope(event)?.find_map(|span| {
+        let extensions = span.extensions();
+        (extensions.get::<SpanPlugin>()).map(|SpanPlugin(plugin)| plugin.clone())
+    })
+}
+
+/// A line's fields as stdout shows them: its message, then each other field but `plugin`, which
+/// names its Plugin.
+#[derive(Default)]
+struct LineFields {
+    plugin: Option<PluginId>,
+    message: String,
+    /// ` name=value` for each other field.
+    rest: String,
+}
+
+impl LineFields {
+    fn text(self) -> String {
+        self.message + &self.rest
+    }
+}
+
+impl Visit for LineFields {
+    // `plugin = %id` reaches `record_debug`, but `plugin = id.as_str()` here, whose `Debug` would
+    // quote it.
+    fn record_str(&mut self, field: &Field, value: &str) {
+        if field.name() == "plugin" {
+            self.plugin = Some(PluginId::from(value.to_owned()));
+        } else {
+            self.record_debug(field, &value);
+        }
+    }
+
+    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
+        // Writing to a `String` can't fail.
+        let _: fmt::Result = match field.name() {
+            "plugin" => {
+                self.plugin = Some(PluginId::from(format!("{value:?}")));
+                Ok(())
+            }
+            "message" => write!(self.message, "{value:?}"),
+            name => write!(self.rest, " {name}={value:?}"),
+        };
+    }
 }
 
 /// How many times one Device may post its spans in [`POSTS_WINDOW`]: its exporter sends a batch

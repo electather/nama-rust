@@ -31,6 +31,23 @@ fn a_line_is_logged_at_its_level_under_nama_plugin_naming_its_plugin() {
 }
 
 #[test]
+fn a_newline_in_a_line_is_escaped_so_it_cannot_forge_a_server_line() {
+    let log = plugin_log(&[]);
+    let forged = "ok\n2026-11-17T10:00:00Z ERROR nama_server::users: forged";
+
+    let logged = logged(&log, &[(Level::WARN, forged)], 0);
+
+    let escaped = r"ok\n2026-11-17T10:00:00Z ERROR nama_server::users: forged plugin=radarr";
+    assert!(logged.contains(escaped), "{logged}");
+    assert!(
+        !logged
+            .lines()
+            .any(|line| line.starts_with("2026-11-17T10:00:00Z")),
+        "{logged}"
+    );
+}
+
+#[test]
 fn a_secret_settings_value_is_blanked_in_a_line() {
     let log = plugin_log(&["s3cr3t-key"]);
 

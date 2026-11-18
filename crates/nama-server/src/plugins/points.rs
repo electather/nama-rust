@@ -11,7 +11,7 @@ use nama_plugin_api::{ObservePoint, Observer, PluginId, PointKey, blob_store::Bl
 use nama_proto::nama::v1::PluginKind;
 use tracing::{Instrument as _, Span, error, info, warn};
 
-use crate::diagnostics::{self, PLUGIN_TARGET};
+use crate::diagnostics::{self, PLUGIN_SPAN, PLUGIN_TARGET};
 
 use super::{
     Answer, ProviderError, contain_call, contain_sync,
@@ -47,6 +47,7 @@ impl ExtensionPoints {
         let span = diagnostics::following_current(tracing::info_span!(parent: None, "notify"));
         for entry in observers {
             let Some(observer) = entry.registration.observer::<P>() else {
+                self.drop_contained(entry, ());
                 continue;
             };
             let delivering = self.clone().deliver(entry, observer, Arc::clone(&event));
@@ -61,13 +62,13 @@ impl ExtensionPoints {
         event: Arc<P::Event>,
     ) {
         // The Plugin may have been disabled since `notify`.
-        if !self.is_current(&entry) {
-            return;
+        if self.is_current(&entry) {
+            let delivered = contain_call(&entry.plugin, P::NAME, || observer.observe(&event));
+            if let Err(message) = delivered.instrument(self.log_span(&entry.plugin)).await {
+                self.disable_after_panic(&entry, P::NAME, &message);
+            }
         }
-        let delivered = contain_call(&entry.plugin, P::NAME, || observer.observe(&event));
-        if let Err(message) = delivered.instrument(self.log_span(&entry.plugin)).await {
-            self.disable_after_panic(&entry, P::NAME, &message);
-        }
+        self.drop_contained(entry, observer);
     }
 
     /// Asks the Provider of `T` that comes first: those the admin ranked with
@@ -129,33 +130,59 @@ impl ExtensionPoints {
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
     {
-        let point = PointKey::provide::<T>();
-        let mut entries = self.ranked_entries(point);
-        entries.retain(|entry| only.is_none_or(|plugin| entry.plugin == *plugin));
+        let mut entries = self
+            .ranked_entries(PointKey::provide::<T>(), only)
+            .into_iter();
         let mut asked = Asked::Absent;
-        for entry in entries {
-            let Some(provider) = entry.registration.provider::<T>() else {
-                continue;
-            };
-            if !self.is_current(&entry) {
-                continue;
-            }
-            let called = contain_call(&entry.plugin, point.name(), || formatted(call(provider)));
-            match called.instrument(self.log_span(&entry.plugin)).await {
-                Ok(result) => {
-                    let result = result.map_err(|failure| failure.blanked(&entry.secrets));
-                    return Asked::Answered(Answer {
-                        plugin: entry.plugin,
-                        result,
-                    });
+        for entry in entries.by_ref() {
+            let outcome = self.ask_if_current(&entry, &call).await;
+            self.drop_contained(entry, ());
+            match outcome {
+                Asked::Answered(_) => {
+                    asked = outcome;
+                    break;
                 }
-                Err(message) => {
-                    self.disable_after_panic(&entry, point.name(), &message);
-                    asked = Asked::Panicked;
-                }
+                Asked::Panicked => asked = outcome,
+                Asked::Absent => {}
             }
         }
+        // Left unasked, they may hold the last handles on other Plugins disabled during a call.
+        for unasked in entries {
+            self.drop_contained(unasked, ());
+        }
         asked
+    }
+
+    /// Asks `entry`'s Provider of `T` with `call`, unless its Plugin has been disabled since
+    /// [`ExtensionPoints::ask_in_turn`] took it.
+    async fn ask_if_current<T, R, K, E, F>(
+        &self,
+        entry: &Entry,
+        call: impl Fn(Arc<T>) -> F,
+    ) -> Asked<R, K>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = Result<R, E>>,
+        E: ProviderError<K>,
+    {
+        let Some(provider) = entry.registration.provider::<T>() else {
+            return Asked::Absent;
+        };
+        if !self.is_current(entry) {
+            return Asked::Absent;
+        }
+        let point = entry.registration.point().name();
+        let called = contain_call(&entry.plugin, point, || formatted(call(provider)));
+        match called.instrument(self.log_span(&entry.plugin)).await {
+            Ok(result) => Asked::Answered(Answer {
+                plugin: entry.plugin.clone(),
+                result: result.map_err(|failure| failure.blanked(&entry.secrets)),
+            }),
+            Err(message) => {
+                self.disable_after_panic(entry, point, &message);
+                Asked::Panicked
+            }
+        }
     }
 
     /// Tells every Provider of `T`, given the id of the Plugin providing it, each as its own task,
@@ -172,10 +199,12 @@ impl ExtensionPoints {
     {
         let span = diagnostics::following_current(tracing::info_span!(parent: None, "tell"));
         for entry in self.entries(PointKey::provide::<T>()) {
-            if let Some(provider) = entry.registration.provider::<T>() {
-                let telling = self.clone().tell_one(entry, provider, call.clone());
-                tokio::spawn(telling.instrument(span.clone()));
-            }
+            let Some(provider) = entry.registration.provider::<T>() else {
+                self.drop_contained(entry, ());
+                continue;
+            };
+            let telling = self.clone().tell_one(entry, provider, call.clone());
+            tokio::spawn(telling.instrument(span.clone()));
         }
     }
 
@@ -192,15 +221,7 @@ impl ExtensionPoints {
     {
         self.tell_if_current(&entry, Arc::clone(&provider), call)
             .await;
-        // This task may hold the last handle on a Plugin disabled meanwhile, and its `Drop` is
-        // Plugin code.
-        let plugin = entry.plugin.clone();
-        let dropped = self
-            .log_span(&plugin)
-            .in_scope(|| contain_sync(|| drop((provider, entry))));
-        if let Err(message) = dropped {
-            error!(plugin = %plugin, message, "plugin panicked while being dropped");
-        }
+        self.drop_contained(entry, provider);
     }
 
     /// Calls `call` with `provider`, recording and logging its failure, unless `entry`'s Plugin has
@@ -287,8 +308,14 @@ impl ExtensionPoints {
     /// The enabled Plugins that provide a `T`, sorted by id.
     #[must_use]
     pub fn providers<T: ?Sized + 'static>(&self) -> BTreeSet<PluginId> {
-        let entries = self.entries(PointKey::provide::<T>());
-        entries.into_iter().map(|entry| entry.plugin).collect()
+        self.read(|state| {
+            let entries = state.points.get(&PointKey::provide::<T>());
+            entries
+                .into_iter()
+                .flatten()
+                .map(|entry| entry.plugin.clone())
+                .collect()
+        })
     }
 
     /// The enabled Plugins that serve the blob store point, sorted by id, for the Admin to pick a
@@ -302,23 +329,23 @@ impl ExtensionPoints {
     /// them, for a caller that picks which to [`ask`](ExtensionPoints::ask) itself.
     #[must_use]
     pub fn ranked<T: ?Sized + 'static>(&self) -> Vec<PluginId> {
-        let entries = self.ranked_entries(PointKey::provide::<T>());
-        entries.into_iter().map(|entry| entry.plugin).collect()
+        self.read(|state| {
+            let entries = state.ranked(PointKey::provide::<T>());
+            entries
+                .into_iter()
+                .map(|entry| entry.plugin.clone())
+                .collect()
+        })
     }
 
-    /// The handlers at `point` in the order [`ExtensionPoints::ask_first`] asks them.
-    fn ranked_entries(&self, point: PointKey) -> Vec<Entry> {
-        let mut entries = self.entries(point);
-        let precedence =
-            self.read(|state| state.precedence.get(&point).cloned().unwrap_or_default());
-        // Stable, so Providers the admin didn't rank keep their priority order.
-        entries.sort_by_key(|entry| {
-            precedence
-                .iter()
-                .position(|ranked| *ranked == entry.plugin)
-                .unwrap_or(usize::MAX)
-        });
-        entries
+    /// The handlers at `point` in the order [`ExtensionPoints::ask_first`] asks them, only
+    /// `only`'s if given.
+    fn ranked_entries(&self, point: PointKey, only: Option<&PluginId>) -> Vec<Entry> {
+        self.read(|state| {
+            let entries = state.ranked(point).into_iter();
+            let kept = entries.filter(|entry| only.is_none_or(|plugin| entry.plugin == *plugin));
+            kept.cloned().collect()
+        })
     }
 
     /// Sets what makes the Kernel's functions each enabled Plugin calls, given its id and the
@@ -369,6 +396,21 @@ impl ExtensionPoints {
         })
     }
 
+    /// Runs `enabling` the Plugin `id`, keeping the Plugin Log lines it logs from the start, and
+    /// forgets them if it fails, unless a racing enabling won, whose lines they are.
+    pub(super) fn keeping_lines<T, E>(
+        &self,
+        id: &PluginId,
+        enabling: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E> {
+        diagnostics::keep_plugin_lines(id);
+        let enabled = enabling();
+        if enabled.is_err() && !self.read(|state| state.plugins.contains_key(id)) {
+            diagnostics::forget_plugin_lines(id);
+        }
+        enabled
+    }
+
     /// Removes the Plugin `id` and everything it registered if `check`, given the state and its
     /// enablement if it is enabled, lets it, all under one lock. Returns what was removed, which
     /// [`Removed::close`] or [`Removed::close_later`] drops.
@@ -390,6 +432,7 @@ impl ExtensionPoints {
             state.points.retain(|_, entries| !entries.is_empty());
             // A Plugin enabled again, perhaps with its settings fixed, starts with a clean slate.
             self.failures.forget(id);
+            diagnostics::forget_plugin_lines(id);
             Ok(Some(Removed {
                 enabled,
                 _handlers: handlers,
@@ -407,6 +450,15 @@ impl ExtensionPoints {
             return Span::none();
         }
         builtin_log_span(plugin)
+    }
+
+    /// The span a check of the Plugin `plugin`'s settings runs in: as [`Self::log_span`], but
+    /// named `check`, since a check has no enablement and so no Plugin Log keeps its lines.
+    pub(super) fn check_span(&self, plugin: &PluginId) -> Span {
+        if self.read(|state| state.is_installed(plugin)) {
+            return Span::none();
+        }
+        tracing::error_span!(target: PLUGIN_TARGET, "check", plugin = %plugin)
     }
 
     fn is_current(&self, entry: &Entry) -> bool {
@@ -447,7 +499,21 @@ impl ExtensionPoints {
         }
     }
 
-    /// A snapshot of the handlers at `point`, in the order they run.
+    /// Drops `entry` and `handler`, contained and in the span naming its Plugin: a call that held
+    /// them may hold the last handles on a Plugin disabled meanwhile, and its `Drop` is Plugin code.
+    fn drop_contained(&self, entry: Entry, handler: impl Sized) {
+        let plugin = entry.plugin.clone();
+        let dropped = self
+            .log_span(&plugin)
+            .in_scope(|| contain_sync(|| drop((handler, entry))));
+        if let Err(message) = dropped {
+            error!(plugin = %plugin, message, "plugin panicked while being dropped");
+        }
+    }
+
+    /// A snapshot of the handlers at `point`, in the order they run. Its caller drops each through
+    /// [`ExtensionPoints::drop_contained`]: once the lock is released, a clone may be the last
+    /// handle on a Plugin disabled meanwhile.
     fn entries(&self, point: PointKey) -> Vec<Entry> {
         self.read(|state| state.points.get(&point).cloned().unwrap_or_default())
     }
@@ -483,6 +549,20 @@ impl<R, K> Asked<R, K> {
 }
 
 impl State {
+    /// The handlers at `point` in the order [`ExtensionPoints::ask_first`] asks them.
+    fn ranked(&self, point: PointKey) -> Vec<&Entry> {
+        let mut entries: Vec<_> = self.points.get(&point).into_iter().flatten().collect();
+        let precedence = self.precedence.get(&point).map_or(&[][..], Vec::as_slice);
+        // Stable, so Providers the admin didn't rank keep their priority order.
+        entries.sort_by_key(|entry| {
+            precedence
+                .iter()
+                .position(|ranked| *ranked == entry.plugin)
+                .unwrap_or(usize::MAX)
+        });
+        entries
+    }
+
     /// Whether the Server lists `plugin` as Installed: one it doesn't list, enabled directly, runs
     /// in-process.
     fn is_installed(&self, plugin: &PluginId) -> bool {
@@ -495,7 +575,7 @@ impl State {
 /// it for one.
 pub(super) fn builtin_log_span(plugin: &PluginId) -> Span {
     // `error`, so a level filter that keeps any of the Plugin's lines keeps the span naming it.
-    tracing::error_span!(target: PLUGIN_TARGET, "plugin", plugin = %plugin)
+    tracing::error_span!(target: PLUGIN_TARGET, PLUGIN_SPAN, plugin = %plugin)
 }
 
 /// What disabling a Plugin removed: its enablement and its handlers, kept until its scope is
@@ -543,3 +623,7 @@ impl fmt::Debug for ExtensionPoints {
         f.debug_struct("ExtensionPoints").finish_non_exhaustive()
     }
 }
+
+#[cfg(test)]
+#[path = "points_tests.rs"]
+mod tests;

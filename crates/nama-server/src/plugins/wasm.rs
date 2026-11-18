@@ -280,15 +280,29 @@ fn is_out_of_memory(err: &extism::Error) -> bool {
     err.to_string() == "oom"
 }
 
-/// Why a call failed: the root cause, with the memory cap's bare "oom" put in plain words. A
-/// timeout's bare "timeout" is left to the callers: [`Running::provide`] words it, and the settings
-/// check reports it as [`CheckTimedOut`].
+/// Why a call failed: the [`printable`] root cause, with the memory cap's bare "oom" put in plain
+/// words. A timeout's bare "timeout" is left to the callers: [`Running::provide`] words it, and the
+/// settings check reports it as [`CheckTimedOut`].
 fn failure_cause(err: &extism::Error) -> String {
     if is_out_of_memory(err) {
         format!("it used more than {} MiB of memory", MEMORY_MAX_PAGES / 16)
     } else {
-        err.root_cause().to_string()
+        printable(&err.root_cause().to_string())
     }
+}
+
+/// `text` with each control character escaped as Rust escapes it (`\n`, `\r`, `\u{1b}`), so a
+/// Plugin's text can't start a line of its own on stdout and forge one of the Server's.
+pub(super) fn printable(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for c in text.chars() {
+        if c.is_control() {
+            escaped.extend(c.escape_debug());
+        } else {
+            escaped.push(c);
+        }
+    }
+    escaped
 }
 
 /// A Plugin to list as Installed once [`describe`] finds its id free.
