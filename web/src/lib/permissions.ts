@@ -115,3 +115,18 @@ export function permissionLabel(name: string) {
   const value = PermissionSchema.values.find((each) => each.name === name)?.number;
   return permissionChoices.find((choice) => choice.permission === value)?.label;
 }
+
+/** The Permissions `you` may put on an Invite: never Admin, nor one you lack, as the Server checks. */
+export function permissionsToInvite(you: User | undefined) {
+  return permissionChoices.filter(
+    (choice) => choice.permission !== Permission.ADMIN && may(you, choice.permission),
+  );
+}
+
+/** `permissions` by their labels, in the order the Users page lists them, or "None". */
+export function labelsOf(permissions: Permission[]) {
+  const labels = permissionChoices
+    .filter((choice) => permissions.includes(choice.permission))
+    .map((choice) => choice.label);
+  return labels.length === 0 ? "None" : labels.join(" · ");
+}

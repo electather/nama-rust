@@ -8,8 +8,7 @@ use axum::{
     middleware::{self, Next},
     response::IntoResponse,
 };
-use buffa::MessageName;
-use buffa::{EnumValue, Enumeration};
+use buffa::{EnumValue, Enumeration, MessageName};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
@@ -117,6 +116,7 @@ pub(crate) fn router(
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
+    let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -184,6 +184,7 @@ pub(crate) fn router(
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
             db,
+            server_url,
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);
@@ -267,6 +268,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
     (proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
     (proto::SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC.procedure,     Access::Anyone),
+    (proto::SIGN_IN_SERVICE_ACCEPT_INVITE_SPEC.procedure,         Access::Anyone),
     (proto::LIBRARY_SERVICE_CREATE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_LIST_LIBRARIES_SPEC.procedure,        Access::SignedIn),
     (proto::LIBRARY_SERVICE_GET_LIBRARY_SPEC.procedure,           MANAGE_LIBRARIES),
@@ -314,6 +316,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           MANAGE_USERS),
     (proto::USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
     (proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
+    (proto::USER_SERVICE_CREATE_INVITE_SPEC.procedure,            MANAGE_USERS),
+    (proto::USER_SERVICE_LIST_INVITES_SPEC.procedure,             MANAGE_USERS),
+    (proto::USER_SERVICE_REVOKE_INVITE_SPEC.procedure,            MANAGE_USERS),
     (proto::USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC.procedure,  Access::SignedIn),
     (proto::USER_SERVICE_START_PLUGIN_CONNECTION_SPEC.procedure,  Access::SignedIn),
     (proto::USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC.procedure, Access::SignedIn),
@@ -459,16 +464,6 @@ fn unlisted(path: &str) -> ConnectError {
     let path = path.strip_prefix('/').unwrap_or(path);
     ConnectError::unimplemented(format!("method not found: {path}"))
         .with_http_status(StatusCode::NOT_FOUND)
-}
-
-/// The refusal of a request whose `version_id` names no Version.
-fn version_not_found() -> ConnectError {
-    refuse(
-        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
-        "there is no such Version",
-    )
-    .field("version_id")
-    .into()
 }
 
 /// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.
@@ -647,7 +642,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_IMAGE_STORE_SWITCHING
         | R::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK
         | R::REFUSAL_REASON_FOLDER_OVERLAPS
-        | R::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE
+        | R::REFUSAL_REASON_SERVER_URL_REQUIRED => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -662,7 +658,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_REQUEST_NOT_FOUND
         | R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND
         | R::REFUSAL_REASON_PLUGIN_NOT_FOUND
-        | R::REFUSAL_REASON_TITLE_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_TITLE_NOT_FOUND
+        | R::REFUSAL_REASON_INVITE_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN
         | R::REFUSAL_REASON_LIBRARY_NAME_TAKEN
         | R::REFUSAL_REASON_FOLDER_TAKEN => ErrorCode::AlreadyExists,

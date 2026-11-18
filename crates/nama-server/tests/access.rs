@@ -46,7 +46,7 @@ const MANAGE_LIBRARIES: [&str; 11] = [
 ];
 
 /// Every RPC that manages Users, which needs `PERMISSION_MANAGE_USERS`.
-const MANAGE_USERS: [&str; 7] = [
+const MANAGE_USERS: [&str; 10] = [
     "/nama.v1.UserService/CreateUser",
     "/nama.v1.UserService/ListUsers",
     "/nama.v1.UserService/SetPermissions",
@@ -54,6 +54,9 @@ const MANAGE_USERS: [&str; 7] = [
     "/nama.v1.UserService/ResetPassword",
     "/nama.v1.UserService/GetDefaultPermissions",
     "/nama.v1.UserService/SetDefaultPermissions",
+    "/nama.v1.UserService/CreateInvite",
+    "/nama.v1.UserService/ListInvites",
+    "/nama.v1.UserService/RevokeInvite",
 ];
 
 /// Every RPC that manages the Server's settings, which needs `PERMISSION_MANAGE_SETTINGS`.

@@ -11,8 +11,8 @@ package nama.v1;
 // A Device that goes unused for 90 days expires, and its session stops working.
 //
 // Guessing is slowed down: after 10 failed `SignIn`s and `Reauthenticate`s for one name, or 50
-// failed `Setup`s, `SignIn`s and `Reauthenticate`s together from one IP address, within 15
-// minutes, further attempts fail with `resource_exhausted`, without being checked, and a
+// failed `Setup`s, `SignIn`s, `Reauthenticate`s and `AcceptInvite`s together from one IP address,
+// within 15 minutes, further attempts fail with `resource_exhausted`, without being checked, and a
 // `Retry-After` header gives the seconds to wait. A successful `SignIn` or `Reauthenticate` clears
 // its name's failures. In the same way, after 10 failed `LookUpSignInCode`s and
 // `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
@@ -72,6 +72,15 @@ service SignInService {
   // `REFUSAL_REASON_USER_NOT_FOUND` if the approving User has since been deleted. Either uses the
   // code up: start again for a new one.
   rpc PollSignInCode(PollSignInCodeRequest) returns (PollSignInCodeResponse);
+
+  // Creates a User with an Invite's link, under the name and password they pick, and signs the
+  // calling Device in as them, using the Invite up. They get the Invite's Permissions, less any its
+  // creator has since lost. Fails with `not_found` and `REFUSAL_REASON_INVITE_NOT_FOUND` if the
+  // Invite was used, revoked or expired, or its creator was deleted or lost
+  // `PERMISSION_MANAGE_USERS`, which counts toward the limits above. Fails with `already_exists`
+  // if another User has the name, ignoring case, and `invalid_argument` if a name or the password
+  // breaks the rules; the Invite stays valid after either.
+  rpc AcceptInvite(AcceptInviteRequest) returns (AcceptInviteResponse);
 }
 
 // How a signed-in Device is given its session.
@@ -248,6 +257,29 @@ message ApproveSignInCodeRequest {
 }
 
 message ApproveSignInCodeResponse {}
+
+message AcceptInviteRequest {
+  // The token at the end of the Invite's link.
+  string token = 1;
+  // The new User's name: 1 to 64 characters once leading and trailing spaces are trimmed.
+  string name = 2;
+  // The new User's password, which the Server's Authenticator checks against its own rules.
+  string password = 3;
+  // The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+  // Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
+  string device_name = 4;
+  // How to hand out the session. Must be specified.
+  SessionDelivery delivery = 5;
+}
+
+message AcceptInviteResponse {
+  // The User just created.
+  User user = 1;
+  // The Device just signed in.
+  Device device = 2;
+  // The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
+  string token = 3;
+}
 
 message PollSignInCodeRequest {
   // The handle `StartSignInCode` returned.

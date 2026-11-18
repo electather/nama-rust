@@ -481,17 +481,22 @@ pub(super) fn read(values: &RwLock<Values>) -> std::sync::RwLockReadGuard<'_, Va
     values.read().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// The Server URL in use, for the event bus. Clones share it.
+/// The Server URL in use, for the event bus and Invites. Clones share it.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ServerUrl(Arc<RwLock<Values>>);
 
 impl ServerUrl {
     /// Where the Request `id` is in the web app, or `None` with no URL set.
     pub(crate) fn request_link(&self, id: i64) -> Option<String> {
+        self.link(&format!("requests/{id}"))
+    }
+
+    /// Where `path` is in the web app, or `None` with no URL set.
+    pub(crate) fn link(&self, path: &str) -> Option<String> {
         let values = read(&self.0);
         let url = &values.url;
         // The URL may name a path the web app is served under, which a link keeps.
-        (!url.is_empty()).then(|| format!("{}/requests/{id}", url.trim_end_matches('/')))
+        (!url.is_empty()).then(|| format!("{}/{path}", url.trim_end_matches('/')))
     }
 }
 

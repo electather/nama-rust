@@ -1,5 +1,5 @@
 //! The Setup Code, and the random codes and secrets the Server hands out: Sign-in Codes and their
-//! handles, Plugin Connection codes and session tokens.
+//! handles, Plugin Connection codes, session tokens and Invite tokens.
 
 use std::fmt;
 
@@ -15,6 +15,10 @@ const SETUP_CODE_LENGTH: usize = 12;
 
 /// How many random bytes a secret carries, such as a session token.
 const SECRET_BYTES: usize = 32;
+
+/// How many random bytes an Invite's token carries: 128 bits, fewer than a session's so its link
+/// stays short to share. Enough, as guesses are rate-limited like signing in.
+const INVITE_TOKEN_BYTES: usize = 16;
 
 /// The one-time code a fresh Server prints to its log, which whoever creates the first Admin must
 /// enter. It is shown as `XXXX-XXXX-XXXX` and matched ignoring case, dashes and spaces.
@@ -80,7 +84,16 @@ pub(super) fn code_in_groups(code: &str) -> String {
 
 /// [`SECRET_BYTES`] random bytes, base64url-encoded: too many to guess.
 pub(crate) fn random_secret() -> Result<String, getrandom::Error> {
-    let mut bytes = [0; SECRET_BYTES];
+    random_base64::<SECRET_BYTES>()
+}
+
+/// A new Invite's token: [`INVITE_TOKEN_BYTES`] random bytes, base64url-encoded.
+pub(super) fn invite_token() -> Result<String, getrandom::Error> {
+    random_base64::<INVITE_TOKEN_BYTES>()
+}
+
+fn random_base64<const N: usize>() -> Result<String, getrandom::Error> {
+    let mut bytes = [0; N];
     getrandom::fill(&mut bytes)?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }

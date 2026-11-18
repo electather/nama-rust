@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT i.id AS \"id!\", i.note, i.permissions AS \"permissions: Permissions\",\n                      u.display_username AS creator_name,\n                      u.permissions AS \"creator_permissions: Permissions\",\n                      i.created_at, i.expires_at\n               FROM invites i JOIN users u ON u.id = i.created_by\n               WHERE i.expires_at > ? ORDER BY i.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "invites",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "note",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "invites",
+            "name": "note"
+          }
+        }
+      },
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "invites",
+            "name": "permissions"
+          }
+        }
+      },
+      {
+        "name": "creator_name",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_username"
+          }
+        }
+      },
+      {
+        "name": "creator_permissions: Permissions",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "permissions"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "invites",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "invites",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2181da2a566ca5b75b37b8d7e722c5795f8528998f5ea1041cb97a345dbed66b"
+}

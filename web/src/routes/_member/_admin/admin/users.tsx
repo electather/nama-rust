@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { AdminList } from "@/components/admin-list";
 import { CreateUser } from "@/components/create-user";
+import { Invites } from "@/components/invites";
 import { Page } from "@/components/page";
 import { DefaultPermissionsEditor } from "@/components/permissions-editor";
 import { UserRow } from "@/components/user-row";
@@ -17,6 +18,10 @@ export const Route = createFileRoute("/_member/_admin/admin/users")({
       }),
       queryClient.query({
         ...createQueryOptions(UserService.method.getDefaultPermissions, {}, { transport }),
+        staleTime: "static",
+      }),
+      queryClient.query({
+        ...createQueryOptions(UserService.method.listInvites, {}, { transport }),
         staleTime: "static",
       }),
     ]),
@@ -38,6 +43,15 @@ function Users() {
           Create a User
         </h2>
         <CreateUser />
+      </section>
+      <section aria-labelledby="invites" className="mt-12 max-w-sm">
+        <h2 id="invites" className="font-medium">
+          Invites
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          A link someone opens to create their own User, with the Permissions you pick.
+        </p>
+        <Invites you={signedIn.user} />
       </section>
       <section aria-labelledby="default-permissions" className="mt-12 max-w-sm">
         <h2 id="default-permissions" className="font-medium">
