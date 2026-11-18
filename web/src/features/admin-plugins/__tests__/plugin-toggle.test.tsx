@@ -4,9 +4,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { PluginKind, PluginPermission, type PluginService } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-
-import { openPlugin, openPlugins, plugin, row } from "./test-plugins";
-import { refused } from "./test-refusal";
+import { openPlugin, openPlugins, plugin, row } from "@/test-plugins";
+import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -69,7 +68,8 @@ test("enabling a Plugin that requests Plugin Permissions lists them, none checke
     PluginPermission.READ_USERS,
     PluginPermission.DELETE_MEDIA,
   ]);
-  fireEvent.click((await row("cleanup")).getByRole("button", { name: "Enable cleanup" }));
+  const found1 = await row("cleanup");
+  fireEvent.click(found1.getByRole("button", { name: "Enable cleanup" }));
 
   const dialog = within(await screen.findByRole("alertdialog", { name: "Enable cleanup?" }));
   const boxes = dialog.getAllByRole<HTMLInputElement>("checkbox");
@@ -87,7 +87,8 @@ test("enabling sends only the Plugin Permissions checked", async () => {
     PluginPermission.READ_LIBRARIES,
     PluginPermission.DELETE_MEDIA,
   ]);
-  fireEvent.click((await row("cleanup")).getByRole("button", { name: "Enable cleanup" }));
+  const found2 = await row("cleanup");
+  fireEvent.click(found2.getByRole("button", { name: "Enable cleanup" }));
 
   const dialog = within(await screen.findByRole("alertdialog", { name: "Enable cleanup?" }));
   fireEvent.click(dialog.getByLabelText("Read Libraries"));
@@ -101,7 +102,8 @@ test("enabling sends only the Plugin Permissions checked", async () => {
 
 test("a Plugin requesting no Plugin Permissions enables without a dialog", async () => {
   const sent = openWithCleanup([]);
-  fireEvent.click((await row("cleanup")).getByRole("button", { name: "Enable cleanup" }));
+  const found3 = await row("cleanup");
+  fireEvent.click(found3.getByRole("button", { name: "Enable cleanup" }));
 
   await waitFor(() => {
     expect(sent).toStrictEqual([[]]);
@@ -118,5 +120,6 @@ test("an enabled Plugin's details page lists the Plugin Permissions granted it",
     }),
   );
 
-  expect((await plugin("cleanup")).getByText("Granted: Read Watch State")).toBeDefined();
+  const found4 = await plugin("cleanup");
+  expect(found4.getByText("Granted: Read Watch State")).toBeDefined();
 });

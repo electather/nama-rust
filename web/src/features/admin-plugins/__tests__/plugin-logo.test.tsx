@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { openPlugin, plugin, tmdbLogo } from "./test-plugins";
+import { openPlugin, plugin, tmdbLogo } from "@/test-plugins";
 
 afterEach(() => {
   cleanup();
@@ -11,11 +11,12 @@ afterEach(() => {
 const CUSTOM_LOGO = "/media/custom-images/plugin/tmdb/logo/v2";
 
 /** TMDB's page, whose logo is whatever `logo` says now. */
-function openTmdbWithLogo(logo: () => { logoUrl: string; customLogo: boolean }) {
+async function openTmdbWithLogo(logo: () => { logoUrl: string; customLogo: boolean }) {
   openPlugin("tmdb", {
     getPlugin: () => ({ plugin: { summary: { id: "tmdb", name: "TMDB", ...logo() } } }),
   });
-  return plugin("TMDB");
+  const page = await plugin("TMDB");
+  return page;
 }
 
 /** Picks `file` as the logo on `page`. */
@@ -25,9 +26,10 @@ function uploadLogo(page: Awaited<ReturnType<typeof plugin>>, file: File) {
 
 test("an uploaded logo goes to the Plugin's path and shows without a reload", async () => {
   let logo = { logoUrl: tmdbLogo, customLogo: false };
-  const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+  // oxlint-disable-next-line require-await -- a fake fetch answers at once
+  const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
     logo = { logoUrl: CUSTOM_LOGO, customLogo: true };
-    return Promise.resolve(new Response(null, { status: 204 }));
+    return new Response(null, { status: 204 });
   });
   const page = await openTmdbWithLogo(() => logo);
   expect(page.queryByRole("button", { name: "Remove custom image: Logo" })).toBeNull();
@@ -46,9 +48,10 @@ test("an uploaded logo goes to the Plugin's path and shows without a reload", as
 
 test("removing a Plugin's Custom Image brings back its own logo", async () => {
   let logo = { logoUrl: CUSTOM_LOGO, customLogo: true };
-  const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+  // oxlint-disable-next-line require-await -- a fake fetch answers at once
+  const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
     logo = { logoUrl: tmdbLogo, customLogo: false };
-    return Promise.resolve(new Response(null, { status: 204 }));
+    return new Response(null, { status: 204 });
   });
   const page = await openTmdbWithLogo(() => logo);
 
@@ -70,5 +73,6 @@ test.each([
 
   uploadLogo(page, new File(["<svg/>"], "logo.svg", { type: "image/svg+xml" }));
 
-  expect((await page.findByRole("alert")).textContent).toBe(message);
+  const found1 = await page.findByRole("alert");
+  expect(found1.textContent).toBe(message);
 });

@@ -7,9 +7,8 @@ import type {
   UpdatePluginSettingsRequest,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-
-import { input, openPlugin, plugin } from "./test-plugins";
-import { expectUnderField, refused } from "./test-refusal";
+import { input, openPlugin, plugin } from "@/test-plugins";
+import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -27,27 +26,32 @@ const profiles = {
 
 /** The dropdown for the test Plugin's Profile. */
 async function profile() {
-  return (await plugin("test-choices")).getByLabelText<HTMLSelectElement>("Profile");
+  const found101 = await plugin("test-choices");
+  return found101.getByLabelText<HTMLSelectElement>("Profile");
 }
 
 async function pressSave() {
-  fireEvent.click((await plugin("test-choices")).getByRole("button", { name: "Save" }));
+  const found1 = await plugin("test-choices");
+  fireEvent.click(found1.getByRole("button", { name: "Save" }));
 }
 
 async function pressTest() {
-  fireEvent.click((await plugin("test-choices")).getByRole("button", { name: "Test" }));
+  const found2 = await plugin("test-choices");
+  fireEvent.click(found2.getByRole("button", { name: "Test" }));
 }
 
 test("a Plugin with a settings check has a Test button", async () => {
   openPlugin("test-choices");
 
-  expect((await plugin("test-choices")).getByRole("button", { name: "Test" })).toBeDefined();
+  const found3 = await plugin("test-choices");
+  expect(found3.getByRole("button", { name: "Test" })).toBeDefined();
 });
 
 test("a Plugin without a settings check has no Test button", async () => {
   openPlugin("tmdb");
 
-  expect((await plugin("TMDB")).queryByRole("button", { name: "Test" })).toBeNull();
+  const found4 = await plugin("TMDB");
+  expect(found4.queryByRole("button", { name: "Test" })).toBeNull();
 });
 
 test("a choice can’t be picked before a test, and a passing test fills its dropdown", async () => {
@@ -59,19 +63,25 @@ test("a choice can’t be picked before a test, and a passing test fills its dro
       },
     });
   });
-  expect((await profile()).disabled).toBe(true);
-  fireEvent.click((await plugin("test-choices")).getByRole("button", { name: "Replace API key" }));
+  const found5 = await profile();
+  expect(found5.disabled).toBe(true);
+  const found6 = await plugin("test-choices");
+  fireEvent.click(found6.getByRole("button", { name: "Replace API key" }));
   fireEvent.change(await input("test-choices", "API key"), { target: { value: "unsaved" } });
 
   await pressTest();
 
   await waitFor(async () => {
-    expect((await profile()).disabled).toBe(false);
+    const found7 = await profile();
+    expect(found7.disabled).toBe(false);
   });
-  const options = [...(await profile()).options].map((option) => option.text);
-  expect(options).toEqual(["Pick one", "HD", "Ultra HD"]);
-  expect((await profile()).value).toBe("1");
-  expect((await tested).settings["api_key"]?.value).toEqual({
+  const found102 = await profile();
+  const options = [...found102.options].map((option) => option.text);
+  expect(options).toStrictEqual(["Pick one", "HD", "Ultra HD"]);
+  const found8 = await profile();
+  expect(found8.value).toBe("1");
+  const found9 = await tested;
+  expect(found9.settings["api_key"]?.value).toStrictEqual({
     case: "textValue",
     value: "unsaved",
   });
@@ -89,13 +99,14 @@ test("a picked choice is saved, and an untested one is saved as it was", async (
   await pressSave();
   await pressTest();
   await waitFor(async () => {
-    expect((await profile()).disabled).toBe(false);
+    const found10 = await profile();
+    expect(found10.disabled).toBe(false);
   });
   fireEvent.change(await profile(), { target: { value: "2" } });
   await pressSave();
 
   await waitFor(() => {
-    expect(sent.map(({ settings }) => settings["profile"]?.value.value)).toEqual(["1", "2"]);
+    expect(sent.map(({ settings }) => settings["profile"]?.value.value)).toStrictEqual(["1", "2"]);
   });
 });
 
@@ -112,10 +123,10 @@ test("a failed test shows the Plugin’s error and leaves the choice locked", as
 
   await pressTest();
 
-  await expect(
-    (await plugin("test-choices")).findByText("The service refused the API key."),
-  ).resolves.toBeDefined();
-  expect((await profile()).disabled).toBe(true);
+  const found11 = await plugin("test-choices");
+  await expect(found11.findByText("The service refused the API key.")).resolves.toBeDefined();
+  const found12 = await profile();
+  expect(found12.disabled).toBe(true);
 });
 
 test("a passing test that offers nothing for a choice unlocks it with nothing to pick", async () => {
@@ -124,9 +135,11 @@ test("a passing test that offers nothing for a choice unlocks it with nothing to
   await pressTest();
 
   await waitFor(async () => {
-    expect((await profile()).disabled).toBe(false);
+    const found13 = await profile();
+    expect(found13.disabled).toBe(false);
   });
-  expect([...(await profile()).options].map((option) => option.text)).toEqual(["Pick one"]);
+  const found14 = await profile();
+  expect([...found14.options].map((option) => option.text)).toStrictEqual(["Pick one"]);
 });
 
 /** Saves the test Plugin's settings, refused for `reason` with `message`, naming its Profile. */

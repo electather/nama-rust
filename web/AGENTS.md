@@ -11,8 +11,6 @@
 - **One person's cache.** Every flow that changes who is signed in (signing in, signing out, setting up) clears the query cache, so the next person sees only their own data.
 - **Read refusals by reason.** Choose a field or a reaction from the `Refusal` detail's `reason` and `field`, never from the message, which is only for showing.
 - **Sensitive changes ask "Confirm it’s you".** Call an RPC that needs Recent Authentication (`crates/nama-server/AGENTS.md`) with `useSensitiveMutation`, never connect-query's `useMutation`. `web/README.md` says how it works.
-- **Plugin logos only as images.** A Plugin's `logoUrl` may be SVG an Installed Plugin's author or an admin wrote. Show it only through `PluginLogo`, as an `<img>` from that URL, never fetched and put inline, where its scripts, styles and external loads would reach the page.
 - **Spans carry ids, not words.** A Diagnostics span's name and attributes hold only ids, counts, sizes, durations and outcomes, never a title, file path, name, IP address, search text or an error's message, since the Hub forwards them as they are (ADR 0054). Name a page by its route id, not its URL.
 - **Glossary words in copy.** UI text uses `GLOSSARY.md` terms, in plain words. A User's own page is "Settings" (`/settings`), never "Account": an Account is the Hub identity. Don't use `/link` for anything but Linking an Account.
 - **No service worker.** Chrome installs the app without one, and one could keep serving an old app, or cached API answers, after the Server upgrades (ADR 0004).
-- **Plugins aren't sandboxed.** Copy may say "an Installed Plugin can only call what you granted", never "sandboxed" (ADR 0049).

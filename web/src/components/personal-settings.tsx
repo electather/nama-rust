@@ -1,11 +1,11 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { PluginLogo } from "@/components/plugin-at-a-glance";
 import { SettingInput, settingsTyped } from "@/components/setting-fields";
 import { refusedSettings } from "@/components/setting-refusals";
 import { type PersonalSettings as Personal, UserService } from "@/gen/nama/v1/user_pb";
 import { FormEnd } from "@/shared/components/form-field/form-end";
+import { PluginLogo } from "@/shared/components/plugin-logo";
 import { onSubmitted } from "@/shared/lib/forms";
 import { Button } from "@/shared/ui/button";
 

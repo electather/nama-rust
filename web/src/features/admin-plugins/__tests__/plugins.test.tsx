@@ -3,26 +3,30 @@ import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-
-import { input, openPlugin, openPlugins, plugin, row, tmdbLogo } from "./test-plugins";
-import { refused } from "./test-refusal";
+import { input, openPlugin, openPlugins, plugin, row, tmdbLogo } from "@/test-plugins";
+import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
 test("the Plugins list shows every Plugin with whether it is enabled, without its settings", async () => {
   openPlugins();
 
-  expect((await row("local-auth")).getByText("Enabled")).toBeDefined();
-  expect((await row("log-events")).getByText("Disabled")).toBeDefined();
-  expect((await row("TMDB")).getByText("Enabled")).toBeDefined();
+  const found1 = await row("local-auth");
+  expect(found1.getByText("Enabled")).toBeDefined();
+  const found2 = await row("log-events");
+  expect(found2.getByText("Disabled")).toBeDefined();
+  const found3 = await row("TMDB");
+  expect(found3.getByText("Enabled")).toBeDefined();
   expect(screen.queryByLabelText("Language")).toBeNull();
 });
 
 test("each Plugin on the list shows its name, or its id without one, and what it does", async () => {
   openPlugins();
 
-  expect((await row("TMDB")).getByText("Finds Movies and Shows on TMDB.")).toBeDefined();
-  expect((await row("local-auth")).getByText("Built-in, version 0.1.0")).toBeDefined();
+  const found4 = await row("TMDB");
+  expect(found4.getByText("Finds Movies and Shows on TMDB.")).toBeDefined();
+  const found5 = await row("local-auth");
+  expect(found5.getByText("Built-in, version 0.1.0")).toBeDefined();
 });
 
 test("a Plugin's details page shows its name, its id and what it does", async () => {
@@ -36,33 +40,40 @@ test("a Plugin's details page shows its name, its id and what it does", async ()
 test("a Plugin's details page without a name is headed by its id", async () => {
   openPlugin("local-auth");
 
-  expect((await plugin("local-auth")).getByText("Built-in, version 0.1.0")).toBeDefined();
+  const found6 = await plugin("local-auth");
+  expect(found6.getByText("Built-in, version 0.1.0")).toBeDefined();
 });
 
 test("each Plugin says whether it is Built-in or Installed", async () => {
   openPlugins();
 
-  expect((await row("TMDB")).getByText("Built-in, version 0.1.0")).toBeDefined();
-  expect((await row("test-plugin")).getByText("Installed, version 0.1.0")).toBeDefined();
+  const found7 = await row("TMDB");
+  expect(found7.getByText("Built-in, version 0.1.0")).toBeDefined();
+  const found8 = await row("test-plugin");
+  expect(found8.getByText("Installed, version 0.1.0")).toBeDefined();
 });
 
 test("each Plugin on the list shows its logo as an image, or a generic one without", async () => {
   openPlugins();
 
-  const logo = (await row("TMDB")).getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
+  const found101 = await row("TMDB");
+  const logo = found101.getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
   expect(logo.getAttribute("src")).toBe(tmdbLogo);
-  const generic = (await row("local-auth")).getByRole("img", { name: "local-auth logo" });
+  const found102 = await row("local-auth");
+  const generic = found102.getByRole("img", { name: "local-auth logo" });
   expect(generic.getAttribute("src")).toBeNull();
 });
 
 test("a Plugin's details page shows its logo as an image, or a generic one without", async () => {
   openPlugin("tmdb");
 
-  const logo = (await plugin("TMDB")).getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
+  const found103 = await plugin("TMDB");
+  const logo = found103.getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
   expect(logo.getAttribute("src")).toBe(tmdbLogo);
   cleanup();
   openPlugin("local-auth");
-  const generic = (await plugin("local-auth")).getByRole("img", { name: "local-auth logo" });
+  const found104 = await plugin("local-auth");
+  const generic = found104.getByRole("img", { name: "local-auth logo" });
   expect(generic.getAttribute("src")).toBeNull();
 });
 
@@ -103,9 +114,12 @@ test("each Plugin on the list opens its details page with its settings", async (
 
   fireEvent.click(await screen.findByRole("link", { name: "TMDB" }));
 
-  expect((await input("TMDB", "Language")).value).toBe("de-DE");
-  expect((await plugin("TMDB")).getByText("Built-in, version 0.1.0")).toBeDefined();
-  expect((await plugin("TMDB")).getByText("Enabled")).toBeDefined();
+  const found9 = await input("TMDB", "Language");
+  expect(found9.value).toBe("de-DE");
+  const found10 = await plugin("TMDB");
+  expect(found10.getByText("Built-in, version 0.1.0")).toBeDefined();
+  const found11 = await plugin("TMDB");
+  expect(found11.getByText("Enabled")).toBeDefined();
 });
 
 test("a refused Plugin's details page shows its file name and why, and no settings", async () => {
@@ -125,7 +139,8 @@ test("a refused Plugin's details page shows its file name and why, and no settin
 test("a Plugin without settings says so on its details page", async () => {
   openPlugin("local-auth");
 
-  expect((await plugin("local-auth")).getByText("No settings.")).toBeDefined();
+  const found12 = await plugin("local-auth");
+  expect(found12.getByText("No settings.")).toBeDefined();
 });
 
 test("the details page of a Plugin the Server doesn't have says it isn't found", async () => {
@@ -142,7 +157,8 @@ test("disabling an enabled Plugin on its details page asks the Server to", async
       return {};
     },
   });
-  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Disable TMDB" }));
+  const found13 = await plugin("TMDB");
+  fireEvent.click(found13.getByRole("button", { name: "Disable TMDB" }));
 
   await waitFor(() => {
     expect(disabled).toStrictEqual(["tmdb"]);
@@ -157,7 +173,8 @@ test("enabling a disabled Plugin on the list asks the Server to", async () => {
       return {};
     },
   });
-  fireEvent.click((await row("test-plugin")).getByRole("button", { name: "Enable test-plugin" }));
+  const found14 = await row("test-plugin");
+  fireEvent.click(found14.getByRole("button", { name: "Enable test-plugin" }));
 
   await waitFor(() => {
     expect(enabled).toStrictEqual(["test-plugin"]);
@@ -171,7 +188,8 @@ test("a disabled Plugin missing a required setting offers Set up, which opens it
   expect(logEvents.queryByRole("button", { name: "Enable log-events" })).toBeNull();
   fireEvent.click(logEvents.getByRole("link", { name: "Set up log-events" }));
 
-  expect((await input("log-events", "Path")).required).toBe(false);
+  const found15 = await input("log-events", "Path");
+  expect(found15.required).toBe(false);
 });
 
 test("an enabled Plugin missing a required setting is marked as needing attention", async () => {
@@ -202,7 +220,8 @@ test("disabling the only Plugin Users sign in with says why it can’t be", asyn
   const localAuth = await row("local-auth");
   fireEvent.click(localAuth.getByRole("button", { name: "Disable local-auth" }));
 
-  expect((await localAuth.findByRole("alert")).textContent).toBe(
+  const found16 = await localAuth.findByRole("alert");
+  expect(found16.textContent).toBe(
     "It can’t be disabled while no other enabled Plugin lets Users sign in.",
   );
 });
@@ -289,5 +308,6 @@ test("enabling a Plugin on its details page shows it enabled there and on the li
 
   await expect(page.findByText("Enabled")).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("link", { name: "Plugins" }));
-  await expect((await row("log-events")).findByText("Enabled")).resolves.toBeDefined();
+  const found17 = await row("log-events");
+  await expect(found17.findByText("Enabled")).resolves.toBeDefined();
 });
