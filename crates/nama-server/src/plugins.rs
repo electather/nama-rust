@@ -80,7 +80,7 @@ pub struct Answer<R, K = ()> {
     pub result: Result<R, Failure<K>>,
 }
 
-/// Why a Provider failed, as the Kernel's own data: the Plugin's error was formatted and dropped
+/// Why a Provider or Observer failed, as the Kernel's own data: the Plugin's error was formatted and dropped
 /// inside containment, and the message has the Plugin's secret settings blanked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Failure<K = ()> {
@@ -104,6 +104,20 @@ pub trait ProviderError<K> {
     /// What kind of failure this is and what it says. Called inside containment, since formatting
     /// and dropping a Plugin's error run Plugin code.
     fn failure(self) -> Failure<K>;
+}
+
+/// Whether a [`Failure`] of this kind counts as the Provider failing, which the Plugins page
+/// shows, or is an answer, such as "no such title".
+pub trait FailureKind {
+    /// Whether the Provider failed, rather than answered.
+    fn is_failure(&self) -> bool;
+}
+
+/// Always a failure.
+impl FailureKind for () {
+    fn is_failure(&self) -> bool {
+        true
+    }
 }
 
 // For any lifetime, not just `PluginError`'s `'static`: an `async` caller's error may be inferred

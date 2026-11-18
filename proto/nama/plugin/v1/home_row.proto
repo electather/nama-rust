@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/plugin/v1/request.proto";
+import "nama/plugin/v1/title_source.proto";
+
+// The Extension Point for Home rows: headed rows of titles on every User's home page (ADR 0058).
+// An Installed Plugin serves it through the WASM exports each rpc names, each taking and returning
+// its messages encoded as protobuf.
+//
+// The Kernel asks ahead of time, never while a page loads: it stores the rows and refreshes them
+// when a User opens home past their time to live, and when the Plugin is enabled or its settings
+// change. A refresh replaces the Plugin's rows; one that fails keeps them.
+service HomeRowService {
+  // The `shared_rows` export: the rows every User sees, asked with no User.
+  rpc SharedRows(SharedRowsAsked) returns (HomeRows);
+}
+
+// What the `shared_rows` export is asked: nothing yet.
+message SharedRowsAsked {}
+
+// What the `shared_rows` export returns.
+message HomeRows {
+  // The rows, in the order home shows them. The Kernel keeps the first 3.
+  repeated HomeRow rows = 1;
+}
+
+// One row of titles on the home page.
+message HomeRow {
+  // What tells the row from the Plugin's others across refreshes, such as a list's id. A row
+  // whose key repeats an earlier row's is dropped.
+  string key = 1;
+  // The row's heading, in plain text. The Kernel cuts it to 40 characters.
+  string heading = 2;
+  // How long the row stays fresh, in seconds. The Kernel clamps it to between 15 minutes and 1
+  // week, and refreshes the Plugin's rows once the first of them is stale.
+  uint32 ttl_seconds = 3;
+  // The row's titles, in the order it shows them. The Kernel keeps the first 200.
+  repeated HomeRowTitle titles = 4;
+}
+
+// A title in a Home row, by one of its ids. The Plugin sends no names or posters: the Kernel shows
+// the title as the Server has it.
+message HomeRowTitle {
+  // Movie or Show, since one namespace may number both, as `tmdb` does.
+  TitleKind kind = 1;
+  TitleId id = 2;
+}

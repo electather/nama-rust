@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT titles FROM home_rows WHERE plugin_id = ? AND key = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "titles",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "titles"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "12a2349f7ae4799f34ed49718e129af734be680656905cdc8229f4c660846e1d"
+}

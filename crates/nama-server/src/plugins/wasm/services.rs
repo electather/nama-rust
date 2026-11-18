@@ -13,6 +13,7 @@ use nama_plugin_api::{
     blob_store::BlobStore,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
+    home_row::HomeRowSource,
     metadata::TitleSource,
     notifier::Notifier,
     points::Events,
@@ -168,6 +169,7 @@ pub(super) const BLOB_GET: Method = blob("Get", "blob_get");
 pub(super) const BLOB_DELETE: Method = blob("Delete", "blob_delete");
 pub(super) const BLOB_LIST: Method = blob("List", "blob_list");
 pub(super) const BLOB_EXISTS: Method = blob("Exists", "blob_exists");
+pub(super) const SHARED_ROWS: Method = provider(services::HOME_ROW, "SharedRows", "shared_rows");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -264,6 +266,15 @@ pub(super) const POINTS: &[Point] = &[
             registrar.provide::<dyn BlobStore>(Priority::DEFAULT, Arc::new(running));
         },
     },
+    Point {
+        service: services::HOME_ROW,
+        crash_group: services::HOME_ROW,
+        methods: &[SHARED_ROWS],
+        key: PointKey::provide::<dyn HomeRowSource>,
+        register: |registrar, running| {
+            registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
 ];
 
 /// Every export the Server may call, which loading a Plugin probes for.
@@ -308,7 +319,12 @@ impl Running {
                 }
             },
         };
-        Ok(Resp::decode_from_slice(&output)?)
+        let answer = Resp::decode_from_slice(&output);
+        // A Provider's caller logs or shows its error; nothing else logs an Observer's failed decode.
+        if let (Failure::Observer, Err(err)) = (&method.failure, &answer) {
+            warn!(plugin = %self.package.id, "observer failed: its answer didn't decode: {err}");
+        }
+        Ok(answer?)
     }
 }
 

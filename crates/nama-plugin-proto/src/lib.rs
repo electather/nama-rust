@@ -60,6 +60,8 @@ pub mod services {
     /// A blob store, which keeps the Kernel's own stored files, such as the image store's
     /// originals; never media files.
     pub const BLOB_STORE: &str = "nama.plugin.v1.BlobStoreService";
+    /// A Home row source, which gives headed rows of titles for the home page (ADR 0058).
+    pub const HOME_ROW: &str = "nama.plugin.v1.HomeRowService";
 }
 
 /// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
@@ -74,6 +76,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::AUTOMATION, "1.2.0"),
     (services::RECOGNISER, "1.0.0"),
     (services::BLOB_STORE, "1.0.0"),
+    (services::HOME_ROW, "1.0.0"),
 ];
 
 /// The largest object a blob store holds, in bytes: the Kernel never puts a larger one, and a

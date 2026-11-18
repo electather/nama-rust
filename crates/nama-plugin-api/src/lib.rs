@@ -18,6 +18,7 @@ pub mod automation;
 pub mod blob_store;
 pub mod connector;
 pub mod fulfiller;
+pub mod home_row;
 mod ids;
 pub mod metadata;
 pub mod notifier;
@@ -210,8 +211,9 @@ pub trait ObservePoint: 'static {
 
 /// A Plugin's handler that is told something happened and can't change it.
 pub trait Observer<P: ObservePoint>: Send + Sync + 'static {
-    /// Handles one event. The Kernel doesn't wait for this to finish.
-    fn observe<'a>(&'a self, event: &'a P::Event) -> BoxFuture<'a, ()>;
+    /// Handles one event. The Kernel doesn't wait for this to finish; an error shows on the
+    /// Plugin's page until a later event is handled.
+    fn observe<'a>(&'a self, event: &'a P::Event) -> BoxFuture<'a, Result<(), PluginError>>;
 }
 
 /// The kind of an Extension Point. Part of [`PointKey`], so one type can't be confused across

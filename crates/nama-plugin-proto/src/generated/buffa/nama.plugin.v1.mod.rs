@@ -6,9 +6,10 @@ include!("nama.plugin.v1.blob_store.rs");
 include!("nama.plugin.v1.connector.rs");
 include!("nama.plugin.v1.events.rs");
 include!("nama.plugin.v1.fulfiller.rs");
+include!("nama.plugin.v1.title_source.rs");
+include!("nama.plugin.v1.home_row.rs");
 include!("nama.plugin.v1.manifest.rs");
 include!("nama.plugin.v1.notifier.rs");
-include!("nama.plugin.v1.title_source.rs");
 include!("nama.plugin.v1.recogniser.rs");
 #[allow(
     non_camel_case_types,
@@ -33,9 +34,10 @@ pub mod __buffa {
         include!("nama.plugin.v1.connector.__view.rs");
         include!("nama.plugin.v1.events.__view.rs");
         include!("nama.plugin.v1.fulfiller.__view.rs");
+        include!("nama.plugin.v1.title_source.__view.rs");
+        include!("nama.plugin.v1.home_row.__view.rs");
         include!("nama.plugin.v1.manifest.__view.rs");
         include!("nama.plugin.v1.notifier.__view.rs");
-        include!("nama.plugin.v1.title_source.__view.rs");
         include!("nama.plugin.v1.recogniser.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
@@ -140,21 +142,6 @@ pub mod __buffa {
         reg.register_json_any(super::__EPISODE_NUMBER_JSON_ANY);
         reg.register_json_any(super::__STOPPED_MONITORING_JSON_ANY);
         reg.register_json_any(super::__UNFOLLOWED_JSON_ANY);
-        reg.register_json_any(super::__MANIFEST_JSON_ANY);
-        reg.register_json_any(super::__POINT_JSON_ANY);
-        reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
-        reg.register_json_any(super::__CHECKED_SETTINGS_JSON_ANY);
-        reg.register_json_any(super::__PERSONAL_SETTINGS_CHECK_JSON_ANY);
-        reg.register_json_any(super::__PERSONAL_SETTINGS_CHECKED_JSON_ANY);
-        reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
-        reg.register_json_any(super::__LIBRARY_IDS_JSON_ANY);
-        reg.register_json_any(super::__SETTING_CHOICES_JSON_ANY);
-        reg.register_json_any(super::__CHOICE_JSON_ANY);
-        reg.register_json_any(super::__NOTIFICATION_JSON_ANY);
-        reg.register_json_any(super::__DELIVERY_JSON_ANY);
-        reg.register_json_any(super::__USER_RECIPIENT_JSON_ANY);
-        reg.register_json_any(super::__CHANNEL_JSON_ANY);
-        reg.register_json_any(super::__DELIVERED_JSON_ANY);
         reg.register_json_any(super::__SEARCH_QUERY_JSON_ANY);
         reg.register_json_any(super::__SEARCH_RESULTS_JSON_ANY);
         reg.register_json_any(super::__CANDIDATE_JSON_ANY);
@@ -175,6 +162,25 @@ pub mod __buffa {
         reg.register_json_any(super::__SEASON_JSON_ANY);
         reg.register_json_any(super::__EPISODE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_JSON_ANY);
+        reg.register_json_any(super::__SHARED_ROWS_ASKED_JSON_ANY);
+        reg.register_json_any(super::__HOME_ROWS_JSON_ANY);
+        reg.register_json_any(super::__HOME_ROW_JSON_ANY);
+        reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
+        reg.register_json_any(super::__MANIFEST_JSON_ANY);
+        reg.register_json_any(super::__POINT_JSON_ANY);
+        reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
+        reg.register_json_any(super::__CHECKED_SETTINGS_JSON_ANY);
+        reg.register_json_any(super::__PERSONAL_SETTINGS_CHECK_JSON_ANY);
+        reg.register_json_any(super::__PERSONAL_SETTINGS_CHECKED_JSON_ANY);
+        reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
+        reg.register_json_any(super::__LIBRARY_IDS_JSON_ANY);
+        reg.register_json_any(super::__SETTING_CHOICES_JSON_ANY);
+        reg.register_json_any(super::__CHOICE_JSON_ANY);
+        reg.register_json_any(super::__NOTIFICATION_JSON_ANY);
+        reg.register_json_any(super::__DELIVERY_JSON_ANY);
+        reg.register_json_any(super::__USER_RECIPIENT_JSON_ANY);
+        reg.register_json_any(super::__CHANNEL_JSON_ANY);
+        reg.register_json_any(super::__DELIVERED_JSON_ANY);
         reg.register_json_any(super::__TITLE_TO_RECOGNISE_JSON_ANY);
         reg.register_json_any(super::__TITLE_RECOGNISED_JSON_ANY);
         reg.register_json_any(super::__FILE_TO_RECOGNISE_JSON_ANY);
@@ -496,66 +502,6 @@ pub use self::__buffa::view::UnfollowedView;
 #[doc(inline)]
 pub use self::__buffa::view::UnfollowedOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::ManifestView;
-#[doc(inline)]
-pub use self::__buffa::view::ManifestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PointView;
-#[doc(inline)]
-pub use self::__buffa::view::PointOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingFieldView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingFieldOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::CheckedSettingsView;
-#[doc(inline)]
-pub use self::__buffa::view::CheckedSettingsOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PersonalSettingsCheckView;
-#[doc(inline)]
-pub use self::__buffa::view::PersonalSettingsCheckOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PersonalSettingsCheckedView;
-#[doc(inline)]
-pub use self::__buffa::view::PersonalSettingsCheckedOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingValueView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingValueOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::LibraryIdsView;
-#[doc(inline)]
-pub use self::__buffa::view::LibraryIdsOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingChoicesView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingChoicesOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ChoiceView;
-#[doc(inline)]
-pub use self::__buffa::view::ChoiceOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::NotificationView;
-#[doc(inline)]
-pub use self::__buffa::view::NotificationOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DeliveryView;
-#[doc(inline)]
-pub use self::__buffa::view::DeliveryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::UserRecipientView;
-#[doc(inline)]
-pub use self::__buffa::view::UserRecipientOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ChannelView;
-#[doc(inline)]
-pub use self::__buffa::view::ChannelOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DeliveredView;
-#[doc(inline)]
-pub use self::__buffa::view::DeliveredOwnedView;
-#[doc(inline)]
 pub use self::__buffa::view::SearchQueryView;
 #[doc(inline)]
 pub use self::__buffa::view::SearchQueryOwnedView;
@@ -635,6 +581,82 @@ pub use self::__buffa::view::EpisodeOwnedView;
 pub use self::__buffa::view::ImageView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SharedRowsAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::SharedRowsAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowsView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ManifestView;
+#[doc(inline)]
+pub use self::__buffa::view::ManifestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PointView;
+#[doc(inline)]
+pub use self::__buffa::view::PointOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingFieldView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingFieldOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CheckedSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::CheckedSettingsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsCheckView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsCheckOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsCheckedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsCheckedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingValueView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingValueOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryIdsView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryIdsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingChoicesView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingChoicesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ChoiceView;
+#[doc(inline)]
+pub use self::__buffa::view::ChoiceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NotificationView;
+#[doc(inline)]
+pub use self::__buffa::view::NotificationOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeliveryView;
+#[doc(inline)]
+pub use self::__buffa::view::DeliveryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserRecipientView;
+#[doc(inline)]
+pub use self::__buffa::view::UserRecipientOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ChannelView;
+#[doc(inline)]
+pub use self::__buffa::view::ChannelOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeliveredView;
+#[doc(inline)]
+pub use self::__buffa::view::DeliveredOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::TitleToRecogniseView;
 #[doc(inline)]

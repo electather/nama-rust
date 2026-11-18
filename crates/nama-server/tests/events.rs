@@ -6,7 +6,11 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    fmt::Debug,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_plugin_api::{
@@ -14,9 +18,10 @@ use nama_plugin_api::{
     points::{self, ObservedEvents},
 };
 use nama_proto::nama::v1::{
-    Event, EventType, LibraryItemAdded, LibraryKind, ListUnmatchedItemsRequest, MatchServiceClient,
-    MatchingFinished, ProbingFinished, RefusalReason, ScanFinished, ScanProgress, ScanStarted,
-    SubscribeRequest, UnmatchedItemFilter, event,
+    Event, EventType, ExtensionPoint, GetPluginRequest, LibraryItemAdded, LibraryKind,
+    ListUnmatchedItemsRequest, MatchServiceClient, MatchingFinished, PluginServiceClient,
+    ProbingFinished, RefusalReason, ScanFinished, ScanProgress, ScanStarted, SubscribeRequest,
+    UnmatchedItemFilter, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -144,9 +149,10 @@ impl Plugin for Forward {
 struct ForwardObserver(mpsc::UnboundedSender<Vec<contract::Event>>);
 
 impl Observer<points::Events> for ForwardObserver {
-    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, ()> {
+    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
             let _: Result<(), _> = self.0.send(event.events.clone());
+            Ok(())
         })
     }
 }
@@ -216,6 +222,71 @@ async fn an_observer_is_told_the_same_events_a_subscriber_receives_in_one_batch_
         sorted(&told, |event| kind(&event.event)),
         sorted(&written, |event| kind(&event.event))
     );
+}
+
+const FAILS: &str = "fails";
+const FAILS_ERROR: &str = "the log is full";
+
+/// A test Plugin whose Observer fails on every batch of events.
+struct Fails;
+
+impl Plugin for Fails {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::observe::<points::Events>()],
+            ..Manifest::new(PluginId::from_static(FAILS))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.observe::<points::Events>(Self);
+        Ok(())
+    }
+}
+
+impl Observer<points::Events> for Fails {
+    fn observe<'a>(&'a self, _: &'a ObservedEvents) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async { Err(FAILS_ERROR.into()) })
+    }
+}
+
+#[tokio::test]
+async fn a_failing_observer_shows_its_failure_on_its_plugin_under_its_observe_point() {
+    let plugins = Registry::new();
+    plugins.describe_builtin(|| Arc::new(Fails));
+    plugins.enable(Arc::new(Fails)).unwrap();
+    let server = TestServer::builder().plugins(plugins).start().await;
+    let media = server
+        .create_library(MOVIES, &["Alien (1979)/Alien (1979).mkv"])
+        .await;
+
+    server.scan(media.id).await;
+
+    let client = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let request = GetPluginRequest {
+        id: FAILS.to_owned(),
+        ..Default::default()
+    };
+    // Observers run as their own tasks, so the failure is recorded after the scan.
+    let waiting = Instant::now();
+    let failures = loop {
+        let got = client.get_plugin(request.clone()).await.unwrap();
+        let failures = got.into_owned().plugin.into_option().unwrap().failures;
+        if !failures.is_empty() {
+            break failures;
+        }
+        assert!(waiting.elapsed() < WAIT, "no failure shown on {FAILS}");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    };
+    let [failure] = failures.as_slice() else {
+        panic!("{failures:?}");
+    };
+    assert_eq!(
+        failure.point,
+        ExtensionPoint::EXTENSION_POINT_EVENTS_OBSERVER
+    );
+    assert_eq!(failure.last_error, FAILS_ERROR);
 }
 
 #[tokio::test]

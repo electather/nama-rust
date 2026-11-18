@@ -116,3 +116,53 @@ pub mod continue_watching_entry {
         }
     }
 }
+pub mod home_row_title {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum MovieOrShow {
+        Movie(::buffa::alloc::boxed::Box<super::super::super::MovieInLibrary>),
+        Show(::buffa::alloc::boxed::Box<super::super::super::ShowInLibrary>),
+    }
+    impl ::buffa::Oneof for MovieOrShow {}
+    impl From<super::super::super::MovieInLibrary> for MovieOrShow {
+        fn from(v: super::super::super::MovieInLibrary) -> Self {
+            Self::Movie(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::MovieInLibrary>
+    for ::core::option::Option<MovieOrShow> {
+        fn from(v: super::super::super::MovieInLibrary) -> Self {
+            Self::Some(MovieOrShow::from(v))
+        }
+    }
+    impl From<super::super::super::ShowInLibrary> for MovieOrShow {
+        fn from(v: super::super::super::ShowInLibrary) -> Self {
+            Self::Show(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ShowInLibrary>
+    for ::core::option::Option<MovieOrShow> {
+        fn from(v: super::super::super::ShowInLibrary) -> Self {
+            Self::Some(MovieOrShow::from(v))
+        }
+    }
+    impl ::serde::Serialize for MovieOrShow {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Movie(v) => {
+                    map.serialize_entry("movie", &**v)?;
+                }
+                Self::Show(v) => {
+                    map.serialize_entry("show", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}

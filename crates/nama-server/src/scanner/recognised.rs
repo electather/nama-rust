@@ -9,7 +9,7 @@ use std::{
 };
 
 use nama_plugin_api::{
-    PluginId, PointKey,
+    PluginId,
     contract::{
         self, FileRecognised, FileToRecognise, RecognisedEpisodes, RecognisedMovie, TitleId,
         file_recognised::Recognised,
@@ -160,27 +160,26 @@ async fn ask(
         .into(),
         ..FileToRecognise::default()
     };
-    let point = PointKey::provide::<dyn Recogniser>();
     for plugin in recognisers {
-        let answered = plugins
-            .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
-                if !recogniser.recognises(RecogniserMethod::File) {
-                    return Ok(None);
-                }
-                recogniser.recognise_file(file).await.map(Some)
+        let serves = plugins
+            .read_provider(plugin, |recogniser: &dyn Recogniser| {
+                recogniser.recognises(RecogniserMethod::File)
             })
             .await;
-        // Disabled since the scan began, or it doesn't serve `recognise_file`.
+        if serves != Some(true) {
+            continue;
+        }
+        let answered = plugins
+            .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
+                recogniser.recognise_file(file).await
+            })
+            .await;
+        // Disabled since the scan began.
         let Some(answer) = answered else { continue };
         let recognised = match answer.result {
-            Ok(Some(recognised)) => recognised,
-            Ok(None) => continue,
-            Err(failure) => {
-                plugins.provider_failed(&answer.plugin, point, &failure.message);
-                return Err((answer.plugin, failure.message));
-            }
+            Ok(recognised) => recognised,
+            Err(failure) => return Err((answer.plugin, failure.message)),
         };
-        plugins.provider_answered(&answer.plugin, point);
         if recognised.recognised.is_none() {
             continue;
         }

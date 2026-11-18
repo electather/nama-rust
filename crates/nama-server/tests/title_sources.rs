@@ -21,10 +21,10 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     BrowseServiceClient, CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest,
-    ExternalId, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListTitleSourcesRequest,
-    ListUnmatchedItemsRequest, MatchServiceClient, PluginServiceClient, RefusalReason,
-    SettingValue, UnmatchedItemFilter, UnmatchedReason, UpdateLibraryRequest,
-    UpdatePluginSettingsRequest, setting_value,
+    ExtensionPoint, ExternalId, GetPluginRequest, LibraryKind, LibraryServiceClient,
+    ListMoviesRequest, ListTitleSourcesRequest, ListUnmatchedItemsRequest, MatchServiceClient,
+    PluginServiceClient, RefusalReason, SettingValue, UnmatchedItemFilter, UnmatchedReason,
+    UpdateLibraryRequest, UpdatePluginSettingsRequest, setting_value,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -307,6 +307,39 @@ async fn undecided_items_list_no_searching_source_until_their_source_is_enabled_
         Vec::<EnumValue<UnmatchedReason>>::new()
     );
     assert_eq!(movies(&server, &library).await, [tmdb(348)]);
+}
+
+#[tokio::test]
+async fn a_title_source_failing_in_a_scan_shows_its_failure_on_the_plugin() {
+    let mut server = TestServer::builder().tmdb().start().await;
+    server.stop_tmdb();
+    let library = server
+        .create_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN])
+        .await;
+
+    server.scan_and_match(&library).await;
+
+    let plugin = PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .get_plugin(GetPluginRequest {
+            id: "tmdb".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .plugin
+        .into_option()
+        .unwrap();
+    let [failure] = plugin.failures.as_slice() else {
+        panic!("{:?}", plugin.failures);
+    };
+    assert_eq!(failure.point, ExtensionPoint::EXTENSION_POINT_TITLE_SOURCE);
+    assert!(failure.failed_in_a_row >= 1);
+    assert!(
+        !failure.last_error.contains(API_KEY),
+        "{}",
+        failure.last_error
+    );
 }
 
 /// Enables fanart.tv, which fetches nothing until artwork is asked for, so any key does.

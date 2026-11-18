@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id, key, heading, titles FROM home_rows ORDER BY plugin_id, position",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "plugin_id"
+          }
+        }
+      },
+      {
+        "name": "key",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "heading",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "heading"
+          }
+        }
+      },
+      {
+        "name": "titles",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "titles"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "829554b5eb64dcdaba44e67da370ae48c1b21fe9b507e67388291494614416a4"
+}
