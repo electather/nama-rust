@@ -109,7 +109,8 @@ export function fakeServer(
       listLibraries: () => ({ libraries: state.libraries ?? [] }),
       ...state.libraryService,
     });
-    // Settings' image store picker waits for the Plugins. A test's own `PluginService` replaces this.
+    // Settings' image store picker waits for the Plugins. A test's own `PluginService` in `more`
+    // replaces this.
     router.service(PluginService, { listPlugins: () => ({}) });
     // A test's own `PlaybackService` in `more` replaces this.
     router.service(PlaybackService, { ...defaultPlayback, ...state.playbackService });

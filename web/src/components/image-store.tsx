@@ -179,7 +179,7 @@ function SwitchForm({
 
 /**
  * Local disk and `stores` to pick from. The store `current`, when it isn't one of them (a disabled
- * Plugin's), comes between them: chosen, but not pickable.
+ * or uninstalled Plugin's), comes between them: chosen, but not pickable.
  */
 function StoreOptions({
   current,

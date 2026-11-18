@@ -229,27 +229,33 @@ test("a failed check by a disabled Blob store Plugin names it, with one full sto
   ).toBeDefined();
 });
 
-test("switching untouched from a disabled Blob store Plugin in use asks for it, not local disk", async () => {
-  const switches: string[] = [];
-  openSettings({
-    getImageSettings: () => ({ settings: { storePluginId: "old-store" } }),
-    switchImageStore: ({ pluginId }) => {
-      switches.push(pluginId);
-      throw refused(Code.FailedPrecondition, "the image store is already in use", {
-        reason: RefusalReason.IMAGE_STORE_IN_USE,
-        field: "plugin_id",
-        params: { pluginId },
-      });
-    },
-  });
+test.each([
+  { state: "a disabled", pluginId: "old-store", name: "Old store" },
+  { state: "an enabled", pluginId: "s3", name: "S3" },
+])(
+  "switching untouched from $state Blob store Plugin in use asks for it, not local disk",
+  async ({ pluginId, name }) => {
+    const switches: string[] = [];
+    openSettings({
+      getImageSettings: () => ({ settings: { storePluginId: pluginId } }),
+      switchImageStore: ({ pluginId: asked }) => {
+        switches.push(asked);
+        throw refused(Code.FailedPrecondition, "the image store is already in use", {
+          reason: RefusalReason.IMAGE_STORE_IN_USE,
+          field: "plugin_id",
+          params: { pluginId: asked },
+        });
+      },
+    });
 
-  const store = await imageStore();
-  await store.findByRole("option", { name: "S3" });
-  fireEvent.click(store.getByRole("button", { name: "Switch image store" }));
+    const store = await imageStore();
+    await store.findByRole("option", { name: "S3" });
+    fireEvent.click(store.getByRole("button", { name: "Switch image store" }));
 
-  expect(await store.findByText("Old store already keeps the images.")).toBeDefined();
-  expect(switches).toEqual(["old-store"]);
-});
+    expect(await store.findByText(`${name} already keeps the images.`)).toBeDefined();
+    expect(switches).toEqual([pluginId]);
+  },
+);
 
 test("picking local disk or S3 while a disabled Blob store Plugin is in use switches to the store picked", async () => {
   const switches: string[] = [];
@@ -267,26 +273,4 @@ test("picking local disk or S3 while a disabled Blob store Plugin is in use swit
   await expect.poll(() => switches).toEqual([""]);
   switchTo(store, "s3");
   await expect.poll(() => switches).toEqual(["", "s3"]);
-});
-
-test("switching untouched from an enabled Blob store Plugin in use asks for it, not local disk", async () => {
-  const switches: string[] = [];
-  openSettings({
-    getImageSettings: () => ({ settings: { storePluginId: "s3" } }),
-    switchImageStore: ({ pluginId }) => {
-      switches.push(pluginId);
-      throw refused(Code.FailedPrecondition, "the image store is already in use", {
-        reason: RefusalReason.IMAGE_STORE_IN_USE,
-        field: "plugin_id",
-        params: { pluginId },
-      });
-    },
-  });
-
-  const store = await imageStore();
-  await store.findByRole("option", { name: "S3" });
-  fireEvent.click(store.getByRole("button", { name: "Switch image store" }));
-
-  expect(await store.findByText("S3 already keeps the images.")).toBeDefined();
-  expect(switches).toEqual(["s3"]);
 });
