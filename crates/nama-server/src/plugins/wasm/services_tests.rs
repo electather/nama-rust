@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
-use nama_plugin_api::points::ObservedEvents;
-use nama_plugin_proto::{SERVICES, nama::plugin::v1::EventsObserved, services};
+use nama_plugin_api::{PluginError, points::ObservedEvents};
+use nama_plugin_proto::{
+    SERVICES,
+    nama::plugin::v1::{EventsObserved, ScanStarted},
+    services,
+};
 
 use super::{
     super::{
@@ -12,6 +16,7 @@ use super::{
     },
     Failure, Method, OBSERVE_EVENTS, POINTS,
 };
+use crate::log_capture::CapturedLog;
 
 #[test]
 fn a_title_sources_artwork_list_is_an_optional_row_calling_title_artwork() {
@@ -140,4 +145,63 @@ async fn an_observers_failure_doesnt_show_its_secret_settings() {
         .unwrap_err();
 
     assert_eq!(failed.to_string(), "Function not found: …");
+}
+
+#[tokio::test]
+async fn an_observers_answer_that_wont_decode_is_logged_once_naming_its_plugin() {
+    let log = CapturedLog::start();
+
+    call_manifest_decoded_as_a_scan_started(Failure::Observer)
+        .await
+        .unwrap_err();
+
+    let logged = log.finish();
+    let failures = logged.lines().filter(|line| {
+        line.contains("plugin=radarr")
+            && line.contains("observer failed: its answer didn't decode")
+            && line.contains("wire type")
+    });
+    assert_eq!(failures.count(), 1, "{logged}");
+}
+
+#[tokio::test]
+async fn a_providers_answer_that_wont_decode_isnt_logged_where_its_called() {
+    let log = CapturedLog::start();
+
+    let failed = call_manifest_decoded_as_a_scan_started(Failure::Provider)
+        .await
+        .unwrap_err();
+
+    assert!(failed.to_string().contains("wire type"), "{failed}");
+    assert_eq!(log.finish(), "");
+}
+
+/// Calls Radarr's `manifest`, which succeeds, and decodes its answer as a [`ScanStarted`]: the
+/// Manifest's field 1 is a string where `ScanStarted`'s is an integer, so it won't decode.
+async fn call_manifest_decoded_as_a_scan_started(
+    failure: Failure,
+) -> Result<ScanStarted, PluginError> {
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    let (_, wasm) = BUNDLED
+        .iter()
+        .find(|(file, _)| *file == "radarr.wasm")
+        .unwrap();
+    let radarr = load(wasm.to_vec(), &cache_config).unwrap();
+    let running = Running {
+        package: Arc::clone(&radarr.package),
+        compiled: Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap()),
+        secrets: Vec::new().into(),
+        crashes: Arc::default(),
+        exports: Arc::clone(&radarr.exports),
+    };
+    let manifest = Method {
+        failure,
+        export: "manifest",
+        ..OBSERVE_EVENTS
+    };
+
+    running
+        .call_method(&manifest, &ObservedEvents::default())
+        .await
 }
