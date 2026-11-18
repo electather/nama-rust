@@ -9,9 +9,8 @@ import {
   SettingKind,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-
-import { openPlugin, plugin } from "./test-plugins";
-import { refused } from "./test-refusal";
+import { openPlugin, plugin } from "@/test-plugins";
+import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -78,7 +77,8 @@ test("an Admin adds a Quality from the service's profiles and saves the list wit
   });
   const page = await plugin("Radarr");
   await waitFor(async () => {
-    expect((await quality(1)).getByRole("option", { name: "Ultra-HD" })).toBeDefined();
+    const found1 = await quality(1);
+    expect(found1.getByRole("option", { name: "Ultra-HD" })).toBeDefined();
   });
 
   fireEvent.click(page.getByRole("button", { name: "Add a Quality" }));
@@ -96,7 +96,7 @@ test("an Admin adds a Quality from the service's profiles and saves the list wit
       name,
       isDefault,
     ]),
-  ).toEqual([
+  ).toStrictEqual([
     [3n, "4", "HD", true],
     [0n, "5", "4K", false],
   ]);
@@ -125,9 +125,8 @@ test("a name another Quality has is refused under it", async () => {
   fireEvent.click(page.getByRole("button", { name: "Save Qualities" }));
 
   const error = await page.findByText("Another Quality has this name.");
-  expect((await quality(1)).getByLabelText("Name").getAttribute("aria-describedby")).toContain(
-    error.id,
-  );
+  const found2 = await quality(1);
+  expect(found2.getByLabelText("Name").getAttribute("aria-describedby")).toContain(error.id);
 });
 
 test("a Plugin without a Quality profile setting has no Qualities", async () => {

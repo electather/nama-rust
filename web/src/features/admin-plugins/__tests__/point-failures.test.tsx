@@ -7,8 +7,7 @@ import {
   type ExtensionPointFailureSchema,
   PluginKind,
 } from "@/gen/nama/v1/plugin_pb";
-
-import { openPlugin, plugin } from "./test-plugins";
+import { openPlugin, plugin } from "@/test-plugins";
 
 afterEach(cleanup);
 
@@ -17,7 +16,7 @@ const FAILED_AT = Date.UTC(2026, 10, 16, 9, 30);
 type Failure = MessageInitShape<typeof ExtensionPointFailureSchema>;
 
 /** The page of an enabled Recogniser and Notifier Plugin, whose points' last calls failed as `failures` say. */
-function openFlaky(failures: Failure[] = []) {
+async function openFlaky(failures: Failure[] = []) {
   openPlugin("anime-numbers", {
     getPlugin: () => ({
       plugin: {
@@ -33,7 +32,8 @@ function openFlaky(failures: Failure[] = []) {
       },
     }),
   });
-  return plugin("Anime numbers");
+  const page = await plugin("Anime numbers");
+  return page;
 }
 
 function failed(point: ExtensionPoint, lastError: string, failedInARow: number): Failure {

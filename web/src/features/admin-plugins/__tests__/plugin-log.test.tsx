@@ -2,8 +2,7 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { PluginLogLevel } from "@/gen/nama/v1/plugin_pb";
-
-import { openPlugin, openPluginAsAdmin, plugin } from "./test-plugins";
+import { openPlugin, openPluginAsAdmin, plugin } from "@/test-plugins";
 
 afterEach(cleanup);
 
@@ -22,7 +21,7 @@ test("an Admin sees a Plugin's log lines newest first, with when and how much ea
 
   const log = await page.findByRole("list", { name: "Plugin Log" });
   const lines = [...log.querySelectorAll("li")];
-  expect(lines.map((line) => line.textContent)).toEqual([
+  expect(lines.map((line) => line.textContent)).toStrictEqual([
     expect.stringMatching(/Warning.*TMDB said 429/u),
     expect.stringMatching(/Info.*fetched Heat/u),
   ]);

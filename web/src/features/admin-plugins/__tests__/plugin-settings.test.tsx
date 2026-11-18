@@ -5,9 +5,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 import type { LibraryService } from "@/gen/nama/v1/library_pb";
 import { SettingKind, type UpdatePluginSettingsRequest } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-
-import { input, openPlugin, plugin } from "./test-plugins";
-import { expectUnderField, refused } from "./test-refusal";
+import { input, openPlugin, plugin } from "@/test-plugins";
+import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -37,23 +36,29 @@ function openToSave(id: string, library: Partial<ServiceImpl<typeof LibraryServi
 test("a Plugin's settings fill its form, with defaults as hints and a set secret only as set", async () => {
   openPlugin("tmdb");
 
-  expect((await input("TMDB", "Language")).value).toBe("de-DE");
-  expect((await input("TMDB", "Region")).value).toBe("");
-  expect(
-    (await plugin("TMDB")).getByText("Where release dates are for. Blank uses US."),
-  ).toBeDefined();
-  expect((await plugin("TMDB")).getByText("Set")).toBeDefined();
-  expect((await plugin("TMDB")).queryByLabelText("API key")).toBeNull();
-  expect((await input("TMDB", "Token")).type).toBe("password");
+  const found1 = await input("TMDB", "Language");
+  expect(found1.value).toBe("de-DE");
+  const found2 = await input("TMDB", "Region");
+  expect(found2.value).toBe("");
+  const found3 = await plugin("TMDB");
+  expect(found3.getByText("Where release dates are for. Blank uses US.")).toBeDefined();
+  const found4 = await plugin("TMDB");
+  expect(found4.getByText("Set")).toBeDefined();
+  const found5 = await plugin("TMDB");
+  expect(found5.queryByLabelText("API key")).toBeNull();
+  const found6 = await input("TMDB", "Token");
+  expect(found6.type).toBe("password");
 });
 
 test("the form checks the schema: a disabled Plugin's required setting may be blank and a number is whole", async () => {
   openPlugin("log-events");
 
-  expect((await input("log-events", "Path")).required).toBe(false);
+  const found7 = await input("log-events", "Path");
+  expect(found7.required).toBe(false);
   const days = await input("log-events", "Keep for days");
-  expect([days.type, days.step]).toEqual(["number", "1"]);
-  expect((await input("log-events", "Verbose")).checked).toBe(true);
+  expect([days.type, days.step]).toStrictEqual(["number", "1"]);
+  const found8 = await input("log-events", "Verbose");
+  expect(found8.checked).toBe(true);
 });
 
 test("the form checks the schema: an enabled Plugin's required setting is required", async () => {
@@ -70,14 +75,15 @@ test("the form checks the schema: an enabled Plugin's required setting is requir
     }),
   });
 
-  expect((await input("log-events", "Path")).required).toBe(true);
+  const found9 = await input("log-events", "Path");
+  expect(found9.required).toBe(true);
 });
 
 test("the form checks the schema: a number takes only its bounds", async () => {
   openPlugin("cleanup");
 
   const days = await input("cleanup", "Days");
-  expect([days.min, days.max]).toEqual(["0", ""]);
+  expect([days.min, days.max]).toStrictEqual(["0", ""]);
 });
 
 test("a number out of its bounds is refused under it, saying the bound", async () => {
@@ -91,7 +97,8 @@ test("a number out of its bounds is refused under it, saying the bound", async (
     },
   });
 
-  fireEvent.click((await plugin("cleanup")).getByRole("button", { name: "Save" }));
+  const found10 = await plugin("cleanup");
+  fireEvent.click(found10.getByRole("button", { name: "Save" }));
 
   await expectUnderField("Days", "This must be at least 0.");
 });
@@ -100,7 +107,11 @@ test("the form checks the schema: a setting with a default isn't required and a 
   openPlugin("test-plugin");
 
   const url = await input("test-plugin", "Sonarr URL");
-  expect([url.type, url.value, url.required]).toEqual(["url", "http://sonarr.lan:8989", false]);
+  expect([url.type, url.value, url.required]).toStrictEqual([
+    "url",
+    "http://sonarr.lan:8989",
+    false,
+  ]);
 });
 
 test("saving sends what was typed, leaving out blanks and a set secret", async () => {
@@ -111,46 +122,53 @@ test("saving sends what was typed, leaving out blanks and a set secret", async (
 
   const { id, settings } = await sent;
   expect(id).toBe("tmdb");
-  expect(Object.keys(settings)).toEqual(["language"]);
-  expect(settings["language"]?.value).toEqual({ case: "textValue", value: "fr-FR" });
+  expect(Object.keys(settings)).toStrictEqual(["language"]);
+  expect(settings["language"]?.value).toStrictEqual({ case: "textValue", value: "fr-FR" });
   await expect(screen.findByText("Saved, and in use now.")).resolves.toBeDefined();
 });
 
 test("replace lets a set secret be typed again, and sends it", async () => {
   const { sent, submit } = openToSave("tmdb");
-  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Replace API key" }));
+  const found11 = await plugin("TMDB");
+  fireEvent.click(found11.getByRole("button", { name: "Replace API key" }));
   fireEvent.change(await input("TMDB", "API key"), { target: { value: "new-key" } });
 
   await submit();
 
-  expect((await sent).settings["api_key"]?.value).toEqual({ case: "textValue", value: "new-key" });
+  const found12 = await sent;
+  expect(found12.settings["api_key"]?.value).toStrictEqual({ case: "textValue", value: "new-key" });
 });
 
 test("forget lets a set secret be left blank to forget it, and sends its key", async () => {
   const { sent, submit } = openToSave("tmdb");
-  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Forget API key" }));
+  const found13 = await plugin("TMDB");
+  fireEvent.click(found13.getByRole("button", { name: "Forget API key" }));
 
-  expect((await input("TMDB", "API key")).value).toBe("");
+  const found14 = await input("TMDB", "API key");
+  expect(found14.value).toBe("");
+  const found15 = await plugin("TMDB");
   expect(
-    (await plugin("TMDB")).getByText("Leave it blank to forget the one that’s set.", {
+    found15.getByText("Leave it blank to forget the one that’s set.", {
       exact: false,
     }),
   ).toBeDefined();
   await submit();
 
   const { settings, forgottenSecrets } = await sent;
-  expect(forgottenSecrets).toEqual(["api_key"]);
+  expect(forgottenSecrets).toStrictEqual(["api_key"]);
   expect(settings["api_key"]).toBeUndefined();
 });
 
 test("a value typed after Forget is sent in the forgotten secret's place", async () => {
   const { sent, submit } = openToSave("tmdb");
-  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Forget API key" }));
+  const found16 = await plugin("TMDB");
+  fireEvent.click(found16.getByRole("button", { name: "Forget API key" }));
   fireEvent.change(await input("TMDB", "API key"), { target: { value: "new-key" } });
 
   await submit();
 
-  expect((await sent).settings["api_key"]?.value).toEqual({ case: "textValue", value: "new-key" });
+  const found17 = await sent;
+  expect(found17.settings["api_key"]?.value).toStrictEqual({ case: "textValue", value: "new-key" });
 });
 
 test("a bool and a number, however it is written, are sent as their kind", async () => {
@@ -162,8 +180,8 @@ test("a bool and a number, however it is written, are sent as their kind", async
   await submit();
 
   const { settings } = await sent;
-  expect(settings["verbose"]?.value).toEqual({ case: "boolValue", value: false });
-  expect(settings["keep_days"]?.value).toEqual({ case: "integerValue", value: 7n });
+  expect(settings["verbose"]?.value).toStrictEqual({ case: "boolValue", value: false });
+  expect(settings["keep_days"]?.value).toStrictEqual({ case: "integerValue", value: 7n });
 });
 
 test("a refusal shows under the setting it names", async () => {
@@ -177,7 +195,8 @@ test("a refusal shows under the setting it names", async () => {
   });
   fireEvent.change(await input("log-events", "Path"), { target: { value: "x" } });
 
-  fireEvent.click((await plugin("log-events")).getByRole("button", { name: "Save" }));
+  const found18 = await plugin("log-events");
+  fireEvent.click(found18.getByRole("button", { name: "Save" }));
 
   await expectUnderField("Path", "This setting is required.");
 });
@@ -192,7 +211,8 @@ test("a refusal naming a secret that is set opens its input to show under", asyn
     },
   });
 
-  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Save" }));
+  const found19 = await plugin("TMDB");
+  fireEvent.click(found19.getByRole("button", { name: "Save" }));
 
   await expectUnderField("API key", "This setting can’t take that value.");
 });
@@ -207,7 +227,8 @@ test("a Plugin no longer on the Server says so for the form", async () => {
     },
   });
 
-  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Save" }));
+  const found20 = await plugin("TMDB");
+  fireEvent.click(found20.getByRole("button", { name: "Save" }));
 
   await expect(
     screen.findByText("This Plugin isn’t on the Server any more."),
@@ -216,7 +237,8 @@ test("a Plugin no longer on the Server says so for the form", async () => {
 
 /** The Libraries setting of the cleanup Plugin's details page, once its Libraries show. */
 async function librariesToClean() {
-  const group = (await plugin("cleanup")).getByRole("group", { name: "Libraries to clean" });
+  const found101 = await plugin("cleanup");
+  const group = found101.getByRole("group", { name: "Libraries to clean" });
   await within(group).findByRole("checkbox", { name: "Movies" });
   return within(group);
 }
@@ -228,7 +250,7 @@ test("a Libraries setting shows the Libraries it holds by name, leaving out one 
   const ticked = group
     .getAllByRole<HTMLInputElement>("checkbox")
     .map((box) => [box.labels?.[0]?.textContent, box.checked]);
-  expect(ticked).toEqual([
+  expect(ticked).toStrictEqual([
     ["Movies", true],
     ["Shows", false],
     ["Anime", false],
@@ -253,7 +275,8 @@ test.each([
   {
     listing: "not yet listed",
     shown: "Loading the Libraries…",
-    listLibraries: () => new Promise<never>(() => {}),
+    // oxlint-disable-next-line require-await -- never answers, so the Libraries stay loading
+    listLibraries: async () => new Promise<never>(() => {}),
   },
   {
     listing: "not listable",
@@ -266,9 +289,8 @@ test.each([
   "saving while the Libraries are $listing keeps the ids the setting holds",
   async ({ shown, listLibraries }) => {
     const { sent, submit } = openToSave("cleanup", { listLibraries });
-    const group = within(
-      (await plugin("cleanup")).getByRole("group", { name: "Libraries to clean" }),
-    );
+    const found21 = await plugin("cleanup");
+    const group = within(found21.getByRole("group", { name: "Libraries to clean" }));
     await group.findByText(shown);
 
     await submit();
@@ -291,7 +313,8 @@ test("a refusal naming a Library no longer on the Server shows under the Librari
   });
   const group = await librariesToClean();
 
-  fireEvent.click((await plugin("cleanup")).getByRole("button", { name: "Save" }));
+  const found22 = await plugin("cleanup");
+  fireEvent.click(found22.getByRole("button", { name: "Save" }));
 
   const error = await screen.findByText("A Library picked here isn’t on the Server any more.");
   const box = group.getByRole("checkbox", { name: "Movies" });

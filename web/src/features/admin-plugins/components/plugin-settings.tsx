@@ -1,11 +1,8 @@
-import { useMutation } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
-
 import { SettingInput, forgottenTyped, settingsTyped } from "@/components/setting-fields";
-import { refusedSettings } from "@/components/setting-refusals";
 import { TestButton, testPassed, useSettingsTest } from "@/components/settings-test";
-import { PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { type PluginDetails, pluginsKey } from "@/lib/plugins";
+import { useUpdatePluginSettings } from "@/features/admin-plugins/data/use-update-plugin-settings";
+import { saved, settingErrors } from "@/features/admin-plugins/lib/setting-errors";
+import type { PluginDetails } from "@/lib/plugins";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { onSubmitted } from "@/shared/lib/forms";
 
@@ -15,10 +12,7 @@ import { onSubmitted } from "@/shared/lib/forms";
  * settings.
  */
 export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
-  const queryClient = useQueryClient();
-  const update = useMutation(PluginService.method.updatePluginSettings, {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: pluginsKey }),
-  });
+  const update = useUpdatePluginSettings();
   const { choices, test } = useSettingsTest();
   // One message at a time: each resets the other.
   const errors = settingErrors(update.error, test.error);
@@ -63,22 +57,4 @@ export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
       </FormEnd>
     </form>
   );
-}
-
-/**
- * Why the Server refused to save or test the settings, by whichever it refused. A `null` error
- * refused nothing.
- */
-function settingErrors(saving: unknown, testing: unknown) {
-  if (saving !== null) {
-    return refusedSettings(saving, "save the settings");
-  }
-  return testing === null ? {} : refusedSettings(testing, "test the settings");
-}
-
-/** What saving did, by whether the Plugin `summary` runs with the new settings now. */
-function saved(summary: PluginSummary | undefined) {
-  return summary?.enabled === true
-    ? "Saved, and in use now."
-    : "Saved. They’re used once the Plugin is enabled.";
 }
