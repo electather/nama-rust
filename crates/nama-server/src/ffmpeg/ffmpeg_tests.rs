@@ -439,10 +439,8 @@ fn with_gpus(ffmpeg: Ffmpeg, root: &Path) -> Ffmpeg {
 async fn automatic_picks_the_dedicated_gpu_whichever_render_node_it_has() {
     for (dedicated, integrated) in [("renderD128", "renderD129"), ("renderD129", "renderD128")] {
         let root = tempfile::tempdir().unwrap();
-        let (sys, dri) = (root.path().join("sys"), root.path().join("dri"));
-        fake::gpu(&sys, &dri, integrated, "0000:18:00.0", "0x1002");
-        fake::pci_function(&sys, "0000:18:00.2", "0x1022");
-        fake::gpu(&sys, &dri, dedicated, "0000:03:00.0", "0x1002");
+        let dri = root.path().join("dri");
+        fake::two_amd_gpus_at(root.path(), [integrated, dedicated]);
         let ffmpeg = fake_ffmpeg(
             root.path(),
             "*-encoders*) echo ' V....D h264_vaapi  H.264/AVC (VAAPI)' ;;

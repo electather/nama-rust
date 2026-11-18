@@ -236,7 +236,11 @@ fn secret_values(schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
 pub(crate) fn without_secrets(mut message: String, secrets: &[String]) -> String {
     // An empty secret would blank the gap between every character.
     for secret in secrets.iter().filter(|secret| !secret.is_empty()) {
-        message = message.replace(secret.as_str(), "…");
+        // A failure cause is escaped before callers blank it (`wasm::printable`), so a secret
+        // holding a control character, such as a PEM key's newlines, shows there escaped too.
+        message = message
+            .replace(secret.as_str(), "…")
+            .replace(&wasm::printable(secret), "…");
     }
     message
 }
