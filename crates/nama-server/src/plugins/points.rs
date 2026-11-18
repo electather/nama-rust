@@ -507,7 +507,7 @@ impl ExtensionPoints {
 
     fn contained<T>(&self, plugin: PluginId, held: T) -> Contained<T> {
         Contained {
-            points: self.clone(),
+            log_span: self.log_span(&plugin),
             plugin,
             held: Some(held),
         }
@@ -527,10 +527,10 @@ impl ExtensionPoints {
 /// Holds a handle on the Plugin `plugin`, or its pending call, and drops it contained and in the
 /// span naming the Plugin however its holder ends, even dropped mid-`.await`: it may be the last
 /// handle on a Plugin disabled meanwhile, and its `Drop` is Plugin code. A panic there is logged;
-/// it disables nothing, and a dropped call records no failure. Never made or dropped under the
-/// State lock, which its `Drop` takes.
+/// it disables nothing, and a dropped call records no failure. Never made under the State lock,
+/// since making it reads [`ExtensionPoints::log_span`].
 struct Contained<T> {
-    points: ExtensionPoints,
+    log_span: Span,
     plugin: PluginId,
     /// `Some` until dropped.
     held: Option<T>,
@@ -560,15 +560,15 @@ impl<T> DerefMut for Contained<T> {
 
 impl<T> Drop for Contained<T> {
     fn drop(&mut self) {
-        let held = self.held.take();
         // Needs no runtime, so a task dropped as the runtime shuts down is contained too.
-        let dropped = self
-            .points
-            .log_span(&self.plugin)
-            .in_scope(|| contain_sync(|| drop(held)));
-        if let Err(message) = dropped {
-            error!(plugin = %self.plugin, message, "plugin panicked while being dropped");
-        }
+        drop_contained(&self.log_span, &self.plugin, self.held.take());
+    }
+}
+
+/// Drops `held`, Plugin code of the Plugin `plugin`, contained and in `log_span`, logging a panic.
+fn drop_contained(log_span: &Span, plugin: &PluginId, held: impl Sized) {
+    if let Err(message) = log_span.in_scope(|| contain_sync(|| drop(held))) {
+        error!(plugin = %plugin, message, "plugin panicked while being dropped");
     }
 }
 
@@ -653,9 +653,7 @@ impl Removed {
     /// Drops the Plugin and its handlers, containing a panic in their `Drop`, which is Plugin code.
     fn dropped(self, id: &PluginId) {
         let log_span = self.log_span.clone();
-        if let Err(message) = log_span.in_scope(|| contain_sync(|| drop(self))) {
-            error!(plugin = %id, message, "plugin panicked while being dropped");
-        }
+        drop_contained(&log_span, id, self);
         info!(plugin = %id, "disabled plugin");
     }
 }
