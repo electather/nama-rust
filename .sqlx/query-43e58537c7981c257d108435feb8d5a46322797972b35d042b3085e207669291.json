@@ -1,0 +1,33 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.file_id AS \"version!\", MIN(library_items.season) AS \"season!: i64\"\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ? AND library_items.kind = 'episode'\n               GROUP BY library_items.file_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "version!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "file_id"
+          }
+        }
+      },
+      {
+        "name": "season!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "43e58537c7981c257d108435feb8d5a46322797972b35d042b3085e207669291"
+}

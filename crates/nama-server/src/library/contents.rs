@@ -38,7 +38,7 @@ pub(crate) use ids::{DEFAULT_ORDER, parse_hint, primary_id};
 use ids::{ids_from_json, ids_sql, listed_id_sql, primary_id_in};
 use items::ItemRow;
 pub(crate) use items::{Item, ItemKind, Name};
-pub(crate) use local_images::{LocalImage, LocalImageFile};
+pub(crate) use local_images::{LocalImage, LocalImageFile, LocalRole, TitleLocalImage};
 pub(crate) use matched::{
     Episode, MatchedTo, Movie, Season, Show, TitlesIn, Version, library_with_movie,
     library_with_show, matched_episodes, show_poster,

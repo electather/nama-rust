@@ -148,7 +148,7 @@ pub(super) fn parse(kind: LibraryKind, relative: &Path) -> Option<Vec<Item>> {
     let Split { folders, stem } = Split::new(relative)?;
     match kind {
         LibraryKind::Movies => parse_movie(&folders, &stem).map(|movie| vec![movie]),
-        LibraryKind::Shows => parse_episodes(&folders, &stem),
+        LibraryKind::Shows => parse_episodes(relative, &stem),
     }
 }
 
@@ -198,18 +198,14 @@ fn file_wins(file: &ExternalIds, folder: ExternalIds) -> ExternalIds {
 /// The Episodes in a file, in the Show named by the folder holding the file's Season folder, or
 /// by the folder holding the file if it isn't in a Season folder. An ID Hint on an Episode's file
 /// names the Episode, not the Show, so it isn't used.
-fn parse_episodes(folders: &[String], stem: &str) -> Option<Vec<Item>> {
-    let (parent, above) = folders.split_last()?;
-    let show_folder = if SEASON_FOLDER.is_match(parent) {
-        above.last()?
-    } else {
-        parent
-    };
-    if SEASON_FOLDER.is_match(show_folder) {
+fn parse_episodes(relative: &Path, stem: &str) -> Option<Vec<Item>> {
+    let (show_folder, _) = episode_folders(relative)?;
+    let show_folder = show_folder.file_name()?.to_string_lossy();
+    if SEASON_FOLDER.is_match(&show_folder) {
         return None;
     }
-    let show = title_and_year(show_folder).or_else(|| {
-        let title = clean_title(&TAG.replace_all(show_folder, ""));
+    let show = title_and_year(&show_folder).or_else(|| {
+        let title = clean_title(&TAG.replace_all(&show_folder, ""));
         (!title.is_empty()).then_some(Named {
             title,
             year: None,
@@ -229,6 +225,19 @@ fn parse_episodes(folders: &[String], stem: &str) -> Option<Vec<Item>> {
                 episode,
             })
             .collect(),
+    )
+}
+
+/// The Show's folder of the Episode file at `path`, and its Season's folder if it is in one, as
+/// [`parse_episodes`] reads them.
+pub(super) fn episode_folders(path: &Path) -> Option<(&Path, Option<&Path>)> {
+    let parent = path.parent()?;
+    Some(
+        if SEASON_FOLDER.is_match(&parent.file_name()?.to_string_lossy()) {
+            (parent.parent()?, Some(parent))
+        } else {
+            (parent, None)
+        },
     )
 }
 

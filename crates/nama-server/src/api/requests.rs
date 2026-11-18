@@ -24,7 +24,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    library::{Artwork, Candidate, ImageRef, Metadata, Role, Slot},
+    library::{Artwork, Candidate, ImageRef, Metadata, Role},
     requests::{
         self, Asked, Found, FoundShow, Hit, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
         QualityRefused, Requests,
@@ -541,12 +541,8 @@ impl RequestServiceHandler {
             plugin,
             candidate: show,
         } = hit;
-        let (poster_url, poster_thumbhash) = self.image(
-            images,
-            (images.custom).of_title(&id, &show.ids, |id| show_slot(id, Role::Poster)),
-            &plugin,
-            show.poster,
-        );
+        let shown = images.show_image(&id, &show.ids, Role::Poster);
+        let (poster_url, poster_thumbhash) = self.image(images, shown, &plugin, show.poster);
         proto::ShowHit {
             id: external_id_to_proto(&id).into(),
             title: show.title,
@@ -568,8 +564,8 @@ impl RequestServiceHandler {
             quality,
         } = found;
         let image = |role, path| {
-            let custom = (images.custom).of_title(&id, &show.ids, |id| show_slot(id, role));
-            self.image(images, custom, &plugin, path)
+            let shown = images.show_image(&id, &show.ids, role);
+            self.image(images, shown, &plugin, path)
         };
         let (poster_url, poster_thumbhash) = image(Role::Poster, show.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, show.backdrop);
@@ -588,11 +584,6 @@ impl RequestServiceHandler {
             ..Default::default()
         }
     }
-}
-
-/// The slot of the Show `id`, as browsing identifies it.
-fn show_slot(id: &ExternalId, role: Role) -> Slot {
-    Slot::show(id, role)
 }
 
 /// `title`, unless it is blank, which a search for titles refuses.

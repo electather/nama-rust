@@ -10,9 +10,10 @@ mod server;
 #[path = "support/test_plugin.rs"]
 mod test_plugin;
 
-use std::sync::Arc;
+use std::{io::Cursor, sync::Arc};
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use image::{ImageFormat, RgbImage};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     contract::{FileRecognised, FileToRecognise},
@@ -20,10 +21,10 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{
     BrowseServiceClient, CreateLibraryRequest, EnablePluginRequest, Episode, ExtensionPoint,
-    ExternalId, GetLibraryRequest, GetPluginRequest, LibraryKind, LibraryServiceClient,
-    ListEpisodesRequest, ListLibrariesRequest, ListPluginsRequest, ListUnmatchedItemsRequest,
-    MatchServiceClient, PluginServiceClient, RecogniserOrder, RefusalReason, UnmatchedItemFilter,
-    UpdateLibraryRequest, UpdateLibraryResponse, event,
+    ExternalId, GetLibraryRequest, GetPluginRequest, GetShowRequest, LibraryKind,
+    LibraryServiceClient, ListEpisodesRequest, ListLibrariesRequest, ListPluginsRequest,
+    ListUnmatchedItemsRequest, MatchServiceClient, PluginServiceClient, RecogniserOrder,
+    RefusalReason, UnmatchedItemFilter, UpdateLibraryRequest, UpdateLibraryResponse, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -273,6 +274,40 @@ async fn listing_a_recogniser_reads_files_left_unparsed_before_once() {
         read_again,
         Some((0, 2)),
         "a scan with nothing changed reads nothing again"
+    );
+}
+
+#[tokio::test]
+async fn the_poster_in_its_shows_folder_shows_for_a_show_only_a_recogniser_placed() {
+    let server = with_recogniser().await;
+    let library = server
+        .create_library(LibraryKind::LIBRARY_KIND_SHOWS, &[ABSOLUTE])
+        .await;
+    let mut poster = Cursor::new(Vec::new());
+    (RgbImage::new(2, 3).write_to(&mut poster, ImageFormat::Jpeg)).unwrap();
+    library.write("Dark (2017)/poster.jpg", poster.get_ref());
+    update_recognisers(&server, &library, Some(&[RECOGNISER]))
+        .await
+        .unwrap();
+
+    server.scan_and_match(&library).await;
+
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let show = browse.get_show(GetShowRequest {
+        library_id: library.id,
+        show_id: ExternalId {
+            namespace: "tmdb".to_owned(),
+            value: DARK.to_string(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    });
+    let show = show.await.unwrap().into_owned().show.into_option().unwrap();
+    let poster_url = show.poster_url.unwrap();
+    assert!(
+        poster_url.starts_with("/media/local-images/"),
+        "{poster_url}"
     );
 }
 

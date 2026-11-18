@@ -110,9 +110,7 @@ impl Backdrops {
             let (title, ids) = (&newest.title, &newest.ids);
             let shown = match library.kind {
                 LibraryKind::Movies => self.images.movie_image(title, ids, Role::Backdrop),
-                LibraryKind::Shows => {
-                    (self.images.custom).of_title(title, ids, |id| Slot::show(id, Role::Backdrop))
-                }
+                LibraryKind::Shows => self.images.show_image(title, ids, Role::Backdrop),
             };
             shown.unwrap_or_else(|| artwork_url(&newest.plugin, &newest.path))
         });
