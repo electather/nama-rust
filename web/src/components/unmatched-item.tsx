@@ -15,7 +15,7 @@ import {
   type UnmatchedItem,
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
-import { episodeName } from "@/lib/browse";
+import { browseKey, episodeName } from "@/lib/browse";
 // oxlint-disable-next-line import/max-dependencies -- an Unmatched Item's row both plays it and searches for and sets its Match
 import { unmatchedKey } from "@/lib/events";
 import { formText, onSubmitted, refusal } from "@/lib/forms";
@@ -129,7 +129,14 @@ function withYear(title: string, year: number | undefined) {
   return year === undefined ? title : `${title} (${year})`;
 }
 
-function FindAMatch({ item, libraryId }: { item: UnmatchedItem; libraryId: bigint }) {
+/** What Matching an Item by hand needs of it: which Item, and what its file's name was parsed as. */
+export type ItemToMatch = Pick<
+  UnmatchedItem,
+  "itemId" | "kind" | "title" | "year" | "season" | "episode"
+>;
+
+/** Searches the title source for `item`'s title, and Matches it to the title picked. */
+export function FindAMatch({ item, libraryId }: { item: ItemToMatch; libraryId: bigint }) {
   const [search, setSearch] = useState({ kind: item.kind, title: item.title, year: item.year });
   return (
     <div className="flex max-w-xl flex-col gap-4">
@@ -171,7 +178,7 @@ function SearchResults({
   libraryId,
 }: {
   search: ReturnType<typeof searchTyped>;
-  item: UnmatchedItem;
+  item: ItemToMatch;
   libraryId: bigint;
 }) {
   const found = useQuery(MatchService.method.searchTitles, search);
@@ -200,13 +207,18 @@ function Candidates({
   libraryId,
 }: {
   candidates: TitleCandidate[];
-  item: UnmatchedItem;
+  item: ItemToMatch;
   libraryId: bigint;
 }) {
   const queryClient = useQueryClient();
-  // Matching an Episode's Show may Unmatch its other Episodes, which no Event announces.
+  // Matching an Episode's Show may Unmatch its other Episodes, which no Event announces. Browsing
+  // refetches too, so a player of the Item sees it Matched without waiting for the Event.
   const setMatch = useMutation(MatchService.method.setMatch, {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: unmatchedKey(libraryId) }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: unmatchedKey(libraryId) }),
+        queryClient.invalidateQueries({ queryKey: browseKey }),
+      ]),
   });
   return (
     <>
@@ -236,7 +248,7 @@ function Candidates({
  * What Matching `item`, an Episode, to a Show without it did, or "" if the Show has it. The row
  * closes once its Item is Matched, so it shows this only while its own Episode is still Unmatched.
  */
-function notInShow(item: UnmatchedItem, { matched, unmatched }: SetMatchResponse) {
+function notInShow(item: ItemToMatch, { matched, unmatched }: SetMatchResponse) {
   if (unmatched === 0n || item.season === undefined || item.episode === undefined) return "";
   return `That Show has no ${episodeName(item.season, item.episode, "full")}.${alsoMatched(matched)}`;
 }

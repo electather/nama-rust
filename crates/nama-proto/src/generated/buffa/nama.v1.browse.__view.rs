@@ -15229,6 +15229,10 @@ pub struct UnmatchedItemSummaryView<'a> {
     ///
     /// Field 6: `episode`
     pub episode: ::core::option::Option<i32>,
+    /// The item, to Match it by with `MatchService.SetMatch`.
+    ///
+    /// Field 7: `item_id`
+    pub item_id: i64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UnmatchedItemSummaryView<'a> {
@@ -15305,6 +15309,13 @@ impl<'a> ::buffa::MessageView<'a> for UnmatchedItemSummaryView<'a> {
                 )?;
                 view.episode = Some(::buffa::types::decode_int32(&mut cur)?);
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.item_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -15339,6 +15350,7 @@ impl<'a> ::buffa::MessageView<'a> for UnmatchedItemSummaryView<'a> {
             year: self.year,
             season: self.season,
             episode: self.episode,
+            item_id: self.item_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -15371,6 +15383,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemSummaryView<'a> {
         if let Some(v) = self.episode {
             size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
         }
+        if self.item_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.item_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -15402,6 +15417,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemSummaryView<'a> {
         }
         if let Some(v) = self.episode {
             ::buffa::types::put_int32_field(6u32, v, buf);
+        }
+        if self.item_id != 0i64 {
+            ::buffa::types::put_int64_field(7u32, self.item_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -15445,6 +15463,13 @@ impl<'__a> ::serde::Serialize for UnmatchedItemSummaryView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.episode {
             __map.serialize_entry("episode", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.item_id) {
+            __map
+                .serialize_entry(
+                    "itemId",
+                    &::buffa::json_helpers::ProtoJson(&self.item_id),
+                )?;
         }
         __map.end()
     }
@@ -15583,6 +15608,13 @@ impl UnmatchedItemSummaryOwnedView {
     #[must_use]
     pub fn episode(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().episode
+    }
+    /// The item, to Match it by with `MatchService.SetMatch`.
+    ///
+    /// Field 7: `item_id`
+    #[must_use]
+    pub fn item_id(&self) -> i64 {
+        self.0.reborrow().item_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UnmatchedItemSummaryView<'static>>>

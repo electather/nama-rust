@@ -3,9 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { Player } from "@/components/player";
 import { NotFound, PlayerError } from "@/components/route-error";
+import { ProgressNotSaved } from "@/components/progress-not-saved";
 import { parsedAs } from "@/components/unmatched-item";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { queryOrNotFound, wholeNumberFromParam } from "@/lib/browse";
+import { isGone, queryOrNotFound, wholeNumberFromParam } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/unmatched/$versionId/play")({
   loader: async ({ context, params }) => {
@@ -25,12 +26,13 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/unmatched/$v
 /** Plays an Unmatched Item's Version, which keeps no Watch State (ADR 0013). */
 function PlayUnmatchedVersion() {
   // A refetch that finds it Matched since keeps what was read, so playing goes on.
-  const { item, version } = useSuspenseQuery(
-    BrowseService.method.getUnmatchedVersion,
-    Route.useLoaderData(),
-  ).data;
+  const input = Route.useLoaderData();
+  const { data, error } = useSuspenseQuery(BrowseService.method.getUnmatchedVersion, input);
+  const { item, version } = data;
   const params = Route.useParams();
   if (!item || !version) return <NotFound />;
+  // Gone since means Matched, so its progress is saved, or its Version removed, which plays no more.
+  const matched = isGone(error);
   return (
     <Player
       title={parsedAs(item)}
@@ -38,6 +40,7 @@ function PlayUnmatchedVersion() {
       tracks={version.tracks}
       watchState={undefined}
       back={{ to: "/libraries/$libraryId", params }}
+      note={!matched && <ProgressNotSaved item={item} libraryId={input.libraryId} />}
     />
   );
 }
