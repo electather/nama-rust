@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use tempfile::TempDir;
+
 use nama_plugin_api::{PluginError, points::ObservedEvents};
 use nama_plugin_proto::{
     SERVICES,
@@ -123,21 +125,8 @@ fn every_contract_service_has_adapter_rows_and_every_row_a_contract_service() {
 
 #[tokio::test]
 async fn an_observers_failure_doesnt_show_its_secret_settings() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let cache_config = write_cache_config(data_dir.path()).unwrap();
-    let (_, wasm) = BUNDLED
-        .iter()
-        .find(|(file, _)| *file == "radarr.wasm")
-        .unwrap();
-    let radarr = load(wasm.to_vec(), &cache_config).unwrap();
     // Radarr has no Observer, so the call fails naming the export, here standing in for a secret.
-    let running = Running {
-        package: Arc::clone(&radarr.package),
-        compiled: Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap()),
-        secrets: vec![OBSERVE_EVENTS.export.to_owned()].into(),
-        crashes: Arc::default(),
-        exports: Arc::clone(&radarr.exports),
-    };
+    let (_data_dir, running) = radarr_running(&[OBSERVE_EVENTS.export]);
 
     let failed = running
         .call_method::<_, EventsObserved>(&OBSERVE_EVENTS, &ObservedEvents::default())
@@ -149,9 +138,10 @@ async fn an_observers_failure_doesnt_show_its_secret_settings() {
 
 #[tokio::test]
 async fn an_observers_answer_that_wont_decode_is_logged_once_naming_its_plugin() {
+    let (_data_dir, running) = radarr_running(&[]);
     let log = CapturedLog::start();
 
-    call_manifest_decoded_as_a_scan_started(Failure::Observer)
+    call_manifest_decoded_as_a_scan_started(&running, Failure::Observer)
         .await
         .unwrap_err();
 
@@ -166,9 +156,10 @@ async fn an_observers_answer_that_wont_decode_is_logged_once_naming_its_plugin()
 
 #[tokio::test]
 async fn a_providers_answer_that_wont_decode_isnt_logged_where_its_called() {
+    let (_data_dir, running) = radarr_running(&[]);
     let log = CapturedLog::start();
 
-    let failed = call_manifest_decoded_as_a_scan_started(Failure::Provider)
+    let failed = call_manifest_decoded_as_a_scan_started(&running, Failure::Provider)
         .await
         .unwrap_err();
 
@@ -176,11 +167,9 @@ async fn a_providers_answer_that_wont_decode_isnt_logged_where_its_called() {
     assert_eq!(log.finish(), "");
 }
 
-/// Calls Radarr's `manifest`, which succeeds, and decodes its answer as a [`ScanStarted`]: the
-/// Manifest's field 1 is a string where `ScanStarted`'s is an integer, so it won't decode.
-async fn call_manifest_decoded_as_a_scan_started(
-    failure: Failure,
-) -> Result<ScanStarted, PluginError> {
+/// Runs the bundled Radarr with `secrets` as its secret settings' values, compiled into the
+/// returned directory's cache, which must outlive it.
+fn radarr_running(secrets: &[&str]) -> (TempDir, Running) {
     let data_dir = tempfile::tempdir().unwrap();
     let cache_config = write_cache_config(data_dir.path()).unwrap();
     let (_, wasm) = BUNDLED
@@ -191,10 +180,19 @@ async fn call_manifest_decoded_as_a_scan_started(
     let running = Running {
         package: Arc::clone(&radarr.package),
         compiled: Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap()),
-        secrets: Vec::new().into(),
+        secrets: secrets.iter().map(|&secret| secret.to_owned()).collect(),
         crashes: Arc::default(),
         exports: Arc::clone(&radarr.exports),
     };
+    (data_dir, running)
+}
+
+/// Calls Radarr's `manifest`, which succeeds, and decodes its answer as a [`ScanStarted`]: the
+/// Manifest's field 1 is a string where `ScanStarted`'s is an integer, so it won't decode.
+async fn call_manifest_decoded_as_a_scan_started(
+    running: &Running,
+    failure: Failure,
+) -> Result<ScanStarted, PluginError> {
     let manifest = Method {
         failure,
         export: "manifest",

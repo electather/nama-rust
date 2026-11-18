@@ -309,7 +309,7 @@ impl Running {
             },
         };
         let answer = Resp::decode_from_slice(&output);
-        // A Provider's caller logs or shows its error; an Observer's is logged only here.
+        // A Provider's caller logs or shows its error; nothing else logs an Observer's failed decode.
         if let (Failure::Observer, Err(err)) = (&method.failure, &answer) {
             warn!(plugin = %self.package.id, "observer failed: its answer didn't decode: {err}");
         }
