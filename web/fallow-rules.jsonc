@@ -1,0 +1,38 @@
+// Fallow rule pack: rules for the feature layout's folders (web/src/AGENTS.md). Legacy code keeps
+// what it does until it moves.
+{
+  "$schema": "./node_modules/fallow/rule-pack-schema.json",
+  "version": 1,
+  "name": "feature-layout",
+  "rules": [
+    {
+      "id": "data-hooks",
+      "kind": "banned-import",
+      "specifiers": ["@connectrpc/connect-query", "@tanstack/react-query"],
+      "files": ["src/app/**", "src/features/**", "src/shared/**"],
+      "exclude": ["src/features/*/data/**", "src/shared/hooks/**", "src/**/__tests__/**"],
+      "message": "Query in a data hook: a feature's data/ folder or src/shared/hooks/.",
+      "severity": "error",
+    },
+    {
+      "id": "suspense",
+      "kind": "banned-call",
+      "callees": ["@connectrpc/connect-query.useQuery", "@tanstack/react-query.useQuery"],
+      "files": ["src/app/**", "src/features/**", "src/shared/**"],
+      "message": "Use useSuspenseQuery, so a Suspense boundary shows the loading state. A query that mustn't suspend says why in a suppression.",
+      "severity": "error",
+    },
+    {
+      // `import()` and type-only imports are fine: neither puts the library in the first chunk.
+      "id": "dynamic-loading",
+      "kind": "banned-import",
+      // Both ASS renderers, so this holds whichever of #1133 and #1160 lands first.
+      "specifiers": ["hls.js", "libbitsub", "jsqr", "@jellyfin/libass-wasm", "jassub"],
+      "ignoreTypeOnly": true,
+      "files": ["src/app/**", "src/features/**", "src/shared/**"],
+      "exclude": ["src/**/__tests__/**"],
+      "message": "Load it with import() where it's needed, so the first page doesn't download it.",
+      "severity": "error",
+    },
+  ],
+}

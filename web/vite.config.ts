@@ -29,6 +29,9 @@ const ci = Boolean(process.env["CI"]);
 // Written by `buf generate` and the router plugin, never by hand.
 const generated = ["src/gen/**", "src/routeTree.gen.ts"];
 
+// The feature layout's folders (web/src/AGENTS.md), where the strictest rules apply.
+const newFolders = ["src/app/**", "src/features/**", "src/shared/**"];
+
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   // The build's `index.html` is what the Server embeds and serves for every page (ADR 0004). The
@@ -52,6 +55,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Tests live in `__tests__` folders. The flat `src/*.test.tsx` are legacy, until they move.
+    include: ["src/**/__tests__/**/*.test.{ts,tsx}", "src/*.test.{ts,tsx}"],
     environment: "happy-dom",
     retry: ci ? 2 : 0,
     // JSON, not JUnit: vitest's JUnit report doesn't show which tests passed only on a retry.
@@ -217,8 +222,8 @@ export default defineConfig({
       "typescript/explicit-module-boundary-types": "off",
       // Comes with the PR that adds translations.
       "react/jsx-no-literals": "off",
-      // Need a person to fix every hit, so they're on only where code has moved into the feature
-      // layout (#1133). Legacy code meets them as it moves.
+      // Need a person to fix every hit, so they're on only in the feature layout's folders (the
+      // overrides below). Legacy code meets them as it moves.
       "react/no-multi-comp": "off",
       "react/only-export-components": "off",
       "react/jsx-handler-names": "off",
@@ -237,6 +242,42 @@ export default defineConfig({
       "vitest/require-hook": "off",
     },
     overrides: [
+      // web/src/AGENTS.md, "The new folders": the strictest bar the tools offer.
+      {
+        files: newFolders,
+        rules: {
+          "react/no-multi-comp": ["error", { ignoreStateless: false }],
+          // Fast Refresh keeps a file's state only when it exports nothing but components. Route
+          // files, which export `Route`, stay in src/routes/.
+          "react/only-export-components": "error",
+          "react/jsx-handler-names": "error",
+          "react/jsx-max-depth": "error",
+          // `satisfies` or a type guard instead.
+          "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],
+          "typescript/promise-function-async": "error",
+          "typescript/explicit-member-accessibility": "error",
+          // `""` and `0` aren't conditions. Checking whether an object is there still is.
+          "typescript/strict-boolean-expressions": [
+            "error",
+            { allowString: false, allowNumber: false, allowNullableObject: true },
+          ],
+          "max-params": "error",
+          "prefer-named-capture-group": "error",
+          "class-methods-use-this": "error",
+          "no-empty-function": "error",
+          "unicorn/prefer-global-this": "error",
+          "unicorn/no-await-expression-member": "error",
+          "unicorn/no-array-reduce": "error",
+          "promise/prefer-await-to-then": "error",
+          "vitest/prefer-strict-equal": "error",
+          "vitest/require-hook": "error",
+        },
+      },
+      // Wrapper and fixture components stay inline in a test, and a fake may do nothing.
+      {
+        files: ["src/**/__tests__/**"],
+        rules: { "react/no-multi-comp": "off", "no-empty-function": "off" },
+      },
       // An ambient module declaration (`declare module "…"`) has to be a script.
       { files: ["src/*.d.ts"], rules: { "import/unambiguous": "off" } },
       // Vite reads its config's default export, in Node.
