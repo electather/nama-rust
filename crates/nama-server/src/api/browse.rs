@@ -300,7 +300,9 @@ impl BrowseService for BrowseServiceHandler {
         let (unmatched, page) = listed.map_err(refused(Fields::LIBRARY))?;
         Response::ok(ListUnmatchedResponse {
             items: (unmatched.into_iter())
-                .map(|unmatched| unmatched_summary(unmatched.item, unmatched.version_id))
+                .map(|unmatched| {
+                    unmatched_summary(unmatched.id, unmatched.version_id, unmatched.item)
+                })
                 .collect(),
             page: page.into(),
             ..Default::default()
@@ -320,7 +322,7 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         Response::ok(GetUnmatchedVersionResponse {
-            item: unmatched_summary(unmatched.item, unmatched.version_id).into(),
+            item: unmatched_summary(unmatched.id, unmatched.version_id, unmatched.item).into(),
             version: version_to_proto(&version).into(),
             ..Default::default()
         })
@@ -587,9 +589,13 @@ fn episode_to_proto(
     }
 }
 
-/// An Unmatched Item as any User sees it: the Version `version_id` that holds it and what its file's
-/// name was parsed as, `item`, never where the file is (ADR 0062).
-pub(super) fn unmatched_summary(item: Item, version_id: i64) -> proto::UnmatchedItemSummary {
+/// An Unmatched Item as any User sees it: its id `item_id`, the Version `version_id` that holds it
+/// and what its file's name was parsed as, `item`, never where the file is (ADR 0062).
+pub(super) fn unmatched_summary(
+    item_id: i64,
+    version_id: i64,
+    item: Item,
+) -> proto::UnmatchedItemSummary {
     let (kind, title, year, numbers) = match item {
         Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
         Item::Episode {
@@ -606,6 +612,7 @@ pub(super) fn unmatched_summary(item: Item, version_id: i64) -> proto::Unmatched
         ),
     };
     proto::UnmatchedItemSummary {
+        item_id,
         version_id,
         kind: kind.into(),
         title,

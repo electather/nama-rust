@@ -208,7 +208,7 @@ fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::Unmatched
         season,
         episode,
         ..
-    } = unmatched_summary(unmatched.item, unmatched.version_id);
+    } = unmatched_summary(unmatched.id, unmatched.version_id, unmatched.item);
     proto::UnmatchedItem {
         item_id: unmatched.id,
         version_id,

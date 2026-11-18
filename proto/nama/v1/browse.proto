@@ -608,6 +608,8 @@ message UnmatchedItemSummary {
   optional int32 season = 5;
   // For an Episode, its number within the Season.
   optional int32 episode = 6;
+  // The item, to Match it by with `MatchService.SetMatch`.
+  int64 item_id = 7;
 }
 
 message GetUnmatchedVersionRequest {

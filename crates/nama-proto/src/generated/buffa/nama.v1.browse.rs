@@ -10482,6 +10482,16 @@ pub struct UnmatchedItemSummary {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub episode: ::core::option::Option<i32>,
+    /// The item, to Match it by with `MatchService.SetMatch`.
+    ///
+    /// Field 7: `item_id`
+    #[serde(
+        rename = "itemId",
+        alias = "item_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub item_id: i64,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -10495,6 +10505,7 @@ impl ::core::fmt::Debug for UnmatchedItemSummary {
             .field("year", &self.year)
             .field("season", &self.season)
             .field("episode", &self.episode)
+            .field("item_id", &self.item_id)
             .finish()
     }
 }
@@ -10569,6 +10580,9 @@ impl ::buffa::Message for UnmatchedItemSummary {
         if let Some(v) = self.episode {
             size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
         }
+        if self.item_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.item_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10599,6 +10613,9 @@ impl ::buffa::Message for UnmatchedItemSummary {
         }
         if let Some(v) = self.episode {
             ::buffa::types::put_int32_field(6u32, v, buf);
+        }
+        if self.item_id != 0i64 {
+            ::buffa::types::put_int64_field(7u32, self.item_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10661,6 +10678,13 @@ impl ::buffa::Message for UnmatchedItemSummary {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.item_id = ::buffa::types::decode_int64(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10675,6 +10699,7 @@ impl ::buffa::Message for UnmatchedItemSummary {
         self.year = ::core::option::Option::None;
         self.season = ::core::option::Option::None;
         self.episode = ::core::option::Option::None;
+        self.item_id = 0i64;
         self.__buffa_unknown_fields.clear();
     }
 }

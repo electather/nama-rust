@@ -1,6 +1,6 @@
 //! Listing a Library's Unmatched Items through the generated `MatchService` and `BrowseService`
 //! clients, over a real socket: which Library, its pages, and what a User without Permissions
-//! sees, plans and plays.
+//! sees, plans, plays and has Matched.
 
 #[expect(dead_code, reason = "this binary uses only some of the helpers")]
 #[path = "support/http.rs"]
@@ -15,10 +15,11 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ErrorCode, client::HttpClient};
 use http::fetch;
 use nama_proto::nama::v1::{
-    AudioCodec, BrowseServiceClient, Container, DeviceDecoding, GetUnmatchedVersionRequest,
-    LibraryKind, ListUnmatchedItemsRequest, ListUnmatchedRequest, MatchServiceClient, PageRequest,
-    PlanPlaybackRequest, PlaybackMethod, PlaybackServiceClient, RefusalReason, TitleKind,
-    UnmatchedItemFilter, VideoCodec,
+    AudioCodec, BrowseServiceClient, Container, DeviceDecoding, ExternalId, GetMovieRequest,
+    GetUnmatchedVersionRequest, LibraryKind, ListUnmatchedItemsRequest, ListUnmatchedRequest,
+    MatchServiceClient, PageRequest, PlanPlaybackRequest, PlaybackMethod, PlaybackServiceClient,
+    RefusalReason, ReportProgressRequest, SetMatchRequest, TitleKind, UnmatchedItemFilter,
+    VideoCodec, WatchStateServiceClient,
 };
 use refused::assert_refused;
 use server::TestServer;
@@ -332,4 +333,79 @@ async fn a_file_whose_name_does_not_parse_is_not_served() {
 
     assert_eq!(listed.items.len(), 0);
     assert_eq!(played.status, 404);
+}
+
+#[tokio::test]
+async fn a_users_progress_in_an_unmatched_version_is_saved_once_its_item_is_matched() {
+    let server = TestServer::builder().tmdb().start().await;
+    // The fake TMDB finds nothing for it.
+    let file = "Home Movies (2019).mkv";
+    let films = (server.matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[file])).await;
+    let ripley = server.user("Ripley", &[]).await;
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), ripley.client_config());
+    let watch_states =
+        WatchStateServiceClient::new(HttpClient::plaintext(), ripley.client_config());
+    let admins = MatchServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let listed = browse
+        .list_unmatched(ListUnmatchedRequest {
+            library_id: films.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .items
+        .remove(0);
+    let got = browse
+        .get_unmatched_version(GetUnmatchedVersionRequest {
+            library_id: films.id,
+            version_id: listed.version_id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+    let report = || {
+        watch_states.report_progress(ReportProgressRequest {
+            version_id: listed.version_id,
+            position_ms: 600_000,
+            duration_ms: 6_000_000,
+            ..Default::default()
+        })
+    };
+    let heat = ExternalId {
+        namespace: "tmdb".to_owned(),
+        value: "949".to_owned(),
+        ..Default::default()
+    };
+    let watch_state = || async {
+        let movie = browse
+            .get_movie(GetMovieRequest {
+                library_id: films.id,
+                movie_id: heat.clone().into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .movie;
+        movie.into_option().unwrap().watch_state.into_option()
+    };
+
+    report().await.unwrap();
+    admins
+        .set_match(SetMatchRequest {
+            item_id: got.item.item_id,
+            title_id: heat.clone().into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let before = watch_state().await;
+    report().await.unwrap();
+    let after = watch_state().await;
+
+    assert_eq!(listed.item_id, got.item.item_id);
+    assert_eq!(before, None);
+    assert_eq!(after.map(|state| state.position_ms), Some(600_000));
 }
