@@ -94,6 +94,19 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 OTEL_SERVICE_NAME=nama-server 
 
 Use the app until it's slow, then open Grafana at <http://localhost:3000>; it needs no sign-in. Under Explore, pick Tempo, switch to TraceQL and search for one ConnectRPC method, such as `{name="nama.v1.BrowseService/ListMovies"}`, then sort the results by Duration and open the slowest; `{span.rpc.service="nama.v1.BrowseService" && duration > 200ms}` finds every slow call to a service. A trace takes about 30 seconds to show up in a search. Under Explore with Loki, `{service_name="nama-server"}` shows the Server's logs; a line logged during a trace has a "Trace:" link among its fields that opens that trace. Everything is lost when the container is removed.
 
+### Sending Diagnostics to Grafana Cloud
+
+Grafana Cloud takes OTLP over HTTPS with a login, so a Collector sits between it and the Server. [`docker/otel-grafana-cloud.yml`](docker/otel-grafana-cloud.yml) runs one. Copy [`docker/.env.example`](docker/.env.example) to `docker/.env`, which git ignores, and fill in the OTLP endpoint and the `Authorization=Basic …` header from your stack's OpenTelemetry tile; the value is everything after `Authorization=`.
+
+Start it, then point the Server at it, from the same host or from another container on the same compose network:
+
+```sh
+docker compose -f docker/otel-grafana-cloud.yml --env-file docker/.env up -d
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 OTEL_SERVICE_NAME=nama-server cargo run -p nama-server
+```
+
+Traces and logs show up under Explore in your stack's Grafana, with the same queries as above. The free plan keeps 14 days; set `OTEL_TRACES_SAMPLER` on the Server if you near its monthly allowance.
+
 ## Checks
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, and every warning fails it:

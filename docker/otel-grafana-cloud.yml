@@ -1,0 +1,14 @@
+# A Collector that forwards a Server's Diagnostics to Grafana Cloud. The README's "Sending
+# Diagnostics to Grafana Cloud" says how to use it. Kept to what both `docker compose` and
+# `podman compose` read, and the image names its registry so podman doesn't ask for one.
+services:
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector:0.120.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      GRAFANA_CLOUD_OTLP_ENDPOINT: ${GRAFANA_CLOUD_OTLP_ENDPOINT:?set it in docker/.env}
+      GRAFANA_CLOUD_OTLP_AUTH: ${GRAFANA_CLOUD_OTLP_AUTH:?set it in docker/.env}
+    volumes:
+      - ./otel-grafana-cloud.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4318:4318" # OTLP HTTP
