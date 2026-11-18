@@ -25,6 +25,10 @@
     "noUncheckedSideEffectImports": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    "erasableSyntaxOnly": true
+    "erasableSyntaxOnly": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "forceConsistentCasingInFileNames": true,
+    "libReplacement": false
   }
 }

@@ -51,7 +51,7 @@ export function useHideFromContinueWatching() {
  */
 export function HideMenu({ title, onHide }: { title: string; onHide: () => void }) {
   return (
-    <div className="dark absolute end-2 top-2 rounded-lg bg-scrim">
+    <div className="dark absolute inset-e-2 top-2 rounded-lg bg-scrim">
       <DropdownMenu>
         <DropdownMenuTrigger
           render={<Button variant="overlay" size="icon" aria-label={`More for ${title}`} />}

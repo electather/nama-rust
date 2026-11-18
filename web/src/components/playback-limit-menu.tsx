@@ -31,7 +31,9 @@ export function PlaybackLimitMenu({
   container: RefObject<HTMLDivElement | null>;
 }) {
   const below = belowOriginal.filter(({ limit }) => offered.includes(limit));
-  if (below.length === 0) return null;
+  if (below.length === 0) {
+    return null;
+  }
   const original = PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL;
   const items = [{ limit: original, name: "Original" }, ...below];
   // A limit the picture already fits, or none, plays it as it is.
@@ -48,7 +50,9 @@ export function PlaybackLimitMenu({
           value={String(playing)}
           onValueChange={(value: string) => {
             const picked = items.find(({ limit }) => String(limit) === value);
-            if (picked) choose(picked.limit);
+            if (picked) {
+              choose(picked.limit);
+            }
           }}
         >
           {items.map(({ limit, name }) => (

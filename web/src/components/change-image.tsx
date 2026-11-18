@@ -41,14 +41,16 @@ export function ChangeImage({
   const { upload, pick, change, pending, error } = useChangeImage(image.path, rules);
   return (
     <>
-      <div className="mt-2 -ms-3 flex flex-wrap">
+      <div className="-ms-3 mt-2 flex flex-wrap">
         <UploadButton name={image.name} accept={rules.accept} pending={pending} onPicked={upload} />
         {image.custom && (
           <Button
             variant="ghost"
             aria-label={`Remove custom image: ${image.name}`}
             disabled={pending}
-            onClick={() => void change({ method: "DELETE" })}
+            onClick={() => {
+              void change({ method: "DELETE" });
+            }}
           >
             Remove custom image
           </Button>
@@ -82,7 +84,9 @@ function UploadButton({
     const file = event.target.files?.[0];
     // Cleared, so picking the same file again after a refusal still uploads it.
     event.target.value = "";
-    if (file) onPicked(file);
+    if (file) {
+      onPicked(file);
+    }
   }
   return (
     <label
@@ -134,8 +138,11 @@ function useChangeImage(path: string, { refusals, queryKey }: ImageRules) {
 
   function upload(file: File) {
     // The Server refuses it too, but a browser can lose that answer to a body cut off partway.
-    if (file.size > MAX_UPLOAD_BYTES) setError(refusals[413]);
-    else void change({ method: "PUT", body: file });
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(refusals[413]);
+    } else {
+      void change({ method: "PUT", body: file });
+    }
   }
 
   function pick(artwork: string) {

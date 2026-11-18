@@ -14,14 +14,14 @@ import {
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { isCode } from "@/lib/connect-errors";
 import { findDeviceDecoding } from "@/lib/device-decoding";
-import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 // oxlint-disable-next-line import/max-dependencies -- the plan puts together the Device's decoding, Watch State and why the Server couldn't plan
 import { refusalOf, serverMessage } from "@/lib/forms";
+import { stopPlan } from "@/lib/playback-source";
 import { serverFailedToPlan } from "@/lib/playback-wording";
 import { toMs } from "@/lib/watch-state";
-import { stopPlan } from "@/lib/playback-source";
 
 /** What the player asks a plan for, beside the Version. */
 interface Asking {
@@ -127,10 +127,12 @@ function useCantPlay(
       video.pause();
       // Read here: React may run the updater later, when the `<video>` has moved on.
       const resumeFrom = resumeFromMs(video, startPositionMs);
-      if (failedMethods.includes(plan.method)) setGaveUp(true);
+      if (failedMethods.includes(plan.method)) {
+        setGaveUp(true);
+      }
       // hls.js and the `<video>` may both report one failure: only the first asks again. A plan
       // already being replaced fails once the Server stops it, which asks nothing.
-      else
+      else {
         setAsking((before) =>
           before.asks !== asks || before.failedMethods.includes(plan.method)
             ? before
@@ -143,6 +145,7 @@ function useCantPlay(
                 asks: before.asks + 1,
               },
         );
+      }
     },
     [asks, failedMethods, plan, setAsking, startPositionMs],
   );
@@ -222,8 +225,9 @@ function useSubtitleChoice(askFromHere: ReturnType<typeof asker>, plan: Playback
   const chooseSubtitle = (video: HTMLVideoElement, choice: SubtitleChoice) => {
     setShownSubtitle(typeof choice === "string" ? choice : undefined);
     const burnIn = typeof choice === "number" ? choice : undefined;
-    if (burnIn !== plan.subtitleTrack)
+    if (burnIn !== plan.subtitleTrack) {
       askFromHere(video, { subtitleTrack: burnIn, noSubtitles: burnIn === undefined });
+    }
   };
   return { shownSubtitle, chooseSubtitle };
 }
@@ -251,7 +255,9 @@ function usePlan(versionId: bigint, asking: Asking) {
       String(replacing),
     ],
     queryFn: async () => {
-      if (replacing !== undefined) await stopPlan(transport, replacing);
+      if (replacing !== undefined) {
+        await stopPlan(transport, replacing);
+      }
       const deviceDecoding = await findDeviceDecoding();
       const input = {
         versionId,
@@ -263,10 +269,16 @@ function usePlan(versionId: bigint, asking: Asking) {
         subtitleTrack,
         noSubtitles,
       };
-      return callUnaryMethod(transport, PlaybackService.method.planPlayback, input).then(
-        ({ plan }) => create(PlaybackPlanSchema, plan),
-        cantPlayBecause,
-      );
+      try {
+        const { plan } = await callUnaryMethod(
+          transport,
+          PlaybackService.method.planPlayback,
+          input,
+        );
+        return create(PlaybackPlanSchema, plan);
+      } catch (error) {
+        return cantPlayBecause(error);
+      }
     },
     staleTime: "static",
     gcTime: 0,
@@ -275,11 +287,17 @@ function usePlan(versionId: bigint, asking: Asking) {
 
 /** A plan that can't play, saying why, for an `error` the player explains; any other is thrown. */
 function cantPlayBecause(error: unknown) {
-  if (isCode(error, Code.Internal)) return cantPlayPlan({ text: serverFailedToPlan });
+  if (isCode(error, Code.Internal)) {
+    return cantPlayPlan({ text: serverFailedToPlan });
+  }
   const { reason, params } = refusalOf(error);
   const text = serverMessage(error);
-  if (reason === RefusalReason.SEGMENT_FOLDER_UNWRITABLE) return cantPlayPlan({ text });
-  if (reason !== RefusalReason.SERVER_BUSY) throw error;
+  if (reason === RefusalReason.SEGMENT_FOLDER_UNWRITABLE) {
+    return cantPlayPlan({ text });
+  }
+  if (reason !== RefusalReason.SERVER_BUSY) {
+    throw error;
+  }
   return cantPlayPlan({ kind: PlaybackReasonKind.SERVER_BUSY, params, text });
 }
 
@@ -293,6 +311,8 @@ function cantPlayPlan(reason: MessageInitShape<typeof PlaybackReasonSchema>) {
  * started there.
  */
 function resumeFromMs(video: HTMLVideoElement, startPositionMs: bigint) {
-  if (video.readyState < HTMLMediaElement.HAVE_METADATA) return startPositionMs;
+  if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+    return startPositionMs;
+  }
   return toMs(video.currentTime);
 }

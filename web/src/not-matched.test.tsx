@@ -46,6 +46,6 @@ test("a Library's Unmatched Items are folded under Not matched, by what their na
 test("a Library without Unmatched Items shows no Not matched", async () => {
   openApp("/libraries/1", libraryWith({}));
 
-  expect(await screen.findByRole("heading", { name: "Films" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Films" })).resolves.toBeDefined();
   expect(screen.queryByText("Not matched")).toBeNull();
 });

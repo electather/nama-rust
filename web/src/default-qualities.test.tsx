@@ -48,7 +48,7 @@ test("a User who may choose sets their default Quality for Movies, the default p
   fill("Movies", "2");
   fireEvent.click(screen.getByRole("button", { name: "Save default for Movies" }));
 
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
   expect(set).toMatchObject([{ pluginId: "radarr", quality: 2n }]);
 });
 

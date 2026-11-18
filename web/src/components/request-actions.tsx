@@ -1,10 +1,10 @@
 import type { DescMessage } from "@bufbuild/protobuf";
 import { useMutation } from "@connectrpc/connect-query";
 
+import { ChangeButton, type QualityTarget, qualityTargetOf } from "@/components/change-button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FormTextarea } from "@/components/form-field";
 import { useRefetchRequests } from "@/components/request-state";
-import { ChangeButton, type QualityTarget, qualityTargetOf } from "@/components/change-button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   type FollowedShow,
@@ -119,8 +119,9 @@ function targetOf(request: Request | FollowedShow): Target {
 
 /** What `request` asks for, in words: a Movie's title, or a Show's with the Season's name. */
 function nameOf({ movieOrSeason }: Request) {
-  if (movieOrSeason.case === "season")
+  if (movieOrSeason.case === "season") {
     return `${movieOrSeason.value.showTitle} ${seasonName(movieOrSeason.value.seasonNumber)}`;
+  }
   return movieOrSeason.value?.title ?? "this Movie";
 }
 

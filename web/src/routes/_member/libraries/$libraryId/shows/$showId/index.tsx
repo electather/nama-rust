@@ -4,11 +4,11 @@ import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 import { BackdropGrid, Still } from "@/components/backdrop-card";
 import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
 import { EditImages, showImages } from "@/components/edit-images";
+import { MarkPlayedMenu } from "@/components/mark-played-menu";
 import { posterLink } from "@/components/poster";
 import { NotFound } from "@/components/route-error";
 import { ShowIntro } from "@/components/show-intro";
 import { TitlePage } from "@/components/title-page";
-import { MarkPlayedMenu } from "@/components/mark-played-menu";
 // oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
 import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
@@ -41,7 +41,9 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
     const show = { libraryId: library.id, showId: externalIdFromParam(params.showId) };
     const { seasons } = await queryOrNotFound(context, BrowseService.method.getShow, show);
     const season = seasonToShow(seasons, deps.season);
-    if (!season) throw notFound();
+    if (!season) {
+      throw notFound();
+    }
     const episodes = { ...show, seasonNumber: season.number };
     const { queryClient, transport } = context;
     await Promise.all([
@@ -99,7 +101,9 @@ function Show() {
     ...show,
     seasonNumber,
   });
-  if (!data.show || isGone(error)) return <NotFound />;
+  if (!data.show || isGone(error)) {
+    return <NotFound />;
+  }
   return (
     <TitlePage
       title={data.show.title}
@@ -122,7 +126,7 @@ function Show() {
       </div>
       <SeasonShown seasons={data.seasons} current={seasonNumber} />
       {/* Out of the way below the Episodes, and pulled out by the buttons' own padding. */}
-      <div className="mt-6 -ms-4 flex max-w-3xl flex-wrap gap-2 empty:hidden">
+      <div className="-ms-4 mt-6 flex max-w-3xl flex-wrap gap-2 empty:hidden">
         <EditImages
           title={data.show.title}
           {...showImages(
@@ -147,7 +151,9 @@ function Show() {
  * besides Specials, with the Specials below; with only Specials, it names them.
  */
 function Seasons({ seasons, current }: { seasons: Season[]; current: number }) {
-  if (listsOnlySeason(seasons, current)) return null;
+  if (listsOnlySeason(seasons, current)) {
+    return null;
+  }
   return (
     // Pulled out by the links' own padding, so the first lines up with the title.
     <nav aria-label="Seasons" className="-ms-3 flex flex-1 flex-wrap gap-1">

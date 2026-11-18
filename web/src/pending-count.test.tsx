@@ -55,7 +55,7 @@ test.each<{
     pending = to;
     events.send(event);
 
-    expect(await screen.findByRole("link", { name })).toBe(link);
+    await expect(screen.findByRole("link", { name })).resolves.toBe(link);
     expect(link.textContent).toBe(text);
   },
 );

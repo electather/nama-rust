@@ -42,12 +42,12 @@ test("a scan Event updates a Library's progress without a reload", async () => {
   events.send({
     event: { case: "scanProgress", value: { libraryId: 1n, filesDone: 3n, filesTotal: 10n } },
   });
-  expect(await screen.findByText("Scanning: 3 of 10 files")).toBeDefined();
+  await expect(screen.findByText("Scanning: 3 of 10 files")).resolves.toBeDefined();
 
   events.send({
     event: { case: "scanFinished", value: { libraryId: 1n, added: 9n, updated: 0n, removed: 1n } },
   });
-  expect(await screen.findByText("Scanned: 9 new, 0 changed and 1 gone")).toBeDefined();
+  await expect(screen.findByText("Scanned: 9 new, 0 changed and 1 gone")).resolves.toBeDefined();
 });
 
 test("setting a Match takes the Item off Needs a Match", async () => {
@@ -77,7 +77,7 @@ test("setting a Match takes the Item off Needs a Match", async () => {
     }),
   );
 
-  expect(await screen.findByText(alien.path)).toBeDefined();
+  await expect(screen.findByText(alien.path)).resolves.toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Find a Match for Alien (1979)" }));
   const results = await screen.findByRole("list", { name: "Titles found" });
   fireEvent.click(within(results).getByRole("button", { name: "Match to Alien (1979)" }));
@@ -135,10 +135,10 @@ test.each([
     }),
   );
 
-  expect(await screen.findByText(shown)).toBeDefined();
+  await expect(screen.findByText(shown)).resolves.toBeDefined();
 });
 
-test("Needs a Match names an Item parsed as Season 0 a Special", async () => {
+test("needs a Match names an Item parsed as Season 0 a Special", async () => {
   const item = {
     itemId: 7n,
     path: "/srv/shows/Severance/S00E02.mkv",
@@ -154,12 +154,12 @@ test("Needs a Match names an Item parsed as Season 0 a Special", async () => {
     }),
   );
 
-  expect(
-    await screen.findByRole("button", { name: "Find a Match for Severance · Specials, Episode 2" }),
-  ).toBeDefined();
+  await expect(
+    screen.findByRole("button", { name: "Find a Match for Severance · Specials, Episode 2" }),
+  ).resolves.toBeDefined();
 });
 
-test("Needs a Match shows why once Matching finishes", async () => {
+test("needs a Match shows why once Matching finishes", async () => {
   const events = eventFeed();
   const item = { itemId: 7n, path: "/srv/films/Alien.1979.mkv", kind: TitleKind.MOVIE };
   let reason: UnmatchedReason = UnmatchedReason.UNSPECIFIED;
@@ -175,7 +175,7 @@ test("Needs a Match shows why once Matching finishes", async () => {
       });
     }),
   );
-  expect(await screen.findByText(item.path)).toBeDefined();
+  await expect(screen.findByText(item.path)).resolves.toBeDefined();
   // The scan finished before Matching did. Its Event opens the stream, and the catch-up refetch
   // that follows has to land first, or it would be the one to show the reason.
   events.send({ event: { case: "scanFinished", value: { libraryId: 1n } } });
@@ -186,11 +186,9 @@ test("Needs a Match shows why once Matching finishes", async () => {
   reason = UnmatchedReason.NO_TITLE_FITS;
   events.send({ event: { case: "matchingFinished", value: { libraryId: 1n, unmatched: 1n } } });
 
-  expect(
-    await screen.findByText(
-      "No title fits its name. Renaming the file or adding an ID Hint may help.",
-    ),
-  ).toBeDefined();
+  await expect(
+    screen.findByText("No title fits its name. Renaming the file or adding an ID Hint may help."),
+  ).resolves.toBeDefined();
 });
 
 test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", async () => {
@@ -214,10 +212,10 @@ test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", as
   unmatched = () => new Promise<never>(() => {});
   events.send({ event: { case: "itemMatched", value: { libraryId: 1n, itemId: 7n } } });
 
-  expect(await screen.findByText("Everything is Matched.")).toBeDefined();
+  await expect(screen.findByText("Everything is Matched.")).resolves.toBeDefined();
 });
 
-test("Needs a Match says when everything is Matched", async () => {
+test("needs a Match says when everything is Matched", async () => {
   openApp(
     "/admin/needs-a-match",
     adminServer(new ReadableStream(), (router) => {
@@ -225,10 +223,10 @@ test("Needs a Match says when everything is Matched", async () => {
     }),
   );
 
-  expect(await screen.findByText("Everything is Matched.")).toBeDefined();
+  await expect(screen.findByText("Everything is Matched.")).resolves.toBeDefined();
 });
 
-test("Needs a Match says when the picked Library isn't on the Server", async () => {
+test("needs a Match says when the picked Library isn't on the Server", async () => {
   openApp(
     "/admin/needs-a-match?library=9",
     adminServer(new ReadableStream(), (router) => {
@@ -236,7 +234,7 @@ test("Needs a Match says when the picked Library isn't on the Server", async () 
     }),
   );
 
-  expect(await screen.findByText("That Library isn’t on the Server.")).toBeDefined();
+  await expect(screen.findByText("That Library isn’t on the Server.")).resolves.toBeDefined();
   expect(screen.queryByText("Everything is Matched.")).toBeNull();
 });
 
@@ -252,7 +250,7 @@ test("a Library that isn't on the Server shows the not-found page, under the app
     }),
   );
 
-  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
   expect(screen.getByRole("navigation", { name: "Admin" })).toBeDefined();
 });
 

@@ -24,9 +24,9 @@ async function traceparentSent(exportsDiagnostics: boolean) {
 }
 
 test("a ConnectRPC call sends no traceparent while the Server exports no Diagnostics", async () => {
-  expect(await traceparentSent(false)).toBeNull();
+  await expect(traceparentSent(false)).resolves.toBeNull();
 });
 
 test("a ConnectRPC call sends a W3C traceparent while the Server exports Diagnostics", async () => {
-  expect(await traceparentSent(true)).toMatch(/^00-[\da-f]{32}-[\da-f]{16}-01$/u);
+  await expect(traceparentSent(true)).resolves.toMatch(/^00-[\da-f]{32}-[\da-f]{16}-01$/u);
 });

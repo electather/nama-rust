@@ -26,7 +26,9 @@ function RequestPage() {
   const { data, error } = useSuspenseQuery(RequestService.method.getRequest, input);
   const { request } = data;
   // Cancelling it refetches it, and the `not_found` that comes back leaves the old data in place.
-  if (!request || isCode(error, Code.NotFound)) return <Removed />;
+  if (!request || isCode(error, Code.NotFound)) {
+    return <Removed />;
+  }
   const { movieOrSeason } = request;
   return (
     <RequestLayout>
@@ -59,7 +61,7 @@ function RequestLayout({ children }: { children: ReactNode }) {
   return (
     <Page heading="Request">
       {/* Pulled back by the button's own padding, so its words line up with the heading. */}
-      <div className="mt-2 -ms-4">
+      <div className="-ms-4 mt-2">
         <Link to="/requests" className={buttonVariants({ variant: "ghost" })}>
           All Requests
         </Link>

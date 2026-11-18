@@ -10,16 +10,26 @@ import { refusalOf } from "@/lib/forms";
 /** What a page shows instead when it fails, in plain words and never an error code. */
 export function RouteError({ error }: ErrorComponentProps) {
   const router = useRouter();
-  if (isCode(error, Code.PermissionDenied)) return <NotAllowed />;
+  if (isCode(error, Code.PermissionDenied)) {
+    return <NotAllowed />;
+  }
   // The router is already rechecking the session, and sends a signed-out visitor to /sign-in.
-  if (isCode(error, Code.Unauthenticated)) return null;
+  if (isCode(error, Code.Unauthenticated)) {
+    return null;
+  }
   return (
     <Page heading="Something went wrong">
       <p className="mt-2 text-muted-foreground">
         This page couldn’t load. Check that the Server is running, then try again.
       </p>
       <div className="mt-6">
-        <Button onClick={() => void router.invalidate()}>Try again</Button>
+        <Button
+          onClick={() => {
+            void router.invalidate();
+          }}
+        >
+          Try again
+        </Button>
       </div>
     </Page>
   );
@@ -60,7 +70,7 @@ export function DeletedWhilePlaying() {
 function BackToLibraries() {
   return (
     // Pulled back by the button's own padding, so its words line up with the text above.
-    <div className="mt-6 -ms-4">
+    <div className="-ms-4 mt-6">
       <Link to="/" className={buttonVariants({ variant: "ghost" })}>
         Back to your Libraries
       </Link>

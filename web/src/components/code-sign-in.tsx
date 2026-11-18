@@ -150,7 +150,7 @@ function ShownCode({ code, expired }: { code: string; expired: boolean }) {
       <p
         className={
           expired
-            ? "text-4xl font-semibold tracking-wide whitespace-nowrap tabular-nums text-muted-foreground line-through"
+            ? "text-4xl font-semibold tracking-wide whitespace-nowrap text-muted-foreground tabular-nums line-through"
             : "text-4xl font-semibold tracking-wide whitespace-nowrap tabular-nums"
         }
       >
@@ -193,7 +193,9 @@ const pollEvery = 3000;
 function usePollUntilApproved(handle: string, onSignedIn: () => Promise<void>) {
   const { mutate, isPending, data, error } = useMutation(SignInService.method.pollSignInCode, {
     onSuccess: async ({ status }) => {
-      if (status === SignInCodeStatus.SIGNED_IN) await onSignedIn();
+      if (status === SignInCodeStatus.SIGNED_IN) {
+        await onSignedIn();
+      }
     },
   });
 

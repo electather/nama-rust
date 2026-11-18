@@ -1,4 +1,4 @@
-import { type MessageInitShape } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -105,14 +105,14 @@ test("the filter offers All and every state, in the order Requests move through 
 test("a link to the Requests page with a state opens on that state", async () => {
   openApp("/requests?state=failed", filteringServer([pendingHeat, failedDune]));
 
-  expect(await screen.findByRole("button", { name: "State: Failed" })).toBeDefined();
+  await expect(screen.findByRole("button", { name: "State: Failed" })).resolves.toBeDefined();
   expect(rowTitles()).toEqual(["Dune"]);
 });
 
 test("a state the app doesn't know in the URL shows All", async () => {
   openApp("/requests?state=lost", filteringServer([pendingHeat, failedDune]));
 
-  expect(await screen.findByRole("button", { name: "State: All" })).toBeDefined();
+  await expect(screen.findByRole("button", { name: "State: All" })).resolves.toBeDefined();
   expect(rowTitles()).toEqual(["Heat", "Dune"]);
 });
 
@@ -157,7 +157,7 @@ test("a Failed Season Request shows under its Show's title without its Approved 
 test("the Requests page says so when none are in the chosen state", async () => {
   openApp("/requests?state=processing", filteringServer([pendingHeat]));
 
-  expect(await screen.findByText("No Processing Requests.")).toBeDefined();
+  await expect(screen.findByText("No Processing Requests.")).resolves.toBeDefined();
 });
 
 test("a Request retried elsewhere leaves the Failed ones without a reload", async () => {
@@ -169,7 +169,7 @@ test("a Request retried elsewhere leaves the Failed ones without a reload", asyn
   requests[0] = { ...failedDune, state: RequestState.PROCESSING };
   events.send({ event: { case: "requestStateChanged", value: { request: requests[0] } } });
 
-  expect(await screen.findByText("No Failed Requests.")).toBeDefined();
+  await expect(screen.findByText("No Failed Requests.")).resolves.toBeDefined();
 });
 
 test("approving a Request while showing Pending ones takes it off the list", async () => {
@@ -226,16 +226,16 @@ test("approving the last Pending Request leaves the page on Pending", async () =
 
   fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
 
-  expect(await screen.findByText("No Pending Requests.")).toBeDefined();
+  await expect(screen.findByText("No Pending Requests.")).resolves.toBeDefined();
   expect(screen.getByRole("button", { name: "State: Pending" })).toBeDefined();
 });
 
-test("Back from the Requests page leaves it, past the default it chose", async () => {
+test("back from the Requests page leaves it, past the default it chose", async () => {
   const router = openApp("/settings", filteringServer([pendingHeat], [], undefined, admin));
 
   fireEvent.click(await screen.findByRole("link", { name: "Requests, 1 Pending" }));
   await screen.findByRole("button", { name: "State: Pending" });
   router.history.back();
 
-  expect(await screen.findByRole("heading", { name: "Settings" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Settings" })).resolves.toBeDefined();
 });

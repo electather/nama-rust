@@ -19,7 +19,9 @@ import { may } from "@/lib/permissions";
 export const Route = createFileRoute("/_member/movies/$movieId")({
   beforeLoad: ({ context }) => {
     // Only search results link here, and only for those who may Request.
-    if (!may(context.signedIn.user, Permission.REQUEST_MOVIE)) throw notFound();
+    if (!may(context.signedIn.user, Permission.REQUEST_MOVIE)) {
+      throw notFound();
+    }
   },
   loader: async ({ context, params }) => {
     const input = { movieId: externalIdFromParam(params.movieId) };
@@ -41,7 +43,9 @@ function MovieToRequest() {
   const input = Route.useLoaderData();
   const { signedIn } = Route.useRouteContext();
   const { movie } = useSuspenseQuery(RequestService.method.lookUpMovie, input).data;
-  if (!movie) return <NotFound />;
+  if (!movie) {
+    return <NotFound />;
+  }
   return (
     <TitlePage
       title={movie.title}

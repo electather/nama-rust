@@ -80,7 +80,7 @@ test("approving a Followed Show once approves it and its Season Requests", async
 
 test("a Request manager approves a 4K Followed Show at the other Quality, HD", async () => {
   openApp("/requests", followedServer());
-  expect(await screen.findByText("4K · Requested by Ada")).toBeDefined();
+  await expect(screen.findByText("4K · Requested by Ada")).resolves.toBeDefined();
 
   fireEvent.click(
     await screen.findByRole("button", {
@@ -89,7 +89,7 @@ test("a Request manager approves a 4K Followed Show at the other Quality, HD", a
   );
   fireEvent.click(await screen.findByRole("menuitem", { name: "HD" }));
 
-  expect(await screen.findByText("HD · Requested by Ada")).toBeDefined();
+  await expect(screen.findByText("HD · Requested by Ada")).resolves.toBeDefined();
 });
 
 test("cancelling a Followed Show, once confirmed, removes it and leaves its Season Requests", async () => {

@@ -64,7 +64,9 @@ function recognisersServer(
 /** The Recognisers the field's list shows, in order, or none without a list. */
 function recognisersShown() {
   const list = screen.queryByRole("list", { name: "Recognisers" });
-  if (list === null) return [];
+  if (list === null) {
+    return [];
+  }
   return within(list)
     .getAllByRole("listitem")
     .map((item) => item.textContent);

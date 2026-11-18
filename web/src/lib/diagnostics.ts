@@ -5,7 +5,7 @@ import { type RouterContext, serverInfo } from "./access";
 
 // Nothing here imports OpenTelemetry, so the SDK is downloaded only when the Server exports
 // Diagnostics (ADR 0054).
-type Recorder = typeof import("./diagnostics-recorder");
+type Recorder = Awaited<ReturnType<typeof load>>;
 
 let exporting = false;
 let loading: Promise<Recorder> | undefined;
@@ -21,7 +21,9 @@ function active() {
  */
 export async function recordDiagnosticsIfExported(context: RouterContext) {
   exporting = (await serverInfo(context)).exportsDiagnostics;
-  if (!exporting) return;
+  if (!exporting) {
+    return;
+  }
   loading ??= load();
   try {
     recorder = await loading;
@@ -74,7 +76,9 @@ export function playerOpened() {
 
 /** Records how long the first frame took since play was pressed, once per press. */
 export function firstFramePlayed() {
-  if (playPressedAt === undefined) return;
+  if (playPressedAt === undefined) {
+    return;
+  }
   active()?.recordSpan("playback start", playPressedAt);
   playPressedAt = undefined;
 }

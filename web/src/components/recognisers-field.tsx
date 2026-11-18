@@ -68,7 +68,9 @@ function RecogniserList({
   recognisers: PluginSummary[];
   listed: boolean;
 }) {
-  if (order.length === 0) return null;
+  if (order.length === 0) {
+    return null;
+  }
   return (
     <ol aria-label="Recognisers" className="flex flex-col gap-1">
       {order.map((pluginId, index) => (

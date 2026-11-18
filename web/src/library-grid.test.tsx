@@ -74,7 +74,7 @@ test("the grid loads a 1,000-title Library page by page, keeping only the rows n
   const asked: ListMoviesRequest[] = [];
   openApp("/libraries/1", thousandMovies(asked));
 
-  expect(await screen.findByText("1,000 Movies")).toBeDefined();
+  await expect(screen.findByText("1,000 Movies")).resolves.toBeDefined();
   await waitFor(() => {
     expect(asked).toHaveLength(LIBRARY_SIZE / 100);
   });

@@ -125,9 +125,13 @@ function NoSourceSearches({ order, listed }: { order: string[]; listed: TitleSou
     namespace,
     source: listed.find((each) => each.namespace === namespace),
   }));
-  if (sources.some(({ source }) => source?.running === true && source.searches)) return null;
+  if (sources.some(({ source }) => source?.running === true && source.searches)) {
+    return null;
+  }
   const why = sources.map(({ namespace, source }) => {
-    if (source === undefined) return `${namespace} isn’t running`;
+    if (source === undefined) {
+      return `${namespace} isn’t running`;
+    }
     return source.running
       ? `${sourceName(source)} only adds artwork`
       : `${sourceName(source)} isn’t running`;
@@ -160,7 +164,9 @@ function ArtworkOnly() {
 
 /** Why a source in the order can't be used now: no listed source keeps it, or it isn't running. */
 function unusable(source: TitleSource | undefined) {
-  if (source === undefined) return "not available";
+  if (source === undefined) {
+    return "not available";
+  }
   return source.running ? undefined : "not running";
 }
 

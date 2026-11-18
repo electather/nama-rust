@@ -44,7 +44,9 @@ export function signedInQuery(transport: Transport) {
       try {
         return await callUnaryMethod(transport, SignInService.method.whoAmI, {});
       } catch (error) {
-        if (isCode(error, Code.Unauthenticated)) return null;
+        if (isCode(error, Code.Unauthenticated)) {
+          return null;
+        }
         throw error;
       }
     },

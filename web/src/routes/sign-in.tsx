@@ -13,7 +13,9 @@ export const Route = createFileRoute("/sign-in")({
     redirect: pathOnThisServer(search["redirect"]),
   }),
   beforeLoad: async ({ context }) => {
-    if (await isSetupRequired(context)) throw redirect({ to: "/setup" });
+    if (await isSetupRequired(context)) {
+      throw redirect({ to: "/setup" });
+    }
   },
   component: SignIn,
 });

@@ -67,7 +67,7 @@ test("only a User with Manage Libraries sees Edit images", async () => {
 
   openAlien(managesLibraries, () => ({}));
 
-  expect(await screen.findByRole("button", { name: "Edit images" })).toBeDefined();
+  await expect(screen.findByRole("button", { name: "Edit images" })).resolves.toBeDefined();
 });
 
 test("an uploaded Poster goes to the Movie's path and shows without a reload", async () => {

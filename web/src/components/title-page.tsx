@@ -90,10 +90,7 @@ export function TitleFacts({
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
       <span>{metadataLine(...facts)}</span>
       {boxed.filter(Boolean).map((fact) => (
-        <span
-          key={fact}
-          className="rounded-sm border border-input px-1.5 text-xs leading-5 font-medium"
-        >
+        <span key={fact} className="rounded-sm border border-input px-1.5 text-xs/5 font-medium">
           {fact}
         </span>
       ))}
@@ -109,15 +106,21 @@ export function Overview({ text }: { text: string }) {
     (paragraph: HTMLParagraphElement | null) => {
       const update = () => {
         // Open, nothing is clamped, but "Less" must stay.
-        if (paragraph && !open) setClamped(paragraph.scrollHeight > paragraph.clientHeight);
+        if (paragraph && !open) {
+          setClamped(paragraph.scrollHeight > paragraph.clientHeight);
+        }
       };
       update();
       // Again when its width changes, and once the web font loads, which changes how many lines
       // the text takes but not the clamped box's size.
       const observer = new ResizeObserver(update);
-      if (paragraph) observer.observe(paragraph);
+      if (paragraph) {
+        observer.observe(paragraph);
+      }
       // happy-dom, which the tests run on, has no `document.fonts`.
-      if ("fonts" in document) void document.fonts.ready.then(update);
+      if ("fonts" in document) {
+        void document.fonts.ready.then(update);
+      }
       return () => {
         observer.disconnect();
       };

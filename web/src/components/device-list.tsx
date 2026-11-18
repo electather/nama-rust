@@ -1,5 +1,4 @@
-import { Code } from "@connectrpc/connect";
-import type { Transport } from "@connectrpc/connect";
+import { Code, type Transport } from "@connectrpc/connect";
 import { createQueryOptions, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -19,8 +18,12 @@ export function DeviceList({ user }: { user?: User }) {
   const { data, error } = useQuery(UserService.method.listDevices, whose, {
     throwOnError: (failure) => !(user && isCode(failure, Code.NotFound)),
   });
-  if (user && error) return <Note>{noLongerHere(user.name).form}</Note>;
-  if (!data) return <Note>Loading…</Note>;
+  if (user && error) {
+    return <Note>{noLongerHere(user.name).form}</Note>;
+  }
+  if (!data) {
+    return <Note>Loading…</Note>;
+  }
   return <Devices devices={data.devices} whose={whose} />;
 }
 
@@ -33,7 +36,9 @@ export function yourDevicesQuery(transport: Transport) {
 }
 
 function Devices({ devices, whose }: { devices: Device[]; whose: Whose }) {
-  if (devices.length === 0) return <Note>No Devices are signed in.</Note>;
+  if (devices.length === 0) {
+    return <Note>No Devices are signed in.</Note>;
+  }
   return (
     <ul className="flex flex-col">
       {devices.map((device) => (

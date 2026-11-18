@@ -2,8 +2,8 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Player } from "@/components/player";
-import { NotFound, PlayerError } from "@/components/route-error";
 import { ProgressNotSaved } from "@/components/progress-not-saved";
+import { NotFound, PlayerError } from "@/components/route-error";
 import { parsedAs } from "@/components/unmatched-item";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { isGone, queryOrNotFound, wholeNumberFromParam } from "@/lib/browse";
@@ -30,7 +30,9 @@ function PlayUnmatchedVersion() {
   const { data, error } = useSuspenseQuery(BrowseService.method.getUnmatchedVersion, input);
   const { item, version } = data;
   const params = Route.useParams();
-  if (!item || !version) return <NotFound />;
+  if (!item || !version) {
+    return <NotFound />;
+  }
   // Gone since means Matched, so its progress is saved, or its Version removed, which plays no more.
   const matched = isGone(error);
   return (

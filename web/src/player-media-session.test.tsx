@@ -13,8 +13,11 @@ const session = {
   handlers: new Map<MediaSessionAction, MediaSessionActionHandler>(),
   position: undefined as MediaPositionState | undefined,
   setActionHandler(action: MediaSessionAction, handler: MediaSessionActionHandler | null) {
-    if (handler) this.handlers.set(action, handler);
-    else this.handlers.delete(action);
+    if (handler) {
+      this.handlers.set(action, handler);
+    } else {
+      this.handlers.delete(action);
+    }
   },
   setPositionState(state?: MediaPositionState) {
     this.position = state;
@@ -91,7 +94,9 @@ const server = fakeServer(
 /** Presses a lock-screen button or media key, as the browser hands it to the player. */
 function press(name: MediaSessionAction, details: Partial<MediaSessionActionDetails> = {}) {
   const handler = session.handlers.get(name);
-  if (!handler) throw new Error(`no ${name} handler`);
+  if (!handler) {
+    throw new Error(`no ${name} handler`);
+  }
   handler({ action: name, ...details });
 }
 

@@ -58,11 +58,9 @@ test.each([
 
     const said = await screen.findByText(`That Show has no Season 10, Episode 1.${also}`);
     expect(screen.getAllByRole("status")).toContain(said);
-    expect(
-      await screen.findByText(
-        "Its Show has no such Episode. Matching it to another Show may help.",
-      ),
-    ).toBeDefined();
+    await expect(
+      screen.findByText("Its Show has no such Episode. Matching it to another Show may help."),
+    ).resolves.toBeDefined();
     expect(screen.getByText(episode.path)).toBeDefined();
   },
 );

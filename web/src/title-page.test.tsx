@@ -82,12 +82,12 @@ test("a Movie shows 4K and HDR from one Version, and SDH from another's subtitle
     ],
   });
 
-  expect(await screen.findByText("4K")).toBeDefined();
+  await expect(screen.findByText("4K")).resolves.toBeDefined();
   expect(screen.getByText("HDR")).toBeDefined();
   expect(screen.getByText("SDH")).toBeDefined();
 });
 
-test("Dolby Vision is named as such, and a Movie without 4K, HDR or SDH has no badges", async () => {
+test("dolby Vision is named as such, and a Movie without 4K, HDR or SDH has no badges", async () => {
   openMovie({
     versions: [
       {
@@ -105,7 +105,7 @@ test("Dolby Vision is named as such, and a Movie without 4K, HDR or SDH has no b
     ],
   });
 
-  expect(await screen.findByText("Dolby Vision")).toBeDefined();
+  await expect(screen.findByText("Dolby Vision")).resolves.toBeDefined();
   expect(screen.queryByText(/^(4K|HDR|SDH)$/u)).toBeNull();
 });
 
@@ -121,7 +121,7 @@ test("a started Movie shows Resume with its progress and time left", async () =>
 test("an unstarted Movie shows Play, and a played one too", async () => {
   openMovie({ watchState: { positionMs: 0n, durationMs: 6_120_000n, played: true } });
 
-  expect(await screen.findByRole("link", { name: "Play" })).toBeDefined();
+  await expect(screen.findByRole("link", { name: "Play" })).resolves.toBeDefined();
   expect(screen.queryByRole("progressbar")).toBeNull();
 });
 
@@ -162,7 +162,9 @@ function episodeEntry(
 test("a Show's page shows its own overview and first air year, and no button unstarted", async () => {
   openDark();
 
-  expect(await screen.findByText("A missing child sets four families on a hunt.")).toBeDefined();
+  await expect(
+    screen.findByText("A missing child sets four families on a hunt."),
+  ).resolves.toBeDefined();
   expect(screen.getByText("Show · Drama · 2017")).toBeDefined();
   expect(screen.queryByRole("link", { name: "Resume" })).toBeNull();
 });

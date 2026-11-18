@@ -90,7 +90,7 @@ test("a Poster shows its thumbhash in its box until the image covers it", async 
   await screen.findByText("Alien");
 
   const preview = previewBehind(poster);
-  expect(preview).toBeTruthy();
+  expect(preview).not.toBeNull();
   // Drawn before the image, so the image covers it once it loads.
   expect(preview?.nextElementSibling?.getAttribute("src")).toBe(poster);
 });

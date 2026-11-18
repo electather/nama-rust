@@ -1,6 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { Code } from "@connectrpc/connect";
-import type { ServiceImpl } from "@connectrpc/connect";
+import { Code, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -87,7 +86,7 @@ test("only a User with Delete media sees the Delete action", async () => {
 
   openAlien(deletesMedia);
 
-  expect(await screen.findByRole("button", { name: "Delete Alien" })).toBeDefined();
+  await expect(screen.findByRole("button", { name: "Delete Alien" })).resolves.toBeDefined();
 });
 
 test("the confirmation lists the files that go and the space they free, and can't be undone", async () => {
@@ -95,7 +94,7 @@ test("the confirmation lists the files that go and the space they free, and can'
 
   const dialog = await openDeleteDialog();
 
-  expect(await within(dialog).findByText("Alien (1979) - 1080p.en.srt")).toBeDefined();
+  await expect(within(dialog).findByText("Alien (1979) - 1080p.en.srt")).resolves.toBeDefined();
   expect(within(dialog).getByText("Alien (1979) - 2160p.mkv")).toBeDefined();
   expect(within(dialog).getByText(/These 3 files go, freeing 68 GB/u)).toBeDefined();
   expect(within(dialog).getByText(/can’t be undone/u)).toBeDefined();
@@ -109,7 +108,7 @@ test("the confirmation says how many people are watching it now", async () => {
 
   const dialog = await openDeleteDialog();
 
-  expect(await within(dialog).findByText(/2 people are watching it now/u)).toBeDefined();
+  await expect(within(dialog).findByText(/2 people are watching it now/u)).resolves.toBeDefined();
 });
 
 test("deleting one Version deletes only it", async () => {
@@ -176,7 +175,7 @@ test("a scan that makes the folder writable enables the open page's Delete actio
   const events = eventFeed();
   let readOnlyFolder: string | undefined = "/media/movies";
   openAlien(deletesMedia, {}, { readOnlyFolder: () => readOnlyFolder, events: events.stream });
-  expect(await screen.findByRole("button", { name: "Delete Alien" })).toHaveProperty(
+  await expect(screen.findByRole("button", { name: "Delete Alien" })).resolves.toHaveProperty(
     "disabled",
     true,
   );
@@ -196,9 +195,9 @@ test("a delete the Server refuses for a read-only folder says which folder", asy
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-  expect(
-    await within(dialog).findByText(/the Server can’t write to \/media\/movies/u),
-  ).toBeDefined();
+  await expect(
+    within(dialog).findByText(/the Server can’t write to \/media\/movies/u),
+  ).resolves.toBeDefined();
 });
 
 test("the confirmation says a read-only folder refuses the delete", async () => {
@@ -212,9 +211,9 @@ test("the confirmation says a read-only folder refuses the delete", async () => 
 
   const dialog = await openDeleteDialog();
 
-  expect(
-    await within(dialog).findByText(/refuse to delete them: it can’t write to \/media\/movies/u),
-  ).toBeDefined();
+  await expect(
+    within(dialog).findByText(/refuse to delete them: it can’t write to \/media\/movies/u),
+  ).resolves.toBeDefined();
 });
 
 /** The Server's refusal to delete from `folder`, which it couldn't write to when it last scanned. */
@@ -236,7 +235,9 @@ test("files that couldn't be deleted are listed with why", async () => {
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-  expect(await screen.findByText("A file couldn’t be deleted. The rest went.")).toBeDefined();
+  await expect(
+    screen.findByText("A file couldn’t be deleted. The rest went."),
+  ).resolves.toBeDefined();
   expect(screen.getByText("Alien (1979) - 2160p.mkv: Permission denied")).toBeDefined();
 });
 
@@ -248,7 +249,7 @@ test("deleting every Version when Radarr couldn't be told says on the Library it
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-  expect(await screen.findByRole("heading", { name: "Films" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Films" })).resolves.toBeDefined();
   expect(
     screen.getByText("Radarr couldn’t be told about the delete, so it may download Alien again."),
   ).toBeDefined();
@@ -264,15 +265,13 @@ test("deleting one Version when Radarr couldn't be told says so on the Movie", a
   fireEvent.change(within(dialog).getByLabelText("What to delete"), { target: { value: "1" } });
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-  expect(
-    await screen.findByText(
-      "Radarr couldn’t be told about the delete, so it may download Alien again.",
-    ),
-  ).toBeDefined();
+  await expect(
+    screen.findByText("Radarr couldn’t be told about the delete, so it may download Alien again."),
+  ).resolves.toBeDefined();
   expect(screen.getByRole("button", { name: "Delete Alien" })).toBeDefined();
 });
 
-test("Delete media is a Permission an Admin can give", async () => {
+test("delete media is a Permission an Admin can give", async () => {
   openApp(
     "/admin/users",
     fakeServer(
@@ -284,7 +283,7 @@ test("Delete media is a Permission an Admin can give", async () => {
 
   fireEvent.click(await screen.findByText("Alex"));
 
-  expect(await screen.findByRole("checkbox", { name: "Delete media" })).toHaveProperty(
+  await expect(screen.findByRole("checkbox", { name: "Delete media" })).resolves.toHaveProperty(
     "checked",
     false,
   );

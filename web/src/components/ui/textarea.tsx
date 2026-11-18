@@ -1,8 +1,8 @@
 import { cn } from "cn";
-import type * as React from "react";
+import type { ComponentProps } from "react";
 
 // DESIGN.md, "Inputs", as for `Input`: transparent, 14% hairline, 10px radius, green on focus.
-function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+function Textarea({ className, ...props }: ComponentProps<"textarea">) {
   return (
     <textarea
       data-slot="textarea"

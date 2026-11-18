@@ -39,17 +39,15 @@ function serving(...requests: ReturnType<typeof lackingIds>[]) {
 test("a Request the Server didn't hand off for lack of an id says which, in the app's words", async () => {
   openApp("/requests", serving(lackingIds("tvdb")));
 
-  expect(
-    await screen.findByText("Reason: Sonarr can’t fetch it: no TVDB id is known for this Show."),
-  ).toBeDefined();
+  await expect(
+    screen.findByText("Reason: Sonarr can’t fetch it: no TVDB id is known for this Show."),
+  ).resolves.toBeDefined();
 });
 
 test("a Request lacking every id of several its Fulfiller needs names each", async () => {
   openApp("/requests", serving(lackingIds("tvdb,imdb")));
 
-  expect(
-    await screen.findByText(
-      "Reason: Sonarr can’t fetch it: no TVDB or IMDB id is known for this Show.",
-    ),
-  ).toBeDefined();
+  await expect(
+    screen.findByText("Reason: Sonarr can’t fetch it: no TVDB or IMDB id is known for this Show."),
+  ).resolves.toBeDefined();
 });

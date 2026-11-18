@@ -58,7 +58,9 @@ export function refusal(
   byReason: Partial<Record<RefusalReason, FormErrors>> = {},
 ): FormErrors {
   const { code } = ConnectError.from(error);
-  if (code === Code.Canceled) return {};
+  if (code === Code.Canceled) {
+    return {};
+  }
   // Still missing after "Confirm it’s you", it shares `failed_precondition` with refusals forms
   // explain by code, such as "the only Admin".
   const reasons: Partial<Record<RefusalReason, FormErrors>> = {

@@ -20,7 +20,7 @@ const SWITCHING_POLL_MS = 1000;
 
 /** Whether `switching` is still copying, rather than stopped with a failure. */
 function isRunning(switching: ImageStoreSwitch | undefined) {
-  return switching !== undefined && switching.failure === "";
+  return switching?.failure === "";
 }
 
 /**
@@ -83,7 +83,9 @@ function isEnabledBlobStore(plugin: PluginSummary) {
 
 /** What admins know the store `pluginId` by: "Local disk" for none, else its Plugin's name. */
 function storeName(pluginId: string, plugins: PluginSummary[]) {
-  if (pluginId === "") return "Local disk";
+  if (pluginId === "") {
+    return "Local disk";
+  }
   return pluginName(plugins.find((plugin) => plugin.id === pluginId) ?? { id: pluginId, name: "" });
 }
 
@@ -97,9 +99,13 @@ function SwitchProgress({
   nameOf: (pluginId: string) => string;
   current: string;
 }) {
-  if (switching === undefined) return null;
+  if (switching === undefined) {
+    return null;
+  }
   const to = nameOf(switching.toPluginId);
-  if (isRunning(switching)) return <Copying switching={switching} to={to} />;
+  if (isRunning(switching)) {
+    return <Copying switching={switching} to={to} />;
+  }
   return (
     <p role="alert" className="text-sm text-pretty text-destructive">
       Moving the images to {to} stopped, so they stay on {current}: {endSentence(switching.failure)}

@@ -47,7 +47,7 @@ test("a User connects Telegram on Settings, waits for Start, then sees it Connec
 
   fireEvent.click(await screen.findByRole("button", { name: "Connect Telegram" }));
 
-  expect(await screen.findByText("Open Telegram and press Start.")).toBeDefined();
+  await expect(screen.findByText("Open Telegram and press Start.")).resolves.toBeDefined();
   expect(screen.getByRole("link", { name: "Open Telegram" }).getAttribute("href")).toBe(link);
   expect(opened).toHaveBeenCalledWith(link, "_blank", "noopener");
   expect(started).toMatchObject([{ pluginId: "telegram" }]);
@@ -55,21 +55,21 @@ test("a User connects Telegram on Settings, waits for Start, then sees it Connec
   state.now = PluginConnectionState.CONNECTED;
 
   const connections = screen.getByRole("region", { name: "Connections" });
-  expect(await within(connections).findByText("Connected")).toBeDefined();
+  await expect(within(connections).findByText("Connected")).resolves.toBeDefined();
   expect(within(connections).getByRole("button", { name: "Disconnect Telegram" })).toBeDefined();
 });
 
-test("Disconnect deletes the User's Telegram connection", async () => {
+test("disconnect deletes the User's Telegram connection", async () => {
   const { transport, deleted } = telegramIn({ now: PluginConnectionState.CONNECTED });
   openApp("/settings", transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Disconnect Telegram" }));
 
-  expect(await screen.findByRole("button", { name: "Connect Telegram" })).toBeDefined();
+  await expect(screen.findByRole("button", { name: "Connect Telegram" })).resolves.toBeDefined();
   expect(deleted).toMatchObject([{ pluginId: "telegram" }]);
 });
 
-test("Settings shows no Connections while no Plugin connects Users", async () => {
+test("settings shows no Connections while no Plugin connects Users", async () => {
   openApp("/settings", fakeServer({ signedIn: newUser }));
 
   await screen.findByRole("heading", { name: "Devices" });

@@ -119,7 +119,7 @@ test("a Movie's page shows its open Request's Quality, and joining it shows no p
   };
   openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], asked, askedByAda));
 
-  expect(await screen.findByText("4K")).toBeDefined();
+  await expect(screen.findByText("4K")).resolves.toBeDefined();
   await clickRequest();
 
   await waitFor(() => {
@@ -203,7 +203,7 @@ test("a Show with a Quality shows it, and its later Seasons are Requested withou
   const withQuality = { ...dark, quality: { id: 2n, name: "4K", profileId: "5" } };
   openApp("/shows/tmdb-70523", showServer([hd, fourK], asked, withQuality));
 
-  expect(await screen.findByText(/downloads at 4K/u)).toBeDefined();
+  await expect(screen.findByText(/downloads at 4K/u)).resolves.toBeDefined();
   await requestSeason2();
 
   await waitFor(() => {
@@ -216,7 +216,9 @@ test("a Show whose Quality Sonarr kept and no Quality offers says it is set in t
   const kept = { ...dark, quality: { id: 0n, name: "HD-1080p", profileId: "4" } };
   openApp("/shows/tmdb-70523", showServer([hd, fourK], [], kept));
 
-  expect(await screen.findByText(/downloads at HD-1080p \(set in the service\)/u)).toBeDefined();
+  await expect(
+    screen.findByText(/downloads at HD-1080p \(set in the service\)/u),
+  ).resolves.toBeDefined();
 });
 
 test("a User who may choose picks the Quality of a Whole Show they follow", async () => {
@@ -238,7 +240,7 @@ test("a Show whose Quality is fixed shows it, and its Whole Show is followed wit
   const withQuality = { ...dark, quality: { id: 2n, name: "4K", profileId: "5" } };
   openApp("/shows/tmdb-70523", showServer([hd, fourK], [], withQuality, followed));
 
-  expect(await screen.findByText(/downloads at 4K/u)).toBeDefined();
+  await expect(screen.findByText(/downloads at 4K/u)).resolves.toBeDefined();
   await requestWholeShow();
 
   await waitFor(() => {

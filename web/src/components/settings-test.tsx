@@ -39,7 +39,9 @@ export function TestButton({
   pending: boolean;
   onTest: (typed: FormData) => void;
 }) {
-  if (!plugin.checksSettings) return null;
+  if (!plugin.checksSettings) {
+    return null;
+  }
   return (
     <Button
       type="button"
@@ -47,7 +49,9 @@ export function TestButton({
       disabled={pending}
       onClick={(event) => {
         const { form } = event.currentTarget;
-        if (form) onTest(new FormData(form));
+        if (form) {
+          onTest(new FormData(form));
+        }
       }}
     >
       {pending ? "Testing…" : "Test"}

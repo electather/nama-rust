@@ -30,7 +30,9 @@ function Movie() {
   const { data } = useSuspenseQuery(BrowseService.method.getMovie, input);
   const [chosen, setChosen] = useState<number>();
   const { movie } = data;
-  if (!movie) return <NotFound />;
+  if (!movie) {
+    return <NotFound />;
+  }
   // The largest until one is chosen, and again if an Event removed the chosen one.
   const version = versionToPlay(movie.versions, chosen);
   return (
@@ -135,6 +137,8 @@ function movieBadges(versions: Version[]) {
 }
 
 function hdrBadge(formats: Set<HdrFormat>) {
-  if (formats.has(HdrFormat.DOLBY_VISION)) return "Dolby Vision";
+  if (formats.has(HdrFormat.DOLBY_VISION)) {
+    return "Dolby Vision";
+  }
   return formats.has(HdrFormat.HDR10) || formats.has(HdrFormat.HLG) ? "HDR" : undefined;
 }

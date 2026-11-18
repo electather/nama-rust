@@ -86,13 +86,13 @@ test("picking an Episode found opens its Show at that Season", async () => {
 
   fireEvent.click(await screen.findByRole("link", { name: /The Dundies: Office Party/u }));
 
-  expect(await screen.findByText(/Opener of Season 2/u)).toBeDefined();
+  await expect(screen.findByText(/Opener of Season 2/u)).resolves.toBeDefined();
 });
 
 test("reloading a search's page shows what it found", async () => {
   openApp("/search?query=office", serverToSearch({ searchLibraries }));
 
-  expect(await screen.findByRole("link", { name: /^The Office/u })).toBeDefined();
+  await expect(screen.findByRole("link", { name: /^The Office/u })).resolves.toBeDefined();
   expect(screen.getByLabelText<HTMLInputElement>("Search your Libraries").value).toBe("office");
 });
 
@@ -101,7 +101,7 @@ test("a search that finds nothing says so", async () => {
 
   await search("dune");
 
-  expect(await screen.findByText("Nothing found for “dune”.")).toBeDefined();
+  await expect(screen.findByText("Nothing found for “dune”.")).resolves.toBeDefined();
 });
 
 test("a number typed into the URL is searched for as words", async () => {
@@ -116,14 +116,14 @@ test("a number typed into the URL is searched for as words", async () => {
     }),
   );
 
-  expect(await screen.findByText("Nothing found for “1917”.")).toBeDefined();
+  await expect(screen.findByText("Nothing found for “1917”.")).resolves.toBeDefined();
   expect(searched).toStrictEqual(["1917"]);
 });
 
 test("a blank query in the URL searches for nothing", async () => {
   openApp("/search?query=%20%20", serverToSearch({ searchLibraries }));
 
-  expect(await screen.findByRole("heading", { name: "Search" })).toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Search" })).resolves.toBeDefined();
 });
 
 /** A Movie of the Movies Library a search finds, called `title`, with the TMDB id `tmdb`. */
@@ -142,7 +142,7 @@ function pagingSearch(
   };
 }
 
-test("Show more lists the next page of what a search found below the first", async () => {
+test("show more lists the next page of what a search found below the first", async () => {
   const pages = [[movieFound(2000, "The Office Party")], [movieFound(1542, "Office Space")]];
   openApp("/search?query=office", serverToSearch({ searchLibraries: pagingSearch(pages) }));
 

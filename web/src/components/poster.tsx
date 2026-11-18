@@ -18,7 +18,9 @@ export const posterGrid =
 
 /** A grid of posters, or what to say instead when there are none. */
 export function PosterGrid({ empty, children }: { empty: ReactNode; children: ReactNode[] }) {
-  if (children.length === 0) return empty;
+  if (children.length === 0) {
+    return empty;
+  }
   return <ul className={posterGrid}>{children}</ul>;
 }
 

@@ -1,16 +1,15 @@
-import { type RefObject, useEffect, useEffectEvent, useState } from "react";
-
 import { create } from "@bufbuild/protobuf";
 import { useMutation } from "@connectrpc/connect-query";
 // Only the WebAssembly worker: its asm.js twin, for a Device without WebAssembly, stays out.
 import fallbackFont from "@jellyfin/libass-wasm/dist/js/default.woff2?url";
 import assWorkerScript from "@jellyfin/libass-wasm/dist/js/subtitles-octopus-worker.js?url";
 import assWasm from "@jellyfin/libass-wasm/dist/js/subtitles-octopus-worker.wasm?url";
+import { type RefObject, useEffect, useEffectEvent, useState } from "react";
 
 import { type Track, TrackSchema } from "@/gen/nama/v1/browse_pb";
 import {
   type PlaybackSubtitle,
-  PickedTrackKind,
+  type PickedTrackKind,
   PlaybackService,
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
@@ -41,7 +40,9 @@ export function useSubtitles(
     const settle =
       (state: SubtitleState) =>
       ({ target }: Event) => {
-        if (!(target instanceof HTMLTrackElement)) return;
+        if (!(target instanceof HTMLTrackElement)) {
+          return;
+        }
         clearOfControls(target.track);
         setStates((before) => ({ ...before, [target.getAttribute("src") ?? ""]: state }));
       };
@@ -120,7 +121,9 @@ function draw(
   let renderer: Renderer | undefined;
   let left = false;
   const failed = () => {
-    if (!left) rendererFailed();
+    if (!left) {
+      rendererFailed();
+    }
   };
   const ready = () => {
     settle("ready");
@@ -130,7 +133,9 @@ function draw(
     settle("loading");
     const made = await render(video, subtitle, ready, failed);
     if (made === null) {
-      if (!left) settle("failed");
+      if (!left) {
+        settle("failed");
+      }
     } else if (left) {
       made.dispose();
     } else {
@@ -147,7 +152,9 @@ function draw(
 /** Draws a PGS subtitle, or a VobSub one from its Track copied into Matroska, with libbitsub. */
 const renderBitmap: Render = async (video, { url, format }, ready, failed) => {
   const content = await fetchSubtitle(url);
-  if (content === null) return null;
+  if (content === null) {
+    return null;
+  }
   // Fetched only once such a subtitle is turned on.
   const libbitsub = await import("libbitsub");
   // It mounts its canvas in the `<video>`'s parent, the player, which full screen carries.
@@ -157,10 +164,14 @@ const renderBitmap: Render = async (video, { url, format }, ready, failed) => {
     onLoaded: ready,
     // Not `onError`, which misses a renderer that won't start.
     onEvent: (event: { type: string }) => {
-      if (event.type === "error") failed();
+      if (event.type === "error") {
+        failed();
+      }
     },
   };
-  if (format !== SubtitleFormat.VOBSUB) return new libbitsub.PgsRenderer(options);
+  if (format !== SubtitleFormat.VOBSUB) {
+    return new libbitsub.PgsRenderer(options);
+  }
   // ponytail: libbitsub 1.13.2 never reports a VobSub load that throws (altqx/libbitsub#14), so
   // the picker stays on "Loading…"; a release that fixes it lets the fallback to Burn-in catch it.
   // The name says Matroska, which carries the palette and size, rather than a `.sub` and `.idx`.
@@ -170,7 +181,9 @@ const renderBitmap: Render = async (video, { url, format }, ready, failed) => {
 /** Draws an ASS subtitle with libass, with all the fonts its file carries. */
 const renderAss: Render = async (video, { url, fontUrls }, ready, failed) => {
   const [ass, fonts] = await Promise.all([fetchSubtitle(url), fetchAll(fontUrls)]);
-  if (ass === null || fonts === null) return null;
+  if (ass === null || fonts === null) {
+    return null;
+  }
   // Fetched only once an ASS subtitle is turned on.
   const { default: SubtitlesOctopus } = await import("@jellyfin/libass-wasm");
   // Handed over as fetched, so "Loading…" lasts until they all are.
@@ -193,8 +206,12 @@ const renderAss: Render = async (video, { url, fontUrls }, ready, failed) => {
   });
   return {
     dispose: () => {
-      if (!disposedItself) renderer.dispose();
-      for (const blob of [worker, ...fetched]) URL.revokeObjectURL(blob);
+      if (!disposedItself) {
+        renderer.dispose();
+      }
+      for (const blob of [worker, ...fetched]) {
+        URL.revokeObjectURL(blob);
+      }
     },
   };
 };
@@ -235,7 +252,7 @@ async function fetchSubtitle(url: string) {
  * where the controls over the bottom of the video would cover them.
  */
 function clearOfControls({ cues }: TextTrack) {
-  const unplaced = Array.from(cues ?? []).filter(
+  const unplaced = [...(cues ?? [])].filter(
     (cue): cue is VTTCue => cue instanceof VTTCue && cue.line === "auto",
   );
   for (const cue of unplaced) {

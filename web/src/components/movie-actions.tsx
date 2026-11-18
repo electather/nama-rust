@@ -2,8 +2,8 @@ import { useNavigate, useRouteContext } from "@tanstack/react-router";
 import { useId } from "react";
 
 import { DeleteMedia } from "@/components/delete-media";
-import { Button } from "@/components/ui/button";
 import { EditImages, movieImages } from "@/components/edit-images";
+import { Button } from "@/components/ui/button";
 import { PlayedButton } from "@/components/watch-state";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
@@ -76,7 +76,7 @@ function CantDeleteMovie({ title, folder }: { title: string; folder: string }) {
       <Button variant="ghost" disabled aria-label={`Delete ${title}`} aria-describedby={reason}>
         Delete
       </Button>
-      <p id={reason} className="basis-full text-sm break-words text-muted-foreground">
+      <p id={reason} className="basis-full text-sm wrap-break-word text-muted-foreground">
         {title} can’t be deleted: the Server can’t write to {folder}. Make that folder writable,
         then scan the Library again.
       </p>

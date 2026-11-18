@@ -53,7 +53,9 @@ export function useVideo() {
   };
   /** Runs `action` on the `<video>`, from an event handler or an effect. */
   const control = useCallback((action: (video: HTMLVideoElement) => void) => {
-    if (ref.current) action(ref.current);
+    if (ref.current) {
+      action(ref.current);
+    }
   }, []);
   return { ref, state, events, control };
 }
@@ -115,7 +117,9 @@ const shortcuts: Record<string, Shortcut> = {
   },
   // In full screen, Esc leaves full screen instead.
   Escape: ({ back }) => {
-    if (!document.fullscreenElement) back();
+    if (!document.fullscreenElement) {
+      back();
+    }
   },
 };
 
@@ -171,12 +175,16 @@ export function useShortcuts(
       wake();
       const shortcut = shortcutFor(event);
       const video = videoRef.current;
-      if (!shortcut || !video) return;
+      if (!shortcut || !video) {
+        return;
+      }
       event.preventDefault();
       shortcut({
         video,
         player: playerRef.current,
-        back: () => void navigate(back),
+        back: () => {
+          void navigate(back);
+        },
       });
     }
     document.addEventListener("keydown", onKeyDown);
@@ -192,8 +200,11 @@ export function seekBy(video: HTMLVideoElement, seconds: number) {
 }
 
 export function togglePlay(video: HTMLVideoElement) {
-  if (video.paused) play(video);
-  else video.pause();
+  if (video.paused) {
+    play(video);
+  } else {
+    video.pause();
+  }
 }
 
 /** Plays `video`. A refused play, such as autoplay the browser blocked, leaves it paused with Play showing. */
@@ -213,8 +224,11 @@ export function setVolume(video: HTMLVideoElement, level: number) {
 }
 
 export function toggleFullscreen(player: HTMLElement | null) {
-  if (document.fullscreenElement) void document.exitFullscreen();
-  else void player?.requestFullscreen();
+  if (document.fullscreenElement) {
+    void document.exitFullscreen();
+  } else {
+    void player?.requestFullscreen();
+  }
 }
 
 export function useIsFullscreen() {

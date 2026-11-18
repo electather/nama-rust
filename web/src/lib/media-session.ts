@@ -34,10 +34,14 @@ function showOnLockScreen(session: MediaSession, video: HTMLVideoElement, nowPla
   const artwork = posterUrl === undefined ? [] : [{ src: posterUrl }];
   session.metadata = new MediaMetadata({ title, artist, artwork });
   const handlers = mediaActions(video);
-  for (const action of MEDIA_ACTIONS) session.setActionHandler(action, handlers[action]);
+  for (const action of MEDIA_ACTIONS) {
+    session.setActionHandler(action, handlers[action]);
+  }
   const showPosition = () => {
     // `setPositionState` throws on the `NaN` a video reports before it knows its length.
-    if (Number.isNaN(video.duration)) return;
+    if (Number.isNaN(video.duration)) {
+      return;
+    }
     const { duration, currentTime, playbackRate } = video;
     session.setPositionState({ duration, position: Math.min(currentTime, duration), playbackRate });
   };
@@ -46,7 +50,9 @@ function showOnLockScreen(session: MediaSession, video: HTMLVideoElement, nowPla
   return () => {
     video.removeEventListener("timeupdate", showPosition);
     video.removeEventListener("durationchange", showPosition);
-    for (const action of MEDIA_ACTIONS) session.setActionHandler(action, null);
+    for (const action of MEDIA_ACTIONS) {
+      session.setActionHandler(action, null);
+    }
     session.metadata = null;
     session.setPositionState();
   };

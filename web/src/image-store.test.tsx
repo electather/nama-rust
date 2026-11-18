@@ -1,4 +1,4 @@
-import { type MessageInitShape } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, type ServiceImpl } from "@connectrpc/connect";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
@@ -92,8 +92,8 @@ test("switching the image store shows the copy's progress, then the new store", 
   await store.findByRole("option", { name: "S3" });
   switchTo(store, "s3");
 
-  expect(await store.findByText("Copied 1 of 3 images to S3…")).toBeDefined();
-  expect(await store.findByText("S3", { selector: "span" })).toBeDefined();
+  await expect(store.findByText("Copied 1 of 3 images to S3…")).resolves.toBeDefined();
+  await expect(store.findByText("S3", { selector: "span" })).resolves.toBeDefined();
   expect(store.queryByText(/Copied/u)).toBeNull();
   expect(switches).toEqual(["s3"]);
 });
@@ -144,11 +144,11 @@ test("a store that fails its check is refused with why", async () => {
   await store.findByRole("option", { name: "S3" });
   switchTo(store, "s3");
 
-  expect(
-    await store.findByText(
+  await expect(
+    store.findByText(
       "S3 failed its check, so the images stay where they are: couldn't write to it: access denied.",
     ),
-  ).toBeDefined();
+  ).resolves.toBeDefined();
   expect(store.getByText("Local disk", { selector: "span" })).toBeDefined();
 });
 
@@ -167,18 +167,18 @@ test("a switch that stopped shows why, with the old store still in use", async (
 
   const store = await imageStore();
 
-  expect(
-    await store.findByText(
+  await expect(
+    store.findByText(
       /Moving the images to .+ stopped, so they stay on Local disk: couldn't copy a\.jpg: timed out\./u,
     ),
-  ).toBeDefined();
+  ).resolves.toBeDefined();
 });
 
 test("a disabled Blob store Plugin in use shows its Plugin name, chosen but not offered", async () => {
   openSettings({ getImageSettings: () => ({ settings: { storePluginId: "old-store" } }) });
 
   const store = await imageStore();
-  expect(await store.findByText("Old store", { selector: "span" })).toBeDefined();
+  await expect(store.findByText("Old store", { selector: "span" })).resolves.toBeDefined();
   await store.findByRole("option", { name: "S3" });
   const picker = store.getByLabelText<HTMLSelectElement>("Keep images on");
   expect(picker.value).toBe("old-store");
@@ -200,11 +200,11 @@ test("a stopped switch to a disabled Blob store Plugin names it, with one full s
 
   const store = await imageStore();
 
-  expect(
-    await store.findByText(
+  await expect(
+    store.findByText(
       "Moving the images to Old store stopped, so they stay on Local disk: it went away.",
     ),
-  ).toBeDefined();
+  ).resolves.toBeDefined();
 });
 
 test("a failed check by a disabled Blob store Plugin names it, with one full stop", async () => {
@@ -222,11 +222,11 @@ test("a failed check by a disabled Blob store Plugin names it, with one full sto
   await store.findByRole("option", { name: "S3" });
   switchTo(store, "s3");
 
-  expect(
-    await store.findByText(
+  await expect(
+    store.findByText(
       "Old store failed its check, so the images stay where they are: Access denied.",
     ),
-  ).toBeDefined();
+  ).resolves.toBeDefined();
 });
 
 test.each([
@@ -252,7 +252,7 @@ test.each([
     await store.findByRole("option", { name: "S3" });
     fireEvent.click(store.getByRole("button", { name: "Switch image store" }));
 
-    expect(await store.findByText(`${name} already keeps the images.`)).toBeDefined();
+    await expect(store.findByText(`${name} already keeps the images.`)).resolves.toBeDefined();
     expect(switches).toEqual([pluginId]);
   },
 );

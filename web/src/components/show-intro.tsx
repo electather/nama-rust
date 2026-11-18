@@ -37,7 +37,9 @@ function Resume({ libraryId, showId }: { libraryId: bigint; showId: ExternalId }
   // Resume. Ask the Server for the Show's own resume Episode if that bites.
   const { data } = useQuery(BrowseService.method.listContinueWatching, {});
   const episode = episodeToResume(data?.entries ?? [], libraryId, showId);
-  if (!episode) return null;
+  if (!episode) {
+    return null;
+  }
   const { seasonNumber, episodeNumber, watchState } = episode;
   const link = {
     to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",

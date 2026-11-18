@@ -30,7 +30,9 @@ export function PluginToggle({
   summary: PluginSummary;
   settings?: Setting[];
 }) {
-  if (summary.refusedReason !== "") return <StateLabel label="Refused" Icon={Ban} />;
+  if (summary.refusedReason !== "") {
+    return <StateLabel label="Refused" Icon={Ban} />;
+  }
   // Enabling a Plugin that requests Plugin Permissions first asks which to grant.
   if (!summary.enabled && summary.requestedPermissions.length > 0) {
     return <GrantAndEnable summary={summary} settings={settings} />;

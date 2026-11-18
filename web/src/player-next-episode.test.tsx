@@ -103,7 +103,7 @@ test("the countdown shows the next Episode from 20 seconds before the end", asyn
   expect(within(shown).getByRole("button", { name: "Cancel" })).toBeDefined();
 });
 
-test("Play now opens the next Episode", async () => {
+test("play now opens the next Episode", async () => {
   const { router, video } = await playEpisode3();
   playUntilLeft(video, 15);
   fireEvent.click(await screen.findByRole("button", { name: "Play now" }));
@@ -119,7 +119,7 @@ test("the end of the Episode opens the next one", async () => {
   expect((await openedEpisode4(router)).pathname).toBe(EPISODE_4);
 });
 
-test("Cancel hides the countdown, and the Episode then just ends", async () => {
+test("cancel hides the countdown, and the Episode then just ends", async () => {
   const { router, video } = await playEpisode3();
   playUntilLeft(video, 10);
   fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
@@ -127,7 +127,7 @@ test("Cancel hides the countdown, and the Episode then just ends", async () => {
 
   playToEnd(video);
   expect(countdown()).toBeNull();
-  expect(await pathAfterNavigating(router)).toBe(`${SHOW}/seasons/1/episodes/3/play`);
+  await expect(pathAfterNavigating(router)).resolves.toBe(`${SHOW}/seasons/1/episodes/3/play`);
 });
 
 test("without a next Episode there's no countdown, and the end opens nothing", async () => {
@@ -136,7 +136,7 @@ test("without a next Episode there's no countdown, and the end opens nothing", a
   expect(countdown()).toBeNull();
 
   fireEvent(video, new Event("ended"));
-  expect(await pathAfterNavigating(router)).toBe(`${SHOW}/seasons/1/episodes/3/play`);
+  await expect(pathAfterNavigating(router)).resolves.toBe(`${SHOW}/seasons/1/episodes/3/play`);
 });
 
 test("with autoplay off there's no countdown or question, and the end opens nothing", async () => {
@@ -146,13 +146,13 @@ test("with autoplay off there's no countdown or question, and the end opens noth
   expect(screen.queryByRole("alertdialog")).toBeNull();
 
   fireEvent(video, new Event("ended"));
-  expect(await pathAfterNavigating(router)).toBe(`${SHOW}/seasons/1/episodes/3/play`);
+  await expect(pathAfterNavigating(router)).resolves.toBe(`${SHOW}/seasons/1/episodes/3/play`);
 });
 
 test("seeking back before the countdown hides it until it's reached again", async () => {
   const { video } = await playEpisode3();
   playUntilLeft(video, 20);
-  expect(await findCountdown()).toBeDefined();
+  await expect(findCountdown()).resolves.toBeDefined();
 
   playUntilLeft(video, 60);
   expect(countdown()).toBeNull();
@@ -186,7 +186,7 @@ test("after three Episodes autoplay started with no input, it pauses and asks", 
   expect(countdown()).not.toBeNull();
 });
 
-test("Back on the question opens the Show", async () => {
+test("back on the question opens the Show", async () => {
   const { router, video } = await playEpisode3("?streak=3");
   playUntilLeft(video, 20);
   const question = await screen.findByRole("alertdialog", { name: "Are you still watching?" });
@@ -201,7 +201,7 @@ test("autoplay with no input counts the Episodes in a row", async () => {
   const { router, video } = await playEpisode3("?streak=2");
   playToEnd(video);
 
-  expect(await openedEpisode4(router)).toMatchObject({
+  await expect(openedEpisode4(router)).resolves.toMatchObject({
     pathname: EPISODE_4,
     search: { streak: 3 },
   });
@@ -216,7 +216,7 @@ test.each([
   giveInput(video);
   playToEnd(video);
 
-  expect(await openedEpisode4(router)).toMatchObject({
+  await expect(openedEpisode4(router)).resolves.toMatchObject({
     pathname: EPISODE_4,
     search: { streak: 1 },
   });
@@ -226,7 +226,7 @@ test("the next Episode counts its own input", async () => {
   const { router, video } = await playEpisode3("?streak=2");
   fireEvent.pointerMove(video);
   playToEnd(video);
-  expect(await openedEpisode4(router)).toMatchObject({ search: { streak: 1 } });
+  await expect(openedEpisode4(router)).resolves.toMatchObject({ search: { streak: 1 } });
 
   const episode4 = screen.getByLabelText<HTMLVideoElement>("Double Lives");
   fireEvent(episode4, new Event("ended"));
@@ -246,7 +246,7 @@ test("input before a new Playback Plan still starts the count again", async () =
   Object.defineProperty(replanned, "duration", { value: DURATION_S });
   fireEvent(replanned, new Event("durationchange"));
   playToEnd(replanned);
-  expect(await openedEpisode4(router)).toMatchObject({ search: { streak: 1 } });
+  await expect(openedEpisode4(router)).resolves.toMatchObject({ search: { streak: 1 } });
 });
 
 test("nothing plays while the question waits for an answer", async () => {
@@ -273,11 +273,11 @@ test("keys go to the question, not the player, so it can't be skipped", async ()
   expect(video.paused).toBe(true);
 
   playToEnd(video);
-  expect(await pathAfterNavigating(router)).toBe(`${SHOW}/seasons/1/episodes/3/play`);
+  await expect(pathAfterNavigating(router)).resolves.toBe(`${SHOW}/seasons/1/episodes/3/play`);
   expect(screen.getByRole("alertdialog")).toBeDefined();
 });
 
-test("Esc on the question opens the Show", async () => {
+test("esc on the question opens the Show", async () => {
   const { router, video } = await playEpisode3("?streak=3");
   playUntilLeft(video, 20);
   const question = await screen.findByRole("alertdialog", { name: "Are you still watching?" });
@@ -288,12 +288,12 @@ test("Esc on the question opens the Show", async () => {
   });
 });
 
-test("Keep watching counts as input, so the count starts again", async () => {
+test("keep watching counts as input, so the count starts again", async () => {
   const { router, video } = await playEpisode3("?streak=3");
   playUntilLeft(video, 20);
   const question = await screen.findByRole("alertdialog", { name: "Are you still watching?" });
   fireEvent.click(within(question).getByRole("button", { name: "Keep watching" }));
 
   playToEnd(video);
-  expect(await openedEpisode4(router)).toMatchObject({ search: { streak: 1 } });
+  await expect(openedEpisode4(router)).resolves.toMatchObject({ search: { streak: 1 } });
 });

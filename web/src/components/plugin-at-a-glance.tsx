@@ -49,7 +49,9 @@ const points: Partial<Record<ExtensionPoint, Shown>> = {
  */
 export function ExtensionPoints({ extensionPoints }: { extensionPoints: ExtensionPoint[] }) {
   const shown = extensionPoints.flatMap((point) => points[point] ?? []);
-  if (shown.length === 0) return null;
+  if (shown.length === 0) {
+    return null;
+  }
   return (
     <ul aria-label="Extension Points" className="mt-3 flex flex-wrap gap-x-5 gap-y-3">
       {shown.map(({ label, Icon }) => (
@@ -80,7 +82,9 @@ export function PointFailures({ failures }: { failures: ExtensionPointFailure[] 
 function PointFailing({ failure }: { failure: ExtensionPointFailure }) {
   const { point, lastError, atMs, failedInARow } = failure;
   const shown = points[point];
-  if (shown === undefined) return null;
+  if (shown === undefined) {
+    return null;
+  }
   const at = new Date(Number(atMs));
   const calls = failedInARow === 1 ? "Its last call" : `Its last ${failedInARow} calls`;
   const heading = `failing-${point}`;
@@ -138,7 +142,9 @@ export const pluginPermissions: Partial<
  */
 export function GrantedPermissions({ granted }: { granted: PluginPermission[] }) {
   const labels = granted.flatMap((permission) => pluginPermissions[permission]?.label ?? []);
-  if (labels.length === 0) return null;
+  if (labels.length === 0) {
+    return null;
+  }
   return (
     <p className="w-full text-sm text-pretty text-muted-foreground">Granted: {labels.join(", ")}</p>
   );

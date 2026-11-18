@@ -18,7 +18,9 @@ export function NotMatched({ libraryId }: { libraryId: bigint }) {
     firstUnmatchedPage(libraryId),
   );
   const items = data.pages.flatMap((page) => page.items);
-  if (items.length === 0 && !hasNextPage) return null;
+  if (items.length === 0 && !hasNextPage) {
+    return null;
+  }
   return (
     <details className="mt-12 max-w-3xl">
       <summary className="cursor-pointer font-medium">
@@ -45,7 +47,9 @@ export function NotMatched({ libraryId }: { libraryId: bigint }) {
 
 /** How many Items it lists, once the first page has said. */
 function Count({ count }: { count: number | undefined }) {
-  if (count === undefined) return null;
+  if (count === undefined) {
+    return null;
+  }
   return (
     <span className="ms-2 text-sm font-normal text-muted-foreground">{count.toLocaleString()}</span>
   );

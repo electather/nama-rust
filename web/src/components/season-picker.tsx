@@ -3,8 +3,9 @@ import { type ReactNode, useId } from "react";
 
 import { seasonsRefusal, useAskForShow } from "@/components/ask-for-show";
 import { QualityPicker } from "@/components/quality-picker";
+import { RequestProgress } from "@/components/request-progress";
 import { qualityName } from "@/components/request-row";
-import { RequestProgress, RequestStateLabel, isRequester } from "@/components/request-state";
+import { RequestStateLabel, isRequester } from "@/components/request-state";
 import { StateLabel } from "@/components/state-label";
 import { Button } from "@/components/ui/button";
 import type { FollowedShow, FoundSeason, FoundShow } from "@/gen/nama/v1/request_pb";
@@ -211,6 +212,8 @@ function Choice({
 }
 
 function SeasonState({ season }: { season: FoundSeason }) {
-  if (season.inLibrary) return <StateLabel label="In a Library" Icon={Library} />;
+  if (season.inLibrary) {
+    return <StateLabel label="In a Library" Icon={Library} />;
+  }
   return season.request && <RequestStateLabel state={season.request.state} />;
 }

@@ -10,12 +10,9 @@ import {
   X,
 } from "lucide-react";
 
-import { RequestProgress } from "@/components/request-progress";
-// Where a Request is on its way, so a screen showing its state shows its downloads from here too.
-export { RequestProgress };
 import { type Shown, StateLabel } from "@/components/state-label";
-import { type Request, RequestState } from "@/gen/nama/v1/request_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { type Request, RequestState } from "@/gen/nama/v1/request_pb";
 import { requestsKey } from "@/lib/events";
 import { refusalOf } from "@/lib/forms";
 

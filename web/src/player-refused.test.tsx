@@ -42,7 +42,7 @@ test("a Server too busy to Transcode the Version says so in plain words instead 
   });
   openApp("/libraries/1/movies/tmdb-603/play", busy);
 
-  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(
     screen.getByText(
       "The Server is running as many Transcodes as it may at once (1), so it can’t Transcode this until one ends.",
@@ -59,7 +59,7 @@ test("a Server that can't write its segment folder says so, naming it, instead o
   );
   openApp("/libraries/1/movies/tmdb-603/play", unwritable);
 
-  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(
     screen.getByText(
       "The Server can't write to its segment folder, /dev/shm/nama, so it can't Remux or Transcode this; an Admin can set another under Playback.",

@@ -49,7 +49,7 @@ function openWithNtfy(update: (request: UpdatePersonalSettingsRequest) => object
 
 const card = async () => within(await screen.findByRole("listitem", { name: "ntfy" }));
 
-test("Settings shows no Personal settings while no Plugin declares any", async () => {
+test("settings shows no Personal settings while no Plugin declares any", async () => {
   let listed = false;
   openApp(
     "/settings",
@@ -108,7 +108,7 @@ test("saving sends the values typed, keeping a set secret by leaving it out", as
   expect(Object.keys(settings)).toEqual(["topic", "priority"]);
   expect(settings["topic"]?.value).toEqual({ case: "textValue", value: "movies" });
   expect(settings["priority"]?.value).toEqual({ case: "boolValue", value: true });
-  expect(await screen.findByText("Saved.")).toBeDefined();
+  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
 });
 
 test("a refused setting shows its refusal under its field", async () => {

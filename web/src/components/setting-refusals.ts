@@ -22,19 +22,25 @@ export function refusedSettings(
     return { form };
   }
   // A failed check is in the Plugin's own words.
-  if (reason === RefusalReason.SETTINGS_CHECK_FAILED) return { [key]: serverMessage(error) };
+  if (reason === RefusalReason.SETTINGS_CHECK_FAILED) {
+    return { [key]: serverMessage(error) };
+  }
   return { [key]: settingRefusal(reason, params) };
 }
 
 /** Why the Server refused a setting: an out-of-range one says its bounds, the rest go by reason. */
 function settingRefusal(reason: RefusalReason, params: Record<string, string | undefined>) {
-  if (reason === RefusalReason.SETTING_OUT_OF_RANGE) return outOfRange(params);
+  if (reason === RefusalReason.SETTING_OUT_OF_RANGE) {
+    return outOfRange(params);
+  }
   return settingRefused[reason] ?? "This setting can’t take that value.";
 }
 
 /** The bounds a number must keep to, from its Refusal's `min` and `max`, at least one of which the Server sends. */
 function outOfRange({ min, max }: Record<string, string | undefined>) {
-  if (max === undefined) return `This must be at least ${min}.`;
+  if (max === undefined) {
+    return `This must be at least ${min}.`;
+  }
   return min === undefined ? `This must be at most ${max}.` : `This must be from ${min} to ${max}.`;
 }
 

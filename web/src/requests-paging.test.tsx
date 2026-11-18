@@ -1,4 +1,4 @@
-import { type MessageInitShape } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
@@ -60,7 +60,7 @@ function pagingServer(
   });
 }
 
-test("Show more lists the next page below the first, and goes after the last", async () => {
+test("show more lists the next page below the first, and goes after the last", async () => {
   openApp("/requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]]));
 
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
@@ -79,11 +79,14 @@ function stubObserver(inView: boolean) {
   vi.stubGlobal(
     "IntersectionObserver",
     class {
+      // oxlint-disable-next-line promise/prefer-await-to-callbacks -- it fakes the browser's callback API.
       constructor(callback: typeof seen) {
         seen = callback;
       }
       observe() {
-        if (inView) seen?.([{ isIntersecting: true }]);
+        if (inView) {
+          seen?.([{ isIntersecting: true }]);
+        }
       }
       disconnect() {}
     },
@@ -98,7 +101,7 @@ test("scrolling to the end of the list loads the next page", async () => {
 
   act(scrollToEnd);
 
-  expect(await screen.findByText("Dune")).toBeDefined();
+  await expect(screen.findByText("Dune")).resolves.toBeDefined();
 });
 
 test("a page that leaves the end of the list in view loads the next one too", async () => {

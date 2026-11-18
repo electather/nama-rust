@@ -57,7 +57,9 @@ export function createUserErrors(error: unknown): FormErrors {
 
 /** Why making an Invite was refused, if it was, next to the field it's about. */
 export function createInviteErrors(error: unknown): FormErrors {
-  if (error === null) return {};
+  if (error === null) {
+    return {};
+  }
   return refusal(error, "make the Invite", {
     [Code.InvalidArgument]: refusedFieldErrors(error, ["note"]),
   });

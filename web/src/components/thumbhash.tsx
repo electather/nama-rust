@@ -11,6 +11,8 @@ export function Thumbhash({ thumbhash }: { thumbhash: Uint8Array | undefined }) 
     () => (thumbhash === undefined ? undefined : thumbHashToDataURL(thumbhash)),
     [thumbhash],
   );
-  if (preview === undefined) return null;
+  if (preview === undefined) {
+    return null;
+  }
   return <img src={preview} alt="" className="absolute inset-0 -z-10 size-full object-cover" />;
 }

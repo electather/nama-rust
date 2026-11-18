@@ -44,6 +44,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6",
+    "eslint-plugin-better-tailwindcss": "^4.11.0",
     "fallow": "^3.42.0",
     "happy-dom": "^21.0.4",
     "jsqr": "^1.4.0",

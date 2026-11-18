@@ -93,9 +93,9 @@ test("changing your password says your other Devices were signed out", async () 
   fill("New password", "battery staple");
   fireEvent.click(screen.getByRole("button", { name: "Change password" }));
 
-  expect(
-    await screen.findByText("Password changed. Your other Devices were signed out."),
-  ).toBeDefined();
+  await expect(
+    screen.findByText("Password changed. Your other Devices were signed out."),
+  ).resolves.toBeDefined();
   await waitFor(() => {
     expect(screen.queryByText("Living room TV")).toBeNull();
   });
@@ -139,7 +139,7 @@ test("a User deleted meanwhile is said to be gone, and the Users page stays", as
     within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Revoke" }),
   );
 
-  expect(await screen.findByText("Alex isn’t on this Server any more.")).toBeDefined();
+  await expect(screen.findByText("Alex isn’t on this Server any more.")).resolves.toBeDefined();
   expect(screen.getByRole("heading", { name: "Users" })).toBeDefined();
 });
 

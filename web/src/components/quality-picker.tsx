@@ -91,7 +91,9 @@ export function QualityPicker({
   onPick: (quality: bigint) => Promise<unknown>;
   refusal: (error: unknown) => string | undefined;
 }) {
-  if (qualities.length === 0) return null;
+  if (qualities.length === 0) {
+    return null;
+  }
   return (
     <ConfirmModal
       ref={ref}

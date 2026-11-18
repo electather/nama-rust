@@ -17,7 +17,7 @@ const libass = vi.hoisted(() => ({
   made: [] as { subContent: string; fonts: string[]; workerUrl: string }[],
   failsToStart: false,
 }));
-vi.mock("@jellyfin/libass-wasm", () => ({
+vi.mock(import("@jellyfin/libass-wasm"), () => ({
   default: class {
     constructor(options: {
       subContent: string;
@@ -41,7 +41,9 @@ vi.mock("@jellyfin/libass-wasm", () => ({
     disposed = false;
     dispose() {
       // As the package's does, which posts to the worker it has dropped.
-      if (this.disposed) throw new TypeError("Cannot read properties of null");
+      if (this.disposed) {
+        throw new TypeError("Cannot read properties of null");
+      }
       this.disposed = true;
     }
   },

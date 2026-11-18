@@ -66,7 +66,9 @@ export function SubtitlesMenu({
   const { subtitles, burnInTracks: burnable, subtitleTrack: burnedIn } = plan;
   const states = useShownSubtitles(planned, videoRef);
   const reportPick = usePickReporter(versionId);
-  if (subtitles.length + burnable.length === 0) return null;
+  if (subtitles.length + burnable.length === 0) {
+    return null;
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="overlay" size="icon" aria-label="Subtitles" />}>
@@ -77,7 +79,9 @@ export function SubtitlesMenu({
           value={shown ?? burnedIn ?? ""}
           onValueChange={(value: SubtitleChoice) => {
             const choice = value === "" ? undefined : value;
-            if (videoRef.current) chooseSubtitle(videoRef.current, choice);
+            if (videoRef.current) {
+              chooseSubtitle(videoRef.current, choice);
+            }
             reportPick(PickedTrackKind.SUBTITLE, pickedPlace(choice, subtitles));
           }}
         >
@@ -96,7 +100,9 @@ export function SubtitlesMenu({
 
 /** The place in the Version's Tracks of the subtitle `choice` picks, `undefined` for Off. */
 function pickedPlace(choice: SubtitleChoice, subtitles: PlaybackSubtitle[]) {
-  if (typeof choice === "number") return choice;
+  if (typeof choice === "number") {
+    return choice;
+  }
   return subtitles.find(({ url }) => url === choice)?.place;
 }
 
@@ -118,7 +124,9 @@ function useShownSubtitles(
   return {
     ...useSubtitles(videoRef, shown),
     ...useDrawnSubtitle(videoRef, drawn, () => {
-      if (videoRef.current && drawn) chooseSubtitle(videoRef.current, drawn.place);
+      if (videoRef.current && drawn) {
+        chooseSubtitle(videoRef.current, drawn.place);
+      }
     }),
   };
 }

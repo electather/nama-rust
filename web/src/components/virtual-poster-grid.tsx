@@ -24,9 +24,13 @@ const wider = ["(min-width: 64rem)", "(min-width: 48rem)", "(min-width: 40rem)"]
 
 function subscribe(changed: () => void) {
   const queries = wider.map((query) => matchMedia(query));
-  for (const query of queries) query.addEventListener("change", changed);
+  for (const query of queries) {
+    query.addEventListener("change", changed);
+  }
   return () => {
-    for (const query of queries) query.removeEventListener("change", changed);
+    for (const query of queries) {
+      query.removeEventListener("change", changed);
+    }
   };
 }
 

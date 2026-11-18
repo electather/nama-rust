@@ -33,7 +33,9 @@ export function DeleteFromShow({
 }) {
   const navigate = useNavigate();
   const params = { libraryId: String(libraryId) };
-  if (!useMayDelete()) return null;
+  if (!useMayDelete()) {
+    return null;
+  }
   const toLibrary = (deleted: string, notTold: string[]) =>
     navigate({ to: "/libraries/$libraryId", params, search: deletedSearch(deleted, notTold) });
   const other = seasons.find(({ number }) => number !== current);
@@ -83,7 +85,9 @@ export function DeleteEpisode({
   episode: Episode;
 }) {
   const navigate = useNavigate({ from: "/libraries/$libraryId/shows/$showId/" });
-  if (!useMayDelete()) return null;
+  if (!useMayDelete()) {
+    return null;
+  }
   return (
     <DeleteMedia
       name={`Delete ${episode.title}`}

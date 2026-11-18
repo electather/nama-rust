@@ -52,7 +52,9 @@ function VolumeControls({ video }: { video: Video }) {
 function FullscreenButton({ playerRef }: { playerRef: RefObject<HTMLDivElement | null> }) {
   const isFullscreen = useIsFullscreen();
   // ponytail: iPhones can't make a page full screen, only the video with its own controls.
-  if (!document.fullscreenEnabled) return null;
+  if (!document.fullscreenEnabled) {
+    return null;
+  }
   return (
     <Button
       variant="overlay"
@@ -79,7 +81,7 @@ export function BottomBar({
 }) {
   const { playing, time, duration } = video.state;
   return (
-    <div className="pointer-events-auto bg-linear-to-t group-data-controls-hidden:pointer-events-none from-scrim px-2 pt-10 pb-2 sm:px-4 sm:pb-4">
+    <div className="pointer-events-auto bg-linear-to-t from-scrim px-2 pt-10 pb-2 group-data-controls-hidden:pointer-events-none sm:px-4 sm:pb-4">
       <div className="px-2">
         <Slider
           progress

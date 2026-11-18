@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
     const library = await libraryFromParam(context, params.libraryId);
     const { queryClient, transport } = context;
     const libraryId = library.id;
-    await Promise.all([
+    const titles =
       library.kind === LibraryKind.SHOWS
         ? queryClient.infiniteQuery({
             ...pagedQuery(
@@ -40,12 +40,15 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
               transport,
             ),
             staleTime: "static",
-          }),
+          });
+    const unmatched = queryClient.infiniteQuery({
+      ...pagedQuery(BrowseService.method.listUnmatched, firstUnmatchedPage(libraryId), transport),
+      staleTime: "static",
+    });
+    await Promise.all([
+      titles,
       queryOrNotFound(context, BrowseService.method.listGenres, { libraryId }),
-      queryClient.infiniteQuery({
-        ...pagedQuery(BrowseService.method.listUnmatched, firstUnmatchedPage(libraryId), transport),
-        staleTime: "static",
-      }),
+      unmatched,
     ]);
     return library;
   },
@@ -61,7 +64,9 @@ function Library() {
   const titles: TitlesProps = {
     libraryId: library.id,
     listing: listingFromSearch(search),
-    change: (changed) => void navigate({ search: changed }),
+    change: (changed) => {
+      void navigate({ search: changed });
+    },
   };
   return (
     <Page heading={library.name}>

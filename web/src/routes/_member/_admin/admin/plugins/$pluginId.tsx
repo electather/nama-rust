@@ -1,13 +1,13 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { Page } from "@/components/page";
 import {
   ExtensionPoints,
   LogoChoice,
   PluginLogo,
   PointFailures,
 } from "@/components/plugin-at-a-glance";
-import { Page } from "@/components/page";
 import { PluginLog } from "@/components/plugin-log";
 import { PluginQualities } from "@/components/plugin-qualities";
 import { PluginSettings } from "@/components/plugin-settings";
@@ -28,7 +28,9 @@ export const Route = createFileRoute("/_member/_admin/admin/plugins/$pluginId")(
 function PluginPage() {
   const { pluginId } = Route.useParams();
   const { plugin } = useSuspenseQuery(PluginService.method.getPlugin, { id: pluginId }).data;
-  if (!hasSummary(plugin)) throw notFound();
+  if (!hasSummary(plugin)) {
+    throw notFound();
+  }
   const { summary } = plugin;
   return (
     <Page heading={pluginName(summary)}>

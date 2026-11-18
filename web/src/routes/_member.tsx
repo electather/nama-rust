@@ -11,9 +11,13 @@ import { may } from "@/lib/permissions";
 /** Pages for signed-in Users, under the app chrome unless they fill the screen. */
 export const Route = createFileRoute("/_member")({
   beforeLoad: async ({ context, location }) => {
-    if (await isSetupRequired(context)) throw redirect({ to: "/setup" });
+    if (await isSetupRequired(context)) {
+      throw redirect({ to: "/setup" });
+    }
     const signedIn = await whoIsSignedIn(context);
-    if (!signedIn) throw redirect({ to: "/sign-in", search: { redirect: location.href } });
+    if (!signedIn) {
+      throw redirect({ to: "/sign-in", search: { redirect: location.href } });
+    }
     // Awaited, so the page's own calls are traced too.
     await recordDiagnosticsIfExported(context);
     return { signedIn };

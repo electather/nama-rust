@@ -120,7 +120,9 @@ function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: stri
   if (error) {
     return <p className="text-sm text-destructive">{refusal(error, "find its files", {}).form}</p>;
   }
-  if (!data) return <p className="text-sm text-muted-foreground">Finding its files…</p>;
+  if (!data) {
+    return <p className="text-sm text-muted-foreground">Finding its files…</p>;
+  }
   return (
     <div className="flex flex-col gap-3 text-sm">
       <div>
@@ -147,7 +149,9 @@ function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: stri
 
 /** Says the Server will refuse the delete because it can't write to `folder`, if there is one. */
 function RefusedFor({ folder }: { folder: string | undefined }) {
-  if (folder === undefined) return null;
+  if (folder === undefined) {
+    return null;
+  }
   return (
     <p className="text-destructive">
       The Server will refuse to delete them: it can’t write to {folder}.
@@ -157,7 +161,9 @@ function RefusedFor({ folder }: { folder: string | undefined }) {
 
 /** How many people deleting it stops watching, if anyone. */
 function Watching({ playing }: { playing: number }) {
-  if (playing === 0) return null;
+  if (playing === 0) {
+    return null;
+  }
   return (
     <p className="font-medium">
       {playing === 1 ? "1 person is" : `${playing} people are`} watching it now. Deleting it stops
@@ -168,7 +174,9 @@ function Watching({ playing }: { playing: number }) {
 
 /** The other Episodes the files that go hold, which lose them too. */
 function TakenAlong({ episodes }: { episodes: EpisodeTakenAlong[] }) {
-  if (episodes.length === 0) return null;
+  if (episodes.length === 0) {
+    return null;
+  }
   return (
     <div>
       <p>A file that goes also holds:</p>
@@ -185,7 +193,9 @@ function TakenAlong({ episodes }: { episodes: EpisodeTakenAlong[] }) {
 
 /** The open Requests still waiting on what goes, which deleting it cancels. */
 function Cancelled({ requests }: { requests: RequestToCancel[] }) {
-  if (requests.length === 0) return null;
+  if (requests.length === 0) {
+    return null;
+  }
   return (
     <div>
       <p>

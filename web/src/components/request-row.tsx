@@ -1,7 +1,10 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
 
 import { RequestActions } from "@/components/request-actions";
-import { RequestProgress, RequestStateLabel } from "@/components/request-state";
+import { RequestProgress } from "@/components/request-progress";
+import { RequestStateLabel } from "@/components/request-state";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   type FollowedShow,
   type QualityChange,
@@ -9,8 +12,6 @@ import {
   type RequestedQuality,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-import type { ExternalId } from "@/gen/nama/v1/match_pb";
-import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { dayOf, metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
@@ -71,7 +72,9 @@ export function RequestRow({ request }: { request: Request | FollowedShow }) {
  * its Show's title is above.
  */
 function titleOf(request: Request | FollowedShow) {
-  if (request.$typeName === "nama.v1.FollowedShow") return "Followed Show";
+  if (request.$typeName === "nama.v1.FollowedShow") {
+    return "Followed Show";
+  }
   const { movieOrSeason } = request;
   return movieOrSeason.case === "season"
     ? seasonName(movieOrSeason.value.seasonNumber)
@@ -97,7 +100,9 @@ function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) 
  */
 function qualityOf({ quality, qualityUsed, qualityChange }: Request) {
   const shown = qualityUsed ?? quality;
-  if (shown === undefined) return shown;
+  if (shown === undefined) {
+    return shown;
+  }
   return qualityChange ? `${qualityName(shown)}, ${changeText(qualityChange)}` : qualityName(shown);
 }
 
@@ -124,7 +129,9 @@ function releasedOf({ movieOrSeason }: Request) {
  * the app's when the Server didn't hand it to the Fulfiller for lack of an id.
  */
 function reasonOf(request: Request | FollowedShow) {
-  if (request.$typeName === "nama.v1.FollowedShow") return request.declineReason;
+  if (request.$typeName === "nama.v1.FollowedShow") {
+    return request.declineReason;
+  }
   return request.declineReason ?? missingIdText(request) ?? request.failureReason;
 }
 

@@ -36,7 +36,9 @@ export const Route = createFileRoute(
     };
     const { episodes } = await queryOrNotFound(context, BrowseService.method.listEpisodes, input);
     const episodeNumber = wholeNumberFromParam(params.episode);
-    if (!episodes.some((episode) => episode.episodeNumber === episodeNumber)) throw notFound();
+    if (!episodes.some((episode) => episode.episodeNumber === episodeNumber)) {
+      throw notFound();
+    }
     return { input, episodeNumber };
   },
   staticData: { fullScreen: true },
@@ -54,7 +56,9 @@ function PlayEpisode() {
   const next = useAutoplayedEpisode({ ...input, episodeNumber });
   const lockScreen = useShowForLockScreen(input, episodeNumber);
   // An Event removed it, or its whole Season, since the loader ran.
-  if (!episode || isGone(error)) return <DeletedWhilePlaying />;
+  if (!episode || isGone(error)) {
+    return <DeletedWhilePlaying />;
+  }
   const { id, tracks } = versionToPlay(episode.versions, version);
   return (
     <Player
@@ -113,7 +117,9 @@ function nextEpisode(
   streak: number | undefined,
   { libraryId, showId }: { libraryId: string; showId: string },
 ): NextEpisode | undefined {
-  if (!episode) return undefined;
+  if (!episode) {
+    return undefined;
+  }
   return {
     episode,
     streak: streak ?? 0,
