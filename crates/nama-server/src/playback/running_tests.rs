@@ -19,6 +19,7 @@ use crate::{
     events::{EventBus, Filter, event},
     ffmpeg::{Ffmpeg, Keyframe},
     library::Contents,
+    log_capture::CapturedLog,
     playback::{Probing, subtitles},
     plugins::ExtensionPoints,
     server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
@@ -201,6 +202,7 @@ async fn a_transcode_on_hardware_counts_as_cpu_bound_once_it_fell_back_and_a_rem
 #[cfg(unix)]
 #[tokio::test]
 async fn a_transcode_whose_hardware_fills_the_segment_folder_stays_on_hardware() {
+    let log = CapturedLog::start();
     let data = tempfile::tempdir().unwrap();
     let db = database(data.path()).await;
     let events = event_bus(&db);
@@ -258,6 +260,7 @@ async fn a_transcode_whose_hardware_fills_the_segment_folder_stays_on_hardware()
     assert_eq!(*lock(&starts), [("hardware", 0)]);
     assert_eq!(plan.playback_now().reasons, started.reasons);
     assert!(!plan.cpu_bound());
+    assert!(log.finish().contains("is full"), "still warns");
     let later = tokio::spawn(async move { plan.segment(1).await });
     assert_eq!(later.await.unwrap().unwrap(), None, "the restart fails too");
     assert_eq!(*lock(&starts), [("hardware", 0), ("hardware", 3)]);
