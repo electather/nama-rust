@@ -1,10 +1,10 @@
-import { PermissionsForm } from "@/components/permissions-editor";
 import { InviteLink } from "@/features/invites/components/invite-link";
 import { useCreateInvite } from "@/features/invites/data/use-create-invite";
-import { useDefaultPermissions } from "@/features/invites/data/use-default-permissions";
 import { createInviteErrors } from "@/features/invites/lib/invite-refusals";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { FormField } from "@/shared/components/form-field/form-field";
+import { PermissionsForm } from "@/shared/components/permissions-form/permissions-form";
+import { useDefaultPermissions } from "@/shared/hooks/use-default-permissions";
 import { formText } from "@/shared/lib/forms";
 import { permissionsToInvite } from "@/shared/lib/permissions";
 
