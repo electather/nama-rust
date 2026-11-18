@@ -80,7 +80,7 @@ pub struct Answer<R, K = ()> {
     pub result: Result<R, Failure<K>>,
 }
 
-/// Why a Provider failed, as the Kernel's own data: the Plugin's error was formatted and dropped
+/// Why a Provider or Observer failed, as the Kernel's own data: the Plugin's error was formatted and dropped
 /// inside containment, and the message has the Plugin's secret settings blanked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Failure<K = ()> {
