@@ -9,14 +9,17 @@ use nama_proto::nama::v1::{
 
 use crate::{
     library::{
-        Contents, Item, Libraries, SearchQuery, TiedTitle, TitleSources, Unanswered, Unmatched,
+        Contents, Libraries, SearchQuery, TiedTitle, TitleSources, Unanswered, Unmatched,
         UnmatchedReason,
     },
     matching::{ManualError, Matcher},
     page::Page,
 };
 
-use super::{database_failed, external_id_to_proto, refuse, required_id, title_kind_from_proto};
+use super::{
+    browse::unmatched_summary, database_failed, external_id_to_proto, refuse, required_id,
+    title_kind_from_proto,
+};
 
 /// `nama.v1.MatchService`: fixing Matches by hand. Needs `PERMISSION_MANAGE_LIBRARIES`, which
 /// [`require_access`](super::require_access) enforces.
@@ -184,21 +187,6 @@ fn reason_to_proto(
 /// `unmatched` as listed, where `searching` says whether some source in its Library's order
 /// searches, without which Matching can't decide it.
 fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::UnmatchedItem {
-    let (kind, title, year, numbers) = match unmatched.item {
-        Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
-        Item::Episode {
-            show,
-            year,
-            season,
-            episode,
-            ..
-        } => (
-            proto::TitleKind::TITLE_KIND_SHOW,
-            show,
-            year,
-            Some((season, episode)),
-        ),
-    };
     let (reason, tied_titles) = if unmatched.cleared {
         (
             proto::UnmatchedReason::UNMATCHED_REASON_CLEARED_BY_HAND,
@@ -212,23 +200,28 @@ fn unmatched_to_proto(unmatched: Unmatched, searching: bool) -> proto::Unmatched
     } else {
         reason_to_proto(unmatched.reason)
     };
+    let proto::UnmatchedItemSummary {
+        version_id,
+        kind,
+        title,
+        year,
+        season,
+        episode,
+        ..
+    } = unmatched_summary(unmatched.item, unmatched.version_id);
     proto::UnmatchedItem {
         item_id: unmatched.id,
+        version_id,
         path: unmatched.path,
-        kind: kind.into(),
+        kind,
         title,
-        year: year.and_then(int32),
-        season: numbers.and_then(|(season, _)| int32(season)),
-        episode: numbers.and_then(|(_, episode)| int32(episode)),
+        year,
+        season,
+        episode,
         reason: reason.into(),
         tied_titles,
         ..Default::default()
     }
-}
-
-/// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
-fn int32(n: i64) -> Option<i32> {
-    i32::try_from(n).ok()
 }
 
 /// The Connect error a client gets for fixing a Match that failed. Database failures are logged,

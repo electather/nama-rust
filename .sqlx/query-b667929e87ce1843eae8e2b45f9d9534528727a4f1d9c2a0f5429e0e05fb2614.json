@@ -1,0 +1,172 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.id AS \"id!\", library_files.id AS \"version_id!\",\n                      library_files.path, library_items.added_at, library_items.kind AS \"kind: ItemKind\",\n                      library_items.title, library_items.year, library_items.hint,\n                      library_items.season, library_items.episode,\n                      item_matches.unmatched_reason AS \"unmatched_reason?: ReasonColumn\",\n                      item_matches.tied_titles AS \"tied_titles?\",\n                      item_matches.item_id IS NULL AS \"undecided!: bool\",\n                      EXISTS (SELECT 1 FROM match_pins\n                              WHERE match_pins.library_id = library_files.library_id\n                                AND match_pins.kind = library_items.kind\n                                AND match_pins.title = library_items.title\n                                AND match_pins.year IS library_items.year\n                                AND match_pins.hint IS library_items.hint\n                                AND match_pins.pinned_id IS NULL) AS \"cleared!: bool\"\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?1\n                 AND item_matches.state IS NOT 'matched' AND library_files.id = ?2 ORDER BY library_items.id LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "version_id!",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "added_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "added_at"
+          }
+        }
+      },
+      {
+        "name": "kind: ItemKind",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "year",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "year"
+          }
+        }
+      },
+      {
+        "name": "hint",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "hint"
+          }
+        }
+      },
+      {
+        "name": "season",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "episode",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
+      },
+      {
+        "name": "unmatched_reason?: ReasonColumn",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "unmatched_reason"
+          }
+        }
+      },
+      {
+        "name": "tied_titles?",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "tied_titles"
+          }
+        }
+      },
+      {
+        "name": "undecided!: bool",
+        "ordinal": 12,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "cleared!: bool",
+        "ordinal": 13,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "b667929e87ce1843eae8e2b45f9d9534528727a4f1d9c2a0f5429e0e05fb2614"
+}

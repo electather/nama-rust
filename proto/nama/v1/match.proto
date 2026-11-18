@@ -176,6 +176,8 @@ message UnmatchedItem {
   // For `UNMATCHED_REASON_AMBIGUOUS`, the titles that fit about as well as each other, best fit
   // first, to pass to `SetMatch`.
   repeated TitleCandidate tied_titles = 9;
+  // The Version that holds it, to play it by.
+  int64 version_id = 10;
 }
 
 // Why an item is Unmatched, which says how to fix it.
