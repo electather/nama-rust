@@ -25,6 +25,7 @@ pub mod notifier;
 pub mod points;
 pub mod recogniser;
 pub mod settings;
+pub mod subtitle_source;
 
 /// The Plugin contract's messages (ADR 0041), which the Extension Points take and return, so a
 /// Built-in Plugin sees the same types an Installed one does.

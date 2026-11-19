@@ -19,3 +19,9 @@ test("a Recogniser shows the Recogniser point", () => {
 
   expect(screen.getByText("Recogniser")).toBeDefined();
 });
+
+test("a subtitle source shows the Subtitle source point", () => {
+  render(<ExtensionPoints extensionPoints={[ExtensionPoint.SUBTITLE_SOURCE]} />);
+
+  expect(screen.getByText("Subtitle source")).toBeDefined();
+});

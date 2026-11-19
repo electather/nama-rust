@@ -33,7 +33,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "z-50 max-h-(--available-height) min-w-48 origin-(--transform-origin) overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md duration-150 ease-out-expo outline-none motion-reduce:animate-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0",
+            "z-50 max-h-(--available-height) min-w-48 origin-(--transform-origin) overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md duration-150 ease-out-expo outline-none motion-reduce:animate-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0",
             className,
           )}
           {...props}
@@ -45,7 +45,7 @@ function DropdownMenuContent({
 
 // A finger needs 44px to hit (WCAG 2.5.5); a mouse or trackpad gets a desktop menu's 32px.
 const itemClassName =
-  "flex min-h-11 pointer-fine:min-h-8 cursor-default items-center gap-2.5 rounded-lg px-2.5 text-sm outline-hidden select-none data-highlighted:bg-accent data-disabled:pointer-events-none data-disabled:text-muted-foreground";
+  "flex min-h-11 pointer-fine:min-h-8 cursor-default items-center gap-2.5 rounded-md px-2.5 text-sm outline-hidden select-none data-highlighted:bg-accent data-disabled:pointer-events-none data-disabled:text-muted-foreground";
 
 function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
   return (

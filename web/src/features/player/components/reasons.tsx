@@ -4,7 +4,7 @@ export function Reasons({ texts }: { texts: string[] }) {
     return null;
   }
   return (
-    <ul className="mt-1 space-y-1 text-muted-foreground">
+    <ul className="mt-2 space-y-1">
       {texts.map((text) => (
         <li key={text}>{text}</li>
       ))}

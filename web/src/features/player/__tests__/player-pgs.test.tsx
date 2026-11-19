@@ -11,6 +11,7 @@ import {
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
 
 /** What each PGS renderer drew, as text, whether the next one fails to start, and how many ended. */
 const bitsub = vi.hoisted((): { drawn: string[]; failsToStart: boolean; disposed: number } => ({
@@ -134,17 +135,16 @@ async function playing(
 }
 
 function choose(name: RegExp) {
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name }));
+  pickIn("Subtitles", name);
 }
 
 test("this Device says it draws PGS, so the PGS Track is a subtitle the player shows itself", async () => {
   const asked: PlanPlaybackRequest[] = [];
   const video = await playing(asked);
 
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
+  openTracks();
 
-  const items = screen.getAllByRole("menuitemradio").map((item) => item.textContent);
+  const items = rowsOf("Subtitles").map((item) => item.textContent);
   expect(items).toStrictEqual(["Off", "English", "English Signs"]);
   expect(asked[0]?.deviceDecoding?.subtitleFormats).toStrictEqual([
     SubtitleFormat.PGS,
@@ -166,7 +166,7 @@ test("turning a PGS Track on draws it once fetched, with no new plan", async () 
 
   choose(/Signs/u);
 
-  const signs = screen.getByRole("menuitemradio", { name: /Signs/u });
+  const signs = rowIn("Subtitles", /Signs/u);
   await waitFor(() => {
     expect(signs.textContent).toContain("Loading…");
   });
@@ -189,15 +189,15 @@ test("switching between a PGS Track, a text one and Off doesn't restart playback
     expect(bitsub.drawn).toStrictEqual(["PGS"]);
   });
 
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /^English$/u }));
+  fireEvent.click(rowIn("Subtitles", /^English$/u));
   await waitFor(() => {
     expect(bitsub.disposed).toBe(1);
   });
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Signs/u }));
+  fireEvent.click(rowIn("Subtitles", /Signs/u));
   await waitFor(() => {
     expect(bitsub.drawn).toStrictEqual(["PGS", "PGS"]);
   });
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "Off" }));
+  fireEvent.click(rowIn("Subtitles", "Off"));
 
   await waitFor(() => {
     expect(bitsub.disposed).toBe(2);
@@ -212,7 +212,7 @@ test("a PGS Track that can't be fetched says so, as a text one does", async () =
 
   choose(/Signs/u);
 
-  const signs = screen.getByRole("menuitemradio", { name: /Signs/u });
+  const signs = rowIn("Subtitles", /Signs/u);
   await waitFor(() => {
     expect(signs.textContent).toContain("Couldn’t load");
   });
@@ -230,12 +230,12 @@ test("a PGS Track turned on again says Loading… until it's fetched again", asy
     .mockReturnValueOnce(refetched);
   await playing([], fetched);
   choose(/Signs/u);
-  const signs = screen.getByRole("menuitemradio", { name: /Signs/u });
+  const signs = rowIn("Subtitles", /Signs/u);
   await waitFor(() => {
     expect(signs.textContent).toContain("Couldn’t load");
   });
 
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "Off" }));
+  fireEvent.click(rowIn("Subtitles", "Off"));
   fireEvent.click(signs);
 
   await waitFor(() => {
@@ -255,8 +255,8 @@ test("a renderer that won't start has the Track burned in by a plan that doesn't
   // Two PGS Tracks alike, so the second must be told from the first by its turn.
   const directPlay = await playing(asked, undefined, 1);
 
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
-  for (const second of screen.getAllByRole("menuitemradio", { name: /Signs/u }).slice(1)) {
+  openTracks();
+  for (const second of rowsOf("Subtitles", /Signs/u).slice(1)) {
     fireEvent.click(second);
   }
 
@@ -268,9 +268,7 @@ test("a renderer that won't start has the Track burned in by a plan that doesn't
   await waitFor(() => {
     expect(screen.getByLabelText("Alien")).not.toBe(directPlay);
   });
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
-  const checked = screen
-    .getAllByRole("menuitemradio")
-    .map((item) => item.getAttribute("aria-checked"));
+  openTracks();
+  const checked = screen.getAllByRole("radio").map((item) => item.getAttribute("aria-checked"));
   expect(checked).toStrictEqual(["false", "false", "false", "true"]);
 });

@@ -4,7 +4,7 @@ import { cn } from "cn";
 
 // DESIGN.md, "Buttons": a pill, 14px medium text, 32px tall. Disabled is Muted with Quiet ink, never faded.
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground",
   {
     variants: {
       variant: {
@@ -16,11 +16,17 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/40",
         // A second action beside the primary one, such as "Sign in with a code": the Rim and its 30% fill.
         outline: "border-input bg-input/30 text-foreground hover:bg-input/50",
+        // A second action beside the primary one over artwork, such as the player's Back and Episodes.
+        // Lit while its panel is open or it's the choice made, such as the speed preset playing.
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-muted aria-expanded:bg-accent aria-expanded:text-primary aria-expanded:inset-ring aria-expanded:inset-ring-primary/60 aria-pressed:bg-accent aria-pressed:text-primary aria-pressed:inset-ring aria-pressed:inset-ring-primary/60",
         ghost: "text-foreground hover:bg-muted/50",
         // A quiet text button beside a field's label, such as "Forgot your password?".
         link: "font-normal text-foreground underline-offset-3 hover:underline focus-visible:underline",
         // Over video, where Quiet ink would sink into the picture and a faint ring could vanish.
-        overlay: "text-foreground hover:bg-foreground/15 focus-visible:ring-ring",
+        // Lit while its panel is open or its mode is on, as the player's artboards draw it.
+        overlay:
+          "text-foreground hover:bg-foreground/15 focus-visible:ring-ring aria-expanded:bg-accent aria-expanded:text-primary aria-expanded:inset-ring aria-expanded:inset-ring-primary/60 aria-pressed:bg-accent aria-pressed:text-primary aria-pressed:inset-ring aria-pressed:inset-ring-primary/60",
       },
       size: {
         default: "h-8 px-2.5",
@@ -35,6 +41,9 @@ const buttonVariants = cva(
           "size-7 rounded-sm opacity-70 hover:opacity-100 focus-visible:opacity-100 [&_svg]:size-4",
         // A square button holding only an icon, named by its `aria-label`.
         icon: "size-10 rounded-lg [&_svg]:size-5",
+        // The player's large controls, 44px tall: `round` holds only an icon.
+        round: "size-11 [&_svg]:size-5",
+        tall: "h-11 px-5 [&_svg]:size-5",
         // Play or Resume at the top of a title's page, as a pill.
         pill: "h-11 px-6 text-base [&_svg]:size-4 [&_svg]:fill-current",
       },

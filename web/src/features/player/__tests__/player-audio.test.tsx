@@ -11,6 +11,7 @@ import {
   type ReportTrackPickRequest,
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openTracks, rowIn, rowsOf } from "@/test-player";
 
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
@@ -81,8 +82,8 @@ function server(
 }
 
 function openAudio() {
-  fireEvent.click(screen.getByRole("button", { name: "Audio" }));
-  return screen.getAllByRole("menuitemradio");
+  openTracks();
+  return rowsOf("Audio");
 }
 
 test("the audio menu lists the Version's audio Tracks by language, title and channels, the file's own chosen", async () => {
@@ -113,7 +114,7 @@ test("choosing the commentary mid-play asks for a plan from where the video stan
   english.currentTime = 754.25;
 
   openAudio();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Commentary/u }));
+  fireEvent.click(rowIn("Audio", /Commentary/u));
 
   await waitFor(() => {
     expect(asked).toHaveLength(2);
@@ -141,7 +142,7 @@ test("choosing an audio Track reports it as picked, for the Server to keep for t
   await screen.findByLabelText("Alien");
 
   openAudio();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Commentary/u }));
+  fireEvent.click(rowIn("Audio", /Commentary/u));
 
   await waitFor(() => {
     expect(picked.map(({ versionId, kind, track }) => ({ versionId, kind, track }))).toStrictEqual([

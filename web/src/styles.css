@@ -6,6 +6,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* A `<video>` in a window of its own, whose box Chrome fills with a stretched, blurred frame. */
+@custom-variant picture-in-picture (&:picture-in-picture);
+
 /* Styles the top bar's parts once it sticks (`src/app/top-bar/top-bar.tsx`). */
 @custom-variant raised (@container top-bar scroll-state(stuck: top));
 
@@ -28,6 +31,11 @@
   scrollbar-color: var(--border) transparent;
 }
 
+/* A row that scrolls sideways with no scrollbar, such as tabs that don't all fit. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+}
+
 @theme {
   --color-*: initial;
   /* DESIGN.md's Display: Movie and Show titles over their backdrops. */
@@ -36,6 +44,8 @@
   --text-display--letter-spacing: -0.035em;
   /* DESIGN.md's exponential ease-out, for motion such as the player's controls fading. */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* A spinner under reduced motion: slowed, not stopped, so it still says something is happening. */
+  --animate-spin-slow: spin 6s linear infinite;
 }
 
 @theme inline {
@@ -173,6 +183,10 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Tailwind 4 left buttons the default arrow, whichever component draws one. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
   body {
     @apply bg-background text-foreground;
   }
@@ -180,5 +194,13 @@
     @apply font-sans;
     /* What takes focus scrolls clear of the top bar, 72px tall, where it sticks (WCAG 2.4.11). */
     scroll-padding-top: calc(var(--spacing) * 18);
+  }
+  /* Subtitles the browser draws, on the scrim in the app's type. `::cue` takes no padding or radius. */
+  video::cue {
+    background-color: var(--scrim);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: clamp(18px, 2.2vw, 30px);
+    line-height: 1.3;
   }
 }

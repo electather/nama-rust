@@ -568,6 +568,9 @@ pub enum ExtensionPoint {
     /// Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
     /// Admin granted it allow, such as Cleanup (ADR 0048).
     EXTENSION_POINT_AUTOMATION = 11i32,
+    /// Searches an outside service, such as OpenSubtitles.com, for a Version's subtitles and
+    /// downloads one a User picks (ADR 0067).
+    EXTENSION_POINT_SUBTITLE_SOURCE = 12i32,
 }
 impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -606,6 +609,9 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_AUTOMATION`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Automation: Self = Self::EXTENSION_POINT_AUTOMATION;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_SUBTITLE_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SubtitleSource: Self = Self::EXTENSION_POINT_SUBTITLE_SOURCE;
 }
 impl ::core::default::Default for ExtensionPoint {
     fn default() -> Self {
@@ -719,6 +725,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             9i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_RECOGNISER),
             10i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_BLOB_STORE),
             11i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_AUTOMATION),
+            12i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SUBTITLE_SOURCE),
             _ => ::core::option::Option::None,
         }
     }
@@ -741,6 +748,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_RECOGNISER => "EXTENSION_POINT_RECOGNISER",
             Self::EXTENSION_POINT_BLOB_STORE => "EXTENSION_POINT_BLOB_STORE",
             Self::EXTENSION_POINT_AUTOMATION => "EXTENSION_POINT_AUTOMATION",
+            Self::EXTENSION_POINT_SUBTITLE_SOURCE => "EXTENSION_POINT_SUBTITLE_SOURCE",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -783,6 +791,9 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_AUTOMATION" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_AUTOMATION)
             }
+            "EXTENSION_POINT_SUBTITLE_SOURCE" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_SUBTITLE_SOURCE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -800,6 +811,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_RECOGNISER,
             Self::EXTENSION_POINT_BLOB_STORE,
             Self::EXTENSION_POINT_AUTOMATION,
+            Self::EXTENSION_POINT_SUBTITLE_SOURCE,
         ]
     }
 }

@@ -1,5 +1,5 @@
 import { useAutoplay } from "@/features/settings/data/use-autoplay";
-import { useSetAutoplay } from "@/features/settings/data/use-set-autoplay";
+import { useSetAutoplay } from "@/shared/hooks/use-set-autoplay";
 import { refusal } from "@/shared/lib/forms";
 
 /** Whether the next Episode plays by itself for the signed-in User: a switch that saves as it's toggled. */

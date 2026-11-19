@@ -11,6 +11,7 @@ import {
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openSettingsAt } from "@/test-player";
 
 afterEach(cleanup);
 
@@ -77,24 +78,26 @@ const remuxing = serverPlaying({
 /** Opens the player for The Matrix on `fake` and its Playback info. */
 async function openInfo(fake: ReturnType<typeof serverPlaying>) {
   openApp("/libraries/1/movies/tmdb-603/play", fake);
-  fireEvent.click(await screen.findByRole("button", { name: "Playback info" }));
+  await screen.findByRole("button", { name: "Playback settings" });
+  openSettingsAt("Playback info");
 }
 
 test("playback info says how the plan plays the Version and with which Tracks", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", server);
 
-  const info = await screen.findByRole("button", { name: "Playback info" });
-  expect(info.getAttribute("aria-expanded")).toBe("false");
+  const settings = await screen.findByRole("button", { name: "Playback settings" });
+  expect(settings.getAttribute("aria-expanded")).toBe("false");
   // A button, so Enter and Space open it from the keyboard as a click does.
-  fireEvent.click(info);
+  openSettingsAt("Playback info");
 
-  expect(info.getAttribute("aria-expanded")).toBe("true");
+  expect(settings.getAttribute("aria-expanded")).toBe("true");
   const panel = within(screen.getByRole("region", { name: "Playback info" }));
   expect(panel.getByText("Direct Play")).toBeDefined();
   expect(panel.queryByRole("list")).toBeNull();
   expect(panel.queryByText("More")).toBeNull();
-  expect(panel.getByText("H.264 · 1080p")).toBeDefined();
-  expect(panel.getByText("AAC · 5.1 · English")).toBeDefined();
+  expect(panel.getByText("H.264 1080p")).toBeDefined();
+  expect(panel.getByText("AAC 5.1")).toBeDefined();
+  expect(panel.getByText("English")).toBeDefined();
   expect(panel.getByText("SRT · French")).toBeDefined();
 });
 
