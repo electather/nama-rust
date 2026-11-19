@@ -9,6 +9,7 @@ mod libraries;
 mod local_images;
 mod scan_locks;
 mod title_source;
+mod titles;
 mod versions;
 mod watch_states;
 
@@ -39,6 +40,9 @@ pub(crate) use scan_locks::{ScanLock, ScanLocks};
 pub(crate) use title_source::{
     Candidate, Episode as SourceEpisode, SearchQuery, Season as SourceSeason, Show as SourceShow,
     Source, TitleKind, TitleSources, Unanswered,
+};
+pub(crate) use titles::{
+    NotFound, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,
 };
 pub(crate) use versions::PARSER_VERSION;
 // Matching names it only in its docs, so outside rustdoc nothing would use it.

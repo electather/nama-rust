@@ -5371,6 +5371,12 @@ pub struct DeleteMediaRequestView<'a> {
     pub target: ::buffa::MessageFieldView<
         super::super::__buffa::view::MediaToDeleteView<'a>,
     >,
+    /// The Episodes the target's files also hold, by their ids as `PreviewDeleteMediaResponse`'s
+    /// `episodes_taken_along` gave them. If a file the delete takes holds one this doesn't name,
+    /// the delete is refused with `REFUSAL_REASON_TAKES_ALONG_UNNAMED`.
+    ///
+    /// Field 2: `also`
+    pub also: ::buffa::RepeatedView<'a, super::super::__buffa::view::ExternalIdView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeleteMediaRequestView<'a> {
@@ -5424,6 +5430,24 @@ impl<'a> ::buffa::MessageView<'a> for DeleteMediaRequestView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::ExternalIdView>(),
+                )?;
+                view.also
+                    .push(
+                        <super::super::__buffa::view::ExternalIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5455,6 +5479,11 @@ impl<'a> ::buffa::MessageView<'a> for DeleteMediaRequestView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            also: self
+                .also
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5469,6 +5498,14 @@ impl<'a> ::buffa::ViewEncode<'a> for DeleteMediaRequestView<'a> {
         if self.target.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.target.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.also {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -5492,6 +5529,14 @@ impl<'a> ::buffa::ViewEncode<'a> for DeleteMediaRequestView<'a> {
                 buf,
             );
             self.target.write_to(__cache, buf);
+        }
+        for v in &self.also {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5518,6 +5563,9 @@ impl<'__a> ::serde::Serialize for DeleteMediaRequestView<'__a> {
             if let ::core::option::Option::Some(__v) = self.target.as_option() {
                 __map.serialize_entry("target", __v)?;
             }
+        }
+        if !self.also.is_empty() {
+            __map.serialize_entry("also", &*self.also)?;
         }
         __map.end()
     }
@@ -5620,6 +5668,17 @@ impl DeleteMediaRequestOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::MediaToDeleteView<'_>> {
         &self.0.reborrow().target
+    }
+    /// The Episodes the target's files also hold, by their ids as `PreviewDeleteMediaResponse`'s
+    /// `episodes_taken_along` gave them. If a file the delete takes holds one this doesn't name,
+    /// the delete is refused with `REFUSAL_REASON_TAKES_ALONG_UNNAMED`.
+    ///
+    /// Field 2: `also`
+    #[must_use]
+    pub fn also(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::ExternalIdView<'_>> {
+        &self.0.reborrow().also
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeleteMediaRequestView<'static>>>
@@ -7978,6 +8037,12 @@ pub struct EpisodeTakenAlongView<'a> {
     ///
     /// Field 3: `title`
     pub title: &'a str,
+    /// The Episode's id, by which `DeleteMediaRequest.also` names it.
+    ///
+    /// Field 4: `episode_id`
+    pub episode_id: ::buffa::MessageFieldView<
+        super::super::__buffa::view::ExternalIdView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for EpisodeTakenAlongView<'a> {
@@ -8031,6 +8096,27 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeTakenAlongView<'a> {
                 )?;
                 view.title = ::buffa::types::borrow_str(&mut cur)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.episode_id.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.episode_id = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::ExternalIdView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -8056,6 +8142,15 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeTakenAlongView<'a> {
             season_number: self.season_number,
             episode_number: self.episode_number,
             title: self.title.to_string(),
+            episode_id: match self.episode_id.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::ExternalId,
+                        ::buffa::Inline<super::super::ExternalId>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -8063,7 +8158,7 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeTakenAlongView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for EpisodeTakenAlongView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -8077,13 +8172,21 @@ impl<'a> ::buffa::ViewEncode<'a> for EpisodeTakenAlongView<'a> {
         if !self.title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
         }
+        if self.episode_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.episode_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -8096,6 +8199,14 @@ impl<'a> ::buffa::ViewEncode<'a> for EpisodeTakenAlongView<'a> {
         }
         if !self.title.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.title, buf);
+        }
+        if self.episode_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.episode_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8134,6 +8245,11 @@ impl<'__a> ::serde::Serialize for EpisodeTakenAlongView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
             __map.serialize_entry("title", self.title)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.episode_id.as_option() {
+                __map.serialize_entry("episodeId", __v)?;
+            }
         }
         __map.end()
     }
@@ -8246,6 +8362,15 @@ impl EpisodeTakenAlongOwnedView {
     #[must_use]
     pub fn title(&self) -> &'_ str {
         self.0.reborrow().title
+    }
+    /// The Episode's id, by which `DeleteMediaRequest.also` names it.
+    ///
+    /// Field 4: `episode_id`
+    #[must_use]
+    pub fn episode_id(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
+        &self.0.reborrow().episode_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<EpisodeTakenAlongView<'static>>>

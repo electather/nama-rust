@@ -1,6 +1,7 @@
-//! What a delete takes: the Versions a User's delete names, and what Fulfillers stop monitoring.
+//! What a delete takes: the Versions it names, the Episodes it takes along, what Fulfillers stop
+//! monitoring and which Requests it touches.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use nama_plugin_api::{
     fulfiller::{
@@ -10,45 +11,97 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
 };
 
-use super::{Browse, Error, Target, Titles};
+use super::{TakenAlong, ToDelete, files::read_only_folder};
 use crate::{
-    library::{Library, LibraryEpisode, LibraryKind, LibraryShow, LibraryVersion},
+    library::{
+        Library, LibraryEpisode, LibraryError, LibraryShow, LibraryVersion, NotFound,
+        TitleTarget as Target, Titles, known_as, named_episodes,
+    },
     requests::RequestTitle,
-    scanner::Doomed,
+    scanner::{Error, Scanner},
 };
 
-/// What a User deletes: see [`Browse::doomed`].
+/// Versions of one title of a Library, which a delete removes, with the title, for its log.
 #[derive(Debug)]
-pub(crate) enum ToDelete {
-    /// Every Version of a title of a Library: a Movie, or a Show's every Episode, a Season's or
-    /// one Episode.
-    Title { library: i64, title: Target },
-    /// One Version of a Movie.
-    Version(i64),
-    /// One Version of an Episode of a Shows Library.
-    EpisodeVersion {
-        library: i64,
-        episode: ExternalId,
-        version: i64,
-    },
+pub(super) struct Doomed {
+    pub(super) library: Library,
+    pub(super) title: String,
+    /// What the Library's Fulfillers are asked to stop monitoring. `None` for a title Matched
+    /// without the ids they know it by.
+    pub(super) to_unmonitor: Option<Title>,
+    /// Each file once.
+    pub(super) versions: Vec<LibraryVersion>,
+    /// The Episodes the title isn't, that a file of `versions` holds too.
+    pub(super) taken_along: Vec<TakenAlong>,
+    /// What each Version is of, by its id, as a Request names it: its Movie, or the Season of each
+    /// Episode it holds.
+    pub(super) requested: Vec<(i64, RequestTitle)>,
 }
 
-impl Browse {
-    /// The Versions `target` names, each file once, with their Library, their title and the
-    /// other Episodes those files hold. Fails as browsing to the title does, or with
-    /// [`Error::NoSuchVersion`] for a Version of no Movie, or not of the Episode named.
-    pub(crate) async fn doomed(&self, target: ToDelete) -> Result<Doomed, Error> {
+impl Doomed {
+    pub(super) fn version_ids(&self) -> Vec<i64> {
+        (self.versions.iter())
+            .map(|version| version.file.id)
+            .collect()
+    }
+
+    /// What the Versions `gone` are of, as Requests name it, each once.
+    pub(super) fn request_titles(&self, gone: &[i64]) -> Vec<RequestTitle> {
+        let titles = (self.requested.iter()).filter(|(version, _)| gone.contains(version));
+        let titles: BTreeSet<RequestTitle> = titles.map(|(_, title)| title.clone()).collect();
+        titles.into_iter().collect()
+    }
+
+    /// The ids of the Episodes it takes along.
+    pub(super) fn taken_along_ids(&self) -> Vec<ExternalId> {
+        (self.taken_along.iter())
+            .map(|taken| taken.episode.id.clone())
+            .collect()
+    }
+
+    /// The folder of the Library holding one of the Versions that the Library's last scan found
+    /// the Server can't write to, which refuses the delete.
+    pub(super) fn read_only_folder(&self) -> Option<&str> {
+        read_only_folder(&self.library, self.versions.iter().map(|v| v.path.as_str()))
+    }
+
+    /// Refuses the delete, in this order, for a Version in a read-only folder
+    /// ([`Error::ReadOnly`]), or for an Episode taken along that none of `also` names
+    /// ([`Error::TakesAlongUnnamed`]), naming each such Episode.
+    pub(super) fn check(&self, also: &[ExternalId]) -> Result<(), Error> {
+        if let Some(folder) = self.read_only_folder() {
+            return Err(Error::ReadOnly(folder.to_owned()));
+        }
+        let named = |episode: &LibraryEpisode| {
+            (also.iter()).any(|id| &episode.id == id || known_as(&episode.ids, id))
+        };
+        let unnamed: Vec<TakenAlong> = (self.taken_along.iter())
+            .filter(|taken| !named(&taken.episode))
+            .cloned()
+            .collect();
+        if unnamed.is_empty() {
+            return Ok(());
+        }
+        Err(Error::TakesAlongUnnamed(unnamed))
+    }
+}
+
+impl Scanner {
+    /// What deleting `target` takes, each file once. Fails with [`NotFound`] as browsing to the
+    /// title does, or with [`NotFound::NoSuchVersion`] for a Version of no Movie, or not of the
+    /// Episode named.
+    pub(super) async fn doomed(&self, target: &ToDelete) -> Result<Doomed, Error> {
         let (library, title, only) = match target {
-            ToDelete::Version(version) => return self.doomed_version(version).await,
-            ToDelete::Title { library, title } => (library, title, None),
+            &ToDelete::Version(version) => return self.doomed_version(version).await,
+            ToDelete::Title { library, title } => (*library, title.clone(), None),
             ToDelete::EpisodeVersion {
                 library,
                 episode,
                 version,
-            } => (library, Target::Episode(episode), Some(version)),
+            } => (*library, Target::Episode(episode.clone()), Some(*version)),
         };
-        let library = self.library(library).await?;
-        let titles = self.titles(&library).await?;
+        let library = self.library_to_delete_from(library).await?;
+        let titles = Titles::read(&self.inner.contents, &library).await?;
         if let Target::Movie(id) = title {
             let movie = titles.movie(&id)?;
             return Ok(Doomed {
@@ -60,15 +113,16 @@ impl Browse {
                 taken_along: Vec::new(),
             });
         }
-        doomed_episodes(library, &titles.shows()?, &title, only)
+        Ok(doomed_episodes(library, &titles.shows()?, &title, only)?)
     }
 
     /// The Version `version` of a Movie, with its Library and the Movie's title.
     async fn doomed_version(&self, version: i64) -> Result<Doomed, Error> {
-        let library = self.contents.library_of_version(version).await?;
-        let library = self.library(library.ok_or(Error::NoSuchVersion)?).await?;
-        let Titles::Movies(movies) = self.titles(&library).await? else {
-            return Err(Error::NoSuchVersion);
+        let library = self.inner.contents.library_of_version(version).await?;
+        let library =
+            (self.library_to_delete_from(library.ok_or(NotFound::NoSuchVersion)?)).await?;
+        let Titles::Movies(movies) = Titles::read(&self.inner.contents, &library).await? else {
+            return Err(NotFound::NoSuchVersion.into());
         };
         let (title, id, to_unmonitor, version) = (movies.into_iter())
             .find_map(|movie| {
@@ -76,7 +130,7 @@ impl Browse {
                 let to_unmonitor = movie_to_unmonitor(&movie.ids);
                 Some((movie.title, movie.id, to_unmonitor, version))
             })
-            .ok_or(Error::NoSuchVersion)?;
+            .ok_or(NotFound::NoSuchVersion)?;
         let versions = vec![version];
         Ok(Doomed {
             library,
@@ -87,6 +141,14 @@ impl Browse {
             taken_along: Vec::new(),
         })
     }
+
+    async fn library_to_delete_from(&self, id: i64) -> Result<Library, Error> {
+        match self.inner.libraries.get(id).await {
+            Err(LibraryError::NotFound(id)) => Err(NotFound::NoSuchLibrary(id).into()),
+            Err(LibraryError::Database(err)) => Err(err.into()),
+            found => Ok(found?),
+        }
+    }
 }
 
 /// The Versions of `shows`, a Shows Library's, that `target` names, or only its Version `only`,
@@ -96,7 +158,7 @@ fn doomed_episodes(
     shows: &[LibraryShow],
     target: &Target,
     only: Option<i64>,
-) -> Result<Doomed, Error> {
+) -> Result<Doomed, NotFound> {
     let (title, show, named) = named_episodes(shows, target)?;
     let mut versions: Vec<LibraryVersion> = (named.iter())
         .flat_map(|episode| &episode.versions)
@@ -107,15 +169,21 @@ fn doomed_episodes(
     versions.sort_unstable_by_key(|version| version.file.id);
     versions.dedup_by_key(|version| version.file.id);
     if versions.is_empty() {
-        return Err(Error::NoSuchVersion);
+        return Err(NotFound::NoSuchVersion);
     }
     let files: HashSet<i64> = versions.iter().map(|version| version.file.id).collect();
-    let taken_along: Vec<LibraryEpisode> = (shows.iter().flat_map(LibraryShow::episodes))
-        .filter(|episode| !named.iter().any(|named| named.id == episode.id))
-        .filter(|episode| (episode.versions.iter()).any(|v| files.contains(&v.file.id)))
-        .cloned()
+    let holds =
+        |episode: &LibraryEpisode| (episode.versions.iter()).any(|v| files.contains(&v.file.id));
+    let taken_along: Vec<TakenAlong> = (shows.iter())
+        .flat_map(|holder| holder.episodes().map(move |episode| (holder, episode)))
+        .filter(|(_, episode)| !named.iter().any(|named| named.id == episode.id))
+        .filter(|(_, episode)| holds(episode))
+        .map(|(holder, episode)| TakenAlong {
+            show: holder.title.clone(),
+            episode: episode.clone(),
+        })
         .collect();
-    let episodes = named.into_iter().chain(&taken_along);
+    let episodes = (named.into_iter()).chain(taken_along.iter().map(|taken| &taken.episode));
     Ok(Doomed {
         library,
         to_unmonitor: to_unmonitor_of(show, target, episodes),
@@ -214,45 +282,4 @@ fn to_unmonitor_of<'a>(
         deleted: Some(deleted),
         ..Default::default()
     }))
-}
-
-/// Whether `id` is one of `ids`: any one identifies a title (ADR 0042).
-pub(super) fn names(ids: &ExternalIds, id: &ExternalId) -> bool {
-    ids.get(id.namespace()).as_ref() == Some(id)
-}
-
-/// The Episodes of `shows` that `target` names, with its name for the log and their Show. A Movie
-/// is in no Shows Library.
-fn named_episodes<'a>(
-    shows: &'a [LibraryShow],
-    target: &Target,
-) -> Result<(String, &'a LibraryShow, Vec<&'a LibraryEpisode>), Error> {
-    let show_of = |id: &ExternalId| {
-        (shows.iter().find(|show| names(&show.ids, id))).ok_or(Error::NothingMatched)
-    };
-    match target {
-        Target::Movie(_) => Err(Error::WrongKind {
-            wanted: LibraryKind::Movies,
-        }),
-        Target::Show(id) => {
-            let show = show_of(id)?;
-            Ok((show.title.clone(), show, show.episodes().collect()))
-        }
-        Target::Season { show, number } => {
-            let show = show_of(show)?;
-            let season = show.seasons.get(number).ok_or(Error::NoSuchSeason)?;
-            let name = format!("{} Season {number}", show.title);
-            Ok((name, show, season.episodes.iter().collect()))
-        }
-        Target::Episode(id) => (shows.iter())
-            .find_map(|show| {
-                let episode = show.episodes().find(|episode| &episode.id == id)?;
-                let name = format!(
-                    "{} S{:02}E{:02}",
-                    show.title, episode.season, episode.number
-                );
-                Some((name, show, vec![episode]))
-            })
-            .ok_or(Error::NothingMatched),
-    }
 }

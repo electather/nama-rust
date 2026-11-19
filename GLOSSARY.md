@@ -205,6 +205,10 @@ _Avoid_: chapter, part
 One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0062).
 _Avoid_: copy, edition, file
 
+**Taken along**:
+An Episode a delete removes without naming it, because a file of what was named holds it too.
+_Avoid_: collateral, doomed
+
 **Content Rating**:
 The age guidance a country's ratings board gives a Movie or Show, such as PG-13 or TV-MA.
 _Avoid_: certification, age rating, parental rating, maturity rating

@@ -219,18 +219,6 @@ async fn a_movie_was_added_when_its_newest_version_was() {
 }
 
 #[tokio::test]
-async fn show_titles_names_each_asked_episodes_show_and_none_for_one_not_stored() {
-    let fx = Fixture::new().await;
-    let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523)]);
-    matched_episode(&fx, "/media/Dark - S01E02.mkv", 2, "Lies", dark).await;
-
-    let named = [ExternalId::tmdb(9), ExternalId::tmdb(1002)];
-    let titles = fx.contents.show_titles(fx.library, &named).await.unwrap();
-
-    assert_eq!(titles, [None, Some("Dark".to_owned())]);
-}
-
-#[tokio::test]
 async fn season_of_gives_an_episodes_show_ids_and_season_and_none_for_one_not_stored() {
     let fx = Fixture::new().await;
     let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523), "tvdb-121361".parse().unwrap()]);

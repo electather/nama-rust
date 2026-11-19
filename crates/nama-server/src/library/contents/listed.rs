@@ -106,52 +106,6 @@ impl Contents {
             .collect())
     }
 
-    /// The Show title of each of the `named` Episodes of the Library `library`, in the same order,
-    /// as the Match of its first Version, by path, stores it. `None` for one the Library doesn't
-    /// have. Reads only the named Episodes' Matches.
-    pub(crate) async fn show_titles(
-        &self,
-        library: i64,
-        named: &[ExternalId],
-    ) -> Result<Vec<Option<String>>, sqlx::Error> {
-        let asked: Vec<[&str; 2]> = (named.iter())
-            .map(|id| [id.namespace(), id.value()])
-            .collect();
-        let asked = serde_json::Value::from(asked).to_string();
-        let rows = sqlx::query!(
-            r#"SELECT CAST(asked.key AS INTEGER) AS "position!: i64",
-                      item_matches.show_title AS "show_title!"
-               FROM json_each(?2) AS asked
-               JOIN item_match_ids AS named
-                   ON named.scope = 'title'
-                  AND named.namespace = json_extract(asked.value, '$[0]')
-                  AND named.value = json_extract(asked.value, '$[1]')
-               JOIN item_matches ON item_matches.item_id = named.item_id
-               JOIN library_items ON library_items.id = item_matches.item_id
-               JOIN library_files ON library_files.id = library_items.file_id
-               WHERE library_files.library_id = ?1
-                 AND library_items.kind = 'episode'
-                 AND item_matches.state = 'matched'
-                 AND item_matches.show_title IS NOT NULL
-               ORDER BY asked.key, library_files.path"#,
-            library,
-            asked
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        let mut found = vec![None; named.len()];
-        for row in rows {
-            let first = usize::try_from(row.position)
-                .ok()
-                .and_then(|position| found.get_mut(position))
-                .filter(|found| found.is_none());
-            if let Some(first) = first {
-                *first = Some(row.show_title);
-            }
-        }
-        Ok(found)
-    }
-
     /// Every id the Match gives the Show of the Episode `episode` of the Library `library`, and
     /// the Episode's Season number, as its first Version, by path, stores them. `None` if the
     /// Library doesn't have it.

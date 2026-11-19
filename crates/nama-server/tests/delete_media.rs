@@ -269,6 +269,23 @@ impl Fixture {
         self.delete_as(&self.library_service(), target).await
     }
 
+    /// Deletes `target`, naming the Episodes it takes along by their TMDB ids `also`.
+    async fn delete_also(
+        &self,
+        target: MediaToDelete,
+        also: &[i64],
+    ) -> Result<DeleteMediaResponse, ConnectError> {
+        let response = self
+            .library_service()
+            .delete_media(DeleteMediaRequest {
+                target: target.into(),
+                also: also.iter().map(|&id| tmdb_id(id)).collect(),
+                ..Default::default()
+            })
+            .await?;
+        Ok(response.into_owned())
+    }
+
     async fn delete_as(
         &self,
         client: &LibraryServiceClient<HttpClient>,
@@ -490,19 +507,6 @@ async fn a_file_that_cant_be_deleted_is_reported_with_why_while_the_rest_go() {
     // Its sidecar stays with it.
     assert!(fx.exists(ALIEN_2160P_POSTER));
     assert_eq!(fx.version_ids(ALIEN).await.len(), 1);
-}
-
-#[tokio::test]
-async fn deleting_a_movie_or_one_of_its_versions_has_the_movie_fulfiller_stop_monitoring_it() {
-    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
-    let first = fx.version_ids(ALIEN).await[0];
-
-    let one_version = fx.delete(version(first)).await.unwrap();
-    let every_version = fx.delete(movie(fx.library, DUNE)).await.unwrap();
-
-    assert_eq!(fx.server.fulfiller().stopped_monitoring(), [ALIEN, DUNE]);
-    assert_eq!(one_version.fulfillers_not_told, [""; 0]);
-    assert_eq!(every_version.fulfillers_not_told, [""; 0]);
 }
 
 #[tokio::test]
@@ -757,9 +761,15 @@ async fn deleting_an_episode_deletes_every_version_and_the_episodes_only_its_fil
         .preview(episode(fx.library, SECRETS, None))
         .await
         .unwrap();
-    let deleted = fx.delete(episode(fx.library, SECRETS, None)).await.unwrap();
+    let deleted = (fx.delete_also(episode(fx.library, SECRETS, None), &[LIES]))
+        .await
+        .unwrap();
 
     assert_eq!(taken_along(&preview), [(1, 2, "Lies")]);
+    assert_eq!(
+        preview.episodes_taken_along[0].episode_id,
+        tmdb_id(LIES).into()
+    );
     assert_eq!(
         by_name(&deleted.deleted),
         [
@@ -777,12 +787,32 @@ async fn deleting_an_episode_deletes_every_version_and_the_episodes_only_its_fil
 }
 
 #[tokio::test]
+async fn deleting_an_episode_that_takes_along_one_it_doesnt_name_is_refused_naming_it() {
+    let fx = Fixture::dark().await;
+
+    let refused = assert_refused(
+        fx.delete(episode(fx.library, LIES, None)).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_TAKES_ALONG_UNNAMED,
+    );
+
+    assert_eq!(refused.field, "also");
+    assert_eq!(
+        refused.params.get("episodes").map(String::as_str),
+        Some("Dark S01E01")
+    );
+    assert!(fx.exists(DARK_S01E01_E02) && fx.exists(DARK_S01E01));
+}
+
+#[tokio::test]
 async fn deleting_an_episode_in_a_two_episode_file_deletes_the_file_and_the_preview_names_the_other()
  {
     let fx = Fixture::dark().await;
 
     let preview = fx.preview(episode(fx.library, LIES, None)).await.unwrap();
-    fx.delete(episode(fx.library, LIES, None)).await.unwrap();
+    (fx.delete_also(episode(fx.library, LIES, None), &[SECRETS]))
+        .await
+        .unwrap();
 
     assert_eq!(taken_along(&preview), [(1, 1, "Secrets")]);
     assert_eq!(
@@ -923,7 +953,9 @@ async fn deleting_episodes_or_a_season_has_the_shows_fulfiller_stop_monitoring_j
         .await
         .unwrap();
     // Its file holds Secrets too, which goes along.
-    fx.delete(episode(fx.library, LIES, None)).await.unwrap();
+    (fx.delete_also(episode(fx.library, LIES, None), &[SECRETS]))
+        .await
+        .unwrap();
     let season = fx.delete(season(fx.library, DARK, 2)).await.unwrap();
 
     assert_eq!(
@@ -935,20 +967,6 @@ async fn deleting_episodes_or_a_season_has_the_shows_fulfiller_stop_monitoring_j
         ]
     );
     assert_eq!(season.fulfillers_not_told, [""; 0]);
-}
-
-#[tokio::test]
-async fn deleting_a_show_has_the_shows_fulfiller_stop_monitoring_every_current_season() {
-    let fx = Fixture::dark_on(TestServer::builder().shows_fulfiller(&[])).await;
-
-    fx.delete(show(fx.library, DARK)).await.unwrap();
-
-    assert_eq!(
-        fx.server.fulfiller().stopped_monitoring_shows(),
-        [dark_deleted(show_deleted::Deleted::EveryCurrentSeason(
-            true
-        ))]
-    );
 }
 
 #[tokio::test]

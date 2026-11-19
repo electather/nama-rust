@@ -9,7 +9,8 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{PageRequest, PageResponse};
 
 use super::{
-    Browse, Episode, Error, Show, Target, Titles, Version, episode_ids, finding_failed, with_tracks,
+    Browse, Episode, Error, NotFound, Show, Target, Titles, Version, episode_ids, finding_failed,
+    with_tracks,
 };
 use crate::{
     library::{
@@ -55,7 +56,7 @@ impl Browse {
         progress: Progress,
     ) -> Result<(), Error> {
         let titles = match self.contents.titles_in(version).await? {
-            TitlesIn::NoSuchVersion => return Err(Error::NoSuchVersion),
+            TitlesIn::NoSuchVersion => return Err(NotFound::NoSuchVersion.into()),
             TitlesIn::Movie(None) => return Ok(()),
             TitlesIn::Movie(Some((id, ids))) => {
                 vec![Some(MovieOrEpisode::movie(&id).known_as(&ids))]
@@ -124,7 +125,7 @@ impl Browse {
             }
             Target::Season { show, number } => {
                 let show = titles.show(&show)?;
-                let season = show.seasons.get(&number).ok_or(Error::NoSuchSeason)?;
+                let season = show.seasons.get(&number).ok_or(NotFound::NoSuchSeason)?;
                 Targeted {
                     titles: season.episodes.iter().map(episode).collect(),
                     entry: every_episode(&show),
@@ -169,7 +170,7 @@ impl Browse {
     /// The Episode that plays after Episode `number` of Season `season` of the Show `show` of the
     /// Shows Library `library`, with the User `user`'s Watch State of it: the first of the Show's
     /// Episodes in the Library after it that they haven't played (see [`unplayed_after`]). Fails as
-    /// browsing to that Season does, or with [`Error::NoSuchEpisode`].
+    /// browsing to that Season does, or with [`NotFound::NoSuchEpisode`].
     pub(crate) async fn episode_after(
         &self,
         user: i64,
@@ -181,11 +182,11 @@ impl Browse {
         let season_episodes = &show
             .seasons
             .get(&season)
-            .ok_or(Error::NoSuchSeason)?
+            .ok_or(NotFound::NoSuchSeason)?
             .episodes;
         let from = (season_episodes.iter())
             .find(|episode| episode.number == number)
-            .ok_or(Error::NoSuchEpisode)?;
+            .ok_or(NotFound::NoSuchEpisode)?;
         let later: Vec<_> = (show.episodes())
             .filter(|episode| (episode.season, episode.number) > (season, number))
             .collect();

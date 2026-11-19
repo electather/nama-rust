@@ -5,18 +5,19 @@ use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{Lagged, subscribe_response};
 use tempfile::TempDir;
 
-use super::{Doomed, Planned, Scanner, Summary};
+use super::{Planned, Scanner, Summary, ToDelete};
 use crate::{
     db::Database,
     events::{EventBus, Filter},
     ffmpeg::Ffmpeg,
     images::ImageStore,
     library::{
-        Artwork, Change, Contents, CustomImages, File, Item, Libraries, LibraryError, LibraryKind,
-        LibraryVersion, LocalImages, Order,
+        Artwork, Change, Contents, CustomImages, Decided, File, Item, Libraries, LibraryError,
+        LibraryKind, LocalImages, Order, TitleTarget,
+        fixture::{decide, tmdb_movie},
     },
     log_capture::CapturedLog,
-    playback::{Probing, SubtitleCache},
+    playback::{Probing, RunningPlans, SubtitleCache},
     plugins::ExtensionPoints,
     requests::Requests,
     server_settings::ServerUrl,
@@ -91,12 +92,8 @@ impl Fixture {
                 LocalImages::new(Arc::clone(&db), images),
                 events.clone(),
                 probing.clone(),
-                None,
-                Some(Requests::new(
-                    Arc::clone(&db),
-                    events.clone(),
-                    ExtensionPoints::default(),
-                )),
+                RunningPlans::for_tests(&db, events.clone(), data.path()),
+                Requests::new(Arc::clone(&db), events.clone(), ExtensionPoints::default()),
             ),
             probing,
             contents: Contents::new(Arc::clone(&db)),
@@ -123,24 +120,21 @@ impl Fixture {
         self.scanner.scan(self.library).await.unwrap()
     }
 
-    /// Every stored file of the Library, as one title to delete.
-    pub(super) async fn doomed(&self) -> Doomed {
-        let stored = self.contents.stored(self.library).await.unwrap();
-        Doomed {
-            library: self
-                .scanner
-                .inner
-                .libraries
-                .get(self.library)
-                .await
-                .unwrap(),
-            title: "Everything".to_owned(),
-            to_unmonitor: None,
-            versions: (stored.into_iter())
-                .map(|(path, file)| LibraryVersion { file, path })
-                .collect(),
-            taken_along: Vec::new(),
-            requested: Vec::new(),
+    /// Matches the scanned file at `relative` to the Movie `tmdb`, called `title`, and names it
+    /// to delete.
+    pub(super) async fn movie(&self, relative: &str, tmdb: i64, title: &str) -> ToDelete {
+        let path = self.path(relative);
+        let matched = vec![Decided::Matched(Box::new(tmdb_movie(tmdb, title)))];
+        decide(
+            &self.contents,
+            self.library,
+            path.to_str().unwrap(),
+            matched,
+        )
+        .await;
+        ToDelete::Title {
+            library: self.library,
+            title: TitleTarget::Movie(ExternalId::tmdb(tmdb)),
         }
     }
 
@@ -277,12 +271,16 @@ async fn writes_failing_once_the_files_are_gone_are_logged_and_the_delete_still_
     let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scan().await;
-    let doomed = media.doomed().await;
+    let alien = media
+        .movie("Alien (1979)/Alien (1979).mkv", 348, "Alien")
+        .await;
     media.stop_writes().await;
     // The test's runtime has one thread, so the delete's tasks log to it too.
     let log = CapturedLog::start();
 
-    let deleted = media.scanner.delete_media(doomed, "ada".to_owned()).await;
+    let deleted = (media.scanner)
+        .delete_media(alien, Vec::new(), "ada".to_owned())
+        .await;
 
     let log = log.finish();
     let deleted = deleted.unwrap();

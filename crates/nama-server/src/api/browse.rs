@@ -19,14 +19,14 @@ use crate::{
     home_rows::{self, HomeRows, OnServer},
     library::{
         FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie, Listing,
-        Role, Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
+        NotFound, Role, Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
 };
 
 use super::{
-    ImageSources, ShownImages, caller, database_failed, external_id_to_proto, proto_number, refuse,
-    required_id,
+    ImageSources, Refused, ShownImages, caller, database_failed, external_id_to_proto,
+    proto_number, refuse, required_id,
 };
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
@@ -718,42 +718,47 @@ impl Fields {
 /// What makes the Connect error a client gets for a Library, title, Season or Version that
 /// Browse didn't find, naming its field in `fields`. Database failures are logged, not sent.
 pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError {
-    move |err| {
-        use RefusalReason as R;
-        let message = err.to_string();
-        let refused = match err {
-            browse::Error::NoSuchLibrary(id) => {
-                refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
-                    .field(fields.library)
-                    .param("libraryId", &id)
-            }
-            browse::Error::NothingMatched => {
-                refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message).field(fields.title)
-            }
-            browse::Error::NoSuchSeason => {
-                refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message).field(fields.season)
-            }
-            browse::Error::NoSuchEpisode => {
-                refuse(R::REFUSAL_REASON_EPISODE_NOT_FOUND, message).field(fields.episode)
-            }
-            browse::Error::NoSuchVersion => {
-                refuse(R::REFUSAL_REASON_VERSION_NOT_FOUND, message).field(fields.version)
-            }
-            browse::Error::WrongKind { wanted } => {
-                let kind = match wanted {
-                    LibraryKind::Movies => "movies",
-                    LibraryKind::Shows => "shows",
-                };
-                refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
-                    .field(fields.library)
-                    .param("libraryKind", &kind)
-            }
-            browse::Error::PageTokenInvalid(_) => {
-                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page.token")
-            }
-            browse::Error::Database(err) => return database_failed(err),
-        };
-        refused.into()
+    move |err| match err {
+        browse::Error::NotFound(err) => not_found(fields, &err).into(),
+        browse::Error::PageTokenInvalid(_) => refuse(
+            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
+            err.to_string(),
+        )
+        .field("page.token")
+        .into(),
+        browse::Error::Database(err) => database_failed(err),
+    }
+}
+
+/// The refusal for finding nothing of what `fields` name.
+pub(super) fn not_found(fields: Fields, err: &NotFound) -> Refused {
+    use RefusalReason as R;
+    let message = err.to_string();
+    match *err {
+        NotFound::NoSuchLibrary(id) => refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
+            .field(fields.library)
+            .param("libraryId", &id),
+        NotFound::NothingMatched => {
+            refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message).field(fields.title)
+        }
+        NotFound::NoSuchSeason => {
+            refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message).field(fields.season)
+        }
+        NotFound::NoSuchEpisode => {
+            refuse(R::REFUSAL_REASON_EPISODE_NOT_FOUND, message).field(fields.episode)
+        }
+        NotFound::NoSuchVersion => {
+            refuse(R::REFUSAL_REASON_VERSION_NOT_FOUND, message).field(fields.version)
+        }
+        NotFound::WrongKind { wanted } => {
+            let kind = match wanted {
+                LibraryKind::Movies => "movies",
+                LibraryKind::Shows => "shows",
+            };
+            refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
+                .field(fields.library)
+                .param("libraryKind", &kind)
+        }
     }
 }
 

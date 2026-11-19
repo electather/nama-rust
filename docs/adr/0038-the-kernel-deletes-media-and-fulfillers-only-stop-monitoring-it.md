@@ -12,6 +12,6 @@ A User with `DELETE_MEDIA` can delete a Movie, a Show, a Season, an Episode or o
 - A Fulfiller that can't be reached doesn't block the delete. The person deleting is told which Fulfillers weren't told and might download the title again. The Kernel doesn't try them again later.
 - Stopping monitoring never removes a title from Sonarr or Radarr, and it never stops new Seasons from arriving. A whole Show's delete stops monitoring its current Seasons and Episodes, but the series stays monitored for new ones, and its Followed Show stays. That way watched Seasons can be cleaned up while new ones still come.
 - Deleting one Version of several still stops monitoring the Movie or Episode, or the *arr would download the missing file again.
-- A file that holds several Episodes goes with all of them.
+- A file that holds several Episodes goes with all of them, but only when the delete names each Episode it takes along: a User's confirm sends back the ones its preview showed, and a Plugin lists them in `also`. Otherwise the delete is refused. It checks again once it holds the Library's scan lock, since a scan may have merged a file meanwhile. The Fulfillers were already told before the lock, so a refusal there leaves a title on disk that they no longer monitor, and it is logged.
 - Deleting is permanent: nothing goes to a trash folder.
 - A Library folder must be writable for its media to be deleted. The README's `:ro` mount means the delete is refused.

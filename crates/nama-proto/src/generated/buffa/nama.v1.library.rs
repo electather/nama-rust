@@ -3116,13 +3116,27 @@ pub struct DeleteMediaRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub target: ::buffa::MessageField<MediaToDelete, ::buffa::Inline<MediaToDelete>>,
+    /// The Episodes the target's files also hold, by their ids as `PreviewDeleteMediaResponse`'s
+    /// `episodes_taken_along` gave them. If a file the delete takes holds one this doesn't name,
+    /// the delete is refused with `REFUSAL_REASON_TAKES_ALONG_UNNAMED`.
+    ///
+    /// Field 2: `also`
+    #[serde(
+        rename = "also",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub also: ::buffa::alloc::vec::Vec<ExternalId>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for DeleteMediaRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("DeleteMediaRequest").field("target", &self.target).finish()
+        f.debug_struct("DeleteMediaRequest")
+            .field("target", &self.target)
+            .field("also", &self.also)
+            .finish()
     }
 }
 impl DeleteMediaRequest {
@@ -3160,6 +3174,14 @@ impl ::buffa::Message for DeleteMediaRequest {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.also {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3177,6 +3199,14 @@ impl ::buffa::Message for DeleteMediaRequest {
                 buf,
             );
             self.target.write_to(__cache, buf);
+        }
+        for v in &self.also {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3202,6 +3232,18 @@ impl ::buffa::Message for DeleteMediaRequest {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.also.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3211,6 +3253,7 @@ impl ::buffa::Message for DeleteMediaRequest {
     }
     fn clear(&mut self) {
         self.target = ::buffa::MessageField::none();
+        self.also.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4690,6 +4733,15 @@ pub struct EpisodeTakenAlong {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
+    /// The Episode's id, by which `DeleteMediaRequest.also` names it.
+    ///
+    /// Field 4: `episode_id`
+    #[serde(
+        rename = "episodeId",
+        alias = "episode_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub episode_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4700,6 +4752,7 @@ impl ::core::fmt::Debug for EpisodeTakenAlong {
             .field("season_number", &self.season_number)
             .field("episode_number", &self.episode_number)
             .field("title", &self.title)
+            .field("episode_id", &self.episode_id)
             .finish()
     }
 }
@@ -4726,7 +4779,7 @@ impl ::buffa::Message for EpisodeTakenAlong {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -4740,12 +4793,20 @@ impl ::buffa::Message for EpisodeTakenAlong {
         if !self.title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
         }
+        if self.episode_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.episode_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -4758,6 +4819,14 @@ impl ::buffa::Message for EpisodeTakenAlong {
         }
         if !self.title.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.title, buf);
+        }
+        if self.episode_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.episode_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4793,6 +4862,17 @@ impl ::buffa::Message for EpisodeTakenAlong {
                 )?;
                 ::buffa::types::merge_string(&mut self.title, buf)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.episode_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4804,6 +4884,7 @@ impl ::buffa::Message for EpisodeTakenAlong {
         self.season_number = 0u32;
         self.episode_number = 0u32;
         self.title.clear();
+        self.episode_id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

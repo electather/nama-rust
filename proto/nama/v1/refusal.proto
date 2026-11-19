@@ -292,4 +292,8 @@ enum RefusalReason {
   REFUSAL_REASON_INVITE_NOT_FOUND = 87;
   // `failed_precondition`: the Server has no Server URL, so an Invite would have no link.
   REFUSAL_REASON_SERVER_URL_REQUIRED = 88;
+  // `failed_precondition`: a file the delete takes also holds Episodes its `also` doesn't name,
+  // so nothing is deleted. Preview the delete again to see them. `field` is `also`. Params:
+  // `episodes`, each such Episode as "Show S01E02", joined by ", ".
+  REFUSAL_REASON_TAKES_ALONG_UNNAMED = 89;
 }
