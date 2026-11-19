@@ -3,7 +3,7 @@
 
 use buffa::EnumValue;
 use nama_plugin_api::{
-    PointKey,
+    PluginId, PointKey,
     auth::Authenticator,
     automation::Automation,
     blob_store::BlobStore,
@@ -17,10 +17,20 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1 as proto;
 
-use crate::plugins::Failing;
+use crate::plugins::{ExtensionPoints, Failing};
 
-/// `failing` as the client API shows a failing `point`.
-pub(super) fn failure_to_proto(
+/// Each of `plugin`'s Extension Points this API names whose last call failed.
+pub(super) fn failures(
+    points: &ExtensionPoints,
+    plugin: &PluginId,
+) -> Vec<proto::ExtensionPointFailure> {
+    public_points()
+        .into_iter()
+        .filter_map(|(key, point)| Some(failure_to_proto(point, points.failing(plugin, key)?)))
+        .collect()
+}
+
+fn failure_to_proto(
     point: proto::ExtensionPoint,
     failing: Failing,
 ) -> proto::ExtensionPointFailure {
@@ -47,7 +57,7 @@ pub(super) fn extension_points_to_proto(
 }
 
 /// Each Extension Point this API names, by its key, in the order its enum lists them.
-pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 12] {
+fn public_points() -> [(PointKey, proto::ExtensionPoint); 12] {
     use proto::ExtensionPoint as Public;
     [
         (

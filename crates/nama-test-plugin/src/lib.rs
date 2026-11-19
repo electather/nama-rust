@@ -45,8 +45,8 @@ mod exports {
     // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
     // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
     // requests the Store and Library Permissions, with `recogniser` it recognises files, with
-    // `home-rows` it gives Home rows, with `subtitle-source` it serves subtitles, and with `panic`
-    // it panics instead.
+    // `home-rows` it gives Home rows, with `subtitle-source` it is a subtitle source that finds
+    // nothing, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(

@@ -30,7 +30,7 @@ use super::{database_failed, refuse};
 
 mod points;
 
-use points::{extension_points_to_proto, failure_to_proto, public_points};
+use points::{extension_points_to_proto, failures};
 
 /// `nama.v1.PluginService`: the Server's Plugins and their settings. Needs
 /// `PERMISSION_MANAGE_SETTINGS`, or `PERMISSION_ADMIN` for a Plugin's log lines, which
@@ -241,14 +241,7 @@ impl PluginServiceHandler {
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let logo = logo(&self.plugin_logos, &stored.plugin, &custom).await;
-        let points = self.plugin_settings.extension_points();
-        let failures = public_points()
-            .into_iter()
-            .filter_map(|(key, point)| {
-                let failing = points.failing(&stored.plugin.id, key)?;
-                Some(failure_to_proto(point, failing))
-            })
-            .collect();
+        let failures = failures(&self.plugin_settings.extension_points(), &stored.plugin.id);
         Ok(proto::Plugin {
             failures,
             ..plugin_to_proto(stored.plugin, stored.stored.settings, &stored.granted, logo)
