@@ -8,11 +8,16 @@ async fn shutting_down_waits_for_a_media_delete_already_started() {
     let media = Fixture::with_plugins(LibraryKind::Movies, ExtensionPoints::default()).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scan().await;
-    let doomed = media.doomed().await;
+    let alien = media
+        .movie("Alien (1979)/Alien (1979).mkv", 348, "Alien")
+        .await;
     // Holding the scan lock keeps the delete waiting before it deletes anything.
-    let scan = media.scanner.inner.locks.lock(doomed.library.id).await;
+    let scan = media.scanner.lock(media.library).await;
     let deleting = media.scanner.clone();
-    let delete = tokio::spawn(async move { deleting.delete_media(doomed, "ada".to_owned()).await });
+    let delete =
+        tokio::spawn(
+            async move { (deleting.delete_media(alien, Vec::new(), "ada".to_owned())).await },
+        );
     // Bounded, so a delete that never reaches the tracker fails the test below instead of hanging.
     for _ in 0..500 {
         if !media.scanner.inner.tasks.is_empty() {

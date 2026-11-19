@@ -146,9 +146,7 @@ pub(crate) fn router(
             home_rows,
             images: images.clone(),
         }))
-        .add_service(Arc::new(WatchStateServiceHandler {
-            browse: browse.clone(),
-        }))
+        .add_service(Arc::new(WatchStateServiceHandler { browse }))
         .add_service(Arc::new(PlaybackServiceHandler {
             probing,
             abilities,
@@ -170,7 +168,6 @@ pub(crate) fn router(
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(Arc::clone(&db)),
             scanner,
-            browse,
             contents: Contents::new(Arc::clone(&db)),
             images,
             title_sources: TitleSources::new(plugins.clone()),
@@ -642,6 +639,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_PLUGIN_REFUSED
         | R::REFUSAL_REASON_PLUGIN_REFUSED_TO_START
         | R::REFUSAL_REASON_FOLDER_READ_ONLY
+        | R::REFUSAL_REASON_TAKES_ALONG_UNNAMED
         | R::REFUSAL_REASON_TITLE_ID_MISSING
         | R::REFUSAL_REASON_NOT_A_BLOB_STORE
         | R::REFUSAL_REASON_IMAGE_STORE_IN_USE

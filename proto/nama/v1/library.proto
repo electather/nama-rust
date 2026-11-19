@@ -237,6 +237,10 @@ message RequestToCancel {
 
 message DeleteMediaRequest {
   MediaToDelete target = 1;
+  // The Episodes the target's files also hold, by their ids as `PreviewDeleteMediaResponse`'s
+  // `episodes_taken_along` gave them. If a file the delete takes holds one this doesn't name,
+  // the delete is refused with `REFUSAL_REASON_TAKES_ALONG_UNNAMED`.
+  repeated ExternalId also = 2;
 }
 
 message DeleteMediaResponse {
@@ -312,6 +316,8 @@ message EpisodeTakenAlong {
   uint32 episode_number = 2;
   // The title, in its title source's language.
   string title = 3;
+  // The Episode's id, by which `DeleteMediaRequest.also` names it.
+  ExternalId episode_id = 4;
 }
 
 // A file on the Server's disk.

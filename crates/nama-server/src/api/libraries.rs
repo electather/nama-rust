@@ -20,22 +20,21 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::{Browse, Target, ToDelete},
     library::{
-        Contents, FolderProblem, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        NewestBackdrop, Order, Role, Slot, TitleSources, artwork_url, check_known,
+        Contents, FolderProblem, Libraries, Library, LibraryError, LibraryKind, NewestBackdrop,
+        Order, Role, Slot, TitleSources, TitleTarget as Target, artwork_url, check_known,
         default_title_sources,
     },
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
-    scanner::{self, Deleted, Scanner},
+    scanner::{self, Deleted, Scanner, TakenAlong, ToDelete},
 };
 
 use super::{
     ImageSources, ShownImages,
-    browse::{Fields, refused},
-    caller, database_failed, proto_number, refuse, required_id, title_kind_from_proto,
-    unknown_enum_value,
+    browse::{Fields, not_found},
+    caller, database_failed, external_id_from_proto, external_id_to_proto, proto_number, refuse,
+    required_id, title_kind_from_proto, unknown_enum_value,
 };
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
@@ -45,8 +44,6 @@ pub(super) struct LibraryServiceHandler {
     /// Only reads (see AGENTS.md, "One path for Library changes").
     pub(super) libraries: Libraries,
     pub(super) scanner: Scanner,
-    /// Finds the Versions a delete names.
-    pub(super) browse: Browse,
     /// Finds each Library's newest title's Backdrop.
     pub(super) contents: Contents,
     pub(super) images: ImageSources,
@@ -259,17 +256,16 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<PreviewDeleteMediaResponse> {
         let (target, fields) =
             to_delete_from_proto(request.to_owned_message().target.into_option())?;
-        let mut doomed = self.browse.doomed(target).await.map_err(refused(fields))?;
-        let read_only_folder = doomed.read_only_folder().map(str::to_owned);
-        let taken_along = std::mem::take(&mut doomed.taken_along);
-        let planned = self.scanner.preview_delete(doomed).await;
-        let planned = planned.map_err(deleting_failed)?;
+        let planned = self.scanner.preview_delete(&target).await;
+        let planned = planned.map_err(deleting_failed(fields))?;
         Response::ok(PreviewDeleteMediaResponse {
             bytes_freed: planned.bytes_freed(),
             files: planned.files.iter().map(file_to_proto).collect(),
-            episodes_taken_along: taken_along.into_iter().map(taken_along_to_proto).collect(),
+            episodes_taken_along: (planned.taken_along.into_iter())
+                .map(taken_along_to_proto)
+                .collect(),
             playing: u32::try_from(planned.playing).unwrap_or(u32::MAX),
-            read_only_folder,
+            read_only_folder: planned.read_only_folder,
             requests_cancelled: planned
                 .requests
                 .into_iter()
@@ -285,11 +281,13 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, DeleteMediaRequest>,
     ) -> ServiceResult<DeleteMediaResponse> {
         let by = caller(&ctx)?.user.name.clone();
-        let (target, fields) =
-            to_delete_from_proto(request.to_owned_message().target.into_option())?;
-        let doomed = self.browse.doomed(target).await.map_err(refused(fields))?;
-        let deleted = self.scanner.delete_media(doomed, by).await;
-        Response::ok(deleted_to_proto(deleted.map_err(deleting_failed)?))
+        let request = request.to_owned_message();
+        let (target, fields) = to_delete_from_proto(request.target.into_option())?;
+        let also = (request.also.into_iter())
+            .map(|id| external_id_from_proto(id, "also"))
+            .collect::<Result<_, _>>()?;
+        let deleted = self.scanner.delete_media(target, also, by).await;
+        Response::ok(deleted_to_proto(deleted.map_err(deleting_failed(fields))?))
     }
 
     async fn list_artwork(
@@ -422,10 +420,12 @@ fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<(ToDelete, Fiel
     })
 }
 
-fn taken_along_to_proto(episode: LibraryEpisode) -> EpisodeTakenAlong {
+fn taken_along_to_proto(taken: TakenAlong) -> EpisodeTakenAlong {
+    let episode = taken.episode;
     EpisodeTakenAlong {
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
+        episode_id: external_id_to_proto(&episode.id).into(),
         title: episode.title,
         ..Default::default()
     }
@@ -479,17 +479,35 @@ fn file_name(path: &Path) -> String {
         .into_owned()
 }
 
-/// The Connect error for a delete or its preview that was refused, or that failed on the
-/// Server's side, which is logged, not sent.
-fn deleting_failed(err: scanner::Error) -> ConnectError {
-    let message = err.to_string();
-    if let scanner::Error::ReadOnly(folder) = err {
-        return refuse(RefusalReason::REFUSAL_REASON_FOLDER_READ_ONLY, message)
-            .param("folder", &folder)
-            .into();
+/// What makes the Connect error for a delete or its preview that was refused, naming the field
+/// in `fields` of what it didn't find, or that failed on the Server's side, which is logged, not
+/// sent.
+fn deleting_failed(fields: Fields) -> impl Fn(scanner::Error) -> ConnectError {
+    move |err| {
+        let message = err.to_string();
+        match err {
+            scanner::Error::NotFound(err) => not_found(fields, &err).into(),
+            scanner::Error::ReadOnly(folder) => {
+                refuse(RefusalReason::REFUSAL_REASON_FOLDER_READ_ONLY, message)
+                    .param("folder", &folder)
+                    .into()
+            }
+            scanner::Error::TakesAlongUnnamed(taken_along) => {
+                refuse(RefusalReason::REFUSAL_REASON_TAKES_ALONG_UNNAMED, message)
+                    .field("also")
+                    .param("episodes", &TakenAlong::names(&taken_along))
+                    .into()
+            }
+            scanner::Error::Library(_)
+            | scanner::Error::Database(_)
+            | scanner::Error::Walk(_)
+            | scanner::Error::Cancelled
+            | scanner::Error::Requests(_) => {
+                tracing::error!("deleting media failed: {message}");
+                ConnectError::internal("deleting failed on the Server")
+            }
+        }
     }
-    tracing::error!("deleting media failed: {message}");
-    ConnectError::internal("deleting failed on the Server")
 }
 
 fn kind_from_proto(kind: EnumValue<proto::LibraryKind>) -> Result<LibraryKind, ConnectError> {

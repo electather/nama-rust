@@ -8,7 +8,10 @@ use nama_proto::nama::v1::{
     set_hidden_from_continue_watching_request::Target as Hide, set_played_request::Target,
 };
 
-use crate::{browse, library::Progress};
+use crate::{
+    browse,
+    library::{Progress, TitleTarget},
+};
 
 use super::{
     browse::{Fields, refused},
@@ -79,7 +82,7 @@ impl WatchStateService for WatchStateServiceHandler {
                     ..Fields::LIBRARY
                 };
                 let id = required_id(Some(*id), fields.title, "Episode")?;
-                (browse::Target::Episode(id), fields)
+                (TitleTarget::Episode(id), fields)
             }
             Target::Season(season) => {
                 let fields = Fields {
@@ -89,7 +92,7 @@ impl WatchStateService for WatchStateServiceHandler {
                 };
                 let show = required_id(season.show_id.into_option(), fields.title, "Show")?;
                 let number = i64::from(season.season_number);
-                (browse::Target::Season { show, number }, fields)
+                (TitleTarget::Season { show, number }, fields)
             }
             Target::ShowId(id) => show_target(*id)?,
         };
@@ -128,21 +131,21 @@ impl WatchStateService for WatchStateServiceHandler {
 }
 
 /// A request's `movie_id`, and the fields its refusals name.
-fn movie_target(id: ExternalId) -> Result<(browse::Target, Fields), ConnectError> {
+fn movie_target(id: ExternalId) -> Result<(TitleTarget, Fields), ConnectError> {
     let fields = Fields {
         title: "movie_id",
         ..Fields::LIBRARY
     };
     let id = required_id(Some(id), fields.title, "Movie")?;
-    Ok((browse::Target::Movie(id), fields))
+    Ok((TitleTarget::Movie(id), fields))
 }
 
 /// A request's `show_id`, and the fields its refusals name.
-fn show_target(id: ExternalId) -> Result<(browse::Target, Fields), ConnectError> {
+fn show_target(id: ExternalId) -> Result<(TitleTarget, Fields), ConnectError> {
     let fields = Fields {
         title: "show_id",
         ..Fields::LIBRARY
     };
     let id = required_id(Some(id), fields.title, "Show")?;
-    Ok((browse::Target::Show(id), fields))
+    Ok((TitleTarget::Show(id), fields))
 }

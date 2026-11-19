@@ -9,7 +9,7 @@ use crate::{
     db::{self, Database},
     library::{
         Change, Contents, Decided, Item, Libraries, LibraryKind, Listing, Metadata, MovieOrEpisode,
-        Progress, Stored, TitleSort, WatchState, WatchStates,
+        NotFound, Progress, Stored, TitleSort, WatchState, WatchStates,
         fixture::{MatchedMovie, decide, tmdb_movie},
     },
     playback::{Probe, Sidecars, Track, TrackKind, Tracks},
@@ -462,7 +462,7 @@ async fn progress_on_a_version_that_doesnt_exist_is_refused() {
     let reported = Browse::new(db).report(user, 1, halfway).await;
 
     assert!(
-        matches!(reported, Err(Error::NoSuchVersion)),
+        matches!(reported, Err(Error::NotFound(NotFound::NoSuchVersion))),
         "{reported:?}"
     );
 }
@@ -563,10 +563,10 @@ async fn marking_a_title_the_library_doesnt_have_is_refused_as_browsing_to_it_is
     assert_eq!(
         refused,
         [
-            Error::NothingMatched.to_string(),
-            Error::NothingMatched.to_string(),
-            Error::NoSuchSeason.to_string(),
-            Error::WrongKind {
+            NotFound::NothingMatched.to_string(),
+            NotFound::NothingMatched.to_string(),
+            NotFound::NoSuchSeason.to_string(),
+            NotFound::WrongKind {
                 wanted: LibraryKind::Movies
             }
             .to_string(),

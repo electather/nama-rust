@@ -690,5 +690,24 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 #[cfg(test)]
+impl RunningPlans {
+    /// Plans on `db` publishing on `events`, with the default playback settings and their files
+    /// under `folder`, for a test that only asks what plays and ends it.
+    pub(crate) fn for_tests(
+        db: &Arc<crate::db::Database>,
+        events: EventBus,
+        folder: &Path,
+    ) -> Self {
+        let ffmpeg = Arc::new(Ffmpeg::default());
+        let settings =
+            crate::server_settings::Settings::new(Arc::clone(db), folder.join("transcodes"));
+        let subtitles = subtitles::Cache::new(folder);
+        let probing = Probing::new(Arc::clone(db), Arc::clone(&ffmpeg), subtitles);
+        let contents = Contents::new(Arc::clone(db));
+        Self::new(settings.playback(), ffmpeg, contents, probing, events)
+    }
+}
+
+#[cfg(test)]
 #[path = "running_tests.rs"]
 mod tests;

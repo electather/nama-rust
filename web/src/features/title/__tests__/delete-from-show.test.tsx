@@ -9,8 +9,10 @@ import {
   type LibraryService,
   type MediaToDeleteSchema,
 } from "@/gen/nama/v1/library_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -55,7 +57,9 @@ function openDark(
         previewDeleteMedia: () => ({
           files: [TWO_EPISODES],
           bytesFreed: TWO_EPISODES.size,
-          episodesTakenAlong: [{ seasonNumber: 1, episodeNumber: 1, title: "Secrets" }],
+          episodesTakenAlong: [
+            { seasonNumber: 1, episodeNumber: 1, title: "Secrets", episodeId: secrets.id },
+          ],
         }),
         ...library,
       },
@@ -111,7 +115,14 @@ async function openDialog(name: string, title: string) {
 
 test("deleting an Episode in a two-Episode file names the other Episode before confirming", async () => {
   const deleted: Target[] = [];
-  openDark(deletesMedia, recording(deleted));
+  const named: unknown[] = [];
+  openDark(deletesMedia, {
+    deleteMedia: ({ target, also }) => {
+      deleted.push(target?.target);
+      named.push(also);
+      return {};
+    },
+  });
   const dialog = await openDialog("Delete Lies", "Lies");
 
   await expect(within(dialog).findByText("Season 1, Episode 1: Secrets")).resolves.toBeDefined();
@@ -123,6 +134,36 @@ test("deleting an Episode in a two-Episode file names the other Episode before c
     expect(deleted).toMatchObject([
       { case: "episode", value: { libraryId: 2n, episodeId: lies.id } },
     ]);
+  });
+  expect(named).toMatchObject([[secrets.id]]);
+});
+
+test("a delete refused for an Episode it now takes along says so and loads what goes again", async () => {
+  let previews = 0;
+  openDark(deletesMedia, {
+    previewDeleteMedia: () => {
+      previews += 1;
+      return { files: [TWO_EPISODES], bytesFreed: TWO_EPISODES.size };
+    },
+    deleteMedia: () => {
+      throw refused(Code.FailedPrecondition, "the title's files also hold Dark S01E01", {
+        reason: RefusalReason.TAKES_ALONG_UNNAMED,
+        params: { episodes: "Dark S01E01" },
+      });
+    },
+  });
+  const dialog = await openDialog("Delete Lies", "Lies");
+  await within(dialog).findByText("Dark - S01E01-E02.mkv");
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+  await expect(
+    within(dialog).findByText(
+      "Nothing was deleted: a file that goes now also holds Dark S01E01. Check what goes, then delete again.",
+    ),
+  ).resolves.toBeDefined();
+  await waitFor(() => {
+    expect(previews).toBe(2);
   });
 });
 

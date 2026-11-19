@@ -23,12 +23,11 @@ use nama_plugin_api::{
 use tracing::error;
 
 use crate::{
-    browse::{self, Browse, Target, ToDelete},
     db::Database,
-    library::{self, Contents, ItemKind, LibraryEpisode, LibraryError, WatchStateKind},
+    library::{self, Contents, ItemKind, LibraryError, TitleTarget, WatchStateKind},
     plugins::ExtensionPoints,
     requests,
-    scanner::{self, Scanner},
+    scanner::{self, Scanner, ToDelete},
     users,
 };
 
@@ -41,7 +40,6 @@ const MAX_PAGE_SIZE: usize = 1000;
 /// the Extension Points: whoever starts the Server holds it, until the Plugins have stopped.
 pub(crate) struct Automation {
     db: Arc<Database>,
-    browse: Browse,
     scanner: Scanner,
     points: ExtensionPoints,
 }
@@ -50,7 +48,6 @@ impl Automation {
     /// Serves the Kernel's functions to each Automation Plugin `points` enables.
     pub(crate) fn serve(db: Arc<Database>, scanner: Scanner, points: ExtensionPoints) -> Arc<Self> {
         let automation = Arc::new(Self {
-            browse: Browse::new(Arc::clone(&db)),
             db,
             scanner,
             points,
@@ -299,55 +296,30 @@ impl PluginKernel {
         (requests::who_requested(&mut conn, &ids, season).await).map_err(refused)
     }
 
-    /// Refuses a delete that would take along one of the Episodes `taken_along`, of the Library
-    /// `library`, that `also` doesn't name, naming each one.
-    async fn check_taken_along(
-        &self,
-        automation: &Automation,
-        library: i64,
-        taken_along: &[LibraryEpisode],
-        also: &[TitleRef],
-    ) -> Result<(), KernelRefused> {
-        let unnamed: Vec<&LibraryEpisode> = (taken_along.iter())
-            .filter(|episode| {
-                let taken = title_ref(library, TitleRefKind::TITLE_REF_KIND_EPISODE, &episode.id);
-                !also.iter().any(|named| same_title(named, &taken))
-            })
-            .collect();
-        if unnamed.is_empty() {
-            return Ok(());
+    /// What a Plugin is told of a delete the Scanner refused, or failed to start.
+    fn delete_refused(&self, err: scanner::Error) -> KernelRefused {
+        match err {
+            scanner::Error::Database(err) => {
+                self.database_refused("finding the media to delete", &err)
+            }
+            scanner::Error::TakesAlongUnnamed(taken_along) => {
+                let named: Vec<String> = (taken_along.iter())
+                    .map(|taken| format!("{} ({})", taken.name(), taken.episode.title))
+                    .collect();
+                KernelRefused(format!(
+                    "the title's files also hold {}; name each in `also` to delete it too, or \
+                     keep the files",
+                    named.join(", ")
+                ))
+            }
+            err @ (scanner::Error::Library(_)
+            | scanner::Error::Walk(_)
+            | scanner::Error::Cancelled
+            | scanner::Error::ReadOnly(_)
+            | scanner::Error::Requests(_)
+            | scanner::Error::NotFound(_)) => KernelRefused(err.to_string()),
         }
-        // Only for the refusal, so the Plugin can tell which Episodes they are.
-        let ids: Vec<ExternalId> = unnamed.iter().map(|episode| episode.id.clone()).collect();
-        let shows = (Contents::new(Arc::clone(&automation.db)))
-            .show_titles(library, &ids)
-            .await
-            .map_err(|err| self.database_refused("reading the Episodes' Shows", &err))?;
-        let named: Vec<String> = (unnamed.into_iter().zip(shows))
-            .map(|(episode, show)| episode_name(show.as_deref().unwrap_or_default(), episode))
-            .collect();
-        Err(KernelRefused(format!(
-            "the title's files also hold {}; name each in `also` to delete it too, or keep the \
-             files",
-            named.join(", ")
-        )))
     }
-}
-
-/// Whether `a` and `b` name the same title of the same Library.
-fn same_title(a: &TitleRef, b: &TitleRef) -> bool {
-    let id = |title: &TitleRef| {
-        (title.id.as_option()).map(|id| (id.namespace.clone(), id.value.clone()))
-    };
-    a.library_id == b.library_id && a.kind == b.kind && id(a) == id(b)
-}
-
-/// An Episode of the Show `show` as a refusal names it, such as `Dark S01E02 (Lies)`.
-fn episode_name(show: &str, episode: &LibraryEpisode) -> String {
-    format!(
-        "{show} S{:02}E{:02} ({})",
-        episode.season, episode.number, episode.title
-    )
 }
 
 /// `id` of a Movie or Episode of the Library `library`, as a Plugin names it.
@@ -569,48 +541,31 @@ impl Kernel for PluginKernel {
             let automation = self.check(Method::DeleteMedia)?;
             let title = (asked.title_ref.as_option())
                 .ok_or_else(|| KernelRefused("the title to delete is missing".to_owned()))?;
-            let to_delete = ToDelete::Title {
-                library: title.library_id,
-                title: titled(title, Target::Movie, Target::Episode)?,
+            let library = title.library_id;
+            let target = ToDelete::Title {
+                library,
+                title: titled(title, TitleTarget::Movie, TitleTarget::Episode)?,
             };
-            let doomed = match automation.browse.doomed(to_delete).await {
-                Ok(doomed) => doomed,
-                Err(browse::Error::Database(err)) => {
-                    return Err(self.database_refused("finding the media to delete", &err));
-                }
-                Err(err) => return Err(KernelRefused(err.to_string())),
-            };
-            // `start_delete` refuses this too, as the Scanner's own guard for every caller.
-            // Checked here first so a read-only title is refused for that before the taken-along
-            // check reads the Episodes' Shows and refuses it for something else.
-            if let Some(folder) = doomed.read_only_folder() {
-                return Err(KernelRefused(
-                    scanner::Error::ReadOnly(folder.to_owned()).to_string(),
-                ));
-            }
-            let taken_along: Vec<TitleRef> = (doomed.taken_along.iter())
-                .map(|episode| {
-                    let kind = TitleRefKind::TITLE_REF_KIND_EPISODE;
-                    title_ref(title.library_id, kind, &episode.id)
-                })
+            // One naming no Episode of the Library names nothing a delete takes along.
+            let also = (asked.also.iter())
+                .filter(|named| named.library_id == library)
+                .filter_map(|named| titled(named, |_| None, Some).ok().flatten())
                 .collect();
-            (self.check_taken_along(
-                &automation,
-                title.library_id,
-                &doomed.taken_along,
-                &asked.also,
-            ))
-            .await?;
             let by = format!("the {} Plugin", automation.points.name(&self.plugin));
-            // Not awaited: the delete waits for the Library's scan lock, which could outrun the
+            // Only started: the delete waits for the Library's scan lock, which could outrun the
             // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029). On the
             // Scanner's tracker, not in the Plugin's scope, since it never calls the Plugin back,
             // so disabling the Plugin doesn't stop a delete it started (ADR 0048) and shutting
             // down waits for it. A failure is logged there, since the Plugin has had its answer.
-            (automation
-                .scanner
-                .start_delete(doomed, by, self.plugin.clone()))
-            .map_err(|err| KernelRefused(err.to_string()))?;
+            let started = (automation.scanner)
+                .start_delete(target, also, by, self.plugin.clone())
+                .await;
+            let taken_along = (started.map_err(|err| self.delete_refused(err))?.iter())
+                .map(|taken| {
+                    let kind = TitleRefKind::TITLE_REF_KIND_EPISODE;
+                    title_ref(library, kind, &taken.episode.id)
+                })
+                .collect();
             Ok(DeleteStarted {
                 taken_along,
                 ..DeleteStarted::default()

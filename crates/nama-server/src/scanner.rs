@@ -43,20 +43,15 @@ mod recognised;
 mod walking;
 mod watch;
 
-pub(crate) use deleting::{Deleted, Doomed, File as DoomedFile, read_only_folder};
+pub(crate) use deleting::{Deleted, File as DoomedFile, TakenAlong, ToDelete, read_only_folder};
 use recognised::{Planned, read_again_if_changed, recognise};
 use walking::{FoundLocalImages, FoundSidecars, after_stem, is_video, plan, walk};
 
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
     sync::{Arc, Mutex, PoisonError},
 };
 
-use nama_plugin_api::{
-    PluginId,
-    fulfiller::{Fulfiller, Movies, Shows, StopMonitoring, stop_monitoring::Title},
-};
 use nama_proto::nama::v1::{
     MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
 };
@@ -67,12 +62,12 @@ use crate::{
     events::{EventBus, event},
     library::{
         Artwork, Change, Contents, CustomImages, Libraries, Library, LibraryError, LibraryKind,
-        LocalImages, Order, ScanLock, ScanLocks, check_title_sources,
+        LocalImages, NotFound, Order, ScanLock, ScanLocks, check_title_sources,
     },
     matching::{self, Matcher, count},
     playback::{Probing, RunningPlans, Sidecars},
-    plugins::{ExtensionPoints, Failure},
-    requests::{self, RequestTitle, Requests},
+    plugins::ExtensionPoints,
+    requests::{self, Requests},
 };
 
 /// How many changed files one write stores or removes. Small enough that other writes don't
@@ -134,6 +129,12 @@ pub(crate) enum Error {
     /// The Requests a delete cancels couldn't be read or cancelled.
     #[error(transparent)]
     Requests(#[from] requests::Error),
+    /// A delete names no title, Library or Version there is.
+    #[error(transparent)]
+    NotFound(#[from] NotFound),
+    /// A delete's files hold these Episodes too, which it doesn't name.
+    #[error("the title's files also hold {}; name each to delete it too", TakenAlong::names(.0))]
+    TakesAlongUnnamed(Vec<TakenAlong>),
 }
 
 impl From<matching::Error> for Error {
@@ -172,10 +173,10 @@ struct Inner {
     events: EventBus,
     /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
     probing: Option<Probing>,
-    /// Asked what plays media about to be deleted, and to end it, unless nothing plays.
-    running: Option<RunningPlans>,
-    /// Asked which Requests a delete cancels, and to cancel them, unless nothing has Requests.
-    requests: Option<Requests>,
+    /// Asked what plays media about to be deleted, and to end it.
+    running: RunningPlans,
+    /// Asked which Requests a delete cancels, and to cancel them.
+    requests: Requests,
     /// Background scans and media deletes, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -211,8 +212,8 @@ impl Scanner {
         local_images: LocalImages,
         events: EventBus,
         probing: Option<Probing>,
-        running: Option<RunningPlans>,
-        requests: Option<Requests>,
+        running: RunningPlans,
+        requests: Requests,
     ) -> Self {
         let locks = ScanLocks::new();
         Self {
@@ -344,198 +345,6 @@ impl Scanner {
             Ok(())
         })
         .await
-    }
-
-    /// What [`Self::delete_media`] would delete, stop playing and cancel, deleting nothing.
-    pub(crate) async fn preview_delete(&self, doomed: Doomed) -> Result<Deleted, Error> {
-        let versions = doomed.version_ids();
-        let playing = (self.inner.running.as_ref()).map_or(0, |running| running.playing(&versions));
-        let requests = match &self.inner.requests {
-            Some(requests) => (requests.waiting_on(&doomed.request_titles(&versions))).await?,
-            None => Vec::new(),
-        };
-        let planned = tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?;
-        Ok(Deleted {
-            playing,
-            requests,
-            ..planned
-        })
-    }
-
-    /// Asks every Fulfiller of its kind to stop monitoring `doomed`, then ends the plans
-    /// playing it, deletes it from disk for good, removes the Versions whose files went as a
-    /// scan removes them, with the images only their Matches stored, and logs that `by` deleted
-    /// them, and cancels the Requests still waiting on what they were of. It refuses, before
-    /// any of that, media in a folder the Library's last scan found read-only
-    /// ([`Error::ReadOnly`]). Once the files are deleted it returns what went: a later step's
-    /// failure is only logged. The one way to delete media (see AGENTS.md, "One path for
-    /// deleting media"). It holds the Library's scan lock, so a scan racing it sees either
-    /// everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
-    /// Shutting down waits for a delete already started.
-    pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
-        refuse_read_only(&doomed)?;
-        let deleting = self.inner.tasks.spawn(self.clone().deleting(doomed, by));
-        // The task is never aborted, so it only fails if it panicked.
-        (deleting.await).unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
-    }
-
-    /// Starts deleting `doomed` for the Plugin `plugin`, as [`Self::delete_media`] does, without
-    /// waiting, and logs a failure naming `plugin`. Refuses media in a read-only folder before
-    /// starting. Started on the tracker before it returns, so shutting down right after still
-    /// waits for the delete.
-    pub(crate) fn start_delete(
-        &self,
-        doomed: Doomed,
-        by: String,
-        plugin: PluginId,
-    ) -> Result<(), Error> {
-        refuse_read_only(&doomed)?;
-        let deleting = self.clone().deleting(doomed, by);
-        self.inner.tasks.spawn(async move {
-            if let Err(err) = deleting.await {
-                tracing::error!(%plugin, "the Plugin's delete failed: {err}");
-            }
-        });
-        Ok(())
-    }
-
-    /// The delete [`Self::delete_media`] describes, from stopping the monitoring on. Run it on
-    /// the tracker, so shutting down waits for it; it never reads the tracker's cancel token, so
-    /// shutting down doesn't stop a delete halfway.
-    async fn deleting(self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
-        // First, so the service can't see the file missing and download it again (ADR 0038).
-        let not_told = self.stop_monitoring(&doomed).await;
-        let library = doomed.library.id;
-        let _scan = self.inner.locks.lock(library).await;
-        // Held until the Versions are gone, so none is served again before.
-        let _ending = match &self.inner.running {
-            Some(running) => Some(running.end_for_deleting(&doomed.version_ids()).await),
-            None => None,
-        };
-        let folders: Vec<String> = (self.inner.libraries.list().await?.into_iter())
-            .flat_map(|other| other.folders)
-            .collect();
-        let (doomed, mut deleted) = tokio::task::spawn_blocking(move || {
-            let kept: Vec<&Path> = folders.iter().map(Path::new).collect();
-            let deleted = deleting::delete(&doomed, &kept);
-            (doomed, deleted)
-        })
-        .await?;
-        deleted.fulfillers_not_told.extend(not_told);
-        // Before anything else can fail: the files are gone for good.
-        let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
-        tracing::info!(
-            by = %by,
-            title = %doomed.title,
-            library,
-            ?files,
-            bytes_freed = deleted.bytes_freed(),
-            not_deleted = ?deleted.failed,
-            "deleted media"
-        );
-        let removed = deleted.versions.iter().copied().map(Change::Remove);
-        let events = match self.inner.contents.apply(library, removed.collect()).await {
-            Ok(events) => events,
-            Err(error) => {
-                // The next scan removes them, as it does any file gone from disk.
-                tracing::error!(
-                    %error,
-                    title = %doomed.title,
-                    library,
-                    "couldn't remove the deleted Versions; they stay listed until the next scan"
-                );
-                Vec::new()
-            }
-        };
-        if let Some(probing) = &self.inner.probing {
-            probing.clean_subtitles().await;
-        }
-        self.inner.events.publish(events);
-        self.inner.artwork.drop_unused(&self.inner.contents).await;
-        (self.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
-        Ok(deleted)
-    }
-
-    /// Cancels the Requests still waiting on `titles`, whose media `by` deleted. A failure is
-    /// logged, not returned: the media is gone by then, and an error would hide what went.
-    async fn cancel_requests(&self, titles: Vec<RequestTitle>, by: String) {
-        let Some(requests) = &self.inner.requests else {
-            return;
-        };
-        if let Err(error) = requests.cancel_deleted(titles.clone(), by).await {
-            tracing::error!(
-                %error,
-                ?titles,
-                "couldn't cancel the Requests waiting on deleted media; they stay open"
-            );
-        }
-    }
-
-    /// Asks each enabled Fulfiller of `doomed`'s Library's kind to stop monitoring what it takes.
-    /// Returns the name of each that couldn't be told, failing or panicking, which isn't asked
-    /// again. One that says to try again is asked again later, in its scope (ADR 0047).
-    async fn stop_monitoring(&self, doomed: &Doomed) -> Vec<String> {
-        let Some(title) = doomed.to_unmonitor.clone() else {
-            return Vec::new();
-        };
-        let title = StopMonitoring {
-            title: Some(title),
-            ..Default::default()
-        };
-        match doomed.library.kind {
-            LibraryKind::Movies => self.ask_to_stop::<Movies>(&title, &doomed.title).await,
-            LibraryKind::Shows => self.ask_to_stop::<Shows>(&title, &doomed.title).await,
-        }
-    }
-
-    /// Asks each enabled Fulfiller of the kind `K` to stop monitoring `title`, which the log calls
-    /// `name`, but one that needs an id the title lacks. Returns the name of each not told.
-    async fn ask_to_stop<K: 'static>(&self, title: &StopMonitoring, name: &str) -> Vec<String> {
-        let (kind, ids) = match &title.title {
-            Some(Title::Movie(movie)) => ("Movie", &movie.ids[..]),
-            Some(Title::Show(show)) => ("Show", &show.show_ids[..]),
-            None => ("title", &[][..]),
-        };
-        let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
-            let namespaces = ids.iter().map(|id| id.namespace.as_str());
-            if let Some(needs) = requests::unmet(&*fulfiller, namespaces) {
-                return Ok(Err(needs));
-            }
-            let stopped = fulfiller.stop_monitoring(title).await;
-            stopped.map(Ok).map_err(deleting::Retryable)
-        };
-        let plugins = &self.inner.plugins;
-        let mut not_told = Vec::new();
-        for plugin in plugins.providers::<dyn Fulfiller<K>>() {
-            let answer = plugins.ask(&plugin, &stop).await;
-            // `None`: it panicked, which disabled it, or was disabled meanwhile.
-            let reason = match answer.map(|answer| answer.result) {
-                Some(Ok(Ok(()))) => continue,
-                Some(Err(Failure {
-                    kind: Some(wait), ..
-                })) => {
-                    let (title, name) = (title.clone(), name.to_owned());
-                    let again = deleting::StopAgain {
-                        plugin,
-                        title,
-                        name,
-                    };
-                    again.after::<K>(plugins, wait, 1);
-                    continue;
-                }
-                Some(Ok(Err(needs))) => requests::missing(&plugin, kind, &needs),
-                Some(Err(failure)) => failure.message,
-                None => "it panicked or was disabled".to_owned(),
-            };
-            tracing::warn!(
-                plugin = %plugin,
-                title = name,
-                reason,
-                "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
-            );
-            not_told.push(plugins.name(&plugin));
-        }
-        not_told
     }
 
     /// The Matcher that fixes a Match by hand, waiting for a scan of the item's Library.
@@ -755,14 +564,6 @@ impl Scanner {
 /// Locks `mutex`, which no code panics while holding.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// Refuses `doomed` if it is in a folder the Library's last scan found read-only.
-fn refuse_read_only(doomed: &Doomed) -> Result<(), Error> {
-    match doomed.read_only_folder() {
-        Some(folder) => Err(Error::ReadOnly(folder.to_owned())),
-        None => Ok(()),
-    }
 }
 
 #[cfg(test)]

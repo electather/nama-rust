@@ -127,8 +127,8 @@ pub fn serve(
         LocalImages::new(Arc::clone(&db), images.clone()),
         events.clone(),
         Some(probing.clone()),
-        Some(running.clone()),
-        Some(requests.clone()),
+        running.clone(),
+        requests.clone(),
     );
     let automation = Automation::serve(Arc::clone(&db), scanner.clone(), automation_points);
     let abilities = Abilities::new(Arc::clone(&ffmpeg));

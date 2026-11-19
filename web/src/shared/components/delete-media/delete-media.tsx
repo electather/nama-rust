@@ -1,13 +1,13 @@
 import { useState } from "react";
 
-import { LibraryService } from "@/gen/nama/v1/library_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
 import { MayDownloadAgain } from "@/shared/components/delete-media/may-download-again";
 import { NotDeleted } from "@/shared/components/delete-media/not-deleted";
 import { WhatGoes } from "@/shared/components/delete-media/what-goes";
-import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
-import { type Deletable, EVERY_VERSION, type Outcome, targetOf } from "@/shared/lib/deletable";
-import { formText, refusal } from "@/shared/lib/forms";
+import { useDeleteMedia } from "@/shared/hooks/use-delete-media";
+import { type Deletable, EVERY_VERSION, type Outcome } from "@/shared/lib/deletable";
+import { formText, refusal, refusalOf } from "@/shared/lib/forms";
 
 /**
  * Deletes a title's every Version, or one of them, once confirmed with the files that go, the
@@ -31,7 +31,7 @@ export function DeleteMedia({
   onDeletedEveryVersion: (fulfillersNotTold: string[]) => Promise<unknown>;
 }) {
   const [result, setResult] = useState<Outcome>({ notDeleted: [], fulfillersNotTold: [] });
-  const remove = useSensitiveMutation(LibraryService.method.deleteMedia);
+  const remove = useDeleteMedia(deletable);
   return (
     <>
       <ConfirmDialog
@@ -42,7 +42,7 @@ export function DeleteMedia({
         onConfirm={async (typed) => {
           const typedVersion = formText(typed, "version");
           const chosen = typedVersion === "" ? EVERY_VERSION : typedVersion;
-          const deleted = await remove.mutateAsync({ target: targetOf(deletable, chosen) });
+          const deleted = await remove(chosen);
           if (chosen === EVERY_VERSION && deleted.notDeleted.length === 0) {
             // This may stay mounted for another title, such as the next Season, so the page reports.
             setResult({ notDeleted: [], fulfillersNotTold: [] });
@@ -51,7 +51,14 @@ export function DeleteMedia({
           }
           setResult(deleted);
         }}
-        refusal={(error) => refusal(error, "delete it", {}).form}
+        refusal={(error) =>
+          refusal(
+            error,
+            "delete it",
+            {},
+            { [RefusalReason.TAKES_ALONG_UNNAMED]: { form: takesAlong(error) } },
+          ).form
+        }
       >
         <WhatGoes {...deletable} />
       </ConfirmDialog>
@@ -59,4 +66,10 @@ export function DeleteMedia({
       <MayDownloadAgain title={deletable.title} fulfillers={result.fulfillersNotTold} />
     </>
   );
+}
+
+/** Which Episodes a file that goes came to hold since the preview, by the names the Refusal gives. */
+function takesAlong(error: unknown) {
+  const episodes = refusalOf(error).params["episodes"] ?? "other Episodes";
+  return `Nothing was deleted: a file that goes now also holds ${episodes}. Check what goes, then delete again.`;
 }

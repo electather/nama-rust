@@ -32,6 +32,7 @@ use crate::{
         Metadata, MovieOrEpisode, Progress, WatchStates,
         fixture::{self, MatchedMovie, tmdb_movie},
     },
+    playback::RunningPlans,
     plugins::{ExtensionPoints, Registry},
     requests::Requests,
     scanner::Scanner,
@@ -45,16 +46,17 @@ const ALIEN_TMDB_ID: i64 = 348;
 fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
     let points = ExtensionPoints::default();
     let images = ImageStore::new(data, Arc::clone(db));
+    let events = EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default());
     let scanner = Scanner::new(
         Arc::clone(db),
         points.clone(),
         Artwork::new(images.clone(), points.clone()),
         CustomImages::new(Arc::clone(db), images.clone()),
         LocalImages::new(Arc::clone(db), images),
-        EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default()),
+        events.clone(),
         None,
-        None,
-        None,
+        RunningPlans::for_tests(db, events.clone(), data),
+        Requests::new(Arc::clone(db), events, points.clone()),
     );
     Automation::serve(Arc::clone(db), scanner, points)
 }
