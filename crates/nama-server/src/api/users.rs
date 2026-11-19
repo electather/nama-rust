@@ -1,14 +1,11 @@
 //! The Server's Users, their Devices, Plugin Connections and Personal settings:
 //! `nama.v1.UserService`.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 use buffa::{EnumValue, Enumeration as _};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::{
-    Manifest, PluginId,
-    settings::{SettingKind, SettingValue, Settings},
-};
+use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     self as proto, ChangePasswordRequest, ChangePasswordResponse, CreateInviteRequest,
     CreateInviteResponse, CreateUserRequest, CreateUserResponse, DeletePersonalSettingsRequest,
@@ -32,20 +29,16 @@ use crate::{
     db::Database,
     images::PluginLogos,
     library::{CustomImageUrls, CustomImages},
-    plugin_settings::{PluginSettings, StoredPlugin},
-    plugins::Listed,
+    plugin_settings::{Personal, PluginSettings},
     server_settings::ServerUrl,
     users::{
-        self, Caller, Permissions, Users, delete_personal_settings, notification_preferences_of,
-        personal_settings_of, replace_personal_settings, set_notification_preference,
+        self, Caller, Permissions, Users, notification_preferences_of, set_notification_preference,
     },
 };
 
 use super::{
     caller, database_failed, permission_required,
-    plugins::{
-        change_refused, list_failed, logo, setting_to_proto, settings_from_proto, settings_refused,
-    },
+    plugins::{change_refused, list_failed, logo, setting_to_proto, settings_from_proto},
     refuse, signed_out, unknown_enum_value,
 };
 
@@ -56,13 +49,13 @@ use super::{
 pub(super) struct UserServiceHandler {
     pub(super) users: Users,
     pub(super) connections: Connections,
-    /// The Plugins, whose Manifests declare the Personal settings.
+    /// The Plugins, and each User's Personal settings for them.
     pub(super) plugin_settings: PluginSettings,
     /// The logos admins uploaded, shown in place of the Manifests'.
     pub(super) custom_images: CustomImages,
     /// The Manifests' logos, stored as their URLs are handed out.
     pub(super) plugin_logos: PluginLogos,
-    /// Where the Personal settings are stored.
+    /// Where the notification preferences are stored.
     pub(super) db: Arc<Database>,
     /// What Invites' links start with.
     pub(super) server_url: ServerUrl,
@@ -364,16 +357,15 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, ListPersonalSettingsRequest>,
     ) -> ServiceResult<ListPersonalSettingsResponse> {
         let user = caller(&ctx)?.user.id;
-        let listed = self.plugin_settings.list().await.map_err(list_failed)?;
+        let listed = self
+            .plugin_settings
+            .list_personal(user)
+            .await
+            .map_err(list_failed)?;
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut plugins = Vec::new();
-        for StoredPlugin { plugin, .. } in listed {
-            if let Some(manifest) = declaring(&plugin) {
-                plugins.push(
-                    self.personal_to_proto(user, &plugin, manifest, &custom)
-                        .await?,
-                );
-            }
+        for personal in listed {
+            plugins.push(self.personal_to_proto(personal, &custom).await);
         }
         Response::ok(ListPersonalSettingsResponse {
             plugins,
@@ -389,70 +381,15 @@ impl UserService for UserServiceHandler {
         let request = request.to_owned_message();
         let user = caller(&ctx)?.user.id;
         let id = PluginId::from(request.plugin_id);
-        let plugin = self
+        let sent = settings_from_proto(&request.settings);
+        let saved = self
             .plugin_settings
-            .get(&id)
-            .await
-            .map_err(database_failed)?
-            .map(|stored| stored.plugin);
-        let Some((plugin, manifest)) = plugin
-            .as_ref()
-            .and_then(|plugin| Some((plugin, declaring(plugin)?)))
-        else {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
-                format!("no enabled Plugin {id} has Personal settings"),
-            )
-            .field("plugin_id")
-            .param("pluginId", &id)
-            .into());
-        };
-        let schema = &manifest.personal_settings;
-        let stored = self.stored(user, &id, manifest).await?;
-        let mut sent = settings_from_proto(&request.settings);
-        // A secret left out keeps its stored value, as a Plugin's own settings do; unknown keys
-        // fall out here.
-        let values: BTreeMap<String, SettingValue> = schema
-            .fields
-            .iter()
-            .filter_map(|field| {
-                let kept = || {
-                    let secret = field.kind == SettingKind::Secret;
-                    stored.get(&field.key).filter(|_| secret).cloned()
-                };
-                Some((field.key.clone(), sent.remove(&field.key).or_else(kept)?))
-            })
-            .collect();
-        Settings::new(values.clone())
-            .resolve(schema)
-            .map_err(settings_refused)?;
-        let rows: Vec<_> = values
-            .into_iter()
-            .map(|(key, value)| {
-                let secret = schema
-                    .fields
-                    .iter()
-                    .any(|field| field.key == key && field.kind == SettingKind::Secret);
-                (key, personal_text(value), secret)
-            })
-            .collect();
-        let personal = rows
-            .iter()
-            .map(|(key, text, _)| (key.clone(), text.clone()))
-            .collect();
-        self.plugin_settings
-            .check_personal(&id, &personal)
+            .save_personal(user, &id, sent)
             .await
             .map_err(change_refused)?;
-        replace_personal_settings(&self.db, user, &id, rows)
-            .await
-            .map_err(database_failed)?;
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         Response::ok(UpdatePersonalSettingsResponse {
-            plugin: self
-                .personal_to_proto(user, plugin, manifest, &custom)
-                .await?
-                .into(),
+            plugin: self.personal_to_proto(saved, &custom).await.into(),
             ..Default::default()
         })
     }
@@ -463,7 +400,8 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, DeletePersonalSettingsRequest>,
     ) -> ServiceResult<DeletePersonalSettingsResponse> {
         let plugin = PluginId::from(request.plugin_id.to_owned());
-        delete_personal_settings(&self.db, caller(&ctx)?.user.id, &plugin)
+        self.plugin_settings
+            .delete_personal(caller(&ctx)?.user.id, &plugin)
             .await
             .map_err(database_failed)?;
         Response::ok(DeletePersonalSettingsResponse::default())
@@ -513,81 +451,29 @@ impl UserService for UserServiceHandler {
 }
 
 impl UserServiceHandler {
-    /// `user`'s stored Personal settings for the Plugin `id`, each read back as the kind
-    /// `manifest` declares it; one that no longer reads as its kind is left out.
-    async fn stored(
-        &self,
-        user: i64,
-        id: &PluginId,
-        manifest: &Manifest,
-    ) -> Result<BTreeMap<String, SettingValue>, ConnectError> {
-        let mut stored = personal_settings_of(&self.db, user, id)
-            .await
-            .map_err(database_failed)?;
-        Ok(manifest
-            .personal_settings
-            .fields
-            .iter()
-            .filter_map(|field| {
-                let (text, _) = stored.remove(&field.key)?;
-                Some((field.key.clone(), personal_value(field.kind, text)?))
-            })
-            .collect())
-    }
-
-    /// `plugin`'s Personal settings with `user`'s values, its logo among `custom` or its
-    /// Manifest's.
+    /// A User's `personal` settings for a Plugin, its logo among `custom` or its Manifest's.
     async fn personal_to_proto(
         &self,
-        user: i64,
-        plugin: &Listed,
-        manifest: &Manifest,
+        personal: Personal,
         custom: &CustomImageUrls,
-    ) -> Result<proto::PersonalSettings, ConnectError> {
-        let stored = self.stored(user, &plugin.id, manifest).await?;
-        Ok(proto::PersonalSettings {
+    ) -> proto::PersonalSettings {
+        let Personal {
+            plugin,
+            manifest,
+            values,
+        } = personal;
+        proto::PersonalSettings {
             plugin_id: plugin.id.to_string(),
-            name: manifest.name.clone(),
-            logo_url: logo(&self.plugin_logos, plugin, custom).await.url,
+            logo_url: logo(&self.plugin_logos, &plugin, custom).await.url,
             settings: manifest
                 .personal_settings
                 .fields
                 .iter()
-                .map(|field| setting_to_proto(field, stored.get(&field.key)))
+                .map(|field| setting_to_proto(field, values.get(&field.key)))
                 .collect(),
+            name: manifest.name,
             ..Default::default()
-        })
-    }
-}
-
-/// `plugin`'s Manifest if it is enabled and declares Personal settings.
-fn declaring(plugin: &Listed) -> Option<&Manifest> {
-    let manifest = plugin.manifest.as_ref().ok()?;
-    (plugin.enabled && !manifest.personal_settings.fields.is_empty()).then_some(manifest)
-}
-
-/// `value` as `personal_settings` stores it, as text the way a Plugin gets it in a
-/// `UserRecipient`: a bool as `true` or `false`, a number in decimal.
-fn personal_text(value: SettingValue) -> String {
-    match value {
-        SettingValue::Text(text) => text,
-        SettingValue::Bool(on) => on.to_string(),
-        SettingValue::Integer(number) => number.to_string(),
-        // Never stored: the Kernel refuses a Manifest whose Personal settings name Libraries.
-        SettingValue::Libraries(_) => String::new(),
-    }
-}
-
-/// Stored `text` as a value of `kind`, the inverse of [`personal_text`].
-fn personal_value(kind: SettingKind, text: String) -> Option<SettingValue> {
-    match kind {
-        SettingKind::Bool => text.parse().ok().map(SettingValue::Bool),
-        SettingKind::Integer => text.parse().ok().map(SettingValue::Integer),
-        SettingKind::Text | SettingKind::Secret | SettingKind::Choice | SettingKind::Url => {
-            Some(SettingValue::Text(text))
         }
-        // Never personal: the Kernel refuses a Manifest whose Personal settings name Libraries.
-        SettingKind::Libraries => None,
     }
 }
 

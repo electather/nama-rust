@@ -8,4 +8,4 @@ Users, Devices and their sessions (`../users.rs`), what their names may hold and
 ### Neighbours
 
 - Uses: `db`, `plugins` (`ExtensionPoints`, the Authenticator) and `forwarded` (`RequestSource`).
-- Used by: `api` (sessions, `SignIn`, `SetupCode`, the Users parts, Invites), `connections` (`random_secret`), `events` (Personal settings and turned-off notifications for Notifier deliveries, `whose_requests`, `whose_playing` and `may_see`), `playback`, `requests` (`whose_requests`, `may_see` and `is_requester`), `library` (`name_key`), startup in `lib.rs` and `main.rs`, and the tests of `automation`, `browse` and `library`.
+- Used by: `api` (sessions, `SignIn`, `SetupCode`, the Users parts, Invites), `plugin_settings` (saving and reading a User's Personal settings), `connections` (`random_secret`), `events` (Personal settings and turned-off notifications for Notifier deliveries, `whose_requests`, `whose_playing` and `may_see`), `playback`, `requests` (`whose_requests`, `may_see` and `is_requester`), `library` (`name_key`), startup in `lib.rs` and `main.rs`, and the tests of `automation`, `browse` and `library`.
