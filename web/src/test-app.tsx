@@ -16,7 +16,7 @@ import {
   SubscribeResponseSchema,
 } from "@/gen/nama/v1/event_pb";
 import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
-import { PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { PlaybackService, SubtitleBackground, SubtitleSize } from "@/gen/nama/v1/playback_pb";
 import { PluginService } from "@/gen/nama/v1/plugin_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
@@ -52,9 +52,16 @@ export interface ServerState {
   playbackService?: Partial<ServiceImpl<typeof PlaybackService>>;
 }
 
-/** How the fake Server answers `PlaybackService` by default: no Track Preferences, and autoplay on. */
+/**
+ * How the fake Server answers `PlaybackService` by default: no Track Preferences, the default
+ * Subtitle Appearance, and autoplay on.
+ */
 const defaultPlayback: Partial<ServiceImpl<typeof PlaybackService>> = {
   getTrackPreferences: () => ({}),
+  getSubtitleAppearance: () => ({
+    size: SubtitleSize.DEFAULT,
+    background: SubtitleBackground.OUTLINE,
+  }),
   getAutoplay: () => ({ on: true }),
 };
 

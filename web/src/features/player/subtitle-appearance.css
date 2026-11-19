@@ -1,0 +1,31 @@
+/* The User's Subtitle Appearance (ADR 0068) on text subtitles: an outline unless they picked the
+   box, at a size relative to the browser's own. `PlannedPlayer` sets `data-subtitle-*` around the
+   `<video>` to `nama.v1.SubtitleSize` and `nama.v1.SubtitleBackground` numbers. A styled ASS Track
+   libass draws and a burned-in one are pictures, not cues, so these leave them alone. */
+video::cue {
+  color: var(--subtitle-ink);
+  background-color: transparent;
+  /* An edge all round each letter, not a soft shadow, which a white frame shows through. */
+  text-shadow:
+    0.06em 0 var(--subtitle-edge),
+    -0.06em 0 var(--subtitle-edge),
+    0 0.06em var(--subtitle-edge),
+    0 -0.06em var(--subtitle-edge),
+    0.04em 0.04em var(--subtitle-edge),
+    -0.04em 0.04em var(--subtitle-edge),
+    0.04em -0.04em var(--subtitle-edge),
+    -0.04em -0.04em var(--subtitle-edge);
+}
+[data-subtitle-background="2"] video::cue {
+  background-color: var(--subtitle-box);
+  text-shadow: none;
+}
+[data-subtitle-size="1"] video::cue {
+  font-size: 80%;
+}
+[data-subtitle-size="3"] video::cue {
+  font-size: 125%;
+}
+[data-subtitle-size="4"] video::cue {
+  font-size: 150%;
+}

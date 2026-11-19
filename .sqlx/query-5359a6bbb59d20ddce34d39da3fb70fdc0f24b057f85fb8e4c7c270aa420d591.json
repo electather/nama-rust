@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT size, background FROM subtitle_appearances WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "size",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "subtitle_appearances",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "background",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "subtitle_appearances",
+            "name": "background"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "5359a6bbb59d20ddce34d39da3fb70fdc0f24b057f85fb8e4c7c270aa420d591"
+}

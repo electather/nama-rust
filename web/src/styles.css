@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "./features/player/subtitle-appearance.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -116,6 +117,11 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --scrim: oklch(0 0 0 / 50%);
+  /* Text subtitles, the same in every theme since they sit over the video. White ink is 21:1 on
+     the black edge, and 10.4:1 on the box over a white frame (WCAG 2), so either keeps AA. */
+  --subtitle-ink: oklch(1 0 0);
+  --subtitle-edge: oklch(0 0 0);
+  --subtitle-box: oklch(0 0 0 / 75%);
 }
 
 .dark {
