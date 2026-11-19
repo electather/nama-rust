@@ -23,3 +23,15 @@ export function radios(choices: [value: number, label: string][]): [string, stri
 export function chosen<T extends number>(choices: [T, string][], radio: string): T | 0 {
   return choices.find(([value]) => String(value) === radio)?.[0] ?? 0;
 }
+
+/**
+ * What part of the appearance shows: the pick `save` is saving, which `pick` takes from its
+ * request, until the Server answers, and then `saved`, so a pick the Server refused goes back.
+ */
+export function shown<Request, T>(
+  save: { isPending: boolean; variables: Request | undefined },
+  pick: (request: Request) => T,
+  saved: T,
+): T {
+  return save.isPending && save.variables !== undefined ? pick(save.variables) : saved;
+}

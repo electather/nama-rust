@@ -1,3 +1,4 @@
+import { Code, ConnectError } from "@connectrpc/connect";
 import { fireEvent, screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
@@ -44,4 +45,27 @@ test("settings shows the stored size and background, and picking either saves it
   await expect
     .poll(() => backed.map(({ background }) => background))
     .toStrictEqual([SubtitleBackground.BOX]);
+});
+
+test("a size the Server didn't save goes back to the stored one beside the alert", async () => {
+  const transport = fakeServer({
+    signedIn: newUser,
+    playbackService: {
+      getSubtitleAppearance: () => ({
+        size: SubtitleSize.LARGE,
+        background: SubtitleBackground.OUTLINE,
+      }),
+      setSubtitleSize: () => {
+        throw new ConnectError("the database is locked", Code.Internal);
+      },
+    },
+  });
+  openApp("/settings", transport);
+
+  const large = await screen.findByRole<HTMLInputElement>("radio", { name: "Large" });
+  const small = screen.getByRole<HTMLInputElement>("radio", { name: "Small" });
+  fireEvent.click(small);
+
+  await screen.findByText(/^Couldn’t save that/u);
+  expect([large.checked, small.checked]).toStrictEqual([true, false]);
 });

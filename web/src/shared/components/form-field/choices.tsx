@@ -1,6 +1,7 @@
 /**
- * A group of radio buttons named `name`, as `[value, label]` pairs. The one valued `chosen` starts
- * chosen, or else the first.
+ * A group of radio buttons named `name`, as `[value, label]` pairs. The one valued `chosen` is
+ * chosen, or else the first. With `onChoose` the caller keeps `chosen` up to date; without it the
+ * group only starts there, for a form to read.
  */
 export function Choices({
   legend,
@@ -24,7 +25,7 @@ export function Choices({
             type="radio"
             name={name}
             value={value}
-            defaultChecked={value === chosen}
+            {...(onChoose ? { checked: value === chosen } : { defaultChecked: value === chosen })}
             onChange={() => onChoose?.(value)}
             className="size-4 accent-foreground"
           />

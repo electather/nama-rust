@@ -1,7 +1,13 @@
 import { useSetSubtitleBackground } from "@/features/settings/data/use-set-subtitle-background";
 import { useSetSubtitleSize } from "@/features/settings/data/use-set-subtitle-size";
 import { useSubtitleAppearance } from "@/features/settings/data/use-subtitle-appearance";
-import { backgrounds, chosen, radios, sizes } from "@/features/settings/lib/subtitle-appearance";
+import {
+  backgrounds,
+  chosen,
+  radios,
+  shown,
+  sizes,
+} from "@/features/settings/lib/subtitle-appearance";
 import { Choices } from "@/shared/components/form-field/choices";
 import { refusal } from "@/shared/lib/forms";
 
@@ -17,7 +23,7 @@ export function SubtitleAppearance() {
         legend="Subtitle size"
         name="subtitleSize"
         choices={radios(sizes)}
-        chosen={String(size)}
+        chosen={String(shown(setSize, (saving) => saving.size, size))}
         onChoose={(radio) => {
           setSize.mutate({ size: chosen(sizes, radio) });
         }}
@@ -26,7 +32,7 @@ export function SubtitleAppearance() {
         legend="Subtitle background"
         name="subtitleBackground"
         choices={radios(backgrounds)}
-        chosen={String(background)}
+        chosen={String(shown(setBackground, (saving) => saving.background, background))}
         onChoose={(radio) => {
           setBackground.mutate({ background: chosen(backgrounds, radio) });
         }}
