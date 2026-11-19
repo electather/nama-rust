@@ -5,8 +5,28 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Styles the top bar's parts once it sticks (`src/app/top-bar/top-bar.tsx`). */
+@custom-variant raised (@container top-bar scroll-state(stuck: top));
+
+/* ponytail: the top bar sticks only where scroll-state queries exist (Chromium), since a stuck bar
+   that can't lift would lie flat over the page. Elsewhere it scrolls away, as the old chrome did;
+   an IntersectionObserver sentinel setting a class would lift it there. */
+@utility top-bar-stick {
+  @supports (container-type: scroll-state) {
+    position: sticky;
+    top: 0;
+    container: top-bar / scroll-state;
+  }
+}
+
 /* No Tailwind palette: a raw colour class like `bg-red-500` doesn't exist, so only the semantic
    tokens below can colour anything (ADR 0016). */
+/* A scrolling list's own scrollbar, as quiet as a hairline. */
+@utility scrollbar-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
 @theme {
   --color-*: initial;
   /* DESIGN.md's Display: Movie and Show titles over their backdrops. */
@@ -152,5 +172,7 @@
   }
   html {
     @apply font-sans;
+    /* What takes focus scrolls clear of the top bar, 72px tall, where it sticks (WCAG 2.4.11). */
+    scroll-padding-top: calc(var(--spacing) * 18);
   }
 }

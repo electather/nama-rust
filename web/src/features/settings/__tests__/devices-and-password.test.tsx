@@ -103,7 +103,7 @@ test("changing your password says your other Devices were signed out", async () 
 test("a User who isn't an Admin sees no Admin entry in the chrome", async () => {
   openApp("/settings", fakeServer({ signedIn: newUser }));
 
-  await screen.findByRole("link", { name: "Settings" });
+  await screen.findByRole("link", { name: "Home" });
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 

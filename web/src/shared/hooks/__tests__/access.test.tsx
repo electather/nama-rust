@@ -140,12 +140,18 @@ test("a refused Device name on Setup isn't shown under the name or password", as
   expect(screen.getByLabelText("Password").getAttribute("aria-invalid")).toBe("false");
 });
 
+/** Signs out from your menu in the top bar, once the app shows it. */
+async function signOut() {
+  fireEvent.click(await screen.findByRole("button", { name: /’s menu$/u }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Sign out" }));
+}
+
 test("signed out, a page sends you to sign in and back again", async () => {
   const router = openApp("/libraries/1", serverToSignInTo());
 
   await submitSignIn();
   expect({ ...router.state.location.search }).toStrictEqual({ redirect: "/libraries/1" });
-  await screen.findByRole("button", { name: "Sign out" });
+  await screen.findByRole("button", { name: /’s menu$/u });
   expect(router.state.location.pathname).toBe("/libraries/1");
 });
 
@@ -153,7 +159,7 @@ test("signing in never redirects to another site", async () => {
   const router = openApp("/sign-in?redirect=https%3A%2F%2Fevil.example%2F", serverToSignInTo());
 
   await submitSignIn();
-  await screen.findByRole("button", { name: "Sign out" });
+  await screen.findByRole("button", { name: /’s menu$/u });
   expect(router.state.location.href).toBe("/");
 });
 
@@ -253,7 +259,7 @@ test("signing out goes to /sign-in", async () => {
   });
   const router = openApp("/", transport);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  await signOut();
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
   expect(router.state.location.pathname).toBe("/sign-in");
 });
@@ -267,10 +273,10 @@ test("a session that has ended sends you to sign in and back again", async () =>
     },
   });
   const router = openApp("/settings", transport);
-  const signOut = await screen.findByRole("button", { name: "Sign out" });
+  await screen.findByRole("button", { name: /’s menu$/u });
   delete state.signedIn;
 
-  fireEvent.click(signOut);
+  await signOut();
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
   expect({ ...router.state.location.search }).toStrictEqual({ redirect: "/settings" });
 });
@@ -290,7 +296,7 @@ test("an `unauthenticated` refusal while still signed in keeps you on the page",
     ),
   );
 
-  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  await signOut();
   await screen.findByRole("heading", { name: "Settings" });
   expect(router.state.location.pathname).toBe("/settings");
 });
