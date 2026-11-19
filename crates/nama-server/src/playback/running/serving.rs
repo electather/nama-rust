@@ -35,7 +35,7 @@ async fn serve(
     };
     if file == PLAYLIST {
         let content_type = [(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")];
-        return (content_type, plan.timeline.playlist()).into_response();
+        return (content_type, plan.playlist()).into_response();
     }
     let written = if file == INIT {
         plan.init().await
