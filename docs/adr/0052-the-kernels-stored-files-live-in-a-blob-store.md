@@ -6,6 +6,8 @@ The point has five required rpcs, each one object per call: `Put` (replacing any
 
 It holds the Kernel's own stored files: the image store's originals, Custom Images and Plugin logos included. It never holds media files; a Library's folders stay on the Server's own disks.
 
+[ADR 0067](0067-subtitles-come-from-a-plugins-source-and-live-in-the-blob-store.md) amends this: subtitles a User downloads count as the Kernel's stored files too, not media, kept under `subtitles/` and copied with the other folders when the store is switched.
+
 The design that uses it:
 
 - **`images` defines the interface it needs**, `Blobs`, with the five calls and `put_file` for an upload already on disk, so an upload isn't read back into memory before a local store moves it into place. The local-disk store is `images`' own Built-in default and keeps today's layout under the data directory, so a Server that never picks another store behaves as before. The Plugin-backed store, a `Blobs` over `dyn BlobStore`, lives in the `plugins` area, and the Kernel's startup hands `images` one or the other. `images` stays in the bottom row and never calls `plugins`, so `ROWS` and ADR 0051 don't change.
