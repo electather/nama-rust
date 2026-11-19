@@ -26,7 +26,8 @@ pub trait SubtitleSource: Send + Sync + 'static {
         search: &'a SubtitleSearch,
     ) -> BoxFuture<'a, Result<SubtitleResults, PluginError>>;
 
-    /// The file of the subtitle a [`Self::search`] answered with `download`'s id.
+    /// The file of the subtitle a [`Self::search`] answered with `download`'s id, at most
+    /// [`BLOB_MAX_BYTES`](nama_plugin_proto::BLOB_MAX_BYTES).
     ///
     /// # Errors
     ///

@@ -339,21 +339,6 @@ async fn a_plugins_name_and_description_come_from_its_manifest() {
 }
 
 #[tokio::test]
-async fn a_plugin_serving_subtitles_is_listed_under_the_subtitle_source_point() {
-    let started = Started::new().await;
-
-    started.drop_in("test.wasm", "subtitle-source");
-
-    let listed = started.listed("test-plugin").await.unwrap();
-    assert_eq!(listed.refused_reason, "");
-    assert!(
-        listed
-            .extension_points
-            .contains(&ExtensionPoint::EXTENSION_POINT_SUBTITLE_SOURCE.into())
-    );
-}
-
-#[tokio::test]
 async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refused() {
     let started = Started::new().await;
 

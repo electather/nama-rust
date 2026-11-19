@@ -486,7 +486,7 @@ mod subtitle_source {
         extism_pdk::Error,
     };
 
-    /// A subtitle source with no subtitles.
+    /// A subtitle source that finds nothing and fails every download.
     struct NoSubtitles;
 
     impl SubtitleSource for NoSubtitles {
