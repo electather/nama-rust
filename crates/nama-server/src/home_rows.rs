@@ -298,24 +298,47 @@ impl HomeRows {
                 return;
             }
         };
-        let (mut rows, fresh_for) = kept(given);
-        if let Err(err) = self.look_up_missing(plugin, &mut rows).await {
-            warn!(plugin = %plugin, "could not look up the titles of the Plugin's Home rows: {err}");
-            return;
+        let (mut rows, mut fresh_for) = kept(given);
+        let unanswered = match self.look_up_missing(plugin, &mut rows).await {
+            Ok(unanswered) => unanswered,
+            Err(err) => {
+                warn!(plugin = %plugin, "could not look up the titles of the Plugin's Home rows: {err}");
+                return;
+            }
+        };
+        // A title source that is down isn't one that lacks the titles, so the next refresh, the
+        // soonest allowed, asks it again rather than the rows' own, up to a week away.
+        if unanswered.is_some() {
+            fresh_for = MIN_TTL;
         }
         if let Err(err) = self.replace(plugin, rows, fresh_for).await {
             warn!(plugin = %plugin, "could not store the Plugin's Home rows: {err}");
+            return;
+        }
+        // After the rows are stored, so a reader of the log knows they are.
+        if let Some(err) = unanswered {
+            warn!(plugin = %plugin, "the title source couldn't look up the Plugin's Home row titles, which keep what the last refresh looked up until a refresh in 15 minutes: {err}");
         }
     }
 
     /// Fills in the titles of `rows`, the Plugin `plugin`'s, that aren't on the Server, as the
-    /// title source has them, leaving out those it doesn't.
-    async fn look_up_missing(&self, plugin: &PluginId, rows: &mut [Row]) -> Result<(), Error> {
+    /// title source has them, leaving out those it doesn't. Once the title source fails, it asks
+    /// no more and the rest keep what the last refresh looked up; the failure is returned.
+    async fn look_up_missing(
+        &self,
+        plugin: &PluginId,
+        rows: &mut [Row],
+    ) -> Result<Option<requests::Error>, Error> {
         let titles: HashSet<Title> = (rows.iter())
             .flat_map(|row| row.titles.iter().cloned())
             .collect();
         let titles: Vec<Title> = titles.into_iter().collect();
         let on_server = self.on_server(&titles).await?;
+        let mut before: HashMap<Title, Missing> = (self.stored().await?.into_iter())
+            .filter(|(stored, _)| stored == plugin)
+            .flat_map(|(_, row)| row.missing)
+            .map(|missing| (missing.title.clone(), missing))
+            .collect();
         let mut looked_up = HashMap::new();
         let mut unanswered = None;
         // ponytail: one title-source call per missing title, one after another, at every refresh;
@@ -324,20 +347,26 @@ impl HomeRows {
             .iter()
             .filter(|title| !on_server.contains_key(*title))
         {
-            match self.look_up(title).await {
-                Ok(found) => looked_up.extend(found.map(|missing| (title, missing))),
-                Err(err) => unanswered = Some(err),
-            }
-        }
-        if let Some(err) = unanswered {
-            warn!(plugin = %plugin, "the Plugin's Home rows leave out titles the title source couldn't look up: {err}");
+            let asked = match unanswered {
+                None => Some(self.look_up(title).await),
+                Some(_) => None,
+            };
+            let found = match asked {
+                Some(Ok(found)) => found,
+                Some(Err(err)) => {
+                    unanswered = Some(err);
+                    before.remove(title)
+                }
+                None => before.remove(title),
+            };
+            looked_up.extend(found.map(|missing| (title, missing)));
         }
         for row in rows {
             row.missing = (row.titles.iter())
                 .filter_map(|title| looked_up.get(title).cloned())
                 .collect();
         }
-        Ok(())
+        Ok(unanswered)
     }
 
     /// `title` as a Request would look it up, `None` if the title source doesn't have it.

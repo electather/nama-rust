@@ -485,3 +485,39 @@ async fn opening_home_asks_no_title_source() {
 
     assert_eq!(server.tmdb().requests().len(), asked_before);
 }
+
+#[tokio::test]
+async fn a_refresh_no_title_source_answers_keeps_the_missing_titles_and_tries_again_in_15_minutes()
+{
+    let log = Log::global();
+    // A setting no other test sets, so only this test's refreshes log it.
+    let asked = ["test-plugin gives Home rows \"missing,picks\""];
+    let unanswered = ["the title source couldn't look up the Plugin's Home row titles"];
+    let server = installed(TestServer::builder().moves_clock(), "missing,picks").await;
+    enable(&server).await;
+    wait_for_rows(&server, &["picks", "missing"]).await;
+
+    // Without TMDB no title source answers the refresh the Plugin coming up starts.
+    let server = TestServer::builder().restart(server).await;
+    log.wait_for(&unanswered, 1).await;
+    let picks = titles_from(&browse(&server), "picks").await;
+    rows(&server).await;
+    // Time for a refresh home started to call the Plugin.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let before = log.count(&asked);
+    server.advance_clock(Duration::from_mins(16));
+    rows(&server).await;
+
+    assert_eq!(
+        all_shown(&picks),
+        [
+            format!("Movie {HEAT}"),
+            format!("missing Movie {DUNE}"),
+            format!("Movie {ALIEN}"),
+            format!("missing Show {DARK}"),
+        ],
+        "the titles the last refresh looked up"
+    );
+    assert_eq!(before, 2, "home within 15 minutes refreshed it");
+    log.wait_for(&asked, 3).await;
+}
