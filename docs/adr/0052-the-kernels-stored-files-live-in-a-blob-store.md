@@ -6,7 +6,7 @@ The point has five required rpcs, each one object per call: `Put` (replacing any
 
 It holds the Kernel's own stored files: the image store's originals, Custom Images and Plugin logos included. It never holds media files; a Library's folders stay on the Server's own disks.
 
-[ADR 0067](0067-subtitles-come-from-a-plugins-source-and-live-in-the-blob-store.md) amends this: subtitles a User downloads count as the Kernel's stored files too, not media, kept under `subtitles/` and copied with the other folders when the store is switched.
+[ADR 0067](0067-subtitles-come-from-a-plugins-source-and-live-in-the-blob-store.md) adds a Provider-lane point after this one, the subtitle source, and amends this: subtitles a User downloads count as the Kernel's stored files too, not media, kept under `subtitles/` and copied with the other folders when the store is switched.
 
 The design that uses it:
 

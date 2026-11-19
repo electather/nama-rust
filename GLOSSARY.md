@@ -63,7 +63,7 @@ One thing a User is allowed to do on a Server, such as Request or manage Librari
 _Avoid_: role, scope, right, group
 
 **Download subtitles**:
-The Permission to search a subtitle source for the Version a User is watching and download one of its subtitles. New Users get it only once an Admin adds it to the default set.
+The Permission to search a subtitle source for the Version a User is watching and download one of its subtitles.
 _Avoid_: subtitle search permission
 
 **Invite**:
@@ -133,7 +133,7 @@ A Provider that proposes what a file is, such as an Episode numbered from the st
 _Avoid_: matcher (the code's `matching::Matcher` fixes Matches by hand), parser, identifier
 
 **Subtitle source**:
-A Provider that searches an outside service, such as OpenSubtitles.com, for a Version's subtitles and downloads one a User picks. The Kernel keeps what was downloaded in the blob store, as a subtitle Track of that Version (ADR 0067).
+A Provider that searches an outside service, such as OpenSubtitles.com, for a Version's subtitles and downloads one a User picks (ADR 0067).
 _Avoid_: subtitle provider, subtitle agent, subtitle downloader
 
 **Blob store**:
