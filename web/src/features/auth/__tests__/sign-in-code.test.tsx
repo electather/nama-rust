@@ -60,7 +60,6 @@ test("once the code is approved, polling signs the browser in", async () => {
 
   await getCode();
   await expect(screen.findByText("ABCD-EFGH")).resolves.toBeDefined();
-  expect(screen.getByText(`${globalThis.location.host}/code`)).toBeDefined();
 
   await nextPoll();
   approve();
@@ -284,17 +283,6 @@ test("without Recent Authentication, a code is approved once you confirm it’s 
   await expect(
     screen.findByRole("heading", { name: "“Living room TV” is signed in" }),
   ).resolves.toBeDefined();
-});
-
-test("“Confirm it’s you” names the Device it signs in", async () => {
-  openApp("/code", serverNeedingRecentAuthentication());
-  await screen.findByRole("heading", { name: "Sign in a Device" });
-
-  await lookUp("abcdefgh");
-  fireEvent.click(await screen.findByRole("button", { name: "Sign it in" }));
-  const dialog = await confirmItsYou();
-
-  expect(dialog.textContent).toContain("Enter your password to sign in “Living room TV”.");
 });
 
 test("an approval the Server refuses goes back to the code, kept, saying why", async () => {

@@ -24,8 +24,5 @@ const systems: [mark: string, name: string][] = [
 export function browserName(userAgent: string) {
   const browser = browsers.find(([mark]) => userAgent.includes(mark))?.[1];
   const system = systems.find(([mark]) => userAgent.includes(mark))?.[1];
-  if (browser === undefined) {
-    return system ?? "";
-  }
-  return system === undefined ? browser : `${browser} on ${system}`;
+  return [browser, system].filter((name) => name !== undefined).join(" on ");
 }
