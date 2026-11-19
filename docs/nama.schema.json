@@ -5,12 +5,12 @@
   "properties": {
     "data_dir": {
       "default": "data",
-      "description": "Directory where the Server keeps its database and other state.",
+      "description": "Directory where the Server keeps its database and other state. A relative path counts from\nthe folder the Server starts in.",
       "type": "string"
     },
     "ffmpeg": {
       "default": null,
-      "description": "The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`.",
+      "description": "The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`, as\ndoes a bare name such as `ffmpeg`. A relative path with a folder, such as `bin/ffmpeg`,\ncounts from the folder the Server starts in.",
       "type": [
         "string",
         "null"
@@ -18,7 +18,7 @@
     },
     "ffprobe": {
       "default": null,
-      "description": "The ffprobe to run. Unset, the default, looks for it on `PATH`.",
+      "description": "The ffprobe to run. Unset, the default, looks for it on `PATH`, as does a bare name such as\n`ffprobe`. A relative path with a folder counts from the folder the Server starts in.",
       "type": [
         "string",
         "null"

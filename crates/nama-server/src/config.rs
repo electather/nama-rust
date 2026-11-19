@@ -41,7 +41,8 @@ pub struct Config {
     pub name: String,
     /// Address the Server listens on.
     pub listen: SocketAddr,
-    /// Directory where the Server keeps its database and other state.
+    /// Directory where the Server keeps its database and other state. A relative path counts from
+    /// the folder the Server starts in.
     pub data_dir: PathBuf,
     /// The `[plugins.<id>]` tables in the file, imported into the database on the first start and
     /// ignored after.
@@ -50,9 +51,12 @@ pub struct Config {
     /// Empty by default, so the headers are ignored.
     // ADR 0018; kept out of the doc comment, which editors show users.
     pub trusted_proxies: Vec<IpRange>,
-    /// The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`.
+    /// The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`, as
+    /// does a bare name such as `ffmpeg`. A relative path with a folder, such as `bin/ffmpeg`,
+    /// counts from the folder the Server starts in.
     pub ffmpeg: Option<PathBuf>,
-    /// The ffprobe to run. Unset, the default, looks for it on `PATH`.
+    /// The ffprobe to run. Unset, the default, looks for it on `PATH`, as does a bare name such as
+    /// `ffprobe`. A relative path with a folder counts from the folder the Server starts in.
     pub ffprobe: Option<PathBuf>,
     /// Whether the OS reports changes in Library folders so they're scanned soon after. On by
     /// default; off, folders are scanned every six hours and when asked.
@@ -181,7 +185,8 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// If the named file is missing, or a layer has a value of the wrong type or syntax.
+    /// If the named file is missing, a layer has a value of the wrong type or syntax, `data_dir` is
+    /// empty, or the working folder can't be read to make a relative path absolute.
     pub fn load(file: Option<&Path>) -> Result<(Self, Vec<String>), Box<figment::Error>> {
         let file = file.or_else(|| Some(Path::new(DEFAULT_FILE)).filter(|f| f.is_file()));
         let mut figment = Figment::from(Serialized::defaults(Self::default()));
@@ -189,7 +194,19 @@ impl Config {
             figment = figment.merge(Toml::file_exact(file));
         }
         let figment = figment.merge(Env::prefixed(ENV_PREFIX).ignore(&["config"]));
-        let NotingIgnored(config, ignored) = figment.extract()?;
+        let NotingIgnored(mut config, ignored) = figment.extract()?;
+        // The default Segment folder is under `data_dir`, and ffmpeg runs inside it while also
+        // handed paths that include it, so a relative one would resolve twice (#1120).
+        config.data_dir = absolute("data_dir", &config.data_dir)?;
+        for (key, program) in [
+            ("ffmpeg", &mut config.ffmpeg),
+            ("ffprobe", &mut config.ffprobe),
+        ] {
+            // A bare name is left for the OS to look up on `PATH`.
+            if let Some(path) = program.as_mut().filter(|p| p.components().count() > 1) {
+                *path = absolute(key, path)?;
+            }
+        }
         // The file's own table, not the merged figment's metadata: a `NAMA_*` variable setting the
         // same key would hide the file's, and figment's paths split a quoted `"a.b"` key.
         let in_file: Dict = match file {
@@ -202,6 +219,12 @@ impl Config {
             .collect();
         Ok((config, unknown_keys))
     }
+}
+
+/// `path` made absolute from the working folder, lexically: the data directory may not exist yet,
+/// and symlinks stay as the Admin wrote them. An empty `path` is an error naming `key`.
+fn absolute(key: &str, path: &Path) -> Result<PathBuf, Box<figment::Error>> {
+    std::path::absolute(path).map_err(|err| Box::new(format!("`{key}`: {err}").into()))
 }
 
 /// A [`Config`] and the paths of the keys deserializing it ignored.

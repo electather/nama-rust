@@ -377,6 +377,12 @@ pub(super) fn hls_output(
     dir: &Path,
     n: usize,
 ) -> HlsRun {
+    // ffmpeg runs inside `dir` and is also handed paths that include it, which would resolve twice.
+    debug_assert!(
+        dir.is_absolute(),
+        "HLS output folder {} is relative",
+        dir.display()
+    );
     // ffmpeg 5.0 renamed it; 6.0 dropped the old name.
     let segment_options = if is_release_before(version, (5, 0)) {
         "-hls_ts_options"
