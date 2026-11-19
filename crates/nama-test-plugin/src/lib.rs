@@ -45,7 +45,8 @@ mod exports {
     // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
     // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
     // requests the Store and Library Permissions, with `recogniser` it recognises files, with
-    // `home-rows` it gives Home rows, and with `panic` it panics instead.
+    // `home-rows` it gives Home rows, with `subtitle-source` it is a subtitle source that finds
+    // nothing, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -132,6 +133,15 @@ mod exports {
                     crate::home_rows::ROWS,
                     SettingKind::SETTING_KIND_TEXT,
                 )],
+            ]
+            .concat(),
+            ..manifest
+        };
+        #[cfg(feature = "subtitle-source")]
+        let manifest = Manifest {
+            points: [
+                manifest.points,
+                vec![nama_pdk::point(services::SUBTITLE_SOURCE)],
             ]
             .concat(),
             ..manifest
@@ -482,4 +492,27 @@ mod home_rows {
     }
 
     nama_pdk::home_row_source!(TestRows, [shared_rows, user_rows]);
+}
+
+#[cfg(feature = "subtitle-source")]
+mod subtitle_source {
+    use nama_pdk::{
+        SubtitleDownload, SubtitleFile, SubtitleResults, SubtitleSearch, SubtitleSource,
+        extism_pdk::Error,
+    };
+
+    /// A subtitle source that finds nothing and fails every download.
+    struct NoSubtitles;
+
+    impl SubtitleSource for NoSubtitles {
+        fn search(_search: SubtitleSearch) -> Result<SubtitleResults, Error> {
+            Ok(SubtitleResults::default())
+        }
+
+        fn download(_download: SubtitleDownload) -> Result<SubtitleFile, Error> {
+            Err(Error::msg("test-plugin has no subtitles"))
+        }
+    }
+
+    nama_pdk::subtitle_source!(NoSubtitles);
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { Spinner } from "@/features/player/components/spinner";
 import { TopBar } from "@/features/player/components/top-bar";
 import type { PlayerProps } from "@/features/player/lib/player-props";
 
@@ -8,8 +9,17 @@ import type { PlayerProps } from "@/features/player/lib/player-props";
 // `player-limit.test.tsx` finds during a quick plan, where it expects `DroppedChoice`'s or none.
 const NOTICEABLE_WAIT_MS = 1000;
 
-/** The title bar, and once the wait is noticeable, that the Server is getting the Version ready. */
-export function GettingReady({ title, back }: Pick<PlayerProps, "title" | "back">) {
+/**
+ * The title bar over the title's art under a scrim, and once the wait is noticeable, that the Server
+ * is getting the Version ready.
+ */
+export function GettingReady({
+  title,
+  heading,
+  line,
+  back,
+  backdropUrl,
+}: Pick<PlayerProps, "title" | "heading" | "line" | "back" | "backdropUrl">) {
   const [noticeable, setNoticeable] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -21,9 +31,18 @@ export function GettingReady({ title, back }: Pick<PlayerProps, "title" | "back"
   }, []);
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
-      <TopBar title={title} back={back} />
+      {backdropUrl !== undefined && (
+        <img src={backdropUrl} alt="" className="absolute inset-0 size-full object-cover" />
+      )}
+      <div aria-hidden className="absolute inset-0 bg-scrim" />
+      <div className="relative">
+        <TopBar title={heading ?? title} line={line} back={back} shaded={false} />
+      </div>
       {noticeable && (
-        <output className="m-auto px-6 text-muted-foreground">Getting this ready…</output>
+        <output className="relative m-auto flex flex-col items-center gap-3.5 px-6 text-sm">
+          <Spinner />
+          Getting this ready…
+        </output>
       )}
     </div>
   );

@@ -11,6 +11,7 @@ include!("nama.plugin.v1.home_row.rs");
 include!("nama.plugin.v1.manifest.rs");
 include!("nama.plugin.v1.notifier.rs");
 include!("nama.plugin.v1.recogniser.rs");
+include!("nama.plugin.v1.subtitle_source.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -39,6 +40,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.manifest.__view.rs");
         include!("nama.plugin.v1.notifier.__view.rs");
         include!("nama.plugin.v1.recogniser.__view.rs");
+        include!("nama.plugin.v1.subtitle_source.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -188,6 +190,11 @@ pub mod __buffa {
         reg.register_json_any(super::__FILE_RECOGNISED_JSON_ANY);
         reg.register_json_any(super::__RECOGNISED_MOVIE_JSON_ANY);
         reg.register_json_any(super::__RECOGNISED_EPISODES_JSON_ANY);
+        reg.register_json_any(super::__SUBTITLE_SEARCH_JSON_ANY);
+        reg.register_json_any(super::__SUBTITLE_RESULTS_JSON_ANY);
+        reg.register_json_any(super::__SUBTITLE_RESULT_JSON_ANY);
+        reg.register_json_any(super::__SUBTITLE_DOWNLOAD_JSON_ANY);
+        reg.register_json_any(super::__SUBTITLE_FILE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -686,5 +693,25 @@ pub use self::__buffa::view::RecognisedMovieOwnedView;
 pub use self::__buffa::view::RecognisedEpisodesView;
 #[doc(inline)]
 pub use self::__buffa::view::RecognisedEpisodesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleSearchView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleSearchOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleResultsView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleResultsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleResultView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleResultOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleDownloadView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleDownloadOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleFileView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleFileOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

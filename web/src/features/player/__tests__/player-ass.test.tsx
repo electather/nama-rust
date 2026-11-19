@@ -10,6 +10,7 @@ import {
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openTracks, rowIn, rowsOf } from "@/test-player";
 
 /** The options of each ASS renderer made, and whether the next one fails to start. */
 const libass = vi.hoisted(
@@ -136,7 +137,7 @@ async function playingWith(
   openApp("/libraries/1/movies/tmdb-348/play", server(asked));
   const video = await screen.findByLabelText<HTMLVideoElement>("Alien");
   Object.defineProperty(video, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
+  openTracks();
   return video;
 }
 
@@ -151,7 +152,7 @@ test("a drawn ASS Track is one entry, with no new plan or styling to choose", as
   const asked: PlanPlaybackRequest[] = [];
   await playingWith(asked, SERVED);
 
-  const items = screen.getAllByRole("menuitemradio").map((item) => item.textContent);
+  const items = rowsOf("Subtitles").map((item) => item.textContent);
 
   expect(items).toStrictEqual(["Off", "Persian Signs"]);
   expect(asked[0]?.deviceDecoding?.subtitleFormats).toStrictEqual([
@@ -169,7 +170,7 @@ test("an ASS Track says Loading… until it and its fonts are fetched, then is d
   });
   // oxlint-disable-next-line require-await -- the font arrives when the test sends it
   const video = await playingWith(asked, { ...SERVED, [FONT]: async () => font });
-  const signs = screen.getByRole("menuitemradio", { name: /Signs/u });
+  const signs = rowIn("Subtitles", /Signs/u);
 
   fireEvent.click(signs);
 
@@ -191,7 +192,7 @@ test("an ASS Track says Loading… until it and its fonts are fetched, then is d
 
 test("an ASS Track whose font can't be fetched says so, and isn't drawn", async () => {
   await playingWith([], { ...SERVED, [FONT]: answer("", 404) });
-  const signs = screen.getByRole("menuitemradio", { name: /Signs/u });
+  const signs = rowIn("Subtitles", /Signs/u);
 
   fireEvent.click(signs);
 
@@ -207,7 +208,7 @@ test("a renderer that won't start has the ASS Track burned in by a plan that doe
   libass.failsToStart = true;
   const directPlay = await playingWith(asked, SERVED);
 
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Signs/u }));
+  fireEvent.click(rowIn("Subtitles", /Signs/u));
 
   await waitFor(() => {
     expect(asked).toHaveLength(2);

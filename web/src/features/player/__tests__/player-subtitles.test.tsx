@@ -5,6 +5,7 @@ import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { PlaybackMethod, PlaybackService, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
 
 /** The playlist each hls.js player loaded. */
 const hlsJs = vi.hoisted((): { played: string[] } => ({ played: [] }));
@@ -134,8 +135,7 @@ async function player() {
 }
 
 function choose(name: RegExp) {
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name }));
+  pickIn("Subtitles", name);
 }
 
 function loaded(video: HTMLVideoElement, url: string) {
@@ -146,17 +146,15 @@ test("the picker lists the text subtitles by language and title, with Forced and
   openApp(PLAYER, server().transport);
   await player();
 
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
+  openTracks();
 
-  const items = await screen.findAllByRole("menuitemradio");
+  const items = (await screen.findByRole("radiogroup", { name: "Subtitles" }), rowsOf("Subtitles"));
   expect(items.map((item) => item.textContent)).toStrictEqual([
     "Off",
     "English Full · SDH",
     "French Forced",
   ]);
-  expect(screen.getByRole("menuitemradio", { name: "Off" }).getAttribute("aria-checked")).toBe(
-    "true",
-  );
+  expect(rowIn("Subtitles", "Off").getAttribute("aria-checked")).toBe("true");
 });
 
 test("a subtitle turned on says it's loading until it has loaded", async () => {
@@ -165,7 +163,8 @@ test("a subtitle turned on says it's loading until it has loaded", async () => {
 
   choose(/English/u);
 
-  const english = await screen.findByRole("menuitemradio", { name: /English/u });
+  const english =
+    (await screen.findByRole("radiogroup", { name: "Subtitles" }), rowIn("Subtitles", /English/u));
   expect(english.textContent).toContain("Loading…");
   expect(modes.get(ENGLISH)?.mode).toBe("showing");
   loaded(video, ENGLISH);
@@ -191,13 +190,13 @@ test.each(ways)(
   async (way) => {
     const { video, modes, plans } = await englishOn(way);
 
-    fireEvent.click(screen.getByRole("menuitemradio", { name: /French/u }));
+    fireEvent.click(rowIn("Subtitles", /French/u));
 
     await waitFor(() => {
       expect(modes.get(FRENCH)?.mode).toBe("showing");
     });
     expect(modes.get(ENGLISH)?.mode).toBe("disabled");
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Off" }));
+    fireEvent.click(rowIn("Subtitles", "Off"));
     await waitFor(() => {
       expect(modes.get(FRENCH)?.mode).toBe("disabled");
     });
@@ -217,9 +216,7 @@ test.each(ways)("a subtitle in $how stays on through a seek", async (way) => {
   fireEvent.seeked(video);
 
   expect(modes.get(ENGLISH)?.mode).toBe("showing");
-  expect(screen.getByRole("menuitemradio", { name: /English/u }).getAttribute("aria-checked")).toBe(
-    "true",
-  );
+  expect(rowIn("Subtitles", /English/u).getAttribute("aria-checked")).toBe("true");
   expect(plans.asked).toBe(1);
   expect(screen.getByLabelText("Alien")).toBe(video);
   expect(playing(video)).toStrictEqual(way.plays);
@@ -229,10 +226,12 @@ test("space in the subtitle menu picks a subtitle without playing or pausing", a
   openApp(PLAYER, server().transport);
   const { video, modes } = await player();
   const [play, pause] = [vi.spyOn(video, "play"), vi.spyOn(video, "pause")];
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
-  const french = await screen.findByRole("menuitemradio", { name: /French/u });
+  openTracks();
+  const french =
+    (await screen.findByRole("radiogroup", { name: "Subtitles" }), rowIn("Subtitles", /French/u));
 
   fireEvent.keyDown(french, { key: " " });
+  fireEvent.keyUp(french, { key: " " });
 
   await waitFor(() => {
     expect(modes.get(FRENCH)?.mode).toBe("showing");

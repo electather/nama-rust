@@ -8,15 +8,20 @@ import { Button } from "@/shared/ui/button";
 export function PlayButton({ video }: { video: Video }) {
   const { playing } = video.state;
   return (
+    // Translucent, not the primary fill: Play is transport, and Skip or Next Episode is the screen's one primary action.
     <Button
-      variant="overlay"
-      size="icon"
+      variant="secondary"
+      size="round"
       aria-label={playing ? "Pause" : "Play"}
       onClick={() => {
         video.control(togglePlay);
       }}
     >
-      {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
+      {playing ? (
+        <Pause aria-hidden className="fill-current" />
+      ) : (
+        <Play aria-hidden className="fill-current" />
+      )}
     </Button>
   );
 }

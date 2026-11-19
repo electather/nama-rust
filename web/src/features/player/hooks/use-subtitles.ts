@@ -1,6 +1,5 @@
 import { type RefObject, useEffect, useState } from "react";
 
-import { clearOfControls } from "@/features/player/lib/clear-of-controls";
 import type { SubtitleState } from "@/features/player/lib/subtitle-render";
 
 /**
@@ -13,10 +12,21 @@ export function useSubtitles(
 ): Partial<Record<string, SubtitleState>> {
   const [states, setStates] = useState<Partial<Record<string, SubtitleState>>>({});
   useEffect(() => {
+    const video = videoRef.current;
     // A `<track>`'s `default` counts only when the `<video>` first loads, so its mode is set.
-    for (const element of videoRef.current?.querySelectorAll("track") ?? []) {
-      element.track.mode = element.getAttribute("src") === shown ? "showing" : "disabled";
-    }
+    const keep = () => {
+      for (const element of video?.querySelectorAll("track") ?? []) {
+        // The mode it already has fires no `change`, so this ends.
+        element.track.mode = element.getAttribute("src") === shown ? "showing" : "disabled";
+      }
+    };
+    keep();
+    // And again when the browser shows one of its own accord, as Chrome does the one the system's
+    // captions setting prefers, such as an SDH, after this has set them.
+    video?.textTracks.addEventListener("change", keep);
+    return () => {
+      video?.textTracks.removeEventListener("change", keep);
+    };
   }, [videoRef, shown]);
   useEffect(() => {
     const video = videoRef.current;
@@ -27,7 +37,6 @@ export function useSubtitles(
         if (!(target instanceof HTMLTrackElement)) {
           return;
         }
-        clearOfControls(target.track);
         setStates((before) => ({ ...before, [target.getAttribute("src") ?? ""]: state }));
       };
     const [onLoad, onError] = [settle("ready"), settle("failed")];

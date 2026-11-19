@@ -1,28 +1,29 @@
-import { Volume2, VolumeX } from "lucide-react";
-
+import { VolumeIcon } from "@/features/player/components/volume-icon";
 import type { Video } from "@/features/player/hooks/use-video";
 import { setVolume, toggleMute } from "@/features/player/lib/video-actions";
 import { Button } from "@/shared/ui/button";
 import { Slider } from "@/shared/ui/slider";
 
-/** Mute, and the volume beside it on screens wider than a phone's. */
+/** Mute, which opens to the volume on hover or focus, on screens wider than a phone's. */
 export function VolumeControls({ video }: { video: Video }) {
   const { volume, muted } = video.state;
   const heard = muted ? 0 : volume;
+  const label = muted ? "Unmute" : "Mute";
   return (
-    <>
+    <div className="group/volume flex items-center">
       <Button
         variant="overlay"
         size="icon"
-        aria-label={muted ? "Unmute" : "Mute"}
+        aria-label={label}
+        title={label}
         onClick={() => {
           video.control(toggleMute);
         }}
       >
-        {heard === 0 ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
+        <VolumeIcon heard={heard} />
       </Button>
       {/* Phones set the volume with their own buttons. */}
-      <div className="hidden w-24 pe-2 sm:block">
+      <div className="hidden w-0 overflow-hidden px-0 transition-all duration-150 ease-out-expo group-focus-within/volume:w-24 group-focus-within/volume:px-2 group-hover/volume:w-24 group-hover/volume:px-2 motion-reduce:transition-none sm:block">
         <Slider
           label="Volume"
           valueText={`${Math.round(heard * 100)}%`}
@@ -36,6 +37,6 @@ export function VolumeControls({ video }: { video: Video }) {
           }}
         />
       </div>
-    </>
+    </div>
   );
 }

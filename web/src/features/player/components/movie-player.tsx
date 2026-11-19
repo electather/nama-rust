@@ -5,6 +5,7 @@ import { Player } from "@/features/player/components/player";
 import { useMovieToPlay } from "@/features/player/data/use-movie-to-play";
 import type { GetMovieRequestSchema } from "@/gen/nama/v1/browse_pb";
 import { isGone } from "@/shared/hooks/browse";
+import { metadataLine, yearOf } from "@/shared/lib/title-facts";
 import { versionToPlay } from "@/shared/lib/version-to-play";
 
 /** Plays a Movie's Version, `version` if it names one and else the largest, from where you stopped. */
@@ -27,10 +28,12 @@ export function MoviePlayer({
   return (
     <Player
       title={movie.title}
+      line={metadataLine(yearOf(movie.releaseDate), movie.contentRating)}
       versionId={id}
       tracks={tracks}
       watchState={movie.watchState}
       posterUrl={movie.posterUrl}
+      backdropUrl={movie.backdropUrl}
       back={{ to: "/libraries/$libraryId/movies/$movieId", params }}
     />
   );

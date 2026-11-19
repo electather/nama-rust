@@ -1,9 +1,11 @@
 import { DeletedWhilePlaying } from "@/features/player/components/deleted-while-playing";
 import { Player } from "@/features/player/components/player";
+import { useEpisodeAfter } from "@/features/player/data/use-episode-after";
 import { useEpisodesToPlay } from "@/features/player/data/use-episodes-to-play";
 import { useAutoplayedEpisode } from "@/features/player/hooks/use-autoplayed-episode";
+import { useEpisodeHeading } from "@/features/player/hooks/use-episode-heading";
 import { useShowForLockScreen } from "@/features/player/hooks/use-show-for-lock-screen";
-import { nextEpisode } from "@/features/player/lib/next-episode";
+import { nextEpisode, playLink } from "@/features/player/lib/next-episode";
 import type { PlayedSeason } from "@/features/player/lib/played-season";
 import { isGone } from "@/shared/hooks/browse";
 import { versionToPlay } from "@/shared/lib/version-to-play";
@@ -30,7 +32,9 @@ export function EpisodePlayer({
   const episode = data.episodes.find((each) => each.episodeNumber === episodeNumber);
   const { libraryId, showId } = params;
   const next = useAutoplayedEpisode({ ...input, episodeNumber });
+  const after = useEpisodeAfter({ ...input, episodeNumber });
   const lockScreen = useShowForLockScreen(input, episodeNumber);
+  const heading = useEpisodeHeading(input, episodeNumber, episode?.title);
   // An Event removed it, or its whole Season, since the loader ran.
   if (!episode || isGone(error)) {
     return <DeletedWhilePlaying />;
@@ -42,9 +46,11 @@ export function EpisodePlayer({
       // a player of its own.
       key={`${input.seasonNumber}/${episodeNumber}`}
       title={episode.title}
+      {...heading}
       versionId={id}
       tracks={tracks}
       watchState={episode.watchState}
+      backdropUrl={episode.stillUrl}
       {...lockScreen}
       back={{
         to: "/libraries/$libraryId/shows/$showId",
@@ -52,6 +58,12 @@ export function EpisodePlayer({
         search: { season: input.seasonNumber },
       }}
       next={nextEpisode(next, streak, { libraryId, showId })}
+      inShow={{
+        season: input,
+        episodeNumber,
+        after,
+        link: (each) => playLink(each, { libraryId, showId }),
+      }}
     />
   );
 }

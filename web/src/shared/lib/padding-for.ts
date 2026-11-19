@@ -2,7 +2,7 @@ import type { VirtualItem } from "@tanstack/react-virtual";
 
 /**
  * The padding that stands in for the rows above and below `rows`, so the grid keeps its height
- * and columns: rows start below `top` and the last ends at `end`, both down the page.
+ * and columns: rows start below `top` and the last ends at `end`, both down the page or list.
  */
 export function paddingFor(rows: VirtualItem[], end: number, top: number) {
   const [start = top] = rows.map((row) => row.start);

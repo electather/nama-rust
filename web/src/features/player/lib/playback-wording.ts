@@ -44,7 +44,7 @@ export function wordReasons(reasons: PlaybackReason[]) {
  * A Playback Reason in this app's words, from its kind and params, or else the Server's `text`:
  * for a kind this app doesn't know, or a reason missing a param its sentence needs.
  */
-function reasonText({ kind, params, text }: PlaybackReason) {
+export function reasonText({ kind, params, text }: PlaybackReason) {
   const wording = wordings[kind];
   if (wording === undefined) {
     return text;
@@ -189,7 +189,8 @@ function containerName(name: string) {
   return nameOf(ContainerSchema, containerNames, name);
 }
 
-const hdrNames = new Map<HdrFormat, string>([
+/** HDR formats by the names people know them by. */
+export const hdrNames = new Map<HdrFormat, string>([
   [HdrFormat.HDR10, "HDR10"],
   [HdrFormat.HLG, "HLG"],
   [HdrFormat.DOLBY_VISION, "Dolby Vision"],

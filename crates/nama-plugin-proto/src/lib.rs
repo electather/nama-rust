@@ -62,6 +62,9 @@ pub mod services {
     pub const BLOB_STORE: &str = "nama.plugin.v1.BlobStoreService";
     /// A Home row source, which gives headed rows of titles for the home page (ADR 0058).
     pub const HOME_ROW: &str = "nama.plugin.v1.HomeRowService";
+    /// A subtitle source, which searches an outside service for a Version's subtitles and
+    /// downloads one a User picks (ADR 0067).
+    pub const SUBTITLE_SOURCE: &str = "nama.plugin.v1.SubtitleSourceService";
 }
 
 /// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
@@ -77,6 +80,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::RECOGNISER, "1.0.0"),
     (services::BLOB_STORE, "1.0.0"),
     (services::HOME_ROW, "1.1.0"),
+    (services::SUBTITLE_SOURCE, "1.0.0"),
 ];
 
 /// The largest object a blob store holds, in bytes: the Kernel never puts a larger one, and a

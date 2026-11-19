@@ -10,6 +10,7 @@ import {
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openSettingsAt, pickIn, rowIn, rowsOf } from "@/test-player";
 
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
@@ -88,8 +89,8 @@ function server(
 }
 
 function openLimits() {
-  fireEvent.click(screen.getByRole("button", { name: "Playback Limit" }));
-  return screen.getAllByRole("menuitemradio");
+  openSettingsAt("Playback Limit");
+  return rowsOf("Playback Limit");
 }
 
 /** Plays `video` on from `seconds` in, as far as the player can tell. */
@@ -107,7 +108,7 @@ test("on a 1080p Version the Playback Limit menu offers Original, 720p and 480p,
 
   const items = openLimits();
 
-  expect(items.map((item) => item.textContent)).toStrictEqual(["Original", "720p", "480p"]);
+  expect(items.map((item) => item.textContent)).toStrictEqual(["Original 1080p", "720p", "480p"]);
   expect(items.map((item) => item.getAttribute("aria-checked"))).toStrictEqual([
     "true",
     "false",
@@ -129,7 +130,7 @@ test("choosing 720p mid-play, then Original, asks each time for a plan from wher
   playingAt(original, 754.25);
 
   openLimits();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "720p" }));
+  fireEvent.click(rowIn("Playback Limit", "720p"));
 
   const limited = await waitFor(() => {
     const video = screen.getByLabelText<HTMLVideoElement>("Alien");
@@ -149,7 +150,7 @@ test("choosing 720p mid-play, then Original, asks each time for a plan from wher
   ]);
   playingAt(limited, 800);
 
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "Original" }));
+  fireEvent.click(rowIn("Playback Limit", /^Original/u));
 
   await waitFor(() => {
     expect(asked).toHaveLength(3);
@@ -164,7 +165,7 @@ test("away from home the menu shows the remote default the Server chose, until O
   await screen.findByLabelText("Alien");
 
   const shown = openLimits().map((item) => item.getAttribute("aria-checked"));
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "Original" }));
+  fireEvent.click(rowIn("Playback Limit", /^Original/u));
 
   expect(asked[0]?.playbackLimit).toBe(PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED);
   expect(shown).toStrictEqual(["false", "true", "false"]);
@@ -192,7 +193,7 @@ test("720p picked while the Server can’t Transcode keeps playing at Original, 
   playingAt(original, 754.25);
 
   openLimits();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "720p" }));
+  fireEvent.click(rowIn("Playback Limit", "720p"));
 
   const dropped = await screen.findByRole("status");
   expect(dropped.textContent).toBe("Can’t play at 720p here right now. Playback info says why.");
@@ -206,8 +207,7 @@ test("720p picked while the Server can’t Transcode keeps playing at Original, 
     "false",
   ]);
 
-  fireEvent.click(screen.getByRole("button", { name: "Audio" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Commentary/u }));
+  pickIn("Audio", /Commentary/u);
 
   await waitFor(() => {
     expect(asked).toHaveLength(3);
@@ -223,13 +223,12 @@ test("a remote default the Server can’t Transcode to plays at Original without
   await screen.findByLabelText("Alien");
 
   expect(screen.queryByRole("status")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Playback info" }));
+  openSettingsAt("Playback info");
   expect(screen.getByRole("region", { name: "Playback info" }).textContent).toContain(
     "It can’t be Transcoded here",
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Audio" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Commentary/u }));
+  pickIn("Audio", /Commentary/u);
 
   await waitFor(() => {
     expect(asked).toHaveLength(2);

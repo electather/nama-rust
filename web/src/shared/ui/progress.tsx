@@ -9,9 +9,11 @@ function Progress({ className, ...props }: ProgressPrimitive.Root.Props) {
         data-slot="progress-track"
         className="relative h-0.5 w-full overflow-hidden rounded-full bg-muted"
       >
+        {/* A video reports its time about every 250ms, so the fill glides over that gap instead of
+            jumping, as in the Next Episode countdown. */}
         <ProgressPrimitive.Indicator
           data-slot="progress-indicator"
-          className="h-full rounded-full bg-primary"
+          className="h-full rounded-full bg-primary transition-all duration-250 ease-linear motion-reduce:transition-none"
         />
       </ProgressPrimitive.Track>
     </ProgressPrimitive.Root>

@@ -14,6 +14,7 @@ import {
 } from "@/gen/nama/v1/playback_pb";
 import type { WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openSettingsAt } from "@/test-player";
 
 /** What each hls.js player was given: the playlist it loads and the `<video>` it plays in. */
 const hlsJs = vi.hoisted((): { played: { url: string; video: HTMLMediaElement }[] } => ({
@@ -134,6 +135,17 @@ test("without a version, the player plays the largest from where its plan says",
   expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
 });
 
+test("the player says it's buffering while the video waits, until it plays on", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", server);
+  const video = await findVideo();
+
+  fireEvent(video, new Event("waiting"));
+  expect(screen.getByRole("status").textContent).toBe("Buffering");
+
+  fireEvent(video, new Event("playing"));
+  expect(screen.queryByRole("status")).toBeNull();
+});
+
 // Base UI warns on a 0..0 range even when the slider is disabled, so an unknown duration stands in 0..1.
 test("the Position slider is disabled until the video knows a finite duration, then seeks", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", server);
@@ -153,6 +165,24 @@ test("the Position slider is disabled until the video knows a finite duration, t
   expect(position.max).toBe("7000");
   fireEvent.keyDown(position, { key: "End" });
   expect(video.currentTime).toBe(7000);
+});
+
+test("pointing along the Position slider says the time there, until the pointer leaves", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", server);
+  const video = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
+  Object.defineProperty(video, "duration", { value: 7000 });
+  fireEvent(video, new Event("durationchange"));
+  // happy-dom lays nothing out, so the slider is put 400px wide, 100px from the left.
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+    DOMRect.fromRect({ x: 100, width: 400 }),
+  );
+  const position = screen.getByLabelText("Position");
+
+  fireEvent.pointerMove(position, { clientX: 300 });
+  expect(screen.getByText("58:20")).toBeDefined();
+
+  fireEvent.pointerLeave(position);
+  expect(screen.queryByText("58:20")).toBeNull();
 });
 
 test("a file the browser fails to load is planned again from where it started, without Direct Play, which says why it can't play", async () => {
@@ -207,7 +237,7 @@ test("a Direct Play that fails mid-film goes on as a Remux from there, until tha
   remuxing.currentTime = 0;
   fireEvent(remuxing, new Event("loadedmetadata"));
   expect(remuxing.currentTime).toBe(1234.5);
-  fireEvent.click(screen.getByRole("button", { name: "Playback info" }));
+  openSettingsAt("Playback info");
   expect(screen.getByText(directPlayFailed)).toBeDefined();
 
   fireEvent.error(remuxing);
@@ -224,7 +254,7 @@ test("a method that fails again gives up instead of asking for plans in a loop",
   );
   fireEvent.error(await findVideo());
   // The player is hidden while it asks again, and back once the new plan says Direct Play again.
-  await screen.findByRole("button", { name: "Playback info" });
+  await screen.findByRole("button", { name: "Playback settings" });
 
   fireEvent.error(await findVideo());
 
@@ -279,7 +309,7 @@ test("a Remux plays its HLS playlist through hls.js in a browser without HLS of 
     expect(hlsJs.played).toStrictEqual([{ url: "/media/plans/0/index.m3u8", video }]);
   });
   expect(video.getAttribute("src")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Playback info" }));
+  openSettingsAt("Playback info");
   const panel = within(screen.getByRole("region", { name: "Playback info" }));
   expect(panel.getByText("Remux")).toBeDefined();
   expect(panel.getByText("This Device can't decode its Matroska container")).toBeDefined();
