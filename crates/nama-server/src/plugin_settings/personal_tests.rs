@@ -147,11 +147,10 @@ async fn handed(plugins: &PluginSettings) -> BTreeMap<String, String> {
     let recipients = personal_settings_recipients(&plugins.db, &ID)
         .await
         .unwrap();
-    recipients
-        .into_iter()
-        .next()
-        .map(|(_, values, _)| values)
-        .unwrap_or_default()
+    let Some((_, values, _)) = recipients.into_iter().next() else {
+        return BTreeMap::new();
+    };
+    values
 }
 
 /// `Pager`'s values for `user` as `plugins` lists them.
