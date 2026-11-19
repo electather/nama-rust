@@ -5,17 +5,8 @@ use std::collections::{BTreeMap, HashSet};
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
-    Manifest, PluginId, PointKey,
-    auth::Authenticator,
-    automation::{Automation, Permission},
-    blob_store::BlobStore,
-    connector::Connector,
-    fulfiller::{Fulfiller, Movies, Shows},
-    home_row::HomeRowSource,
-    metadata::TitleSource,
-    notifier::Notifier,
-    points::{Events, ServerStarted},
-    recogniser::Recogniser,
+    Manifest, PluginId,
+    automation::Permission,
     settings::{self, SettingField, Settings, SettingsError},
 };
 use nama_proto::nama::v1::{
@@ -35,7 +26,11 @@ use crate::{
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
 };
 
-use super::{database_failed, refuse};
+use super::{
+    database_failed,
+    extension_points::{extension_points_to_proto, public_points},
+    refuse,
+};
 
 /// `nama.v1.PluginService`: the Server's Plugins and their settings. Needs
 /// `PERMISSION_MANAGE_SETTINGS`, or `PERMISSION_ADMIN` for a Plugin's log lines, which
@@ -596,72 +591,6 @@ fn manifest_and_refusal(id: &PluginId, listed: Result<Manifest, String>) -> (Man
         Ok(manifest) => (manifest, String::new()),
         Err(reason) => (Manifest::new(id.clone()), reason),
     }
-}
-
-/// The Extension Points an admin is shown for `points`, leaving out any this API doesn't name,
-/// such as a test's own.
-fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::ExtensionPoint>> {
-    let public = public_points();
-    points
-        .iter()
-        .filter_map(|point| public.iter().find(|(key, _)| key == point))
-        .map(|&(_, public)| public.into())
-        .collect()
-}
-
-/// Each Extension Point this API names, by its key, in the order its enum lists them.
-fn public_points() -> [(PointKey, proto::ExtensionPoint); 12] {
-    use proto::ExtensionPoint as Public;
-    [
-        (
-            PointKey::provide::<dyn Fulfiller<Movies>>(),
-            Public::EXTENSION_POINT_MOVIE_FULFILLER,
-        ),
-        (
-            PointKey::provide::<dyn Fulfiller<Shows>>(),
-            Public::EXTENSION_POINT_SHOW_FULFILLER,
-        ),
-        (
-            PointKey::provide::<dyn Notifier>(),
-            Public::EXTENSION_POINT_NOTIFIER,
-        ),
-        (
-            PointKey::provide::<dyn Connector>(),
-            Public::EXTENSION_POINT_CONNECTOR,
-        ),
-        (
-            PointKey::provide::<dyn Authenticator>(),
-            Public::EXTENSION_POINT_AUTHENTICATOR,
-        ),
-        (
-            PointKey::provide::<dyn TitleSource>(),
-            Public::EXTENSION_POINT_TITLE_SOURCE,
-        ),
-        (
-            PointKey::observe::<Events>(),
-            Public::EXTENSION_POINT_EVENTS_OBSERVER,
-        ),
-        (
-            PointKey::observe::<ServerStarted>(),
-            Public::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
-        ),
-        (
-            PointKey::provide::<dyn Recogniser>(),
-            Public::EXTENSION_POINT_RECOGNISER,
-        ),
-        (
-            PointKey::provide::<dyn BlobStore>(),
-            Public::EXTENSION_POINT_BLOB_STORE,
-        ),
-        (
-            PointKey::provide::<dyn Automation>(),
-            Public::EXTENSION_POINT_AUTOMATION,
-        ),
-        (
-            PointKey::provide::<dyn HomeRowSource>(),
-            Public::EXTENSION_POINT_HOME_ROW,
-        ),
-    ]
 }
 
 /// A setting with its `stored` value, as a client may see it: a secret's value, stored or

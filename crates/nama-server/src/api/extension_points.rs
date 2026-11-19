@@ -1,0 +1,85 @@
+//! The Extension Points the client API names, as `nama.v1.ExtensionPoint`.
+
+use buffa::EnumValue;
+use nama_plugin_api::{
+    PointKey,
+    auth::Authenticator,
+    automation::Automation,
+    blob_store::BlobStore,
+    connector::Connector,
+    fulfiller::{Fulfiller, Movies, Shows},
+    home_row::HomeRowSource,
+    metadata::TitleSource,
+    notifier::Notifier,
+    points::{Events, ServerStarted},
+    recogniser::Recogniser,
+};
+use nama_proto::nama::v1 as proto;
+
+/// The Extension Points an admin is shown for `points`, leaving out any this API doesn't name,
+/// such as a test's own.
+pub(super) fn extension_points_to_proto(
+    points: &[PointKey],
+) -> Vec<EnumValue<proto::ExtensionPoint>> {
+    let public = public_points();
+    points
+        .iter()
+        .filter_map(|point| public.iter().find(|(key, _)| key == point))
+        .map(|&(_, public)| public.into())
+        .collect()
+}
+
+/// Each Extension Point this API names, by its key, in the order its enum lists them.
+pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 12] {
+    use proto::ExtensionPoint as Public;
+    [
+        (
+            PointKey::provide::<dyn Fulfiller<Movies>>(),
+            Public::EXTENSION_POINT_MOVIE_FULFILLER,
+        ),
+        (
+            PointKey::provide::<dyn Fulfiller<Shows>>(),
+            Public::EXTENSION_POINT_SHOW_FULFILLER,
+        ),
+        (
+            PointKey::provide::<dyn Notifier>(),
+            Public::EXTENSION_POINT_NOTIFIER,
+        ),
+        (
+            PointKey::provide::<dyn Connector>(),
+            Public::EXTENSION_POINT_CONNECTOR,
+        ),
+        (
+            PointKey::provide::<dyn Authenticator>(),
+            Public::EXTENSION_POINT_AUTHENTICATOR,
+        ),
+        (
+            PointKey::provide::<dyn TitleSource>(),
+            Public::EXTENSION_POINT_TITLE_SOURCE,
+        ),
+        (
+            PointKey::observe::<Events>(),
+            Public::EXTENSION_POINT_EVENTS_OBSERVER,
+        ),
+        (
+            PointKey::observe::<ServerStarted>(),
+            Public::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+        ),
+        (
+            PointKey::provide::<dyn Recogniser>(),
+            Public::EXTENSION_POINT_RECOGNISER,
+        ),
+        (
+            PointKey::provide::<dyn BlobStore>(),
+            Public::EXTENSION_POINT_BLOB_STORE,
+        ),
+        (
+            PointKey::provide::<dyn Automation>(),
+            Public::EXTENSION_POINT_AUTOMATION,
+        ),
+        (
+            PointKey::provide::<dyn HomeRowSource>(),
+            Public::EXTENSION_POINT_HOME_ROW,
+        ),
+    ]
+}

@@ -42,6 +42,7 @@ use crate::{
 mod browse;
 mod browser_spans;
 mod events;
+mod extension_points;
 mod libraries;
 mod matches;
 mod playback;
