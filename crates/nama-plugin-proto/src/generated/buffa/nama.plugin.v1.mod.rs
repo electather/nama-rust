@@ -163,6 +163,7 @@ pub mod __buffa {
         reg.register_json_any(super::__EPISODE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_JSON_ANY);
         reg.register_json_any(super::__SHARED_ROWS_ASKED_JSON_ANY);
+        reg.register_json_any(super::__USER_ROWS_ASKED_JSON_ANY);
         reg.register_json_any(super::__HOME_ROWS_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
@@ -585,6 +586,10 @@ pub use self::__buffa::view::ImageOwnedView;
 pub use self::__buffa::view::SharedRowsAskedView;
 #[doc(inline)]
 pub use self::__buffa::view::SharedRowsAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserRowsAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserRowsAskedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowsView;
 #[doc(inline)]

@@ -267,10 +267,12 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn list_home_rows(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, ListHomeRowsRequest>,
     ) -> ServiceResult<ListHomeRowsResponse> {
-        let rows = self.home_rows.list().await.map_err(home_rows_refused)?;
+        let user = caller(&ctx)?.user.id;
+        let rows = self.home_rows.list(user).await;
+        let rows = rows.map_err(home_rows_refused)?;
         Response::ok(ListHomeRowsResponse {
             rows: (rows.into_iter())
                 .map(|(plugin, row)| proto::HomeRow {
@@ -286,13 +288,14 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn list_home_row_titles(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ListHomeRowTitlesRequest>,
     ) -> ServiceResult<ListHomeRowTitlesResponse> {
+        let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
         let plugin = request.plugin_id.into();
         let listed = (self.home_rows)
-            .titles(&plugin, &request.key, &request.page)
+            .titles(user, &plugin, &request.key, &request.page)
             .await;
         let (titles, page) = listed.map_err(home_rows_refused)?;
         let images = self.images.shown().await?;

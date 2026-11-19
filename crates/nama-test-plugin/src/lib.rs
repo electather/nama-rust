@@ -32,7 +32,7 @@ mod exports {
     const NOTIFIER: &str = "notifier";
 
     /// The Personal setting naming whom a User's notifications go to.
-    const HANDLE: &str = "handle";
+    pub(super) const HANDLE: &str = "handle";
 
     /// The setting that makes its settings check fail with its text, or hoard 256 MiB, loop
     /// forever or panic for `hoard`, `loop` or `panic`.
@@ -407,7 +407,7 @@ mod exports {
 #[cfg(feature = "home-rows")]
 mod home_rows {
     use nama_pdk::{
-        HomeRow, HomeRowSource, HomeRowTitle, HomeRows, TitleId, TitleKind,
+        HomeRow, HomeRowSource, HomeRowTitle, HomeRows, TitleId, TitleKind, UserRowsAsked,
         extism_pdk::{Error, config},
     };
 
@@ -415,9 +415,9 @@ mod home_rows {
     /// empty, `loop` to loop until the Server interrupts it, or `fail` to fail.
     pub(super) const ROWS: &str = "home_rows";
 
-    /// Gives `picks`: Heat, Dune and Alien, which the fake TMDB knows; `again`: Alien; and
-    /// `missing`: a Movie no Library has. Logs which it was asked for, so a test counts its
-    /// refreshes.
+    /// Gives every User `picks`: Heat, Dune and Alien, which the fake TMDB knows; `again`: Alien;
+    /// and `missing`: a Movie no Library has. Gives a User who set a `handle` the row
+    /// `for-<handle>`: Alien. Logs which it was asked for, so a test counts its refreshes.
     struct TestRows;
 
     impl HomeRowSource for TestRows {
@@ -439,6 +439,21 @@ mod home_rows {
                 rows: (rows.into_iter())
                     .filter(|row| asked.is_empty() || asked.split(',').any(|key| key == row.key))
                     .collect(),
+                ..HomeRows::default()
+            })
+        }
+
+        fn user_rows(asked: UserRowsAsked) -> Result<HomeRows, Error> {
+            let Some(handle) = asked.personal_settings.get(super::exports::HANDLE) else {
+                return Ok(HomeRows::default());
+            };
+            nama_pdk::info!("test-plugin gives {handle}'s Home rows");
+            Ok(HomeRows {
+                rows: vec![row(
+                    &format!("for-{handle}"),
+                    &format!("For {handle}"),
+                    &[348],
+                )],
                 ..HomeRows::default()
             })
         }
@@ -466,5 +481,5 @@ mod home_rows {
         }
     }
 
-    nama_pdk::home_row_source!(TestRows);
+    nama_pdk::home_row_source!(TestRows, [shared_rows, user_rows]);
 }

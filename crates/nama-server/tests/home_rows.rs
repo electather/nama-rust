@@ -1,5 +1,6 @@
-//! Home rows a Plugin gives every User, over the API (ADR 0058): the test Plugin built as a Home
-//! row source, refreshed in the background, its rows showing the titles on the Server.
+//! Home rows a Plugin gives, every User's and each User's own, over the API (ADR 0058): the test
+//! Plugin built as a Home row source, refreshed in the background, its rows showing the titles on
+//! the Server.
 
 #[path = "support/log.rs"]
 mod log;
@@ -13,17 +14,18 @@ mod test_plugin;
 
 use std::time::{Duration, Instant};
 
-use connectrpc::{ErrorCode, client::HttpClient};
+use connectrpc::{ErrorCode, client::ClientConfig, client::HttpClient};
 use log::Log;
 use nama_proto::nama::v1::{
     BrowseServiceClient, DisablePluginRequest, EnablePluginRequest, HomeRowTitle, LibraryKind,
     ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest, ListPluginsRequest,
-    PageRequest, PluginServiceClient, RefusalReason, SettingValue, UpdatePluginSettingsRequest,
-    home_row_title::MovieOrShow, setting_value::Value,
+    PageRequest, PluginServiceClient, RefusalReason, SettingValue, UpdatePersonalSettingsRequest,
+    UpdatePluginSettingsRequest, UserServiceClient, home_row_title::MovieOrShow,
+    setting_value::Value,
 };
 use refused::assert_refused;
 use server::{
-    Builder, TestServer, WAIT,
+    Builder, SignedIn, TestServer, WAIT,
     tmdb::{ALIEN, HEAT},
 };
 
@@ -74,6 +76,13 @@ fn browse(server: &TestServer) -> BrowseServiceClient<HttpClient> {
     BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
 
+fn text(text: &str) -> SettingValue {
+    SettingValue {
+        value: Some(Value::TextValue(text.to_owned())),
+        ..Default::default()
+    }
+}
+
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -94,27 +103,44 @@ async fn enable(server: &TestServer) {
     reason = "a test helper fails its test by panicking"
 )]
 async fn set_rows(server: &TestServer, rows: &str) {
-    let value = SettingValue {
-        value: Some(Value::TextValue(rows.to_owned())),
-        ..Default::default()
-    };
     (plugins(server))
         .update_plugin_settings(UpdatePluginSettingsRequest {
             id: PLUGIN.to_owned(),
-            settings: std::iter::once(("home_rows".to_owned(), value)).collect(),
+            settings: std::iter::once(("home_rows".to_owned(), text(rows))).collect(),
             ..Default::default()
         })
         .await
         .unwrap();
 }
 
-/// The Home rows home lists now, each as its Plugin, key and heading.
+/// Saves `handle` as `user`'s `handle` Personal setting for the test Plugin.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
+async fn set_handle(user: &SignedIn, handle: &str) {
+    UserServiceClient::new(HttpClient::plaintext(), user.client_config())
+        .update_personal_settings(UpdatePersonalSettingsRequest {
+            plugin_id: PLUGIN.to_owned(),
+            settings: std::iter::once(("handle".to_owned(), text(handle))).collect(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+/// The Home rows home lists the Admin now, each as its Plugin, key and heading.
 async fn rows(server: &TestServer) -> Vec<(String, String, String)> {
-    let listed = browse(server)
+    rows_as(server.client_config()).await
+}
+
+/// The Home rows home lists the caller `config` signs in as now, as [`rows`] gives them.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn rows_as(config: ClientConfig) -> Vec<(String, String, String)> {
+    let listed = BrowseServiceClient::new(HttpClient::plaintext(), config)
         .list_home_rows(ListHomeRowsRequest::default())
         .await
         .unwrap()
@@ -124,12 +150,17 @@ async fn rows(server: &TestServer) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// Lists the Home rows until they are the rows `keys` name, since a refresh runs in the
+/// Lists the Admin's Home rows until they are the rows `keys` name, since a refresh runs in the
 /// background.
 async fn wait_for_rows(server: &TestServer, keys: &[&str]) {
+    wait_for_rows_as(server.client_config(), keys).await;
+}
+
+/// [`wait_for_rows`], for the caller `config` signs in as.
+async fn wait_for_rows_as(config: ClientConfig, keys: &[&str]) {
     let started = Instant::now();
     loop {
-        let listed = rows(server).await;
+        let listed = rows_as(config.clone()).await;
         if listed
             .iter()
             .map(|(_, key, _)| key.as_str())
@@ -202,6 +233,30 @@ async fn enabling_a_home_row_source_shows_its_rows_with_only_the_titles_on_the_s
         "the Plugin's order, without Dune"
     );
     assert_eq!(picks.page.total_size, Some(2));
+}
+
+#[tokio::test]
+async fn each_user_sees_their_own_rows_built_from_their_personal_settings() {
+    let server = enabled("").await;
+    let ada = server.user_with_default_permissions("ada").await;
+    let bea = server.user_with_default_permissions("bea").await;
+    set_handle(&ada, "ada").await;
+    set_handle(&bea, "bea").await;
+
+    wait_for_rows_as(ada.client_config(), &["picks", "again", "for-ada"]).await;
+    wait_for_rows_as(bea.client_config(), &["picks", "again", "for-bea"]).await;
+
+    let headings = |rows: Vec<(String, String, String)>| -> Vec<String> {
+        rows.into_iter().map(|(_, _, heading)| heading).collect()
+    };
+    assert_eq!(
+        headings(rows_as(ada.client_config()).await),
+        ["Picks", "Alien again", "For ada"]
+    );
+    assert_eq!(
+        headings(rows_as(bea.client_config()).await),
+        ["Picks", "Alien again", "For bea"]
+    );
 }
 
 #[tokio::test]

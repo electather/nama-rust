@@ -76,7 +76,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::AUTOMATION, "1.2.0"),
     (services::RECOGNISER, "1.0.0"),
     (services::BLOB_STORE, "1.0.0"),
-    (services::HOME_ROW, "1.0.0"),
+    (services::HOME_ROW, "1.1.0"),
 ];
 
 /// The largest object a blob store holds, in bytes: the Kernel never puts a larger one, and a

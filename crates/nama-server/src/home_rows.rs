@@ -1,16 +1,17 @@
-//! The Home rows Plugins give every User (ADR 0058): stored per Plugin, refreshed in the
-//! background so home never waits on a Plugin, and read as the titles on the Server they name.
+//! The Home rows Plugins give (ADR 0058), those every User sees and each User's own: stored per
+//! Plugin and scope, refreshed in the background so home never waits on a Plugin, and read as the
+//! titles on the Server they name.
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
 use nama_plugin_api::{
-    PluginId,
-    contract::{HomeRows as Given, SharedRowsAsked, TitleKind},
-    home_row::HomeRowSource,
+    PluginError, PluginId,
+    contract::{HomeRows as Given, SharedRowsAsked, TitleKind, UserRowsAsked},
+    home_row::{HomeRowMethod, HomeRowSource},
     metadata::ExternalId,
 };
 use nama_proto::nama::v1::{PageRequest, PageResponse};
@@ -29,10 +30,11 @@ use crate::{
         LibraryShow,
     },
     page::{self, Page},
-    plugins::{ExtensionPoints, Failure},
+    plugins::{Answer, ExtensionPoints, Failure, without_secrets},
+    users::personal_settings_of,
 };
 
-/// The most rows of one Plugin home shows.
+/// The most rows of one answer home shows: a Plugin's shared rows, or its rows for one User.
 const MAX_ROWS: usize = 3;
 /// The most titles one row holds.
 const MAX_TITLES: usize = 200;
@@ -89,8 +91,9 @@ pub(crate) struct HomeRows {
     points: ExtensionPoints,
     libraries: Libraries,
     contents: Contents,
-    /// The Plugins whose rows are being refreshed, so one refresh per Plugin runs at a time.
-    refreshing: Arc<Mutex<HashSet<PluginId>>>,
+    /// The Plugins and scopes whose rows are being refreshed, so one refresh per Plugin and scope
+    /// runs at a time.
+    refreshing: Arc<Mutex<HashSet<Scope>>>,
     /// The loop [`HomeRows::refresh_as_plugins_come_up`] starts, until
     /// [`HomeRows::shutdown`] stops it.
     passing_on: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -108,15 +111,16 @@ impl HomeRows {
         }
     }
 
-    /// The rows of each enabled Home row source, in Plugin id order and then the Plugin's own,
-    /// leaving out a row with no title on the Server. Starts a background refresh of each source
-    /// whose rows are stale or never were refreshed, and lists what is stored meanwhile. Deletes
-    /// the rows of a Plugin no longer serving them.
-    pub(crate) async fn list(&self) -> Result<Vec<(PluginId, Row)>, Error> {
+    /// The rows `user` sees from each enabled Home row source, in Plugin id order, then each
+    /// Plugin's shared rows before `user`'s own, each in the Plugin's order, leaving out a row
+    /// with no title on the Server and one of `user`'s whose key a shared row has. Starts a
+    /// background refresh of each of these scopes whose rows are stale or never were refreshed,
+    /// and lists what is stored meanwhile. Deletes the rows of a Plugin no longer serving them.
+    pub(crate) async fn list(&self, user: i64) -> Result<Vec<(PluginId, Row)>, Error> {
         // Stored first, so rows a refresh stores meanwhile aren't taken for a disabled Plugin's.
-        let stored = self.stored().await?;
+        let stored = self.stored(user).await?;
         let serving = self.points.providers::<dyn HomeRowSource>();
-        self.refresh_stale(&serving).await?;
+        self.refresh_stale(&serving, user).await?;
         let (shown, gone): (Vec<_>, Vec<_>) =
             (stored.into_iter()).partition(|(plugin, _)| serving.contains(plugin));
         // ponytail: deleted on the next listing rather than as the Plugin is disabled, which also
@@ -126,6 +130,10 @@ impl HomeRows {
         for plugin in gone {
             self.forget(plugin).await?;
         }
+        let mut keys = HashSet::new();
+        let shown: Vec<_> = (shown.into_iter())
+            .filter(|(plugin, row)| keys.insert((plugin.clone(), row.key.clone())))
+            .collect();
         let titles: Vec<Title> = (shown.iter())
             .flat_map(|(_, row)| row.titles.iter().cloned())
             .collect();
@@ -135,11 +143,12 @@ impl HomeRows {
             .collect())
     }
 
-    /// The `asked` page of the titles on the Server of the row `key` of the Plugin `plugin`, in
-    /// the row's order, a title it names twice, or by two of its ids, once. A row no enabled
-    /// source gives has none.
+    /// The `asked` page of the titles on the Server of the row `key` of the Plugin `plugin` that
+    /// `user` sees, its shared one before `user`'s own, in the row's order, a title it names
+    /// twice, or by two of its ids, once. A row no enabled source gives has none.
     pub(crate) async fn titles(
         &self,
+        user: i64,
         plugin: &PluginId,
         key: &str,
         asked: &PageRequest,
@@ -147,7 +156,7 @@ impl HomeRows {
         let list = serde_json::json!(["ListHomeRowTitles", plugin.as_str(), key]).to_string();
         let page = Page::<()>::read(asked, list.as_bytes())?;
         let titles = if self.serves(plugin) {
-            self.stored_titles(plugin, key).await?
+            self.stored_titles(user, plugin, key).await?
         } else {
             Vec::new()
         };
@@ -167,8 +176,8 @@ impl HomeRows {
         Ok((listed.into_iter().map(|(_, title)| title).collect(), paging))
     }
 
-    /// Refreshes the rows of each Plugin `came_up` names as it is enabled, at startup or later,
-    /// or its settings change, and passes its id on to the queue returned, for as long as
+    /// Refreshes the shared rows of each Plugin `came_up` names as it is enabled, at startup or
+    /// later, or its settings change, and passes its id on to the queue returned, for as long as
     /// `came_up` is open.
     pub(crate) fn refresh_as_plugins_come_up(
         &self,
@@ -178,7 +187,7 @@ impl HomeRows {
         let this = self.clone();
         let passing_on = tokio::spawn(async move {
             while let Some(plugin) = came_up.recv().await {
-                this.refresh(&plugin);
+                this.refresh(&plugin, None);
                 // Fails only once the reader stopped, when the Server no longer serves.
                 let _: Result<(), _> = pass_on.send(plugin);
             }
@@ -201,22 +210,22 @@ impl HomeRows {
         }
     }
 
-    /// Refreshes the Plugin `plugin`'s rows in the background, in its scope, so disabling it
-    /// cancels the call. Rows a cancelled refresh still stores stay hidden, as [`Self::list`]
-    /// shows only enabled Plugins' rows. Does nothing if it isn't an enabled Home row source, or
-    /// its rows are already being refreshed.
-    pub(crate) fn refresh(&self, plugin: &PluginId) {
+    /// Refreshes the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, in the
+    /// background, in the Plugin's scope, so disabling it cancels the call. Rows a cancelled
+    /// refresh still stores stay hidden, as [`Self::list`] shows only enabled Plugins' rows. Does
+    /// nothing if it isn't an enabled Home row source, or those rows are already being refreshed.
+    pub(crate) fn refresh(&self, plugin: &PluginId, user: Option<i64>) {
         if !self.serves(plugin) {
             return;
         }
-        let Some(refreshing) = Refreshing::start(&self.refreshing, plugin) else {
+        let Some(refreshing) = Refreshing::start(&self.refreshing, (plugin.clone(), user)) else {
             return;
         };
         let this = self.clone();
         let id = plugin.clone();
         // Not spawned when the Plugin was disabled meanwhile, which drops `refreshing` with it.
         self.points.spawn_in(plugin, async move {
-            this.refresh_now(&id).await;
+            this.refresh_now(&id, user).await;
             drop(refreshing);
         });
     }
@@ -228,14 +237,28 @@ impl HomeRows {
             .contains(plugin)
     }
 
-    async fn refresh_now(&self, plugin: &PluginId) {
-        let asked = SharedRowsAsked::default();
-        let answer = (self.points)
-            .ask(plugin, |source: Arc<dyn HomeRowSource>| {
-                let asked = &asked;
-                async move { source.shared_rows(asked).await }
-            })
-            .await;
+    /// Whether the Plugin `plugin` gives rows for `user`, or shared rows for `None`.
+    async fn gives(&self, plugin: &PluginId, user: Option<i64>) -> bool {
+        let method = match user {
+            None => HomeRowMethod::Shared,
+            Some(_) => HomeRowMethod::User,
+        };
+        let gives =
+            (self.points).read_provider(plugin, |source: &dyn HomeRowSource| source.gives(method));
+        gives.await.unwrap_or(false)
+    }
+
+    async fn refresh_now(&self, plugin: &PluginId, user: Option<i64>) {
+        let answer = match user {
+            None => self.ask_shared(plugin).await,
+            Some(user) => match personal_settings_of(&self.db, user, plugin).await {
+                Ok(settings) => self.ask_for(plugin, settings).await,
+                Err(err) => {
+                    warn!(plugin = %plugin, user, "could not read Personal settings to refresh Home rows: {err}");
+                    return;
+                }
+            },
+        };
         let Some(answer) = answer else {
             return;
         };
@@ -245,42 +268,98 @@ impl HomeRows {
         let given = match answer.result {
             Ok(given) => given,
             Err(Failure { message, .. }) => {
-                if let Err(err) = self.put_off(plugin).await {
-                    warn!(plugin = %plugin, "could not put off refreshing the Plugin's Home rows: {err}");
+                if let Err(err) = self.put_off(plugin, user).await {
+                    warn!(plugin = %plugin, user, "could not put off refreshing the Plugin's Home rows: {err}");
                 }
-                warn!(plugin = %plugin, error = message, "refreshing the Plugin's Home rows failed");
+                warn!(plugin = %plugin, user, error = message, "refreshing the Plugin's Home rows failed");
                 return;
             }
         };
         let (rows, fresh_for) = kept(given);
-        if let Err(err) = self.replace(plugin, rows, fresh_for).await {
-            warn!(plugin = %plugin, "could not store the Plugin's Home rows: {err}");
+        if let Err(err) = self.replace(plugin, user, rows, fresh_for).await {
+            warn!(plugin = %plugin, user, "could not store the Plugin's Home rows: {err}");
         }
     }
 
-    /// Refreshes each Plugin of `serving` whose rows are stale or were never refreshed.
-    async fn refresh_stale(&self, serving: &BTreeSet<PluginId>) -> Result<(), sqlx::Error> {
-        let fresh: HashSet<String> = sqlx::query_scalar!(
-            "SELECT plugin_id FROM home_row_refreshes WHERE stale_at > ?",
-            db::now()
+    /// Asks the Plugin `plugin` for its shared rows.
+    async fn ask_shared(&self, plugin: &PluginId) -> Option<Answer<Given>> {
+        let asked = SharedRowsAsked::default();
+        (self.points)
+            .ask(plugin, |source: Arc<dyn HomeRowSource>| {
+                let asked = &asked;
+                async move { source.shared_rows(asked).await }
+            })
+            .await
+    }
+
+    /// Asks the Plugin `plugin` for a User's rows with only that User's Personal `settings`, each
+    /// value by key with whether it is secret. A secret one is blanked from the failure the
+    /// Plugins page and the log show.
+    async fn ask_for(
+        &self,
+        plugin: &PluginId,
+        settings: BTreeMap<String, (String, bool)>,
+    ) -> Option<Answer<Given>> {
+        let secrets: Vec<String> = (settings.values())
+            .filter(|(_, secret)| *secret)
+            .map(|(value, _)| value.clone())
+            .collect();
+        let asked = UserRowsAsked {
+            personal_settings: (settings.into_iter())
+                .map(|(key, (value, _))| (key, value))
+                .collect(),
+            ..UserRowsAsked::default()
+        };
+        (self.points)
+            .ask(plugin, |source: Arc<dyn HomeRowSource>| {
+                let (asked, secrets) = (&asked, &secrets);
+                async move {
+                    let answer = source.user_rows(asked).await;
+                    answer
+                        .map_err(|err| PluginError::from(without_secrets(err.to_string(), secrets)))
+                }
+            })
+            .await
+    }
+
+    /// Refreshes the rows `user` sees from each Plugin of `serving`, its shared ones and
+    /// `user`'s own, that are stale or were never refreshed, and that it gives.
+    async fn refresh_stale(
+        &self,
+        serving: &BTreeSet<PluginId>,
+        user: i64,
+    ) -> Result<(), sqlx::Error> {
+        let now = db::now();
+        let fresh: HashSet<Scope> = sqlx::query!(
+            "SELECT plugin_id, user_id FROM home_row_refreshes
+             WHERE stale_at > ? AND (user_id IS NULL OR user_id = ?)",
+            now,
+            user
         )
         .fetch_all(self.db.reader())
         .await?
         .into_iter()
+        .map(|row| (PluginId::from(row.plugin_id), row.user_id))
         .collect();
-        for plugin in serving
+        let scopes = serving
             .iter()
-            .filter(|plugin| !fresh.contains(plugin.as_str()))
-        {
-            self.refresh(plugin);
+            .flat_map(|plugin| [(plugin.clone(), None), (plugin.clone(), Some(user))]);
+        for (plugin, whose) in scopes.filter(|scope| !fresh.contains(scope)) {
+            if self.gives(&plugin, whose).await {
+                self.refresh(&plugin, whose);
+            }
         }
         Ok(())
     }
 
-    /// Every stored row, in Plugin id order and then the Plugin's own.
-    async fn stored(&self) -> Result<Vec<(PluginId, Row)>, sqlx::Error> {
+    /// Every stored row `user` sees, in Plugin id order, then each Plugin's shared rows before
+    /// `user`'s own, each in the Plugin's order.
+    async fn stored(&self, user: i64) -> Result<Vec<(PluginId, Row)>, sqlx::Error> {
         let rows = sqlx::query!(
-            "SELECT plugin_id, key, heading, titles FROM home_rows ORDER BY plugin_id, position"
+            "SELECT plugin_id, key, heading, titles FROM home_rows
+             WHERE user_id IS NULL OR user_id = ?
+             ORDER BY plugin_id, user_id IS NOT NULL, position",
+            user
         )
         .fetch_all(self.db.reader())
         .await?;
@@ -297,23 +376,34 @@ impl HomeRows {
             .collect())
     }
 
-    /// The titles of the Plugin `plugin`'s row `key`, none if it has no such row.
-    async fn stored_titles(&self, plugin: &PluginId, key: &str) -> Result<Vec<Title>, sqlx::Error> {
+    /// The titles of the Plugin `plugin`'s row `key` that `user` sees, its shared one before
+    /// `user`'s own, none if it has no such row.
+    async fn stored_titles(
+        &self,
+        user: i64,
+        plugin: &PluginId,
+        key: &str,
+    ) -> Result<Vec<Title>, sqlx::Error> {
         let plugin = plugin.as_str();
         let titles = sqlx::query_scalar!(
-            "SELECT titles FROM home_rows WHERE plugin_id = ? AND key = ?",
+            "SELECT titles FROM home_rows
+             WHERE plugin_id = ? AND key = ? AND (user_id IS NULL OR user_id = ?)
+             ORDER BY user_id IS NOT NULL LIMIT 1",
             plugin,
-            key
+            key,
+            user
         )
         .fetch_optional(self.db.reader())
         .await?;
         Ok(titles.as_deref().map_or_default(titles_from_json))
     }
 
-    /// Replaces the Plugin `plugin`'s rows with `rows`, fresh for `fresh_for`, in one write.
+    /// Replaces the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, with
+    /// `rows`, fresh for `fresh_for`, in one write.
     async fn replace(
         &self,
         plugin: &PluginId,
+        user: Option<i64>,
         rows: Vec<Row>,
         fresh_for: Duration,
     ) -> Result<(), sqlx::Error> {
@@ -322,34 +412,38 @@ impl HomeRows {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
-                    sqlx::query!("DELETE FROM home_rows WHERE plugin_id = ?", plugin)
-                        .execute(&mut **tx)
-                        .await?;
-                    insert_rows(tx, &plugin, rows).await?;
-                    set_stale_at(tx, &plugin, stale_at).await?;
+                    sqlx::query!(
+                        "DELETE FROM home_rows WHERE plugin_id = ? AND user_id IS ?",
+                        plugin,
+                        user
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    insert_rows(tx, &plugin, user, rows).await?;
+                    set_stale_at(tx, &plugin, user, stale_at).await?;
                     Ok(())
                 })
             })
             .await
     }
 
-    /// Keeps the Plugin `plugin`'s rows as they are, and refreshes them no sooner than
-    /// [`MIN_TTL`] from now.
-    async fn put_off(&self, plugin: &PluginId) -> Result<(), sqlx::Error> {
+    /// Keeps the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, as they are,
+    /// and refreshes them no sooner than [`MIN_TTL`] from now.
+    async fn put_off(&self, plugin: &PluginId, user: Option<i64>) -> Result<(), sqlx::Error> {
         let plugin = plugin.as_str().to_owned();
         let stale_at = db::now().saturating_add(i64::try_from(MIN_TTL.as_secs()).unwrap_or(0));
         self.db
             .write(move |tx| {
                 Box::pin(async move {
-                    set_stale_at(tx, &plugin, stale_at).await?;
+                    set_stale_at(tx, &plugin, user, stale_at).await?;
                     Ok(())
                 })
             })
             .await
     }
 
-    /// Deletes the Plugin `plugin`'s rows, and when they were refreshed, so its next enable
-    /// starts afresh.
+    /// Deletes the Plugin `plugin`'s rows in every scope, and when they were refreshed, so its
+    /// next enable starts afresh.
     async fn forget(&self, plugin: PluginId) -> Result<(), sqlx::Error> {
         self.db
             .write(move |tx| {
@@ -496,16 +590,19 @@ fn add_found(
     }
 }
 
-/// Refreshes the Plugin `plugin`'s rows once a User opens home after `stale_at`.
+/// Refreshes the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, once a User
+/// they're for opens home after `stale_at`.
 async fn set_stale_at(
     conn: &mut SqliteConnection,
     plugin: &str,
+    user: Option<i64>,
     stale_at: i64,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO home_row_refreshes (plugin_id, stale_at) VALUES (?, ?)
-         ON CONFLICT (plugin_id) DO UPDATE SET stale_at = excluded.stale_at",
+        "INSERT INTO home_row_refreshes (plugin_id, user_id, stale_at) VALUES (?, ?, ?)
+         ON CONFLICT (plugin_id, coalesce(user_id, 0)) DO UPDATE SET stale_at = excluded.stale_at",
         plugin,
+        user,
         stale_at
     )
     .execute(conn)
@@ -513,18 +610,22 @@ async fn set_stale_at(
     Ok(())
 }
 
-/// Stores `rows` as the Plugin `plugin`'s, in their order.
+/// Stores `rows` as the Plugin `plugin`'s for `user`, or its shared rows for `None`, in their
+/// order.
 async fn insert_rows(
     conn: &mut SqliteConnection,
     plugin: &str,
+    user: Option<i64>,
     rows: Vec<Row>,
 ) -> Result<(), sqlx::Error> {
     for (row, position) in rows.into_iter().zip(0_i64..) {
         let titles =
             serde_json::to_string(&row.titles).map_err(|err| sqlx::Error::Encode(err.into()))?;
         sqlx::query!(
-            "INSERT INTO home_rows (plugin_id, position, key, heading, titles) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO home_rows (plugin_id, user_id, position, key, heading, titles)
+             VALUES (?, ?, ?, ?, ?, ?)",
             plugin,
+            user,
             position,
             row.key,
             row.heading,
@@ -557,27 +658,30 @@ fn found_show(library: i64, show: &LibraryShow) -> OnServer {
     })
 }
 
-/// A Plugin's place in [`HomeRows::refreshing`], given up when dropped, even by a refresh
+/// A Plugin and whose of its rows: one User's, or its shared rows for `None`.
+type Scope = (PluginId, Option<i64>);
+
+/// A scope's place in [`HomeRows::refreshing`], given up when dropped, even by a refresh
 /// cancelled as its Plugin is disabled.
 struct Refreshing {
-    set: Arc<Mutex<HashSet<PluginId>>>,
-    plugin: PluginId,
+    set: Arc<Mutex<HashSet<Scope>>>,
+    scope: Scope,
 }
 
 impl Refreshing {
-    /// Takes the Plugin `plugin`'s place in `set`, or `None` if a refresh holds it.
-    fn start(set: &Arc<Mutex<HashSet<PluginId>>>, plugin: &PluginId) -> Option<Self> {
-        let taken = lock(set).insert(plugin.clone());
+    /// Takes `scope`'s place in `set`, or `None` if a refresh holds it.
+    fn start(set: &Arc<Mutex<HashSet<Scope>>>, scope: Scope) -> Option<Self> {
+        let taken = lock(set).insert(scope.clone());
         taken.then(|| Self {
             set: Arc::clone(set),
-            plugin: plugin.clone(),
+            scope,
         })
     }
 }
 
 impl Drop for Refreshing {
     fn drop(&mut self) {
-        lock(&self.set).remove(&self.plugin);
+        lock(&self.set).remove(&self.scope);
     }
 }
 
