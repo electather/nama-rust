@@ -10,6 +10,7 @@ import {
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
 
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
@@ -97,13 +98,13 @@ function server(asked: PlanPlaybackRequest[], burnInTracks = [2, 3], choosing: C
 
 /** Picks the subtitle `name` names, once the player shows its menu. */
 async function pick(name: RegExp | string) {
-  fireEvent.click(await screen.findByRole("button", { name: "Subtitles" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name }));
+  await screen.findByRole("button", { name: "Audio and subtitles" });
+  pickIn("Subtitles", name);
 }
 
 function openSubtitles() {
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
-  return screen.getAllByRole("menuitemradio");
+  openTracks();
+  return rowsOf("Subtitles");
 }
 
 /** Opens the player 754.25 seconds in, as `asked` records its plan requests. */
@@ -159,7 +160,7 @@ test("turning on a PGS Track mid-play asks for a plan from where the video stand
   const directPlay = await playing(asked);
 
   openSubtitles();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Signs/u }));
+  fireEvent.click(rowIn("Subtitles", /Signs/u));
 
   await waitFor(() => {
     expect(asked).toHaveLength(2);
@@ -177,7 +178,7 @@ test("choosing the ASS Track with its styling burns it in", async () => {
   await playing(asked);
 
   openSubtitles();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /With styling/u }));
+  fireEvent.click(rowIn("Subtitles", /With styling/u));
 
   await waitFor(() => {
     expect(asked.map((request) => request.subtitleTrack)).toStrictEqual([undefined, 3]);
@@ -188,12 +189,12 @@ test("a text subtitle chosen while one is burned in asks for a plan without it a
   const asked: PlanPlaybackRequest[] = [];
   const directPlay = await playing(asked);
   openSubtitles();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Signs/u }));
+  fireEvent.click(rowIn("Subtitles", /Signs/u));
   const burnedIn = await replaced(directPlay);
   Object.defineProperty(burnedIn, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
 
   openSubtitles();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /^Japanese$/u }));
+  fireEvent.click(rowIn("Subtitles", /^Japanese$/u));
 
   await waitFor(() => {
     expect(asked.map((request) => request.subtitleTrack)).toStrictEqual([undefined, 2, undefined]);
@@ -210,11 +211,11 @@ test("the first plan starts with the subtitle the Server chose, and later ones a
   Object.defineProperty(directPlay, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
 
   const checked = openSubtitles().map((item) => item.getAttribute("aria-checked"));
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Signs/u }));
+  fireEvent.click(rowIn("Subtitles", /Signs/u));
   const burnedIn = await replaced(directPlay);
   Object.defineProperty(burnedIn, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
   openSubtitles();
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "Off" }));
+  fireEvent.click(rowIn("Subtitles", "Off"));
 
   expect(checked).toStrictEqual(["false", "false", "true", "false", "false"]);
   await waitFor(() => {

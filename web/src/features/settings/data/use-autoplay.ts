@@ -1,12 +1,6 @@
-import { createConnectQueryKey, useQuery } from "@connectrpc/connect-query";
+import { useQuery } from "@connectrpc/connect-query";
 
 import { PlaybackService } from "@/gen/nama/v1/playback_pb";
-
-/** The query key of the autoplay choice, to refetch after saving it. */
-export const autoplayKey = createConnectQueryKey({
-  schema: PlaybackService.method.getAutoplay,
-  cardinality: "finite",
-});
 
 /** Whether the next Episode plays by itself for the signed-in User. */
 export function useAutoplay() {

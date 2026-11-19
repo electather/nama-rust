@@ -10,6 +10,7 @@ import {
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { pickIn, rowIn } from "@/test-player";
 
 /**
  * What each VobSub renderer drew, as text, under which file name, whether the next one fails to
@@ -125,8 +126,7 @@ async function playing(asked: PlanPlaybackRequest[]) {
 }
 
 function choose(name: RegExp) {
-  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name }));
+  pickIn("Subtitles", name);
 }
 
 test("switching between a VobSub Track, a text one and Off draws it as Matroska and doesn't restart playback", async () => {
@@ -138,15 +138,15 @@ test("switching between a VobSub Track, a text one and Off draws it as Matroska 
   });
   expect(vi.mocked(fetch)).toHaveBeenCalledWith(DUTCH);
 
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /English/u }));
+  fireEvent.click(rowIn("Subtitles", /English/u));
   await waitFor(() => {
     expect(bitsub.disposed).toBe(1);
   });
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Dutch/u }));
+  fireEvent.click(rowIn("Subtitles", /Dutch/u));
   await waitFor(() => {
     expect(bitsub.drawn).toHaveLength(2);
   });
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "Off" }));
+  fireEvent.click(rowIn("Subtitles", "Off"));
 
   await waitFor(() => {
     expect(bitsub.disposed).toBe(2);

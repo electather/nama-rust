@@ -6,6 +6,7 @@ import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { PlaybackLimit, PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { pickIn } from "@/test-player";
 
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
@@ -81,8 +82,7 @@ async function afterAWhile() {
 
 /** Chooses the 720p Playback Limit in the player's menu. */
 function choose720p() {
-  fireEvent.click(screen.getByRole("button", { name: "Playback Limit" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "720p" }));
+  pickIn("Playback Limit", "720p");
 }
 
 /** Waits for the player to play a new plan in a `<video>` other than `before`. */

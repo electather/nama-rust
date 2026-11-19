@@ -1,9 +1,11 @@
+import { ChoiceLabel } from "@/features/player/components/choice-label";
 import type { SubtitleChoice } from "@/features/player/lib/asking";
 import { trackLabel } from "@/features/player/lib/track-label";
 import type { Track } from "@/gen/nama/v1/browse_pb";
-import { DropdownMenuRadioItem } from "@/shared/ui/dropdown-menu";
+import { metadataLine } from "@/shared/lib/title-facts";
+import { RadioRow } from "@/shared/ui/radio-group";
 
-/** `track`'s item, choosing `value`, with `note` said after its details. */
+/** `track`'s row, choosing `value`, with `note` said after its details. */
 export function SubtitleItem({
   track,
   value,
@@ -14,11 +16,9 @@ export function SubtitleItem({
   note: string;
 }) {
   const { name, details } = trackLabel(track);
-  const more = [details, note].filter((text) => text !== "").join(" · ");
   return (
-    <DropdownMenuRadioItem value={value}>
-      {name}
-      {more !== "" && <span className="text-muted-foreground"> {more}</span>}
-    </DropdownMenuRadioItem>
+    <RadioRow value={value}>
+      <ChoiceLabel name={name} details={metadataLine(details, note)} />
+    </RadioRow>
   );
 }

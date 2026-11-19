@@ -7,9 +7,9 @@ import type { SubtitleChoice } from "@/features/player/lib/asking";
 import type { SubtitleState } from "@/features/player/lib/subtitle-render";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import { PickedTrackKind, type PlaybackSubtitle } from "@/gen/nama/v1/playback_pb";
-import { DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/shared/ui/dropdown-menu";
+import { RadioGroup, RadioRow } from "@/shared/ui/radio-group";
 
-/** Off, the plan's subtitles and the Tracks to burn in, the one shown or burned in checked. */
+/** Off, the plan's subtitles and the Tracks to burn in, the one shown or burned in chosen. */
 export function SubtitleChoices({
   tracks,
   planned,
@@ -26,25 +26,31 @@ export function SubtitleChoices({
   const { plan, shownSubtitle: shown, chooseSubtitle } = planned;
   const { subtitles, burnInTracks: burnable, subtitleTrack: burnedIn } = plan;
   return (
-    <DropdownMenuRadioGroup
+    <RadioGroup
+      aria-label="Subtitles"
       value={shown ?? burnedIn ?? ""}
-      onValueChange={(value: SubtitleChoice) => {
-        const choice = value === "" ? undefined : value;
+      onValueChange={(value) => {
+        const choice = isChoice(value) ? value : undefined;
         if (videoRef.current) {
           chooseSubtitle(videoRef.current, choice);
         }
         reportPick(PickedTrackKind.SUBTITLE, pickedPlace(choice, subtitles));
       }}
     >
-      <DropdownMenuRadioItem value="">Off</DropdownMenuRadioItem>
+      <RadioRow value="">Off</RadioRow>
       {subtitles.map(({ track, url }) => (
         <SubtitleItem key={url} track={track} value={url} note={stateText(states[url])} />
       ))}
       {burnable.map((place) => (
         <BurnInItem key={place} track={tracks[place]} place={place} />
       ))}
-    </DropdownMenuRadioGroup>
+    </RadioGroup>
   );
+}
+
+/** Whether a row's `value` picks a subtitle: Off's is `""`. */
+function isChoice(value: unknown): value is NonNullable<SubtitleChoice> {
+  return typeof value === "number" || (typeof value === "string" && value !== "");
 }
 
 /** The place in the Version's Tracks of the subtitle `choice` picks, `undefined` for Off. */

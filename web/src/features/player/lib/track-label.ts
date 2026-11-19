@@ -19,9 +19,11 @@ export function trackLabel(track: Track | undefined) {
 
 /** Its title, unless that's its name, then Forced and SDH. */
 function details({ title, forced, sdh }: Track, named: boolean) {
-  return [named && title, forced && "Forced", sdh && "SDH"]
-    .filter((detail) => typeof detail === "string")
-    .join(" · ");
+  const facts = [named && title, forced && "Forced", sdh && "SDH"].filter(
+    (detail) => typeof detail === "string",
+  );
+  // A file often titles its SDH Track "SDH", too.
+  return [...new Set(facts)].join(" · ");
 }
 
 /** The language a file tags as `code`, such as "English" for `eng`, if it tags one. */
