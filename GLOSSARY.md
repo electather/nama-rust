@@ -62,6 +62,10 @@ _Avoid_: claim token, bootstrap code
 One thing a User is allowed to do on a Server, such as Request or manage Libraries. Each User has their own set, and new Users get the Server's default set. A User with the Admin Permission may do everything.
 _Avoid_: role, scope, right, group
 
+**Download subtitles**:
+The Permission to search a subtitle source for the Version a User is watching and download one of its subtitles.
+_Avoid_: subtitle search permission
+
 **Invite**:
 A single-use link that lets one person create a User on a Server, with the Permissions chosen when it was made.
 _Avoid_: invitation code, share, referral
@@ -129,8 +133,12 @@ A Provider that proposes what a file is, such as an Episode numbered from the st
 _Avoid_: matcher (the code's `matching::Matcher` fixes Matches by hand), parser, identifier
 
 **Blob store**:
-Where the Kernel's own stored files live, such as the originals of its images, Custom Images and Plugin logos: local disk under the data directory by default, or a Provider such as an S3 Plugin, which the Admin picks. It never holds media files, and resized copies stay a local cache (ADR 0052).
+Where the Kernel's own stored files live, such as the originals of its images, Custom Images, Plugin logos and downloaded subtitles: local disk under the data directory by default, or a Provider such as an S3 Plugin, which the Admin picks. It never holds media files, and resized copies stay a local cache (ADR 0052, 0067).
 _Avoid_: storage backend, bucket, object store, file host
+
+**Subtitle source**:
+A Provider that searches an outside service, such as OpenSubtitles.com, for a Version's subtitles and downloads one a User picks (ADR 0067).
+_Avoid_: subtitle provider, subtitle agent, subtitle downloader
 
 **Fulfiller**:
 A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
