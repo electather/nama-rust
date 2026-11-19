@@ -35,9 +35,12 @@
 //!
 //! [`SEGMENT_MS`]: timeline::SEGMENT_MS
 
+mod process;
 mod run;
 mod serving;
 mod sweeping;
+#[cfg(test)]
+mod testing;
 mod timeline;
 
 use std::{
@@ -46,16 +49,18 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex, PoisonError,
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
 
 use futures_util::{Stream, StreamExt as _};
-use nama_proto::nama::v1::{Playback, PlaybackEnded, PlaybackStarted};
+use nama_proto::nama::v1::{
+    Playback, PlaybackChanged, PlaybackEnded, PlaybackReason, PlaybackStarted,
+};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-use run::{FallbackRun, Run, Running, Runs};
+use run::{Fallback, Running, Runs, Start};
 pub(crate) use serving::router;
 pub(crate) use sweeping::sweep_leftovers;
 use sweeping::tidy_plans;
@@ -116,6 +121,13 @@ pub(crate) enum StartError {
     /// Only a Transcode would play it, and the Server runs as many as it may at once, this many.
     #[error("the Server is running as many Transcodes as it may at once, {0}")]
     Busy(u32),
+}
+
+/// What a Transcode on hardware runs instead once a run there fails, and its plan's reasons from
+/// then on, which say why.
+struct FallbackRun {
+    start: Box<Start>,
+    reasons: Vec<PlaybackReason>,
 }
 
 /// The Transcodes running, as a Transcode cap counts them.
@@ -181,6 +193,8 @@ struct Plan {
     playback: Playback,
     /// Its HLS files and the ffmpeg writing them; `None` for a Direct Play, which runs nothing.
     hls: Option<Arc<Running>>,
+    /// Its reasons once it fell back to software, for a Transcode on hardware.
+    fallback_reasons: Vec<PlaybackReason>,
     /// When the plan was last asked for anything, which keeps it another [`STOP_UNUSED_AFTER`].
     last_used: Mutex<Instant>,
 }
@@ -227,7 +241,7 @@ impl RunningPlans {
             .filter_map(|plan| {
                 plan.hls
                     .as_ref()
-                    .filter(|hls| hls.method == Method::Transcode)
+                    .filter(|hls| hls.method() == Method::Transcode)
             })
             .collect();
         let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
@@ -297,18 +311,18 @@ impl RunningPlans {
         let timeline = Timeline::new(listed.keyframes_ms, duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let file_start_ms = listed.file_start_ms;
-        let run = move |dir: &Path, from| {
-            ffmpeg
-                .remux(&path, &remux, dir, from, file_start_ms)?
-                .spawn()
+        let start = move |dir: &Path, from| {
+            let command = ffmpeg.remux(&path, &remux, dir, from, file_start_ms)?;
+            command.spawn().map(process::run)
         };
         let runs = Runs {
-            run: Box::new(run),
-            fallback: None,
+            method: Method::Remux,
+            start: Box::new(start),
             cpu_bound: false,
+            fallback: None,
         };
         let id = self
-            .start_hls(playback, Method::Remux, timeline, start_ms, runs)
+            .start_hls(playback, timeline, start_ms, runs, None)
             .await?;
         Ok(Some((id, playlist_url(id))))
     }
@@ -350,7 +364,7 @@ impl RunningPlans {
         let cuts = timeline.keyframes.clone();
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let subtitles = self.inner.probing.subtitles().clone();
-        let run = move |attempt: Transcode| -> Box<Run> {
+        let start = move |attempt: Transcode| -> Box<Start> {
             let (ffmpeg, subtitles) = (Arc::clone(&ffmpeg), subtitles.clone());
             let (path, cuts) = (path.clone(), cuts.clone());
             Box::new(move |dir: &Path, from: Keyframe| {
@@ -358,7 +372,7 @@ impl RunningPlans {
                 let from = FromCut { n: from.n, cuts };
                 // Asked each run, so a seek once the cache is filled skips reading the whole file.
                 let attempt = burning_in_from(&subtitles, file, &attempt);
-                ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()
+                (ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()).map(process::run)
             })
         };
         let fallback = fallback.map(
@@ -366,18 +380,17 @@ impl RunningPlans {
                  transcode: software,
                  reasons,
              }| FallbackRun {
-                run: run(software),
+                start: start(software),
                 reasons: reasons.iter().map(reason_to_proto).collect(),
             },
         );
         let runs = Runs {
+            method: Method::Transcode,
             cpu_bound: transcode.video.cpu_bound(),
-            run: run(transcode),
-            fallback,
+            start: start(transcode),
+            fallback: None,
         };
-        let id = self
-            .start_hls(playback, Method::Transcode, timeline, start_ms, runs)
-            .await?;
+        let id = (self.start_hls(playback, timeline, start_ms, runs, fallback)).await?;
         Ok(Some((id, playlist_url(id))))
     }
 
@@ -385,12 +398,13 @@ impl RunningPlans {
     fn direct_play(&self, mut playback: Playback) -> u64 {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         playback.plan_id = id;
-        self.insert(id, playback, None);
+        self.insert(id, playback, None, vec![]);
         id
     }
 
     /// Starts a plan playing `playback`, cut as `timeline` says, whose files `runs` starts
-    /// ffmpeg writing from the segment playing at `start_ms`, and returns the plan's id.
+    /// ffmpeg writing from the segment playing at `start_ms`, going on with `fallback` once a run
+    /// on hardware fails, and returns the plan's id.
     #[expect(
         clippy::too_many_arguments,
         reason = "each is a different part of the plan, and `start_ms` only says where its first \
@@ -399,14 +413,10 @@ impl RunningPlans {
     async fn start_hls(
         &self,
         mut playback: Playback,
-        method: Method,
         timeline: Timeline,
         start_ms: i64,
-        Runs {
-            run,
-            fallback,
-            cpu_bound,
-        }: Runs,
+        mut runs: Runs,
+        fallback: Option<FallbackRun>,
     ) -> Result<u64, StartError> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         playback.plan_id = id;
@@ -420,34 +430,41 @@ impl RunningPlans {
             _ => tokio::fs::create_dir_all(&dir).await,
         };
         made.map_err(|source| StartError::SegmentFolder { folder, source })?;
-        // Its segment's first keyframe, not the one nearest: a run starting partway into a
-        // segment is restarted as soon as the player asks for that segment.
-        let start_segment = timeline.segment_at(start_ms);
-        let first_keyframe = timeline.keyframes_of(start_segment).start;
-        let running = Arc::new(Running {
-            id,
-            method,
-            timeline,
-            dir,
-            run,
-            last_asked: AtomicUsize::new(start_segment),
-            closed: AtomicBool::new(false),
-            fallback,
-            fell_back: AtomicBool::new(false),
-            started_cpu_bound: cpu_bound,
-            events: self.inner.events.clone(),
-            playback: playback.clone(),
-            settings: self.inner.settings.clone(),
-            ffmpeg: tokio::sync::Mutex::default(),
+        let fallback_reasons = fallback
+            .as_ref()
+            .map_or_else(Vec::new, |fallback| fallback.reasons.clone());
+        runs.fallback = fallback.map(|FallbackRun { start, reasons }| {
+            let events = self.inner.events.clone();
+            let changed = Playback {
+                reasons,
+                ..playback.clone()
+            };
+            Fallback {
+                start,
+                on_fall_back: Box::new(move || {
+                    let changed = PlaybackChanged {
+                        playback: changed.clone().into(),
+                        ..Default::default()
+                    };
+                    events.publish(vec![event(changed)]);
+                }),
+            }
         });
-        *running.ffmpeg.lock().await = Some(running.run_from(first_keyframe)?);
-        self.insert(id, playback, Some(running));
+        let keep_behind_ms = self.inner.settings.keep_behind_ms();
+        let running = Running::start(id, timeline, dir, start_ms, runs, keep_behind_ms).await?;
+        self.insert(id, playback, Some(running), fallback_reasons);
         Ok(id)
     }
 
-    /// Adds the plan `id` playing `playback`, with `hls` if it runs ffmpeg, and publishes its
-    /// `PlaybackStarted`.
-    fn insert(&self, id: u64, playback: Playback, hls: Option<Arc<Running>>) {
+    /// Adds the plan `id` playing `playback`, with `hls` if it runs ffmpeg and its reasons once it
+    /// falls back, and publishes its `PlaybackStarted`.
+    fn insert(
+        &self,
+        id: u64,
+        playback: Playback,
+        hls: Option<Arc<Running>>,
+        fallback_reasons: Vec<PlaybackReason>,
+    ) {
         let started = PlaybackStarted {
             playback: playback.clone().into(),
             ..Default::default()
@@ -455,6 +472,7 @@ impl RunningPlans {
         let plan = Plan {
             playback,
             hls,
+            fallback_reasons,
             last_used: Mutex::new(Instant::now()),
         };
         lock(&self.inner.plans).insert(id, Arc::new(plan));
@@ -511,7 +529,7 @@ impl RunningPlans {
             if theirs { plans.remove(&id) } else { None }
         };
         if let Some(plan) = plan {
-            self.stop(id, &plan).await;
+            self.stop(&plan).await;
         }
     }
 
@@ -536,8 +554,8 @@ impl RunningPlans {
         let ending: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
             .extract_if(|_, plan| versions.contains(&plan.playback.version_id))
             .collect();
-        for (id, plan) in ending {
-            self.stop(id, &plan).await;
+        for (_, plan) in ending {
+            self.stop(&plan).await;
         }
         Deleting {
             plans: self.clone(),
@@ -562,22 +580,22 @@ impl RunningPlans {
         let unused: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
             .extract_if(|_, plan| lock(&plan.last_used).elapsed() >= unused_for)
             .collect();
-        for (id, plan) in unused {
-            self.stop(id, &plan).await;
+        for (_, plan) in unused {
+            self.stop(&plan).await;
         }
     }
 
     /// Deletes each running plan's files from well behind or far ahead of playback, as
     /// [`Running::delete_unkept`] says.
     async fn delete_unkept_files(&self) {
-        let running: Vec<Arc<Running>> = (lock(&self.inner.plans).values())
-            .filter_map(|plan| plan.hls.clone())
+        let running: Vec<(u64, Arc<Running>)> = (lock(&self.inner.plans).iter())
+            .filter_map(|(&id, plan)| Some((id, plan.hls.clone()?)))
             .collect();
         let keep_behind_ms = self.inner.settings.keep_behind_ms();
-        for hls in running {
+        for (id, hls) in running {
             if let Err(err) = hls.delete_unkept(keep_behind_ms).await {
                 tracing::warn!(
-                    plan = hls.id,
+                    plan = id,
                     "could not delete files behind or ahead of playback: {err}"
                 );
             }
@@ -591,27 +609,37 @@ impl RunningPlans {
         self.inner.cancel.cancel();
         self.inner.tasks.close();
         self.inner.tasks.wait().await;
-        let plans: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans).drain().collect();
-        for (id, plan) in plans {
-            self.stop(id, &plan).await;
+        let plans: Vec<Arc<Plan>> = lock(&self.inner.plans)
+            .drain()
+            .map(|(_, plan)| plan)
+            .collect();
+        for plan in plans {
+            self.stop(&plan).await;
         }
     }
 
-    /// Stops the plan `id`'s ffmpeg, if it runs one, deletes its files and publishes that its
-    /// playback ended.
-    async fn stop(&self, id: u64, plan: &Plan) {
+    /// Stops `plan`'s ffmpeg, if it runs one, deletes its files and publishes that its playback
+    /// ended.
+    async fn stop(&self, plan: &Plan) {
         if let Some(hls) = &plan.hls {
-            hls.stop(id).await;
+            hls.stop().await;
         }
-        let playback = match &plan.hls {
-            Some(hls) => hls.playback_now(),
-            None => plan.playback.clone(),
-        };
         let ended = PlaybackEnded {
-            playback: playback.into(),
+            playback: plan.playback_now().into(),
             ..Default::default()
         };
         self.inner.events.publish(vec![event(ended)]);
+    }
+}
+
+impl Plan {
+    /// How it plays now: as it started, with its fallback's reasons if it fell back.
+    fn playback_now(&self) -> Playback {
+        let mut playback = self.playback.clone();
+        if self.hls.as_ref().is_some_and(|hls| hls.fell_back()) {
+            playback.reasons.clone_from(&self.fallback_reasons);
+        }
+        playback
     }
 }
 

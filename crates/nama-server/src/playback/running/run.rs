@@ -1,107 +1,176 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    process::Output,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering},
     },
 };
 
-use nama_proto::nama::v1::{Playback, PlaybackChanged, PlaybackReason};
-use tokio::{process::Child, task::JoinHandle};
+use futures_util::future::BoxFuture;
+use tokio::task::JoinHandle;
 
 use super::{
     Method, POLL_EVERY, REMUX_WAIT_AHEAD_MS, RUN_AHEAD_MS,
     timeline::{SEGMENT_MS, Timeline, keyframe_number},
 };
-use crate::{
-    events::{EventBus, event},
-    ffmpeg::{Keyframe, hls_init, hls_init_from},
-    server_settings::PlaybackSettings,
-};
+use crate::ffmpeg::{Keyframe, hls_init, hls_init_from};
 
 /// How ffmpeg's stderr says a write failed with ENOSPC. ffmpeg, not the Server, writes a plan's
 /// files, so its words are all the Server sees of it.
 const DISK_FULL: &str = "No space left on device";
 
-/// Starts ffmpeg writing a plan's files, from a keyframe on, to the folder it's given.
-pub(super) type Run = dyn Fn(&Path, Keyframe) -> io::Result<Child> + Send + Sync;
+/// Starts a run writing a plan's files, from a keyframe on, to the folder it's given: one file
+/// per keyframe, named by its number such as `3.m4s`, and an init file named by [`hls_init`].
+pub(super) type Start = dyn Fn(&Path, Keyframe) -> io::Result<Run> + Send + Sync;
 
-/// What starts ffmpeg writing a plan's files: `run`, or once a run on hardware fails, `fallback`.
+/// A run writing a plan's files, which ends with how it went, and stops when dropped.
+pub(super) type Run = BoxFuture<'static, Outcome>;
+
+/// How a run ended.
+#[derive(Debug)]
+pub(super) enum Outcome {
+    /// It wrote every file it was started for.
+    Finished,
+    /// It failed with `status`, as ffmpeg's exit status reads, having written `stderr`.
+    Failed { status: String, stderr: String },
+    /// It couldn't be waited for.
+    Unwaited(io::Error),
+}
+
+/// What starts a plan's runs, and how they convert.
 pub(super) struct Runs {
-    pub(super) run: Box<Run>,
-    pub(super) fallback: Option<FallbackRun>,
-    /// Whether `run` works the CPU hard, which the default Transcode cap counts.
+    /// How far ahead a request waits for a run, and so the Transcode cap leaves Remuxes out.
+    pub(super) method: Method,
+    /// Starts each run, unless it fell back.
+    pub(super) start: Box<Start>,
+    /// Whether `start` works the CPU hard, which the default Transcode cap counts.
     pub(super) cpu_bound: bool,
+    /// For a Transcode on hardware, what it runs once a run there fails.
+    pub(super) fallback: Option<Fallback>,
 }
 
 /// What a Transcode on hardware runs instead once a run there fails.
-pub(super) struct FallbackRun {
-    pub(super) run: Box<Run>,
-    /// Its plan's reasons from then on, which say why.
-    pub(super) reasons: Vec<PlaybackReason>,
+pub(super) struct Fallback {
+    /// Starts each run once it fell back.
+    pub(super) start: Box<Start>,
+    /// Called once, as the plan falls back, so its owner can tell Observers.
+    pub(super) on_fall_back: Box<dyn Fn() + Send + Sync>,
 }
 
-/// A plan's HLS files, and the ffmpeg writing them.
+/// A plan's HLS files, and the runs writing them.
 pub(super) struct Running {
-    pub(super) id: u64,
-    /// How far ahead a request waits for ffmpeg, and so the Transcode cap leaves Remuxes out.
-    pub(super) method: Method,
-    pub(super) timeline: Timeline,
-    pub(super) dir: PathBuf,
-    pub(super) run: Box<Run>,
+    /// The plan's id, which its log lines name.
+    id: u64,
+    method: Method,
+    timeline: Timeline,
+    dir: PathBuf,
+    start: Box<Start>,
     /// The last segment asked for, by number.
-    pub(super) last_asked: AtomicUsize,
-    /// Whether the plan was stopped, so no ffmpeg is started again for requests still waiting.
-    pub(super) closed: AtomicBool,
-    /// For a Transcode on hardware, what it runs once a run there fails.
-    pub(super) fallback: Option<FallbackRun>,
+    last_asked: AtomicUsize,
+    /// Whether the plan was stopped, so no run is started again for requests still waiting.
+    closed: AtomicBool,
+    fallback: Option<Fallback>,
     /// Whether a run on hardware failed, so `fallback` runs from then on.
-    pub(super) fell_back: AtomicBool,
+    fell_back: AtomicBool,
     /// Whether it started working the CPU hard, which the default Transcode cap counts.
-    pub(super) started_cpu_bound: bool,
-    /// Tells Observers how the plan plays now, once it fell back.
-    pub(super) events: EventBus,
-    /// As it started, for telling Observers how it plays once it fell back.
-    pub(super) playback: Playback,
-    /// For the time kept behind playback, which a warning that the segment folder is full names.
-    pub(super) settings: PlaybackSettings,
-    /// The run of ffmpeg writing its files, and its task, which stops ffmpeg when aborted.
-    pub(super) ffmpeg: tokio::sync::Mutex<Option<(Arc<FfmpegRun>, JoinHandle<()>)>>,
+    started_cpu_bound: bool,
+    /// The time kept behind playback as last told, which a warning that the segment folder is
+    /// full names.
+    keep_behind_ms: AtomicI64,
+    /// The run writing its files, and its task, which stops the run when aborted.
+    ffmpeg: tokio::sync::Mutex<Option<(Arc<FfmpegRun>, JoinHandle<()>)>>,
 }
 
-/// One run of ffmpeg, from one keyframe on.
-pub(super) struct FfmpegRun {
+/// One run, from one keyframe on.
+struct FfmpegRun {
     /// The keyframe it started at, by number.
     from: usize,
     /// The first keyframe from `from` on it hadn't written, as last looked. A file behind it that's
     /// gone since doesn't move it back.
     written_to: AtomicUsize,
-    /// Whether ffmpeg has stopped, so a file not written yet never will be by this run.
+    /// Whether the run has stopped, so a file not written yet never will be by it.
     stopped: AtomicBool,
 }
 
 impl Running {
-    /// Whether it works the CPU hard now: it started so, or fell back to software.
-    pub(super) fn cpu_bound(&self) -> bool {
-        self.started_cpu_bound || self.fell_back.load(Ordering::Acquire)
+    /// Starts the plan `id`'s first run writing its files, cut as `timeline` says, to `dir`, from
+    /// the first keyframe of the segment playing at `start_ms`, and returns the plan. A warning
+    /// that the segment folder, `dir`'s parent, is full names `keep_behind_ms`, until
+    /// [`Self::delete_unkept`] is told another.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a different part of the plan, and `start_ms` only says where its first \
+                  run starts"
+    )]
+    pub(super) async fn start(
+        id: u64,
+        timeline: Timeline,
+        dir: PathBuf,
+        start_ms: i64,
+        runs: Runs,
+        keep_behind_ms: i64,
+    ) -> io::Result<Arc<Self>> {
+        // Its segment's first keyframe, not the one nearest: a run starting partway into a
+        // segment is restarted as soon as the player asks for that segment.
+        let start_segment = timeline.segment_at(start_ms);
+        let first_keyframe = timeline.keyframes_of(start_segment).start;
+        let running = Arc::new(Self {
+            id,
+            method: runs.method,
+            timeline,
+            dir,
+            start: runs.start,
+            last_asked: AtomicUsize::new(start_segment),
+            closed: AtomicBool::new(false),
+            fallback: runs.fallback,
+            fell_back: AtomicBool::new(false),
+            started_cpu_bound: runs.cpu_bound,
+            keep_behind_ms: AtomicI64::new(keep_behind_ms),
+            ffmpeg: tokio::sync::Mutex::default(),
+        });
+        *running.ffmpeg.lock().await = Some(running.run_from(first_keyframe)?);
+        Ok(running)
     }
 
-    /// Stops the plan `id`'s ffmpeg and deletes its files.
-    pub(super) async fn stop(&self, id: u64) {
+    /// Whether it Remuxes or Transcodes.
+    pub(super) const fn method(&self) -> Method {
+        self.method
+    }
+
+    /// Whether it works the CPU hard now: it started so, or fell back to software.
+    pub(super) fn cpu_bound(&self) -> bool {
+        self.started_cpu_bound || self.fell_back()
+    }
+
+    /// Whether a run on hardware failed, so it runs its fallback from then on.
+    pub(super) fn fell_back(&self) -> bool {
+        self.fell_back.load(Ordering::Acquire)
+    }
+
+    /// The HLS playlist, listing every segment.
+    pub(super) fn playlist(&self) -> String {
+        self.timeline.playlist()
+    }
+
+    /// Stops its run and deletes its files.
+    pub(super) async fn stop(&self) {
         // Under the lock a restart takes, so none starts ffmpeg after this.
         let mut ffmpeg = self.ffmpeg.lock().await;
         self.closed.store(true, Ordering::Release);
         if let Some((run, task)) = ffmpeg.take() {
             task.abort();
-            // Awaited so ffmpeg is dropped, which kills it, before its folder is deleted.
+            // Awaited so the run is dropped, which stops it, before its folder is deleted.
             let _: Result<(), _> = task.await;
             run.stopped.store(true, Ordering::Release);
         }
         drop(ffmpeg);
         if let Err(err) = tokio::fs::remove_dir_all(&self.dir).await {
-            tracing::warn!(plan = id, "could not delete {}: {err}", self.dir.display());
+            tracing::warn!(
+                plan = self.id,
+                "could not delete {}: {err}",
+                self.dir.display()
+            );
         }
     }
 
@@ -109,8 +178,10 @@ impl Running {
     /// last segment asked for, or starting [`RUN_AHEAD_MS`] or more past it, such as those a seek
     /// back left (ADR 0062), and the init files of every run but the current one. Those behind
     /// that the current run may still be writing are kept, and while it runs, those less than
-    /// [`RUN_AHEAD_MS`] past where it started, since a seek ahead started it there.
+    /// [`RUN_AHEAD_MS`] past where it started, since a seek ahead started it there. A warning that
+    /// the segment folder is full names `keep_behind_ms` from then on.
     pub(super) async fn delete_unkept(&self, keep_behind_ms: i64) -> io::Result<()> {
+        self.keep_behind_ms.store(keep_behind_ms, Ordering::Relaxed);
         // Under the lock a restart takes, so the current run is the one whose init is kept.
         let ffmpeg = self.ffmpeg.lock().await;
         // `stop` takes the run under it, so a stopped plan has none.
@@ -309,25 +380,11 @@ impl Running {
         Ok(true)
     }
 
-    /// How it plays now: as it started, with its fallback's reasons if it fell back.
-    pub(super) fn playback_now(&self) -> Playback {
-        let mut playback = self.playback.clone();
-        if let Some(FallbackRun { reasons, .. }) =
-            (self.fallback.as_ref()).filter(|_| self.fell_back.load(Ordering::Acquire))
-        {
-            playback.reasons.clone_from(reasons);
-        }
-        playback
-    }
-
-    /// Starts ffmpeg writing this plan's files from keyframe `n` on.
-    pub(super) fn run_from(
-        self: &Arc<Self>,
-        n: usize,
-    ) -> io::Result<(Arc<FfmpegRun>, JoinHandle<()>)> {
+    /// Starts a run writing this plan's files from keyframe `n` on.
+    fn run_from(self: &Arc<Self>, n: usize) -> io::Result<(Arc<FfmpegRun>, JoinHandle<()>)> {
         let start = match &self.fallback {
-            Some(fallback) if self.fell_back.load(Ordering::Acquire) => &fallback.run,
-            _ => &self.run,
+            Some(fallback) if self.fell_back() => &fallback.start,
+            _ => &self.start,
         };
         let ffmpeg = start(&self.dir, self.timeline.keyframe(n))?;
         let run = Arc::new(FfmpegRun {
@@ -339,12 +396,12 @@ impl Running {
         Ok((run, task))
     }
 
-    /// Waits for `ffmpeg`, doing the run `run`, to stop, or stops it once it has written far
+    /// Waits for `ffmpeg`, doing the run `run`, to end, or stops it once it has written far
     /// enough ahead, then logs why if it failed and marks it stopped.
-    async fn watch(self: Arc<Self>, ffmpeg: Child, run: Arc<FfmpegRun>) {
+    async fn watch(self: Arc<Self>, ffmpeg: Run, run: Arc<FfmpegRun>) {
         let worth_falling_back = tokio::select! {
-            output = ffmpeg.wait_with_output() => self.log_failure(output),
-            // Dropping the child stops ffmpeg.
+            outcome = ffmpeg => self.log_failure(outcome),
+            // Dropping the run stops it.
             () = self.written_far_ahead(&run) => false,
         };
         // What it wrote since last looked, for its fallback, `will_write` and `init`, which reads
@@ -357,11 +414,11 @@ impl Running {
     }
 
     /// Once `run`, the plan's current run of ffmpeg, failed on hardware, starts its fallback from
-    /// the first file it hadn't written, and tells Observers so. Only the first failure does.
+    /// the first file it hadn't written, and tells its owner so. Only the first failure does.
     async fn fall_back(self: &Arc<Self>, run: &Arc<FfmpegRun>) {
-        if self.fallback.is_none() {
+        let Some(fallback) = &self.fallback else {
             return;
-        }
+        };
         // Before waiting for the lock, so a seek that restarts ffmpeg meanwhile, aborting this
         // task, restarts it in software.
         if self.fell_back.swap(true, Ordering::AcqRel) {
@@ -371,11 +428,7 @@ impl Running {
             plan = self.id,
             "hardware acceleration failed partway, so the rest Transcodes in software"
         );
-        let changed = PlaybackChanged {
-            playback: self.playback_now().into(),
-            ..Default::default()
-        };
-        self.events.publish(vec![event(changed)]);
+        (fallback.on_fall_back)();
         // Under the lock a restart takes, so it doesn't race a seek's.
         let mut ffmpeg = self.ffmpeg.lock().await;
         let current = (ffmpeg.as_ref()).is_some_and(|(current, _)| Arc::ptr_eq(current, run));
@@ -387,7 +440,7 @@ impl Running {
             run.stopped.store(true, Ordering::Release);
             match self.run_from(from) {
                 // Replaces this task's own handle, which leaves it to finish.
-                Ok(fallback) => *ffmpeg = Some(fallback),
+                Ok(software) => *ffmpeg = Some(software),
                 Err(err) => tracing::warn!(plan = self.id, "could not start ffmpeg again: {err}"),
             }
         }
@@ -395,11 +448,10 @@ impl Running {
 
     /// Logs why ffmpeg failed, if it did, and says whether it failed in a way a run in software
     /// might get past.
-    fn log_failure(&self, output: io::Result<Output>) -> bool {
-        match output {
-            Ok(Output { status, .. }) if status.success() => false,
-            Ok(Output { status, stderr, .. }) => {
-                let stderr = String::from_utf8_lossy(&stderr);
+    fn log_failure(&self, outcome: Outcome) -> bool {
+        match outcome {
+            Outcome::Finished => false,
+            Outcome::Failed { status, stderr } => {
                 tracing::warn!(
                     plan = self.id,
                     "ffmpeg failed ({status}): {}",
@@ -412,7 +464,7 @@ impl Running {
                 }
                 true
             }
-            Err(err) => {
+            Outcome::Unwaited(err) => {
                 tracing::warn!(plan = self.id, "could not wait for ffmpeg: {err}");
                 false
             }
@@ -427,7 +479,7 @@ impl Running {
             || "an unknown amount".to_owned(),
             |bytes| format!("{} MiB", bytes / (1024 * 1024)),
         );
-        let kept_behind_minutes = self.settings.keep_behind_ms() / 60_000;
+        let kept_behind_minutes = self.keep_behind_ms.load(Ordering::Relaxed) / 60_000;
         tracing::warn!(
             plan = self.id,
             "the segment folder, {}, is full, with {free} free while plans keep \
