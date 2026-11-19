@@ -2,19 +2,19 @@
 name: Nama
 description: A self-hosted media server with Requests built in. Quiet chrome, loud artwork.
 colors:
-  primary: "#f5f5f7"
-  on-primary: "#000000"
-  background: "#0e0e0e"
-  card: "#191919"
-  popover: "#222222"
-  muted: "#303030"
-  secondary: "#a3a3a326"
-  foreground: "#ededed"
-  muted-foreground: "#8f8f8f"
-  border: "#a3a3a326"
-  input: "#6e6e6e"
-  destructive: "#ff6467"
-  scrim: "#000000b3"
+  primary: "oklch(0.971 0.003 286.4)"
+  on-primary: "oklch(0 0 0)"
+  background: "oklch(0.164 0 0)"
+  card: "oklch(0.213 0 0)"
+  popover: "oklch(0.252 0 0)"
+  muted: "oklch(0.309 0 0)"
+  secondary: "oklch(0.715 0 0 / 15%)"
+  foreground: "oklch(0.946 0 0)"
+  muted-foreground: "oklch(0.65 0 0)"
+  border: "oklch(0.715 0 0 / 15%)"
+  input: "oklch(0.538 0 0)"
+  destructive: "oklch(0.702 0.189 22.2)"
+  scrim: "oklch(0 0 0 / 70%)"
 typography:
   display:
     fontFamily: "Geist Variable, sans-serif"
@@ -92,21 +92,21 @@ The system rejects Plex's busy home screen with its promoted rows and upsells, t
 Pure neutrals and nothing else. The artwork supplies the colour, so the interface doesn't have to. Every colour is one of shadcn's tokens, plus `--scrim` (ADR 0016); a tint is an opacity of a token (`bg-destructive/10`), never a token of its own.
 
 ### Primary
-- **Near-white** (`#f5f5f7`): the solid fill of the one primary action on a screen (Play, Resume, Request), with black ink (`on-primary`, 19:1) in semibold. It's also the ink of a lit state (a selected segment or chip, on Accent), seek handles, the filled part of progress, focus rings (`--ring`), and inline links, underlined. In code this is shadcn's `--primary`. shadcn's own `--accent` is the quiet neutral fill of hover and lit states, never this colour.
+- **Near-white** (`oklch(0.971 0.003 286.4)`): the solid fill of the one primary action on a screen (Play, Resume, Request), with black ink (`on-primary`, 19:1) in semibold. It's also the ink of a lit state (a selected segment or chip, on Accent), seek handles, the filled part of progress, focus rings (`--ring`), and inline links, underlined. In code this is shadcn's `--primary`. shadcn's own `--accent` is the quiet neutral fill of hover and lit states, never this colour.
 
 ### Neutral
-- **Living-room black** (`#0e0e0e`): the page.
-- **Card** (`#191919`): panels one step above the page.
-- **Popover** (`#222222`): things that float, such as menus and dialogs.
-- **Muted** (`#303030`): hover, disabled fills, troughs and tracks. `--accent` is the same value, for lit states.
+- **Living-room black** (`oklch(0.164 0 0)`): the page.
+- **Card** (`oklch(0.213 0 0)`): panels one step above the page.
+- **Popover** (`oklch(0.252 0 0)`): things that float, such as menus and dialogs.
+- **Muted** (`oklch(0.309 0 0)`): hover, disabled fills, troughs and tracks. `--accent` is the same value, for lit states.
 - **Secondary** (grey at 15%): the fill of secondary buttons and chips. It's translucent, so it holds up on the page, on a card and over scrimmed artwork.
-- **Ink** (`#ededed`): text, including body copy.
-- **Quiet ink** (`#8f8f8f`): metadata and supporting text, on the page, a card or a popover (4.9:1 at worst). On Muted or Secondary it falls to 4.1:1, so text there is Ink.
+- **Ink** (`oklch(0.946 0 0)`): text, including body copy.
+- **Quiet ink** (`oklch(0.65 0 0)`): metadata and supporting text, on the page, a card or a popover (4.9:1 at worst). On Muted or Secondary it falls to 4.1:1, so text there is Ink.
 - **Hairline** (grey at 15%): decorative borders and dividers, below 3:1 on purpose.
-- **Rim** (`#6e6e6e`, `--input`): the edge of every control, 3:1 or better on every surface. At 30% it's the fill of an Input.
+- **Rim** (`oklch(0.538 0 0)`, `--input`): the edge of every control, 3:1 or better on every surface. At 30% it's the fill of an Input.
 
 ### Destructive
-- **Red** (`#ff6467`): ink for something that can't be undone and for Declined and Failed, on its own 10% tint (4.8:1 or better), always with an icon and a word.
+- **Red** (`oklch(0.702 0.189 22.2)`): ink for something that can't be undone and for Declined and Failed, on its own 10% tint (4.8:1 or better), always with an icon and a word.
 
 The neutrals have no chroma. A coloured background competes with the artwork, so the ramp is pure grey. There are no status colours besides Destructive: Pending, Available and the other states are told apart by their icon and word. The values live in shadcn's `.dark` tokens, so a light theme later only needs new `:root` values (ADR 0016).
 
