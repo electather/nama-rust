@@ -51,7 +51,6 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --color-surface-raised: var(--surface-raised);
   --color-scrim: var(--scrim);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -96,48 +95,52 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --surface-raised: oklch(0.97 0 0);
   --scrim: oklch(0 0 0 / 50%);
 }
 
 .dark {
   /* Native controls, such as radio buttons and scrollbars, drawn for a dark page too. */
   color-scheme: dark;
-  /* Pure neutrals: the artwork brings the colour, so the chrome has none (DESIGN.md, "Neutral"). */
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.185 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.185 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* #16C172, for the one primary action, focus and progress. Black ink on it (8.9:1): white only reaches 2.4:1. */
-  --primary: oklch(0.714 0.171 155);
-  --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0.985 0 0);
-  --secondary-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.25 0 0);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.25 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.714 0.171 155);
+  /* Pure neutrals: the artwork brings the colour, so the chrome has none (DESIGN.md, "Colors").
+     The values are the approved table on #1151; the contrast figures below are WCAG 2. */
+  --background: #0e0e0e;
+  --foreground: #ededed;
+  --card: #191919;
+  --card-foreground: var(--foreground);
+  --popover: #222222;
+  --popover-foreground: var(--foreground);
+  /* Near-white, for the one primary action, lit states, seek handles and links. Black ink (19:1). */
+  --primary: #f5f5f7;
+  --primary-foreground: #000000;
+  /* Translucent, so it holds up on the page, on a card and over scrimmed artwork. */
+  --secondary: #a3a3a326;
+  --secondary-foreground: var(--foreground);
+  --muted: #303030;
+  /* 4.9:1 on popover at worst. Only 4.1:1 on muted or secondary: use foreground there. */
+  --muted-foreground: #8f8f8f;
+  --accent: var(--muted);
+  --accent-foreground: var(--foreground);
+  /* Ink on its own 10% tint (4.8:1 on popover); shadcn's dark 20% tint falls to 4.1:1. */
+  --destructive: #ff6467;
+  /* Decorative, below 3:1 on purpose. */
+  --border: #a3a3a326;
+  /* The rim of every control, 3.1:1 on popover at worst (WCAG 1.4.11). */
+  --input: #6e6e6e;
+  --ring: var(--primary);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.185 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.714 0.171 155);
-  --sidebar-primary-foreground: oklch(0 0 0);
-  --sidebar-accent: oklch(0.25 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.714 0.171 155);
-  --surface-raised: oklch(0.185 0 0);
-  --scrim: oklch(0 0 0 / 70%);
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --scrim: #000000b3;
 }
 
 @layer base {

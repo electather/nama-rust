@@ -8,7 +8,7 @@ import { Button } from "@/shared/ui/button";
 export function EmptyFolder({ libraryId, folder }: { libraryId: bigint; folder: string }) {
   const scan = useScanLibrary();
   return (
-    <li className="flex flex-col gap-3 rounded-xl border bg-surface-raised p-4.5 text-sm sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex flex-col gap-3 rounded-xl border bg-card p-4.5 text-sm sm:flex-row sm:items-center sm:justify-between">
       <p className="flex gap-2.5 text-pretty">
         <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <EmptyFolderNote folder={folder} />

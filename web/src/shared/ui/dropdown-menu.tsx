@@ -2,9 +2,9 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "cn";
 import { Check } from "lucide-react";
 
-// shadcn's base-nova dropdown menu, trimmed to the parts we use. DESIGN.md: menus float, so they
-// are Raised black with a hairline and a shadow, and open on an exponential ease-out; a
-// highlighted item turns Muted. Items are 44px tall, as large as a fingertip.
+// shadcn's base-nova dropdown menu, trimmed to the parts we use. DESIGN.md, "Menus": Popover with a
+// hairline and `shadow-md`, opening on an exponential ease-out; a highlighted item turns Accent.
+// Items are 44px tall, as large as a fingertip.
 
 function DropdownMenu(props: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
@@ -33,7 +33,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "z-50 max-h-(--available-height) min-w-48 origin-(--transform-origin) overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg duration-150 ease-out-expo outline-none motion-reduce:animate-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0",
+            "z-50 max-h-(--available-height) min-w-48 origin-(--transform-origin) overflow-y-auto rounded-3xl border bg-popover p-1 text-popover-foreground shadow-md duration-150 ease-out-expo outline-none motion-reduce:animate-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0",
             className,
           )}
           {...props}
@@ -44,7 +44,7 @@ function DropdownMenuContent({
 }
 
 const itemClassName =
-  "flex min-h-11 cursor-default items-center gap-2 rounded-lg px-3 text-sm outline-hidden select-none data-highlighted:bg-muted data-disabled:pointer-events-none data-disabled:text-muted-foreground";
+  "flex min-h-11 cursor-default items-center gap-2.5 rounded-2xl px-2.5 text-sm outline-hidden select-none data-highlighted:bg-accent data-disabled:pointer-events-none data-disabled:text-muted-foreground";
 
 function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
   return (

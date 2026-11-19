@@ -7,7 +7,7 @@ import { dayOf } from "@/shared/lib/title-facts";
 /** An Invite's link, to copy or share, and until when it works. */
 export function LinkToShare({ url, invite }: { url: string; invite: Invite }) {
   return (
-    <div className="mt-6 flex flex-col gap-3 rounded-xl border bg-surface-raised p-4.5">
+    <div className="mt-6 flex flex-col gap-3 rounded-xl border bg-card p-4.5">
       <FormField
         label="Invite link"
         name="inviteLink"

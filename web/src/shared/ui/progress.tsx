@@ -1,7 +1,7 @@
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 import { cn } from "cn";
 
-// DESIGN.md, "Posters": a 2px bar, Signal Green on a Muted track. Trimmed to the parts we use.
+// DESIGN.md, "Sliders and progress": a 2px bar, Near-white on a Muted track. Trimmed to the parts we use.
 function Progress({ className, ...props }: ProgressPrimitive.Root.Props) {
   return (
     <ProgressPrimitive.Root data-slot="progress" className={cn("w-full", className)} {...props}>
