@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "./features/player/subtitle-appearance.css";
+@import "./subtitle-cues.css";
 
 @custom-variant dark (&:is(.dark *));
 

@@ -33,7 +33,7 @@ export function PlannedPlayer(props: PlannedProps) {
     />
   );
   return (
-    // `subtitle-appearance.css` styles the text subtitles' cues by these.
+    // `src/subtitle-cues.css` styles the text subtitles' cues by these.
     <div data-subtitle-size={subtitles.size} data-subtitle-background={subtitles.background}>
       {/* Each new plan plays in a new `<video>`, so it starts where that plan does. ponytail: that
           one starts unmuted at full volume; carry those over if anyone minds. */}

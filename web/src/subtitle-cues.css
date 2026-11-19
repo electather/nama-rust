@@ -5,16 +5,17 @@
 video::cue {
   color: var(--subtitle-ink);
   background-color: transparent;
-  /* An edge all round each letter, not a soft shadow, which a white frame shows through. */
+  /* An edge all round each letter, at least a pixel wide, not a soft shadow, which a white frame
+     shows through. */
   text-shadow:
-    0.06em 0 var(--subtitle-edge),
-    -0.06em 0 var(--subtitle-edge),
-    0 0.06em var(--subtitle-edge),
-    0 -0.06em var(--subtitle-edge),
-    0.04em 0.04em var(--subtitle-edge),
-    -0.04em 0.04em var(--subtitle-edge),
-    0.04em -0.04em var(--subtitle-edge),
-    -0.04em -0.04em var(--subtitle-edge);
+    max(1px, 0.06em) 0 var(--subtitle-edge),
+    min(-1px, -0.06em) 0 var(--subtitle-edge),
+    0 max(1px, 0.06em) var(--subtitle-edge),
+    0 min(-1px, -0.06em) var(--subtitle-edge),
+    max(1px, 0.04em) max(1px, 0.04em) var(--subtitle-edge),
+    min(-1px, -0.04em) max(1px, 0.04em) var(--subtitle-edge),
+    max(1px, 0.04em) min(-1px, -0.04em) var(--subtitle-edge),
+    min(-1px, -0.04em) min(-1px, -0.04em) var(--subtitle-edge);
 }
 [data-subtitle-background="2"] video::cue {
   background-color: var(--subtitle-box);
