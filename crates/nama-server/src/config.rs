@@ -51,12 +51,11 @@ pub struct Config {
     /// Empty by default, so the headers are ignored.
     // ADR 0018; kept out of the doc comment, which editors show users.
     pub trusted_proxies: Vec<IpRange>,
-    /// The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`, as
-    /// does a bare name such as `ffmpeg`. A relative path with a folder, such as `bin/ffmpeg`,
-    /// counts from the folder the Server starts in.
+    /// The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`. A
+    /// relative path, such as `bin/ffmpeg`, counts from the folder the Server starts in.
     pub ffmpeg: Option<PathBuf>,
-    /// The ffprobe to run. Unset, the default, looks for it on `PATH`, as does a bare name such as
-    /// `ffprobe`. A relative path with a folder counts from the folder the Server starts in.
+    /// The ffprobe to run. Unset, the default, looks for it on `PATH`. A relative path counts from
+    /// the folder the Server starts in.
     pub ffprobe: Option<PathBuf>,
     /// Whether the OS reports changes in Library folders so they're scanned soon after. On by
     /// default; off, folders are scanned every six hours and when asked.
@@ -202,7 +201,7 @@ impl Config {
             ("ffmpeg", &mut config.ffmpeg),
             ("ffprobe", &mut config.ffprobe),
         ] {
-            // A bare name is left for the OS to look up on `PATH`.
+            // A bare name is left as written, per #1120; `ffmpeg::finding` resolves it when found.
             if let Some(path) = program.as_mut().filter(|p| p.components().count() > 1) {
                 *path = absolute(key, path)?;
             }

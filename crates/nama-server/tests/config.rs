@@ -137,7 +137,7 @@ fn ffmpeg_and_ffprobe_paths_come_from_the_config_file_or_environment() {
 }
 
 #[test]
-fn relative_paths_count_from_the_working_folder_and_a_bare_program_name_stays_on_path() {
+fn relative_paths_count_from_the_working_folder_and_a_bare_program_name_is_left_as_written() {
     Jail::expect_with(|jail| {
         jail.create_file(
             "nama.toml",
