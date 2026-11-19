@@ -12,8 +12,11 @@ import { createContext, use } from "react";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { refusalOf } from "@/shared/lib/forms";
 
-/** Asks the User to confirm it's them, resolving whether this Device then has Recent Authentication. */
-export type Ask = () => Promise<boolean>;
+/**
+ * Asks the User to confirm it's them, to do what `confirming` says, such as `sign in “Laptop”`, or
+ * else to go on. Resolves whether this Device then has Recent Authentication.
+ */
+export type Ask = (confirming: string | undefined) => Promise<boolean>;
 
 /** How `useSensitiveMutation` asks: `<ConfirmItsYou>` provides it, opening its dialog. */
 // Fails loudly rather than as a cancel, which forms don't show: outside <ConfirmItsYou> a
@@ -31,10 +34,13 @@ export const AskContext = createContext<Ask>(async () => {
  */
 export function useSensitiveMutation<I extends DescMessage, O extends DescMessage>(
   schema: DescMethodUnary<I, O>,
-  options: Omit<
-    UseMutationOptions<MessageShape<O>, ConnectError, MessageInitShape<I>>,
-    "mutationFn"
-  > = {},
+  {
+    confirming,
+    ...options
+  }: Omit<UseMutationOptions<MessageShape<O>, ConnectError, MessageInitShape<I>>, "mutationFn"> & {
+    /** What "Confirm it’s you" says the password is for, such as `sign in “Laptop”`. */
+    confirming?: string;
+  } = {},
 ) {
   const transport = useTransport();
   const ask = use(AskContext);
@@ -51,7 +57,7 @@ export function useSensitiveMutation<I extends DescMessage, O extends DescMessag
         if (refusalOf(error).reason !== RefusalReason.RECENT_AUTHENTICATION_REQUIRED) {
           throw error;
         }
-        if (!(await ask())) {
+        if (!(await ask(confirming))) {
           throw new ConnectError("the User cancelled", Code.Canceled);
         }
         return call();

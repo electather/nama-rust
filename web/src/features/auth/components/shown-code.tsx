@@ -1,22 +1,32 @@
+import { cn } from "cn";
+import type { ReactNode } from "react";
+
 import { ScanToApprove } from "@/features/auth/components/scan-to-approve";
 
-/** The code, with its QR code while it can still be approved. */
-export function ShownCode({ code, expired }: { code: string; expired: boolean }) {
+/** The code, with its QR code until it expires, over `status`, which says where it's got to. */
+export function ShownCode({
+  code,
+  expired,
+  children: status,
+}: {
+  code: string;
+  expired: boolean;
+  children: ReactNode;
+}) {
   return (
-    <div className="rounded-xl border bg-card px-4 py-8 text-center">
-      <p
-        className={
-          expired
-            ? "text-4xl font-semibold tracking-wide whitespace-nowrap text-muted-foreground tabular-nums line-through"
-            : "text-4xl font-semibold tracking-wide whitespace-nowrap tabular-nums"
-        }
-      >
-        {code}
-      </p>
-      {!expired && <ScanToApprove code={code} />}
-      <output className="mt-3 block text-sm text-muted-foreground">
-        {expired ? "This code has expired." : "Waiting for it to be approved…"}
-      </output>
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col items-center gap-5 rounded-xl border px-2.5 py-5">
+        <p
+          className={cn(
+            "text-display font-medium tracking-wide whitespace-nowrap tabular-nums",
+            expired && "text-muted-foreground line-through",
+          )}
+        >
+          {code}
+        </p>
+        {!expired && <ScanToApprove code={code} />}
+      </div>
+      {status}
     </div>
   );
 }

@@ -8,11 +8,11 @@ export function ScanToApprove({ code }: { code: string }) {
     <QRCodeSVG
       value={`${globalThis.location.origin}/code?${new URLSearchParams({ code })}`}
       title="Scan it with your phone to approve this Device there"
-      size={176}
+      size={144}
       marginSize={4}
       bgColor="transparent"
       fgColor="currentColor"
-      className="mx-auto mt-6 rounded-lg bg-foreground text-background"
+      className="rounded-lg bg-foreground text-background"
     />
   );
 }

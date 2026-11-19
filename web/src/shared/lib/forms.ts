@@ -8,6 +8,8 @@ import { permissionLabel } from "@/shared/lib/permissions";
 /** Why a form was refused: next to one of its fields, or for the `form` as a whole. */
 export interface FormErrors {
   form?: string;
+  /** Not wrong, but too soon, such as after too many tries: shown as waiting, not as an error. */
+  wait?: string;
   setupCode?: string;
   name?: string;
   note?: string;

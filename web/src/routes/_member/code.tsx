@@ -1,25 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { EnterCode } from "@/features/auth/components/enter-code";
+import { CodeLayout } from "@/features/auth/components/code-layout";
 
 export const Route = createFileRoute("/_member/code")({
-  // `?code=` is what a phone opens by scanning the QR code a signing-in Device shows.
-  validateSearch: (search): { code?: string | undefined } => ({
-    code: typeof search["code"] === "string" ? search["code"] : undefined,
-  }),
-  component: CodeRoute,
+  component: CodeLayoutRoute,
 });
 
-function CodeRoute() {
-  const { code } = Route.useSearch();
-  const navigate = Route.useNavigate();
+function CodeLayoutRoute() {
   return (
-    <EnterCode
-      scanned={code}
-      onStartOver={() => {
-        // Otherwise the next code's field would start with this one.
-        void navigate({ search: {} });
-      }}
-    />
+    <CodeLayout>
+      <Outlet />
+    </CodeLayout>
   );
 }

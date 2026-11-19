@@ -14,14 +14,25 @@ const buttonVariants = cva(
         // `/10`, not shadcn's dark `/20`, which drops the ink below 4.5:1 on a popover.
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/40",
+        // A second action beside the primary one, such as "Sign in with a code": the Rim and its 30% fill.
+        outline: "border-input bg-input/30 text-foreground hover:bg-input/50",
         ghost: "text-foreground hover:bg-muted/50",
+        // A quiet text button beside a field's label, such as "Forgot your password?".
+        link: "font-normal text-foreground underline-offset-3 hover:underline focus-visible:underline",
         // Over video, where Quiet ink would sink into the picture and a faint ring could vanish.
         overlay: "text-foreground hover:bg-foreground/15 focus-visible:ring-ring",
       },
       size: {
         default: "h-8 px-2.5",
+        // The full-width actions of a sign-in card.
+        lg: "h-9 px-2.5 [&_svg]:size-4",
+        // Text only, with a 44px tall hit area that its negative margins keep out of the layout.
+        link: "-my-3 h-auto rounded-sm px-0 py-3",
         // The app bar's links: tighter on phones, so five fit across 390px; narrower, the bar wraps.
         bar: "h-9 px-2.5 sm:px-4",
+        // A dialog's ✕ in its corner, quiet until hovered or focused.
+        close:
+          "size-7 rounded-sm opacity-70 hover:opacity-100 focus-visible:opacity-100 [&_svg]:size-4",
         // A square button holding only an icon, named by its `aria-label`.
         icon: "size-10 rounded-lg [&_svg]:size-5",
         // Play or Resume at the top of a title's page, as a pill.

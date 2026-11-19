@@ -10,24 +10,31 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as MemberRouteImport } from './routes/_member'
-import { Route as SetupRouteImport } from './routes/setup'
-import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as SignedOutRouteImport } from './routes/_signed-out'
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberSplatRouteImport } from './routes/_member/$'
 import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSearchRouteImport } from './routes/_member/search'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
-import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
+import { Route as SignedOutSignInRouteImport } from './routes/_signed-out/sign-in'
+import { Route as MemberCodeIndexRouteImport } from './routes/_member/code.index'
+import { Route as MemberCodeApproveRouteImport } from './routes/_member/code.approve'
+import { Route as MemberCodeDoneRouteImport } from './routes/_member/code.done'
 import { Route as MemberMoviesMovieIdRouteImport } from './routes/_member/movies/$movieId'
 import { Route as MemberRequestsIndexRouteImport } from './routes/_member/requests/index'
 import { Route as MemberRequestsRequestIdRouteImport } from './routes/_member/requests/$requestId'
 import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$showId'
+import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
+import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
 import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
 import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
 import { Route as MemberAdminAdminPlaybackRouteImport } from './routes/_member/_admin/admin/playback'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
+import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
+import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
 import { Route as MemberAdminAdminLibrariesIndexRouteImport } from './routes/_member/_admin/admin/libraries/index'
 import { Route as MemberAdminAdminLibrariesLibraryIdRouteImport } from './routes/_member/_admin/admin/libraries/$libraryId'
 import { Route as MemberAdminAdminPluginsIndexRouteImport } from './routes/_member/_admin/admin/plugins/index'
@@ -42,14 +49,8 @@ const MemberRoute = MemberRouteImport.update({
   id: '/_member',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SetupRoute = SetupRouteImport.update({
-  id: '/setup',
-  path: '/setup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
+const SignedOutRoute = SignedOutRouteImport.update({
+  id: '/_signed-out',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemberIndexRoute = MemberIndexRouteImport.update({
@@ -81,10 +82,30 @@ const MemberSettingsRoute = MemberSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => MemberRoute,
 } as any)
-const InviteTokenRoute = InviteTokenRouteImport.update({
-  id: '/invite/$token',
-  path: '/invite/$token',
-  getParentRoute: () => rootRouteImport,
+const SignedOutSetupRoute = SignedOutSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => SignedOutRoute,
+} as any)
+const SignedOutSignInRoute = SignedOutSignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => SignedOutRoute,
+} as any)
+const MemberCodeIndexRoute = MemberCodeIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MemberCodeRoute,
+} as any)
+const MemberCodeApproveRoute = MemberCodeApproveRouteImport.update({
+  id: '/approve',
+  path: '/approve',
+  getParentRoute: () => MemberCodeRoute,
+} as any)
+const MemberCodeDoneRoute = MemberCodeDoneRouteImport.update({
+  id: '/done',
+  path: '/done',
+  getParentRoute: () => MemberCodeRoute,
 } as any)
 const MemberMoviesMovieIdRoute = MemberMoviesMovieIdRouteImport.update({
   id: '/movies/$movieId',
@@ -105,6 +126,16 @@ const MemberShowsShowIdRoute = MemberShowsShowIdRouteImport.update({
   id: '/shows/$showId',
   path: '/shows/$showId',
   getParentRoute: () => MemberRoute,
+} as any)
+const SignedOutInviteTokenRoute = SignedOutInviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => SignedOutRoute,
+} as any)
+const SignedOutSignInIndexRoute = SignedOutSignInIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SignedOutSignInRoute,
 } as any)
 const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
   id: '/admin/',
@@ -133,6 +164,18 @@ const MemberLibrariesLibraryIdIndexRoute =
     id: '/libraries/$libraryId/',
     path: '/libraries/$libraryId/',
     getParentRoute: () => MemberRoute,
+  } as any)
+const SignedOutSignInCodeIndexRoute =
+  SignedOutSignInCodeIndexRouteImport.update({
+    id: '/code/',
+    path: '/code/',
+    getParentRoute: () => SignedOutSignInRoute,
+  } as any)
+const SignedOutSignInCodeWaitingRoute =
+  SignedOutSignInCodeWaitingRouteImport.update({
+    id: '/code/waiting',
+    path: '/code/waiting',
+    getParentRoute: () => SignedOutSignInRoute,
   } as any)
 const MemberAdminAdminLibrariesIndexRoute =
   MemberAdminAdminLibrariesIndexRouteImport.update({
@@ -193,22 +236,28 @@ const MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof MemberIndexRoute
-  '/setup': typeof SetupRoute
-  '/sign-in': typeof SignInRoute
   '/$': typeof MemberSplatRoute
-  '/code': typeof MemberCodeRoute
+  '/code': typeof MemberCodeRouteWithChildren
   '/search': typeof MemberSearchRoute
   '/settings': typeof MemberSettingsRoute
-  '/invite/$token': typeof InviteTokenRoute
+  '/setup': typeof SignedOutSetupRoute
+  '/sign-in': typeof SignedOutSignInRouteWithChildren
+  '/code/approve': typeof MemberCodeApproveRoute
+  '/code/done': typeof MemberCodeDoneRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
   '/requests/$requestId': typeof MemberRequestsRequestIdRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
+  '/invite/$token': typeof SignedOutInviteTokenRoute
+  '/code/': typeof MemberCodeIndexRoute
   '/requests/': typeof MemberRequestsIndexRoute
+  '/sign-in/': typeof SignedOutSignInIndexRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/admin/': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
+  '/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
   '/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
   '/admin/plugins/$pluginId': typeof MemberAdminAdminPluginsPluginIdRoute
   '/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
@@ -220,23 +269,27 @@ export interface FileRoutesByFullPath {
   '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 export interface FileRoutesByTo {
-  '/setup': typeof SetupRoute
-  '/sign-in': typeof SignInRoute
-  '/$': typeof MemberSplatRoute
   '/': typeof MemberIndexRoute
-  '/code': typeof MemberCodeRoute
+  '/$': typeof MemberSplatRoute
   '/search': typeof MemberSearchRoute
   '/settings': typeof MemberSettingsRoute
-  '/invite/$token': typeof InviteTokenRoute
+  '/setup': typeof SignedOutSetupRoute
+  '/code/approve': typeof MemberCodeApproveRoute
+  '/code/done': typeof MemberCodeDoneRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
   '/requests/$requestId': typeof MemberRequestsRequestIdRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
+  '/invite/$token': typeof SignedOutInviteTokenRoute
+  '/code': typeof MemberCodeIndexRoute
   '/requests': typeof MemberRequestsIndexRoute
+  '/sign-in': typeof SignedOutSignInIndexRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/admin': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
+  '/sign-in/code': typeof SignedOutSignInCodeIndexRoute
   '/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
   '/admin/plugins/$pluginId': typeof MemberAdminAdminPluginsPluginIdRoute
   '/admin/libraries': typeof MemberAdminAdminLibrariesIndexRoute
@@ -250,24 +303,31 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_member': typeof MemberRouteWithChildren
-  '/setup': typeof SetupRoute
-  '/sign-in': typeof SignInRoute
+  '/_signed-out': typeof SignedOutRouteWithChildren
   '/_member/$': typeof MemberSplatRoute
   '/_member/_admin': typeof MemberAdminRouteWithChildren
-  '/_member/code': typeof MemberCodeRoute
+  '/_member/code': typeof MemberCodeRouteWithChildren
   '/_member/search': typeof MemberSearchRoute
   '/_member/settings': typeof MemberSettingsRoute
-  '/invite/$token': typeof InviteTokenRoute
+  '/_signed-out/setup': typeof SignedOutSetupRoute
+  '/_signed-out/sign-in': typeof SignedOutSignInRouteWithChildren
   '/_member/': typeof MemberIndexRoute
+  '/_member/code/approve': typeof MemberCodeApproveRoute
+  '/_member/code/done': typeof MemberCodeDoneRoute
   '/_member/movies/$movieId': typeof MemberMoviesMovieIdRoute
   '/_member/requests/$requestId': typeof MemberRequestsRequestIdRoute
   '/_member/shows/$showId': typeof MemberShowsShowIdRoute
+  '/_signed-out/invite/$token': typeof SignedOutInviteTokenRoute
+  '/_member/code/': typeof MemberCodeIndexRoute
   '/_member/requests/': typeof MemberRequestsIndexRoute
+  '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
   '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/_member/_admin/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
+  '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
+  '/_signed-out/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
   '/_member/_admin/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
   '/_member/_admin/admin/plugins/$pluginId': typeof MemberAdminAdminPluginsPluginIdRoute
   '/_member/_admin/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
@@ -282,22 +342,28 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/setup'
-    | '/sign-in'
     | '/$'
     | '/code'
     | '/search'
     | '/settings'
-    | '/invite/$token'
+    | '/setup'
+    | '/sign-in'
+    | '/code/approve'
+    | '/code/done'
     | '/movies/$movieId'
     | '/requests/$requestId'
     | '/shows/$showId'
+    | '/invite/$token'
+    | '/code/'
     | '/requests/'
+    | '/sign-in/'
     | '/admin/needs-a-match'
     | '/admin/playback'
     | '/admin/users'
+    | '/sign-in/code/waiting'
     | '/admin/'
     | '/libraries/$libraryId/'
+    | '/sign-in/code/'
     | '/admin/libraries/$libraryId'
     | '/admin/plugins/$pluginId'
     | '/admin/libraries/'
@@ -309,23 +375,27 @@ export interface FileRouteTypes {
     | '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/setup'
-    | '/sign-in'
-    | '/$'
     | '/'
-    | '/code'
+    | '/$'
     | '/search'
     | '/settings'
-    | '/invite/$token'
+    | '/setup'
+    | '/code/approve'
+    | '/code/done'
     | '/movies/$movieId'
     | '/requests/$requestId'
     | '/shows/$showId'
+    | '/invite/$token'
+    | '/code'
     | '/requests'
+    | '/sign-in'
     | '/admin/needs-a-match'
     | '/admin/playback'
     | '/admin/users'
+    | '/sign-in/code/waiting'
     | '/admin'
     | '/libraries/$libraryId'
+    | '/sign-in/code'
     | '/admin/libraries/$libraryId'
     | '/admin/plugins/$pluginId'
     | '/admin/libraries'
@@ -338,24 +408,31 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_member'
-    | '/setup'
-    | '/sign-in'
+    | '/_signed-out'
     | '/_member/$'
     | '/_member/_admin'
     | '/_member/code'
     | '/_member/search'
     | '/_member/settings'
-    | '/invite/$token'
+    | '/_signed-out/setup'
+    | '/_signed-out/sign-in'
     | '/_member/'
+    | '/_member/code/approve'
+    | '/_member/code/done'
     | '/_member/movies/$movieId'
     | '/_member/requests/$requestId'
     | '/_member/shows/$showId'
+    | '/_signed-out/invite/$token'
+    | '/_member/code/'
     | '/_member/requests/'
+    | '/_signed-out/sign-in/'
     | '/_member/_admin/admin/needs-a-match'
     | '/_member/_admin/admin/playback'
     | '/_member/_admin/admin/users'
+    | '/_signed-out/sign-in/code/waiting'
     | '/_member/_admin/admin/'
     | '/_member/libraries/$libraryId/'
+    | '/_signed-out/sign-in/code/'
     | '/_member/_admin/admin/libraries/$libraryId'
     | '/_member/_admin/admin/plugins/$pluginId'
     | '/_member/_admin/admin/libraries/'
@@ -369,9 +446,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   MemberRoute: typeof MemberRouteWithChildren
-  SetupRoute: typeof SetupRoute
-  SignInRoute: typeof SignInRoute
-  InviteTokenRoute: typeof InviteTokenRoute
+  SignedOutRoute: typeof SignedOutRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -383,18 +458,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/setup': {
-      id: '/setup'
-      path: '/setup'
-      fullPath: '/setup'
-      preLoaderRoute: typeof SetupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
+    '/_signed-out': {
+      id: '/_signed-out'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof SignedOutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_member/': {
@@ -439,12 +507,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberSettingsRouteImport
       parentRoute: typeof MemberRoute
     }
-    '/invite/$token': {
-      id: '/invite/$token'
-      path: '/invite/$token'
-      fullPath: '/invite/$token'
-      preLoaderRoute: typeof InviteTokenRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_signed-out/setup': {
+      id: '/_signed-out/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SignedOutSetupRouteImport
+      parentRoute: typeof SignedOutRoute
+    }
+    '/_signed-out/sign-in': {
+      id: '/_signed-out/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignedOutSignInRouteImport
+      parentRoute: typeof SignedOutRoute
+    }
+    '/_member/code/': {
+      id: '/_member/code/'
+      path: '/'
+      fullPath: '/code/'
+      preLoaderRoute: typeof MemberCodeIndexRouteImport
+      parentRoute: typeof MemberCodeRoute
+    }
+    '/_member/code/approve': {
+      id: '/_member/code/approve'
+      path: '/approve'
+      fullPath: '/code/approve'
+      preLoaderRoute: typeof MemberCodeApproveRouteImport
+      parentRoute: typeof MemberCodeRoute
+    }
+    '/_member/code/done': {
+      id: '/_member/code/done'
+      path: '/done'
+      fullPath: '/code/done'
+      preLoaderRoute: typeof MemberCodeDoneRouteImport
+      parentRoute: typeof MemberCodeRoute
     }
     '/_member/movies/$movieId': {
       id: '/_member/movies/$movieId'
@@ -473,6 +569,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/shows/$showId'
       preLoaderRoute: typeof MemberShowsShowIdRouteImport
       parentRoute: typeof MemberRoute
+    }
+    '/_signed-out/invite/$token': {
+      id: '/_signed-out/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof SignedOutInviteTokenRouteImport
+      parentRoute: typeof SignedOutRoute
+    }
+    '/_signed-out/sign-in/': {
+      id: '/_signed-out/sign-in/'
+      path: '/'
+      fullPath: '/sign-in/'
+      preLoaderRoute: typeof SignedOutSignInIndexRouteImport
+      parentRoute: typeof SignedOutSignInRoute
     }
     '/_member/_admin/admin/': {
       id: '/_member/_admin/admin/'
@@ -508,6 +618,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/libraries/$libraryId/'
       preLoaderRoute: typeof MemberLibrariesLibraryIdIndexRouteImport
       parentRoute: typeof MemberRoute
+    }
+    '/_signed-out/sign-in/code/': {
+      id: '/_signed-out/sign-in/code/'
+      path: '/code'
+      fullPath: '/sign-in/code/'
+      preLoaderRoute: typeof SignedOutSignInCodeIndexRouteImport
+      parentRoute: typeof SignedOutSignInRoute
+    }
+    '/_signed-out/sign-in/code/waiting': {
+      id: '/_signed-out/sign-in/code/waiting'
+      path: '/code/waiting'
+      fullPath: '/sign-in/code/waiting'
+      preLoaderRoute: typeof SignedOutSignInCodeWaitingRouteImport
+      parentRoute: typeof SignedOutSignInRoute
     }
     '/_member/_admin/admin/libraries/': {
       id: '/_member/_admin/admin/libraries/'
@@ -602,10 +726,26 @@ const MemberAdminRouteWithChildren = MemberAdminRoute._addFileChildren(
   MemberAdminRouteChildren,
 )
 
+interface MemberCodeRouteChildren {
+  MemberCodeApproveRoute: typeof MemberCodeApproveRoute
+  MemberCodeDoneRoute: typeof MemberCodeDoneRoute
+  MemberCodeIndexRoute: typeof MemberCodeIndexRoute
+}
+
+const MemberCodeRouteChildren: MemberCodeRouteChildren = {
+  MemberCodeApproveRoute: MemberCodeApproveRoute,
+  MemberCodeDoneRoute: MemberCodeDoneRoute,
+  MemberCodeIndexRoute: MemberCodeIndexRoute,
+}
+
+const MemberCodeRouteWithChildren = MemberCodeRoute._addFileChildren(
+  MemberCodeRouteChildren,
+)
+
 interface MemberRouteChildren {
   MemberSplatRoute: typeof MemberSplatRoute
   MemberAdminRoute: typeof MemberAdminRouteWithChildren
-  MemberCodeRoute: typeof MemberCodeRoute
+  MemberCodeRoute: typeof MemberCodeRouteWithChildren
   MemberSearchRoute: typeof MemberSearchRoute
   MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
@@ -624,7 +764,7 @@ interface MemberRouteChildren {
 const MemberRouteChildren: MemberRouteChildren = {
   MemberSplatRoute: MemberSplatRoute,
   MemberAdminRoute: MemberAdminRouteWithChildren,
-  MemberCodeRoute: MemberCodeRoute,
+  MemberCodeRoute: MemberCodeRouteWithChildren,
   MemberSearchRoute: MemberSearchRoute,
   MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
@@ -648,11 +788,41 @@ const MemberRouteChildren: MemberRouteChildren = {
 const MemberRouteWithChildren =
   MemberRoute._addFileChildren(MemberRouteChildren)
 
+interface SignedOutSignInRouteChildren {
+  SignedOutSignInIndexRoute: typeof SignedOutSignInIndexRoute
+  SignedOutSignInCodeWaitingRoute: typeof SignedOutSignInCodeWaitingRoute
+  SignedOutSignInCodeIndexRoute: typeof SignedOutSignInCodeIndexRoute
+}
+
+const SignedOutSignInRouteChildren: SignedOutSignInRouteChildren = {
+  SignedOutSignInIndexRoute: SignedOutSignInIndexRoute,
+  SignedOutSignInCodeWaitingRoute: SignedOutSignInCodeWaitingRoute,
+  SignedOutSignInCodeIndexRoute: SignedOutSignInCodeIndexRoute,
+}
+
+const SignedOutSignInRouteWithChildren = SignedOutSignInRoute._addFileChildren(
+  SignedOutSignInRouteChildren,
+)
+
+interface SignedOutRouteChildren {
+  SignedOutSetupRoute: typeof SignedOutSetupRoute
+  SignedOutSignInRoute: typeof SignedOutSignInRouteWithChildren
+  SignedOutInviteTokenRoute: typeof SignedOutInviteTokenRoute
+}
+
+const SignedOutRouteChildren: SignedOutRouteChildren = {
+  SignedOutSetupRoute: SignedOutSetupRoute,
+  SignedOutSignInRoute: SignedOutSignInRouteWithChildren,
+  SignedOutInviteTokenRoute: SignedOutInviteTokenRoute,
+}
+
+const SignedOutRouteWithChildren = SignedOutRoute._addFileChildren(
+  SignedOutRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   MemberRoute: MemberRouteWithChildren,
-  SetupRoute: SetupRoute,
-  SignInRoute: SignInRoute,
-  InviteTokenRoute: InviteTokenRoute,
+  SignedOutRoute: SignedOutRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

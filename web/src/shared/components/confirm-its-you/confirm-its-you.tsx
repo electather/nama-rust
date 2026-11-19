@@ -13,14 +13,16 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
   const answer = useRef<Promise<boolean>>(undefined);
   const give = useRef<(confirmed: boolean) => void>(undefined);
   const confirmed = useRef(false);
+  const [confirming, setConfirming] = useState<string>();
 
-  const ask = useCallback(async () => {
+  const ask = useCallback(async (what: string | undefined) => {
     // Changes refused while the dialog is already open wait for the same answer.
     if (!answer.current) {
       answer.current = new Promise<boolean>((resolve) => {
         give.current = resolve;
       });
       confirmed.current = false;
+      setConfirming(what);
       setOpenings((each) => each + 1);
       dialog.current?.showModal();
     }
@@ -34,6 +36,7 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
       <ReauthenticateDialog
         dialog={dialog}
         openings={openings}
+        confirming={confirming}
         onReauthenticated={() => {
           confirmed.current = true;
         }}

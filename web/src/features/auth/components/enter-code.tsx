@@ -1,51 +1,27 @@
-import { useEffect } from "react";
-
-import { Approve } from "@/features/auth/components/approve";
 import { LookUp } from "@/features/auth/components/look-up";
-import { useLookUpSignInCode } from "@/features/auth/data/use-look-up-sign-in-code";
-import { Page } from "@/shared/components/page";
+import { useScannedLookUp } from "@/features/auth/hooks/use-scanned-look-up";
+import type { FormErrors } from "@/shared/lib/forms";
 
-/** Signing in another Device: look up the Sign-in Code it shows, check its name, then approve. */
+/** The first step of signing in another Device: the Sign-in Code it shows. */
 export function EnterCode({
   scanned,
-  onStartOver,
+  refused,
 }: {
   scanned: string | undefined;
-  /** Clears the scanned code from the page's address. */
-  onStartOver: () => void;
+  /** A code the Server just refused to approve, kept, with why. */
+  refused: { code: string; errors: FormErrors } | undefined;
 }) {
-  const lookUp = useLookUpSignInCode();
-  // `mutate` keeps its identity across renders, unlike `lookUp`, so a re-render doesn't look the scanned code up again.
-  const { mutate } = lookUp;
-  useEffect(() => {
-    if (scanned !== undefined) {
-      mutate({ code: scanned });
-    }
-  }, [scanned, mutate]);
-  const startOver = () => {
-    lookUp.reset();
-    onStartOver();
-  };
+  const { lookUp, code = refused?.code } = useScannedLookUp(scanned);
   return (
-    <Page heading="Sign in a Device">
-      <section className="mt-2 max-w-sm">
-        {lookUp.data === undefined ? (
-          <LookUp
-            scanned={scanned}
-            onSubmit={(code) => {
-              lookUp.mutate({ code });
-            }}
-            pending={lookUp.isPending}
-            error={lookUp.error}
-          />
-        ) : (
-          <Approve
-            code={lookUp.variables.code ?? ""}
-            deviceName={lookUp.data.deviceName}
-            onDone={startOver}
-          />
-        )}
-      </section>
-    </Page>
+    <LookUp
+      key={code}
+      code={code}
+      onSubmit={(typed) => {
+        lookUp.mutate({ code: typed });
+      }}
+      pending={lookUp.isPending}
+      error={lookUp.error}
+      refused={refused?.errors}
+    />
   );
 }

@@ -45,8 +45,10 @@ export function ConfirmModal({
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-description`}
       onClose={onClose}
-      // Floats above the page, so it alone gets a shadow (DESIGN.md, "Elevation").
-      className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-sm"
+      // DESIGN.md's Dialog. Floats above the page, so it alone gets a shadow ("Elevation"). On a
+      // phone the browser's own max-width keeps it clear of the edges. Scrolling inside it, or
+      // over its backdrop, doesn't scroll the page behind.
+      className="m-auto w-full overscroll-contain rounded-lg border bg-background text-foreground shadow-lg backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim sm:max-w-lg"
     >
       <ConfirmForm
         key={openings}
