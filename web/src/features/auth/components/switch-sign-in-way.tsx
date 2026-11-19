@@ -1,10 +1,32 @@
-import { Button } from "@/shared/ui/button";
+import { Link } from "@tanstack/react-router";
 
-/** The button under a sign-in form that swaps it for the other way to sign in. */
-export function SwitchSignInWay({ label, onSwitch }: { label: string; onSwitch: () => void }) {
+import { buttonVariants } from "@/shared/ui/button";
+
+/** Under a sign-in form: "Or", then the link to the other way to sign in. */
+export function SwitchSignInWay({
+  to,
+  redirect,
+  label,
+}: {
+  to: "/sign-in" | "/sign-in/code";
+  /** Where signing in goes, kept from this page. */
+  redirect: string | undefined;
+  label: string;
+}) {
   return (
-    <Button variant="ghost" onClick={onSwitch}>
-      {label}
-    </Button>
+    <>
+      <div className="flex items-center gap-3.5 text-sm text-muted-foreground">
+        <span aria-hidden className="h-px flex-1 bg-border" />
+        Or
+        <span aria-hidden className="h-px flex-1 bg-border" />
+      </div>
+      <Link
+        to={to}
+        search={{ redirect }}
+        className={buttonVariants({ variant: "outline", size: "lg" })}
+      >
+        {label}
+      </Link>
+    </>
   );
 }

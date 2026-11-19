@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { ForgotPassword } from "@/features/auth/components/forgot-password";
 import { useSignIn } from "@/features/auth/data/use-sign-in";
 import { signInErrors } from "@/features/auth/lib/sign-in-errors";
 import { SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
@@ -25,11 +26,10 @@ export function PasswordSignIn({
   return (
     <SignInLayout
       heading={serverName === undefined ? "Sign in" : `Sign in to ${serverName}`}
-      intro="Sign in with the username and password you were given for this Server."
       footer={footer}
       action={signIn.isPending ? "Signing in…" : "Sign in"}
       pending={signIn.isPending}
-      error={errors.form}
+      errors={errors}
       onSubmit={(form) => {
         signIn.mutate({
           name: formText(form, "name"),
@@ -38,14 +38,19 @@ export function PasswordSignIn({
         });
       }}
     >
-      <FormField label="Username" name="name" autoComplete="username" maxLength={64} />
       <FormField
-        label="Password"
-        name="password"
-        type="password"
-        autoComplete="current-password"
-        error={errors.password}
+        label="Username"
+        name="name"
+        variant="lg"
+        autoComplete="username"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        maxLength={64}
+        // The Server doesn't say which of the two was wrong, so both are marked.
+        aria-invalid={errors.password !== undefined}
       />
+      <ForgotPassword error={errors.password} />
     </SignInLayout>
   );
 }

@@ -41,7 +41,7 @@ async function submitSignIn(password = "correct horse") {
 
 async function submitSetup(setupCode: string) {
   await screen.findByRole("heading", { name: "Set up Living Room" });
-  fill("Setup Code", setupCode);
+  fill("1. Setup Code", setupCode);
   fill("Username", "Sam");
   fill("Password", "correct horse");
   fireEvent.click(screen.getByRole("button", { name: "Set up" }));
@@ -90,7 +90,30 @@ test("a wrong Setup Code is shown next to its field", async () => {
   openApp("/setup", transport);
 
   await submitSetup("WRONG");
-  await expectUnderField("Setup Code", "That isn’t the Setup Code. Check the Server’s log for it.");
+  await expectUnderField(
+    "1. Setup Code",
+    "That isn’t the Setup Code. Check the Server’s log for it.",
+  );
+});
+
+test("setting up a Server someone else just set up offers to sign in instead", async () => {
+  const transport = fakeServer(
+    { setupRequired: true },
+    {
+      setup: () => {
+        throw refused(Code.FailedPrecondition, "already set up", {
+          reason: RefusalReason.ALREADY_SET_UP,
+        });
+      },
+    },
+  );
+  openApp("/setup", transport);
+
+  await submitSetup("ABCD-EFGH");
+  await expect(
+    screen.findByText("This Server is already set up, so you can sign in."),
+  ).resolves.toBeDefined();
+  expect(screen.getByRole("link", { name: "Go to sign in" }).getAttribute("href")).toBe("/sign-in");
 });
 
 /** A fresh Server whose `Setup` refuses the request field `field` with `message`. */
@@ -239,14 +262,18 @@ test("a wrong password shows an error and keeps the username", async () => {
   expect(router.state.location.pathname).toBe("/sign-in");
 });
 
-test("a rate-limited sign-in says to try again in a moment", async () => {
+test("a rate-limited sign-in says to wait, or sign in with a code", async () => {
   openApp(
     "/sign-in",
     serverRefusingSignIn(Code.ResourceExhausted, RefusalReason.TOO_MANY_ATTEMPTS),
   );
 
   await submitSignIn();
-  await expect(screen.findByText(/try again in a moment/iu)).resolves.toBeDefined();
+  await expect(
+    screen.findByText(
+      "There have been too many tries. Try again in a few minutes, or sign in with a code.",
+    ),
+  ).resolves.toBeDefined();
 });
 
 test("signing out goes to /sign-in", async () => {

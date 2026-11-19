@@ -18,7 +18,7 @@ export function AcceptInvite({ token }: { token: string }) {
       intro="You’ve been invited. Pick the name and password you’ll sign in with."
       action={accept.isPending ? "Joining…" : "Join"}
       pending={accept.isPending}
-      error={errors.form}
+      errors={errors}
       onSubmit={(form) => {
         accept.mutate({
           token,

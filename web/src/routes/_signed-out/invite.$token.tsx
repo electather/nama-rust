@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { AcceptInvite } from "@/features/invites/components/accept-invite";
 
-export const Route = createFileRoute("/invite/$token")({
+export const Route = createFileRoute("/_signed-out/invite/$token")({
   component: AcceptInviteRoute,
 });
 

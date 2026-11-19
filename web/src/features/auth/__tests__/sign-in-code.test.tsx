@@ -18,7 +18,8 @@ afterEach(() => {
 });
 
 async function getCode() {
-  fireEvent.click(await screen.findByRole("button", { name: "Sign in with a code" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Sign in with a code" }));
+  await screen.findByLabelText("Device name");
   fill("Device name", "Living room TV");
   fireEvent.click(screen.getByRole("button", { name: "Get a code" }));
 }
@@ -59,13 +60,29 @@ test("once the code is approved, polling signs the browser in", async () => {
 
   await getCode();
   await expect(screen.findByText("ABCD-EFGH")).resolves.toBeDefined();
-  expect(screen.getByText(`${globalThis.location.origin}/code`)).toBeDefined();
+  expect(screen.getByText(`${globalThis.location.host}/code`)).toBeDefined();
 
   await nextPoll();
   approve();
   await nextPoll();
   await screen.findByRole("heading", { name: "Settings" });
   expect(router.state.location.pathname).toBe("/settings");
+});
+
+test("back and forward step through signing in with a code, code and all", async () => {
+  const router = openApp("/sign-in", serverWaitingForApproval().transport);
+
+  await getCode();
+  await screen.findByText("ABCD-EFGH");
+  router.history.back();
+  await screen.findByRole("button", { name: "Get a code" });
+  router.history.back();
+  await screen.findByRole("button", { name: "Sign in" });
+
+  router.history.forward();
+  await screen.findByRole("button", { name: "Get a code" });
+  router.history.forward();
+  await expect(screen.findByText("ABCD-EFGH")).resolves.toBeDefined();
 });
 
 /**
@@ -164,7 +181,8 @@ test("too many waiting sign-ins says so, not that there were too many tries", as
 
 /** Refuses any code but the one "Living room TV" shows, as the Server would match it. */
 function refuseUnlessShown(code: string) {
-  if (code !== "abcdefgh") {
+  // As the Server does, ignoring case and dashes.
+  if (code.replaceAll("-", "").toLowerCase() !== "abcdefgh") {
     throw refused(Code.NotFound, "no such code", { reason: RefusalReason.SIGN_IN_CODE_NOT_FOUND });
   }
 }
@@ -202,13 +220,26 @@ test("looking up a code names the Device before it's approved", async () => {
   openApp("/code", serverWithCode(approved));
   await screen.findByRole("heading", { name: "Sign in a Device" });
 
+  // Typed in lower case, without its dash: the field writes it as the Device shows it.
   await lookUp("abcdefgh");
-  await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
+  await screen.findByRole("heading", { name: "Sign in “Living room TV”?" });
   expect(approved).toStrictEqual([]);
 
   fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
-  await expect(screen.findByText(/is signed in as you/u)).resolves.toBeDefined();
-  expect(approved).toStrictEqual(["abcdefgh"]);
+  await screen.findByRole("heading", { name: "“Living room TV” is signed in" });
+  expect(approved).toStrictEqual(["ABCD-EFGH"]);
+});
+
+test("back from a signed-in Device goes to the code, not to approving it again", async () => {
+  const router = openApp("/code", serverWithCode());
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+  await lookUp("abcdefgh");
+  fireEvent.click(await screen.findByRole("button", { name: "Sign it in" }));
+  await screen.findByRole("heading", { name: "“Living room TV” is signed in" });
+
+  router.history.back();
+  await expect(screen.findByRole("heading", { name: "Sign in a Device" })).resolves.toBeDefined();
+  expect(screen.queryByRole("button", { name: "Sign it in" })).toBeNull();
 });
 
 test("a wrong code shows a plain error", async () => {
@@ -246,23 +277,62 @@ test("without Recent Authentication, a code is approved once you confirm it’s 
   await screen.findByRole("heading", { name: "Sign in a Device" });
 
   await lookUp("abcdefgh");
-  await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
+  await screen.findByRole("heading", { name: "Sign in “Living room TV”?" });
   fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
   await confirmItsYou();
 
-  await expect(screen.findByText(/is signed in as you/u)).resolves.toBeDefined();
+  await expect(
+    screen.findByRole("heading", { name: "“Living room TV” is signed in" }),
+  ).resolves.toBeDefined();
+});
+
+test("“Confirm it’s you” names the Device it signs in", async () => {
+  openApp("/code", serverNeedingRecentAuthentication());
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+
+  await lookUp("abcdefgh");
+  fireEvent.click(await screen.findByRole("button", { name: "Sign it in" }));
+  const dialog = await confirmItsYou();
+
+  expect(dialog.textContent).toContain("Enter your password to sign in “Living room TV”.");
+});
+
+test("an approval the Server refuses goes back to the code, kept, saying why", async () => {
+  openApp(
+    "/code",
+    fakeServer(
+      { signedIn: newUser },
+      {
+        lookUpSignInCode: () => ({ deviceName: "Living room TV" }),
+        approveSignInCode: () => {
+          throw refused(Code.FailedPrecondition, "already used", {
+            reason: RefusalReason.SIGN_IN_CODE_ALREADY_APPROVED,
+          });
+        },
+      },
+    ),
+  );
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+
+  await lookUp("abcdefgh");
+  fireEvent.click(await screen.findByRole("button", { name: "Sign it in" }));
+
+  await expect(
+    screen.findByText("That code has already been used. Get a new code on the Device."),
+  ).resolves.toBeDefined();
+  expect(screen.getByLabelText<HTMLInputElement>("Sign-in Code").value).toBe("ABCD-EFGH");
 });
 
 test("opening a scanned code looks it up, ready to approve", async () => {
   const approved: string[] = [];
   openApp("/code?code=abcdefgh", serverWithCode(approved));
 
-  await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
+  await screen.findByRole("heading", { name: "Sign in “Living room TV”?" });
   fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
-  await expect(screen.findByText(/is signed in as you/u)).resolves.toBeDefined();
+  await screen.findByRole("heading", { name: "“Living room TV” is signed in" });
   expect(approved).toStrictEqual(["abcdefgh"]);
 
-  fireEvent.click(screen.getByRole("button", { name: "Sign in another Device" }));
+  fireEvent.click(screen.getByRole("link", { name: "Sign in another Device" }));
   const field = await screen.findByLabelText<HTMLInputElement>("Sign-in Code");
   expect(field.value).toBe("");
 });
@@ -271,7 +341,8 @@ test("a scanned code that doesn't match shows it with a plain error", async () =
   openApp("/code?code=WRONG-123", serverWithCode());
 
   await expect(screen.findByText(/That code doesn’t match/u)).resolves.toBeDefined();
-  expect(screen.getByLabelText<HTMLInputElement>("Sign-in Code").value).toBe("WRONG-123");
+  // The field reads the look-alike O as the zero a Sign-in Code would have.
+  expect(screen.getByLabelText<HTMLInputElement>("Sign-in Code").value).toBe("WR0N-G123");
 });
 
 test("opening a scanned code signed out comes back to it after signing in", async () => {
@@ -280,6 +351,6 @@ test("opening a scanned code signed out comes back to it after signing in", asyn
   fireEvent.change(await screen.findByLabelText("Username"), { target: { value: "Sam" } });
   fill("Password", "correct horse");
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-  await expect(screen.findByText("Living room TV")).resolves.toBeDefined();
+  await screen.findByRole("heading", { name: "Sign in “Living room TV”?" });
   expect(screen.getByRole("button", { name: "Sign it in" })).toBeDefined();
 });

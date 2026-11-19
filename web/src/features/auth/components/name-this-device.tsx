@@ -19,11 +19,10 @@ export function NameThisDevice({
   return (
     <SignInLayout
       heading="Sign in with a code"
-      intro="Name this Device and get a Sign-in Code. Then enter it on a Device where you’re already signed in."
       footer={footer}
       action={pending ? "Getting a code…" : "Get a code"}
       pending={pending}
-      error={errors.form}
+      errors={errors}
       onSubmit={(form) => {
         onSubmit(formText(form, "deviceName"));
       }}

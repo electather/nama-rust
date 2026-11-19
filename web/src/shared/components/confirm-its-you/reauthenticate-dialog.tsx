@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
-import { FormField } from "@/shared/components/form-field/form-field";
+import { PasswordField } from "@/shared/components/form-field/password-field";
 import { useReauthenticate } from "@/shared/hooks/use-reauthenticate";
 import { formText, refusal, serverMessage } from "@/shared/lib/forms";
 
@@ -11,11 +11,14 @@ import { formText, refusal, serverMessage } from "@/shared/lib/forms";
 export function ReauthenticateDialog({
   dialog,
   openings,
+  confirming,
   onReauthenticated,
   onClose,
 }: {
   dialog: RefObject<HTMLDialogElement | null>;
   openings: number;
+  /** What the password is for, such as `sign in “Laptop”`, or else it's to go on with a change. */
+  confirming: string | undefined;
   onReauthenticated: () => void;
   onClose: () => void;
 }) {
@@ -27,7 +30,11 @@ export function ReauthenticateDialog({
       onClose={onClose}
       action="Confirm"
       title="Confirm it’s you"
-      description="Enter your password to go on. This keeps anyone else using this Device from making the change."
+      description={
+        confirming === undefined
+          ? "Enter your password to go on. This keeps anyone else using this Device from making the change."
+          : `Enter your password to ${confirming}. This keeps anyone else using this Device from doing it.`
+      }
       onConfirm={async (typed) => {
         await reauthenticate.mutateAsync({
           proof: { case: "password", value: formText(typed, "password") },
@@ -45,7 +52,7 @@ export function ReauthenticateDialog({
         ).form
       }
     >
-      <FormField label="Password" name="password" type="password" autoComplete="current-password" />
+      <PasswordField label="Password" autoComplete="current-password" />
     </ConfirmModal>
   );
 }
