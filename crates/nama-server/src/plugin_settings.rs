@@ -184,7 +184,7 @@ pub enum ChangeError {
 /// Why the Plugins couldn't be listed.
 #[derive(Debug, Error)]
 pub enum ListError {
-    /// The stored settings couldn't be read.
+    /// The stored settings, or a User's Personal settings, couldn't be read.
     #[error("could not read the plugin settings: {0}")]
     Read(#[from] sqlx::Error),
     /// Reading the Installed Plugins panicked.
