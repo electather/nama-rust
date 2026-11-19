@@ -34,7 +34,8 @@ pub(crate) use direct_play::router;
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
 pub(crate) use running::{
-    PlayNow, ReportedProgress, RunningPlans, StartError, router as running_router, sweep_leftovers,
+    MessageTooLong, PlayNow, ReportedProgress, RunningPlans, STOP_MESSAGE_LENGTH, StartError,
+    router as running_router, sweep_leftovers,
 };
 pub(crate) use sidecars::{Sidecar, Sidecars, VersionSidecars, is_sidecar};
 pub(crate) use subtitles::Cache as SubtitleCache;

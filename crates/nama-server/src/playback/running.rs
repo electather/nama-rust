@@ -63,7 +63,7 @@ use nama_proto::nama::v1::{
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-pub(crate) use plays::{PlayNow, ReportedProgress};
+pub(crate) use plays::{MessageTooLong, PlayNow, ReportedProgress, STOP_MESSAGE_LENGTH};
 use run::{Fallback, Running, Runs, Start};
 pub(crate) use serving::router;
 pub(crate) use sweeping::sweep_leftovers;

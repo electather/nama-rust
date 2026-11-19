@@ -8,10 +8,10 @@ use connectrpc::{
 };
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
-    self as proto, AdminStop, FoundHardware, FoundProgram, GetImageSettingsRequest,
-    GetImageSettingsResponse, GetPlaybackSettingsRequest, GetPlaybackSettingsResponse,
-    GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetServerSettingsRequest, GetServerSettingsResponse,
+    self as proto, FoundHardware, FoundProgram, GetImageSettingsRequest, GetImageSettingsResponse,
+    GetPlaybackSettingsRequest, GetPlaybackSettingsResponse, GetPlaybackStatusRequest,
+    GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
+    GetServerSettingsRequest, GetServerSettingsResponse,
     HardwareAcceleration as HardwareAccelerationProto, ImageStoreSwitch, ListPlaysRequest,
     ListPlaysResponse, Play, PlaybackMethod, RefusalReason, ServerService, ServerSettings,
     StopPlayRequest, StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse,
@@ -23,7 +23,9 @@ use nama_proto::nama::v1::{
 use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
-    playback::{PlayNow, RunningPlans, accel_to_proto, limit_to_proto},
+    playback::{
+        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto,
+    },
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
         self, HardwareChoice, ImageValues, Invalid, PickedGpu, PlaybackChange, PlaybackValues,
@@ -284,26 +286,17 @@ impl ServerService for ServerServiceHandler {
         let StopPlayRequest {
             plan_id, message, ..
         } = request.to_owned_message();
-        if message.chars().count() > MAX_STOP_MESSAGE_CHARS {
-            return Err(refuse(
+        (self.running.stop_by_admin(plan_id, message).await).map_err(|MessageTooLong| {
+            refuse(
                 RefusalReason::REFUSAL_REASON_MESSAGE_TOO_LONG,
-                format!("the message can be at most {MAX_STOP_MESSAGE_CHARS} characters"),
+                format!("the message can be at most {STOP_MESSAGE_LENGTH} characters"),
             )
             .field("message")
-            .param("maxLength", &MAX_STOP_MESSAGE_CHARS)
-            .into());
-        }
-        let admin_stop = AdminStop {
-            message,
-            ..Default::default()
-        };
-        self.running.stop_by_admin(plan_id, admin_stop).await;
+            .param("maxLength", &STOP_MESSAGE_LENGTH)
+        })?;
         Response::ok(StopPlayResponse::default())
     }
 }
-
-/// The most characters an Admin's message to a viewer whose play they stop may have.
-const MAX_STOP_MESSAGE_CHARS: usize = 200;
 
 /// `play` as `ListPlays` sends it.
 fn play_to_proto(play: PlayNow) -> Play {
