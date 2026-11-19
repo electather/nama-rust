@@ -49,6 +49,7 @@ mod load;
 mod plugin_log;
 mod recogniser;
 mod services;
+mod subtitle_source;
 mod title_source;
 
 #[cfg(test)]
