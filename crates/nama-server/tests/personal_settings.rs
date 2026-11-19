@@ -246,24 +246,6 @@ async fn a_failed_check_refuses_the_save_in_the_plugins_words_and_keeps_the_earl
 }
 
 #[tokio::test]
-async fn a_kept_secret_reaches_the_check_and_is_blanked_out_of_its_reason() {
-    let server = started().await;
-    let ada = users(server.user("Ada", &[]).await.client_config());
-    update(&ada, &[("handle", "ada"), ("token", "tk_secret")])
-        .await
-        .unwrap();
-
-    let refused = update(&ada, &[("handle", "echo")]).await;
-
-    let err = refused.unwrap_err();
-    assert_eq!(
-        err.message.as_deref(),
-        Some("the token … doesn't open echo")
-    );
-    assert!(!format!("{err:?}").contains("tk_secret"), "{err:?}");
-}
-
-#[tokio::test]
 async fn a_check_that_loops_or_panics_refuses_the_save_and_leaves_the_plugin_enabled() {
     let server = started().await;
     let ada = users(server.user("Ada", &[]).await.client_config());

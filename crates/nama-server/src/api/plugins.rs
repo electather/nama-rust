@@ -306,6 +306,13 @@ pub(super) fn change_refused(err: ChangeError) -> ConnectError {
             .param("permission", &name)
             .into()
         }
+        ChangeError::NoPersonalSettings(id) => refuse(
+            RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+            format!("no enabled Plugin {id} has Personal settings"),
+        )
+        .field("plugin_id")
+        .param("pluginId", &id)
+        .into(),
         ChangeError::InvalidSettings(error) => settings_refused(error),
         ChangeError::UnknownLibrary { key, id } => refuse(
             RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,

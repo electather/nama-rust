@@ -42,6 +42,7 @@ mod sent;
 mod stored;
 mod title_sources;
 
+pub(crate) use personal::Personal;
 use sent::{check_fits, with_stored_secrets};
 pub use stored::{grants, stored};
 use stored::{import, never_stored, save, set_enabled, set_enabled_granting, with_stored};
@@ -138,6 +139,9 @@ pub enum ChangeError {
     /// The settings don't fit the Plugin's schema.
     #[error("the settings don't fit the plugin: {0}")]
     InvalidSettings(SettingsError),
+    /// No enabled Plugin with the id declares Personal settings.
+    #[error("no enabled Plugin {0} has Personal settings")]
+    NoPersonalSettings(PluginId),
     /// A Libraries setting names an id no Library has.
     #[error("the setting {key} names no Library {id}")]
     UnknownLibrary {

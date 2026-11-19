@@ -2,12 +2,17 @@
 //! declares them, such as their ntfy topic. The Kernel keeps them for the Plugin, since Plugins
 //! have no storage, and hands a Plugin the values of the User a call is for.
 //!
-//! This module stores what it is given; checking values against the Manifest is its caller's.
-//! Values are secrets in logs, and a secret one never goes back to a client.
+//! This module stores what it is given: Plugin settings checks values against the Manifest
+//! before it saves them (`src/plugin_settings/personal.rs`). Each value is stored as the text a
+//! Plugin is handed ([`text`], read back with [`value`]). Values are secrets in logs, and a secret
+//! one never goes back to a client.
 
 use std::collections::BTreeMap;
 
-use nama_plugin_api::PluginId;
+use nama_plugin_api::{
+    PluginId,
+    settings::{SettingKind, SettingValue},
+};
 
 use crate::{
     db::Database,
@@ -115,6 +120,32 @@ pub(crate) async fn recipients(
         }
     }
     Ok(recipients)
+}
+
+/// `value` as it is stored, the text a Plugin gets in a `UserRecipient`: a bool as `true` or
+/// `false`, a number in decimal.
+pub(crate) fn text(value: SettingValue) -> String {
+    match value {
+        SettingValue::Text(text) => text,
+        SettingValue::Bool(on) => on.to_string(),
+        SettingValue::Integer(number) => number.to_string(),
+        // Never stored: the Kernel refuses a Manifest whose Personal settings name Libraries.
+        SettingValue::Libraries(_) => String::new(),
+    }
+}
+
+/// Stored `text` as a value of `kind`, the inverse of [`text`], or `None` if it doesn't read as
+/// one.
+pub(crate) fn value(kind: SettingKind, text: String) -> Option<SettingValue> {
+    match kind {
+        SettingKind::Bool => text.parse().ok().map(SettingValue::Bool),
+        SettingKind::Integer => text.parse().ok().map(SettingValue::Integer),
+        SettingKind::Text | SettingKind::Secret | SettingKind::Choice | SettingKind::Url => {
+            Some(SettingValue::Text(text))
+        }
+        // Never personal: the Kernel refuses a Manifest whose Personal settings name Libraries.
+        SettingKind::Libraries => None,
+    }
 }
 
 #[cfg(test)]
