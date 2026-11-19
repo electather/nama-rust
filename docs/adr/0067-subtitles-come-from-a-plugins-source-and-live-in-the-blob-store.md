@@ -21,7 +21,7 @@ Left out for now:
 
 ## Consequences
 
-- The contract adds `SubtitleSourceService` 1.0.0 and `CONTRACT_VERSION` takes a patch bump; a Plugin built before it is unaffected.
+- The contract adds `SubtitleSourceService` 1.0.0. `CONTRACT_VERSION` stays as it is, since only a service is added (`crates/nama-plugin-proto/AGENTS.md`), and a Plugin built before it is unaffected.
 - Switching blob stores copies `subtitles` along with the other folders ADR 0052 names.
 - Other apps reading the Library, such as Bazarr or Jellyfin, don't see downloaded subtitles.
 - While the blob store's Plugin is disabled, downloaded subtitles can't be played, just as images can't be read.
