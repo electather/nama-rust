@@ -45,7 +45,7 @@ pub(crate) use availability::{make_available, make_seasons_available};
 pub(crate) use deciding::RequestTitle;
 use hand_off::HandOff;
 pub(crate) use hand_off::{missing, unmet};
-pub(crate) use lookup::{Found, FoundShow, Hit};
+pub(crate) use lookup::{Found, FoundShow, Hit, Listed, year_of};
 use progress::Progress;
 pub(crate) use qualities::{
     ASKED as QUALITY_ASKED_FIELD, CHANGED as QUALITY_CHANGED_FIELD, Invalid as QualitiesInvalid,

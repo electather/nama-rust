@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT titles, missing FROM home_rows WHERE plugin_id = ? AND key = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "titles",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "titles"
+          }
+        }
+      },
+      {
+        "name": "missing",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "missing"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "2115cf9692e14575f075f960e7ea063b512887b77ee9ab21a6d30f13dab6c997"
+}

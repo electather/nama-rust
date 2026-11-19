@@ -5,7 +5,7 @@ use nama_plugin_api::{
     metadata::ExternalId,
 };
 
-use super::{Kind, OnServer, Title, kept, shown};
+use super::{Kind, OnServer, Row, Title, kept, shown};
 use crate::library::FoundMovie;
 
 fn movie(value: &str) -> HomeRowTitle {
@@ -114,7 +114,7 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
         release_date: None,
         poster: None,
     };
-    let titles = [
+    let titles = vec![
         Title(Kind::Movie, "imdb-tt0133093".to_owned()),
         Title(Kind::Movie, "tmdb-1".to_owned()),
         Title(Kind::Movie, "tmdb-603".to_owned()),
@@ -126,7 +126,12 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
     .into_iter()
     .collect();
 
-    let shown = shown(&titles, on_server);
+    let row = Row {
+        titles,
+        ..Row::default()
+    };
+
+    let shown = shown(&row, &on_server, |_| true);
 
     let places: Vec<i64> = shown.iter().map(|(place, _)| *place).collect();
     assert_eq!(places, [0]);

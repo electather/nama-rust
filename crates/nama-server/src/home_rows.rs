@@ -1,5 +1,6 @@
 //! The Home rows Plugins give every User (ADR 0058): stored per Plugin, refreshed in the
-//! background so home never waits on a Plugin, and read as the titles on the Server they name.
+//! background so home never waits on a Plugin, and read as the titles on the Server they name and,
+//! for a reader who may Request them, those missing from it.
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -13,7 +14,7 @@ use nama_plugin_api::{
     home_row::HomeRowSource,
     metadata::ExternalId,
 };
-use nama_proto::nama::v1::{PageRequest, PageResponse};
+use nama_proto::nama::v1::{PageRequest, PageResponse, Permission, Request};
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 use tokio::{
@@ -25,11 +26,13 @@ use tracing::{error, warn};
 use crate::{
     db::{self, Database},
     library::{
-        Contents, FoundMovie, FoundShow, Libraries, LibraryError, LibraryKind, LibraryMovie,
-        LibraryShow,
+        Contents, FoundMovie, FoundShow, ImageRef, Libraries, LibraryError, LibraryKind,
+        LibraryMovie, LibraryShow,
     },
     page::{self, Page},
     plugins::{ExtensionPoints, Failure},
+    requests::{self, Listed, Requests},
+    users::User,
 };
 
 /// The most rows of one Plugin home shows.
@@ -44,11 +47,36 @@ const MIN_TTL: Duration = Duration::from_mins(15);
 const MAX_TTL: Duration = Duration::from_hours(7 * 24);
 
 /// One Plugin's row, as stored.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Row {
     pub(crate) key: String,
     pub(crate) heading: String,
     titles: Vec<Title>,
+    /// Those of `titles` the title source had that weren't on the Server at the last refresh.
+    missing: Vec<Missing>,
+}
+
+/// A title of a row that wasn't on the Server at its refresh, as the title source gave it then,
+/// so reading it never asks the title source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct Missing {
+    /// The title it is in its row.
+    title: Title,
+    /// The id its Request is kept under.
+    id: String,
+    name: String,
+    year: Option<i32>,
+    /// The Plugin whose title source serves the poster, and its path there.
+    poster: Option<(String, String)>,
+}
+
+/// A title a row shows a reader.
+#[derive(Debug)]
+pub(crate) enum RowTitle {
+    OnServer(OnServer),
+    /// With its open Request, if it has one the reader may see.
+    MissingMovie(Listed, Option<Box<Request>>),
+    MissingShow(Listed),
 }
 
 /// A title a row names, by the kind and id its Plugin gave.
@@ -89,6 +117,8 @@ pub(crate) struct HomeRows {
     points: ExtensionPoints,
     libraries: Libraries,
     contents: Contents,
+    /// Looks up the titles not on the Server as a Request would, at refresh.
+    requests: Requests,
     /// The Plugins whose rows are being refreshed, so one refresh per Plugin runs at a time.
     refreshing: Arc<Mutex<HashSet<PluginId>>>,
     /// The loop [`HomeRows::refresh_as_plugins_come_up`] starts, until
@@ -97,27 +127,28 @@ pub(crate) struct HomeRows {
 }
 
 impl HomeRows {
-    pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints) -> Self {
+    pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints, requests: Requests) -> Self {
         Self {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(Arc::clone(&db)),
             db,
             points,
+            requests,
             refreshing: Arc::default(),
             passing_on: Arc::default(),
         }
     }
 
     /// The rows of each enabled Home row source, in Plugin id order and then the Plugin's own,
-    /// leaving out a row with no title on the Server. Starts a background refresh of each source
-    /// whose rows are stale or never were refreshed, and lists what is stored meanwhile. Deletes
-    /// the rows of a Plugin no longer serving them.
-    pub(crate) async fn list(&self) -> Result<Vec<(PluginId, Row)>, Error> {
+    /// leaving out a row with no title to show `reader`. Starts a background refresh of each
+    /// source whose rows are stale or never were refreshed, and lists what is stored meanwhile.
+    /// Deletes the rows of a Plugin no longer serving them.
+    pub(crate) async fn list(&self, reader: &User) -> Result<Vec<(PluginId, Row)>, Error> {
         // Stored first, so rows a refresh stores meanwhile aren't taken for a disabled Plugin's.
         let stored = self.stored().await?;
         let serving = self.points.providers::<dyn HomeRowSource>();
         self.refresh_stale(&serving).await?;
-        let (shown, gone): (Vec<_>, Vec<_>) =
+        let (served, gone): (Vec<_>, Vec<_>) =
             (stored.into_iter()).partition(|(plugin, _)| serving.contains(plugin));
         // ponytail: deleted on the next listing rather than as the Plugin is disabled, which also
         // catches a crash's disable; until then they're only hidden. Delete them from
@@ -126,36 +157,37 @@ impl HomeRows {
         for plugin in gone {
             self.forget(plugin).await?;
         }
-        let titles: Vec<Title> = (shown.iter())
+        let titles: Vec<Title> = (served.iter())
             .flat_map(|(_, row)| row.titles.iter().cloned())
             .collect();
         let on_server = self.on_server(&titles).await?;
-        Ok((shown.into_iter())
-            .filter(|(_, row)| row.titles.iter().any(|title| on_server.contains_key(title)))
+        Ok((served.into_iter())
+            .filter(|(_, row)| !shown(row, &on_server, may_request(reader)).is_empty())
             .collect())
     }
 
-    /// The `asked` page of the titles on the Server of the row `key` of the Plugin `plugin`, in
-    /// the row's order, a title it names twice, or by two of its ids, once. A row no enabled
-    /// source gives has none.
+    /// The `asked` page of the titles of the row `key` of the Plugin `plugin` that are on the
+    /// Server or that `reader` may Request, in the row's order, a title it names twice, or by two
+    /// of its ids, once. A row no enabled source gives has none.
     pub(crate) async fn titles(
         &self,
+        reader: &User,
         plugin: &PluginId,
         key: &str,
         asked: &PageRequest,
-    ) -> Result<(Vec<OnServer>, PageResponse), Error> {
+    ) -> Result<(Vec<RowTitle>, PageResponse), Error> {
         let list = serde_json::json!(["ListHomeRowTitles", plugin.as_str(), key]).to_string();
         let page = Page::<()>::read(asked, list.as_bytes())?;
-        let titles = if self.serves(plugin) {
-            self.stored_titles(plugin, key).await?
+        let row = if self.serves(plugin) {
+            self.stored_row(plugin, key).await?
         } else {
-            Vec::new()
+            Row::default()
         };
-        let on_server = self.on_server(&titles).await?;
+        let on_server = self.on_server(&row.titles).await?;
         // ponytail: pages in memory over at most `MAX_TITLES`, by place in the stored row, so a
         // refresh between two pages can skip or repeat a title. Store the rows' titles as rows
         // of their own if a row ever grows.
-        let shown = shown(&titles, on_server);
+        let shown = shown(&row, &on_server, may_request(reader));
         let total = shown.len();
         let mut listed: Vec<_> = (shown.into_iter())
             .filter(|&(place, _)| page.after.is_none_or(|((), after)| place > after))
@@ -164,7 +196,21 @@ impl HomeRows {
         if page.is_first() {
             paging.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
         }
-        Ok((listed.into_iter().map(|(_, title)| title).collect(), paging))
+        let mut titles = Vec::with_capacity(listed.len());
+        // ponytail: one query per missing Movie, on a page a client asks for 10 of.
+        for (_, title) in listed {
+            titles.push(self.with_request(reader, title).await?);
+        }
+        Ok((titles, paging))
+    }
+
+    /// `title` with its open Request, if it is a missing Movie whose Request `reader` may see.
+    async fn with_request(&self, reader: &User, title: RowTitle) -> Result<RowTitle, Error> {
+        let RowTitle::MissingMovie(movie, _) = title else {
+            return Ok(title);
+        };
+        let request = self.requests.open_movie_request(reader, &movie.id).await?;
+        Ok(RowTitle::MissingMovie(movie, request.map(Box::new)))
     }
 
     /// Refreshes the rows of each Plugin `came_up` names as it is enabled, at startup or later,
@@ -252,9 +298,61 @@ impl HomeRows {
                 return;
             }
         };
-        let (rows, fresh_for) = kept(given);
+        let (mut rows, fresh_for) = kept(given);
+        if let Err(err) = self.look_up_missing(plugin, &mut rows).await {
+            warn!(plugin = %plugin, "could not look up the titles of the Plugin's Home rows: {err}");
+            return;
+        }
         if let Err(err) = self.replace(plugin, rows, fresh_for).await {
             warn!(plugin = %plugin, "could not store the Plugin's Home rows: {err}");
+        }
+    }
+
+    /// Fills in the titles of `rows`, the Plugin `plugin`'s, that aren't on the Server, as the
+    /// title source has them, leaving out those it doesn't.
+    async fn look_up_missing(&self, plugin: &PluginId, rows: &mut [Row]) -> Result<(), Error> {
+        let titles: HashSet<Title> = (rows.iter())
+            .flat_map(|row| row.titles.iter().cloned())
+            .collect();
+        let titles: Vec<Title> = titles.into_iter().collect();
+        let on_server = self.on_server(&titles).await?;
+        let mut looked_up = HashMap::new();
+        let mut unanswered = None;
+        // ponytail: one title-source call per missing title, one after another, at every refresh;
+        // keep the last refresh's lookups if refreshes grow slow.
+        for title in titles
+            .iter()
+            .filter(|title| !on_server.contains_key(*title))
+        {
+            match self.look_up(title).await {
+                Ok(found) => looked_up.extend(found.map(|missing| (title, missing))),
+                Err(err) => unanswered = Some(err),
+            }
+        }
+        if let Some(err) = unanswered {
+            warn!(plugin = %plugin, "the Plugin's Home rows leave out titles the title source couldn't look up: {err}");
+        }
+        for row in rows {
+            row.missing = (row.titles.iter())
+                .filter_map(|title| looked_up.get(title).cloned())
+                .collect();
+        }
+        Ok(())
+    }
+
+    /// `title` as a Request would look it up, `None` if the title source doesn't have it.
+    async fn look_up(&self, title: &Title) -> Result<Option<Missing>, requests::Error> {
+        let Some(id) = title.id() else {
+            return Ok(None);
+        };
+        let listed = match title.0 {
+            Kind::Movie => self.requests.listed_movie(&id).await,
+            Kind::Show => self.requests.listed_show(&id).await,
+        };
+        match listed {
+            Ok(listed) => Ok(Some(Missing::new(title.clone(), listed))),
+            Err(requests::Error::NoSuchMovie(_) | requests::Error::NoSuchShow(_)) => Ok(None),
+            Err(err) => Err(err),
         }
     }
 
@@ -280,34 +378,40 @@ impl HomeRows {
     /// Every stored row, in Plugin id order and then the Plugin's own.
     async fn stored(&self) -> Result<Vec<(PluginId, Row)>, sqlx::Error> {
         let rows = sqlx::query!(
-            "SELECT plugin_id, key, heading, titles FROM home_rows ORDER BY plugin_id, position"
+            "SELECT plugin_id, key, heading, titles, missing FROM home_rows
+             ORDER BY plugin_id, position"
         )
         .fetch_all(self.db.reader())
         .await?;
         Ok((rows.into_iter())
             .map(|row| {
-                let titles = titles_from_json(&row.titles);
                 let row_of = Row {
                     key: row.key,
                     heading: row.heading,
-                    titles,
+                    titles: from_json(&row.titles),
+                    missing: from_json(&row.missing),
                 };
                 (PluginId::from(row.plugin_id), row_of)
             })
             .collect())
     }
 
-    /// The titles of the Plugin `plugin`'s row `key`, none if it has no such row.
-    async fn stored_titles(&self, plugin: &PluginId, key: &str) -> Result<Vec<Title>, sqlx::Error> {
+    /// The titles of the Plugin `plugin`'s row `key` and those of them missing from the Server, as
+    /// a [`Row`] with no key or heading, an empty one if it has no such row.
+    async fn stored_row(&self, plugin: &PluginId, key: &str) -> Result<Row, sqlx::Error> {
         let plugin = plugin.as_str();
-        let titles = sqlx::query_scalar!(
-            "SELECT titles FROM home_rows WHERE plugin_id = ? AND key = ?",
+        let row = sqlx::query!(
+            "SELECT titles, missing FROM home_rows WHERE plugin_id = ? AND key = ?",
             plugin,
             key
         )
         .fetch_optional(self.db.reader())
         .await?;
-        Ok(titles.as_deref().map_or_default(titles_from_json))
+        Ok(row.map_or_default(|row| Row {
+            titles: from_json(&row.titles),
+            missing: from_json(&row.missing),
+            ..Row::default()
+        }))
     }
 
     /// Replaces the Plugin `plugin`'s rows with `rows`, fresh for `fresh_for`, in one write.
@@ -445,6 +549,7 @@ fn kept(given: Given) -> (Vec<Row>, Duration) {
             key: row.key,
             heading: row.heading.chars().take(MAX_HEADING).collect(),
             titles,
+            missing: Vec::new(),
         });
     }
     if rows.is_empty() {
@@ -453,28 +558,88 @@ fn kept(given: Given) -> (Vec<Row>, Duration) {
     (rows, fresh_for)
 }
 
-/// Those of `titles` that `on_server` has, each with its place in `titles`, in their order. A
-/// title `titles` names twice, or by two of its ids, shows once, at its first place.
-fn shown(titles: &[Title], mut on_server: HashMap<Title, OnServer>) -> Vec<(i64, OnServer)> {
+/// The titles of `row` that `on_server` has, or that are missing and of a kind `may_request`,
+/// each with its place in the row, in its order. A title the row names twice, or by two of its
+/// ids, shows once, at its first place.
+fn shown(
+    row: &Row,
+    on_server: &HashMap<Title, OnServer>,
+    may_request: impl Fn(Kind) -> bool,
+) -> Vec<(i64, RowTitle)> {
+    let missing: HashMap<&Title, &Missing> = (row.missing.iter())
+        .map(|missing| (&missing.title, missing))
+        .collect();
     let mut seen = HashSet::new();
-    (titles.iter().zip(0..))
-        .filter_map(|(title, place)| Some((place, on_server.remove(title)?)))
-        .filter(|(_, found)| seen.insert(found.browsed_as()))
+    (row.titles.iter().zip(0..))
+        .filter_map(|(title, place)| {
+            let shown = match on_server.get(title) {
+                Some(found) => RowTitle::OnServer(found.clone()),
+                None if may_request(title.0) => missing.get(title)?.row_title()?,
+                None => return None,
+            };
+            Some((place, shown))
+        })
+        .filter(|(_, shown)| seen.insert(shown.shown_once_as()))
         .collect()
 }
 
-impl OnServer {
-    /// The Library and id browsing finds it by, which no other title on the Server shares.
-    fn browsed_as(&self) -> (Kind, i64, ExternalId) {
+/// Whether `reader` may Request a title of each kind.
+fn may_request(reader: &User) -> impl Fn(Kind) -> bool {
+    let permissions = reader.permissions;
+    move |kind| match kind {
+        Kind::Movie => permissions.allow(Permission::RequestMovie),
+        Kind::Show => permissions.allow(Permission::RequestTv),
+    }
+}
+
+impl RowTitle {
+    /// What no other title a row shows shares: for one on the Server, the Library and id browsing
+    /// finds it by; for a missing one, the id its Request is kept under.
+    fn shown_once_as(&self) -> (Kind, Option<i64>, ExternalId) {
         match self {
-            Self::Movie(movie) => (Kind::Movie, movie.library, movie.id.clone()),
-            Self::Show(show) => (Kind::Show, show.library, show.id.clone()),
+            Self::OnServer(OnServer::Movie(movie)) => {
+                (Kind::Movie, Some(movie.library), movie.id.clone())
+            }
+            Self::OnServer(OnServer::Show(show)) => {
+                (Kind::Show, Some(show.library), show.id.clone())
+            }
+            Self::MissingMovie(movie, _) => (Kind::Movie, None, movie.id.clone()),
+            Self::MissingShow(show) => (Kind::Show, None, show.id.clone()),
         }
     }
 }
 
-/// The titles a row stores as JSON, `json`, or none if it doesn't read.
-fn titles_from_json(json: &str) -> Vec<Title> {
+impl Missing {
+    fn new(title: Title, listed: Listed) -> Self {
+        Self {
+            title,
+            id: listed.id.to_string(),
+            name: listed.title,
+            year: listed.year,
+            poster: (listed.poster).map(|poster| (poster.plugin.as_str().to_owned(), poster.path)),
+        }
+    }
+
+    /// It as a row shows it, unless its id no longer reads.
+    fn row_title(&self) -> Option<RowTitle> {
+        let listed = Listed {
+            id: self.id.parse().ok()?,
+            title: self.name.clone(),
+            year: self.year,
+            poster: (self.poster.clone()).map(|(plugin, path)| ImageRef {
+                plugin: PluginId::from(plugin),
+                path,
+            }),
+        };
+        Some(match self.title.0 {
+            Kind::Movie => RowTitle::MissingMovie(listed, None),
+            Kind::Show => RowTitle::MissingShow(listed),
+        })
+    }
+}
+
+/// What a row stores as JSON, `json`, or none if it doesn't read.
+fn from_json<T: for<'de> Deserialize<'de>>(json: &str) -> Vec<T> {
     serde_json::from_str(json).unwrap_or_default()
 }
 
@@ -520,20 +685,26 @@ async fn insert_rows(
     rows: Vec<Row>,
 ) -> Result<(), sqlx::Error> {
     for (row, position) in rows.into_iter().zip(0_i64..) {
-        let titles =
-            serde_json::to_string(&row.titles).map_err(|err| sqlx::Error::Encode(err.into()))?;
+        let titles = to_json(&row.titles)?;
+        let missing = to_json(&row.missing)?;
         sqlx::query!(
-            "INSERT INTO home_rows (plugin_id, position, key, heading, titles) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO home_rows (plugin_id, position, key, heading, titles, missing)
+             VALUES (?, ?, ?, ?, ?, ?)",
             plugin,
             position,
             row.key,
             row.heading,
-            titles
+            titles,
+            missing
         )
         .execute(&mut *conn)
         .await?;
     }
     Ok(())
+}
+
+fn to_json(value: &impl Serialize) -> Result<String, sqlx::Error> {
+    serde_json::to_string(value).map_err(|err| sqlx::Error::Encode(err.into()))
 }
 
 fn found_movie(library: i64, movie: &LibraryMovie) -> OnServer {

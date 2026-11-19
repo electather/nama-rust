@@ -11851,7 +11851,8 @@ pub const __LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY: ::buffa::type_registry::Json
     from_json: ::buffa::type_registry::any_from_json::<ListHomeRowTitlesResponse>,
     is_wkt: false,
 };
-/// A title in a Home row, as a search finds it.
+/// A title in a Home row: on the Server as a search finds it, or missing as a search for titles to
+/// Request finds it.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize)]
 #[serde(default)]
@@ -11916,6 +11917,22 @@ impl ::buffa::Message for HomeRowTitle {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::home_row_title::MovieOrShow::MissingMovie(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::home_row_title::MovieOrShow::MissingShow(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -11941,6 +11958,22 @@ impl ::buffa::Message for HomeRowTitle {
                 __buffa::oneof::home_row_title::MovieOrShow::Show(x) => {
                     ::buffa::types::put_len_delimited_header(
                         2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::home_row_title::MovieOrShow::MissingMovie(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::home_row_title::MovieOrShow::MissingShow(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -11996,6 +12029,50 @@ impl ::buffa::Message for HomeRowTitle {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.movie_or_show = ::core::option::Option::Some(
                         __buffa::oneof::home_row_title::MovieOrShow::Show(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::home_row_title::MovieOrShow::MissingMovie(
+                        ref mut existing,
+                    ),
+                ) = self.movie_or_show
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.movie_or_show = ::core::option::Option::Some(
+                        __buffa::oneof::home_row_title::MovieOrShow::MissingMovie(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::home_row_title::MovieOrShow::MissingShow(
+                        ref mut existing,
+                    ),
+                ) = self.movie_or_show
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.movie_or_show = ::core::option::Option::Some(
+                        __buffa::oneof::home_row_title::MovieOrShow::MissingShow(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -12088,6 +12165,54 @@ impl<'de> ::serde::Deserialize<'de> for HomeRowTitle {
                                 }
                                 __oneof_movie_or_show = Some(
                                     __buffa::oneof::home_row_title::MovieOrShow::Show(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "missingMovie" | "missing_movie" => {
+                            let v: ::core::option::Option<MovieHit> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            MovieHit,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_movie_or_show.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'movie_or_show'",
+                                        ),
+                                    );
+                                }
+                                __oneof_movie_or_show = Some(
+                                    __buffa::oneof::home_row_title::MovieOrShow::MissingMovie(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "missingShow" | "missing_show" => {
+                            let v: ::core::option::Option<ShowHit> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ShowHit,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_movie_or_show.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'movie_or_show'",
+                                        ),
+                                    );
+                                }
+                                __oneof_movie_or_show = Some(
+                                    __buffa::oneof::home_row_title::MovieOrShow::MissingShow(
                                         ::buffa::alloc::boxed::Box::new(v),
                                     ),
                                 );

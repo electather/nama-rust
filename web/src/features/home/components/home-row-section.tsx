@@ -20,7 +20,7 @@ export function HomeRowSection({ row }: { row: HomeRow }) {
       </h2>
       <PosterGrid empty={null}>
         {titles.map((title) => (
-          <RowTitleItem key={rowTitleKey(title.value)} title={title} />
+          <RowTitleItem key={rowTitleKey(title)} title={title} />
         ))}
       </PosterGrid>
     </section>

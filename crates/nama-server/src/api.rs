@@ -144,6 +144,7 @@ pub(crate) fn router(
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
             home_rows,
+            artwork: artwork.clone(),
             images: images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler { browse }))
