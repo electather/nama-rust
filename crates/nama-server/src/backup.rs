@@ -74,7 +74,7 @@ pub async fn write(data_dir: &Path, config_file: &Path, to: &Path) -> Result<(),
         parts.push((CONFIG, config_file.to_owned()));
     }
     let images = data_dir.join(CUSTOM_IMAGES_DIR);
-    // shortcut: an image removed while this runs fails the backup, or leaves the database naming
+    // ponytail: an image removed while this runs fails the backup, or leaves the database naming
     // it; copy images through `ImageStore`'s locks if scheduled backups hit that.
     if images_are_local && images.is_dir() {
         parts.push((CUSTOM_IMAGES_DIR, images));
@@ -195,8 +195,17 @@ fn unpack(from: &Path, into: &Path) -> Result<(), Error> {
         });
     }
     for entry in entries {
-        // `unpack_in` skips an entry naming a path outside `into`.
-        entry?.unpack_in(into)?;
+        let mut entry = entry?;
+        // `unpack_in` skips a path outside `into` but makes a symlink to anywhere, which the
+        // swap would then follow, so a backup holds only files and folders.
+        let kind = entry.header().entry_type();
+        if !kind.is_file() && !kind.is_dir() {
+            return Err(Error::NotABackup(format!(
+                "{} is neither a file nor a folder",
+                entry.path()?.display()
+            )));
+        }
+        entry.unpack_in(into)?;
     }
     if !into.join(db::FILE_NAME).is_file() {
         return Err(Error::NotABackup(format!("it holds no {}", db::FILE_NAME)));
@@ -210,9 +219,12 @@ fn unpack(from: &Path, into: &Path) -> Result<(), Error> {
 fn swap_in(staged: &Path, data_dir: &Path, config_file: &Path) -> Result<(), Error> {
     let config = staged.join(CONFIG);
     if config.is_file() {
+        // Copied beside it first, since it may be on another filesystem than the data directory,
+        // so a failed copy leaves the config file in place.
+        let copy = with_suffix(config_file, ".restoring");
+        fs::copy(config, &copy)?;
         move_aside(config_file)?;
-        // Copied: the config file may be on another filesystem than the data directory.
-        fs::copy(config, config_file)?;
+        fs::rename(copy, config_file)?;
     }
     let images = staged.join(CUSTOM_IMAGES_DIR);
     if images.is_dir() {

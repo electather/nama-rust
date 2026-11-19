@@ -75,6 +75,18 @@ fn entries(tar: &Path) -> Vec<String> {
         .collect()
 }
 
+fn manifest(highest_migration: i64) -> String {
+    format!(r#"{{"server_version":"0.0.0","highest_migration":{highest_migration}}}"#)
+}
+
+fn append_file(tar: &mut tar::Builder<File>, name: &str, contents: &str) {
+    let mut header = tar::Header::new_gnu();
+    header.set_size(contents.len() as u64);
+    header.set_mode(0o644);
+    tar.append_data(&mut header, name, contents.as_bytes())
+        .unwrap();
+}
+
 /// A Server backed up while its database was open, with what changed after: a new row, its
 /// Custom Image deleted and its config edited. Its database is closed again.
 async fn changed_after_its_backup() -> Server {
@@ -177,19 +189,8 @@ async fn a_restore_refuses_a_backup_from_a_newer_server_and_changes_nothing() {
     let server = changed_after_its_backup().await;
     let newer = db::highest_migration_known() + 1;
     let mut tar = tar::Builder::new(File::create(&server.backup).unwrap());
-    for (name, bytes) in [
-        (
-            "manifest.json",
-            format!(r#"{{"server_version":"99.0.0","highest_migration":{newer}}}"#),
-        ),
-        ("nama.db", "not a database".to_owned()),
-    ] {
-        let mut header = tar::Header::new_gnu();
-        header.set_size(bytes.len() as u64);
-        header.set_mode(0o644);
-        tar.append_data(&mut header, name, bytes.as_bytes())
-            .unwrap();
-    }
+    append_file(&mut tar, "manifest.json", &manifest(newer));
+    append_file(&mut tar, "nama.db", "not a database");
     tar.finish().unwrap();
     let before = fs::read_dir(&server.data_dir).unwrap().count();
 
@@ -242,4 +243,31 @@ async fn a_restore_deletes_a_wal_left_without_its_database() {
 
     assert!(!server.path("nama.db-wal").exists());
     assert_eq!(keys_in(&server.path("nama.db")).await, ["backed-up"]);
+}
+
+#[tokio::test]
+async fn a_restore_refuses_a_backup_holding_a_symlink_and_changes_nothing() {
+    let server = changed_after_its_backup().await;
+    let mut tar = tar::Builder::new(File::create(&server.backup).unwrap());
+    append_file(
+        &mut tar,
+        "manifest.json",
+        &manifest(db::highest_migration_known()),
+    );
+    let mut link = tar::Header::new_gnu();
+    link.set_entry_type(tar::EntryType::Symlink);
+    link.set_size(0);
+    tar.append_link(&mut link, "nama.toml", "/etc/passwd")
+        .unwrap();
+    append_file(&mut tar, "nama.db", "not a database");
+    tar.finish().unwrap();
+
+    let refused = restore(&server.data_dir, &server.config, &server.backup).await;
+
+    assert!(matches!(refused, Err(Error::NotABackup(_))), "{refused:?}");
+    assert_eq!(
+        fs::read_to_string(&server.config).unwrap(),
+        "name = \"Changed\"\n"
+    );
+    assert!(!server.path("nama.db.before-restore").exists());
 }
