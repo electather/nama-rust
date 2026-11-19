@@ -11,6 +11,7 @@ use nama_plugin_api::{
     blob_store::BlobStore,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
+    home_row::HomeRowSource,
     metadata::TitleSource,
     notifier::Notifier,
     points::{Events, ServerStarted},
@@ -609,7 +610,7 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
 }
 
 /// Each Extension Point this API names, by its key, in the order its enum lists them.
-fn public_points() -> [(PointKey, proto::ExtensionPoint); 11] {
+fn public_points() -> [(PointKey, proto::ExtensionPoint); 12] {
     use proto::ExtensionPoint as Public;
     [
         (
@@ -655,6 +656,10 @@ fn public_points() -> [(PointKey, proto::ExtensionPoint); 11] {
         (
             PointKey::provide::<dyn Automation>(),
             Public::EXTENSION_POINT_AUTOMATION,
+        ),
+        (
+            PointKey::provide::<dyn HomeRowSource>(),
+            Public::EXTENSION_POINT_HOME_ROW,
         ),
     ]
 }

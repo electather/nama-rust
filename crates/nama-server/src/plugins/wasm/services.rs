@@ -24,7 +24,7 @@ use tracing::warn;
 
 use super::{
     Running, failure_cause,
-    load::{BLOB_TIMEOUT, CALL_TIMEOUT, TICK_TIMEOUT},
+    load::{BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, TICK_TIMEOUT},
 };
 use crate::plugins::without_secrets;
 
@@ -169,7 +169,10 @@ pub(super) const BLOB_GET: Method = blob("Get", "blob_get");
 pub(super) const BLOB_DELETE: Method = blob("Delete", "blob_delete");
 pub(super) const BLOB_LIST: Method = blob("List", "blob_list");
 pub(super) const BLOB_EXISTS: Method = blob("Exists", "blob_exists");
-pub(super) const SHARED_ROWS: Method = provider(services::HOME_ROW, "SharedRows", "shared_rows");
+pub(super) const SHARED_ROWS: Method = Method {
+    limit: HOME_ROWS_TIMEOUT,
+    ..provider(services::HOME_ROW, "SharedRows", "shared_rows")
+};
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[

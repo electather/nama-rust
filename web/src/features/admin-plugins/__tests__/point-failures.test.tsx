@@ -74,6 +74,14 @@ test("each failing Extension Point shows its own failure", async () => {
   );
 });
 
+test("a Home row source whose refresh failed says Users still see its last rows", async () => {
+  const page = await openFlaky([failed(ExtensionPoint.HOME_ROW, "the list is private", 1)]);
+
+  const failing = page.getByRole("region", { name: "Home rows failing" });
+  expect(failing.textContent).toContain("the list is private");
+  expect(failing.textContent).toContain("Users go on seeing the rows it last gave");
+});
+
 test("a Plugin whose calls answer shows no failure", async () => {
   const page = await openFlaky();
 
