@@ -283,6 +283,7 @@ pub mod __buffa {
         reg.register_json_any(super::__FOLLOWED_SHOW_WITHDRAWN_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_STARTED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_ENDED_JSON_ANY);
+        reg.register_json_any(super::__ADMIN_STOP_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
@@ -317,6 +318,12 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_ARTWORK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_ARTWORK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__TITLE_SOURCE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLAYS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLAYS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAY_JSON_ANY);
+        reg.register_json_any(super::__TRANSCODE_HARDWARE_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_SETTINGS_REQUEST_JSON_ANY);
@@ -1257,6 +1264,10 @@ pub use self::__buffa::view::PlaybackEndedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackEndedOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::AdminStopView;
+#[doc(inline)]
+pub use self::__buffa::view::AdminStopOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::PlaybackChangedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackChangedOwnedView;
@@ -1392,6 +1403,30 @@ pub use self::__buffa::view::ListArtworkResponseOwnedView;
 pub use self::__buffa::view::TitleSourceView;
 #[doc(inline)]
 pub use self::__buffa::view::TitleSourceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPlaysRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPlaysRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPlaysResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPlaysResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlayView;
+#[doc(inline)]
+pub use self::__buffa::view::PlayOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TranscodeHardwareView;
+#[doc(inline)]
+pub use self::__buffa::view::TranscodeHardwareOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlayRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlayRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlayResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlayResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoRequestView;
 #[doc(inline)]

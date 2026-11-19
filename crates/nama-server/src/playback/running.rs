@@ -31,10 +31,13 @@
 //!
 //! Deleting a Version ends its plans first and cuts off each response serving its file
 //! ([`RunningPlans::end_for_deleting`]): a file open for reading can still be read once it's
-//! deleted.
+//! deleted. An Admin stopping a plan likewise cuts off its Device's responses serving its Version's
+//! file until that Device plans it again ([`RunningPlans::stop_by_admin`]), so a Direct Play stops
+//! too.
 //!
 //! [`SEGMENT_MS`]: timeline::SEGMENT_MS
 
+mod plays;
 mod process;
 mod run;
 mod serving;
@@ -56,10 +59,11 @@ use std::{
 
 use futures_util::{Stream, StreamExt as _};
 use nama_proto::nama::v1::{
-    Playback, PlaybackChanged, PlaybackEnded, PlaybackReason, PlaybackStarted,
+    AdminStop, Playback, PlaybackChanged, PlaybackEnded, PlaybackReason, PlaybackStarted,
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
+pub(crate) use plays::{PlayNow, ReportedProgress};
 use run::{Fallback, Running, Runs, Start};
 pub(crate) use serving::router;
 pub(crate) use sweeping::sweep_leftovers;
@@ -74,7 +78,10 @@ use super::{
 };
 use crate::{
     events::{EventBus, event},
-    ffmpeg::{BurnIn, Ffmpeg, FromCut, Keyframe, Remux, TextSubtitle, Transcode, sidecar_charset},
+    ffmpeg::{
+        BurnIn, Ffmpeg, FromCut, Hardware, Keyframe, Remux, TextSubtitle, Transcode,
+        sidecar_charset,
+    },
     library::{Contents, Stored},
     server_settings::PlaybackSettings,
     users::Caller,
@@ -123,11 +130,19 @@ pub(crate) enum StartError {
     Busy(u32),
 }
 
-/// What a Transcode on hardware runs instead once a run there fails, and its plan's reasons from
+/// What a Transcode on `hardware` runs instead once a run there fails, and its plan's reasons from
 /// then on, which say why.
 struct FallbackRun {
     start: Box<Start>,
     reasons: Vec<PlaybackReason>,
+    hardware: Hardware,
+}
+
+/// What a Transcode on hardware runs on until it falls back to software, and its plan's reasons
+/// from then on.
+struct OnHardware {
+    hardware: Hardware,
+    fallback_reasons: Vec<PlaybackReason>,
 }
 
 /// The Transcodes running, as a Transcode cap counts them.
@@ -158,9 +173,12 @@ struct Inner {
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
     /// By Version, cancelled while it's deleted, which cuts off each response serving its file.
-    // ponytail: one kept per Version served since the Server started; drop each once nothing
-    // serves it if that ever adds up.
+    // ponytail: one kept per Version, and in `stopped` per Version and Device, served since the
+    // Server started; drop each once nothing serves it if that ever adds up.
     served: Mutex<HashMap<i64, CancellationToken>>,
+    /// By Version and Device, cancelled once an Admin stops that Device's last plan of it, which
+    /// cuts off each response serving the file to it until the Device plans it again.
+    stopped: Mutex<HashMap<(i64, i64), CancellationToken>>,
 }
 
 impl fmt::Debug for RunningPlans {
@@ -193,10 +211,10 @@ struct Plan {
     playback: Playback,
     /// Its HLS files and the ffmpeg writing them; `None` for a Direct Play, which runs nothing.
     hls: Option<Arc<Running>>,
-    /// Its reasons once it fell back to software, for a Transcode on hardware.
-    fallback_reasons: Vec<PlaybackReason>,
+    on_hardware: Option<OnHardware>,
     /// When the plan was last asked for anything, which keeps it another [`STOP_UNUSED_AFTER`].
     last_used: Mutex<Instant>,
+    progress: Mutex<Option<ReportedProgress>>,
 }
 
 impl RunningPlans {
@@ -223,6 +241,7 @@ impl RunningPlans {
             tasks: TaskTracker::new(),
             cancel: CancellationToken::new(),
             served: Mutex::default(),
+            stopped: Mutex::default(),
         });
         inner
             .tasks
@@ -375,13 +394,18 @@ impl RunningPlans {
                 (ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()).map(process::run)
             })
         };
-        let fallback = fallback.map(
-            |super::Fallback {
-                 transcode: software,
-                 reasons,
-             }| FallbackRun {
+        // A plan has a fallback only when it Transcodes on hardware.
+        let fallback = fallback.zip(transcode.video.hardware.clone()).map(
+            |(
+                super::Fallback {
+                    transcode: software,
+                    reasons,
+                },
+                hardware,
+            )| FallbackRun {
                 start: start(software),
                 reasons: reasons.iter().map(reason_to_proto).collect(),
+                hardware,
             },
         );
         let runs = Runs {
@@ -398,7 +422,7 @@ impl RunningPlans {
     fn direct_play(&self, mut playback: Playback) -> u64 {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         playback.plan_id = id;
-        self.insert(id, playback, None, vec![]);
+        self.insert(id, playback, None, None);
         id
     }
 
@@ -430,10 +454,11 @@ impl RunningPlans {
             _ => tokio::fs::create_dir_all(&dir).await,
         };
         made.map_err(|source| StartError::SegmentFolder { folder, source })?;
-        let fallback_reasons = fallback
-            .as_ref()
-            .map_or_else(Vec::new, |fallback| fallback.reasons.clone());
-        runs.fallback = fallback.map(|FallbackRun { start, reasons }| {
+        let on_hardware = fallback.as_ref().map(|fallback| OnHardware {
+            hardware: fallback.hardware.clone(),
+            fallback_reasons: fallback.reasons.clone(),
+        });
+        runs.fallback = fallback.map(|FallbackRun { start, reasons, .. }| {
             let events = self.inner.events.clone();
             let changed = Playback {
                 reasons,
@@ -452,28 +477,39 @@ impl RunningPlans {
         });
         let keep_behind_ms = self.inner.settings.keep_behind_ms();
         let running = Running::start(id, timeline, dir, start_ms, runs, keep_behind_ms).await?;
-        self.insert(id, playback, Some(running), fallback_reasons);
+        self.insert(id, playback, Some(running), on_hardware);
         Ok(id)
     }
 
-    /// Adds the plan `id` playing `playback`, with `hls` if it runs ffmpeg and its reasons once it
-    /// falls back, and publishes its `PlaybackStarted`.
+    /// Adds the plan `id` playing `playback`, with `hls` if it runs ffmpeg and `on_hardware` if
+    /// it Transcodes on hardware, and publishes its `PlaybackStarted`.
     fn insert(
         &self,
         id: u64,
         playback: Playback,
         hls: Option<Arc<Running>>,
-        fallback_reasons: Vec<PlaybackReason>,
+        on_hardware: Option<OnHardware>,
     ) {
         let started = PlaybackStarted {
             playback: playback.clone().into(),
             ..Default::default()
         };
+        // Planning it again lifts an Admin's stop: a stop isn't a ban.
+        let to_device = (playback.version_id, playback.device_id);
+        let mut stopped = lock(&self.inner.stopped);
+        if stopped
+            .get(&to_device)
+            .is_some_and(CancellationToken::is_cancelled)
+        {
+            stopped.remove(&to_device);
+        }
+        drop(stopped);
         let plan = Plan {
             playback,
             hls,
-            fallback_reasons,
+            on_hardware,
             last_used: Mutex::new(Instant::now()),
+            progress: Mutex::default(),
         };
         lock(&self.inner.plans).insert(id, Arc::new(plan));
         self.inner.events.publish(vec![event(started)]);
@@ -575,6 +611,17 @@ impl RunningPlans {
         served.entry(version).or_default().child_token()
     }
 
+    /// Cancelled once an Admin stops the Device `device`'s last plan of the Version `version`, to
+    /// cut off a response serving its file, and at once while that stop holds. Never cancelled
+    /// without a Device.
+    pub(crate) fn stopped(&self, version: i64, device: Option<i64>) -> CancellationToken {
+        let Some(device) = device else {
+            return CancellationToken::new();
+        };
+        let mut stopped = lock(&self.inner.stopped);
+        stopped.entry((version, device)).or_default().child_token()
+    }
+
     /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
     async fn stop_unused(&self, unused_for: Duration) {
         let unused: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
@@ -621,11 +668,17 @@ impl RunningPlans {
     /// Stops `plan`'s ffmpeg, if it runs one, deletes its files and publishes that its playback
     /// ended.
     async fn stop(&self, plan: &Plan) {
+        self.stop_telling(plan, None).await;
+    }
+
+    /// As [`Self::stop`], publishing `admin_stop` too if an Admin stopped it.
+    async fn stop_telling(&self, plan: &Plan, admin_stop: Option<AdminStop>) {
         if let Some(hls) = &plan.hls {
             hls.stop().await;
         }
         let ended = PlaybackEnded {
             playback: plan.playback_now().into(),
+            admin_stop: admin_stop.into(),
             ..Default::default()
         };
         self.inner.events.publish(vec![event(ended)]);
@@ -636,10 +689,23 @@ impl Plan {
     /// How it plays now: as it started, with its fallback's reasons if it fell back.
     fn playback_now(&self) -> Playback {
         let mut playback = self.playback.clone();
-        if self.hls.as_ref().is_some_and(|hls| hls.fell_back()) {
-            playback.reasons.clone_from(&self.fallback_reasons);
+        if let Some(on_hardware) = &self.on_hardware
+            && self.fell_back()
+        {
+            playback.reasons.clone_from(&on_hardware.fallback_reasons);
         }
         playback
+    }
+
+    /// The hardware it Transcodes on now; `None` in software, or for a Direct Play or a Remux.
+    fn hardware_now(&self) -> Option<&Hardware> {
+        (self.on_hardware.as_ref())
+            .filter(|_| !self.fell_back())
+            .map(|on_hardware| &on_hardware.hardware)
+    }
+
+    fn fell_back(&self) -> bool {
+        self.hls.as_ref().is_some_and(|hls| hls.fell_back())
     }
 }
 

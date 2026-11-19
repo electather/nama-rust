@@ -8,20 +8,22 @@ use connectrpc::{
 };
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
-    self as proto, FoundHardware, FoundProgram, GetImageSettingsRequest, GetImageSettingsResponse,
-    GetPlaybackSettingsRequest, GetPlaybackSettingsResponse, GetPlaybackStatusRequest,
-    GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
-    GetServerSettingsRequest, GetServerSettingsResponse,
-    HardwareAcceleration as HardwareAccelerationProto, ImageStoreSwitch, RefusalReason,
-    ServerService, ServerSettings, SwitchImageStoreRequest, SwitchImageStoreResponse, ToneMapping,
-    UpdateImageSettingsRequest, UpdateImageSettingsResponse, UpdatePlaybackSettingsRequest,
-    UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
+    self as proto, AdminStop, FoundHardware, FoundProgram, GetImageSettingsRequest,
+    GetImageSettingsResponse, GetPlaybackSettingsRequest, GetPlaybackSettingsResponse,
+    GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetServerInfoRequest,
+    GetServerInfoResponse, GetServerSettingsRequest, GetServerSettingsResponse,
+    HardwareAcceleration as HardwareAccelerationProto, ImageStoreSwitch, ListPlaysRequest,
+    ListPlaysResponse, Play, PlaybackMethod, RefusalReason, ServerService, ServerSettings,
+    StopPlayRequest, StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse,
+    ToneMapping, TranscodeHardware, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
+    UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
+    UpdateServerSettingsResponse,
 };
 
 use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
-    playback::{accel_to_proto, limit_to_proto},
+    playback::{PlayNow, RunningPlans, accel_to_proto, limit_to_proto},
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
         self, HardwareChoice, ImageValues, Invalid, PickedGpu, PlaybackChange, PlaybackValues,
@@ -44,6 +46,7 @@ pub(super) struct ServerServiceHandler {
     pub(super) data_dir: PathBuf,
     /// Whether the Server exports Diagnostics, so the web app records its own.
     pub(super) exports_diagnostics: bool,
+    pub(super) running: RunningPlans,
 }
 
 #[expect(
@@ -259,6 +262,71 @@ impl ServerService for ServerServiceHandler {
             switching: self.images.switching().map(switching_to_proto).into(),
             ..Default::default()
         })
+    }
+
+    async fn list_plays(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, ListPlaysRequest>,
+    ) -> ServiceResult<ListPlaysResponse> {
+        let plays = self.running.plays().await.map_err(database_failed)?;
+        Response::ok(ListPlaysResponse {
+            plays: plays.into_iter().map(play_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn stop_play(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, StopPlayRequest>,
+    ) -> ServiceResult<StopPlayResponse> {
+        let StopPlayRequest {
+            plan_id, message, ..
+        } = request.to_owned_message();
+        if message.chars().count() > MAX_STOP_MESSAGE_CHARS {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_MESSAGE_TOO_LONG,
+                format!("the message can be at most {MAX_STOP_MESSAGE_CHARS} characters"),
+            )
+            .field("message")
+            .param("maxLength", &MAX_STOP_MESSAGE_CHARS)
+            .into());
+        }
+        let admin_stop = AdminStop {
+            message,
+            ..Default::default()
+        };
+        self.running.stop_by_admin(plan_id, admin_stop).await;
+        Response::ok(StopPlayResponse::default())
+    }
+}
+
+/// The most characters an Admin's message to a viewer whose play they stop may have.
+const MAX_STOP_MESSAGE_CHARS: usize = 200;
+
+/// `play` as `ListPlays` sends it.
+fn play_to_proto(play: PlayNow) -> Play {
+    let transcodes = play.playback.method == PlaybackMethod::PLAYBACK_METHOD_TRANSCODE;
+    let transcodes_on = transcodes.then(|| TranscodeHardware {
+        api: (play.hardware.as_ref())
+            .map_or(
+                HardwareAccelerationProto::HARDWARE_ACCELERATION_OFF,
+                |hardware| accel_to_proto(hardware.accel),
+            )
+            .into(),
+        gpu: (play.hardware.and_then(|hardware| hardware.gpu))
+            .map(|gpu| gpu_to_proto(gpu.id().to_owned(), gpu.name()))
+            .into(),
+        ..Default::default()
+    });
+    Play {
+        playback: play.playback.into(),
+        title: play.title.unwrap_or_default(),
+        position_ms: play.progress.map(|progress| progress.position_ms),
+        duration_ms: play.progress.map_or(0, |progress| progress.duration_ms),
+        transcodes_on: transcodes_on.into(),
+        ..Default::default()
     }
 }
 

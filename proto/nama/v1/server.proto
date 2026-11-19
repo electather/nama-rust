@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/event.proto";
 import "nama/v1/playback.proto";
 
 // Facts about a Server that any client can read, before signing in, and the Server's settings.
@@ -61,7 +62,61 @@ service ServerService {
   // nothing, `REFUSAL_REASON_IMAGE_STORE_SWITCHING` while another switch runs, and
   // `REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK` for a store that fails its check.
   rpc SwitchImageStore(SwitchImageStoreRequest) returns (SwitchImageStoreResponse) {}
+  // Lists every plan playing now, on every User's Device, oldest first. Needs `PERMISSION_ADMIN`.
+  // The Playback events follow each from here on, by plan id.
+  rpc ListPlays(ListPlaysRequest) returns (ListPlaysResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Stops a plan on any Device, the caller's own included, as its player's `StopPlayback` would,
+  // and cuts off its Direct Play's file mid-response. Its `PlaybackEnded` carries `admin_stop`
+  // with the message. A plan already stopped is left alone. Needs `PERMISSION_ADMIN`. A message
+  // over 200 characters is refused with `REFUSAL_REASON_MESSAGE_TOO_LONG`, and nothing stops.
+  rpc StopPlay(StopPlayRequest) returns (StopPlayResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
+
+message ListPlaysRequest {}
+
+message ListPlaysResponse {
+  repeated Play plays = 1;
+}
+
+// A plan playing now.
+message Play {
+  // How it plays now: as its `PlaybackStarted` told it, or its last `PlaybackChanged`.
+  Playback playback = 1;
+  // What it plays, as people name it: the Movie's title, or the Show's with the Episode, such as
+  // "Dark S01E02", the first one for a file of several. The name the file was found under when it
+  // isn't Matched. Empty if its Version was deleted since.
+  string title = 2;
+  // How far in the Device last said it was in this Version (`ReportProgress`), in milliseconds.
+  // Unset until it says.
+  optional uint64 position_ms = 3;
+  // How long the Version is, as that report said, in milliseconds. 0 until it says.
+  uint64 duration_ms = 4;
+  // Where its Transcode runs now. Unset for a Direct Play or a Remux.
+  TranscodeHardware transcodes_on = 5;
+}
+
+// Where a Transcode runs.
+message TranscodeHardware {
+  // The API it runs on, or `HARDWARE_ACCELERATION_OFF` for software, on the CPU, as after its
+  // hardware failed partway.
+  HardwareAcceleration api = 1;
+  // The GPU it runs on. Unset in software, and where ffmpeg picks one, as for
+  // `FoundHardware.gpu`.
+  Gpu gpu = 2;
+}
+
+message StopPlayRequest {
+  // The plan, as `Playback.plan_id` names it.
+  uint64 plan_id = 1;
+  // What to tell the viewer, at most 200 characters. Empty for nothing.
+  string message = 2;
+}
+
+message StopPlayResponse {}
 
 message GetServerInfoRequest {}
 
