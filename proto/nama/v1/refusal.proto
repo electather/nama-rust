@@ -296,4 +296,7 @@ enum RefusalReason {
   // so nothing is deleted. Preview the delete again to see them. `field` is `also`. Params:
   // `episodes`, each such Episode as "Show S01E02", joined by ", ".
   REFUSAL_REASON_TAKES_ALONG_UNNAMED = 89;
+  // `unavailable`: no subtitle source is enabled, or every one asked failed, or the one asked
+  // couldn't download the subtitle or gave a file that isn't one. The message says why.
+  REFUSAL_REASON_NO_SUBTITLE_SOURCE = 90;
 }

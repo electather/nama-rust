@@ -103,7 +103,13 @@ pub fn serve(
     let events = EventBus::new(Arc::clone(&db), points.clone(), settings.server_url());
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = SubtitleCache::new(&config.data_dir);
-    let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles);
+    let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
+    let probing = Probing::new(
+        Arc::clone(&db),
+        Arc::clone(&ffmpeg),
+        subtitles,
+        images.clone(),
+    );
     let contents = Contents::new(Arc::clone(&db));
     let running = RunningPlans::new(
         settings.playback(),
@@ -114,7 +120,6 @@ pub fn serve(
     );
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let home_rows = HomeRows::new(Arc::clone(&db), points.clone());
-    let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
     let artwork = Artwork::new(images.clone(), points.clone());
     let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());

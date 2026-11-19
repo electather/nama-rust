@@ -20,6 +20,7 @@ mod autoplay;
 mod choices;
 mod codecs;
 mod direct_play;
+mod downloads;
 mod limits;
 mod probing;
 mod running;
@@ -31,6 +32,7 @@ mod tracks;
 
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
+pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
 pub(crate) use running::{RunningPlans, StartError, router as running_router, sweep_leftovers};

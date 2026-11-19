@@ -40,13 +40,15 @@ fn plans_in(db: &Arc<Database>, settings: PlaybackSettings) -> RunningPlans {
 
 fn plans_with(db: &Arc<Database>, settings: PlaybackSettings, events: &EventBus) -> RunningPlans {
     let ffmpeg = Arc::new(Ffmpeg::default());
-    // Nothing here cleans subtitles, so their cache's folder is never touched.
+    // Nothing here cleans subtitles, so their cache's and the image store's folder is never
+    // touched.
     let subtitles = subtitles::Cache::new(&std::env::temp_dir());
+    let images = crate::images::ImageStore::new(&std::env::temp_dir(), Arc::clone(db));
     RunningPlans::new(
         settings,
         Arc::clone(&ffmpeg),
         Contents::new(Arc::clone(db)),
-        Probing::new(Arc::clone(db), ffmpeg, subtitles),
+        Probing::new(Arc::clone(db), ffmpeg, subtitles, images),
         events.clone(),
     )
 }

@@ -28,7 +28,7 @@ use crate::{
         Artwork, Contents, CustomImages, Libraries, LocalImages, TitleKind, TitleSources,
         artwork_router, custom_images_router, local_images_router,
     },
-    playback::{Probing, RunningPlans, TrackPreferences, running_router},
+    playback::{Probing, RunningPlans, SubtitleDownloads, TrackPreferences, running_router},
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
@@ -127,7 +127,7 @@ pub(crate) fn router(
             settings,
             abilities: abilities.clone(),
             ffmpeg,
-            images: image_store,
+            images: image_store.clone(),
             points: plugins.clone(),
             data_dir: config.data_dir.clone(),
             exports_diagnostics: config.otlp_endpoint.is_some(),
@@ -153,6 +153,7 @@ pub(crate) fn router(
             running,
             settings: playback,
             preferences: TrackPreferences::new(Arc::clone(&db)),
+            downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(RequestServiceHandler {
@@ -246,6 +247,9 @@ const REQUEST_TV: Access = Access::Needs(Permission::RequestTv);
 /// Deleting media from the Libraries' folders.
 const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 
+/// Searching the subtitle sources and downloading their subtitles.
+const DOWNLOAD_SUBTITLES: Access = Access::Needs(Permission::DownloadSubtitles);
+
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media and uploads have their own entries, in [`PREFIXES`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
@@ -308,6 +312,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_GET_AUTOPLAY_SPEC.procedure,         Access::SignedIn),
     (proto::PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC.procedure,         Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SEARCH_SUBTITLES_SPEC.procedure,     DOWNLOAD_SUBTITLES),
+    (proto::PLAYBACK_SERVICE_DOWNLOAD_SUBTITLE_SPEC.procedure,    DOWNLOAD_SUBTITLES),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
@@ -667,7 +673,9 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         R::REFUSAL_REASON_USER_NAME_TAKEN
         | R::REFUSAL_REASON_LIBRARY_NAME_TAKEN
         | R::REFUSAL_REASON_FOLDER_TAKEN => ErrorCode::AlreadyExists,
-        R::REFUSAL_REASON_NO_TITLE_SOURCE => ErrorCode::Unavailable,
+        R::REFUSAL_REASON_NO_TITLE_SOURCE | R::REFUSAL_REASON_NO_SUBTITLE_SOURCE => {
+            ErrorCode::Unavailable
+        }
     }
 }
 

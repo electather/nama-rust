@@ -30,6 +30,11 @@ export const permissionChoices: PermissionChoice[] = [
     about: "Delete Movies and their files from the Server, for good.",
   },
   {
+    permission: Permission.DOWNLOAD_SUBTITLES,
+    label: "Download subtitles",
+    about: "Search for subtitles while watching, and download one for everyone to use.",
+  },
+  {
     permission: Permission.MANAGE_SETTINGS,
     label: "Manage settings",
     about: "Change the Server’s settings, such as its Plugins.",

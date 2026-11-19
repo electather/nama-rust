@@ -65,14 +65,20 @@ pub(crate) const LOCAL_IMAGES_DIR: &str = "local-images";
 /// Where the Plugins' Manifest logos are kept, one folder per Plugin.
 pub(crate) const PLUGIN_LOGOS_DIR: &str = "plugin-logos";
 
+/// Where the subtitles Users download are kept, one folder per Version (ADR 0067). Not
+/// `subtitles`, where the local-disk store would find the subtitle cache's files.
+pub(crate) const DOWNLOADED_SUBTITLES_DIR: &str = "downloaded-subtitles";
+
 /// The first part of every original's key: what a switch to another store copies. Offered
-/// artwork is among them, since it is served from the store too.
+/// artwork is among them, since it is served from the store too, and so are downloaded subtitles,
+/// which aren't images but are the Kernel's stored files all the same (ADR 0067).
 pub(crate) const ORIGINAL_DIRS: &[&str] = &[
     KEPT_ARTWORK_DIR,
     OFFERED_ARTWORK_DIR,
     CUSTOM_IMAGES_DIR,
     LOCAL_IMAGES_DIR,
     PLUGIN_LOGOS_DIR,
+    DOWNLOADED_SUBTITLES_DIR,
 ];
 
 /// The folder in the data directory resized copies are kept in (`AGENTS.md`).
@@ -405,6 +411,35 @@ impl ImageStore {
             self.blobs().delete(&stored).await?;
         }
         self.delete_copies(key).await
+    }
+
+    /// Stores `bytes` at `key` as [`Self::write`] does, and returns the local file holding them,
+    /// for a reader that needs a path, such as ffmpeg: the store's own file, or a copy where the
+    /// local-disk store would keep it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::write`], or if the copy can't be written.
+    // shortcut: a Plugin store's object is kept on local disk too; fetch it from the store when
+    // it's read if that disk use matters.
+    pub(crate) async fn write_on_disk(&self, key: &[&str], bytes: &[u8]) -> io::Result<PathBuf> {
+        self.write(key, bytes).await?;
+        let path = under(self.dir.clone(), key);
+        if self.blobs().local_path(&row_key(key)).as_ref() != Some(&path) {
+            write_atomically(&path, bytes).await?;
+        }
+        Ok(path)
+    }
+
+    /// Deletes every object under `key` as [`Self::delete_dir`] does, and the local copies
+    /// [`Self::write_on_disk`] kept of them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::delete_dir`], or if the copies are there but can't be deleted.
+    pub(crate) async fn delete_dir_on_disk(&self, key: &[&str]) -> io::Result<()> {
+        self.delete_dir(key).await?;
+        unless_gone(tokio::fs::remove_dir_all(under(self.dir.clone(), key)).await)
     }
 
     /// Deletes the thumbhash of the image at `key`, or of every image under it. First, before the

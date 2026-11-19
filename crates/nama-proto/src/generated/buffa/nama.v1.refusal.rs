@@ -264,6 +264,9 @@ pub enum RefusalReason {
     /// so nothing is deleted. Preview the delete again to see them. `field` is `also`. Params:
     /// `episodes`, each such Episode as "Show S01E02", joined by ", ".
     REFUSAL_REASON_TAKES_ALONG_UNNAMED = 89i32,
+    /// `unavailable`: no subtitle source is enabled, or every one asked failed, or the one asked
+    /// couldn't download the subtitle or gave a file that isn't one. The message says why.
+    REFUSAL_REASON_NO_SUBTITLE_SOURCE = 90i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -527,6 +530,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_TAKES_ALONG_UNNAMED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const TakesAlongUnnamed: Self = Self::REFUSAL_REASON_TAKES_ALONG_UNNAMED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NoSubtitleSource: Self = Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -815,6 +821,9 @@ impl ::buffa::Enumeration for RefusalReason {
             89i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_TAKES_ALONG_UNNAMED)
             }
+            90i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -991,6 +1000,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_TAKES_ALONG_UNNAMED => {
                 "REFUSAL_REASON_TAKES_ALONG_UNNAMED"
+            }
+            Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE => {
+                "REFUSAL_REASON_NO_SUBTITLE_SOURCE"
             }
         }
     }
@@ -1281,6 +1293,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_TAKES_ALONG_UNNAMED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_TAKES_ALONG_UNNAMED)
             }
+            "REFUSAL_REASON_NO_SUBTITLE_SOURCE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1373,6 +1388,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_INVITE_NOT_FOUND,
             Self::REFUSAL_REASON_SERVER_URL_REQUIRED,
             Self::REFUSAL_REASON_TAKES_ALONG_UNNAMED,
+            Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE,
         ]
     }
 }

@@ -142,6 +142,11 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SUBTITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SUBTITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FOUND_SUBTITLE_JSON_ANY);
+        reg.register_json_any(super::__DOWNLOAD_SUBTITLE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DOWNLOAD_SUBTITLE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
@@ -692,6 +697,26 @@ pub use self::__buffa::view::ListHomeRowTitlesResponseOwnedView;
 pub use self::__buffa::view::HomeRowTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSubtitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSubtitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSubtitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSubtitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundSubtitleView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundSubtitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadSubtitleRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadSubtitleRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadSubtitleResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadSubtitleResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetTrackPreferencesRequestView;
 #[doc(inline)]
