@@ -34,21 +34,22 @@ impl RunningPlans {
     /// serving that Version's file to it until it plans it again, so a Direct Play stops too. A
     /// plan already stopped is left alone.
     pub(crate) async fn stop_by_admin(&self, id: u64, admin_stop: AdminStop) {
-        let (plan, others) = {
+        let plan = {
+            // Held while cancelling, so `insert` can't add a plan of this Version for the Device in
+            // between and have it cut off.
             let mut plans = lock(&self.inner.plans);
             let Some(plan) = plans.remove(&id) else {
                 return;
             };
-            let others = plans.values().any(|other| plays_alike(other, &plan));
-            (plan, others)
+            if !plans.values().any(|other| plays_alike(other, &plan)) {
+                let to_device = (plan.playback.version_id, plan.playback.device_id);
+                lock(&self.inner.stopped)
+                    .entry(to_device)
+                    .or_default()
+                    .cancel();
+            }
+            plan
         };
-        if !others {
-            let to_device = (plan.playback.version_id, plan.playback.device_id);
-            lock(&self.inner.stopped)
-                .entry(to_device)
-                .or_default()
-                .cancel();
-        }
         self.stop_telling(&plan, Some(admin_stop)).await;
     }
 

@@ -494,16 +494,7 @@ impl RunningPlans {
             playback: playback.clone().into(),
             ..Default::default()
         };
-        // Planning it again lifts an Admin's stop: a stop isn't a ban.
         let to_device = (playback.version_id, playback.device_id);
-        let mut stopped = lock(&self.inner.stopped);
-        if stopped
-            .get(&to_device)
-            .is_some_and(CancellationToken::is_cancelled)
-        {
-            stopped.remove(&to_device);
-        }
-        drop(stopped);
         let plan = Plan {
             playback,
             hls,
@@ -511,7 +502,20 @@ impl RunningPlans {
             last_used: Mutex::new(Instant::now()),
             progress: Mutex::default(),
         };
-        lock(&self.inner.plans).insert(id, Arc::new(plan));
+        // `plans` before `stopped`, as in `stop_by_admin`, so a stop can't land between lifting it
+        // and adding the plan.
+        let mut plans = lock(&self.inner.plans);
+        let mut stopped = lock(&self.inner.stopped);
+        // Planning it again lifts an Admin's stop: a stop isn't a ban. A token not cancelled stays,
+        // since responses hold its children and a later stop must still reach them.
+        if stopped
+            .get(&to_device)
+            .is_some_and(CancellationToken::is_cancelled)
+        {
+            stopped.remove(&to_device);
+        }
+        plans.insert(id, Arc::new(plan));
+        drop((stopped, plans));
         self.inner.events.publish(vec![event(started)]);
     }
 
