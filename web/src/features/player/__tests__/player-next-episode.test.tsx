@@ -96,17 +96,17 @@ test("the countdown shows the next Episode from 20 seconds before the end", asyn
 
   playUntilLeft(video, 20);
   const shown = await findCountdown();
-  expect(within(shown).getByText("Season 1, Episode 4")).toBeDefined();
+  expect(within(shown).getByText("Next · S1, E4")).toBeDefined();
   expect(within(shown).getByText("Double Lives")).toBeDefined();
-  expect(within(shown).getByText("Starts in 0:20")).toBeDefined();
-  expect(within(shown).getByRole("button", { name: "Play now" })).toBeDefined();
+  expect(within(shown).getByText("Starts in 20s")).toBeDefined();
+  expect(within(shown).getByRole("button", { name: "Next Episode" })).toBeDefined();
   expect(within(shown).getByRole("button", { name: "Cancel" })).toBeDefined();
 });
 
-test("play now opens the next Episode", async () => {
+test("next Episode opens the next Episode without waiting", async () => {
   const { router, video } = await playEpisode3();
   playUntilLeft(video, 15);
-  fireEvent.click(await screen.findByRole("button", { name: "Play now" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Next Episode" }));
 
   const opened = await openedEpisode4(router);
   expect(opened.pathname).toBe(EPISODE_4);
@@ -162,14 +162,18 @@ test("seeking back before the countdown hides it until it's reached again", asyn
   expect(countdown()).not.toBeNull();
 });
 
-test("the countdown doesn't animate, so reduced motion has nothing to stop, and its seconds count", async () => {
+test("the countdown's motion stops under reduced motion, and its seconds count", async () => {
   const { video } = await playEpisode3();
   playUntilLeft(video, 20);
   const shown = await findCountdown();
-  expect(shown.querySelector('[class*="animate-"], [class*="duration-"]')).toBeNull();
+  const moving = [...shown.querySelectorAll('[class*="animate-"], [class*="duration-"]')];
+  expect(moving.length).toBeGreaterThan(0);
+  expect(
+    moving.filter((each) => !each.classList.contains("motion-reduce:transition-none")),
+  ).toStrictEqual([]);
 
   playUntilLeft(video, 12.4);
-  expect(within(shown).getByText("Starts in 0:13")).toBeDefined();
+  expect(within(shown).getByText("Starts in 13s")).toBeDefined();
 });
 
 test("after three Episodes autoplay started with no input, it pauses and asks", async () => {

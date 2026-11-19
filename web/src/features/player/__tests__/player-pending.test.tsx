@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
@@ -12,6 +12,7 @@ import {
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openTracks, pickIn, rowsOf } from "@/test-player";
 
 afterEach(cleanup);
 
@@ -109,8 +110,7 @@ test("choosing another audio Track shows it's getting ready until that plan come
   first.answer(directPlay("/media/versions/7", 1));
   await screen.findByLabelText("Alien");
 
-  fireEvent.click(screen.getByRole("button", { name: "Audio" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name: /Commentary/u }));
+  pickIn("Audio", /Commentary/u);
 
   const second = await server.asked(1);
   expect(second.request.audioTrack).toBe(2);
@@ -122,10 +122,11 @@ test("choosing another audio Track shows it's getting ready until that plan come
     expect(screen.getByLabelText("Alien").getAttribute("src")).toBe("/media/versions/7?audio=2");
   });
   expect(screen.queryByText(READY)).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Audio" }));
-  expect(
-    screen.getAllByRole("menuitemradio").map((item) => item.getAttribute("aria-checked")),
-  ).toStrictEqual(["false", "true"]);
+  openTracks();
+  expect(rowsOf("Audio").map((item) => item.getAttribute("aria-checked"))).toStrictEqual([
+    "false",
+    "true",
+  ]);
 });
 
 test("a Server that fails to plan the Version says it couldn't get it ready, not that something went wrong", async () => {
@@ -150,6 +151,6 @@ test("a Server that fails to plan the Version says it couldn't get it ready, not
 
   await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(screen.getByText("The Server couldn’t get it ready to play.")).toBeDefined();
-  expect(screen.getByRole("link", { name: "Back" })).toBeDefined();
+  expect(screen.getAllByRole("link", { name: "Back" })).not.toHaveLength(0);
   expect(screen.queryByText("Something went wrong")).toBeNull();
 });

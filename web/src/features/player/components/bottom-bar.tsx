@@ -1,47 +1,41 @@
 import type { ReactNode, RefObject } from "react";
 
-import { ExtraControls } from "@/features/player/components/extra-controls";
-import { PlayButton } from "@/features/player/components/play-button";
+import { ControlRow } from "@/features/player/components/control-row";
+import { SeekRow } from "@/features/player/components/seek-row";
 import type { Video } from "@/features/player/hooks/use-video";
-import { clock } from "@/features/player/lib/video-actions";
-import { Slider } from "@/shared/ui/slider";
 
-/** The position, Play and the time, then `children` beside the volume and full screen. */
+/**
+ * The seek row over the control row, which holds `next` after the skips and `children` before
+ * picture in picture and full screen.
+ */
 export function BottomBar({
   video,
-  playerRef,
+  refs: { playerRef, videoRef, rowsRef },
+  next,
   children,
 }: {
   video: Video;
-  playerRef: RefObject<HTMLDivElement | null>;
+  refs: {
+    playerRef: RefObject<HTMLDivElement | null>;
+    videoRef: RefObject<HTMLVideoElement | null>;
+    /** The seek row and the buttons, which panels open over. */
+    rowsRef: RefObject<HTMLDivElement | null>;
+  };
+  /** Next Episode, after the skips. */
+  next: ReactNode;
   children: ReactNode;
 }) {
-  const { time, duration } = video.state;
   return (
-    <div className="pointer-events-auto bg-linear-to-t from-scrim px-2 pt-10 pb-2 group-data-controls-hidden:pointer-events-none sm:px-4 sm:pb-4">
-      <div className="px-2">
-        <Slider
-          label="Position"
-          valueText={`${clock(time)} of ${clock(duration)}`}
-          disabled={duration === 0}
-          value={Math.min(time, duration)}
-          max={duration === 0 ? 1 : duration}
-          onValueChange={(seconds) => {
-            video.control((element) => {
-              element.currentTime = seconds;
-            });
-          }}
-        />
-      </div>
-      <div className="flex items-center gap-1">
-        <PlayButton video={video} />
-        <span className="ms-2 text-sm tabular-nums">
-          {clock(time)} / {clock(duration)}
-        </span>
-        <ExtraControls video={video} playerRef={playerRef}>
+    <fieldset
+      aria-label="Player controls"
+      className="pointer-events-auto min-w-0 bg-linear-to-t from-scrim from-30% via-scrim/50 px-5 pt-28 pb-3.5 group-data-controls-hidden:pointer-events-none"
+    >
+      <div ref={rowsRef} className="flex flex-col gap-1">
+        <SeekRow video={video} />
+        <ControlRow video={video} refs={{ playerRef, videoRef }} next={next}>
           {children}
-        </ExtraControls>
+        </ControlRow>
       </div>
-    </div>
+    </fieldset>
   );
 }

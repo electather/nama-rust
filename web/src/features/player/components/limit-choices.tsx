@@ -1,31 +1,30 @@
+import { ChoiceLabel } from "@/features/player/components/choice-label";
+import type { limitItems } from "@/features/player/lib/limit-items";
 import type { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
-import { DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/shared/ui/dropdown-menu";
+import { RadioGroup, RadioRow } from "@/shared/ui/radio-group";
 
-/** The Playback Limits to pick from, the one `playing` checked. */
+/** The Playback Limits to pick from, the one `playing` chosen. */
 export function LimitChoices({
   items,
   playing,
   choose,
-}: {
-  items: { limit: PlaybackLimit; name: string }[];
-  playing: PlaybackLimit;
-  choose: (limit: PlaybackLimit) => void;
-}) {
+}: ReturnType<typeof limitItems> & { choose: (limit: PlaybackLimit) => void }) {
   return (
-    <DropdownMenuRadioGroup
-      value={String(playing)}
-      onValueChange={(value: string) => {
-        const picked = items.find(({ limit }) => String(limit) === value);
+    <RadioGroup
+      aria-label="Playback Limit"
+      value={playing.limit}
+      onValueChange={(value) => {
+        const picked = items.find(({ limit }) => limit === value);
         if (picked) {
           choose(picked.limit);
         }
       }}
     >
-      {items.map(({ limit, name }) => (
-        <DropdownMenuRadioItem key={limit} value={String(limit)}>
-          {name}
-        </DropdownMenuRadioItem>
+      {items.map(({ limit, name, details }) => (
+        <RadioRow key={limit} value={limit}>
+          <ChoiceLabel name={name} details={details} />
+        </RadioRow>
       ))}
-    </DropdownMenuRadioGroup>
+    </RadioGroup>
   );
 }

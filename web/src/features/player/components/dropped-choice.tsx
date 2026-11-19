@@ -1,5 +1,8 @@
+import { TriangleAlert } from "lucide-react";
+
 import type { Choice } from "@/features/player/lib/asking";
 import type { PlaybackLimit, PlaybackPlan } from "@/gen/nama/v1/playback_pb";
+import { StateLabel } from "@/shared/components/state-label";
 import { belowOriginal } from "@/shared/lib/playback-names";
 
 /** Says when `plan` dropped the choice the User `justChose`, which it couldn't honour (ADR 0031). */
@@ -9,11 +12,13 @@ export function DroppedChoice({ justChose, plan }: { justChose: Choice; plan: Pl
     return null;
   }
   return (
-    <div className="mt-2 flex justify-center px-4">
-      <output className="max-w-md rounded-lg bg-scrim px-4 py-2 text-center text-sm text-balance">
-        {dropped} Playback info says why.
-      </output>
-    </div>
+    <output className="mt-4 flex px-5">
+      <StateLabel
+        tone="warning"
+        Icon={TriangleAlert}
+        label={`${dropped} Playback info says why.`}
+      />
+    </output>
   );
 }
 

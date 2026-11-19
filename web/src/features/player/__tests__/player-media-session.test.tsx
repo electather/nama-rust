@@ -129,7 +129,7 @@ test("the lock screen shows an Episode with its Show and which Episode it is, by
   });
 });
 
-test("media keys play, pause and seek by the player's step, and the lock screen follows the position", async () => {
+test("media keys play, pause, stop and seek by the player's step, and the lock screen follows the position", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", server);
   const video = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
   Object.defineProperty(video, "duration", { value: 7000 });
@@ -141,6 +141,9 @@ test("media keys play, pause and seek by the player's step, and the lock screen 
   expect(video.paused).toBe(true);
   press("play");
   expect(video.paused).toBe(false);
+  press("stop");
+  expect(video.paused).toBe(true);
+  press("play");
   press("seekforward");
   expect(video.currentTime).toBe(110);
   press("seekbackward", { seekOffset: 30 });

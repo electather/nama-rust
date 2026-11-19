@@ -16,7 +16,7 @@ export function Player(props: PlayerProps) {
   // Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it mounted, and
   // React keeps the Tracks and Playback Limit it asked for.
   return (
-    <Suspense fallback={<GettingReady title={props.title} back={props.back} />}>
+    <Suspense fallback={<GettingReady {...props} />}>
       <PlannedPlayer {...props} autoplay={useAutoplay(props.next)} />
     </Suspense>
   );

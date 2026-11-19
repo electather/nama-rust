@@ -43,7 +43,15 @@ export function showOnLockScreen(
   };
 }
 
-const MEDIA_ACTIONS = ["play", "pause", "seekto", "seekbackward", "seekforward"] as const;
+/** Has the Next Track media key and button `playNext`, until the cleanup it returns. */
+export function nextTrackPlays(session: MediaSession, playNext: () => void) {
+  session.setActionHandler("nexttrack", playNext);
+  return () => {
+    session.setActionHandler("nexttrack", null);
+  };
+}
+
+const MEDIA_ACTIONS = ["play", "pause", "stop", "seekto", "seekbackward", "seekforward"] as const;
 
 function mediaActions(
   video: HTMLVideoElement,
@@ -53,6 +61,10 @@ function mediaActions(
       play(video);
     },
     pause: () => {
+      video.pause();
+    },
+    // Stopped where it is, so playing again carries on from there.
+    stop: () => {
       video.pause();
     },
     seekto: ({ seekTime = video.currentTime }) => {

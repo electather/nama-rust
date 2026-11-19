@@ -12,11 +12,13 @@ export function FullscreenButton({ playerRef }: { playerRef: RefObject<HTMLDivEl
   if (!document.fullscreenEnabled) {
     return null;
   }
+  const label = isFullscreen ? "Exit full screen" : "Full screen";
   return (
     <Button
       variant="overlay"
       size="icon"
-      aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+      aria-label={label}
+      title={label}
       onClick={() => {
         toggleFullscreen(playerRef.current);
       }}

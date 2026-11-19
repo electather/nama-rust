@@ -29,19 +29,25 @@ export function nextEpisode(
     episode,
     streak: streak ?? 0,
     link: (nextStreak) => ({
-      to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
-      params: {
-        libraryId,
-        showId,
-        season: String(episode.seasonNumber),
-        episode: String(episode.episodeNumber),
-      },
+      ...playLink(episode, { libraryId, showId }),
       search: { streak: nextStreak },
     }),
   };
 }
 
-const COUNTDOWN_SECONDS = 20;
+/** The play route of `episode`, of the Show `params` names. */
+export function playLink(
+  { seasonNumber, episodeNumber }: Pick<Episode, "seasonNumber" | "episodeNumber">,
+  { libraryId, showId }: { libraryId: string; showId: string },
+) {
+  return {
+    to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
+    params: { libraryId, showId, season: String(seasonNumber), episode: String(episodeNumber) },
+  } satisfies LinkOptions;
+}
+
+/** How long the countdown to the next Episode runs, in seconds. */
+export const COUNTDOWN_SECONDS = 20;
 /** How many Episodes in a row autoplay starts with no input before the player asks instead. */
 const ASK_AFTER_STREAK = 3;
 

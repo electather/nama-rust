@@ -1,23 +1,25 @@
 import type { ReactNode, RefObject } from "react";
 
 import { FullscreenButton } from "@/features/player/components/fullscreen-button";
-import { VolumeControls } from "@/features/player/components/volume-controls";
-import type { Video } from "@/features/player/hooks/use-video";
+import { PictureInPictureButton } from "@/features/player/components/picture-in-picture-button";
 
-/** `children` beside the volume and full screen. */
+/** `children` at the bar's end, then picture in picture and full screen. */
 export function ExtraControls({
-  video,
   playerRef,
+  videoRef,
   children,
 }: {
-  video: Video;
   playerRef: RefObject<HTMLDivElement | null>;
+  videoRef: RefObject<HTMLVideoElement | null>;
   children: ReactNode;
 }) {
   return (
-    <div className="ms-auto flex items-center gap-1">
+    <div className="ms-auto flex items-center gap-2">
       {children}
-      <VolumeControls video={video} />
+      {/* Phones have the system's own picture in picture. */}
+      <div className="hidden sm:contents">
+        <PictureInPictureButton videoRef={videoRef} />
+      </div>
       <FullscreenButton playerRef={playerRef} />
     </div>
   );

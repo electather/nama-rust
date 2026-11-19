@@ -3,7 +3,7 @@ import { type ReactNode, useRef } from "react";
 
 import { usePosterColumns } from "@/features/library/hooks/use-poster-columns";
 import { useTopOf } from "@/features/library/hooks/use-top-of";
-import { paddingFor } from "@/features/library/lib/padding-for";
+import { paddingFor } from "@/shared/lib/padding-for";
 import { posterGrid } from "@/shared/lib/poster-classes";
 
 declare module "react" {

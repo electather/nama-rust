@@ -1,8 +1,13 @@
-import { useMutation } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { autoplayKey } from "@/features/settings/data/use-autoplay";
 import { PlaybackService } from "@/gen/nama/v1/playback_pb";
+
+// The query key of the autoplay choice, to refetch after saving it.
+const autoplayKey = createConnectQueryKey({
+  schema: PlaybackService.method.getAutoplay,
+  cardinality: "finite",
+});
 
 /** Saves whether the next Episode plays by itself, then refetches it. */
 export function useSetAutoplay() {

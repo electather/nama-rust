@@ -1,8 +1,8 @@
 import { AudioItem } from "@/features/player/components/audio-item";
 import type { Track } from "@/gen/nama/v1/browse_pb";
-import { DropdownMenuRadioGroup } from "@/shared/ui/dropdown-menu";
+import { RadioGroup } from "@/shared/ui/radio-group";
 
-/** The audio Tracks the plan offers, by their places in `tracks`, the one at `playing` checked. */
+/** The audio Tracks the plan offers, by their places in `tracks`, the one at `playing` chosen. */
 export function AudioChoices({
   tracks,
   audio,
@@ -15,15 +15,18 @@ export function AudioChoices({
   choose: (place: number) => void;
 }) {
   return (
-    <DropdownMenuRadioGroup
-      value={String(playing)}
-      onValueChange={(place: string) => {
-        choose(Number(place));
+    <RadioGroup
+      aria-label="Audio"
+      value={playing}
+      onValueChange={(place) => {
+        if (typeof place === "number") {
+          choose(place);
+        }
       }}
     >
       {audio.map((place) => (
         <AudioItem key={place} place={place} track={tracks[place]} />
       ))}
-    </DropdownMenuRadioGroup>
+    </RadioGroup>
   );
 }
