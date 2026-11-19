@@ -18,7 +18,7 @@ video::cue {
     min(-1px, -0.04em) min(-1px, -0.04em) var(--subtitle-edge);
 }
 [data-subtitle-background="2"] video::cue {
-  background-color: var(--subtitle-box);
+  background-color: color-mix(in oklab, var(--subtitle-edge) 75%, transparent);
   text-shadow: none;
 }
 [data-subtitle-size="1"] video::cue {
