@@ -3,7 +3,7 @@ import { ScanToApprove } from "@/features/auth/components/scan-to-approve";
 /** The code, with its QR code while it can still be approved. */
 export function ShownCode({ code, expired }: { code: string; expired: boolean }) {
   return (
-    <div className="rounded-xl border bg-surface-raised px-4 py-8 text-center">
+    <div className="rounded-xl border bg-card px-4 py-8 text-center">
       <p
         className={
           expired
