@@ -143,15 +143,26 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
     assert_eq!(places, [0]);
 }
 
-/// What a [`Recorded`] source was asked, in order: `None` for the shared rows, or the Personal
-/// settings a User's call carried.
-type Asked = Arc<Mutex<Vec<Option<BTreeMap<String, String>>>>>;
+/// What a [`Recorded`] source was asked, and a hold on its answers to Users.
+#[derive(Default)]
+struct Calls {
+    /// In order: `None` for the shared rows, or the Personal settings a User's call carried.
+    asked: Mutex<Vec<Option<BTreeMap<String, String>>>>,
+    /// Its `user_rows` answers only once it holds this, so a test keeps a call in flight.
+    user_rows_held: tokio::sync::Mutex<()>,
+}
 
-/// A Built-in Home row source, `rows`, that records what it is asked, gives the row `shared` to
-/// every User and, if it gives Users' rows, the row `theirs` to each.
+impl Calls {
+    fn asked(&self) -> Vec<Option<BTreeMap<String, String>>> {
+        self.asked.lock().unwrap().clone()
+    }
+}
+
+/// A Built-in Home row source, `rows`, that records what it is asked, and gives the row `shared`
+/// to every User and the row `theirs` to each, of those `gives` names.
 struct Recorded {
-    asked: Asked,
-    gives_user_rows: bool,
+    calls: Arc<Calls>,
+    gives: &'static [HomeRowMethod],
 }
 
 impl Plugin for Recorded {
@@ -165,8 +176,8 @@ impl Plugin for Recorded {
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let source: Arc<dyn HomeRowSource> = Arc::new(Self {
-            asked: Arc::clone(&self.asked),
-            gives_user_rows: self.gives_user_rows,
+            calls: Arc::clone(&self.calls),
+            gives: self.gives,
         });
         registrar.provide(Priority::DEFAULT, source);
         Ok(())
@@ -178,7 +189,7 @@ impl HomeRowSource for Recorded {
         &'a self,
         _asked: &'a SharedRowsAsked,
     ) -> BoxFuture<'a, Result<HomeRows, PluginError>> {
-        self.asked.lock().unwrap().push(None);
+        self.calls.asked.lock().unwrap().push(None);
         Box::pin(async { Ok(given(vec![row("shared", 3600, vec![movie("1")])])) })
     }
 
@@ -187,28 +198,34 @@ impl HomeRowSource for Recorded {
         asked: &'a UserRowsAsked,
     ) -> BoxFuture<'a, Result<HomeRows, PluginError>> {
         let settings = asked.personal_settings.clone().into_iter().collect();
-        self.asked.lock().unwrap().push(Some(settings));
-        Box::pin(async { Ok(given(vec![row("theirs", 3600, vec![movie("2")])])) })
+        self.calls.asked.lock().unwrap().push(Some(settings));
+        Box::pin(async {
+            let _held = self.calls.user_rows_held.lock().await;
+            Ok(given(vec![row("theirs", 3600, vec![movie("2")])]))
+        })
     }
 
     fn gives(&self, method: HomeRowMethod) -> bool {
-        method == HomeRowMethod::Shared || self.gives_user_rows
+        self.gives.contains(&method)
     }
 }
 
-/// Home rows over a fresh database, with [`Recorded`] enabled.
-async fn recorded(gives_user_rows: bool) -> (TempDir, Arc<Database>, Kept, Asked) {
+const SHARED: &[HomeRowMethod] = &[HomeRowMethod::Shared];
+const BOTH: &[HomeRowMethod] = &[HomeRowMethod::Shared, HomeRowMethod::User];
+
+/// Home rows over a fresh database, with [`Recorded`] enabled, giving the rows `gives` names.
+async fn recorded(gives: &'static [HomeRowMethod]) -> (TempDir, Arc<Database>, Kept, Arc<Calls>) {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-    let asked = Asked::default();
+    let calls = Arc::new(Calls::default());
     let plugins = Registry::new();
     let source = Recorded {
-        asked: Arc::clone(&asked),
-        gives_user_rows,
+        calls: Arc::clone(&calls),
+        gives,
     };
     plugins.enable(Arc::new(source)).unwrap();
     let home = Kept::new(Arc::clone(&db), plugins.extension_points());
-    (data_dir, db, home, asked)
+    (data_dir, db, home, calls)
 }
 
 async fn insert_user(db: &Database, name: &str) -> i64 {
@@ -238,9 +255,18 @@ async fn set_handle(db: &Database, user: i64, handle: &str) {
         .unwrap();
 }
 
+/// The Personal settings of a User who set `handle`.
+fn handle(handle: &str) -> BTreeMap<String, String> {
+    [("handle".to_owned(), handle.to_owned())].into()
+}
+
 /// Opens home as `user`, and waits for the refreshes it starts to finish.
 async fn open_home(home: &Kept, user: i64) {
     home.list(user).await.unwrap();
+    wait_for_refreshes(home).await;
+}
+
+async fn wait_for_refreshes(home: &Kept) {
     let started = Instant::now();
     while !lock(&home.refreshing).is_empty() {
         assert!(
@@ -259,19 +285,40 @@ async fn stored_keys(home: &Kept, user: i64) -> Vec<String> {
 
 #[tokio::test]
 async fn a_source_giving_only_shared_rows_is_never_asked_for_a_users() {
-    let (_dir, db, home, asked) = recorded(false).await;
+    let (_dir, db, home, calls) = recorded(SHARED).await;
     let ada = insert_user(&db, "ada").await;
     set_handle(&db, ada, "ada").await;
 
     open_home(&home, ada).await;
 
-    assert_eq!(*asked.lock().unwrap(), [None]);
+    assert_eq!(calls.asked(), [None]);
     assert_eq!(stored_keys(&home, ada).await, ["shared"]);
 }
 
 #[tokio::test]
+async fn a_source_giving_only_users_rows_is_never_asked_for_shared_ones() {
+    let (_dir, db, home, calls) = recorded(&[HomeRowMethod::User]).await;
+    let ada = insert_user(&db, "ada").await;
+    let (came_up, enabled) = tokio::sync::mpsc::unbounded_channel();
+    let mut passed_on = home.refresh_as_plugins_come_up(enabled);
+
+    came_up.send(PluginId::from_static("rows")).unwrap();
+    passed_on.recv().await.unwrap();
+    wait_for_refreshes(&home).await;
+    assert!(
+        calls.asked().is_empty(),
+        "enabling it asks for no shared rows"
+    );
+    open_home(&home, ada).await;
+
+    assert_eq!(calls.asked(), [Some(BTreeMap::new())]);
+    assert_eq!(stored_keys(&home, ada).await, ["theirs"]);
+    home.shutdown().await;
+}
+
+#[tokio::test]
 async fn each_users_rows_are_asked_with_only_their_own_personal_settings() {
-    let (_dir, db, home, asked) = recorded(true).await;
+    let (_dir, db, home, calls) = recorded(BOTH).await;
     let ada = insert_user(&db, "ada").await;
     let bea = insert_user(&db, "bea").await;
     let carl = insert_user(&db, "carl").await;
@@ -282,17 +329,21 @@ async fn each_users_rows_are_asked_with_only_their_own_personal_settings() {
     open_home(&home, bea).await;
     open_home(&home, carl).await;
 
-    let handle = |handle: &str| Some([("handle".to_owned(), handle.to_owned())].into());
     assert_eq!(
-        *asked.lock().unwrap(),
-        [None, handle("ada"), handle("bea"), Some(BTreeMap::new())],
+        calls.asked(),
+        [
+            None,
+            Some(handle("ada")),
+            Some(handle("bea")),
+            Some(BTreeMap::new())
+        ],
         "the shared rows once, then each User with their own settings, none for Carl"
     );
 }
 
 #[tokio::test]
 async fn deleting_a_user_deletes_their_rows() {
-    let (_dir, db, home, _) = recorded(true).await;
+    let (_dir, db, home, _) = recorded(BOTH).await;
     let ada = insert_user(&db, "ada").await;
     open_home(&home, ada).await;
     assert_eq!(stored_keys(&home, ada).await, ["shared", "theirs"]);
@@ -314,7 +365,7 @@ async fn deleting_a_user_deletes_their_rows() {
 
 #[tokio::test]
 async fn changing_a_users_personal_settings_refreshes_their_rows_on_their_next_visit() {
-    let (_dir, db, home, asked) = recorded(true).await;
+    let (_dir, db, home, calls) = recorded(BOTH).await;
     let ada = insert_user(&db, "ada").await;
     set_handle(&db, ada, "ada").await;
     open_home(&home, ada).await;
@@ -322,10 +373,36 @@ async fn changing_a_users_personal_settings_refreshes_their_rows_on_their_next_v
     set_handle(&db, ada, "ada-2").await;
     open_home(&home, ada).await;
 
-    let handle = |handle: &str| Some([("handle".to_owned(), handle.to_owned())].into());
     assert_eq!(
-        *asked.lock().unwrap(),
-        [None, handle("ada"), handle("ada-2")],
+        calls.asked(),
+        [None, Some(handle("ada")), Some(handle("ada-2"))],
         "the fresh shared rows aren't asked again"
     );
+}
+
+#[tokio::test]
+async fn rows_asked_before_a_user_changed_their_personal_settings_are_not_kept() {
+    let (_dir, db, home, calls) = recorded(BOTH).await;
+    let ada = insert_user(&db, "ada").await;
+    set_handle(&db, ada, "ada").await;
+    let held = calls.user_rows_held.lock().await;
+    home.list(ada).await.unwrap();
+    let started = Instant::now();
+    while !calls.asked().contains(&Some(handle("ada"))) {
+        assert!(started.elapsed() < Duration::from_secs(10), "never asked");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    set_handle(&db, ada, "ada-2").await;
+    drop(held);
+    wait_for_refreshes(&home).await;
+
+    assert_eq!(
+        stored_keys(&home, ada).await,
+        ["shared"],
+        "the answer was dropped"
+    );
+    open_home(&home, ada).await;
+    assert_eq!(calls.asked().last(), Some(&Some(handle("ada-2"))));
+    assert_eq!(stored_keys(&home, ada).await, ["shared", "theirs"]);
 }

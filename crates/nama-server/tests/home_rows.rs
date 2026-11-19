@@ -72,10 +72,6 @@ fn plugins(server: &TestServer) -> PluginServiceClient<HttpClient> {
     PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
 
-fn browse(server: &TestServer) -> BrowseServiceClient<HttpClient> {
-    BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
-}
-
 fn text(text: &str) -> SettingValue {
     SettingValue {
         value: Some(Value::TextValue(text.to_owned())),
@@ -182,6 +178,16 @@ async fn titles_page(
     size: i32,
     token: &str,
 ) -> Result<ListHomeRowTitlesResponse, connectrpc::ConnectError> {
+    titles_page_as(server.client_config(), key, size, token).await
+}
+
+/// [`titles_page`], for the caller `config` signs in as.
+async fn titles_page_as(
+    config: ClientConfig,
+    key: &str,
+    size: i32,
+    token: &str,
+) -> Result<ListHomeRowTitlesResponse, connectrpc::ConnectError> {
     let asked = ListHomeRowTitlesRequest {
         plugin_id: PLUGIN.to_owned(),
         key: key.to_owned(),
@@ -193,7 +199,7 @@ async fn titles_page(
         .into(),
         ..Default::default()
     };
-    Ok(browse(server)
+    Ok(BrowseServiceClient::new(HttpClient::plaintext(), config)
         .list_home_row_titles(asked)
         .await?
         .into_owned())
@@ -256,6 +262,13 @@ async fn each_user_sees_their_own_rows_built_from_their_personal_settings() {
     assert_eq!(
         headings(rows_as(bea.client_config()).await),
         ["Picks", "Alien again", "For bea"]
+    );
+    let beas = titles_page_as(bea.client_config(), "for-bea", 10, "").await;
+    let adas = titles_page_as(ada.client_config(), "for-bea", 10, "").await;
+    assert_eq!(beas.unwrap().titles.len(), 1);
+    assert!(
+        adas.unwrap().titles.is_empty(),
+        "Ada can't page Bea's own row"
     );
 }
 

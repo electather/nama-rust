@@ -187,7 +187,7 @@ impl HomeRows {
         let this = self.clone();
         let passing_on = tokio::spawn(async move {
             while let Some(plugin) = came_up.recv().await {
-                this.refresh(&plugin, None);
+                this.refresh(&plugin, None).await;
                 // Fails only once the reader stopped, when the Server no longer serves.
                 let _: Result<(), _> = pass_on.send(plugin);
             }
@@ -213,9 +213,10 @@ impl HomeRows {
     /// Refreshes the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, in the
     /// background, in the Plugin's scope, so disabling it cancels the call. Rows a cancelled
     /// refresh still stores stay hidden, as [`Self::list`] shows only enabled Plugins' rows. Does
-    /// nothing if it isn't an enabled Home row source, or those rows are already being refreshed.
-    pub(crate) fn refresh(&self, plugin: &PluginId, user: Option<i64>) {
-        if !self.serves(plugin) {
+    /// nothing if it isn't an enabled Home row source giving those rows, or they're already being
+    /// refreshed.
+    async fn refresh(&self, plugin: &PluginId, user: Option<i64>) {
+        if !self.gives(plugin, user).await {
             return;
         }
         let Some(refreshing) = Refreshing::start(&self.refreshing, (plugin.clone(), user)) else {
@@ -237,7 +238,8 @@ impl HomeRows {
             .contains(plugin)
     }
 
-    /// Whether the Plugin `plugin` gives rows for `user`, or shared rows for `None`.
+    /// Whether the Plugin `plugin` is an enabled Home row source giving rows for `user`, or
+    /// shared rows for `None`.
     async fn gives(&self, plugin: &PluginId, user: Option<i64>) -> bool {
         let method = match user {
             None => HomeRowMethod::Shared,
@@ -249,10 +251,18 @@ impl HomeRows {
     }
 
     async fn refresh_now(&self, plugin: &PluginId, user: Option<i64>) {
+        // Put off before the Plugin is asked, so one whose service is down isn't called on every
+        // visit to home. A User's change to their Personal settings meanwhile deletes the put-off
+        // (the triggers on `personal_settings`), and `replace` then drops this answer, built from
+        // the old settings, rather than store it as fresh.
+        if let Err(err) = self.put_off(plugin, user).await {
+            warn!(plugin = %plugin, user, "could not put off refreshing the Plugin's Home rows: {err}");
+            return;
+        }
         let answer = match user {
             None => self.ask_shared(plugin).await,
             Some(user) => match personal_settings_of(&self.db, user, plugin).await {
-                Ok(settings) => self.ask_for(plugin, settings).await,
+                Ok(settings) => self.ask_user_rows(plugin, settings).await,
                 Err(err) => {
                     warn!(plugin = %plugin, user, "could not read Personal settings to refresh Home rows: {err}");
                     return;
@@ -262,15 +272,9 @@ impl HomeRows {
         let Some(answer) = answer else {
             return;
         };
-        // A failure keeps the stored rows. It puts off the next try, so a Plugin whose service
-        // is down isn't called on every visit to home, and before the failure is logged, so a
-        // reader of the log knows the next try is put off.
         let given = match answer.result {
             Ok(given) => given,
             Err(Failure { message, .. }) => {
-                if let Err(err) = self.put_off(plugin, user).await {
-                    warn!(plugin = %plugin, user, "could not put off refreshing the Plugin's Home rows: {err}");
-                }
                 warn!(plugin = %plugin, user, error = message, "refreshing the Plugin's Home rows failed");
                 return;
             }
@@ -281,7 +285,6 @@ impl HomeRows {
         }
     }
 
-    /// Asks the Plugin `plugin` for its shared rows.
     async fn ask_shared(&self, plugin: &PluginId) -> Option<Answer<Given>> {
         let asked = SharedRowsAsked::default();
         (self.points)
@@ -295,7 +298,7 @@ impl HomeRows {
     /// Asks the Plugin `plugin` for a User's rows with only that User's Personal `settings`, each
     /// value by key with whether it is secret. A secret one is blanked from the failure the
     /// Plugins page and the log show.
-    async fn ask_for(
+    async fn ask_user_rows(
         &self,
         plugin: &PluginId,
         settings: BTreeMap<String, (String, bool)>,
@@ -345,9 +348,7 @@ impl HomeRows {
             .iter()
             .flat_map(|plugin| [(plugin.clone(), None), (plugin.clone(), Some(user))]);
         for (plugin, whose) in scopes.filter(|scope| !fresh.contains(scope)) {
-            if self.gives(&plugin, whose).await {
-                self.refresh(&plugin, whose);
-            }
+            self.refresh(&plugin, whose).await;
         }
         Ok(())
     }
@@ -399,7 +400,9 @@ impl HomeRows {
     }
 
     /// Replaces the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, with
-    /// `rows`, fresh for `fresh_for`, in one write.
+    /// `rows`, fresh for `fresh_for`, in one write. Stores nothing once the put-off its refresh
+    /// started with is gone, as the Plugin was forgotten or the User changed their Personal
+    /// settings meanwhile.
     async fn replace(
         &self,
         plugin: &PluginId,
@@ -411,18 +414,7 @@ impl HomeRows {
         let stale_at = db::now().saturating_add(i64::try_from(fresh_for.as_secs()).unwrap_or(0));
         self.db
             .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "DELETE FROM home_rows WHERE plugin_id = ? AND user_id IS ?",
-                        plugin,
-                        user
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    insert_rows(tx, &plugin, user, rows).await?;
-                    set_stale_at(tx, &plugin, user, stale_at).await?;
-                    Ok(())
-                })
+                Box::pin(async move { replace_if_marked(tx, &plugin, user, rows, stale_at).await })
             })
             .await
     }
@@ -608,6 +600,36 @@ async fn set_stale_at(
     .execute(conn)
     .await?;
     Ok(())
+}
+
+/// [`HomeRows::replace`]'s write: replaces the Plugin `plugin`'s rows for `user`, or its shared
+/// rows for `None`, with `rows`, stale at `stale_at`, only while their put-off is stored.
+async fn replace_if_marked(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+    user: Option<i64>,
+    rows: Vec<Row>,
+    stale_at: i64,
+) -> Result<(), sqlx::Error> {
+    let marked = sqlx::query!(
+        "UPDATE home_row_refreshes SET stale_at = ? WHERE plugin_id = ? AND user_id IS ?",
+        stale_at,
+        plugin,
+        user
+    )
+    .execute(&mut *conn)
+    .await?;
+    if marked.rows_affected() == 0 {
+        return Ok(());
+    }
+    sqlx::query!(
+        "DELETE FROM home_rows WHERE plugin_id = ? AND user_id IS ?",
+        plugin,
+        user
+    )
+    .execute(&mut *conn)
+    .await?;
+    insert_rows(conn, plugin, user, rows).await
 }
 
 /// Stores `rows` as the Plugin `plugin`'s for `user`, or its shared rows for `None`, in their

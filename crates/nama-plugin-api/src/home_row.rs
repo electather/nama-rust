@@ -44,7 +44,8 @@ pub trait HomeRowSource: Send + Sync + 'static {
     }
 
     /// Whether this source gives the rows `method` asks for. The Kernel asks it only for those;
-    /// a Built-in that leaves a method out may keep the default, which costs one empty answer.
+    /// a Built-in that leaves a method out may keep the default, which costs a call giving no
+    /// rows each time those rows go stale, every 15 minutes for each User who opens home.
     fn gives(&self, _method: HomeRowMethod) -> bool {
         true
     }
