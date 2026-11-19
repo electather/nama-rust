@@ -11,6 +11,8 @@ description: Building, checking, screenshotting and reviewing the web app. Use w
 
 Follow `web/AGENTS.md`. Load the `impeccable` skill, read the references it points to, run its `context` step from the repo root, and build to `PRODUCT.md` and `DESIGN.md`.
 
+Before every edit, load the `modern-web-guidance` skill and search it for the HTML, CSS or browser API the edit uses. Web platform APIs change faster than an agent's training data.
+
 ## Check
 
 From `web/`, run `vp install`, then every command in `web/README.md` "Checks", until each passes with no findings.
