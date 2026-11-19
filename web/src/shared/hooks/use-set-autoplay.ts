@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { PlaybackService } from "@/gen/nama/v1/playback_pb";
 
-// The query key of the autoplay choice, to refetch after saving it.
 const autoplayKey = createConnectQueryKey({
   schema: PlaybackService.method.getAutoplay,
   cardinality: "finite",

@@ -6,7 +6,6 @@ import { Slider } from "@/shared/ui/slider";
 
 const HOUR_SECONDS = 3600;
 
-/** Whether the times show hours, and the width that keeps them from shifting the seek bar. */
 function clockFit(duration: number) {
   const long = duration >= HOUR_SECONDS;
   return { long, width: long ? "min-w-17" : "min-w-12" };

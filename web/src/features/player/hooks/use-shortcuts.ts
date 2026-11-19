@@ -11,7 +11,6 @@ export interface ShortcutParts {
   next: LinkOptions | undefined;
   /** Called on every key, as input that shows the controls. */
   wake: () => void;
-  /** Turns subtitles on or off in `video`. */
   captions: (video: HTMLVideoElement) => void;
   /** How long one frame shows, in seconds. */
   frame: number;

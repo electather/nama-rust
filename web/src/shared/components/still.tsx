@@ -18,7 +18,6 @@ export function Still({
   thumbhash: Uint8Array | undefined;
   /** How wide it shows, when it isn't in a `BackdropGrid`. */
   sizes?: string;
-  /** What lies over it, such as its progress. */
   children?: ReactNode;
 }) {
   const srcSet = useSrcSet(url);

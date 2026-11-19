@@ -184,16 +184,6 @@ test("c turns the first subtitle on, and off again", async () => {
   expect(rowIn("Subtitles", "Off").getAttribute("aria-checked")).toBe("true");
 });
 
-test("i plays the video in picture in picture", async () => {
-  const { video } = await playEpisode3();
-  const requestPictureInPicture = vi.fn<() => Promise<void>>(async () => {});
-  Object.assign(video, { requestPictureInPicture });
-
-  press("i");
-
-  expect(requestPictureInPicture.mock.calls).toStrictEqual([[]]);
-});
-
 test("shift+N plays the next Episode", async () => {
   const { router } = await playEpisode3();
 

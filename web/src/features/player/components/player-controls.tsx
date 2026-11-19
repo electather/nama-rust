@@ -11,7 +11,6 @@ import type { Video } from "@/features/player/hooks/use-video";
 import type { InShow } from "@/features/player/lib/in-show";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 
-/** How far into the video it is, from 0 to 1. */
 function playedPart({ state }: Video) {
   return state.duration > 0 ? state.time / state.duration : 0;
 }

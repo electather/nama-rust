@@ -1,7 +1,6 @@
 import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { episodeName, metadataLine, runtimeOf } from "@/shared/lib/title-facts";
 
-/** Whether `episode` plays now, was played, or neither. */
 function stateOf(episode: Episode, playing: boolean) {
   if (playing) {
     return "Playing";

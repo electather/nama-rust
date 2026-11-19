@@ -5,12 +5,10 @@ import { type EpisodeItem, seasonShown } from "@/features/player/lib/episode-ite
 
 /** An Episode row's height: its 112px-wide Still, 63px tall, and the row's 8px padding. */
 const ROW = 79;
-/** A Season heading's height. */
 const HEADING = 36;
 /** The list's `gap-1.5`, between rows. */
 const GAP = 6;
 
-/** Glides to a row, unless the system asks for less motion. */
 function glide() {
   return globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }

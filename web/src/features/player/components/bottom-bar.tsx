@@ -21,7 +21,6 @@ export function BottomBar({
     /** The seek row and the buttons, which panels open over. */
     rowsRef: RefObject<HTMLDivElement | null>;
   };
-  /** Next Episode, after the skips. */
   next: ReactNode;
   children: ReactNode;
 }) {

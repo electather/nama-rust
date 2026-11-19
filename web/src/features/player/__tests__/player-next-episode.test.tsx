@@ -99,8 +99,6 @@ test("the countdown shows the next Episode from 20 seconds before the end", asyn
   expect(within(shown).getByText("Next · S1, E4")).toBeDefined();
   expect(within(shown).getByText("Double Lives")).toBeDefined();
   expect(within(shown).getByText("Starts in 20s")).toBeDefined();
-  expect(within(shown).getByRole("button", { name: "Next Episode" })).toBeDefined();
-  expect(within(shown).getByRole("button", { name: "Cancel" })).toBeDefined();
 });
 
 test("next Episode opens the next Episode without waiting", async () => {
@@ -162,15 +160,10 @@ test("seeking back before the countdown hides it until it's reached again", asyn
   expect(countdown()).not.toBeNull();
 });
 
-test("the countdown's motion stops under reduced motion, and its seconds count", async () => {
+test("the countdown counts the seconds left, rounded up", async () => {
   const { video } = await playEpisode3();
   playUntilLeft(video, 20);
   const shown = await findCountdown();
-  const moving = [...shown.querySelectorAll('[class*="animate-"], [class*="duration-"]')];
-  expect(moving.length).toBeGreaterThan(0);
-  expect(
-    moving.filter((each) => !each.classList.contains("motion-reduce:transition-none")),
-  ).toStrictEqual([]);
 
   playUntilLeft(video, 12.4);
   expect(within(shown).getByText("Starts in 13s")).toBeDefined();

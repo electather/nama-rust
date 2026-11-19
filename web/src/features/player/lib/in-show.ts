@@ -9,7 +9,6 @@ export interface InShow {
   episodeNumber: number;
   /** The Episode after this one, once the Server has found it, whether autoplay is on or not. */
   after: Episode | undefined;
-  /** The play route of an Episode of the Show. */
   link: (episode: Pick<Episode, "seasonNumber" | "episodeNumber">) => LinkOptions;
 }
 

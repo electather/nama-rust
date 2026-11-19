@@ -20,9 +20,7 @@ interface ShortcutTarget {
   player: HTMLElement | null;
   /** Goes back to the title page. */
   back: () => void;
-  /** Plays the next Episode, when there is one. */
   next: (() => void) | undefined;
-  /** Turns subtitles on, or off. */
   captions: () => void;
   /** How long one frame shows, in seconds. */
   frame: number;
