@@ -14,8 +14,8 @@ use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
     library::{
-        Candidate, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind, Unanswered,
-        library_with_movie, matched_episodes,
+        Candidate, ImageRef, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind,
+        Unanswered, library_with_movie, matched_episodes,
     },
     users::User,
 };
@@ -41,6 +41,17 @@ pub(crate) struct Hit {
     /// The Plugin whose title source found it, which its image paths are for.
     pub(crate) plugin: PluginId,
     pub(crate) candidate: Candidate,
+}
+
+/// A title the title source has, with what a list of titles shows of it.
+#[derive(Debug)]
+pub(crate) struct Listed {
+    /// The id its Request is kept under.
+    pub(crate) id: ExternalId,
+    pub(crate) title: String,
+    /// The year a Movie was released or a Show first aired.
+    pub(crate) year: Option<i32>,
+    pub(crate) poster: Option<ImageRef>,
 }
 
 /// A Show looked up in the title source, and how close it is to being on the Server.
@@ -143,6 +154,39 @@ impl Requests {
             followed_show,
             quality,
         })
+    }
+
+    /// The Movie `asked`, fetched now as [`Self::look_up`] fetches it, to list.
+    pub(crate) async fn listed_movie(&self, asked: &ExternalId) -> Result<Listed, Error> {
+        let movie = self.fetch(asked).await?;
+        Ok(Listed {
+            id: kept_under(asked, &movie.ids),
+            year: movie.release_date.as_deref().and_then(year_of),
+            title: movie.title,
+            poster: movie.poster,
+        })
+    }
+
+    /// The Show `asked`, fetched now as [`Self::look_up_show`] fetches it, less its Seasons, to
+    /// list.
+    pub(crate) async fn listed_show(&self, asked: &ExternalId) -> Result<Listed, Error> {
+        let (source, show) = self.show(asked).await?;
+        Ok(Listed {
+            id: kept_under(asked, &show.ids),
+            year: show.first_air_date.as_deref().and_then(year_of),
+            poster: ImageRef::of(&source.plugin, show.poster.as_ref()),
+            title: show.title,
+        })
+    }
+
+    /// The open Request for the Movie kept under `id`, if `viewer` may see it.
+    pub(crate) async fn open_movie_request(
+        &self,
+        viewer: &User,
+        id: &ExternalId,
+    ) -> Result<Option<Request>, sqlx::Error> {
+        let mut conn = self.db.reader().acquire().await?;
+        self.visible_open_request(&mut conn, viewer, id, None).await
     }
 
     /// The Show `asked`, from the title source keeping titles under its namespace, else the first
@@ -273,6 +317,11 @@ impl Requests {
         }
         Ok(found)
     }
+}
+
+/// The year of a `YYYY-MM-DD` date.
+pub(crate) fn year_of(date: &str) -> Option<i32> {
+    date.get(..4)?.parse().ok()
 }
 
 /// `err` from looking a title up, which is `missing` if the title source doesn't have it.

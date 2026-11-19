@@ -2,12 +2,12 @@
 
 include!("nama.v1.page.rs");
 include!("nama.v1.match.rs");
-include!("nama.v1.watch_state.rs");
-include!("nama.v1.browse.rs");
-include!("nama.v1.playback.rs");
 include!("nama.v1.plugin.rs");
 include!("nama.v1.refusal.rs");
 include!("nama.v1.request.rs");
+include!("nama.v1.watch_state.rs");
+include!("nama.v1.browse.rs");
+include!("nama.v1.playback.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
 include!("nama.v1.server.rs");
@@ -32,12 +32,12 @@ pub mod __buffa {
         use super::*;
         include!("nama.v1.page.__view.rs");
         include!("nama.v1.match.__view.rs");
-        include!("nama.v1.watch_state.__view.rs");
-        include!("nama.v1.browse.__view.rs");
-        include!("nama.v1.playback.__view.rs");
         include!("nama.v1.plugin.__view.rs");
         include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.request.__view.rs");
+        include!("nama.v1.watch_state.__view.rs");
+        include!("nama.v1.browse.__view.rs");
+        include!("nama.v1.playback.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
         include!("nama.v1.server.__view.rs");
@@ -46,10 +46,10 @@ pub mod __buffa {
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
-            include!("nama.v1.watch_state.__view_oneof.rs");
-            include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.plugin.__view_oneof.rs");
             include!("nama.v1.request.__view_oneof.rs");
+            include!("nama.v1.watch_state.__view_oneof.rs");
+            include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
             include!("nama.v1.library.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
@@ -58,10 +58,10 @@ pub mod __buffa {
     pub mod oneof {
         #[allow(unused_imports)]
         use super::*;
-        include!("nama.v1.watch_state.__oneof.rs");
-        include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.plugin.__oneof.rs");
         include!("nama.v1.request.__oneof.rs");
+        include!("nama.v1.watch_state.__oneof.rs");
+        include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
         include!("nama.v1.library.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
@@ -82,88 +82,6 @@ pub mod __buffa {
         reg.register_json_any(super::__UNMATCHED_ITEM_FILTER_JSON_ANY);
         reg.register_json_any(super::__LIST_UNMATCHED_ITEMS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNMATCHED_ITEM_JSON_ANY);
-        reg.register_json_any(super::__WATCH_STATE_JSON_ANY);
-        reg.register_json_any(super::__REPORT_PROGRESS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__REPORT_PROGRESS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SET_PLAYED_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SHOW_SEASON_JSON_ANY);
-        reg.register_json_any(super::__SET_PLAYED_RESPONSE_JSON_ANY);
-        reg.register_json_any(
-            super::__SET_HIDDEN_FROM_CONTINUE_WATCHING_REQUEST_JSON_ANY,
-        );
-        reg.register_json_any(
-            super::__SET_HIDDEN_FROM_CONTINUE_WATCHING_RESPONSE_JSON_ANY,
-        );
-        reg.register_json_any(super::__MOVIE_JSON_ANY);
-        reg.register_json_any(super::__VERSION_JSON_ANY);
-        reg.register_json_any(super::__TRACK_JSON_ANY);
-        reg.register_json_any(super::__VIDEO_TRACK_JSON_ANY);
-        reg.register_json_any(super::__DOLBY_VISION_JSON_ANY);
-        reg.register_json_any(super::__AUDIO_TRACK_JSON_ANY);
-        reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
-        reg.register_json_any(super::__MOVIE_SUMMARY_JSON_ANY);
-        reg.register_json_any(super::__MOVIE_FILTER_JSON_ANY);
-        reg.register_json_any(super::__LIST_MOVIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_MOVIES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__GET_MOVIE_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__GET_MOVIE_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SHOW_JSON_ANY);
-        reg.register_json_any(super::__SEASON_JSON_ANY);
-        reg.register_json_any(super::__EPISODE_JSON_ANY);
-        reg.register_json_any(super::__SHOW_SUMMARY_JSON_ANY);
-        reg.register_json_any(super::__SHOW_FILTER_JSON_ANY);
-        reg.register_json_any(super::__LIST_SHOWS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_SHOWS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__LIST_GENRES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_GENRES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__GET_SHOW_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__GET_SHOW_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__LIST_EPISODES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_EPISODES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__GET_NEXT_EPISODE_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__GET_NEXT_EPISODE_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
-        reg.register_json_any(super::__CONTINUE_WATCHING_EPISODE_JSON_ANY);
-        reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_LIBRARIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_LIBRARIES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
-        reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
-        reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
-        reg.register_json_any(super::__LIST_UNMATCHED_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_UNMATCHED_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__UNMATCHED_ITEM_SUMMARY_JSON_ANY);
-        reg.register_json_any(super::__GET_UNMATCHED_VERSION_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__GET_UNMATCHED_VERSION_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__LIST_HOME_ROWS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_HOME_ROWS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__HOME_ROW_JSON_ANY);
-        reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
-        reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SET_AUDIO_PREFERENCE_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SET_AUDIO_PREFERENCE_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__GET_AUTOPLAY_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__GET_AUTOPLAY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SET_AUTOPLAY_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SET_AUTOPLAY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__USERS_AUDIO_PREFERENCE_JSON_ANY);
-        reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
-        reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__REPORT_TRACK_PICK_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__STOP_PLAYBACK_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__STOP_PLAYBACK_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__PLAN_PLAYBACK_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__DEVICE_DECODING_JSON_ANY);
-        reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
-        reg.register_json_any(super::__PLAYBACK_SUBTITLE_JSON_ANY);
-        reg.register_json_any(super::__PLAYBACK_REASON_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
@@ -256,6 +174,88 @@ pub mod __buffa {
         reg.register_json_any(super::__SEARCH_SHOWS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SHOW_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCH_STATE_JSON_ANY);
+        reg.register_json_any(super::__REPORT_PROGRESS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REPORT_PROGRESS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_PLAYED_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SHOW_SEASON_JSON_ANY);
+        reg.register_json_any(super::__SET_PLAYED_RESPONSE_JSON_ANY);
+        reg.register_json_any(
+            super::__SET_HIDDEN_FROM_CONTINUE_WATCHING_REQUEST_JSON_ANY,
+        );
+        reg.register_json_any(
+            super::__SET_HIDDEN_FROM_CONTINUE_WATCHING_RESPONSE_JSON_ANY,
+        );
+        reg.register_json_any(super::__MOVIE_JSON_ANY);
+        reg.register_json_any(super::__VERSION_JSON_ANY);
+        reg.register_json_any(super::__TRACK_JSON_ANY);
+        reg.register_json_any(super::__VIDEO_TRACK_JSON_ANY);
+        reg.register_json_any(super::__DOLBY_VISION_JSON_ANY);
+        reg.register_json_any(super::__AUDIO_TRACK_JSON_ANY);
+        reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_FILTER_JSON_ANY);
+        reg.register_json_any(super::__LIST_MOVIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_MOVIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_MOVIE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_MOVIE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_JSON_ANY);
+        reg.register_json_any(super::__SEASON_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__SHOW_FILTER_JSON_ANY);
+        reg.register_json_any(super::__LIST_SHOWS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_SHOWS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_GENRES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_GENRES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_SHOW_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SHOW_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_EPISODES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_EPISODES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_NEXT_EPISODE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_NEXT_EPISODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
+        reg.register_json_any(super::__CONTINUE_WATCHING_EPISODE_JSON_ANY);
+        reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_LIBRARIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_LIBRARIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__LIST_UNMATCHED_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_UNMATCHED_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNMATCHED_ITEM_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__GET_UNMATCHED_VERSION_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_UNMATCHED_VERSION_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_HOME_ROWS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_HOME_ROWS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__HOME_ROW_JSON_ANY);
+        reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
+        reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_AUDIO_PREFERENCE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_AUDIO_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_AUTOPLAY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_AUTOPLAY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_AUTOPLAY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_AUTOPLAY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__USERS_AUDIO_PREFERENCE_JSON_ANY);
+        reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
+        reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REPORT_TRACK_PICK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAYBACK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAYBACK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAN_PLAYBACK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DEVICE_DECODING_JSON_ANY);
+        reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_SUBTITLE_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_REASON_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LAGGED_JSON_ANY);
@@ -468,318 +468,6 @@ pub use self::__buffa::view::ListUnmatchedItemsResponseOwnedView;
 pub use self::__buffa::view::UnmatchedItemView;
 #[doc(inline)]
 pub use self::__buffa::view::UnmatchedItemOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::WatchStateView;
-#[doc(inline)]
-pub use self::__buffa::view::WatchStateOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ReportProgressRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ReportProgressRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ReportProgressResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ReportProgressResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetPlayedRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SetPlayedRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowSeasonView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowSeasonOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetPlayedResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SetPlayedResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetHiddenFromContinueWatchingRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SetHiddenFromContinueWatchingRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetHiddenFromContinueWatchingResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SetHiddenFromContinueWatchingResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::VersionView;
-#[doc(inline)]
-pub use self::__buffa::view::VersionOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::TrackView;
-#[doc(inline)]
-pub use self::__buffa::view::TrackOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::VideoTrackView;
-#[doc(inline)]
-pub use self::__buffa::view::VideoTrackOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DolbyVisionView;
-#[doc(inline)]
-pub use self::__buffa::view::DolbyVisionOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::AudioTrackView;
-#[doc(inline)]
-pub use self::__buffa::view::AudioTrackOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SubtitleTrackView;
-#[doc(inline)]
-pub use self::__buffa::view::SubtitleTrackOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieSummaryView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieSummaryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieFilterView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieFilterOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListMoviesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListMoviesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListMoviesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListMoviesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetMovieRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::GetMovieRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetMovieResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::GetMovieResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SeasonView;
-#[doc(inline)]
-pub use self::__buffa::view::SeasonOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowSummaryView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowSummaryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowFilterView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowFilterOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListShowsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListShowsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListShowsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListShowsResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListGenresRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListGenresRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListGenresResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListGenresResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetShowRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::GetShowRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetShowResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::GetShowResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListEpisodesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListEpisodesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListEpisodesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListEpisodesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetNextEpisodeRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::GetNextEpisodeRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetNextEpisodeResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::GetNextEpisodeResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ContinueWatchingEntryView;
-#[doc(inline)]
-pub use self::__buffa::view::ContinueWatchingEntryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ContinueWatchingEpisodeView;
-#[doc(inline)]
-pub use self::__buffa::view::ContinueWatchingEpisodeOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListContinueWatchingRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListContinueWatchingRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListContinueWatchingResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieInLibraryView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieInLibraryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowInLibraryView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowInLibraryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeInLibraryView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeInLibraryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListUnmatchedRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListUnmatchedRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListUnmatchedResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListUnmatchedResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::UnmatchedItemSummaryView;
-#[doc(inline)]
-pub use self::__buffa::view::UnmatchedItemSummaryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetUnmatchedVersionRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::GetUnmatchedVersionRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetUnmatchedVersionResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::GetUnmatchedVersionResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListHomeRowsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListHomeRowsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListHomeRowsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListHomeRowsResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::HomeRowView;
-#[doc(inline)]
-pub use self::__buffa::view::HomeRowOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListHomeRowTitlesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListHomeRowTitlesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListHomeRowTitlesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListHomeRowTitlesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::HomeRowTitleView;
-#[doc(inline)]
-pub use self::__buffa::view::HomeRowTitleOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetTrackPreferencesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::GetTrackPreferencesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetTrackPreferencesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::GetTrackPreferencesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetSubtitlePreferenceRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SetSubtitlePreferenceRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetSubtitlePreferenceResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SetSubtitlePreferenceResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetAudioPreferenceRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SetAudioPreferenceRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetAudioPreferenceResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SetAudioPreferenceResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetAutoplayRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::GetAutoplayRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetAutoplayResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::GetAutoplayResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetAutoplayRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SetAutoplayRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetAutoplayResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SetAutoplayResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::UsersAudioPreferenceView;
-#[doc(inline)]
-pub use self::__buffa::view::UsersAudioPreferenceOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::UsersSubtitlePreferenceView;
-#[doc(inline)]
-pub use self::__buffa::view::UsersSubtitlePreferenceOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ReportTrackPickRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ReportTrackPickRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ReportTrackPickResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ReportTrackPickResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::StopPlaybackRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::StopPlaybackRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::StopPlaybackResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::StopPlaybackResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PlanPlaybackRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::PlanPlaybackRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DeviceDecodingView;
-#[doc(inline)]
-pub use self::__buffa::view::DeviceDecodingOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PlanPlaybackResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::PlanPlaybackResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PlaybackPlanView;
-#[doc(inline)]
-pub use self::__buffa::view::PlaybackPlanOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PlaybackSubtitleView;
-#[doc(inline)]
-pub use self::__buffa::view::PlaybackSubtitleOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PlaybackReasonView;
-#[doc(inline)]
-pub use self::__buffa::view::PlaybackReasonOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginsRequestView;
 #[doc(inline)]
@@ -1148,6 +836,318 @@ pub use self::__buffa::view::LookUpShowRequestOwnedView;
 pub use self::__buffa::view::LookUpShowResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpShowResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchStateView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchStateOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportProgressRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportProgressRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportProgressResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportProgressResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPlayedRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPlayedRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowSeasonView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowSeasonOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPlayedResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPlayedResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHiddenFromContinueWatchingRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHiddenFromContinueWatchingRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHiddenFromContinueWatchingResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHiddenFromContinueWatchingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::VersionView;
+#[doc(inline)]
+pub use self::__buffa::view::VersionOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TrackView;
+#[doc(inline)]
+pub use self::__buffa::view::TrackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::VideoTrackView;
+#[doc(inline)]
+pub use self::__buffa::view::VideoTrackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DolbyVisionView;
+#[doc(inline)]
+pub use self::__buffa::view::DolbyVisionOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AudioTrackView;
+#[doc(inline)]
+pub use self::__buffa::view::AudioTrackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleTrackView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleTrackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieFilterView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieFilterOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMoviesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMoviesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMoviesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMoviesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetMovieRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetMovieRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetMovieResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetMovieResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowFilterView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowFilterOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListShowsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListShowsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListShowsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListShowsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListGenresRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListGenresRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListGenresResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListGenresResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetShowRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetShowRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetShowResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetShowResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListEpisodesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListEpisodesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListEpisodesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListEpisodesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetNextEpisodeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetNextEpisodeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetNextEpisodeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetNextEpisodeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ContinueWatchingEntryView;
+#[doc(inline)]
+pub use self::__buffa::view::ContinueWatchingEntryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ContinueWatchingEpisodeView;
+#[doc(inline)]
+pub use self::__buffa::view::ContinueWatchingEpisodeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListContinueWatchingRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListContinueWatchingRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListContinueWatchingResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchLibrariesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchLibrariesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchLibrariesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchLibrariesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieInLibraryView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieInLibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowInLibraryView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowInLibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeInLibraryView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeInLibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnmatchedItemSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::UnmatchedItemSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUnmatchedVersionResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowTitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowTitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowTitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListHomeRowTitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetTrackPreferencesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetTrackPreferencesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetTrackPreferencesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetTrackPreferencesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitlePreferenceRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitlePreferenceRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitlePreferenceResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitlePreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAudioPreferenceRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAudioPreferenceRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAudioPreferenceResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAudioPreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetAutoplayResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAutoplayResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersAudioPreferenceView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersAudioPreferenceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersSubtitlePreferenceView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersSubtitlePreferenceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportTrackPickRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportTrackPickRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportTrackPickResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportTrackPickResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceDecodingView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceDecodingOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackPlanView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackPlanOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackSubtitleView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackSubtitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackReasonView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackReasonOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SubscribeRequestView;
 #[doc(inline)]
