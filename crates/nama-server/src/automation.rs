@@ -41,21 +41,28 @@ const MAX_PAGE_SIZE: usize = 1000;
 
 /// What makes the Kernel's functions for each enabled Plugin.
 ///
-/// The Plugins it serves hold it only weakly, since it holds them in turn through the Scanner and
-/// the Extension Points: whoever starts the Server holds it, until the Plugins have stopped.
+/// The Plugins it serves hold it only weakly, since it holds them in turn through the Scanner, the
+/// Extension Points and `Users`: whoever starts the Server holds it, until the Plugins have stopped.
 pub(crate) struct Automation {
     db: Arc<Database>,
     scanner: Scanner,
     points: ExtensionPoints,
+    users: users::Users,
 }
 
 impl Automation {
     /// Serves the Kernel's functions to each Plugin enabled in `points`.
-    pub(crate) fn serve(db: Arc<Database>, scanner: Scanner, points: ExtensionPoints) -> Arc<Self> {
+    pub(crate) fn serve(
+        db: Arc<Database>,
+        scanner: Scanner,
+        points: ExtensionPoints,
+        users: users::Users,
+    ) -> Arc<Self> {
         let automation = Arc::new(Self {
             db,
             scanner,
             points,
+            users,
         });
         let kernels = Arc::downgrade(&automation);
         automation
@@ -485,9 +492,7 @@ impl Caller {
     }
 
     async fn list_users(self, _asked: UsersAsked) -> Result<Users, KernelRefused> {
-        let automation = &self.automation;
-        let listed = users::Users::new(Arc::clone(&automation.db), automation.points.clone())
-            .list()
+        let listed = (self.automation.users.list())
             .await
             .map_err(|err| self.database_refused("reading the Users", &err))?;
         Ok(Users {

@@ -295,25 +295,28 @@ fn is_test_only_cfg(line: &str) -> bool {
             .is_some_and(|terms| terms.split(',').any(|term| term.trim() == "test"))
 }
 
-/// Each `(line number, call)` in `text` that calls one of `UNCHECKED_QUERIES`, up to a
-/// trailing inline `mod tests` block behind a test-only `#[cfg(...)]`.
+/// Each `(line number, call)` in `production_lines(text)` that calls one of `UNCHECKED_QUERIES`.
 // ponytail: a text scan; a call split across lines or reached through a `use` alias is not seen.
 fn unchecked_queries(text: &str) -> Vec<(usize, &'static str)> {
+    production_lines(text)
+        .flat_map(|(number, line)| {
+            UNCHECKED_QUERIES
+                .iter()
+                .filter(|call| line.contains(**call))
+                .map(move |call| (number, *call))
+        })
+        .collect()
+}
+
+/// Each `(line number, line)` of `text` up to a trailing inline `mod tests` block behind a
+/// test-only `#[cfg(...)]`.
+fn production_lines(text: &str) -> impl Iterator<Item = (usize, &str)> {
     let tests_start = text
         .lines()
         .zip(text.lines().skip(1))
         .position(|(line, next)| is_test_only_cfg(line) && next.trim() == "mod tests {")
         .unwrap_or(usize::MAX);
-    text.lines()
-        .take(tests_start)
-        .enumerate()
-        .flat_map(|(index, line)| {
-            UNCHECKED_QUERIES
-                .iter()
-                .filter(|call| line.contains(**call))
-                .map(move |call| (index + 1, *call))
-        })
-        .collect()
+    (1..).zip(text.lines().take(tests_start))
 }
 
 #[test]
@@ -327,6 +330,27 @@ fn production_code_calls_only_sqlxs_checked_query_macros() {
                 .map(|(line, call)| {
                     format!(
                         "{}:{line}: {call} is unchecked: use a checked macro such as sqlx::query!",
+                        file.path
+                    )
+                })
+        })
+        .collect();
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+// ponytail: a text scan; a call split across lines or reached through a `use` alias is not seen.
+#[test]
+fn production_code_builds_users_only_at_startup() {
+    let problems: Vec<String> = rust_files()
+        .iter()
+        .filter(|file| file.path.starts_with("src/") && !is_test_file(&file.path))
+        .filter(|file| !matches!(file.path.as_str(), "src/lib.rs" | "src/main.rs"))
+        .flat_map(|file| {
+            production_lines(&file.text)
+                .filter(|(_, line)| line.contains("Users::new("))
+                .map(|(line, _)| {
+                    format!(
+                        "{}:{line}: builds a second Users: take the Server's one (src/users/AGENTS.md)",
                         file.path
                     )
                 })
