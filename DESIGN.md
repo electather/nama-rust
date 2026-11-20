@@ -91,7 +91,7 @@ The system rejects Plex's busy home screen with its promoted rows and upsells, t
 
 ## 2. Colors
 
-Pure neutrals and nothing else. The artwork supplies the colour, so the interface doesn't have to. Every colour is one of shadcn's tokens, plus `--scrim` (ADR 0016) and the white `--subtitle-ink` and black `--subtitle-edge` of text subtitles, which sit over the video in every theme (ADR 0068); a tint is an opacity of a token (`bg-destructive/10`), never a token of its own.
+Pure neutrals and nothing else. The artwork supplies the colour, so the interface doesn't have to. Every colour is one of shadcn's tokens, plus `--scrim` (ADR 0016) and the white `--subtitle-ink` and black `--subtitle-edge` of text subtitles, which sit over the video in every theme (ADR 0070); a tint is an opacity of a token (`bg-destructive/10`), never a token of its own.
 
 ### Primary
 - **Near-white** (`oklch(0.971 0.003 286.4)`): the solid fill of the one primary action on a screen (Play, Resume, Request), with black ink (`on-primary`, 19:1) in semibold. It's also the ink of a lit state (a selected segment or chip, on Accent), seek handles, the filled part of progress, focus rings (`--ring`), and inline links, underlined. In code this is shadcn's `--primary`. shadcn's own `--accent` is the quiet neutral fill of hover and lit states, never this colour.
