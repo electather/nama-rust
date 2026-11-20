@@ -74,8 +74,8 @@ fn all_but(unserved: &[TitleMethod]) -> Vec<TitleMethod> {
         .collect()
 }
 
-/// Title sources under `aa` and `bb`, `aa` first in provider order, as its id sorts first, and also looking titles up
-/// by `bb` ids, answering as given.
+/// Title sources under `aa` and `bb`, `aa` first in provider order as its id sorts first, and also
+/// looking titles up by `bb` ids, answering as given.
 fn two(aa: Answers, bb: Answers) -> (TitleSources, SourcesAsked) {
     let plugins = Registry::new();
     let asked = SourcesAsked::default();
@@ -396,7 +396,7 @@ async fn artwork_is_never_asked_of_a_source_that_does_not_answer_it() {
     let lists = artwork_from(&metadata, &[("aa", "1"), ("bb", "1")]).await;
 
     assert_eq!(lists, ["bb:/bb.jpg"]);
-    assert_eq!(asked(&sources_asked), ["bb"]);
+    assert_eq!(sources_asked.lines(), ["bb artwork bb-1"]);
 }
 
 #[tokio::test]
@@ -428,7 +428,8 @@ async fn a_source_with_no_artwork_list_gives_no_entry_while_the_others_answer() 
         let lists = artwork_from(&metadata, &[("aa", "1"), ("bb", "1")]).await;
 
         assert_eq!(lists, ["bb:/bb.jpg"]);
-        assert_eq!(asked(&sources_asked), ["aa", "bb"]);
+        let lines = sources_asked.lines();
+        assert_eq!(lines, ["aa artwork aa-1", "bb artwork bb-1"]);
     }
 }
 
@@ -444,7 +445,7 @@ async fn season_artwork_is_never_asked_of_a_source_serving_only_a_titles_artwork
     let lists = season_artwork_from(&metadata, &[("aa", "1"), ("bb", "1")]).await;
 
     assert_eq!(lists, ["bb:/bb.jpg"]);
-    assert_eq!(asked(&sources_asked), ["bb"]);
+    assert_eq!(sources_asked.lines(), ["bb season_artwork bb-1 2"]);
 }
 
 #[tokio::test]
@@ -468,5 +469,8 @@ async fn a_failing_source_is_left_out_of_the_season_artwork_lists() {
     let lists = season_artwork_from(&metadata, &[("aa", "1"), ("bb", "1")]).await;
 
     assert_eq!(lists, ["bb:/bb.jpg"]);
-    assert_eq!(asked(&sources_asked), ["aa", "bb"]);
+    assert_eq!(
+        sources_asked.lines(),
+        ["aa season_artwork aa-1 2", "bb season_artwork bb-1 2"]
+    );
 }

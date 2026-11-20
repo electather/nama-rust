@@ -130,7 +130,8 @@ async fn a_newer_name_parser_matches_an_episode_only_one_tied_show_has() {
 }
 
 /// A source under `aa` whose search ties one Show `Dark` per entry of `answering`, `aa-1` first,
-/// each answering as its entry says: its Show, then its Season 1, of one Episode.
+/// each answering as its entry says: its Show, then its Season 1, of one Episode. An entry that
+/// fails fails that lookup for every Show, though the tie break stops at the first failure.
 fn tying(answering: &[Answering]) -> (TitleSources, SourcesAsked) {
     let asked = SourcesAsked::default();
     let mut source = ScriptedSource::new("aa", &asked);

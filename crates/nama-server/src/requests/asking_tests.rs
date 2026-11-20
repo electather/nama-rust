@@ -15,7 +15,7 @@ use crate::db::Database;
 use crate::library::{
     Metadata,
     fixture::tmdb_movie,
-    scripted::{ScriptedSource, SourcesAsked},
+    scripted::{Refusal, ScriptedSource, SourcesAsked},
 };
 use crate::plugins::Registry;
 use crate::requests::deciding::{cancel, decline};
@@ -284,9 +284,9 @@ fn an_unavailable_look_up_says_no_title_source_could_answer() {
     );
 }
 
-/// Enables a source under `aa`, first in Admin precedence as its id sorts first, and not searching, then one under
-/// `bb`, which searches, both noting their asks in `asked`. Each looks titles up by no other
-/// namespace and has one Show, `<namespace>-1`, also known as `tmdb-7`, with Season 1.
+/// Enables a source under `aa`, first in Admin precedence as its id sorts first, and not searching,
+/// then one under `bb`, which searches, both noting their asks in `asked`. Each looks titles up by
+/// no other namespace and has one Show, `<namespace>-1`, also known as `tmdb-7`, with Season 1.
 fn enable_aa_then_bb(plugins: &Registry, asked: &SourcesAsked) {
     for (namespace, searches) in [("aa", false), ("bb", true)] {
         let id = format!("{namespace}-1");
@@ -296,7 +296,7 @@ fn enable_aa_then_bb(plugins: &Registry, asked: &SourcesAsked) {
         let source = if searches {
             source.found(&ids, "Show")
         } else {
-            source.serving(&[TitleMethod::Show, TitleMethod::Season])
+            source.refusing(&[TitleMethod::Search], Refusal::Unsupported)
         };
         plugins.enable(Arc::new(source)).unwrap();
     }
