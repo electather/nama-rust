@@ -54,6 +54,7 @@ impl Fixture {
                 recognisers: Vec::new(),
                 segment_sources: Vec::new(),
                 preview_frames: true,
+                last_scan: None,
             },
             title: "Title".to_owned(),
             to_unmonitor: None,

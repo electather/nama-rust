@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/library.proto.
  */
 export const file_nama_v1_library: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL2xpYnJhcnkucHJvdG8SB25hbWEudjEizwIKB0xpYnJhcnkSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIiCgRraW5kGAMgASgOMhQubmFtYS52MS5MaWJyYXJ5S2luZBIPCgdmb2xkZXJzGAQgAygJEhkKDGJhY2tkcm9wX3VybBgFIAEoCUgAiAEBEhcKD2N1c3RvbV9iYWNrZHJvcBgGIAEoCBIfChJiYWNrZHJvcF90aHVtYmhhc2gYByABKAxIAYgBARIVCg10aXRsZV9zb3VyY2VzGAggAygJEhYKDnJlY29nbmlzZXJfaWRzGAkgAygJEhUKDWVtcHR5X2ZvbGRlcnMYCiADKAkSFgoOcHJldmlld19mcmFtZXMYCyABKAgSGgoSc2VnbWVudF9zb3VyY2VfaWRzGAwgAygJQg8KDV9iYWNrZHJvcF91cmxCFQoTX2JhY2tkcm9wX3RodW1iaGFzaCLUAQoUQ3JlYXRlTGlicmFyeVJlcXVlc3QSDAoEbmFtZRgBIAEoCRIiCgRraW5kGAIgASgOMhQubmFtYS52MS5MaWJyYXJ5S2luZBIPCgdmb2xkZXJzGAMgAygJEhUKDXRpdGxlX3NvdXJjZXMYBCADKAkSFgoOcmVjb2duaXNlcl9pZHMYBSADKAkSGwoOcHJldmlld19mcmFtZXMYBiABKAhIAIgBARIaChJzZWdtZW50X3NvdXJjZV9pZHMYByADKAlCEQoPX3ByZXZpZXdfZnJhbWVzIjoKFUNyZWF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IhYKFExpc3RMaWJyYXJpZXNSZXF1ZXN0IjwKFUxpc3RMaWJyYXJpZXNSZXNwb25zZRIjCglsaWJyYXJpZXMYASADKAsyEC5uYW1hLnYxLkxpYnJhcnkiHwoRR2V0TGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMiNwoSR2V0TGlicmFyeVJlc3BvbnNlEiEKB2xpYnJhcnkYASABKAsyEC5uYW1hLnYxLkxpYnJhcnki9wEKFFVwZGF0ZUxpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSDwoHZm9sZGVycxgDIAMoCRIVCg10aXRsZV9zb3VyY2VzGAQgAygJEjIKEHJlY29nbmlzZXJfb3JkZXIYBSABKAsyGC5uYW1hLnYxLlJlY29nbmlzZXJPcmRlchIbCg5wcmV2aWV3X2ZyYW1lcxgGIAEoCEgAiAEBEjkKFHNlZ21lbnRfc291cmNlX29yZGVyGAcgASgLMhsubmFtYS52MS5TZWdtZW50U291cmNlT3JkZXJCEQoPX3ByZXZpZXdfZnJhbWVzIh4KD1JlY29nbmlzZXJPcmRlchILCgNpZHMYASADKAkiIQoSU2VnbWVudFNvdXJjZU9yZGVyEgsKA2lkcxgBIAMoCSI6ChVVcGRhdGVMaWJyYXJ5UmVzcG9uc2USIQoHbGlicmFyeRgBIAEoCzIQLm5hbWEudjEuTGlicmFyeSIiChREZWxldGVMaWJyYXJ5UmVxdWVzdBIKCgJpZBgBIAEoAyIXChVEZWxldGVMaWJyYXJ5UmVzcG9uc2UiVgoSU2NhbkxpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDEh4KEXJlbW92ZV9taXNzaW5nX2luGAIgASgJSACIAQFCFAoSX3JlbW92ZV9taXNzaW5nX2luIhUKE1NjYW5MaWJyYXJ5UmVzcG9uc2UiQwoZUHJldmlld0RlbGV0ZU1lZGlhUmVxdWVzdBImCgZ0YXJnZXQYASABKAsyFi5uYW1hLnYxLk1lZGlhVG9EZWxldGUiiQIKGlByZXZpZXdEZWxldGVNZWRpYVJlc3BvbnNlEiEKBWZpbGVzGAEgAygLMhIubmFtYS52MS5NZWRpYUZpbGUSEwoLYnl0ZXNfZnJlZWQYAiABKAQSOAoUZXBpc29kZXNfdGFrZW5fYWxvbmcYAyADKAsyGi5uYW1hLnYxLkVwaXNvZGVUYWtlbkFsb25nEg8KB3BsYXlpbmcYBCABKA0SHQoQcmVhZF9vbmx5X2ZvbGRlchgFIAEoCUgAiAEBEjQKEnJlcXVlc3RzX2NhbmNlbGxlZBgGIAMoCzIYLm5hbWEudjEuUmVxdWVzdFRvQ2FuY2VsQhMKEV9yZWFkX29ubHlfZm9sZGVyIk4KD1JlcXVlc3RUb0NhbmNlbBINCgV0aXRsZRgBIAEoCRIaCg1zZWFzb25fbnVtYmVyGAIgASgNSACIAQFCEAoOX3NlYXNvbl9udW1iZXIiXwoSRGVsZXRlTWVkaWFSZXF1ZXN0EiYKBnRhcmdldBgBIAEoCzIWLm5hbWEudjEuTWVkaWFUb0RlbGV0ZRIhCgRhbHNvGAIgAygLMhMubmFtYS52MS5FeHRlcm5hbElkIpoBChNEZWxldGVNZWRpYVJlc3BvbnNlEiMKB2RlbGV0ZWQYASADKAsyEi5uYW1hLnYxLk1lZGlhRmlsZRITCgtieXRlc19mcmVlZBgCIAEoBBIsCgtub3RfZGVsZXRlZBgDIAMoCzIXLm5hbWEudjEuRmlsZU5vdERlbGV0ZWQSGwoTZnVsZmlsbGVyc19ub3RfdG9sZBgEIAMoCSLXAQoNTWVkaWFUb0RlbGV0ZRInCgVtb3ZpZRgBIAEoCzIWLm5hbWEudjEuTW92aWVUb0RlbGV0ZUgAEhQKCnZlcnNpb25faWQYAiABKANIABIlCgRzaG93GAMgASgLMhUubmFtYS52MS5TaG93VG9EZWxldGVIABIpCgZzZWFzb24YBCABKAsyFy5uYW1hLnYxLlNlYXNvblRvRGVsZXRlSAASKwoHZXBpc29kZRgFIAEoCzIYLm5hbWEudjEuRXBpc29kZVRvRGVsZXRlSABCCAoGdGFyZ2V0IkoKDU1vdmllVG9EZWxldGUSEgoKbGlicmFyeV9pZBgBIAEoAxIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCJICgxTaG93VG9EZWxldGUSEgoKbGlicmFyeV9pZBgBIAEoAxIkCgdzaG93X2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkImEKDlNlYXNvblRvRGVsZXRlEhIKCmxpYnJhcnlfaWQYASABKAMSJAoHc2hvd19pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAMgASgNInYKD0VwaXNvZGVUb0RlbGV0ZRISCgpsaWJyYXJ5X2lkGAEgASgDEicKCmVwaXNvZGVfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFwoKdmVyc2lvbl9pZBgDIAEoA0gAiAEBQg0KC192ZXJzaW9uX2lkInoKEUVwaXNvZGVUYWtlbkFsb25nEhUKDXNlYXNvbl9udW1iZXIYASABKA0SFgoOZXBpc29kZV9udW1iZXIYAiABKA0SDQoFdGl0bGUYAyABKAkSJwoKZXBpc29kZV9pZBgEIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCIsCglNZWRpYUZpbGUSEQoJZmlsZV9uYW1lGAEgASgJEgwKBHNpemUYAiABKAQiMwoORmlsZU5vdERlbGV0ZWQSEQoJZmlsZV9uYW1lGAEgASgJEg4KBnJlYXNvbhgCIAEoCSIZChdMaXN0VGl0bGVTb3VyY2VzUmVxdWVzdCJHChhMaXN0VGl0bGVTb3VyY2VzUmVzcG9uc2USKwoNdGl0bGVfc291cmNlcxgBIAMoCzIULm5hbWEudjEuVGl0bGVTb3VyY2UidwoSTGlzdEFydHdvcmtSZXF1ZXN0EiAKBGtpbmQYASABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBIfCgJpZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBITCgZzZWFzb24YAyABKA1IAIgBAUIJCgdfc2Vhc29uIkEKE0xpc3RBcnR3b3JrUmVzcG9uc2USEwoLcG9zdGVyX3VybHMYASADKAkSFQoNYmFja2Ryb3BfdXJscxgCIAMoCSJrCgtUaXRsZVNvdXJjZRIRCgluYW1lc3BhY2UYASABKAkSEQoJcGx1Z2luX2lkGAIgASgJEhMKC3BsdWdpbl9uYW1lGAMgASgJEhAKCHNlYXJjaGVzGAQgASgIEg8KB3J1bm5pbmcYBSABKAgqXAoLTGlicmFyeUtpbmQSHAoYTElCUkFSWV9LSU5EX1VOU1BFQ0lGSUVEEAASFwoTTElCUkFSWV9LSU5EX01PVklFUxABEhYKEkxJQlJBUllfS0lORF9TSE9XUxACMtUGCg5MaWJyYXJ5U2VydmljZRJOCg1DcmVhdGVMaWJyYXJ5Eh0ubmFtYS52MS5DcmVhdGVMaWJyYXJ5UmVxdWVzdBoeLm5hbWEudjEuQ3JlYXRlTGlicmFyeVJlc3BvbnNlElMKDUxpc3RMaWJyYXJpZXMSHS5uYW1hLnYxLkxpc3RMaWJyYXJpZXNSZXF1ZXN0Gh4ubmFtYS52MS5MaXN0TGlicmFyaWVzUmVzcG9uc2UiA5ACARJKCgpHZXRMaWJyYXJ5EhoubmFtYS52MS5HZXRMaWJyYXJ5UmVxdWVzdBobLm5hbWEudjEuR2V0TGlicmFyeVJlc3BvbnNlIgOQAgESUwoNVXBkYXRlTGlicmFyeRIdLm5hbWEudjEuVXBkYXRlTGlicmFyeVJlcXVlc3QaHi5uYW1hLnYxLlVwZGF0ZUxpYnJhcnlSZXNwb25zZSIDkAICElMKDURlbGV0ZUxpYnJhcnkSHS5uYW1hLnYxLkRlbGV0ZUxpYnJhcnlSZXF1ZXN0Gh4ubmFtYS52MS5EZWxldGVMaWJyYXJ5UmVzcG9uc2UiA5ACAhJNCgtTY2FuTGlicmFyeRIbLm5hbWEudjEuU2NhbkxpYnJhcnlSZXF1ZXN0GhwubmFtYS52MS5TY2FuTGlicmFyeVJlc3BvbnNlIgOQAgISYgoSUHJldmlld0RlbGV0ZU1lZGlhEiIubmFtYS52MS5QcmV2aWV3RGVsZXRlTWVkaWFSZXF1ZXN0GiMubmFtYS52MS5QcmV2aWV3RGVsZXRlTWVkaWFSZXNwb25zZSIDkAIBEkgKC0RlbGV0ZU1lZGlhEhsubmFtYS52MS5EZWxldGVNZWRpYVJlcXVlc3QaHC5uYW1hLnYxLkRlbGV0ZU1lZGlhUmVzcG9uc2USXAoQTGlzdFRpdGxlU291cmNlcxIgLm5hbWEudjEuTGlzdFRpdGxlU291cmNlc1JlcXVlc3QaIS5uYW1hLnYxLkxpc3RUaXRsZVNvdXJjZXNSZXNwb25zZSIDkAIBEk0KC0xpc3RBcnR3b3JrEhsubmFtYS52MS5MaXN0QXJ0d29ya1JlcXVlc3QaHC5uYW1hLnYxLkxpc3RBcnR3b3JrUmVzcG9uc2UiA5ACAWIGcHJvdG8z", [file_nama_v1_match]);
+  fileDesc("ChVuYW1hL3YxL2xpYnJhcnkucHJvdG8SB25hbWEudjEiiAMKB0xpYnJhcnkSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIiCgRraW5kGAMgASgOMhQubmFtYS52MS5MaWJyYXJ5S2luZBIPCgdmb2xkZXJzGAQgAygJEhkKDGJhY2tkcm9wX3VybBgFIAEoCUgAiAEBEhcKD2N1c3RvbV9iYWNrZHJvcBgGIAEoCBIfChJiYWNrZHJvcF90aHVtYmhhc2gYByABKAxIAYgBARIVCg10aXRsZV9zb3VyY2VzGAggAygJEhYKDnJlY29nbmlzZXJfaWRzGAkgAygJEhUKDWVtcHR5X2ZvbGRlcnMYCiADKAkSFgoOcHJldmlld19mcmFtZXMYCyABKAgSGgoSc2VnbWVudF9zb3VyY2VfaWRzGAwgAygJEikKCWxhc3Rfc2NhbhgNIAEoCzIRLm5hbWEudjEuTGFzdFNjYW5IAogBAUIPCg1fYmFja2Ryb3BfdXJsQhUKE19iYWNrZHJvcF90aHVtYmhhc2hCDAoKX2xhc3Rfc2NhbiJjCghMYXN0U2NhbhITCgtmaW5pc2hlZF9hdBgBIAEoAxINCgVhZGRlZBgCIAEoBBIPCgd1cGRhdGVkGAMgASgEEg8KB3JlbW92ZWQYBCABKAQSEQoJdW5jaGFuZ2VkGAUgASgEItQBChRDcmVhdGVMaWJyYXJ5UmVxdWVzdBIMCgRuYW1lGAEgASgJEiIKBGtpbmQYAiABKA4yFC5uYW1hLnYxLkxpYnJhcnlLaW5kEg8KB2ZvbGRlcnMYAyADKAkSFQoNdGl0bGVfc291cmNlcxgEIAMoCRIWCg5yZWNvZ25pc2VyX2lkcxgFIAMoCRIbCg5wcmV2aWV3X2ZyYW1lcxgGIAEoCEgAiAEBEhoKEnNlZ21lbnRfc291cmNlX2lkcxgHIAMoCUIRCg9fcHJldmlld19mcmFtZXMiOgoVQ3JlYXRlTGlicmFyeVJlc3BvbnNlEiEKB2xpYnJhcnkYASABKAsyEC5uYW1hLnYxLkxpYnJhcnkiFgoUTGlzdExpYnJhcmllc1JlcXVlc3QiPAoVTGlzdExpYnJhcmllc1Jlc3BvbnNlEiMKCWxpYnJhcmllcxgBIAMoCzIQLm5hbWEudjEuTGlicmFyeSIfChFHZXRMaWJyYXJ5UmVxdWVzdBIKCgJpZBgBIAEoAyI3ChJHZXRMaWJyYXJ5UmVzcG9uc2USIQoHbGlicmFyeRgBIAEoCzIQLm5hbWEudjEuTGlicmFyeSL3AQoUVXBkYXRlTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIPCgdmb2xkZXJzGAMgAygJEhUKDXRpdGxlX3NvdXJjZXMYBCADKAkSMgoQcmVjb2duaXNlcl9vcmRlchgFIAEoCzIYLm5hbWEudjEuUmVjb2duaXNlck9yZGVyEhsKDnByZXZpZXdfZnJhbWVzGAYgASgISACIAQESOQoUc2VnbWVudF9zb3VyY2Vfb3JkZXIYByABKAsyGy5uYW1hLnYxLlNlZ21lbnRTb3VyY2VPcmRlckIRCg9fcHJldmlld19mcmFtZXMiHgoPUmVjb2duaXNlck9yZGVyEgsKA2lkcxgBIAMoCSIhChJTZWdtZW50U291cmNlT3JkZXISCwoDaWRzGAEgAygJIjoKFVVwZGF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IiIKFERlbGV0ZUxpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUxpYnJhcnlSZXNwb25zZSJWChJTY2FuTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMSHgoRcmVtb3ZlX21pc3NpbmdfaW4YAiABKAlIAIgBAUIUChJfcmVtb3ZlX21pc3NpbmdfaW4iFQoTU2NhbkxpYnJhcnlSZXNwb25zZSJDChlQcmV2aWV3RGVsZXRlTWVkaWFSZXF1ZXN0EiYKBnRhcmdldBgBIAEoCzIWLm5hbWEudjEuTWVkaWFUb0RlbGV0ZSKJAgoaUHJldmlld0RlbGV0ZU1lZGlhUmVzcG9uc2USIQoFZmlsZXMYASADKAsyEi5uYW1hLnYxLk1lZGlhRmlsZRITCgtieXRlc19mcmVlZBgCIAEoBBI4ChRlcGlzb2Rlc190YWtlbl9hbG9uZxgDIAMoCzIaLm5hbWEudjEuRXBpc29kZVRha2VuQWxvbmcSDwoHcGxheWluZxgEIAEoDRIdChByZWFkX29ubHlfZm9sZGVyGAUgASgJSACIAQESNAoScmVxdWVzdHNfY2FuY2VsbGVkGAYgAygLMhgubmFtYS52MS5SZXF1ZXN0VG9DYW5jZWxCEwoRX3JlYWRfb25seV9mb2xkZXIiTgoPUmVxdWVzdFRvQ2FuY2VsEg0KBXRpdGxlGAEgASgJEhoKDXNlYXNvbl9udW1iZXIYAiABKA1IAIgBAUIQCg5fc2Vhc29uX251bWJlciJfChJEZWxldGVNZWRpYVJlcXVlc3QSJgoGdGFyZ2V0GAEgASgLMhYubmFtYS52MS5NZWRpYVRvRGVsZXRlEiEKBGFsc28YAiADKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQimgEKE0RlbGV0ZU1lZGlhUmVzcG9uc2USIwoHZGVsZXRlZBgBIAMoCzISLm5hbWEudjEuTWVkaWFGaWxlEhMKC2J5dGVzX2ZyZWVkGAIgASgEEiwKC25vdF9kZWxldGVkGAMgAygLMhcubmFtYS52MS5GaWxlTm90RGVsZXRlZBIbChNmdWxmaWxsZXJzX25vdF90b2xkGAQgAygJItcBCg1NZWRpYVRvRGVsZXRlEicKBW1vdmllGAEgASgLMhYubmFtYS52MS5Nb3ZpZVRvRGVsZXRlSAASFAoKdmVyc2lvbl9pZBgCIAEoA0gAEiUKBHNob3cYAyABKAsyFS5uYW1hLnYxLlNob3dUb0RlbGV0ZUgAEikKBnNlYXNvbhgEIAEoCzIXLm5hbWEudjEuU2Vhc29uVG9EZWxldGVIABIrCgdlcGlzb2RlGAUgASgLMhgubmFtYS52MS5FcGlzb2RlVG9EZWxldGVIAEIICgZ0YXJnZXQiSgoNTW92aWVUb0RlbGV0ZRISCgpsaWJyYXJ5X2lkGAEgASgDEiUKCG1vdmllX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIkgKDFNob3dUb0RlbGV0ZRISCgpsaWJyYXJ5X2lkGAEgASgDEiQKB3Nob3dfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQiYQoOU2Vhc29uVG9EZWxldGUSEgoKbGlicmFyeV9pZBgBIAEoAxIkCgdzaG93X2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhUKDXNlYXNvbl9udW1iZXIYAyABKA0idgoPRXBpc29kZVRvRGVsZXRlEhIKCmxpYnJhcnlfaWQYASABKAMSJwoKZXBpc29kZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIXCgp2ZXJzaW9uX2lkGAMgASgDSACIAQFCDQoLX3ZlcnNpb25faWQiegoRRXBpc29kZVRha2VuQWxvbmcSFQoNc2Vhc29uX251bWJlchgBIAEoDRIWCg5lcGlzb2RlX251bWJlchgCIAEoDRINCgV0aXRsZRgDIAEoCRInCgplcGlzb2RlX2lkGAQgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIiwKCU1lZGlhRmlsZRIRCglmaWxlX25hbWUYASABKAkSDAoEc2l6ZRgCIAEoBCIzCg5GaWxlTm90RGVsZXRlZBIRCglmaWxlX25hbWUYASABKAkSDgoGcmVhc29uGAIgASgJIhkKF0xpc3RUaXRsZVNvdXJjZXNSZXF1ZXN0IkcKGExpc3RUaXRsZVNvdXJjZXNSZXNwb25zZRIrCg10aXRsZV9zb3VyY2VzGAEgAygLMhQubmFtYS52MS5UaXRsZVNvdXJjZSJ3ChJMaXN0QXJ0d29ya1JlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhMKBnNlYXNvbhgDIAEoDUgAiAEBQgkKB19zZWFzb24iQQoTTGlzdEFydHdvcmtSZXNwb25zZRITCgtwb3N0ZXJfdXJscxgBIAMoCRIVCg1iYWNrZHJvcF91cmxzGAIgAygJImsKC1RpdGxlU291cmNlEhEKCW5hbWVzcGFjZRgBIAEoCRIRCglwbHVnaW5faWQYAiABKAkSEwoLcGx1Z2luX25hbWUYAyABKAkSEAoIc2VhcmNoZXMYBCABKAgSDwoHcnVubmluZxgFIAEoCCpcCgtMaWJyYXJ5S2luZBIcChhMSUJSQVJZX0tJTkRfVU5TUEVDSUZJRUQQABIXChNMSUJSQVJZX0tJTkRfTU9WSUVTEAESFgoSTElCUkFSWV9LSU5EX1NIT1dTEAIy1QYKDkxpYnJhcnlTZXJ2aWNlEk4KDUNyZWF0ZUxpYnJhcnkSHS5uYW1hLnYxLkNyZWF0ZUxpYnJhcnlSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVMaWJyYXJ5UmVzcG9uc2USUwoNTGlzdExpYnJhcmllcxIdLm5hbWEudjEuTGlzdExpYnJhcmllc1JlcXVlc3QaHi5uYW1hLnYxLkxpc3RMaWJyYXJpZXNSZXNwb25zZSIDkAIBEkoKCkdldExpYnJhcnkSGi5uYW1hLnYxLkdldExpYnJhcnlSZXF1ZXN0GhsubmFtYS52MS5HZXRMaWJyYXJ5UmVzcG9uc2UiA5ACARJTCg1VcGRhdGVMaWJyYXJ5Eh0ubmFtYS52MS5VcGRhdGVMaWJyYXJ5UmVxdWVzdBoeLm5hbWEudjEuVXBkYXRlTGlicmFyeVJlc3BvbnNlIgOQAgISUwoNRGVsZXRlTGlicmFyeRIdLm5hbWEudjEuRGVsZXRlTGlicmFyeVJlcXVlc3QaHi5uYW1hLnYxLkRlbGV0ZUxpYnJhcnlSZXNwb25zZSIDkAICEk0KC1NjYW5MaWJyYXJ5EhsubmFtYS52MS5TY2FuTGlicmFyeVJlcXVlc3QaHC5uYW1hLnYxLlNjYW5MaWJyYXJ5UmVzcG9uc2UiA5ACAhJiChJQcmV2aWV3RGVsZXRlTWVkaWESIi5uYW1hLnYxLlByZXZpZXdEZWxldGVNZWRpYVJlcXVlc3QaIy5uYW1hLnYxLlByZXZpZXdEZWxldGVNZWRpYVJlc3BvbnNlIgOQAgESSAoLRGVsZXRlTWVkaWESGy5uYW1hLnYxLkRlbGV0ZU1lZGlhUmVxdWVzdBocLm5hbWEudjEuRGVsZXRlTWVkaWFSZXNwb25zZRJcChBMaXN0VGl0bGVTb3VyY2VzEiAubmFtYS52MS5MaXN0VGl0bGVTb3VyY2VzUmVxdWVzdBohLm5hbWEudjEuTGlzdFRpdGxlU291cmNlc1Jlc3BvbnNlIgOQAgESTQoLTGlzdEFydHdvcmsSGy5uYW1hLnYxLkxpc3RBcnR3b3JrUmVxdWVzdBocLm5hbWEudjEuTGlzdEFydHdvcmtSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_match]);
 
 /**
  * A named collection of one kind of media on a Server, backed by one or more folders.
@@ -126,6 +126,16 @@ export type Library = Message<"nama.v1.Library"> & {
    * @generated from field: repeated string segment_source_ids = 12;
    */
   segmentSourceIds: string[];
+
+  /**
+   * The Library's last Scan that finished storing, as its `ScanFinished` said, replaced by each
+   * one that does. Recorded just after that `ScanFinished` is sent, so it may not be read yet on
+   * it, and before the Scan's `MatchingFinished`. Unset before its first, and in `ListLibraries`
+   * for a caller without `PERMISSION_MANAGE_LIBRARIES`.
+   *
+   * @generated from field: optional nama.v1.LastScan last_scan = 13;
+   */
+  lastScan?: LastScan | undefined;
 };
 
 /**
@@ -134,6 +144,56 @@ export type Library = Message<"nama.v1.Library"> & {
  */
 export const LibrarySchema: GenMessage<Library> = /*@__PURE__*/
   messageDesc(file_nama_v1_library, 0);
+
+/**
+ * What a Library's last finished Scan stored. A Scan that fails or is cancelled leaves it as it
+ * was.
+ *
+ * @generated from message nama.v1.LastScan
+ */
+export type LastScan = Message<"nama.v1.LastScan"> & {
+  /**
+   * When the Scan finished storing, in seconds since the Unix epoch.
+   *
+   * @generated from field: int64 finished_at = 1;
+   */
+  finishedAt: bigint;
+
+  /**
+   * As `ScanFinished.added`.
+   *
+   * @generated from field: uint64 added = 2;
+   */
+  added: bigint;
+
+  /**
+   * As `ScanFinished.updated`.
+   *
+   * @generated from field: uint64 updated = 3;
+   */
+  updated: bigint;
+
+  /**
+   * As `ScanFinished.removed`.
+   *
+   * @generated from field: uint64 removed = 4;
+   */
+  removed: bigint;
+
+  /**
+   * As `ScanFinished.unchanged`.
+   *
+   * @generated from field: uint64 unchanged = 5;
+   */
+  unchanged: bigint;
+};
+
+/**
+ * Describes the message nama.v1.LastScan.
+ * Use `create(LastScanSchema)` to create a new message.
+ */
+export const LastScanSchema: GenMessage<LastScan> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 1);
 
 /**
  * @generated from message nama.v1.CreateLibraryRequest
@@ -197,7 +257,7 @@ export type CreateLibraryRequest = Message<"nama.v1.CreateLibraryRequest"> & {
  * Use `create(CreateLibraryRequestSchema)` to create a new message.
  */
 export const CreateLibraryRequestSchema: GenMessage<CreateLibraryRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 1);
+  messageDesc(file_nama_v1_library, 2);
 
 /**
  * @generated from message nama.v1.CreateLibraryResponse
@@ -214,7 +274,7 @@ export type CreateLibraryResponse = Message<"nama.v1.CreateLibraryResponse"> & {
  * Use `create(CreateLibraryResponseSchema)` to create a new message.
  */
 export const CreateLibraryResponseSchema: GenMessage<CreateLibraryResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 2);
+  messageDesc(file_nama_v1_library, 3);
 
 /**
  * @generated from message nama.v1.ListLibrariesRequest
@@ -227,7 +287,7 @@ export type ListLibrariesRequest = Message<"nama.v1.ListLibrariesRequest"> & {
  * Use `create(ListLibrariesRequestSchema)` to create a new message.
  */
 export const ListLibrariesRequestSchema: GenMessage<ListLibrariesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 3);
+  messageDesc(file_nama_v1_library, 4);
 
 /**
  * @generated from message nama.v1.ListLibrariesResponse
@@ -244,7 +304,7 @@ export type ListLibrariesResponse = Message<"nama.v1.ListLibrariesResponse"> & {
  * Use `create(ListLibrariesResponseSchema)` to create a new message.
  */
 export const ListLibrariesResponseSchema: GenMessage<ListLibrariesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 4);
+  messageDesc(file_nama_v1_library, 5);
 
 /**
  * @generated from message nama.v1.GetLibraryRequest
@@ -263,7 +323,7 @@ export type GetLibraryRequest = Message<"nama.v1.GetLibraryRequest"> & {
  * Use `create(GetLibraryRequestSchema)` to create a new message.
  */
 export const GetLibraryRequestSchema: GenMessage<GetLibraryRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 5);
+  messageDesc(file_nama_v1_library, 6);
 
 /**
  * @generated from message nama.v1.GetLibraryResponse
@@ -280,7 +340,7 @@ export type GetLibraryResponse = Message<"nama.v1.GetLibraryResponse"> & {
  * Use `create(GetLibraryResponseSchema)` to create a new message.
  */
 export const GetLibraryResponseSchema: GenMessage<GetLibraryResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 6);
+  messageDesc(file_nama_v1_library, 7);
 
 /**
  * @generated from message nama.v1.UpdateLibraryRequest
@@ -346,7 +406,7 @@ export type UpdateLibraryRequest = Message<"nama.v1.UpdateLibraryRequest"> & {
  * Use `create(UpdateLibraryRequestSchema)` to create a new message.
  */
 export const UpdateLibraryRequestSchema: GenMessage<UpdateLibraryRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 7);
+  messageDesc(file_nama_v1_library, 8);
 
 /**
  * A Library's `recogniser_ids` as an update sets them, so an empty list can be told from none.
@@ -365,7 +425,7 @@ export type RecogniserOrder = Message<"nama.v1.RecogniserOrder"> & {
  * Use `create(RecogniserOrderSchema)` to create a new message.
  */
 export const RecogniserOrderSchema: GenMessage<RecogniserOrder> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 8);
+  messageDesc(file_nama_v1_library, 9);
 
 /**
  * A Library's `segment_source_ids` as an update sets them, so an empty list can be told from none.
@@ -384,7 +444,7 @@ export type SegmentSourceOrder = Message<"nama.v1.SegmentSourceOrder"> & {
  * Use `create(SegmentSourceOrderSchema)` to create a new message.
  */
 export const SegmentSourceOrderSchema: GenMessage<SegmentSourceOrder> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 9);
+  messageDesc(file_nama_v1_library, 10);
 
 /**
  * @generated from message nama.v1.UpdateLibraryResponse
@@ -401,7 +461,7 @@ export type UpdateLibraryResponse = Message<"nama.v1.UpdateLibraryResponse"> & {
  * Use `create(UpdateLibraryResponseSchema)` to create a new message.
  */
 export const UpdateLibraryResponseSchema: GenMessage<UpdateLibraryResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 10);
+  messageDesc(file_nama_v1_library, 11);
 
 /**
  * @generated from message nama.v1.DeleteLibraryRequest
@@ -420,7 +480,7 @@ export type DeleteLibraryRequest = Message<"nama.v1.DeleteLibraryRequest"> & {
  * Use `create(DeleteLibraryRequestSchema)` to create a new message.
  */
 export const DeleteLibraryRequestSchema: GenMessage<DeleteLibraryRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 11);
+  messageDesc(file_nama_v1_library, 12);
 
 /**
  * @generated from message nama.v1.DeleteLibraryResponse
@@ -433,7 +493,7 @@ export type DeleteLibraryResponse = Message<"nama.v1.DeleteLibraryResponse"> & {
  * Use `create(DeleteLibraryResponseSchema)` to create a new message.
  */
 export const DeleteLibraryResponseSchema: GenMessage<DeleteLibraryResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 12);
+  messageDesc(file_nama_v1_library, 13);
 
 /**
  * @generated from message nama.v1.ScanLibraryRequest
@@ -460,7 +520,7 @@ export type ScanLibraryRequest = Message<"nama.v1.ScanLibraryRequest"> & {
  * Use `create(ScanLibraryRequestSchema)` to create a new message.
  */
 export const ScanLibraryRequestSchema: GenMessage<ScanLibraryRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 13);
+  messageDesc(file_nama_v1_library, 14);
 
 /**
  * @generated from message nama.v1.ScanLibraryResponse
@@ -473,7 +533,7 @@ export type ScanLibraryResponse = Message<"nama.v1.ScanLibraryResponse"> & {
  * Use `create(ScanLibraryResponseSchema)` to create a new message.
  */
 export const ScanLibraryResponseSchema: GenMessage<ScanLibraryResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 14);
+  messageDesc(file_nama_v1_library, 15);
 
 /**
  * @generated from message nama.v1.PreviewDeleteMediaRequest
@@ -490,7 +550,7 @@ export type PreviewDeleteMediaRequest = Message<"nama.v1.PreviewDeleteMediaReque
  * Use `create(PreviewDeleteMediaRequestSchema)` to create a new message.
  */
 export const PreviewDeleteMediaRequestSchema: GenMessage<PreviewDeleteMediaRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 15);
+  messageDesc(file_nama_v1_library, 16);
 
 /**
  * @generated from message nama.v1.PreviewDeleteMediaResponse
@@ -547,7 +607,7 @@ export type PreviewDeleteMediaResponse = Message<"nama.v1.PreviewDeleteMediaResp
  * Use `create(PreviewDeleteMediaResponseSchema)` to create a new message.
  */
 export const PreviewDeleteMediaResponseSchema: GenMessage<PreviewDeleteMediaResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 16);
+  messageDesc(file_nama_v1_library, 17);
 
 /**
  * An open Request a delete would cancel, as its Requesters know it.
@@ -575,7 +635,7 @@ export type RequestToCancel = Message<"nama.v1.RequestToCancel"> & {
  * Use `create(RequestToCancelSchema)` to create a new message.
  */
 export const RequestToCancelSchema: GenMessage<RequestToCancel> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 17);
+  messageDesc(file_nama_v1_library, 18);
 
 /**
  * @generated from message nama.v1.DeleteMediaRequest
@@ -601,7 +661,7 @@ export type DeleteMediaRequest = Message<"nama.v1.DeleteMediaRequest"> & {
  * Use `create(DeleteMediaRequestSchema)` to create a new message.
  */
 export const DeleteMediaRequestSchema: GenMessage<DeleteMediaRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 18);
+  messageDesc(file_nama_v1_library, 19);
 
 /**
  * @generated from message nama.v1.DeleteMediaResponse
@@ -643,7 +703,7 @@ export type DeleteMediaResponse = Message<"nama.v1.DeleteMediaResponse"> & {
  * Use `create(DeleteMediaResponseSchema)` to create a new message.
  */
 export const DeleteMediaResponseSchema: GenMessage<DeleteMediaResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 19);
+  messageDesc(file_nama_v1_library, 20);
 
 /**
  * What to delete: a title's every Version, or one Version. A file holding several Episodes goes
@@ -704,7 +764,7 @@ export type MediaToDelete = Message<"nama.v1.MediaToDelete"> & {
  * Use `create(MediaToDeleteSchema)` to create a new message.
  */
 export const MediaToDeleteSchema: GenMessage<MediaToDelete> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 20);
+  messageDesc(file_nama_v1_library, 21);
 
 /**
  * A Movie, named as `BrowseService.GetMovie` names it.
@@ -732,7 +792,7 @@ export type MovieToDelete = Message<"nama.v1.MovieToDelete"> & {
  * Use `create(MovieToDeleteSchema)` to create a new message.
  */
 export const MovieToDeleteSchema: GenMessage<MovieToDelete> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 21);
+  messageDesc(file_nama_v1_library, 22);
 
 /**
  * A Show, named as `BrowseService.GetShow` names it.
@@ -760,7 +820,7 @@ export type ShowToDelete = Message<"nama.v1.ShowToDelete"> & {
  * Use `create(ShowToDeleteSchema)` to create a new message.
  */
 export const ShowToDeleteSchema: GenMessage<ShowToDelete> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 22);
+  messageDesc(file_nama_v1_library, 23);
 
 /**
  * A Season of a Show, named as `BrowseService.ListEpisodes` names it.
@@ -795,7 +855,7 @@ export type SeasonToDelete = Message<"nama.v1.SeasonToDelete"> & {
  * Use `create(SeasonToDeleteSchema)` to create a new message.
  */
 export const SeasonToDeleteSchema: GenMessage<SeasonToDelete> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 23);
+  messageDesc(file_nama_v1_library, 24);
 
 /**
  * An Episode, or one of its Versions.
@@ -830,7 +890,7 @@ export type EpisodeToDelete = Message<"nama.v1.EpisodeToDelete"> & {
  * Use `create(EpisodeToDeleteSchema)` to create a new message.
  */
 export const EpisodeToDeleteSchema: GenMessage<EpisodeToDelete> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 24);
+  messageDesc(file_nama_v1_library, 25);
 
 /**
  * An Episode a delete takes along with a file that holds it too.
@@ -868,7 +928,7 @@ export type EpisodeTakenAlong = Message<"nama.v1.EpisodeTakenAlong"> & {
  * Use `create(EpisodeTakenAlongSchema)` to create a new message.
  */
 export const EpisodeTakenAlongSchema: GenMessage<EpisodeTakenAlong> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 25);
+  messageDesc(file_nama_v1_library, 26);
 
 /**
  * A file on the Server's disk.
@@ -896,7 +956,7 @@ export type MediaFile = Message<"nama.v1.MediaFile"> & {
  * Use `create(MediaFileSchema)` to create a new message.
  */
 export const MediaFileSchema: GenMessage<MediaFile> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 26);
+  messageDesc(file_nama_v1_library, 27);
 
 /**
  * A file a delete couldn't delete, and why.
@@ -924,7 +984,7 @@ export type FileNotDeleted = Message<"nama.v1.FileNotDeleted"> & {
  * Use `create(FileNotDeletedSchema)` to create a new message.
  */
 export const FileNotDeletedSchema: GenMessage<FileNotDeleted> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 27);
+  messageDesc(file_nama_v1_library, 28);
 
 /**
  * @generated from message nama.v1.ListTitleSourcesRequest
@@ -937,7 +997,7 @@ export type ListTitleSourcesRequest = Message<"nama.v1.ListTitleSourcesRequest">
  * Use `create(ListTitleSourcesRequestSchema)` to create a new message.
  */
 export const ListTitleSourcesRequestSchema: GenMessage<ListTitleSourcesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 28);
+  messageDesc(file_nama_v1_library, 29);
 
 /**
  * @generated from message nama.v1.ListTitleSourcesResponse
@@ -954,7 +1014,7 @@ export type ListTitleSourcesResponse = Message<"nama.v1.ListTitleSourcesResponse
  * Use `create(ListTitleSourcesResponseSchema)` to create a new message.
  */
 export const ListTitleSourcesResponseSchema: GenMessage<ListTitleSourcesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 29);
+  messageDesc(file_nama_v1_library, 30);
 
 /**
  * @generated from message nama.v1.ListArtworkRequest
@@ -988,7 +1048,7 @@ export type ListArtworkRequest = Message<"nama.v1.ListArtworkRequest"> & {
  * Use `create(ListArtworkRequestSchema)` to create a new message.
  */
 export const ListArtworkRequestSchema: GenMessage<ListArtworkRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 30);
+  messageDesc(file_nama_v1_library, 31);
 
 /**
  * @generated from message nama.v1.ListArtworkResponse
@@ -1014,7 +1074,7 @@ export type ListArtworkResponse = Message<"nama.v1.ListArtworkResponse"> & {
  * Use `create(ListArtworkResponseSchema)` to create a new message.
  */
 export const ListArtworkResponseSchema: GenMessage<ListArtworkResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 31);
+  messageDesc(file_nama_v1_library, 32);
 
 /**
  * A title source, a Plugin that searches and describes titles, whether it is running or not.
@@ -1064,7 +1124,7 @@ export type TitleSource = Message<"nama.v1.TitleSource"> & {
  * Use `create(TitleSourceSchema)` to create a new message.
  */
 export const TitleSourceSchema: GenMessage<TitleSource> = /*@__PURE__*/
-  messageDesc(file_nama_v1_library, 32);
+  messageDesc(file_nama_v1_library, 33);
 
 /**
  * The kind of media a Library holds. A Library holds exactly one kind.

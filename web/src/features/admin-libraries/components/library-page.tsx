@@ -31,7 +31,7 @@ export function LibraryPage({ id }: { id: bigint }) {
         <DeleteLibrary library={library} />
       </div>
       <div className="mt-2 max-w-sm">
-        <ScanStatus libraryId={library.id} idle="No scan seen yet." />
+        <ScanStatus libraryId={library.id} lastScan={library.lastScan} idle="No scan seen yet." />
       </div>
       <HomePageImage library={library} />
       <section aria-labelledby="edit" className="mt-10 max-w-sm">

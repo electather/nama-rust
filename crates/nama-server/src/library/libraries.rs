@@ -9,7 +9,10 @@ use std::{collections::HashMap, sync::Arc};
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
-use super::folders::{FolderProblem, check_folders, ensure_folders_free, insert_folders};
+use super::{
+    folders::{FolderProblem, check_folders, ensure_folders_free, insert_folders},
+    last_scans::{self, LastScan},
+};
 use crate::{db::Database, users::name_key};
 
 /// The kind of media a Library holds.
@@ -46,6 +49,8 @@ pub(crate) struct Library {
     pub(crate) segment_sources: Vec<String>,
     /// Whether Preview frames are made for its Versions.
     pub(crate) preview_frames: bool,
+    /// Its last Scan that finished storing; none before its first.
+    pub(crate) last_scan: Option<LastScan>,
 }
 
 /// The orders a Library asks its Plugins in, and whether it makes Preview frames, as a create or
@@ -204,10 +209,12 @@ impl Libraries {
                 .or_default()
                 .push(folder.path);
         }
+        let mut last_scans = last_scans::read(&mut tx, None).await?;
         tx.commit().await?;
         Ok(rows
             .into_iter()
             .map(|row| Library {
+                last_scan: last_scans.remove(&row.id),
                 folders: folders.remove(&row.id).unwrap_or_default(),
                 read_only: read_only.remove(&row.id).unwrap_or_default(),
                 empty_folders: empty.remove(&row.id).unwrap_or_default(),
@@ -240,6 +247,7 @@ impl Libraries {
         )
         .fetch_all(&mut *tx)
         .await?;
+        let last_scan = last_scans::read(&mut tx, Some(id)).await?.remove(&id);
         tx.commit().await?;
         let read_only = (rows.iter().filter(|folder| folder.read_only))
             .map(|folder| folder.path.clone())
@@ -258,7 +266,15 @@ impl Libraries {
             recognisers: split_ids(&row.recognisers),
             segment_sources: split_ids(&row.segment_sources),
             preview_frames: row.preview_frames,
+            last_scan,
         })
+    }
+
+    /// Records `last` as the Library `id`'s last finished Scan, replacing the one before.
+    pub(crate) async fn record_last_scan(&self, id: i64, last: LastScan) -> sqlx::Result<()> {
+        self.db
+            .write(move |tx| Box::pin(last_scans::record(tx, id, last)))
+            .await
     }
 
     /// Records that the Server can write to each of the Library `id`'s folders but `read_only`.
@@ -428,6 +444,7 @@ async fn create(
         recognisers,
         segment_sources,
         preview_frames,
+        last_scan: None,
     })
 }
 
@@ -497,6 +514,7 @@ async fn update(
         recognisers,
         segment_sources,
         preview_frames: row.preview_frames,
+        last_scan: last_scans::read(conn, Some(id)).await?.remove(&id),
     })
 }
 

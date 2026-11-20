@@ -6,6 +6,7 @@ mod contents;
 mod country_tags;
 mod custom_images;
 mod folders;
+mod last_scans;
 mod libraries;
 mod local_images;
 mod recognisers;
@@ -32,6 +33,7 @@ pub(crate) use custom_images::{
     CustomImages, Role, Slot, Urls as CustomImageUrls, router as custom_images_router,
 };
 pub(crate) use folders::FolderProblem;
+pub(crate) use last_scans::LastScan;
 pub(crate) use libraries::{
     Error as LibraryError, Kind as LibraryKind, Libraries, Library, Order, check_known,
     default_title_sources,
