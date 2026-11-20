@@ -17,7 +17,7 @@ use nama_plugin_api::{
     PluginId,
     settings::{SettingKind, SettingValue},
 };
-use sqlx::{Sqlite, Transaction};
+use sqlx::{Sqlite, SqliteConnection, Transaction};
 use thiserror::Error;
 use url::Url;
 
@@ -454,6 +454,21 @@ fn is_server_url(url: &str) -> bool {
             && !url.contains(['?', '#'])
             && Url::parse(url)
                 .is_ok_and(|parsed| parsed.username().is_empty() && parsed.password().is_none()))
+}
+
+/// The Plugin keeping the image store's originals in the database `conn` is open on, such as a
+/// backup's copy, or `None` for local disk.
+///
+/// # Errors
+///
+/// If reading fails.
+pub(crate) async fn stored_image_store(
+    conn: &mut SqliteConnection,
+) -> sqlx::Result<Option<PluginId>> {
+    let stored = sqlx::query_scalar!("SELECT image_store_plugin FROM server_settings")
+        .fetch_optional(conn)
+        .await?;
+    Ok(stored.and_then(plugin_named))
 }
 
 /// The Plugin `stored` names, or `None` for an empty one.

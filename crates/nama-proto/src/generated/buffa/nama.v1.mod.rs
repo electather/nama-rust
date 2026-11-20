@@ -244,6 +244,12 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_AUTOPLAY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_AUTOPLAY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_AUTOPLAY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_SUBTITLE_APPEARANCE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SUBTITLE_APPEARANCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_SIZE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_SIZE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_BACKGROUND_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_BACKGROUND_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USERS_AUDIO_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
@@ -1100,6 +1106,30 @@ pub use self::__buffa::view::SetAutoplayRequestOwnedView;
 pub use self::__buffa::view::SetAutoplayResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetAutoplayResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSubtitleAppearanceRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSubtitleAppearanceRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSubtitleAppearanceResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSubtitleAppearanceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleSizeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleSizeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleSizeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleSizeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleBackgroundRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleBackgroundRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleBackgroundResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleBackgroundResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UsersAudioPreferenceView;
 #[doc(inline)]

@@ -331,6 +331,14 @@ _Avoid_: default subtitle, remembered subtitle, sticky subtitle, subtitle choice
 What a User wants the audio to start as when they play something: a language, and the title of the Track they picked. A User sets a language in Settings for everything; picking an audio Track while playing a Show or Movie keeps one for that Show or Movie, which wins.
 _Avoid_: default audio, remembered audio, audio choice (a pick in one playback)
 
+**Subtitle Appearance**:
+How a User's text subtitles look on every Device: one of four sizes, Small, Default, Large or Largest, and an outline or a box behind them. A styled ASS Track the Device draws, and a burned-in one, keep their own look (ADR 0068).
+_Avoid_: subtitle style, caption style, subtitle settings
+
+**Subtitle Offset**:
+How far a User shifts one subtitle Track's timing to match the audio, kept for that Track of that Version. It doesn't apply to Burn-in (ADR 0068).
+_Avoid_: subtitle delay, subtitle sync, subtitle timing
+
 **GPU**:
 A graphics processor in the Server's machine that a Transcode can run on, either dedicated or integrated into the CPU. An Admin picks one, or leaves the Server to prefer a dedicated one. The Server names each it finds, such as "AMD Radeon RX 9070 XT".
 _Avoid_: device (that's a client), card, adapter, render node

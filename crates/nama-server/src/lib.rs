@@ -2,6 +2,7 @@
 
 mod api;
 mod automation;
+pub mod backup;
 pub use library::{Artwork, ArtworkError};
 mod browse;
 pub mod config;

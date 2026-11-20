@@ -368,6 +368,56 @@ fn plugin_settings_are_imported_from_the_config_once_and_the_config_is_ignored_a
     assert!(ignoring.contains(r#"["tmdb"]"#), "{ignoring}");
 }
 
+/// Runs `nama-server --config <config_file> <args>`, returning whether it succeeded and its log.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a command that can't be run fails the test that runs it"
+)]
+fn run_command(config_file: &Path, args: &[&Path]) -> (bool, String) {
+    let output = Command::new(env!("CARGO_BIN_EXE_nama-server"))
+        .arg("--config")
+        .arg(config_file)
+        .args(args)
+        .env("RUST_LOG", "info")
+        .output()
+        .unwrap();
+    (
+        output.status.success(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+    )
+}
+
+#[test]
+fn backup_runs_beside_a_serving_server_and_restore_waits_for_it_to_stop() {
+    let dir = std::env::temp_dir().join(format!("nama-server-backup-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let dir = RemoveOnDrop(dir);
+    let config_file = dir.0.join("server.toml");
+    let data_dir = dir.0.join("data");
+    std::fs::write(
+        &config_file,
+        format!("data_dir = \"{}\"\n", data_dir.display()),
+    )
+    .unwrap();
+    let backup = dir.0.join("backup.tar");
+    let mut server = spawn_server(&config_file);
+    wait_for_line(&log_lines(server.0.as_mut().unwrap()), "listening");
+
+    let (backed_up, backup_log) = run_command(&config_file, &[Path::new("backup"), &backup]);
+    assert!(backed_up, "{backup_log}");
+    let (restored_while_serving, refusal) =
+        run_command(&config_file, &[Path::new("restore"), &backup]);
+    assert!(!restored_while_serving, "{refusal}");
+    assert!(refusal.contains("stop it first"), "{refusal}");
+
+    // Killed, so its WAL is left behind, as a crash would leave it.
+    drop(server);
+    let (restored, restore_log) = run_command(&config_file, &[Path::new("restore"), &backup]);
+    assert!(restored, "{restore_log}");
+    assert!(data_dir.join("nama.db.before-restore").is_file());
+    assert!(log_until_listening(&config_file).contains("opened database"));
+}
+
 /// Starts the server with `config_file`, and returns what it logged up to "listening" once it has
 /// stopped it.
 #[expect(
