@@ -17,7 +17,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
+    browse::{Browse, Episode, ListedShow, Movie, Show, Started, Version, season_count},
     db::Database,
     home_rows::{HomeRows, OnServer, RowTitle},
     library::{
@@ -35,9 +35,11 @@ use super::{
 };
 
 mod refusals;
+mod titles;
 
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
+use titles::{featured_to_proto, started_to_proto};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -596,75 +598,6 @@ fn movie_to_proto(
             .and_then(|minutes| u32::try_from(minutes).ok()),
         versions: movie.versions.iter().map(version_to_proto).collect(),
         watch_state: watch_state.map(watch_state_to_proto).into(),
-        ..Default::default()
-    }
-}
-
-/// A Continue Watching entry as clients see it, with its images as `images` gives them, its Movie
-/// or Show `on_watchlist` or not.
-fn started_to_proto(
-    started: Started,
-    on_watchlist: bool,
-    images: &ShownImages,
-) -> proto::ContinueWatchingEntry {
-    let (library_id, movie_or_episode) = match started {
-        Started::Movie {
-            library,
-            movie,
-            state,
-        } => {
-            let movie = proto::Movie {
-                on_watchlist,
-                ..movie_to_proto(movie, Some(state), images)
-            };
-            (library, movie.into())
-        }
-        Started::Episode {
-            library,
-            show,
-            episode,
-            state,
-        } => {
-            let started_episode = proto::ContinueWatchingEpisode {
-                episode: episode_to_proto(episode, state, images).into(),
-                show: proto::Show {
-                    on_watchlist,
-                    ..show_to_proto(&show, images)
-                }
-                .into(),
-                ..Default::default()
-            };
-            (library, started_episode.into())
-        }
-    };
-    proto::ContinueWatchingEntry {
-        library_id,
-        movie_or_episode: Some(movie_or_episode),
-        ..Default::default()
-    }
-}
-
-/// A Featured title as clients see it, with its images as `images` gives them.
-fn featured_to_proto(featured: Featured, images: &ShownImages) -> proto::FeaturedTitle {
-    let (library_id, movie_or_show, next_episode) = match featured {
-        Featured::Movie {
-            library,
-            movie,
-            state,
-        } => (library, movie_to_proto(movie, state, images).into(), None),
-        Featured::Show {
-            library,
-            show,
-            next,
-        } => {
-            let next = next.map(|(episode, state)| episode_to_proto(episode, state, images));
-            (library, show_to_proto(&show, images).into(), next)
-        }
-    };
-    proto::FeaturedTitle {
-        library_id,
-        movie_or_show: Some(movie_or_show),
-        next_episode: next_episode.into(),
         ..Default::default()
     }
 }
