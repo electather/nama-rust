@@ -602,9 +602,7 @@ impl HomeRows {
         if gone.is_empty() {
             return Ok(());
         }
-        let gone: Vec<(String, HomeRowMethod)> = (gone.iter())
-            .map(|(plugin, method)| (plugin.as_str().to_owned(), *method))
-            .collect();
+        let gone = gone.clone();
         self.db
             .write(move |tx| Box::pin(async move { delete_rows(tx, &gone).await }))
             .await

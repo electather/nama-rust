@@ -55,13 +55,14 @@ pub(super) async fn set_stale_at(
     Ok(())
 }
 
-/// Deletes the rows each `method` gave each Plugin `plugin` of `gone`, every User's for
-/// [`HomeRowMethod::User`], and when they were refreshed.
+/// Deletes, with when they were refreshed, each Plugin's rows that `gone` names by the method
+/// that gave them, every User's for [`HomeRowMethod::User`].
 pub(super) async fn delete_rows(
     conn: &mut SqliteConnection,
-    gone: &[(String, HomeRowMethod)],
+    gone: &HashSet<(PluginId, HomeRowMethod)>,
 ) -> Result<(), sqlx::Error> {
     for (plugin, method) in gone {
+        let plugin = plugin.as_str();
         let users = *method == HomeRowMethod::User;
         sqlx::query!(
             "DELETE FROM home_rows WHERE plugin_id = ? AND (user_id IS NOT NULL) = ?",
