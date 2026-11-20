@@ -80,6 +80,10 @@ pub struct MovieView<'a> {
     ///
     /// Field 17: `content_rating`
     pub content_rating: ::core::option::Option<&'a str>,
+    /// Whether it is on the caller's Watchlist, under any of its ids.
+    ///
+    /// Field 18: `on_watchlist`
+    pub on_watchlist: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -245,6 +249,13 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.content_rating = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.on_watchlist = ::buffa::types::decode_bool(&mut cur)?;
+            }
             9u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -333,6 +344,7 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
             title_logo_url: self.title_logo_url.map(|s| s.to_string()),
             genres: self.genres.iter().map(|s| s.to_string()).collect(),
             content_rating: self.content_rating.map(|s| s.to_string()),
+            on_watchlist: self.on_watchlist,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -410,6 +422,9 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.content_rating {
             size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.on_watchlist {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -486,6 +501,9 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if let Some(ref v) = self.content_rating {
             ::buffa::types::put_string_field(17u32, v, buf);
+        }
+        if self.on_watchlist {
+            ::buffa::types::put_bool_field(18u32, self.on_watchlist, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -574,6 +592,9 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.content_rating {
             __map.serialize_entry("contentRating", __v)?;
+        }
+        if self.on_watchlist {
+            __map.serialize_entry("onWatchlist", &self.on_watchlist)?;
         }
         __map.end()
     }
@@ -789,6 +810,13 @@ impl MovieOwnedView {
     #[must_use]
     pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().content_rating
+    }
+    /// Whether it is on the caller's Watchlist, under any of its ids.
+    ///
+    /// Field 18: `on_watchlist`
+    #[must_use]
+    pub fn on_watchlist(&self) -> bool {
+        self.0.reborrow().on_watchlist
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -5297,6 +5325,10 @@ pub struct ShowView<'a> {
     ///
     /// Field 13: `first_air_date`
     pub first_air_date: ::core::option::Option<&'a str>,
+    /// As `Movie.on_watchlist`.
+    ///
+    /// Field 14: `on_watchlist`
+    pub on_watchlist: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -5427,6 +5459,13 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 )?;
                 view.first_air_date = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.on_watchlist = ::buffa::types::decode_bool(&mut cur)?;
+            }
             10u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -5481,6 +5520,7 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             content_rating: self.content_rating.map(|s| s.to_string()),
             overview: self.overview.map(|s| s.to_string()),
             first_air_date: self.first_air_date.map(|s| s.to_string()),
+            on_watchlist: self.on_watchlist,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5536,6 +5576,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.first_air_date {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.on_watchlist {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5590,6 +5633,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if let Some(ref v) = self.first_air_date {
             ::buffa::types::put_string_field(13u32, v, buf);
+        }
+        if self.on_watchlist {
+            ::buffa::types::put_bool_field(14u32, self.on_watchlist, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5660,6 +5706,9 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.first_air_date {
             __map.serialize_entry("firstAirDate", __v)?;
+        }
+        if self.on_watchlist {
+            __map.serialize_entry("onWatchlist", &self.on_watchlist)?;
         }
         __map.end()
     }
@@ -5841,6 +5890,13 @@ impl ShowOwnedView {
     #[must_use]
     pub fn first_air_date(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().first_air_date
+    }
+    /// As `Movie.on_watchlist`.
+    ///
+    /// Field 14: `on_watchlist`
+    #[must_use]
+    pub fn on_watchlist(&self) -> bool {
+        self.0.reborrow().on_watchlist
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {

@@ -182,6 +182,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/library/watch_states", &["watch_states"]),
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/automation/store", &["plugin_store"]),
+    ("src/watchlist", &["watchlist"]),
 ];
 
 /// The keywords a table's name follows in SQL, upper case as every query here writes them.
@@ -457,7 +458,7 @@ fn ceilings_are_sorted_by_path_and_list_no_path_twice() {
 const ROWS: &[&[&str]] = &[
     &["api", "automation"],
     &["browse", "scanner", "plugin_settings"],
-    &["home_rows", "requests", "playback", "matching"],
+    &["home_rows", "requests", "playback", "matching", "watchlist"],
     &["library"],
     &["events", "connections", "users"],
     &["plugins"],
