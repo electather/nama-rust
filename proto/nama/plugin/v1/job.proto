@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+// The Job lane, where the Kernel runs the Jobs a Plugin's Manifest declares in `jobs` (ADR 0079).
+
+// The Extension Point for a Plugin's Jobs, served through the WASM export the rpc names. A Server
+// refuses a Plugin naming it whose Manifest declares no Jobs.
+service JobService {
+  // The `run_job` export: runs one of the Plugin's Jobs. Required. The Kernel calls it when the
+  // Job's schedule comes due, one Run at a time per Job, and allows it 60 seconds of the Plugin's
+  // own time. A Run that fails or runs past that is logged and counted toward the crashes in a row.
+  rpc Run(RunJob) returns (JobRan);
+}
+
+// One Job a Plugin's Manifest declares.
+message Job {
+  // The Job's id, unique among the Plugin's Jobs: one or more of a-z, 0-9 and `-`, such as
+  // "forget-stale-rows". A Server refuses a Plugin with one that repeats or isn't.
+  string id = 1;
+  // What admins know the Job by, such as "Forget stale Home rows".
+  string name = 2;
+  // What the Job does, in a sentence or two.
+  string description = 3;
+  // When the Kernel runs the Job: a standard 5-field cron expression (minute, hour, day of month,
+  // month and day of week), read in the Server's time zone, such as "0 4 * * *" for 04:00 every
+  // day. Firings missed while the Server was down are not made up. Unset, the Kernel never runs it
+  // on its own. A Server refuses a Plugin with one that doesn't parse or has a seconds field.
+  optional string schedule = 4;
+}
+
+// What the Kernel hands a Plugin to run one of its Jobs.
+message RunJob {
+  // The `Job.id` to run.
+  string job_id = 1;
+  // The Kernel's clock, in milliseconds since the Unix epoch. A Plugin uses it rather than its own
+  // clock.
+  int64 now_ms = 2;
+}
+
+// What a Plugin answers a `RunJob` with once the Job ran.
+message JobRan {}

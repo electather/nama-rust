@@ -4,8 +4,10 @@
 mod blob_store;
 mod builtin;
 mod contract;
+mod cron;
 mod failing;
 mod fulfilling;
+mod jobs;
 mod points;
 mod registry;
 mod scope;

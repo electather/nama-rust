@@ -25,6 +25,7 @@ pub use nama_plugin_proto::{
 mod automation;
 mod blob_store;
 mod home_row;
+mod job;
 mod log;
 mod notification_text;
 mod recogniser;
@@ -42,6 +43,7 @@ pub use home_row::{
     FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowSource, HomeRowTitle, HomeRows,
     UserFeaturedAsked, UserRowsAsked,
 };
+pub use job::{Job, JobRunner, RunJob};
 pub use recogniser::{
     FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
     TitleRecognised, TitleToRecognise,

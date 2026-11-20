@@ -20,6 +20,7 @@ pub mod connector;
 pub mod fulfiller;
 pub mod home_row;
 mod ids;
+pub mod job;
 pub mod metadata;
 pub mod notifier;
 pub mod points;
@@ -135,6 +136,9 @@ pub struct Manifest {
     pub permissions: Vec<Permission>,
     /// How often the Kernel ticks its [`Automation`](automation::Automation), if it provides one.
     pub tick_every: Option<Duration>,
+    /// The Jobs its [`JobRunner`](job::JobRunner) runs. The Kernel refuses a Plugin naming that
+    /// point with none, or with one whose id or schedule `job.proto` doesn't allow.
+    pub jobs: Vec<job::Job>,
     /// What its [`TitleSource`](metadata::TitleSource) keeps titles under and whether it searches,
     /// if it provides one. A Library's title source order may add only a namespace some Plugin
     /// keeps or looks titles up by here, enabled or not.
@@ -161,6 +165,7 @@ impl Manifest {
             license: String::new(),
             permissions: Vec::new(),
             tick_every: None,
+            jobs: Vec::new(),
             title_source: None,
         }
     }

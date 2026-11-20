@@ -25,6 +25,9 @@ empty-points = []
 # Builds the Plugin naming the Automation Extension Point and requesting the Store and Library
 # Permissions; its tick calls the Kernel's functions.
 automation = []
+# Builds the Plugin naming the Job Extension Point, with a Job `wait` run daily at 04:00 that runs
+# until the Server's clock reads a minute past its start, and a Job `on-ask` with no schedule.
+jobs = []
 # Builds the Plugin as `automation` does, with a tick that loops until the Server interrupts it.
 looping-tick = ["automation"]
 # Builds the Plugin naming the Recogniser Extension Point and exporting `recognise_file`, which

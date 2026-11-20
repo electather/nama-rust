@@ -19,6 +19,7 @@ use nama_plugin_api::{
     automation::{Automation, Tick},
     connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Request, TryAgainIn},
+    job::{JobRunner, RunJob},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::{Events, ObservedEvents},
     settings::{Choice, Choices, PersonalSettingsCheck, SettingKind, Settings, SettingsCheck},
@@ -27,7 +28,7 @@ use nama_plugin_proto::{
     CONTRACT_VERSION, SERVICES,
     nama::plugin::v1::{
         self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
-        Delivered, Delivery, EventsObserved, Fulfilled, PersonalSettingsChecked, Progress,
+        Delivered, Delivery, EventsObserved, Fulfilled, JobRan, PersonalSettingsChecked, Progress,
         ProgressAsked, StopMonitoring, StoppedMonitoring, Ticked, Unfollowed, UserRecipient,
     },
 };
@@ -69,7 +70,7 @@ use load::{
 use plugin_log::PluginLog;
 use services::{
     CHECK_PERSONAL_SETTINGS, CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION,
-    Point, START_CONNECTION, TICK,
+    Point, RUN_JOB, START_CONNECTION, TICK,
 };
 
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
@@ -135,6 +136,9 @@ pub(super) enum Refused {
     // The reason starts "its Personal setting", as the registry words it for a Built-in.
     #[error("{0}")]
     PersonalSettings(String),
+    // The reason starts "its Job" or "its Manifest", as `jobs::refusal` words it for a Built-in.
+    #[error("{0}")]
+    Jobs(String),
     #[error("its Manifest requests the Permission {0}, which this Server doesn't know")]
     UnknownPermission(String),
     #[error(
@@ -605,6 +609,15 @@ impl Automation for Running {
     fn tick<'a>(&'a self, tick: &'a Tick) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
             self.call_method::<_, Ticked>(&TICK, tick).await?;
+            Ok(())
+        })
+    }
+}
+
+impl JobRunner for Running {
+    fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async move {
+            self.call_method::<_, JobRan>(&RUN_JOB, run).await?;
             Ok(())
         })
     }

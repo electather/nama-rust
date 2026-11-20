@@ -76,6 +76,7 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 | `HOME_ROW` | `HomeRowSource`, `home_row_source!` | | `shared_rows`, `user_rows`, `user_featured` |
 | `SUBTITLE_SOURCE` | `SubtitleSource`, `subtitle_source!` | `search`, `download` | |
 | `SEGMENT_SOURCE` | `SegmentSource`, `segment_source!` | `search` | |
+| `JOB` | `JobRunner`, `job_runner!` | `run`; the Manifest's `jobs` declare at least one Job | |
 
 A trait's optional methods have defaults, and its macro exports them all, except `title_source!`, `recogniser!` and `home_row_source!`, which export only the methods they list, since the Server asks nothing of a title source, Recogniser or Home row source that lacks the export:
 

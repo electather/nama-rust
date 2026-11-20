@@ -40,6 +40,7 @@ impl Plugin for LogEvents {
             license: String::new(),
             permissions: Vec::new(),
             tick_every: None,
+            jobs: Vec::new(),
             title_source: None,
         }
     }

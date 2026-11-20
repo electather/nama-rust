@@ -3,7 +3,7 @@ use std::time::Duration;
 use nama_plugin_proto::{
     CONTRACT_VERSION,
     nama::plugin::v1::{
-        Manifest, Permission, Point, SettingField, SettingKind, SettingValue, setting_value,
+        Job, Manifest, Permission, Point, SettingField, SettingKind, SettingValue, setting_value,
     },
     services,
 };
@@ -330,6 +330,92 @@ fn tick_every_is_ignored_unless_the_manifest_names_an_automation() {
     let manifest = judge(&mut package, &[]).unwrap();
 
     assert_eq!(manifest.tick_every, None);
+}
+
+fn job(id: &str, schedule: Option<&str>) -> Job {
+    Job {
+        id: id.to_owned(),
+        name: format!("Job {id}"),
+        description: format!("Does {id}."),
+        schedule: schedule.map(str::to_owned),
+        ..Default::default()
+    }
+}
+
+fn job_runner(jobs: Vec<Job>) -> Manifest {
+    Manifest {
+        points: vec![Point {
+            service: services::JOB.to_owned(),
+            version: "^1.0.0".to_owned(),
+            ..Default::default()
+        }],
+        jobs,
+        ..title_source("upkeep")
+    }
+}
+
+#[test]
+fn a_job_runner_reads_its_jobs_with_and_without_a_schedule() {
+    let mut package = job_runner(vec![job("tidy", Some("0 4 * * *")), job("on-ask", None)]);
+
+    let manifest = judge(&mut package, &["run_job"]).unwrap();
+
+    let jobs: Vec<_> = (manifest.jobs.iter())
+        .map(|job| (job.id.as_str(), job.name.as_str(), job.schedule.as_deref()))
+        .collect();
+    assert_eq!(
+        jobs,
+        [
+            ("tidy", "Job tidy", Some("0 4 * * *")),
+            ("on-ask", "Job on-ask", None)
+        ]
+    );
+    assert_eq!(manifest.jobs[0].description, "Does tidy.");
+}
+
+#[test]
+fn a_job_runner_declaring_no_jobs_a_bad_id_or_a_bad_schedule_is_refused() {
+    let refused = |jobs| {
+        judge(&mut job_runner(jobs), &["run_job"])
+            .err()
+            .map(|refused| refused.to_string())
+    };
+
+    assert_eq!(
+        refused(Vec::new()).as_deref(),
+        Some("its Manifest names nama.plugin.v1.JobService and declares no Jobs")
+    );
+    assert_eq!(
+        refused(vec![job("tidy", Some("0 0 4 * * *"))]).as_deref(),
+        Some(
+            "its Job tidy's schedule \"0 0 4 * * *\" has a seconds field; a schedule has 5 \
+             fields and runs to the minute"
+        )
+    );
+    assert_eq!(
+        refused(vec![job("tidy", Some("0 25 * * *"))]).as_deref(),
+        Some("its Job tidy's schedule \"0 25 * * *\" has hour 25, outside 0-23")
+    );
+    assert_eq!(
+        refused(vec![job("tidy", None), job("tidy", None)]).as_deref(),
+        Some("its Job tidy repeats an id")
+    );
+    assert_eq!(
+        refused(vec![job("Tidy up", None)]).as_deref(),
+        Some("its Job \"Tidy up\" has an id that isn't one or more of a-z, 0-9 and -")
+    );
+}
+
+#[test]
+fn jobs_are_ignored_unless_the_manifest_names_a_job_runner() {
+    let mut package = Manifest {
+        jobs: vec![job("tidy", Some("not a schedule"))],
+        ..title_source("tvdb")
+    };
+
+    let manifest = judge(&mut package, &[]).unwrap();
+
+    assert_eq!(manifest.jobs, []);
 }
 
 #[cfg(feature = "testing")]
