@@ -99,3 +99,16 @@ async fn a_range_whose_if_range_names_a_replaced_file_is_served_the_whole_new_fi
         }
     }
 }
+
+#[tokio::test]
+async fn a_resumed_range_of_a_file_gone_since_the_scan_is_not_found() {
+    let (fx, url) = alien().await;
+    let token = Some(fx.server.admin_token.as_str());
+    let old = fetch(&fx.server, &url, token).await;
+    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+
+    let headers = [("range", "bytes=1-3"), ("if-range", old.header("etag"))];
+    let reply = fetch_with(&fx.server, &url, token, &headers).await;
+
+    assert_eq!(reply.status, 404);
+}

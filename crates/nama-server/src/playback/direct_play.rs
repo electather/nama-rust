@@ -68,8 +68,8 @@ async fn serve(
     // Taken once the Version is known to be there, so asking for made-up ids keeps nothing.
     let (deleted, stopped) = (running.served(id), running.stopped(id, device));
     // `ServeFile` answers `Range` (206 and `Content-Range`), sets `Accept-Ranges`, `ETag` and
-    // `Last-Modified`, takes the `Content-Type` from the extension, and is 404 for a file gone
-    // since the last scan. It ignores `If-Range`, which `serve_file` answers.
+    // `Last-Modified`, and takes the `Content-Type` from the extension. It ignores `If-Range`,
+    // which `serve_file` answers, and fails with `NotFound` for a file gone since the last scan.
     match serve_file(&path, request).await {
         Ok(response) => {
             let (parts, body) = response.into_parts();
@@ -83,6 +83,7 @@ async fn serve(
             let sent = sent.take_until(cut_off);
             Response::from_parts(parts, Body::from_stream(sent))
         }
+        Err(err) if err.kind() == io::ErrorKind::NotFound => StatusCode::NOT_FOUND.into_response(),
         Err(err) => {
             tracing::error!("could not serve {path}: {err}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
