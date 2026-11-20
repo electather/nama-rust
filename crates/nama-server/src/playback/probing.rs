@@ -182,8 +182,9 @@ impl Probing {
     pub(crate) async fn current(&self, version: i64) -> Result<Probe, Error> {
         loop {
             let file = self.probed(version).await?;
-            // A scan that changed or removed the file while it was probed left nothing stored for
-            // it as it is now, so it's looked up and probed again.
+            // Nothing is stored for a Version removed while it was probed, nor for this `file`
+            // when the probe waited for was of the file as it was before a scan changed it, so
+            // it's looked up and probed again.
             if let Some(probe) = self.inner.stored_tracks.of(&[file]).await?.remove(&version) {
                 return Ok(probe);
             }
