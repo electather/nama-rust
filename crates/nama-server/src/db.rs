@@ -33,6 +33,11 @@ pub const FILE_NAME: &str = "nama.db";
 /// The copy of the database an upgrade leaves beside it, to go back to if the upgrade goes wrong.
 const BEFORE_UPGRADE_FILE_NAME: &str = "nama.db.before-upgrade";
 
+const MIB: u64 = 1024 * 1024;
+
+/// The least free space startup asks the data directory for, however small the database.
+const LOW_SPACE_FLOOR_BYTES: u64 = 1024 * MIB;
+
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 const MAX_READERS: u32 = 8;
@@ -129,6 +134,10 @@ impl Database {
             .await
             .map_err(OpenError::DataDir)?;
         warn_about_filesystem(data_dir);
+        let database_bytes = tokio::fs::metadata(data_dir.join(FILE_NAME))
+            .await
+            .map_or(0, |file| file.len());
+        warn_if_low_on_space(data_dir, free_bytes(data_dir), database_bytes);
         let options = SqliteConnectOptions::new()
             .filename(data_dir.join(FILE_NAME))
             .journal_mode(SqliteJournalMode::Wal)
@@ -614,6 +623,42 @@ fn warn_about_filesystem(data_dir: &Path) {
         ),
         None => {}
     }
+}
+
+/// Warns when `data_dir` has less `free` space than the larger of twice the database or
+/// [`LOW_SPACE_FLOOR_BYTES`], the room to grow and to copy it before an upgrade; the Server starts
+/// anyway.
+fn warn_if_low_on_space(data_dir: &Path, free: std::io::Result<u64>, database_bytes: u64) {
+    let free = match free {
+        Ok(free) => free,
+        Err(err) => {
+            tracing::debug!("could not read the data directory's free space: {err}");
+            return;
+        }
+    };
+    let threshold = database_bytes.saturating_mul(2).max(LOW_SPACE_FLOOR_BYTES);
+    if free < threshold {
+        tracing::warn!(
+            "the data directory, {}, has {} MiB free, under the {} MiB the database needs to grow \
+             and to be copied before an upgrade: free some space",
+            data_dir.display(),
+            free / MIB,
+            threshold.div_ceil(MIB)
+        );
+    }
+}
+
+/// How many bytes an unprivileged process may still write to the filesystem holding `dir`.
+#[cfg(unix)]
+pub(crate) fn free_bytes(dir: &Path) -> std::io::Result<u64> {
+    let stat = rustix::fs::statvfs(dir)?;
+    Ok(stat.f_bavail.saturating_mul(stat.f_frsize))
+}
+
+// ponytail: Windows reports no free space; ask GetDiskFreeSpaceExW once a Server runs there.
+#[cfg(not(unix))]
+pub(crate) fn free_bytes(_dir: &Path) -> std::io::Result<u64> {
+    Err(std::io::ErrorKind::Unsupported.into())
 }
 
 #[cfg(target_os = "linux")]
