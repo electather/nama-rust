@@ -1,0 +1,17 @@
+[package]
+name = "nama-plugin-top-picks"
+version = "0.1.0"
+description = "Installed Plugin ranking each User's Top picks and Family night Home rows, bundled in the Server"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nama-pdk = { version = "0.2.0", path = "../../crates/nama-pdk" }
+
+[lints]
+workspace = true

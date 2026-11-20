@@ -9,7 +9,7 @@ The top of a User's home page, Featured, shows the 5 heaviest of the titles sugg
 - **The Kernel takes turns between sources**: rejected. Turns would keep a weak suggestion over a strong one just because of where it came from.
 - **A separate `FeaturedService` Extension Point**: rejected. Asking per User ahead of time and storing with a time to live is already `HomeRowService`'s machinery.
 - **Asking Plugins while `ListFeatured` runs**: rejected for the reasons ADR 0058 gives for Home rows.
-- **Top Picks built into the Kernel**: rejected. "For you" and "Family night" became a Plugin's Home rows, so their ranking and the Family Content Ratings can change without a Kernel release.
+- **Top Picks built into the Kernel**: rejected. "Top picks" and "Family night" became a Plugin's Home rows, so their ranking and the Family Content Ratings can change without a Kernel release.
 
 ## Consequences
 

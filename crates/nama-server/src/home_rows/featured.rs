@@ -96,6 +96,7 @@ impl HomeRows {
         let (settings, secrets) = personal(settings);
         let asked = UserFeaturedAsked {
             personal_settings: settings.into_iter().collect(),
+            user_id: user,
             ..UserFeaturedAsked::default()
         };
         let answer: Option<Answer<FeaturedSuggestions>> = (self.points)

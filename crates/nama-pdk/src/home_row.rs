@@ -74,9 +74,9 @@ pub trait HomeRowSource {
         Ok(HomeRows::default())
     }
 
-    /// One User's own rows, in the order home shows them, from that User's Personal settings in
-    /// `asked`. Home shows them after the shared rows, leaving out one whose key a shared row
-    /// has.
+    /// One User's own rows, in the order home shows them, from that User's id and Personal
+    /// settings in `asked`. Home shows them after the shared rows, leaving out one whose key a
+    /// shared row has.
     ///
     /// # Errors
     ///
@@ -85,8 +85,8 @@ pub trait HomeRowSource {
         Ok(HomeRows::default())
     }
 
-    /// Titles for one User's Featured, the top of their home page, from that User's Personal
-    /// settings in `asked` (ADR 0072). The Server keeps the first 20, clamps each weight to
+    /// Titles for one User's Featured, the top of their home page, from that User's id and
+    /// Personal settings in `asked` (ADR 0072). The Server keeps the first 20, clamps each weight to
     /// between 0.0 and 1.0, drops a title no Library has, and shows the 5 heaviest of every
     /// Plugin's suggestions and its own, which weigh at most 0.8.
     ///

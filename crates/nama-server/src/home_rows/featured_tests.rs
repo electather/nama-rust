@@ -112,7 +112,7 @@ async fn a_source_giving_only_shared_rows_is_never_asked_for_featured_suggestion
 }
 
 #[tokio::test]
-async fn each_users_suggestions_are_asked_with_their_own_settings_and_reach_only_them() {
+async fn each_users_suggestions_are_asked_with_their_id_and_settings_and_reach_only_them() {
     let (_dir, db, home, calls) = recorded(FEATURED).await;
     let ada = insert_user(&db, "ada").await;
     let bea = insert_user(&db, "bea").await;
@@ -126,6 +126,7 @@ async fn each_users_suggestions_are_asked_with_their_own_settings_and_reach_only
         *calls.featured_asked.lock().unwrap(),
         [handle("1"), handle("2")]
     );
+    assert_eq!(*calls.user_ids.lock().unwrap(), [ada, bea]);
     assert_eq!(adas, movies(&[(1, 0.5)]));
     assert_eq!(beas, movies(&[(2, 0.5)]));
 }
