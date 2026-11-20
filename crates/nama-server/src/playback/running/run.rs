@@ -627,7 +627,12 @@ impl Running {
             bytes.extend(tokio::fs::read(self.dir.join(file)).await?);
         }
         let whole = path.with_extension("m4s.tmp");
-        tokio::fs::write(&whole, bytes).await?;
+        if let Err(err) = tokio::fs::write(&whole, bytes).await {
+            // Or what a full folder cut short stays till the plan stops, as no sweep knows the
+            // name. The write's error, not this, is the one to report.
+            let _: io::Result<()> = tokio::fs::remove_file(&whole).await;
+            return Err(err);
+        }
         tokio::fs::rename(whole, path).await
     }
 }
