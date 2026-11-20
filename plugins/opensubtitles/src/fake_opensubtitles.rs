@@ -59,6 +59,10 @@ pub(super) struct FakeOpenSubtitles {
     pub(super) remaining: u32,
     /// Whether it answers every request as past its rate limit.
     pub(super) rate_limited: bool,
+    /// The API host a login answers, which alone takes the account's downloads.
+    pub(super) base_url: &'static str,
+    /// Whether the file host refuses every link, as it does one that expired.
+    pub(super) links_expired: bool,
 }
 
 impl Default for FakeOpenSubtitles {
@@ -67,6 +71,8 @@ impl Default for FakeOpenSubtitles {
             subtitles: Vec::new(),
             remaining: 20,
             rate_limited: false,
+            base_url: "api.opensubtitles.com",
+            links_expired: false,
         }
     }
 }
@@ -78,7 +84,11 @@ impl FakeOpenSubtitles {
         if url.host_str() == Some("www.opensubtitles.com") {
             return self.file(&url);
         }
-        assert_eq!(url.host_str(), Some("api.opensubtitles.com"));
+        let host = url.host_str();
+        assert!(matches!(
+            host,
+            Some("api.opensubtitles.com" | "vip-api.opensubtitles.com")
+        ));
         let header = |name: &str| request.headers.get(name).map(String::as_str);
         if header("Api-Key") != Some(API_KEY) || header("User-Agent").is_none_or(str::is_empty) {
             return answer(
@@ -95,11 +105,12 @@ impl FakeOpenSubtitles {
         let method = request.method.as_deref().unwrap_or("GET");
         let body: Value = json::from_slice(body).unwrap_or_default();
         match (method, url.path()) {
-            ("POST", "/api/v1/login") => login(&body),
+            ("POST", "/api/v1/login") => self.login(&body),
             ("GET", "/api/v1/subtitles") => self.search(&url),
             ("POST", "/api/v1/download")
-                if header("Authorization").and_then(|auth| auth.strip_prefix("Bearer "))
-                    == Some(TOKEN) =>
+                if host == Some(self.base_url)
+                    && header("Authorization").and_then(|auth| auth.strip_prefix("Bearer "))
+                        == Some(TOKEN) =>
             {
                 self.download(&body)
             }
@@ -184,8 +195,30 @@ impl FakeOpenSubtitles {
         )
     }
 
+    fn login(&self, body: &Value) -> Response {
+        if body["username"] == USERNAME && body["password"] == PASSWORD {
+            answer(
+                200,
+                &json!({
+                    "user": { "allowed_downloads": 20, "vip": false },
+                    "base_url": self.base_url,
+                    "token": TOKEN,
+                    "status": 200,
+                }),
+            )
+        } else {
+            answer(
+                401,
+                &json!({ "message": "Error, invalid username/password", "status": 401 }),
+            )
+        }
+    }
+
     /// The file a download's link points at.
     fn file(&self, url: &Url) -> Response {
+        if self.links_expired {
+            return Response::new(403, "");
+        }
         let segments: Vec<_> = url.path_segments().into_iter().flatten().collect();
         let found = match segments.as_slice() {
             ["download", id, _] => {
@@ -203,25 +236,6 @@ impl FakeOpenSubtitles {
 /// The file the fake serves for the subtitle `release`.
 pub(super) fn srt(release: &str) -> String {
     format!("1\n00:00:01,000 --> 00:00:02,000\n{release}\n")
-}
-
-fn login(body: &Value) -> Response {
-    if body["username"] == USERNAME && body["password"] == PASSWORD {
-        answer(
-            200,
-            &json!({
-                "user": { "allowed_downloads": 20, "vip": false },
-                "base_url": "api.opensubtitles.com",
-                "token": TOKEN,
-                "status": 200,
-            }),
-        )
-    } else {
-        answer(
-            401,
-            &json!({ "message": "Error, invalid username/password", "status": 401 }),
-        )
-    }
 }
 
 fn answer(status: u16, body: &Value) -> Response {

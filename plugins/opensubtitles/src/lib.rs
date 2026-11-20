@@ -5,8 +5,8 @@
 use std::fmt;
 
 use nama_pdk::{
-    Manifest, Response, SubtitleDownload, SubtitleFile, SubtitleResult, SubtitleResults,
-    SubtitleSearch, SubtitleSource, TitleKind,
+    CheckedSettings, Manifest, Response, SubtitleDownload, SubtitleFile, SubtitleResult,
+    SubtitleResults, SubtitleSearch, SubtitleSource, TitleKind,
     extism_pdk::{
         Error, HttpRequest, Json,
         json::{self, json},
@@ -33,17 +33,22 @@ const PASSWORD: &str = "password";
 mod exports {
     use nama_pdk::{Buffa, CheckedSettings, FnResult, Manifest, extism_pdk, plugin_fn};
 
-    /// Logs in, so testing the settings reports a key or account OpenSubtitles refuses.
     #[plugin_fn]
     pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
-        super::login()?;
-        Ok(Buffa(CheckedSettings::default()))
+        Ok(Buffa(super::check_settings()?))
     }
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         Ok(Buffa(super::manifest()))
     }
+}
+
+/// What `check_settings()` returns: it logs in, so testing the settings reports a key or account
+/// OpenSubtitles refuses.
+fn check_settings() -> Result<CheckedSettings, Error> {
+    login()?;
+    Ok(CheckedSettings::default())
 }
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
@@ -110,11 +115,20 @@ impl SubtitleSource for OpenSubtitles {
         let file_id: u64 = (download.id.parse()).map_err(|_not_a_number| {
             Error::msg(format!("{:?} isn't an OpenSubtitles file id", download.id))
         })?;
-        let token = login()?;
-        let request = post("download")?.with_header("Authorization", format!("Bearer {token}"));
+        let LoggedIn { token, base_url } = login()?;
+        // OpenSubtitles answers each account the host its later requests go to, such as
+        // `vip-api.opensubtitles.com` for a VIP one.
+        let url = format!("https://{base_url}/api/v1/download");
+        let request = post(&url)?.with_header("Authorization", format!("Bearer {token}"));
         let link: Link = answered(send(&request, Some(json!({ "file_id": file_id })))?)?;
-        let fetched = accepted(send(&HttpRequest::new(&link.link), None)?)?;
+        // The link is on a file host, not the API, so its statuses don't mean what `accepted`
+        // reads them as, such as a 403 meaning a wrong API key.
+        let fetched = send(&HttpRequest::new(&link.link), None)?;
+        if !(200..300).contains(&fetched.status_code()) {
+            return Err(Refused::Status(fetched.status_code()).into());
+        }
         Ok(SubtitleFile {
+            // OpenSubtitles converts to `srt` unless asked for another format.
             format: (link.file_name.rsplit_once('.'))
                 .map_or("srt", |(_, extension)| extension)
                 .to_owned(),
@@ -236,19 +250,21 @@ struct Link {
     file_name: String,
 }
 
-/// Logs in to the settings' account, answering the token a download needs.
+/// What a login answers: the token a download needs, and the API host to send it to.
+#[derive(Deserialize)]
+struct LoggedIn {
+    token: String,
+    base_url: String,
+}
+
+/// Logs in to the settings' account.
 ///
 /// ponytail: one login per download, since each call is a fresh instance with nowhere to keep the
 /// token; OpenSubtitles limits logins tighter than other calls, so Users downloading at once may
 /// get `Refused::RateLimit`. Keep the token once a subtitle source can store between calls.
-fn login() -> Result<String, Error> {
-    #[derive(Deserialize)]
-    struct LoggedIn {
-        token: String,
-    }
+fn login() -> Result<LoggedIn, Error> {
     let body = json!({ "username": setting(USERNAME)?, "password": setting(PASSWORD)? });
-    let LoggedIn { token } = answered(send(&post("login")?, Some(body))?)?;
-    Ok(token)
+    answered(send(&post(&format!("{API_URL}login"))?, Some(body))?)
 }
 
 /// A request to OpenSubtitles' API at `url`, with the headers it wants on every one.
@@ -260,9 +276,9 @@ fn request(url: &str) -> Result<HttpRequest, Error> {
         .with_header("Accept", "application/json"))
 }
 
-/// A POST of JSON to OpenSubtitles' API at `path`.
-fn post(path: &str) -> Result<HttpRequest, Error> {
-    Ok(request(&format!("{API_URL}{path}"))?
+/// A POST of JSON to OpenSubtitles' API at `url`.
+fn post(url: &str) -> Result<HttpRequest, Error> {
+    Ok(request(url)?
         .with_method("POST")
         .with_header("Content-Type", "application/json"))
 }

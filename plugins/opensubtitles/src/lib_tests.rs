@@ -8,9 +8,9 @@ use nama_pdk::{
 };
 
 use super::{
-    OpenSubtitles, Refused,
+    OpenSubtitles, Refused, check_settings,
     fake_opensubtitles::{API_KEY, FakeOpenSubtitles, FakeSubtitle, PASSWORD, USERNAME, srt},
-    login, manifest,
+    manifest,
 };
 
 /// A Kernel holding the fake's account and key, whose requests `fake` answers.
@@ -195,6 +195,32 @@ fn a_download_logs_in_and_answers_the_file_in_its_format() {
 }
 
 #[test]
+fn a_vip_accounts_download_goes_to_the_host_its_login_answers() {
+    let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
+    fake.borrow_mut().base_url = "vip-api.opensubtitles.com";
+
+    let downloaded = with(&mut kernel(&fake), || {
+        OpenSubtitles::download(download_of("101"))
+    })
+    .unwrap();
+
+    assert_eq!(downloaded.data, srt("Alien.1979.1080p.BluRay").into_bytes());
+}
+
+#[test]
+fn a_refused_download_link_fails_with_its_status_not_as_a_wrong_api_key() {
+    let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
+    fake.borrow_mut().links_expired = true;
+
+    let err = with(&mut kernel(&fake), || {
+        OpenSubtitles::download(download_of("101"))
+    })
+    .unwrap_err();
+
+    assert_eq!(err.downcast_ref(), Some(&Refused::Status(403)));
+}
+
+#[test]
 fn a_used_up_daily_quota_fails_the_download_saying_when_it_renews() {
     let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
     fake.borrow_mut().remaining = 0;
@@ -234,7 +260,7 @@ fn a_wrong_api_key_fails_the_settings_check() {
     let fake = serving(Vec::new());
     let mut kernel = kernel(&fake).setting("api_key", "wrong");
 
-    let err = with(&mut kernel, login).unwrap_err();
+    let err = with(&mut kernel, check_settings).unwrap_err();
 
     assert_eq!(err.downcast_ref(), Some(&Refused::ApiKey));
     assert_eq!(err.to_string(), "OpenSubtitles refused the API key");
@@ -245,7 +271,7 @@ fn a_wrong_password_fails_the_settings_check() {
     let fake = serving(Vec::new());
     let mut kernel = kernel(&fake).setting("password", "wrong");
 
-    let err = with(&mut kernel, login).unwrap_err();
+    let err = with(&mut kernel, check_settings).unwrap_err();
 
     assert_eq!(err.downcast_ref(), Some(&Refused::Login));
     assert_eq!(
@@ -258,5 +284,5 @@ fn a_wrong_password_fails_the_settings_check() {
 fn the_settings_check_passes_with_the_right_account() {
     let fake = serving(Vec::new());
 
-    with(&mut kernel(&fake), login).unwrap();
+    with(&mut kernel(&fake), check_settings).unwrap();
 }
