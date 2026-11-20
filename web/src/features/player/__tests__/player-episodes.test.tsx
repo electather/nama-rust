@@ -80,12 +80,12 @@ async function openEpisodes(on = true) {
   return { router, panel };
 }
 
-test("the Episodes panel lists every Season's Episodes, marking the one playing and those played", async () => {
+test("the Episodes panel lists every Season's Episodes, marking the one playing and those watched", async () => {
   const { panel } = await openEpisodes();
 
   const rows = within(panel).getAllByRole("link");
   expect(rows.map((row) => row.textContent)).toStrictEqual([
-    expect.stringContaining("Episode 1 · 52m · PlayedSecrets"),
+    expect.stringContaining("Episode 1 · 52m · WatchedSecrets"),
     expect.stringContaining("Episode 2 · 52m · PlayingLies"),
     expect.stringContaining("Episode 3 · 52mPast and Present"),
     expect.stringContaining("Episode 1 · 52mBeginnings and Endings"),

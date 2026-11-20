@@ -1,7 +1,7 @@
 import { PlayedIcon } from "@/shared/components/watch-state/played-icon";
 import { Button } from "@/shared/ui/button";
 
-/** A "Played" button that toggles whether you've played a title. */
+/** A "Watched" button that toggles whether you've played a title. */
 export function PlayedButton({
   played,
   onToggle,
@@ -18,7 +18,7 @@ export function PlayedButton({
       }}
     >
       <PlayedIcon played={played} />
-      Played
+      Watched
     </Button>
   );
 }

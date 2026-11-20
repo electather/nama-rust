@@ -17,7 +17,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::{Browse, Episode, ListedShow, Movie, Show, Started, Version, season_count},
+    browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
     db::Database,
     home_rows::{HomeRows, OnServer, RowTitle},
     library::{
@@ -325,10 +325,18 @@ impl BrowseService for BrowseServiceHandler {
         let featured = self.browse.featured(user, &suggested).await;
         let featured = featured.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await?;
+        let mut titles = Vec::with_capacity(featured.len());
+        // ponytail: one query per title, as Continue Watching asks; Featured lists a handful.
+        for title in featured {
+            let (kind, ids) = match &title {
+                Featured::Movie { movie, .. } => (TitleKind::Movie, &movie.ids),
+                Featured::Show { show, .. } => (TitleKind::Show, &show.ids),
+            };
+            let on_watchlist = self.on_watchlist(user, kind, ids).await?;
+            titles.push(featured_to_proto(title, on_watchlist, &images));
+        }
         Response::ok(ListFeaturedResponse {
-            titles: (featured.into_iter())
-                .map(|title| featured_to_proto(title, &images))
-                .collect(),
+            titles,
             ..Default::default()
         })
     }

@@ -1,0 +1,57 @@
+/* The Library artboard's tokens for Home (`src/features/home/`), imported by `styles.css`. */
+
+@theme {
+  /* A Home section's heading. */
+  --text-section: 1.75rem;
+  --text-section--line-height: 2.125rem;
+  --text-section--letter-spacing: -0.02em;
+  /* The open Featured panel's title. */
+  --text-hero: clamp(2.25rem, 4vw, 3.75rem);
+  --text-hero--line-height: 1.04;
+  --text-hero--letter-spacing: -0.035em;
+  /* "Up Next" behind Continue Watching's heading, as wide as its column allows. */
+  --text-watermark: clamp(4.5rem, 13.9cqw, 8rem);
+  --text-watermark--line-height: 1.17;
+  --text-watermark--letter-spacing: -0.04em;
+  /* A Continue Watching card's title. */
+  --text-tile: 1.125rem;
+  --text-tile--line-height: 1.75rem;
+  --text-tile--letter-spacing: -0.01em;
+  /* Where Continue Watching's heading starts, a third of the way down "Up Next". */
+  --spacing-watermark: calc(var(--text-watermark) * 0.36);
+  /* A shelf runs out past the page's column (`mx-bleed`) to the screen's edges, and insets its
+     first tile by `shelf-edge` to line it up with the column: its 20px gutter, or more past 1400px. */
+  --spacing-bleed: calc(50% - 50vw);
+  --spacing-shelf-edge: max(1.25rem, calc(50vw - 42.5rem));
+  /* A shelf's tiles: a 4:3 card about three to a wide screen, a poster about seven. */
+  --spacing-tile-backdrop: clamp(17.5rem, 30vw, 27.5rem);
+  --spacing-tile-poster: clamp(9.375rem, 14vw, 13.125rem);
+  /* A Featured panel's art, wider than the open panel (52% of the row) so its drift never shows
+     an edge, and its copy, inside the open panel. */
+  --spacing-featured-art: 63.4cqw;
+  --spacing-featured-copy: min(35rem, calc(52cqw - 4rem));
+  --container-overview: 60ch;
+  --perspective-hero: 1400px;
+}
+
+@theme inline {
+  /* A Featured panel lifted off the page, its shadow the scrim. */
+  --shadow-panel: 0 10px 30px -18px var(--scrim);
+}
+/* Home's soft light from above (`src/features/home/components/home-layout.tsx`), in Ink at falling
+   strengths, as the Library artboard draws it. */
+@utility home-wash {
+  background:
+    radial-gradient(
+      120% 84vh at 50% -4vh,
+      color-mix(in oklab, var(--foreground) 24%, transparent) 0%,
+      color-mix(in oklab, var(--foreground) 20%, transparent) 17%,
+      color-mix(in oklab, var(--foreground) 14.5%, transparent) 29%,
+      color-mix(in oklab, var(--foreground) 9%, transparent) 40%,
+      color-mix(in oklab, var(--foreground) 5%, transparent) 52%,
+      color-mix(in oklab, var(--foreground) 2.5%, transparent) 64%,
+      color-mix(in oklab, var(--foreground) 1.2%, transparent) 76%,
+      transparent 100%
+    ),
+    var(--background);
+}

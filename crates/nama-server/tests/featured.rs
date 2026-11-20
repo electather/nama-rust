@@ -25,8 +25,9 @@ use connectrpc::client::{ClientConfig, HttpClient};
 use home_row_plugin::{disable, enable, enable_granting, set_handle};
 use log::Log;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, FeaturedTitle, LibraryKind, ListEpisodesRequest, ListFeaturedRequest,
-    PluginPermission, ReportProgressRequest, WatchStateServiceClient, featured_title::MovieOrShow,
+    AddToWatchlistRequest, BrowseServiceClient, FeaturedTitle, LibraryKind, ListEpisodesRequest,
+    ListFeaturedRequest, PluginPermission, ReportProgressRequest, TitleKind,
+    WatchStateServiceClient, WatchlistServiceClient, featured_title::MovieOrShow,
 };
 use server::{
     TestServer, WAIT,
@@ -312,4 +313,27 @@ async fn starting_a_title_lists_a_plugin_reading_watch_states_old_suggestions_as
         titles(&listed)
     );
     log.wait_for(&asked, 2).await;
+}
+
+#[tokio::test]
+async fn a_title_on_the_callers_watchlist_says_so() {
+    let fx = Fixture::alien_on(TestServer::builder()).await;
+    let config = fx.server.client_config();
+    let on_watchlist = |featured: &[FeaturedTitle]| match &featured[0].movie_or_show {
+        Some(MovieOrShow::Movie(movie)) => movie.on_watchlist,
+        _ => panic!("Featured lists Alien first"),
+    };
+    let before = featured(config.clone()).await;
+
+    WatchlistServiceClient::new(HttpClient::plaintext(), config.clone())
+        .add_to_watchlist(AddToWatchlistRequest {
+            kind: TitleKind::TITLE_KIND_MOVIE.into(),
+            id: browsing::tmdb_id(ALIEN).into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert!(!on_watchlist(&before));
+    assert!(on_watchlist(&featured(config).await));
 }

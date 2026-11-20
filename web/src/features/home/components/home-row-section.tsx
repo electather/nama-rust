@@ -1,28 +1,20 @@
 import { useId } from "react";
 
-import { RowTitleItem } from "@/features/home/components/row-title-item";
-import { useHomeRowTitles } from "@/features/home/data/use-home-row-titles";
-import { rowTitleKey, rowTitles } from "@/features/home/lib/row-titles";
+import { NearScreen } from "@/features/home/components/near-screen";
+import { RowFrame } from "@/features/home/components/row-frame";
+import { RowLoader } from "@/features/home/components/row-loader";
+import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
+import { posterTile } from "@/features/home/lib/shelf-tiles";
 import type { HomeRow } from "@/gen/nama/v1/browse_pb";
-import { PosterGrid } from "@/shared/components/poster/poster-grid";
 
-/** One Plugin's row under its heading, or nothing until its titles load or if it has none. */
-export function HomeRowSection({ row }: { row: HomeRow }) {
+/** A Plugin's row, loading on its own: at once when `eager`, else once you scroll near it. */
+export function HomeRowSection({ row, eager }: { row: HomeRow; eager: boolean }) {
   const headingId = useId();
-  const titles = rowTitles(useHomeRowTitles(row) ?? []);
-  if (titles.length === 0) {
-    return null;
-  }
-  return (
-    <section aria-labelledby={headingId} className="mt-10">
-      <h2 id={headingId} className="font-medium">
-        {row.heading}
-      </h2>
-      <PosterGrid empty={null}>
-        {titles.map((title) => (
-          <RowTitleItem key={rowTitleKey(title)} title={title} />
-        ))}
-      </PosterGrid>
-    </section>
+  const loading = (
+    <RowFrame heading={row.heading} headingId={headingId}>
+      <ShelfSkeleton tile={posterTile} aspect="aspect-2/3" />
+    </RowFrame>
   );
+  const shelf = <RowLoader row={row} headingId={headingId} loading={loading} />;
+  return eager ? shelf : <NearScreen placeholder={loading}>{shelf}</NearScreen>;
 }

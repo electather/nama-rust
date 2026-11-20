@@ -7,7 +7,7 @@ import { DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
 export function CardMenuTrigger({ title }: { title: string }) {
   return (
     <DropdownMenuTrigger
-      render={<Button variant="overlay" size="icon" aria-label={`More for ${title}`} />}
+      render={<Button variant="overlay" size="round" aria-label={`More for ${title}`} />}
     >
       <Ellipsis aria-hidden />
     </DropdownMenuTrigger>
