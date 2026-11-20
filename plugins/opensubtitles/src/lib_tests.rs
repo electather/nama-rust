@@ -171,7 +171,7 @@ fn a_subtitle_in_several_files_is_left_out() {
 }
 
 /// Asks to download the file OpenSubtitles found as `id`.
-fn file(id: &str) -> SubtitleDownload {
+fn download_of(id: &str) -> SubtitleDownload {
     SubtitleDownload {
         id: id.to_owned(),
         ..SubtitleDownload::default()
@@ -182,7 +182,10 @@ fn file(id: &str) -> SubtitleDownload {
 fn a_download_logs_in_and_answers_the_file_in_its_format() {
     let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
 
-    let downloaded = with(&mut kernel(&fake), || OpenSubtitles::download(file("101"))).unwrap();
+    let downloaded = with(&mut kernel(&fake), || {
+        OpenSubtitles::download(download_of("101"))
+    })
+    .unwrap();
 
     assert_eq!(
         (downloaded.data, downloaded.format.as_str()),
@@ -196,7 +199,10 @@ fn a_used_up_daily_quota_fails_the_download_saying_when_it_renews() {
     let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
     fake.borrow_mut().remaining = 0;
 
-    let err = with(&mut kernel(&fake), || OpenSubtitles::download(file("101"))).unwrap_err();
+    let err = with(&mut kernel(&fake), || {
+        OpenSubtitles::download(download_of("101"))
+    })
+    .unwrap_err();
 
     let renews_in = Some("3 hours and 12 minutes".to_owned());
     assert_eq!(err.downcast_ref(), Some(&Refused::Quota { renews_in }));

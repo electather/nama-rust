@@ -17,6 +17,9 @@ use nama_pdk::{
 use serde::{Deserialize, de::DeserializeOwned};
 use url::Url;
 
+/// Where OpenSubtitles' REST API is.
+const API_URL: &str = "https://api.opensubtitles.com/api/v1/";
+
 const API_KEY: &str = "api_key";
 const USERNAME: &str = "username";
 const PASSWORD: &str = "password";
@@ -85,9 +88,6 @@ fn manifest() -> Manifest {
     }
 }
 
-/// Where OpenSubtitles' REST API is.
-const API_URL: &str = "https://api.opensubtitles.com/api/v1/";
-
 /// Serves subtitles from OpenSubtitles.
 struct OpenSubtitles;
 
@@ -111,17 +111,14 @@ impl SubtitleSource for OpenSubtitles {
             Error::msg(format!("{:?} isn't an OpenSubtitles file id", download.id))
         })?;
         let token = login()?;
-        let request = request(&format!("{API_URL}download"))?
-            .with_method("POST")
-            .with_header("Authorization", format!("Bearer {token}"))
-            .with_header("Content-Type", "application/json");
+        let request = post("download")?.with_header("Authorization", format!("Bearer {token}"));
         let link: Link = answered(send(&request, Some(json!({ "file_id": file_id })))?)?;
-        let file = accepted(send(&HttpRequest::new(&link.link), None)?)?;
+        let fetched = accepted(send(&HttpRequest::new(&link.link), None)?)?;
         Ok(SubtitleFile {
             format: (link.file_name.rsplit_once('.'))
                 .map_or("srt", |(_, extension)| extension)
                 .to_owned(),
-            data: file.into_body(),
+            data: fetched.into_body(),
             ..SubtitleFile::default()
         })
     }
@@ -138,7 +135,7 @@ fn query(search: &SubtitleSearch) -> Vec<(&'static str, String)> {
             "type",
             if is_episode { "episode" } else { "movie" }.to_owned(),
         ),
-        ("languages", search.languages.join(",")),
+        ("languages", languages(&search.languages)),
     ];
     // OpenSubtitles keys its titles by IMDb id, and asks for ids without a prefix or leading zeros.
     let id = |namespace: &str| {
@@ -171,6 +168,13 @@ fn query(search: &SubtitleSearch) -> Vec<(&'static str, String)> {
     }
     query.sort_unstable();
     query
+}
+
+/// `tags` as OpenSubtitles' `languages` parameter: lowercase, sorted, and joined by commas.
+fn languages(tags: &[String]) -> String {
+    let mut tags: Vec<_> = tags.iter().map(|tag| tag.to_lowercase()).collect();
+    tags.sort_unstable();
+    tags.join(",")
 }
 
 /// A page of OpenSubtitles' search results.
@@ -234,18 +238,16 @@ struct Link {
 
 /// Logs in to the settings' account, answering the token a download needs.
 ///
-/// ponytail: one login per download, since each call is a fresh instance; OpenSubtitles allows
-/// one a second, which a User picking subtitles by hand stays under.
+/// ponytail: one login per download, since each call is a fresh instance with nowhere to keep the
+/// token; OpenSubtitles limits logins tighter than other calls, so Users downloading at once may
+/// get `Refused::RateLimit`. Keep the token once a subtitle source can store between calls.
 fn login() -> Result<String, Error> {
     #[derive(Deserialize)]
     struct LoggedIn {
         token: String,
     }
     let body = json!({ "username": setting(USERNAME)?, "password": setting(PASSWORD)? });
-    let request = request(&format!("{API_URL}login"))?
-        .with_method("POST")
-        .with_header("Content-Type", "application/json");
-    let LoggedIn { token } = answered(send(&request, Some(body))?)?;
+    let LoggedIn { token } = answered(send(&post("login")?, Some(body))?)?;
     Ok(token)
 }
 
@@ -256,6 +258,13 @@ fn request(url: &str) -> Result<HttpRequest, Error> {
         // OpenSubtitles asks every app to name itself and its version.
         .with_header("User-Agent", concat!("Nama v", env!("CARGO_PKG_VERSION")))
         .with_header("Accept", "application/json"))
+}
+
+/// A POST of JSON to OpenSubtitles' API at `path`.
+fn post(path: &str) -> Result<HttpRequest, Error> {
+    Ok(request(&format!("{API_URL}{path}"))?
+        .with_method("POST")
+        .with_header("Content-Type", "application/json"))
 }
 
 fn send(request: &HttpRequest, body: Option<json::Value>) -> Result<Response, Error> {

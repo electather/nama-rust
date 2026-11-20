@@ -1,7 +1,8 @@
 //! An in-process stand-in for OpenSubtitles' REST API v1, so the tests need no network and no
 //! account. It refuses a request without [`API_KEY`] or a User-Agent, a login other than
-//! [`USERNAME`] and [`PASSWORD`], and a search whose parameters aren't sorted and lowercase, which
-//! OpenSubtitles answers with a redirect.
+//! [`USERNAME`] and [`PASSWORD`], and a search whose parameters or languages aren't sorted and
+//! lowercase, which OpenSubtitles answers with a redirect. It panics at a request OpenSubtitles has
+//! no answer for.
 
 use nama_pdk::{
     Response,
@@ -23,9 +24,6 @@ pub(super) const PASSWORD: &str = "hunter2";
 
 /// The token a login answers, which a download needs.
 const TOKEN: &str = "fake-token";
-
-/// The Authorization header a download sends with [`TOKEN`].
-const BEARER: &str = "Bearer fake-token";
 
 /// One subtitle the fake serves.
 pub(super) struct FakeSubtitle {
@@ -76,15 +74,11 @@ impl Default for FakeOpenSubtitles {
 impl FakeOpenSubtitles {
     /// OpenSubtitles' answer to `request` with `body`.
     pub(super) fn answer(&mut self, request: &HttpRequest, body: &[u8]) -> Response {
-        let Ok(url) = Url::parse(&request.url) else {
-            return answer(400, &json!({ "message": "Bad URL" }));
-        };
+        let url = Url::parse(&request.url).expect("the Plugin sends a URL");
         if url.host_str() == Some("www.opensubtitles.com") {
             return self.file(&url);
         }
-        if url.host_str() != Some("api.opensubtitles.com") {
-            return answer(404, &json!({}));
-        }
+        assert_eq!(url.host_str(), Some("api.opensubtitles.com"));
         let header = |name: &str| request.headers.get(name).map(String::as_str);
         if header("Api-Key") != Some(API_KEY) || header("User-Agent").is_none_or(str::is_empty) {
             return answer(
@@ -103,11 +97,14 @@ impl FakeOpenSubtitles {
         match (method, url.path()) {
             ("POST", "/api/v1/login") => login(&body),
             ("GET", "/api/v1/subtitles") => self.search(&url),
-            ("POST", "/api/v1/download") if header("Authorization") == Some(BEARER) => {
+            ("POST", "/api/v1/download")
+                if header("Authorization").and_then(|auth| auth.strip_prefix("Bearer "))
+                    == Some(TOKEN) =>
+            {
                 self.download(&body)
             }
             ("POST", "/api/v1/download") => answer(401, &json!({ "message": "Unauthorized" })),
-            _ => answer(404, &json!({})),
+            (method, path) => panic!("OpenSubtitles has no {method} {path}"),
         }
     }
 
@@ -125,6 +122,9 @@ impl FakeOpenSubtitles {
             .find(|(key, _)| key == "languages")
             .map(|(_, languages)| languages.split(',').collect())
             .unwrap_or_default();
+        if !languages.is_sorted() {
+            return answer(301, &json!({}));
+        }
         let asked: Vec<(&str, &str)> = (pairs.iter())
             .filter(|(key, _)| key != "languages")
             .map(|(key, value)| (key.as_str(), value.as_str()))
