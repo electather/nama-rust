@@ -386,9 +386,7 @@ impl Kernel {
             let requested = scripted.iter().find(|(of, _)| *of == title);
             TitleRequesters {
                 requested: requested.is_some(),
-                user_ids: requested
-                    .map(|(_, users)| users.clone())
-                    .unwrap_or_default(),
+                user_ids: requested.map_or_default(|(_, users)| users.clone()),
                 title_ref: MessageField::some(title),
                 ..TitleRequesters::default()
             }
