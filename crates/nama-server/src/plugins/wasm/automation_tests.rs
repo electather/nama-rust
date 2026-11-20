@@ -176,7 +176,8 @@ async fn an_enabled_plugin_is_granted_only_what_its_manifest_requests_once_the_k
 async fn an_installed_automations_failed_tick_is_logged_once() {
     let data_dir = tempfile::tempdir().unwrap();
     let registry = listing(automation_plugin(&data_dir));
-    registry.serve_kernel(Arc::new(|_, _| Arc::new(Fake::default())));
+    let kernel = recording(Calls::default());
+    registry.serve_kernel(Arc::new(move |_, _| Arc::clone(&kernel)));
     let id = PluginId::from_static("test-plugin");
     let points = registry.extension_points();
 
