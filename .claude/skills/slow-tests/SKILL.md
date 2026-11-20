@@ -10,7 +10,14 @@ An **offender** is a test whose median CI duration is over nextest's slow thresh
 
 ## 1. Mine
 
-Dispatch a background agent on `model: "haiku"` with the brief in [`haiku-brief.md`](haiku-brief.md), filling in the scratchpad path. While it runs, read `.config/nextest.toml`, the `test` job in `.github/workflows/ci.yml` and `crates/nama-server/AGENTS.md` "Tests". Done when the agent's table is back and every run it couldn't parse is named.
+Linux test durations come from the Grafana dashboard `nama-ci-tests` through the Grafana MCP. Every CI run's nextest and vitest results land there (ADR 0073).
+
+1. Dispatch a background agent on `model: "haiku"` with the brief in [`haiku-brief.md`](haiku-brief.md), filling in the scratchpad path. It covers what Grafana doesn't: job timings and the macOS and Windows logs.
+2. Call `get_dashboard_panel_queries` with uid `nama-ci-tests` and `start: "now-7d"` for panels 1 (Main runs), 2 (Slowest tests on main) and 4 (Flaky and hung tests). Run each `processedQuery` with `query_loki_logs` on its datasource, `queryType: "instant"`. `run_panel_query` returns every step of the range instead, about ten times the output.
+3. Panel 2 gives each test that ran over 10 s on main: how many runs it did (A), and the median (B) and max (C) of those runs. A test is an offender when A is over half of panel 1's run count. B leaves out the fast runs, so it can sit above the test's true median.
+4. While the agent runs, read `.config/nextest.toml`, the `test` job in `.github/workflows/ci.yml` and `crates/nama-server/AGENTS.md` "Tests".
+
+Without the Grafana MCP, or when panel 1 is empty, read the same lines from `refs/ci/test-history` (`README.md` "Flaky and slow tests") and say so. Done when the offenders are listed, the agent's table is back, and every run it couldn't parse is named.
 
 ## 2. Diagnose
 
