@@ -16,6 +16,10 @@ mod http;
 mod keyframes;
 #[path = "playback/now_playing.rs"]
 mod now_playing;
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[path = "playback/other_versions.rs"]
+mod other_versions;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]

@@ -403,6 +403,11 @@ enum PlaybackMethod {
 
 message PlanPlaybackResponse {
   PlaybackPlan plan = 1;
+  // When `plan` can't be played, the other Versions of its title, in its Library, that would play
+  // on this Device, by id, best first: Direct Play, then Remux, then Transcode. Only what lasts
+  // counts, not a busy Server or a method that just failed on the Device, and a Version not
+  // probed yet isn't listed. Empty when `plan` plays.
+  repeated int64 playable_versions = 2;
 }
 
 // How the Server will play one Version on one Device, and why.

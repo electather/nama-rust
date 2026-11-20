@@ -7067,13 +7067,29 @@ pub struct PlanPlaybackResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub plan: ::buffa::MessageField<PlaybackPlan, ::buffa::Inline<PlaybackPlan>>,
+    /// When `plan` can't be played, the other Versions of its title, in its Library, that would play
+    /// on this Device, by id, best first: Direct Play, then Remux, then Transcode. Only what lasts
+    /// counts, not a busy Server or a method that just failed on the Device, and a Version not
+    /// probed yet isn't listed. Empty when `plan` plays.
+    ///
+    /// Field 2: `playable_versions`
+    #[serde(
+        rename = "playableVersions",
+        alias = "playable_versions",
+        with = "::buffa::json_helpers::proto_seq",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub playable_versions: ::buffa::alloc::vec::Vec<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for PlanPlaybackResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("PlanPlaybackResponse").field("plan", &self.plan).finish()
+        f.debug_struct("PlanPlaybackResponse")
+            .field("plan", &self.plan)
+            .field("playable_versions", &self.playable_versions)
+            .finish()
     }
 }
 impl PlanPlaybackResponse {
@@ -7111,6 +7127,14 @@ impl ::buffa::Message for PlanPlaybackResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.playable_versions.is_empty() {
+            let payload: u64 = self
+                .playable_versions
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7128,6 +7152,17 @@ impl ::buffa::Message for PlanPlaybackResponse {
                 buf,
             );
             self.plan.write_to(__cache, buf);
+        }
+        if !self.playable_versions.is_empty() {
+            let payload: u64 = self
+                .playable_versions
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(2u32, payload, buf);
+            for &v in &self.playable_versions {
+                ::buffa::types::encode_int64(v, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7153,6 +7188,46 @@ impl ::buffa::Message for PlanPlaybackResponse {
                     ctx,
                 )?;
             }
+            2u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_int64(
+                            &buf.chunk()[..len],
+                            &mut self.playable_versions,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.playable_versions.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.playable_versions
+                                .push(::buffa::types::decode_int64_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.playable_versions.push(::buffa::types::decode_int64(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7162,6 +7237,7 @@ impl ::buffa::Message for PlanPlaybackResponse {
     }
     fn clear(&mut self) {
         self.plan = ::buffa::MessageField::none();
+        self.playable_versions.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
