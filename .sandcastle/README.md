@@ -18,7 +18,7 @@ It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26
 
 Sandboxes refuse `git stash` (`git-guard.sh`, the image's `git`): each sandbox is a worktree of the host repo, so they all share one `refs/stash` and a pop can take another ticket's work (#750). Rebuild the image after editing it (`npx --prefix .sandcastle sandcastle docker build-image`).
 
-Agents stay on their ticket's PR. What they find elsewhere they park as a `needs-triage` issue (`.sandcastle/park.md`, inlined into each prompt; never `ready-for-agent`), which the triage loop picks up. `.sandcastle/sandbox.md`, inlined into the build, review and fix prompts, keeps them off the sandbox's tools and build. Their `GH_TOKEN` comes from `.sandcastle/.env`.
+Agents stay on their ticket's PR. What they find elsewhere they park as a `needs-triage` issue (`.sandcastle/park.md`, inlined into each prompt; never `ready-for-agent`), which the triage loop picks up. `.sandcastle/sandbox.md`, which the factory reads from this checkout (not the issue's branch) into every agent's prompt, keeps them off the sandbox's tools and build. Their `GH_TOKEN` comes from `.sandcastle/.env`.
 
 An issue with sub-issues is never built directly, and it doesn't carry `ready-for-agent` (see `docs/agents/triage-labels.md`). The factory builds its labelled sub-issues (each gets the parent as context) and closes the parent once the last one is closed.
 

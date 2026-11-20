@@ -37,5 +37,5 @@ Park what you find outside the ticket:
 </skill>
 
 <skill name="sandbox">
-!`cat .sandcastle/sandbox.md`
+{{SANDBOX}}
 </skill>
