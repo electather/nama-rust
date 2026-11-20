@@ -1,0 +1,57 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT CASE library_items.kind WHEN 'episode' THEN item_matches.show_title\n                                              ELSE item_matches.title END AS \"matched?: String\",\n                      library_items.title AS found, library_items.season, library_items.episode\n               FROM library_items\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n                                     AND item_matches.state = 'matched'\n               WHERE library_items.file_id = ?\n               ORDER BY library_items.season, library_items.episode\n               LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "matched?: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "name": "found",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "season",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "episode",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "83cbc4705b3163f984e52f6aa3793932b4eb5e6ff51d0f9b330f0e9dcf410d39"
+}
