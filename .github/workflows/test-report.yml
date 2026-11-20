@@ -64,11 +64,19 @@ jobs:
             git -C history checkout -q --orphan test-history
             git -C history rm -rfq --ignore-unmatch .
           fi
-          # The tool needs the last 30 days: every month they touch, three when they span February.
-          for month in $(for days in $(seq 30 -1 0); do
-              date -u -d "${RUN_STARTED_AT:0:10} -$days days" +%Y-%m
-            done | uniq); do
-            cat "history/$month.jsonl" 2> /dev/null || true
+          # ADR 0022 kept a file per month; split each by day (ADR 0073). `time` is the last field,
+          # and a quote inside a test name is escaped, so the first match is always it.
+          # ponytail: delete once test-history holds no YYYY-MM.jsonl.
+          for file in history/????-??.jsonl; do
+            [ -e "$file" ] || continue
+            awk 'match($0, /"time":"[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) {
+              print > ("history/" substr($0, RSTART + 8, 10) ".jsonl")
+            }' "$file"
+            rm "$file"
+          done
+          # The tool needs the last 30 days.
+          for days in $(seq 30 -1 0); do
+            cat "history/$(date -u -d "${RUN_STARTED_AT:0:10} -$days days" +%F).jsonl" 2> /dev/null || true
           done > "$RUNNER_TEMP/recent.jsonl"
           # Not `--app github-actions`: it returns none of the issues github-actions opened.
           gh issue list --search "author:app/github-actions" --state all --limit 1000 \
@@ -94,16 +102,27 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          month="${RUN_STARTED_AT:0:7}.jsonl"
+          day="${RUN_STARTED_AT:0:10}"
+          cutoff=$(date -u -d "$day -60 days" +%F)
           # Empty when this CI run is already recorded (a re-run of this workflow) or ran no tests.
           if [ ! -s "$RUNNER_TEMP/out/history.jsonl" ]; then
             exit 0
           fi
           for attempt in 1 2 3 4 5; do
-            cat "$RUNNER_TEMP/out/history.jsonl" >> "$month"
-            git add "$month"
-            git commit -qm "CI run $RUN_ID, attempt $RUN_ATTEMPT"
-            git push -q origin HEAD:refs/heads/test-history && exit 0
+            base=$(git rev-parse -q --verify origin/test-history || true)
+            cat "$RUNNER_TEMP/out/history.jsonl" >> "$day.jsonl"
+            # The history keeps 60 days (ADR 0073).
+            for file in *.jsonl; do
+              if [[ "${file%.jsonl}" < "$cutoff" ]]; then
+                rm "$file"
+              fi
+            done
+            git add -A
+            # No parent, so the days dropped above leave the repository, not only the tree. The
+            # lease refuses the push if another report pushed after `base`.
+            commit=$(git commit-tree "$(git write-tree)" -m "CI run $RUN_ID, attempt $RUN_ATTEMPT")
+            git push -q --force-with-lease="refs/heads/test-history:$base" origin \
+              "$commit:refs/heads/test-history" && exit 0
             # Another report pushed first. Lines are only ever appended, so start again from its
             # history rather than merge.
             sleep $((attempt * 5))
