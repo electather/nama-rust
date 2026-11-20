@@ -7,18 +7,18 @@ use nama_plugin_api::{
         TitleRecognised, TitleToRecognise,
     },
     metadata::{ExternalId, MetadataError, TitleSource},
-    recogniser::Recogniser,
+    recogniser::{Recogniser, RecogniserMethod},
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{Recognisers, relative};
+use super::relative;
 use crate::{
     db::Database,
     events::EventBus,
     images::ImageStore,
     library::{
-        Artwork, Change, Contents, Item, Libraries, ScanLocks, TitleSources, UnmatchedReason,
-        fixture,
+        Artwork, Change, Contents, Item, Libraries, Recognisers, ScanLocks, TitleSources,
+        UnmatchedReason, fixture,
     },
     log_capture::CapturedLog,
     matching::{
@@ -174,20 +174,14 @@ fn dark() -> TitleKey {
     }
 }
 
-/// What Matching finds for [`dark`] with a Recogniser answering `answers`, asking those of
-/// `listed`.
-async fn dark_listing(listed: &[&str], answers: Answers) -> (Result<String, Miss>, Asked) {
+/// What Matching finds for [`dark`] with a Recogniser answering `answers`, listed.
+async fn dark_with(answers: Answers) -> (Result<String, Miss>, Asked) {
     let (plugins, asked) = enabled(answers);
     let metadata = TitleSources::new(plugins.extension_points());
-    let order: Vec<String> = listed.iter().map(|&id| id.to_owned()).collect();
-    let recognisers = Recognisers::new(plugins.extension_points()).in_order(&order);
+    let recognisers = Recognisers::new(plugins.extension_points(), RecogniserMethod::Title)
+        .in_order(&["rr".to_owned()]);
     let found = sources::movie(&metadata, &recognisers, &dark(), &[]).await;
     (found.map(|movie| movie.title), asked)
-}
-
-/// [`dark_listing`] with the Recogniser listed.
-async fn dark_with(answers: Answers) -> (Result<String, Miss>, Asked) {
-    dark_listing(&["rr"], answers).await
 }
 
 #[tokio::test]
@@ -210,25 +204,6 @@ async fn a_recogniser_naming_an_id_no_source_serves_is_ignored() {
             Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(_))))
         ),
         "{found:?}"
-    );
-}
-
-#[tokio::test]
-async fn a_recogniser_the_library_doesnt_list_isnt_asked() {
-    let (found, asked) = dark_listing(&["gone"], Answers::Names(&[("aa", "1")])).await;
-
-    assert!(
-        matches!(
-            found,
-            Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(_))))
-        ),
-        "{found:?}"
-    );
-    assert!(
-        asked
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_empty()
     );
 }
 

@@ -1,5 +1,5 @@
-//! The Library area: what a Library holds, its title sources, artwork, Custom Images and Watch
-//! State. Its rules are in `src/library/AGENTS.md`.
+//! The Library area: what a Library holds, its title sources and Recognisers, artwork, Custom
+//! Images and Watch State. Its rules are in `src/library/AGENTS.md`.
 
 mod artwork;
 mod contents;
@@ -7,6 +7,7 @@ mod country_tags;
 mod custom_images;
 mod libraries;
 mod local_images;
+mod recognisers;
 mod scan_locks;
 mod title_source;
 mod titles;
@@ -36,6 +37,7 @@ pub(crate) use libraries::{
 pub(crate) use local_images::{
     FoundImages, LocalImageUrls, LocalImages, router as local_images_router,
 };
+pub(crate) use recognisers::{RecogniserFailed, Recognisers};
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
 pub(crate) use title_source::{
     Candidate, Episode as SourceEpisode, SearchQuery, Season as SourceSeason, Show as SourceShow,

@@ -13,11 +13,11 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use super::{
     FoundShow, Miss, PendingEpisode, TitleKey,
     confidence::{self, Decision},
-    recognisers::{Recognisers, Searched},
+    recognisers::{Searched, recognise},
 };
 use crate::library::{
-    Candidate, Metadata, Name, Pin, SearchQuery, Source, SourceSeason, TiedTitle, TitleKind,
-    TitleSources, Unanswered, UnmatchedReason, country_tag,
+    Candidate, Metadata, Name, Pin, Recognisers, SearchQuery, Source, SourceSeason, TiedTitle,
+    TitleKind, TitleSources, Unanswered, UnmatchedReason, country_tag,
 };
 
 /// The title an item names, before its details are fetched.
@@ -310,7 +310,7 @@ async fn search(
         paths,
         candidates: &candidates,
     };
-    if let Some(recognised) = recognisers.recognise(metadata, &searched).await? {
+    if let Some(recognised) = recognise(recognisers, metadata, &searched).await? {
         let mut found = Found::id(recognised.id, false, recognised.routed);
         found.ids = recognised.ids;
         return Ok(found);

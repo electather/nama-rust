@@ -20,19 +20,19 @@ use crate::{
         Artwork, Change, Contents, Item, Libraries, Metadata, Pin, ScanLocks, TitleSources,
         UnmatchedReason, fixture,
     },
-    matching::{FoundShow, Matcher, Miss, Summary, TitleKey, recognisers::Recognisers},
+    matching::{FoundShow, Matcher, Miss, Summary, TitleKey, testing::no_recognisers},
     plugins::{ExtensionPoints, Registry},
     server_settings::ServerUrl,
 };
 
 /// The Movie `key` names, with no Recogniser enabled.
 async fn movie(metadata: &TitleSources, key: &TitleKey) -> Result<Metadata, Miss> {
-    super::movie(metadata, &Recognisers::default(), key, &[]).await
+    super::movie(metadata, &no_recognisers(), key, &[]).await
 }
 
 /// The Show `key` names, with no Recogniser enabled.
 async fn show(metadata: &TitleSources, key: &TitleKey) -> Result<FoundShow, Miss> {
-    super::show(metadata, &Recognisers::default(), key, &[], &[]).await
+    super::show(metadata, &no_recognisers(), key, &[], &[]).await
 }
 
 /// How a [`Fake`] title source answers a search, or a lookup by id.

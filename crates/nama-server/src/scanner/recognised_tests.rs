@@ -13,15 +13,15 @@ use nama_plugin_api::{
         file_recognised::Recognised,
     },
     metadata::ExternalId,
-    recogniser::Recogniser,
+    recogniser::{Recogniser, RecogniserMethod},
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{super::tests::Fixture, Planned, items, listed, recognise};
+use super::{super::tests::Fixture, Planned, items, recognise};
 use crate::{
-    library::{Change, Item, LibraryKind},
+    library::{Change, Item, LibraryKind, Recognisers},
     log_capture::CapturedLog,
-    plugins::Registry,
+    plugins::{ExtensionPoints, Registry},
 };
 
 fn movie(title: &str) -> FileRecognised {
@@ -95,6 +95,12 @@ impl Plugin for ProposingPlugin {
     }
 }
 
+/// The Recognisers a scan asks among `plugins` for a Library listing `listing`.
+fn listed(plugins: &ExtensionPoints, listing: &[&str]) -> Recognisers {
+    let order: Vec<String> = listing.iter().map(|&id| id.to_owned()).collect();
+    Recognisers::new(plugins.clone(), RecogniserMethod::File).in_order(&order)
+}
+
 /// What a scan of a Shows Library listing the Recognisers `listing` stores when a Recogniser
 /// answering as `answer` does is enabled as `proposing`: an unread new file, a parsed one and a
 /// removed one.
@@ -127,12 +133,10 @@ async fn recognised_listing(
             added: false,
         },
     ];
-    let order: Vec<String> = listing.iter().map(|&id| id.to_owned()).collect();
     let cancel = CancellationToken::new();
     recognise(
-        &plugins.extension_points(),
+        &listed(&plugins.extension_points(), listing),
         LibraryKind::Shows,
-        &order,
         planned,
         &cancel,
     )
@@ -276,17 +280,6 @@ async fn a_library_not_listing_the_recogniser_leaves_the_file_unread() {
     );
 }
 
-#[test]
-fn listed_keeps_the_librarys_order_of_enabled_recognisers_only() {
-    let plugins = Registry::new();
-    plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
-    let order = ["gone", "proposing"].map(str::to_owned);
-
-    let listed = listed(&plugins.extension_points(), &order);
-
-    assert_eq!(listed, [PluginId::from_static("proposing")]);
-}
-
 /// A Recogniser that can't tell what any file is, counting the files it is asked about.
 #[derive(Clone, Default)]
 struct Counting(Arc<AtomicUsize>);
@@ -385,9 +378,8 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
     let log = CapturedLog::start();
 
     let (_, dropped) = recognise(
-        &points,
+        &listed(&points, &["proposing"]),
         LibraryKind::Shows,
-        &["proposing".to_owned()],
         planned.into(),
         &CancellationToken::new(),
     )
@@ -435,9 +427,8 @@ async fn a_recogniser_answering_clears_its_failure() {
     }];
 
     recognise(
-        &points,
+        &listed(&points, &["proposing"]),
         LibraryKind::Shows,
-        &["proposing".to_owned()],
         planned,
         &CancellationToken::new(),
     )

@@ -9,6 +9,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
+use super::Contents;
 use crate::{db::Database, users::name_key};
 
 /// The kind of media a Library holds.
@@ -305,9 +306,22 @@ impl Libraries {
     }
 
     /// Records `read`, the ids of the enabled Recognisers the Library `id` lists, in its order and
-    /// joined with commas, as those its starting scan reads with, and returns whether they differ
-    /// from its last scan's. Part of the scan's write that reads its files again (ADR 0050).
-    pub(crate) async fn record_recognisers_read(
+    /// joined with commas, as those its starting scan reads with, and if they differ from its last
+    /// scan's has Contents read its unparsed files again and forget what Matching left Unmatched
+    /// there, in one write (ADR 0050).
+    pub(super) async fn read_again_if_recognisers_changed(
+        &self,
+        id: i64,
+        read: String,
+    ) -> Result<(), sqlx::Error> {
+        (self.db)
+            .write(move |tx| Box::pin(read_again_if_recognisers_changed(tx, id, read)))
+            .await
+    }
+
+    /// Records `read` as [`Self::read_again_if_recognisers_changed`] says, and returns whether it
+    /// differs from the last scan's.
+    async fn record_recognisers_read(
         conn: &mut SqliteConnection,
         id: i64,
         read: &str,
@@ -527,6 +541,18 @@ async fn set_title_sources(
     .await?;
     if updated.rows_affected() == 0 {
         return Err(Error::NotFound(id));
+    }
+    Ok(())
+}
+
+async fn read_again_if_recognisers_changed(
+    conn: &mut SqliteConnection,
+    id: i64,
+    read: String,
+) -> Result<(), sqlx::Error> {
+    if Libraries::record_recognisers_read(conn, id, &read).await? {
+        Contents::read_unparsed_again(conn, id).await?;
+        Contents::forget_unmatched(conn, id).await?;
     }
     Ok(())
 }
