@@ -68,7 +68,8 @@ pub(crate) enum Downloaded<'a> {
     /// One some Match stores, which clients may fetch already.
     Stored { plugin: &'a str, path: &'a str },
     /// One a title source answered with that no Match stores, offered to clients only once it is
-    /// shown ("Clients name ids" in `crates/nama-server/AGENTS.md`).
+    /// shown ("Clients name ids" in `crates/nama-server/AGENTS.md`). Offered on each read, never
+    /// stored, so it loads after a restart forgets the offers.
     Offered { plugin: &'a PluginId, path: &'a str },
 }
 

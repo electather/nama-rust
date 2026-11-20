@@ -147,8 +147,14 @@ fn snapshot(artwork: Artwork, resized: bool) -> ShownImages {
         .iter()
         .map(|title_image| local(&title_image.stored))
         .collect();
-    let downloaded = ["/poster.jpg", "/backdrop.jpg", "/logo.png", "/offered.jpg"]
-        .map(|path| artwork::url("tmdb", path));
+    let downloaded = [
+        "/poster.jpg",
+        "/backdrop.jpg",
+        "/logo.png",
+        "/still.jpg",
+        "/offered.jpg",
+    ]
+    .map(|path| artwork::url("tmdb", path));
     let thumbhashes = (custom_urls.into_iter())
         .chain(local_urls)
         .chain(downloaded)
@@ -329,7 +335,8 @@ async fn each_image_shows_its_custom_image_else_the_one_beside_its_media_else_th
         ),
         // The titled Backdrop, Title Logo and an Episode's Still have only the downloaded one (#1339).
         (
-            "a titled Backdrop, even beside a Custom Backdrop",
+            // It never sees the title, so a Custom Backdrop can't take its place.
+            "a titled Backdrop",
             images.downloaded(backdrop),
             showing(&backdrop_url, false),
         ),
@@ -337,6 +344,11 @@ async fn each_image_shows_its_custom_image_else_the_one_beside_its_media_else_th
             "a Title Logo",
             images.downloaded(Some(stored("/logo.png"))),
             showing(&artwork::url("tmdb", "/logo.png"), false),
+        ),
+        (
+            "an Episode's Still",
+            images.downloaded(Some(stored("/still.jpg"))),
+            showing(&artwork::url("tmdb", "/still.jpg"), false),
         ),
         ("no Still", images.downloaded(None), ShownImage::default()),
         // Thumbhashes.
@@ -382,6 +394,12 @@ async fn an_offered_image_is_offered_only_when_it_shows() {
         POSTER,
         offered("/hidden.jpg"),
     );
+    let beside = images.of_title(
+        &tmdb(2),
+        &ids(&tmdb(2), &[]),
+        POSTER,
+        offered("/beside.jpg"),
+    );
     let shown = images.of_title(
         &tmdb(3),
         &ids(&tmdb(3), &[]),
@@ -394,6 +412,10 @@ async fn an_offered_image_is_offered_only_when_it_shows() {
     assert_eq!(
         (hidden, was_offered("/hidden.jpg")),
         (showing(&custom_poster, true), false)
+    );
+    assert_eq!(
+        (beside, was_offered("/beside.jpg")),
+        (showing(&local("movie-2-poster"), false), false)
     );
     let offered_url = artwork::url("tmdb", "/offered.jpg");
     assert_eq!(
