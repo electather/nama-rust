@@ -57,7 +57,7 @@ function episodeEntry(
   } as const;
 }
 
-test("home asks only for the first row's worth of Continue Watching", async () => {
+test("home asks for Continue Watching's first page, a row's worth", async () => {
   const asked: ListContinueWatchingRequest[] = [];
   openApp(
     "/",
