@@ -309,3 +309,38 @@ async fn uninstalling_a_plugin_drops_its_rows_from_the_default() {
         Some(&continue_watching(false))
     );
 }
+
+#[tokio::test]
+async fn saving_while_a_plugin_is_disabled_keeps_its_rows_where_they_were() {
+    let server = serving_rows().await;
+    set_default(
+        &server,
+        layout(
+            false,
+            vec![
+                shared("missing", "", true),
+                continue_watching(false),
+                shared("again", "", true),
+            ],
+        ),
+    )
+    .await;
+    disable(&server).await;
+
+    let seen = get_default(&server).await;
+    assert_eq!(seen.rows, [continue_watching(false)]);
+    set_default(&server, layout(false, vec![continue_watching(true)])).await;
+    enable(&server).await;
+
+    wait_for_rows(server.client_config(), &["picks"]).await;
+    assert_eq!(
+        get_default(&server).await.rows,
+        [
+            shared("missing", "Not on the Server", true),
+            continue_watching(true),
+            shared("again", "Alien again", true),
+            shared("picks", "Picks", false),
+            users_rows(false),
+        ]
+    );
+}

@@ -70,7 +70,9 @@ service ServerService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Replaces the default Home layout, which `BrowseService.ListHomeRows` and `ListFeatured`
-  // follow from then on. Needs `PERMISSION_MANAGE_SETTINGS`. A row naming none is refused with
+  // follow from then on. A row the old layout places and the request doesn't, such as a disabled
+  // Plugin's, which `GetDefaultHomeLayout` leaves out, is kept after the row it followed. Needs
+  // `PERMISSION_MANAGE_SETTINGS`. A row naming none is refused with
   // `REFUSAL_REASON_FIELD_REQUIRED`, and one with a Kernel row the Server doesn't know with
   // `REFUSAL_REASON_UNKNOWN_ENUM_VALUE`, both naming `layout.rows`, and nothing changes. A row
   // named twice keeps its first place.

@@ -405,16 +405,26 @@ impl Settings {
         .await
     }
 
-    /// Stores `layout` as the default Home layout and uses it from now on.
+    /// Stores `layout` as the default Home layout and uses it from now on, keeping each row the
+    /// one it replaces places and `layout` doesn't, as an editor doesn't see a disabled Plugin's
+    /// rows (ADR 0077).
     ///
     /// # Errors
     ///
     /// If storing it fails.
     pub(crate) async fn set_default_home_layout(&self, layout: HomeLayout) -> sqlx::Result<()> {
-        let stored = to_json(&layout)?;
+        let values = Arc::clone(&self.values);
+        let merged = layout.clone();
         self.store(
-            move |tx| Box::pin(store_default_home_layout(tx, stored)),
-            move |values| values.default_home_layout = layout,
+            // Read on the writer, so a layout another save stored meanwhile is the one kept from.
+            move |tx| {
+                let before = &read(&values).default_home_layout;
+                let stored = to_json(&merged.keeping_unnamed(before));
+                Box::pin(async move { store_default_home_layout(tx, stored?).await })
+            },
+            move |values| {
+                values.default_home_layout = layout.keeping_unnamed(&values.default_home_layout);
+            },
         )
         .await
     }

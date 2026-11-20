@@ -75,6 +75,21 @@ impl HomeLayout {
             .collect()
     }
 
+    /// This layout with each row `before` places that it doesn't, such as a disabled Plugin's,
+    /// which the editor didn't see: each after the row it followed in `before`, or first.
+    pub(super) fn keeping_unnamed(mut self, before: &Self) -> Self {
+        let mut at = 0;
+        for placed in &before.rows {
+            if let Some(place) = self.rows.iter().position(|named| named.row == placed.row) {
+                at = place + 1;
+            } else {
+                self.rows.insert(at, placed.clone());
+                at += 1;
+            }
+        }
+        self
+    }
+
     /// Drops the rows of the Plugins `gone` names.
     pub(super) fn forget(&mut self, gone: &[PluginId]) {
         (self.rows).retain(|placed| {
