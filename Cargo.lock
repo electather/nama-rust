@@ -2213,6 +2213,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-mdblist"
+version = "0.1.0"
+dependencies = [
+ "nama-pdk",
+ "serde",
+ "url",
+]
+
+[[package]]
 name = "nama-plugin-ntfy"
 version = "0.1.0"
 dependencies = [
