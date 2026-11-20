@@ -205,7 +205,7 @@ impl Probing {
     /// The other Versions of the title the Version `version` is of, in its Library, by path, each
     /// with its current Tracks, sidecars included. One without current Tracks is left out, never
     /// probed.
-    pub(crate) async fn stored_other_versions(
+    pub(super) async fn stored_other_versions(
         &self,
         version: i64,
     ) -> sqlx::Result<Vec<(i64, Probe)>> {
