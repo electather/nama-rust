@@ -142,7 +142,7 @@ impl TitleSource for Fanart {
             image: Image {
                 // The Server gives a Plugin no response headers, so the type comes from the path.
                 content_type: content_type(&asked.path).to_owned(),
-                bytes: response.body().to_vec(),
+                bytes: response.into_body(),
                 ..Image::default()
             }
             .into(),
@@ -236,7 +236,7 @@ fn fetched(path: &str) -> Result<Option<Vec<u8>>, Error> {
         url = format!("{url}&client_key={}", encoded(client_key.trim()));
     }
     let response = accepted(send(&HttpRequest::new(url))?, "fanart.tv")?;
-    Ok(response.map(|response| response.body().to_vec()))
+    Ok(response.map(Response::into_body))
 }
 
 /// What the `artwork` and `season_artwork` exports answer when the title can't be looked up.

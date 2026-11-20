@@ -124,7 +124,8 @@ mod exports {
         if !(200..300).contains(&response.status_code()) {
             return Err(refused(&response));
         }
-        extism_pdk::json::from_slice::<Answer<T>>(response.body())
+        response
+            .json::<Answer<T>>()
             .map(|answer| answer.result)
             .map_err(|err| Error::msg(format!("Telegram's answer made no sense: {err}")))
     }
@@ -140,7 +141,7 @@ mod exports {
         let reason = match status {
             // Telegram answers 404 to a token that isn't even shaped like one.
             401 | 404 => "Telegram refused the bot token".to_owned(),
-            _ => match extism_pdk::json::from_slice::<Refusal>(response.body()) {
+            _ => match response.json::<Refusal>() {
                 Ok(refusal) => format!("Telegram said: {}", refusal.description),
                 Err(_) => format!("Telegram failed with HTTP status {status}"),
             },

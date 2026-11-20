@@ -95,7 +95,7 @@ mod exports {
     /// Why ntfy refused a message: its status, and its own words if it gave any.
     fn refused(response: &Response) -> Error {
         let status = response.status_code();
-        match extism_pdk::json::from_slice::<Refusal>(response.body()) {
+        match response.json::<Refusal>() {
             Ok(Refusal { error: Some(error) }) => {
                 Error::msg(format!("ntfy failed with HTTP status {status}: {error}"))
             }

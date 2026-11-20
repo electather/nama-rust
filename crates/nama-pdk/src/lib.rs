@@ -879,7 +879,8 @@ pub fn setting(key: &str) -> Result<Option<String>, Error> {
 
 /// Sends `request` with `body`. If the Server can't send it, such as when nothing answers at its
 /// host, the call fails with `unreachable` as its error, in place of the HTTP client's own words.
-/// Off wasm32 the [`testing::Kernel`] answers it.
+/// Off wasm32 the [`testing::Kernel`] answers it, and `unreachable` comes back to the Plugin
+/// rather than ending the call, so a Plugin passes it up with `?` to behave the same in both.
 ///
 /// # Errors
 ///
@@ -902,7 +903,7 @@ pub fn http_request<'a, T: ToBytes<'a>>(
     }
     #[cfg(not(target_arch = "wasm32"))]
     testing::http_request(request, body.unwrap_or_default())
-        .map_err(|_unreachable| Error::msg(unreachable.to_owned()))
+        .map_err(|_handlers_error| Error::msg(unreachable.to_owned()))
 }
 
 /// An HTTP response a Plugin was answered: its status and body, as the Server gives no headers.
@@ -932,6 +933,24 @@ impl Response {
     #[must_use]
     pub fn body(&self) -> &[u8] {
         &self.body
+    }
+
+    /// Its body, taken out so a large one, such as an image, isn't copied.
+    #[must_use]
+    pub fn into_body(self) -> Vec<u8> {
+        self.body
+    }
+
+    /// Its body, read as JSON.
+    ///
+    /// # Errors
+    ///
+    /// When the body isn't JSON of a `T`.
+    pub fn json<T>(&self) -> Result<T, Error>
+    where
+        ::extism_pdk::Json<T>: FromBytesOwned,
+    {
+        ::extism_pdk::Json::<T>::from_bytes_owned(&self.body).map(|::extism_pdk::Json(json)| json)
     }
 }
 

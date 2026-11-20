@@ -528,7 +528,7 @@ mod exports {
 
         use nama_pdk::{
             Fulfiller, Request, Response, TitleId, TryAgainIn,
-            extism_pdk::json::{Value, json},
+            extism_pdk::json::{self, Value, json},
             nama_plugin_proto::nama::plugin::v1::RequestedSeason,
             testing::{Kernel, with},
         };
@@ -570,10 +570,6 @@ mod exports {
                 .collect()
         }
 
-        fn json_body(body: &[u8]) -> Value {
-            nama_pdk::extism_pdk::json::from_slice(body).unwrap()
-        }
-
         /// An Approved Request for Season 3 of Dark.
         fn dark_season_3() -> Request {
             let tvdb = id("tvdb", &DARK_TVDB.to_string());
@@ -596,7 +592,7 @@ mod exports {
         }
 
         /// Dark as Sonarr has it, at the profile Any.
-        fn dark_had() -> (u16, Value) {
+        fn dark_found() -> (u16, Value) {
             let seasons = json!([{"seasonNumber": 1, "monitored": true}]);
             (
                 200,
@@ -610,15 +606,14 @@ mod exports {
                 {"seasonNumber": 1, "monitored": false},
                 {"seasonNumber": 3, "monitored": false}
             ]}]);
-            let exists =
-                json!([{"errorMessage": "It exists", "errorCode": "SeriesExistsValidator"}]);
+            let exists = json::from_str(include_str!("../fixtures/series-exists.json")).unwrap();
             let episodes = json!([{"id": 301, "seasonNumber": 3, "episodeNumber": 1}]);
             let mut kernel = sonarr(vec![
                 profiles(),
                 (200, json!([])),
                 (200, lookup),
                 (400, exists),
-                dark_had(),
+                dark_found(),
                 (200, json!([])),
                 (200, json!({})),
                 (200, episodes),
@@ -646,7 +641,7 @@ mod exports {
             );
             let monitored: Value = (kernel.sent().iter())
                 .find(|sent| sent.request.url.ends_with("/seasonpass"))
-                .map(|sent| json_body(&sent.body))
+                .map(|sent| json::from_slice(&sent.body).unwrap())
                 .unwrap();
             assert_eq!(
                 monitored,
@@ -667,7 +662,7 @@ mod exports {
         fn a_season_of_a_show_sonarr_is_refreshing_is_tried_again_in_5_seconds_changing_nothing() {
             let refreshing = json!([{"name": "RefreshSeries", "status": "started",
                 "body": {"seriesIds": [DARK_SONARR_ID]}}]);
-            let mut kernel = sonarr(vec![profiles(), dark_had(), (200, refreshing)]);
+            let mut kernel = sonarr(vec![profiles(), dark_found(), (200, refreshing)]);
 
             let error =
                 with(&mut kernel, || SonarrFulfiller::fulfill(dark_season_3())).unwrap_err();

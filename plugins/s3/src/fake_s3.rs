@@ -52,7 +52,7 @@ impl FakeS3 {
         let answered = self.answer_with_body(method, &url, body);
         // S3 answers a HEAD with no body, refusals included.
         if method == "HEAD" {
-            return answer(answered.status_code(), Vec::new());
+            return Response::new(answered.status_code(), Vec::new());
         }
         answered
     }
@@ -69,17 +69,17 @@ impl FakeS3 {
             ("GET", true) => self.list(url),
             ("PUT", false) => {
                 self.objects.insert(key, body.to_vec());
-                answer(200, Vec::new())
+                Response::new(200, Vec::new())
             }
             ("GET", false) => match self.objects.get(&key) {
-                Some(bytes) => answer(200, bytes.clone()),
+                Some(bytes) => Response::new(200, bytes.clone()),
                 None => error(404, "NoSuchKey"),
             },
-            ("HEAD", false) if self.objects.contains_key(&key) => answer(200, Vec::new()),
+            ("HEAD", false) if self.objects.contains_key(&key) => Response::new(200, Vec::new()),
             ("HEAD", false) => error(404, "NoSuchKey"),
             ("DELETE", false) => {
                 self.objects.remove(&key);
-                answer(204, Vec::new())
+                Response::new(204, Vec::new())
             }
             _ => error(405, "MethodNotAllowed"),
         }
@@ -201,17 +201,13 @@ impl FakeS3 {
             xml += "<EncodingType>url</EncodingType>";
         }
         xml += "</ListBucketResult>";
-        answer(200, xml.into_bytes())
+        Response::new(200, xml.into_bytes())
     }
-}
-
-fn answer(status: u16, body: Vec<u8>) -> Response {
-    Response::new(status, body)
 }
 
 /// S3's refusal with `code`, in the XML body it gives one.
 fn error(status: u16, code: &str) -> Response {
-    answer(
+    Response::new(
         status,
         format!(
             r#"<?xml version="1.0" encoding="UTF-8"?><Error><Code>{code}</Code><Message>The fake S3 refused the request.</Message><RequestId>FAKE</RequestId></Error>"#

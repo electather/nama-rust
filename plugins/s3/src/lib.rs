@@ -259,7 +259,7 @@ impl Store {
         let action = self.bucket.get_object(self.credentials.as_ref(), &object);
         let answer = self.send(&action, None)?;
         match answer.status_code() {
-            200..300 => Ok(Some(answer.body().to_vec())),
+            200..300 => Ok(Some(answer.into_body())),
             // A missing bucket is the settings' fault, not a missing object.
             404 if s3_error(answer.body()).is_none_or(|err| err.code != "NoSuchBucket") => Ok(None),
             _ => Err(refused(&format!("read {key}"), &answer)),

@@ -127,13 +127,11 @@ pub(crate) fn http_request(request: &HttpRequest, body: &[u8]) -> Result<Respons
     clippy::expect_used,
     reason = "a Plugin called outside `with` is the test's bug"
 )]
-fn installed<R>(read: impl FnOnce(&mut Kernel) -> R) -> R {
+fn installed<R>(act: impl FnOnce(&mut Kernel) -> R) -> R {
     INSTALLED.with_borrow_mut(|kernel| {
-        read(
-            kernel
-                .as_mut()
-                .expect("call the Plugin inside nama_pdk::testing::with, which gives it a Kernel"),
-        )
+        act(kernel
+            .as_mut()
+            .expect("call the Plugin inside nama_pdk::testing::with, which gives it a Kernel"))
     })
 }
 
