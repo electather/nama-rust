@@ -1,8 +1,9 @@
 //! Provide: the Automation lane, where a Plugin asks the Kernel (ADR 0048).
 //!
 //! The Kernel ticks an [`Automation`] on the schedule its [`Manifest`](crate::Manifest) sets in
-//! `tick_every`, and an Automation Plugin may call the [`Kernel`] it finds in
-//! [`Registrar::kernel`](crate::Registrar::kernel). A Plugin provides one by registering it:
+//! `tick_every`, and any Plugin may call the [`Kernel`] it finds in
+//! [`Registrar::kernel`](crate::Registrar::kernel) (ADR 0071). A Plugin provides one by
+//! registering it:
 //!
 //! ```ignore
 //! registrar.provide::<dyn Automation>(Priority::DEFAULT, Arc::new(my_automation));
@@ -41,7 +42,7 @@ impl fmt::Display for KernelRefused {
 
 impl Error for KernelRefused {}
 
-/// What an Automation Plugin may ask the Kernel: one of its functions by name, with the request
+/// What any Plugin may ask the Kernel: one of its functions by name, with the request
 /// `automation.proto` names for it encoded. Each function needs the Plugin [`Permission`]
 /// `automation.proto` names beside it, which the Kernel checks. A closure is one, so a test's fake
 /// Kernel is a closure.

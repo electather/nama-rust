@@ -4,13 +4,14 @@ package nama.plugin.v1;
 
 import "nama/plugin/v1/request.proto";
 
-// The Automation lane: a Plugin asks the Kernel.
+// The Automation lane, where the Kernel ticks a Plugin, and the Kernel's functions, which any
+// Plugin asks the Kernel through.
 //
-// The Kernel's functions are the functions in the Wasm import namespace `nama` that a Plugin
-// whose Manifest's `points` names `AutomationService` may call during any of its calls. Each takes
-// its request message, encoded, and returns a `KernelAnswer`. Each needs the Plugin Permission
-// named beside it, which the Admin granted when enabling the Plugin; without it the Kernel
-// answers `refused`.
+// The Kernel's functions are the functions in the Wasm import namespace `nama` that any Plugin,
+// whatever its Manifest's `points`, may call during any of its calls (ADR 0071). Each takes its
+// request message, encoded, and returns a `KernelAnswer`. Each needs the Plugin Permission named
+// beside it, which the Admin granted when enabling the Plugin; without it the Kernel answers
+// `refused`.
 //
 //   store_get:         StoreKey         -> StoreValue     PERMISSION_STORE
 //   store_put:         StoreEntry       -> Stored         PERMISSION_STORE
@@ -23,7 +24,8 @@ import "nama/plugin/v1/request.proto";
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
-// Point, and no Manifest names them. They are versioned with `AutomationService`.
+// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`, not with
+// `AutomationService`, which covers only `Tick`.
 
 // The Extension Point for an Automation Plugin, served through the WASM export the rpc names.
 service AutomationService {

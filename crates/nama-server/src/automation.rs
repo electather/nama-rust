@@ -1,4 +1,4 @@
-//! Automation: the Kernel's functions an Automation Plugin calls (ADR 0048), each by name, with
+//! Automation: the Kernel's functions any Plugin calls (ADR 0048, ADR 0071), each by name, with
 //! the Plugin Permission it needs checked before its request is read.
 
 mod store;
@@ -35,7 +35,7 @@ use crate::{
 /// The most titles one page of `list_titles` holds.
 const MAX_PAGE_SIZE: usize = 1000;
 
-/// What makes the Kernel's functions for each enabled Automation Plugin.
+/// What makes the Kernel's functions for each enabled Plugin.
 ///
 /// The Plugins it serves hold it only weakly, since it holds them in turn through the Scanner and
 /// the Extension Points: whoever starts the Server holds it, until the Plugins have stopped.
@@ -46,7 +46,7 @@ pub(crate) struct Automation {
 }
 
 impl Automation {
-    /// Serves the Kernel's functions to each Automation Plugin `points` enables.
+    /// Serves the Kernel's functions to each Plugin enabled in `points`.
     pub(crate) fn serve(db: Arc<Database>, scanner: Scanner, points: ExtensionPoints) -> Arc<Self> {
         let automation = Arc::new(Self {
             db,

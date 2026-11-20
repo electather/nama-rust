@@ -1,4 +1,5 @@
-//! The Automation lane: the Kernel ticks an Automation Plugin, which calls the Kernel's functions.
+//! The Automation lane, where the Kernel ticks an Automation Plugin, and the Kernel's functions,
+//! which any Plugin may call.
 
 use extism_pdk::Error;
 pub use nama_plugin_proto::nama::plugin::v1::{
@@ -59,10 +60,10 @@ macro_rules! automation {
     };
 }
 
-/// The Kernel's functions, which an Automation Plugin may call during any of its calls. Each needs
-/// a Plugin Permission the Manifest requests in `permissions` and the Admin granted, and fails
-/// with the Kernel's plain words when it wasn't. Off wasm32, as in a Plugin's unit tests, each
-/// fails, since there is no Kernel to call.
+/// The Kernel's functions, which any Plugin, whatever its Manifest's `points`, may call during any
+/// of its calls (ADR 0071). Each needs a Plugin Permission the Manifest requests in `permissions`
+/// and the Admin granted, and fails with the Kernel's plain words when it wasn't. Off wasm32, as
+/// in a Plugin's unit tests, each fails, since there is no Kernel to call.
 pub mod kernel {
     use buffa::Message;
     use extism_pdk::Error;

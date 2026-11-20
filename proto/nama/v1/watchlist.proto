@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package nama.v1;
+
+import "nama/v1/match.proto";
+
+// The signed-in caller's Watchlist (ADR 0056): the Movies and Shows they mean to watch.
+//
+// A Watchlist keeps each title by its kind and external id, whether or not the Server has it, so
+// a title missing from every Library can be added too. `BrowseService` says whether a Movie or
+// Show is on the caller's Watchlist, under any of its ids, in `Movie.on_watchlist` and
+// `Show.on_watchlist`.
+service WatchlistService {
+  // Adds a title to the caller's Watchlist. Adding one already on it changes nothing. Fails with
+  // `invalid_argument` if the kind is unspecified or the id missing or malformed.
+  rpc AddToWatchlist(AddToWatchlistRequest) returns (AddToWatchlistResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Removes a title from the caller's Watchlist, by the id it was added under. Removing one that
+  // isn't on it changes nothing. Fails as `AddToWatchlist` does.
+  rpc RemoveFromWatchlist(RemoveFromWatchlistRequest) returns (RemoveFromWatchlistResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+message AddToWatchlistRequest {
+  // Whether the title is a Movie or a Show.
+  TitleKind kind = 1;
+  // The title's id, such as `Movie.id` or a Home row's missing title's id.
+  ExternalId id = 2;
+}
+
+message AddToWatchlistResponse {}
+
+message RemoveFromWatchlistRequest {
+  // Whether the title is a Movie or a Show.
+  TitleKind kind = 1;
+  // The id the title was added under.
+  ExternalId id = 2;
+}
+
+message RemoveFromWatchlistResponse {}

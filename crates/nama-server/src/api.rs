@@ -52,6 +52,7 @@ mod shown_images;
 mod sign_in;
 mod users;
 mod watch_states;
+mod watchlist;
 
 use browse::BrowseServiceHandler;
 use events::EventServiceHandler;
@@ -65,6 +66,7 @@ use shown_images::{ImageSources, ShownImages};
 use sign_in::SignInServiceHandler;
 use users::UserServiceHandler;
 use watch_states::WatchStateServiceHandler;
+use watchlist::WatchlistServiceHandler;
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
 /// that identify the caller and refuse calls they may not make.
@@ -147,10 +149,14 @@ pub(crate) fn router(
             home_rows,
             artwork: artwork.clone(),
             images: images.clone(),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
             browse,
             running: running.clone(),
+        }))
+        .add_service(Arc::new(WatchlistServiceHandler {
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
             probing,
@@ -311,6 +317,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
+    (proto::WATCHLIST_SERVICE_ADD_TO_WATCHLIST_SPEC.procedure,    Access::SignedIn),
+    (proto::WATCHLIST_SERVICE_REMOVE_FROM_WATCHLIST_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_REPORT_TRACK_PICK_SPEC.procedure,    Access::SignedIn),

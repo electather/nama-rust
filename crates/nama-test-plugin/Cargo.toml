@@ -30,8 +30,9 @@ looping-tick = ["automation"]
 # Builds the Plugin naming the Recogniser Extension Point and exporting `recognise_file`, which
 # reads `<Show> - <n>.<ext>`, or `<Show> (<year>) - <n>.<ext>`, as that Show's Season 1, Episode n.
 recogniser = []
-# Builds the Plugin naming the Home row Extension Point; its `shared_rows` gives fixed rows, those
-# its `home_rows` setting picks, and its `user_rows` a row named for the User's `handle`.
+# Builds the Plugin naming the Home row Extension Point and requesting the Store Permission; its
+# `shared_rows` gives fixed rows, those its `home_rows` setting picks, after keeping a value in its
+# Store and reading it back, and its `user_rows` a row named for the User's `handle`.
 home-rows = []
 # Builds the Plugin naming the subtitle source Extension Point; it finds and downloads nothing.
 subtitle-source = []

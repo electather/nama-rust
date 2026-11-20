@@ -1,5 +1,5 @@
-//! An in-memory stand-in for ffmpeg's runs, which the unit tests of running plans share. A test
-//! plays ffmpeg's part by writing a run's files itself.
+//! An in-memory stand-in for ffmpeg's runs, which the unit tests of running plans share, and
+//! running plans for tests elsewhere. A test plays ffmpeg's part by writing a run's files itself.
 
 use std::{
     path::Path,
@@ -13,8 +13,9 @@ use std::{
 use tokio::sync::{oneshot, watch};
 
 use super::{
-    lock,
+    Contents, EventBus, Ffmpeg, Probing, RunningPlans, lock,
     run::{Outcome, Start},
+    subtitles,
     timeline::Timeline,
 };
 use crate::ffmpeg::Keyframe;
@@ -145,4 +146,23 @@ impl FakeRuns {
 /// A Version 1000 seconds long with a keyframe every 2, so each segment is 3 keyframes long.
 pub(super) fn every_two_seconds() -> Timeline {
     Timeline::new((0..500).map(|n| n * 2000).collect(), 1_000_000)
+}
+
+impl RunningPlans {
+    /// Plans on `db` publishing on `events`, with the default playback settings and their files
+    /// under `folder`, for a test that only asks what plays and ends it.
+    pub(crate) fn for_tests(
+        db: &Arc<crate::db::Database>,
+        events: EventBus,
+        folder: &Path,
+    ) -> Self {
+        let ffmpeg = Arc::new(Ffmpeg::default());
+        let settings =
+            crate::server_settings::Settings::new(Arc::clone(db), folder.join("transcodes"));
+        let subtitles = subtitles::Cache::new(folder);
+        let images = crate::images::ImageStore::new(folder, Arc::clone(db));
+        let probing = Probing::new(Arc::clone(db), Arc::clone(&ffmpeg), subtitles, images);
+        let contents = Contents::new(Arc::clone(db));
+        Self::new(settings.playback(), ffmpeg, contents, probing, events)
+    }
 }

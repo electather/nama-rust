@@ -60,12 +60,8 @@ jobs:
         run: |
           # Outside `refs/heads`, so a clone never fetches it (ADR 0073).
           git fetch origin +refs/ci/test-history:refs/ci/test-history || true
-          # The history moved off the `test-history` branch; start from it until the ref exists.
-          # ponytail: delete with the branch.
-          git fetch origin +refs/heads/test-history:refs/remotes/origin/test-history || true
-          if start=$(git rev-parse -q --verify refs/ci/test-history ||
-              git rev-parse -q --verify origin/test-history); then
-            git worktree add --detach history "$start"
+          if git rev-parse -q --verify refs/ci/test-history; then
+            git worktree add --detach history refs/ci/test-history
           else
             git worktree add --detach history
             git -C history checkout -q --orphan test-history

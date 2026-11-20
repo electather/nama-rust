@@ -26,6 +26,7 @@ mod requests;
 mod scanner;
 mod server_settings;
 pub mod users;
+mod watchlist;
 #[cfg(feature = "web")]
 mod web;
 
