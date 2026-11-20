@@ -194,3 +194,27 @@ fn a_moov_after_a_64_bit_mdat_is_read_the_same() {
 
     assert_eq!(read(moov_last), Some(vec![0, 160]));
 }
+
+#[test]
+fn a_chapter_picture_track_before_the_video_is_passed_over() {
+    let tkhd = |id: u32| full_box(*b"tkhd", &[0, 0, id]);
+    // `trak`'s boxes, with `first` before them.
+    let with_first = |trak: Vec<u8>, first: &[Vec<u8>]| -> Vec<u8> {
+        mp4_box(*b"trak", &[&first.concat(), &trak[8..]])
+    };
+    let pictures = [
+        full_box(*b"stts", &[1, 3, 2000]),
+        full_box(*b"stss", &[3, 1, 2, 3]),
+    ];
+    let chapters = with_first(track(*b"vide", 1000, &[], &pictures), &[tkhd(1)]);
+    let chap = mp4_box(*b"tref", &[&mp4_box(*b"chap", &[&1_u32.to_be_bytes()])]);
+    let movie = with_first(video(&[], None), &[tkhd(2), chap]);
+    let file = [
+        mp4_box(*b"ftyp", &[b"isom"]),
+        moov(&[chapters, movie]),
+        mp4_box(*b"mdat", &[b"frames"]),
+    ]
+    .concat();
+
+    assert_eq!(read(file), Some(vec![0, 160]));
+}

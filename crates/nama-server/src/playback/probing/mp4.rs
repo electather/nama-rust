@@ -15,6 +15,10 @@ const TABLE_LIMIT: u64 = 16 << 20;
 /// has, so a malformed one of countless tiny boxes isn't read without limit.
 const BOXES_LIMIT: usize = 1024;
 
+/// The most bytes of track ids read of any one `chap`, 64 of them, far past the chapter tracks a
+/// file has, as every track may have one.
+const CHAPTER_IDS_LIMIT: u64 = 4 * 64;
+
 /// An edit's media rate of 1, in 16.16 fixed point.
 const NORMAL_RATE: u32 = 0x0001_0000;
 
@@ -67,20 +71,52 @@ fn shown_at(file: &mut (impl Read + Seek), stbl: &[Mp4Box]) -> Option<Vec<i128>>
     Some(shown.collect())
 }
 
-/// The boxes of the first track in `moov` that `hdlr` says is video, and of its `mdia`.
+/// The boxes of the first track in `moov` that `hdlr` says is video, and of its `mdia`, passing
+/// over the chapter pictures [`chapter_tracks`] names.
 fn first_video(
     file: &mut (impl Read + Seek),
     moov: &[Mp4Box],
 ) -> Option<(Vec<Mp4Box>, Vec<Mp4Box>)> {
+    let chapters = chapter_tracks(file, moov)?;
     for trak in moov.iter().filter(|child| &child.kind == b"trak") {
         let trak = children(file, trak.contents.clone())?;
         let mdia = children(file, find(&trak, *b"mdia")?.contents.clone())?;
         // After `hdlr`'s version, flags and a field always 0.
-        if read(file, find(&mdia, *b"hdlr")?)?.get(8..12) == Some(b"vide") {
+        let handler = read_head(file, find(&mdia, *b"hdlr")?, 12)?;
+        if handler.get(8..12) != Some(b"vide") {
+            continue;
+        }
+        // `tkhd`'s id sits where `mdhd`'s timescale does.
+        let pictures = !chapters.is_empty()
+            && chapters.contains(&after_times(&read_head(file, find(&trak, *b"tkhd")?, 24)?)?);
+        if !pictures {
             return Some((trak, mdia));
         }
     }
     None
+}
+
+/// The ids of the tracks a `tref`'s `chap` in `moov` names. ffmpeg reads a video one as chapter
+/// pictures, not as the file's video, so a whole-file listing passes over it.
+fn chapter_tracks(file: &mut (impl Read + Seek), moov: &[Mp4Box]) -> Option<Vec<u32>> {
+    let mut chapters = vec![];
+    for trak in moov.iter().filter(|child| &child.kind == b"trak") {
+        let trak = children(file, trak.contents.clone())?;
+        let Some(tref) = find(&trak, *b"tref") else {
+            continue;
+        };
+        let tref = children(file, tref.contents.clone())?;
+        let Some(chap) = find(&tref, *b"chap") else {
+            continue;
+        };
+        if chap.contents.end - chap.contents.start > CHAPTER_IDS_LIMIT {
+            return None;
+        }
+        let chap = read(file, chap)?;
+        let (ids, _) = chap.as_chunks::<4>();
+        chapters.extend(ids.iter().map(|&id| u32::from_be_bytes(id)));
+    }
+    Some(chapters)
 }
 
 /// Where the track's edit list in `trak` starts it, in its `timescale`'s units: the media time of
@@ -107,7 +143,7 @@ fn edit_start(
     if media_time < 0 || rate != NORMAL_RATE {
         return None;
     }
-    // shortcut: ffmpeg also shifts a track with an edit list so its earliest sample shows at 0,
+    // ponytail: ffmpeg also shifts a track with an edit list so its earliest sample shows at 0,
     // which here would mean reading every sample's time; an edit whose media time falls short of
     // that, such as 0 for a video with B-frames, fails the check instead and the file is read
     // whole, as before. Mirror it if such files turn up often.
@@ -166,7 +202,13 @@ fn read(file: &mut (impl Read + Seek), table: &Mp4Box) -> Option<Vec<u8>> {
     if length > TABLE_LIMIT {
         return None;
     }
-    file.seek(SeekFrom::Start(table.contents.start)).ok()?;
+    read_head(file, table, length)
+}
+
+/// The first `length` bytes of `of`'s contents, or all of them if it holds fewer.
+fn read_head(file: &mut (impl Read + Seek), of: &Mp4Box, length: u64) -> Option<Vec<u8>> {
+    let length = length.min(of.contents.end - of.contents.start);
+    file.seek(SeekFrom::Start(of.contents.start)).ok()?;
     let mut contents = vec![0; usize::try_from(length).ok()?];
     file.read_exact(&mut contents).ok()?;
     Some(contents)
@@ -174,10 +216,13 @@ fn read(file: &mut (impl Read + Seek), table: &Mp4Box) -> Option<Vec<u8>> {
 
 /// The timescale in an `mvhd` or `mdhd`, its units a second.
 fn timescale(header: &[u8]) -> Option<u32> {
-    // After its version, flags, and its creation and modification times, 64-bit at version 1.
-    let at = if *header.first()? == 1 { 20 } else { 12 };
-    let timescale = be_u32(header, at)?;
-    (timescale > 0).then_some(timescale)
+    after_times(header).filter(|&timescale| timescale > 0)
+}
+
+/// The field of an `mvhd`, `mdhd` or `tkhd` after its version, flags, and its creation and
+/// modification times, which are 64-bit at version 1.
+fn after_times(header: &[u8]) -> Option<u32> {
+    be_u32(header, if *header.first()? == 1 { 20 } else { 12 })
 }
 
 /// The keyframes `stss` lists, as samples counted from 0, in increasing order.
