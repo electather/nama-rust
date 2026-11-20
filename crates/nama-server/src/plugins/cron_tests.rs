@@ -1,19 +1,12 @@
-use jiff::{
-    civil::DateTime,
-    tz::{Offset, TimeZone},
-};
+use jiff::civil::DateTime;
 
 use super::Cron;
 
-/// Seconds since the Unix epoch of `at`, read in UTC, such as "2026-11-20 04:00".
-fn utc(at: &str) -> i64 {
-    let at: DateTime = at.parse().unwrap();
-    at.to_zoned(TimeZone::UTC).unwrap().timestamp().as_second()
-}
-
+/// Whether `cron` fires between the wall-clock times `after` and `until`, such as
+/// "2026-11-20 04:00".
 fn fires(cron: &str, after: &str, until: &str) -> bool {
     let cron = Cron::parse(cron).unwrap();
-    cron.fires_between(&TimeZone::UTC, utc(after), utc(until))
+    cron.fires_between(after.parse().unwrap(), until.parse().unwrap())
 }
 
 #[test]
@@ -99,18 +92,6 @@ fn a_day_of_month_with_any_weekday_fires_on_that_day_only() {
 }
 
 #[test]
-fn the_schedule_is_read_in_the_zone_it_is_given() {
-    let cron = Cron::parse("0 4 * * *").unwrap();
-    // A fixed offset, since a test on Windows has no time zone database.
-    let tehran = TimeZone::fixed(Offset::from_seconds(3 * 3600 + 30 * 60).unwrap());
-    // 04:00 at +03:30 is 00:30 UTC.
-    let at = |time: &str| utc(&format!("2026-11-20 {time}"));
-
-    assert!(cron.fires_between(&tehran, at("00:29"), at("00:30")));
-    assert!(!cron.fires_between(&tehran, at("03:59"), at("04:00")));
-}
-
-#[test]
 fn a_schedule_with_a_seconds_field_is_refused_saying_so() {
     let refused = Cron::parse("0 0 4 * * *").unwrap_err();
 
@@ -150,4 +131,16 @@ fn a_schedule_that_doesnt_parse_is_refused_saying_why() {
         refused("@daily"),
         "\"@daily\" has 1 field; a schedule has 5: minute, hour, day of month, month and day of week"
     );
+}
+
+#[test]
+fn a_window_the_clocks_went_back_in_fires_nothing() {
+    // The UK's clocks go back from 01:59 to 01:00 on 2026-10-25.
+    assert!(!fires("30 1 * * *", "2026-10-25 01:59", "2026-10-25 01:00"));
+}
+
+#[test]
+fn a_minute_the_clocks_skip_fires_in_the_window_they_skip_it_in() {
+    // The UK's clocks go forward from 00:59 to 02:00 on 2026-03-29.
+    assert!(fires("30 1 * * *", "2026-03-29 00:59", "2026-03-29 02:00"));
 }

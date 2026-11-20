@@ -3,7 +3,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use jiff::tz::TimeZone;
+use jiff::{Timestamp, civil::DateTime, tz::TimeZone};
 use nama_plugin_api::{
     Manifest, PluginId, PointKey, Registration,
     job::{JobRunner, RunJob},
@@ -11,7 +11,7 @@ use nama_plugin_api::{
 use nama_plugin_proto::services;
 use tracing::warn;
 
-use super::{ExtensionPoints, Failure, cron::Cron, points::Asked, scope::Scope};
+use super::{ExtensionPoints, Failure, cron::Cron, scope::Scope};
 use crate::db;
 
 /// How long a firing loop sleeps at most before it reads the Kernel's clock again. It sleeps to
@@ -77,32 +77,38 @@ pub(super) fn schedule(
     }
 }
 
-/// Runs the Job `job` each time `cron` comes due on the Kernel's clock, in the Server's time zone,
-/// from when the Kernel serves until its scope is cancelled or the Plugin no longer runs Jobs. It
-/// awaits each Run and counts from its end, so a firing due while one runs is dropped, and from
-/// its start, so firings missed before are not made up.
+/// Runs the Job `job` each time `cron` comes due on the Server's wall clock, from when the Kernel
+/// serves until its scope is cancelled or the Plugin no longer runs Jobs. It awaits each Run and
+/// counts from its end, so a firing due while one runs is dropped, and from its start, so firings
+/// missed before are not made up.
 async fn firing(points: ExtensionPoints, plugin: PluginId, job: String, cron: Cron) {
     points.kernel_served().await;
-    let mut seen = db::now();
+    let mut seen = wall_clock();
     loop {
         tokio::time::sleep(until_next_minute().min(LOOK_EVERY)).await;
-        let now = db::now();
-        // Read each time, so a change to the Server's time zone reaches the next firing.
-        let due = cron.fires_between(&TimeZone::system(), seen, now);
-        seen = now;
+        let now = wall_clock();
+        let due = cron.fires_between(seen, now);
+        // Kept when the clocks go back, so the minutes they repeat don't fire again.
+        seen = seen.max(now);
         if !due {
             continue;
         }
-        match run(&points, &plugin, &job).await {
-            Ran::Ended(Ok(())) => {}
-            Ran::Ended(Err(failure)) => {
-                warn!(plugin = %plugin, job, error = failure.message, "job run failed");
-            }
-            // Disabled, or panicked, which disabled it.
-            Ran::NoRunner | Ran::Panicked => return,
+        // None once the Plugin is disabled, or panicked, which disabled it.
+        let Some(ran) = run(&points, &plugin, &job).await else {
+            return;
+        };
+        if let Err(failure) = ran {
+            warn!(plugin = %plugin, job, error = failure.message, "job run failed");
         }
-        seen = db::now();
+        seen = seen.max(wall_clock());
     }
+}
+
+/// The Kernel's clock as the Server's time zone reads it, looked up each time so a change to the
+/// zone reaches the next firing.
+fn wall_clock() -> DateTime {
+    let now = Timestamp::from_millisecond(db::now_ms()).unwrap_or_default();
+    TimeZone::system().to_datetime(now)
 }
 
 /// How long until the next minute starts on the Kernel's clock.
@@ -111,18 +117,13 @@ fn until_next_minute() -> Duration {
     Duration::from_millis((60_000 - into_minute).unsigned_abs())
 }
 
-/// What running a Job once came to.
-enum Ran {
-    /// The Run ended, and succeeded or failed.
-    Ended(Result<(), Failure>),
-    /// The Plugin isn't enabled or runs no Jobs, such as one disabled since.
-    NoRunner,
-    /// The Run panicked, which disabled the Plugin.
-    Panicked,
-}
-
-/// Runs `plugin`'s Job `job` once, now.
-async fn run(points: &ExtensionPoints, plugin: &PluginId, job: &str) -> Ran {
+/// Runs `plugin`'s Job `job` once, now: how the Run ended, or `None` if the Plugin runs no Jobs,
+/// such as one disabled since or one whose Run panicked, which disabled it.
+async fn run(
+    points: &ExtensionPoints,
+    plugin: &PluginId,
+    job: &str,
+) -> Option<Result<(), Failure>> {
     let run = RunJob {
         job_id: job.to_owned(),
         // db's clock, not the system's, so a test's clock reaches Plugins.
@@ -135,11 +136,7 @@ async fn run(points: &ExtensionPoints, plugin: &PluginId, job: &str) -> Ran {
             runner.run(run).await
         })
         .await;
-    match asked {
-        Asked::Answered(answer) => Ran::Ended(answer.result),
-        Asked::Absent => Ran::NoRunner,
-        Asked::Panicked => Ran::Panicked,
-    }
+    asked.answered().map(|answer| answer.result)
 }
 
 #[cfg(test)]

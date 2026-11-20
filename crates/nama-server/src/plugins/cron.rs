@@ -1,6 +1,6 @@
 //! A Job's schedule: a standard 5-field cron expression, read to the minute (ADR 0079).
 
-use jiff::{Timestamp, civil::DateTime, tz::TimeZone};
+use jiff::{ToSpan as _, civil::DateTime};
 
 /// A parsed schedule: for each field, a bit per value it names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,30 +80,33 @@ impl Cron {
                 ),
             });
         };
-        let bits = |field: &Field, value: &str| {
+        let [minutes, hours, days, months, weekdays] = &FIELDS;
+        let quoted = |field: &Field, value: &str| {
             bits(field, value).map_err(|why| format!("{text:?} has {why}"))
         };
-        let weekdays = bits(&FIELDS[4], weekday)?;
+        let weekdays = quoted(weekdays, weekday)?;
         Ok(Self {
-            minutes: bits(&FIELDS[0], minute)?,
-            hours: bits(&FIELDS[1], hour)?,
-            days: bits(&FIELDS[2], day)?,
-            months: bits(&FIELDS[3], month)?,
+            minutes: quoted(minutes, minute)?,
+            hours: quoted(hours, hour)?,
+            days: quoted(days, day)?,
+            months: quoted(months, month)?,
             weekdays: (weekdays | weekdays >> 7) & 0x7f,
             any_day: day.starts_with('*') || weekday.starts_with('*'),
         })
     }
 
-    /// Whether the schedule fires at a minute starting after `after` and no later than `until`,
-    /// both in seconds since the Unix epoch, read in `zone`. So a minute is fired once however
-    /// the windows asked about meet, and a minute before `after`, such as one missed while the
-    /// Server was down, never.
-    pub(super) fn fires_between(&self, zone: &TimeZone, after: i64, until: i64) -> bool {
-        let first = after.div_euclid(60) + 1;
-        let last = until.div_euclid(60);
-        (first..=last).any(|minute| {
-            Timestamp::from_second(minute * 60).is_ok_and(|at| self.matches(zone.to_datetime(at)))
-        })
+    /// Whether the schedule names a minute starting after `after` and no later than `until`, both
+    /// wall-clock times. So a minute is fired once however the windows asked about meet, and a
+    /// minute before `after`, such as one missed while the Server was down, never. A minute the
+    /// clocks skip falls in the window they skip it in, so it fires then, as in Vixie cron.
+    pub(super) fn fires_between(&self, after: DateTime, until: DateTime) -> bool {
+        let Ok(first) = after.with().second(0).subsec_nanosecond(0).build() else {
+            return false;
+        };
+        (first.series(1.minute()))
+            .skip(1)
+            .take_while(|minute| *minute <= until)
+            .any(|minute| self.matches(minute))
     }
 
     /// Whether the schedule names the minute `at` is in.
