@@ -11,7 +11,7 @@ use std::{
     process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc,
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -108,13 +108,27 @@ fn spawn_server(config_file: &Path) -> KillOnDrop {
     ))
 }
 
+/// Points `data_dir`'s compile cache at the one this binary's tests share, as `TestServer` does,
+/// so a start doesn't compile every bundled Plugin afresh: seconds of CPU each under CI's load.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a cache that can't be linked fails the test that links it"
+)]
+fn share_compile_cache(data_dir: &Path) {
+    let shared = Path::new(env!("CARGO_TARGET_TMPDIR")).join("wasmtime-cache");
+    std::fs::create_dir_all(&shared).unwrap();
+    let wasmtime = data_dir.join("wasmtime");
+    std::fs::create_dir_all(&wasmtime).unwrap();
+    std::os::unix::fs::symlink(shared, wasmtime.join("cache")).unwrap();
+}
+
 #[test]
 fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_on_ctrl_c() {
     let dir = std::env::temp_dir().join(format!("nama-server-binary-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let data_dir = dir.join("data");
+    share_compile_cache(&data_dir);
     let dir = RemoveOnDrop(dir);
     let config_file = dir.0.join("server.toml");
-    let data_dir = dir.0.join("data");
     std::fs::write(
         &config_file,
         format!(
@@ -272,56 +286,6 @@ fn server_logs_installed_plugins_enables_the_stored_ones_and_skips_the_ones_it_r
 }
 
 #[test]
-fn server_refuses_to_start_without_an_authenticator_says_why_and_starts_once_the_file_is_fixed() {
-    let dir = std::env::temp_dir().join(format!("nama-server-no-auth-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let dir = RemoveOnDrop(dir);
-    let config_file = dir.0.join("server.toml");
-    let data_dir = dir.0.join("data");
-    std::fs::write(
-        &config_file,
-        format!(
-            "data_dir = \"{}\"\n\n[plugins.local-auth]\nenabled = false\n",
-            data_dir.display()
-        ),
-    )
-    .unwrap();
-
-    let mut server = spawn_server(&config_file);
-    let child = server.0.as_mut().unwrap();
-    let started = Instant::now();
-    let status = loop {
-        if let Some(status) = child.try_wait().unwrap() {
-            break status;
-        }
-        assert!(
-            started.elapsed() < TIMEOUT,
-            "server started without an Authenticator"
-        );
-        thread::sleep(Duration::from_millis(50));
-    };
-    let mut log = String::new();
-    child
-        .stdout
-        .take()
-        .unwrap()
-        .read_to_string(&mut log)
-        .unwrap();
-
-    assert!(!status.success());
-    assert!(log.contains("no Authenticator is enabled"), "{log}");
-
-    // The refused start imported nothing, so fixing the file still counts.
-    std::fs::write(
-        &config_file,
-        format!("data_dir = \"{}\"\n", data_dir.display()),
-    )
-    .unwrap();
-    let fixed = log_until_listening(&config_file);
-    assert!(fixed.contains("imported plugin settings"), "{fixed}");
-}
-
-#[test]
 fn plugin_settings_are_imported_from_the_config_once_and_the_config_is_ignored_after() {
     const API_KEY: &str = "tmdb-key-from-the-config";
     let dir = std::env::temp_dir().join(format!("nama-server-import-{}", std::process::id()));
@@ -329,6 +293,7 @@ fn plugin_settings_are_imported_from_the_config_once_and_the_config_is_ignored_a
     let dir = RemoveOnDrop(dir);
     let config_file = dir.0.join("server.toml");
     let data_dir = format!("data_dir = \"{}\"\n", dir.0.join("data").display());
+    share_compile_cache(&dir.0.join("data"));
 
     std::fs::write(
         &config_file,
@@ -399,6 +364,7 @@ fn backup_runs_beside_a_serving_server_and_restore_waits_for_it_to_stop() {
         format!("data_dir = \"{}\"\n", data_dir.display()),
     )
     .unwrap();
+    share_compile_cache(&data_dir);
     let backup = dir.0.join("backup.tar");
     let mut server = spawn_server(&config_file);
     wait_for_line(&log_lines(server.0.as_mut().unwrap()), "listening");

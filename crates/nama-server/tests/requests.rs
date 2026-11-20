@@ -1232,29 +1232,27 @@ async fn a_request_an_installed_fulfiller_refuses_fails_with_its_reason_and_retr
     );
 }
 
+// One that loops forever is stopped by the same call timeout, which `calls_tests.rs` and
+// `installed_plugins.rs` cover without each Point waiting it out.
 #[tokio::test]
-async fn a_request_an_installed_fulfiller_loops_forever_or_panics_on_fails_and_the_server_carries_on()
- {
-    let crashes = [
-        ("loop", "it didn't answer within 5s"),
-        ("panic", "the test Plugin's Fulfiller was set to panic"),
-    ];
-    for (fulfiller, reason) in crashes {
-        let fixture = Fixture::with_installed_plugin(&[("fulfiller", fulfiller)]).await;
-        let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-        let pending = requests(as_ada).ask(HEAT).await;
+async fn a_request_an_installed_fulfiller_panics_on_fails_and_the_server_carries_on() {
+    let fixture = Fixture::with_installed_plugin(&[("fulfiller", "panic")]).await;
+    let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
+    let pending = requests(as_ada).ask(HEAT).await;
 
-        let failed = fixture.server.approve(pending.id).await;
-        fixture
-            .set_installed_settings(&[("fulfiller", "take")])
-            .await;
-        let retried = fixture.server.retry(pending.id).await;
+    let failed = fixture.server.approve(pending.id).await;
+    fixture
+        .set_installed_settings(&[("fulfiller", "take")])
+        .await;
+    let retried = fixture.server.retry(pending.id).await;
 
-        assert_eq!(failed.state, RequestState::Failed, "{fulfiller}");
-        let failure = failed.failure_reason.unwrap_or_default();
-        assert!(failure.contains(reason), "{fulfiller}: {failure}");
-        assert_eq!(retried.state, RequestState::Processing, "{fulfiller}");
-    }
+    assert_eq!(failed.state, RequestState::Failed);
+    let failure = failed.failure_reason.unwrap_or_default();
+    assert!(
+        failure.contains("the test Plugin's Fulfiller was set to panic"),
+        "{failure}"
+    );
+    assert_eq!(retried.state, RequestState::Processing);
 }
 
 #[tokio::test]
@@ -4156,30 +4154,25 @@ async fn an_installed_notifiers_error_is_logged_with_its_reason_and_the_request_
     .await;
 }
 
+// One that loops forever: see the Fulfiller's test above.
 #[tokio::test]
-async fn an_installed_notifier_that_loops_forever_or_panics_is_logged_and_the_server_carries_on() {
+async fn an_installed_notifier_that_panics_is_logged_and_the_server_carries_on() {
     let log = Log::global();
-    let crashes = [
-        ("loop", "it didn't answer within 5s"),
-        ("panic", "the test Plugin's Notifier was set to panic"),
+    let fixture = Fixture::with_installed_plugin(&[("notifier", "panic")]).await;
+    let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
+    let ada = requests(as_ada);
+    let failed = [
+        "test-plugin",
+        "notifier::Notifier",
+        "provider failed",
+        "the test Plugin's Notifier was set to panic",
     ];
-    for (notifier, reason) in crashes {
-        let fixture = Fixture::with_installed_plugin(&[("notifier", notifier)]).await;
-        let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-        let ada = requests(as_ada);
-        let failed = [
-            "test-plugin",
-            "notifier::Notifier",
-            "provider failed",
-            reason,
-        ];
-        let logged = log.count(&failed);
+    let logged = log.count(&failed);
 
-        let first = ada.ask(HEAT).await;
-        log.wait_for(&failed, logged + 1).await;
-        let second = ada.ask(ALIEN).await;
+    let first = ada.ask(HEAT).await;
+    log.wait_for(&failed, logged + 1).await;
+    let second = ada.ask(ALIEN).await;
 
-        assert_eq!(first.state, RequestState::Pending, "{notifier}");
-        assert_eq!(second.state, RequestState::Pending, "{notifier}");
-    }
+    assert_eq!(first.state, RequestState::Pending);
+    assert_eq!(second.state, RequestState::Pending);
 }

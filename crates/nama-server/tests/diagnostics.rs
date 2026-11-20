@@ -99,7 +99,8 @@ async fn sign_in_trace(trace: &str) -> (Vec<SpanData>, SpanData) {
 }
 
 #[tokio::test]
-async fn a_call_is_one_trace_of_its_sql_and_plugin_calls_continuing_its_traceparent() {
+async fn a_call_is_one_trace_of_its_sql_and_plugin_calls_and_a_failed_one_is_marked_with_its_code()
+{
     exporter();
     let server = TestServer::builder().start().await;
     let trace = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -156,21 +157,15 @@ async fn a_call_is_one_trace_of_its_sql_and_plugin_calls_continuing_its_tracepar
             );
         }
     }
-}
 
-#[tokio::test]
-async fn a_failed_call_marks_its_span_failed_with_its_connect_code() {
-    exporter();
-    let server = TestServer::builder().start().await;
-    let trace = "0af7651916cd43dd8448eb211c80319c";
-
-    let refused = sign_in(&server, trace, "not the password")
+    // On the same Server: starting one is most of this test's time.
+    let failed_trace = "0af7651916cd43dd8448eb211c80319c";
+    let refused = sign_in(&server, failed_trace, "not the password")
         .await
         .unwrap_err();
-
-    let (_, call) = sign_in_trace(trace).await;
-    assert_eq!(call.status, Status::error(""));
-    let kind = call
+    let (_, failed) = sign_in_trace(failed_trace).await;
+    assert_eq!(failed.status, Status::error(""));
+    let kind = failed
         .attributes
         .iter()
         .find(|attribute| attribute.key.as_str() == "error.type")

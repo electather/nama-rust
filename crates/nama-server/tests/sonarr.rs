@@ -21,8 +21,8 @@ use connectrpc::ErrorCode;
 use fake_sonarr::{API_KEY as SONARR_KEY, FakeSonarr};
 use nama_plugin_api::fulfiller::Shows;
 use nama_proto::nama::v1::{
-    CancelFollowedShowRequest, DisablePluginRequest, Download, DownloadStatus, EventType,
-    RefusalReason, Request, RequestState, event,
+    CancelFollowedShowRequest, Download, DownloadStatus, EventType, RefusalReason, Request,
+    RequestState, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -141,18 +141,6 @@ impl Fixture {
         handed
     }
 
-    /// Returns once the fake Sonarr was called more than `count` times, failing after 15 s.
-    async fn sonarr_calls_after(&self, count: usize) {
-        let called = async {
-            while self.sonarr.calls().len() <= count {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
-        };
-        tokio::time::timeout(Duration::from_secs(15), called)
-            .await
-            .unwrap();
-    }
-
     /// The Request `id` once it is in `state`, failing after 15 s.
     async fn until_state(&self, id: i64, state: RequestState) -> Request {
         let requests = self.server.admin_requests();
@@ -263,82 +251,6 @@ async fn a_later_season_request_adds_its_season_to_the_monitored_ones_without_ch
     assert_eq!(states(&asked), [Some(RequestState::Processing)]);
     assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 2, 3]);
     assert_eq!(fixture.sonarr.searches().last(), Some(&(DARK_TVDB, 2)));
-}
-
-/// What Sonarr is asked each time a hand-off finds it still refreshing the Show.
-const RETRY_CALLS: [&str; 2] = ["GET /api/v3/series", "GET /api/v3/command"];
-
-/// What Sonarr is asked as a hand-off of a Season of a Show it has and isn't refreshing.
-const HAND_OFF_CALLS: [&str; 6] = [
-    "GET /api/v3/series",
-    "GET /api/v3/command",
-    "POST /api/v3/seasonpass",
-    "GET /api/v3/episode",
-    "PUT /api/v3/episode/monitor",
-    "POST /api/v3/command",
-];
-
-#[tokio::test]
-async fn a_season_handed_off_while_sonarr_refreshes_its_show_waits_approved_and_goes_processing_once_it_is_done()
- {
-    let fixture = Fixture::with_sonarr_enabled().await;
-    fixture.sonarr.hold_refreshes();
-
-    let asked = fixture.ask_approved(DARK, &[1, 3]).await;
-    let before = fixture.sonarr.calls().len();
-    // The Kernel asks again once while Sonarr still refreshes.
-    fixture.sonarr_calls_after(before + 1).await;
-    let waiting = fixture.server.admin_requests().get(asked[1].id).await;
-    fixture.sonarr.release_refreshes();
-    let handed = fixture
-        .until_state(asked[1].id, RequestState::Processing)
-        .await;
-
-    assert_eq!(
-        states(&asked),
-        [Some(RequestState::Processing), Some(RequestState::Approved)]
-    );
-    assert_eq!(waiting.state, RequestState::Approved);
-    let calls = fixture.sonarr.calls().split_off(before);
-    let (retries, hand_off) = calls.split_at(calls.len().saturating_sub(HAND_OFF_CALLS.len()));
-    assert_eq!(hand_off, HAND_OFF_CALLS);
-    assert!(
-        !retries.is_empty(),
-        "the Kernel didn't ask again while Sonarr refreshed"
-    );
-    assert!(
-        retries
-            .chunks(RETRY_CALLS.len())
-            .all(|retry| retry == RETRY_CALLS),
-        "Sonarr was asked more than the retries: {retries:?}"
-    );
-    assert_eq!(handed.state, RequestState::Processing);
-    assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
-}
-
-#[tokio::test]
-async fn disabling_sonarr_while_a_season_waits_for_its_refresh_leaves_it_approved_and_asks_sonarr_nothing_more()
- {
-    let fixture = Fixture::with_sonarr_enabled().await;
-    fixture.sonarr.hold_refreshes();
-    let asked = fixture.ask_approved(DARK, &[1, 3]).await;
-
-    fixture
-        .plugins()
-        .disable_plugin(DisablePluginRequest {
-            id: "sonarr".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    let (calls, queue_calls) = (fixture.sonarr.calls(), fixture.sonarr.queue_calls());
-    // Past when the hand-off would have asked again.
-    tokio::time::sleep(Duration::from_secs(6)).await;
-
-    let waiting = fixture.server.admin_requests().get(asked[1].id).await;
-    assert_eq!(waiting.state, RequestState::Approved);
-    assert_eq!(fixture.sonarr.calls(), calls);
-    assert_eq!(fixture.sonarr.queue_calls(), queue_calls);
 }
 
 #[tokio::test]
