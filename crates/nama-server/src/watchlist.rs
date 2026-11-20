@@ -44,10 +44,8 @@ pub(crate) async fn remove(
     let id = id.clone();
     db.write(move |tx| {
         Box::pin(async move {
-            let mut ids = matched_ids(tx, kind, &id).await?;
-            ids.push(id);
-            let ids: Vec<String> = ids.iter().map(ExternalId::to_string).collect();
-            let (kind, ids) = (stored(kind), serde_json::Value::from(ids).to_string());
+            let ids = json_ids(matched_ids(tx, kind, &id).await?);
+            let kind = stored(kind);
             sqlx::query!(
                 "DELETE FROM watchlist
                  WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
@@ -70,8 +68,7 @@ pub(crate) async fn has(
     kind: TitleKind,
     ids: &ExternalIds,
 ) -> Result<bool, sqlx::Error> {
-    let ids: Vec<String> = ids.iter().map(|id| id.to_string()).collect();
-    let (kind, ids) = (stored(kind), serde_json::Value::from(ids).to_string());
+    let (kind, ids) = (stored(kind), json_ids(ids.iter()));
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM watchlist
                           WHERE user_id = ? AND kind = ?
@@ -82,6 +79,12 @@ pub(crate) async fn has(
     )
     .fetch_one(db.reader())
     .await
+}
+
+/// `ids` as the JSON array of their text form that `json_each` reads.
+fn json_ids(ids: impl IntoIterator<Item = ExternalId>) -> String {
+    let ids: Vec<String> = ids.into_iter().map(|id| id.to_string()).collect();
+    serde_json::Value::from(ids).to_string()
 }
 
 /// `kind` as `watchlist` stores it.

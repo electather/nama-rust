@@ -17,14 +17,15 @@ use nama_proto::nama::v1::{
 };
 use server::{
     TestServer,
-    tmdb::{ALIEN, DARK, DARK_TVDB, UNLISTED},
+    tmdb::{ALIEN, DARK, DARK_TVDB, HEAT, UNLISTED},
 };
 
 const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
+const HEAT_FILE: &str = "Heat (1995) {tmdb-949}/Heat (1995).mkv";
 /// Alien's IMDb id, which its Match holds beside its TMDB id.
 const ALIEN_IMDB: &str = "tt0078748";
 
-/// A Server with Alien in a Movies Library and Dark in a Shows Library, and their ids.
+/// A Server with Alien and Heat in a Movies Library and Dark in a Shows Library, and their ids.
 struct Fixture {
     server: TestServer,
     movies: i64,
@@ -40,10 +41,10 @@ impl Fixture {
         Self::matching_into(TestServer::builder().tmdb().start().await).await
     }
 
-    /// `server` with Libraries Matching Alien and Dark added to it.
+    /// `server` with Libraries Matching Alien, Heat and Dark added to it.
     async fn matching_into(server: TestServer) -> Self {
-        let movies =
-            (server.matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])).await;
+        let movies = LibraryKind::LIBRARY_KIND_MOVIES;
+        let movies = (server.matched_library(movies, &[ALIEN_1080P, HEAT_FILE])).await;
         let shows = (server.matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])).await;
         Self {
             movies: movies.id,
@@ -54,17 +55,8 @@ impl Fixture {
 
     /// Whether Alien and Dark are on the Watchlist of whoever `who` calls as.
     async fn on_watchlist(&self, who: ClientConfig) -> (bool, bool) {
+        let alien = self.movie_on_watchlist(who.clone(), ALIEN).await;
         let browse = BrowseServiceClient::new(HttpClient::plaintext(), who);
-        let movie = browse
-            .get_movie(GetMovieRequest {
-                library_id: self.movies,
-                movie_id: tmdb_id(ALIEN).into(),
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .movie;
         let show = browse
             .get_show(GetShowRequest {
                 library_id: self.shows,
@@ -75,7 +67,19 @@ impl Fixture {
             .unwrap()
             .into_owned()
             .show;
-        (movie.on_watchlist, show.on_watchlist)
+        (alien, show.on_watchlist)
+    }
+
+    /// Whether the Movie with the TMDB id `tmdb` is on the Watchlist of whoever `who` calls as.
+    async fn movie_on_watchlist(&self, who: ClientConfig, tmdb: i64) -> bool {
+        let browse = BrowseServiceClient::new(HttpClient::plaintext(), who);
+        let asked = GetMovieRequest {
+            library_id: self.movies,
+            movie_id: tmdb_id(tmdb).into(),
+            ..Default::default()
+        };
+        let movie = browse.get_movie(asked).await.unwrap().into_owned().movie;
+        movie.on_watchlist
     }
 
     /// The Admin's Watchlist.
@@ -221,15 +225,15 @@ async fn removing_keeps_other_titles_and_other_users_watchlists() {
         id("imdb", ALIEN_IMDB),
     )
     .await;
+    add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, tmdb_id(HEAT)).await;
     add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
     add(&beas, TitleKind::TITLE_KIND_MOVIE, id("imdb", ALIEN_IMDB)).await;
 
     remove(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
 
-    assert_eq!(
-        fx.on_watchlist(fx.server.client_config()).await,
-        (false, true)
-    );
+    let admin = fx.server.client_config();
+    assert_eq!(fx.on_watchlist(admin.clone()).await, (false, true));
+    assert!(fx.movie_on_watchlist(admin, HEAT).await);
     assert_eq!(fx.on_watchlist(bea.client_config()).await, (true, false));
 }
 

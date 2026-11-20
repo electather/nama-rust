@@ -87,8 +87,8 @@ pub(super) fn ids_from_json(json: Option<&str>) -> ExternalIds {
         .collect()
 }
 
-/// Every id of every Matched title of `kind`, in any Library, that a Match gives the id `id`,
-/// `id` among them; none if no Match does. Read on `conn` so a write can act on the answer.
+/// `id` and every id a Matched title of `kind`, in any Library, shares with it, through any
+/// chain of Matches each sharing an id with the last. Read on `conn` so a write can act on it.
 pub(crate) async fn matched_ids(
     conn: &mut SqliteConnection,
     kind: TitleKind,
@@ -101,19 +101,26 @@ pub(crate) async fn matched_ids(
         TitleKind::Show => ("show", "episode"),
     };
     let (namespace, value) = (id.namespace(), id.value());
+    // UNION, not UNION ALL, drops ids already found, so the chain ends.
     let rows = sqlx::query!(
-        "SELECT DISTINCT other.namespace, other.value
-         FROM item_match_ids AS named
-         JOIN item_matches ON item_matches.item_id = named.item_id
-         JOIN library_items ON library_items.id = named.item_id
-         JOIN item_match_ids AS other
-             ON other.item_id = named.item_id AND other.scope = named.scope
-         WHERE named.scope = ? AND named.namespace = ? AND named.value = ?
-           AND item_matches.state = 'matched'
-           AND library_items.kind = ?",
-        scope,
+        r#"WITH RECURSIVE found (namespace, value) AS (
+               SELECT ?1, ?2
+               UNION
+               SELECT other.namespace, other.value
+               FROM found
+               JOIN item_match_ids AS named
+                   ON named.scope = ?3 AND named.namespace = found.namespace
+                  AND named.value = found.value
+               JOIN item_matches ON item_matches.item_id = named.item_id
+               JOIN library_items ON library_items.id = named.item_id
+               JOIN item_match_ids AS other
+                   ON other.item_id = named.item_id AND other.scope = named.scope
+               WHERE item_matches.state = 'matched' AND library_items.kind = ?4
+           )
+           SELECT namespace AS "namespace!: String", value AS "value!: String" FROM found"#,
         namespace,
         value,
+        scope,
         item_kind
     )
     .fetch_all(conn)

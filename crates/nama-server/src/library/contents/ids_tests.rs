@@ -1,6 +1,16 @@
+use std::sync::Arc;
+
 use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB};
 
-use super::{DEFAULT_ORDER, Pin, parse_hint, primary_id};
+use super::{DEFAULT_ORDER, Pin, matched_ids, parse_hint, primary_id};
+use crate::{
+    db::Database,
+    library::{
+        Metadata,
+        fixture::{MatchedMovie, tmdb_movie},
+        title_source::TitleKind,
+    },
+};
 
 fn id(namespace: &str, value: &str) -> ExternalId {
     ExternalId::new(namespace, value).unwrap()
@@ -72,4 +82,36 @@ fn the_primary_id_follows_the_order_given_then_namespace_order() {
         Some(ExternalId::tmdb(1))
     );
     assert_eq!(primary(&[anidb.clone(), id(IMDB, "tt1")]), Some(anidb));
+}
+
+#[tokio::test]
+async fn matched_ids_follow_matches_sharing_an_id_and_leave_other_titles() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(dir.path()).await.unwrap());
+    let alien_imdb = id(IMDB, "tt0078748");
+    let titles = [
+        ("a", [ExternalId::tmdb(348), alien_imdb.clone()]),
+        ("b", [alien_imdb.clone(), ExternalId::tvdb(1)]),
+        ("c", [ExternalId::tmdb(949), id(IMDB, "tt0113277")]),
+    ];
+    for (folder, ids) in titles {
+        let folder = dir.path().join(folder);
+        std::fs::create_dir(&folder).unwrap();
+        let matched = Metadata {
+            ids: ExternalIds::from_iter(ids),
+            ..tmdb_movie(0, "Alien")
+        };
+        MatchedMovie::new(&db, &folder, matched).await;
+    }
+    let mut conn = db.reader().acquire().await.unwrap();
+
+    let mut found = (matched_ids(&mut conn, TitleKind::Movie, &ExternalId::tvdb(1)).await).unwrap();
+    found.sort_by_key(ToString::to_string);
+    let as_show = (matched_ids(&mut conn, TitleKind::Show, &ExternalId::tvdb(1)).await).unwrap();
+
+    assert_eq!(
+        found,
+        [alien_imdb, ExternalId::tmdb(348), ExternalId::tvdb(1)]
+    );
+    assert_eq!(as_show, [ExternalId::tvdb(1)]);
 }
