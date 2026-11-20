@@ -454,6 +454,7 @@ const ROWS: &[&[&str]] = &[
     &["library"],
     &["events", "connections", "users"],
     &["plugins"],
+    &["backup"],
     &[
         "images",
         "server_settings",
