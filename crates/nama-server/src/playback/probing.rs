@@ -1,6 +1,6 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
-//! [`super::tracks`]), with a Matroska file's keyframes when its Cues list them, and decides what a
-//! failure to probe one means for trying it again. It lists any other Version's keyframes in the
+//! [`super::tracks`]), with a Matroska or MP4 file's keyframes when its index lists them, and
+//! decides what a failure to probe one means for trying it again. It lists any other Version's keyframes in the
 //! background when first asked for them, and keeps them, or that listing them failed, for its
 //! file as it is ([`Probing::keyframes`]).
 //!
@@ -13,6 +13,7 @@
 
 mod cues;
 mod ffprobe;
+mod mp4;
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -477,17 +478,17 @@ impl Probing {
             return Ok(probe);
         }
         match ffprobe::probe(&self.inner.ffmpeg, path).await {
-            Ok((probe, file_start_ms)) => {
-                let cued = match probe.container.as_str() {
-                    // ponytail: Matroska only; MP4's sample tables list keyframes too (#1128).
-                    "matroska,webm" => cues::listed(path, file_start_ms, probe.duration_ms).await,
+            Ok((probe, starts)) => {
+                let indexed = match probe.container.as_str() {
+                    "matroska,webm" => cues::listed(path, starts.file_ms, probe.duration_ms).await,
+                    "mov,mp4,m4a,3gp,3g2,mj2" => mp4::listed(path, starts, probe.duration_ms).await,
                     _ => None,
                 };
                 self.inner.tracks.store(file, probe.clone()).await?;
-                // Without usable Cues, the first Remux lists them by reading the whole file.
-                if let Some(cued) = cued {
+                // Without a usable index, the first Remux lists them by reading the whole file.
+                if let Some(indexed) = indexed {
                     (self.inner.tracks)
-                        .store_keyframes(file, &Keyframes::Listed(cued))
+                        .store_keyframes(file, &Keyframes::Listed(indexed))
                         .await?;
                 }
                 Ok(probe)
@@ -580,6 +581,18 @@ impl Probing {
         claim.found.send_replace(Some(listed));
         stored
     }
+}
+
+/// Whether `listed`, read from a container's index, is a list a whole-file listing could give:
+/// non-empty, increasing, the first at `first_ms` within rounding to the millisecond, and ending
+/// by `duration_ms`.
+fn plausible(listed: &ListedKeyframes, first_ms: i64, duration_ms: Option<i64>) -> bool {
+    let keyframes = &listed.keyframes_ms;
+    keyframes
+        .first()
+        .is_some_and(|first| (first - first_ms).abs() <= 1)
+        && keyframes.is_sorted_by(|earlier, later| earlier < later)
+        && (keyframes.last().zip(duration_ms)).is_some_and(|(last, duration)| *last <= duration)
 }
 
 /// What failing to probe the file at `path` with `err` means for trying it again.
