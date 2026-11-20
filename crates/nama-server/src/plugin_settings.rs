@@ -228,20 +228,7 @@ impl PluginSettings {
             }
             None => config.plugins.parse()?,
         };
-        // Unbounded: startup and `enable_again` send from sync code, and a dropped id would leave
-        // its Fulfiller's Requests waiting until it is enabled again.
-        let (came_up, came_up_reader) = mpsc::unbounded_channel();
-        let plugins = Self {
-            db,
-            registry,
-            data_dir: config.data_dir.clone(),
-            changing: Arc::default(),
-            running: Arc::default(),
-            saving_crashed: Arc::default(),
-            stop_saving_crashed: CancellationToken::new(),
-            came_up,
-            came_up_reader: Arc::new(std::sync::Mutex::new(Some(came_up_reader))),
-        };
+        let plugins = Self::new(db, registry, config.data_dir.clone());
         let starting = plugins.clone();
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
         let settings = task::spawn_blocking(move || {
@@ -264,6 +251,31 @@ impl PluginSettings {
         let saving_crashed = task::spawn(plugins.clone().save_crashed(crashed));
         *lock_ignoring_poison(&plugins.saving_crashed) = Some(saving_crashed);
         Ok(plugins)
+    }
+
+    /// Plugin settings over the Plugins `registry` knows, none enabled from what is stored, nor
+    /// any Installed Plugin read. Its data directory is the working directory, which
+    /// [`PluginSettings::list`] would read Installed Plugins from.
+    #[cfg(test)]
+    pub(crate) fn for_tests(db: Arc<Database>, registry: Registry) -> Self {
+        Self::new(db, registry, PathBuf::new())
+    }
+
+    fn new(db: Arc<Database>, registry: Registry, data_dir: PathBuf) -> Self {
+        // Unbounded: startup and `enable_again` send from sync code, and a dropped id would leave
+        // its Fulfiller's Requests waiting until it is enabled again.
+        let (came_up, came_up_reader) = mpsc::unbounded_channel();
+        Self {
+            db,
+            registry,
+            data_dir,
+            changing: Arc::default(),
+            running: Arc::default(),
+            saving_crashed: Arc::default(),
+            stop_saving_crashed: CancellationToken::new(),
+            came_up,
+            came_up_reader: Arc::new(std::sync::Mutex::new(Some(came_up_reader))),
+        }
     }
 
     /// Stops saving the Plugins disabled for crashing, once those that crashed before it are

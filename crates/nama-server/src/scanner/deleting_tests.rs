@@ -35,7 +35,7 @@ const PAST_AND_PRESENT: i64 = 1_003;
 /// A Shows Library holding `Dark - S01E01-E02.mkv`, Matched to the Episodes Secrets and Lies, and
 /// `Dark - S01E03.mkv`, Matched to Past and Present, with `plugins` as the Plugins the Scanner asks.
 async fn dark(plugins: &Registry) -> Fixture {
-    let media = Fixture::with_plugins(LibraryKind::Shows, plugins.extension_points()).await;
+    let media = Fixture::with_plugins(LibraryKind::Shows, plugins.clone()).await;
     store(
         &media,
         "Dark - S01E01-E02.mkv",
@@ -206,7 +206,7 @@ async fn deleting_a_show_stops_monitoring_every_current_season_and_a_movie_or_it
         library: dark.library,
         title: TitleTarget::Show(ExternalId::tmdb(70_523)),
     };
-    let movies = Fixture::with_plugins(LibraryKind::Movies, plugins.extension_points()).await;
+    let movies = Fixture::with_plugins(LibraryKind::Movies, plugins.clone()).await;
     for file in [
         "Alien (1979)/Alien (1979).mkv",
         "Alien (1979)/Alien (1979) - 2160p.mkv",
@@ -427,7 +427,7 @@ async fn a_delete_whose_fulfiller_says_to_try_again_still_deletes_and_asks_again
     plugins
         .enable(Arc::new(BusyPlugin(Arc::clone(&busy))))
         .unwrap();
-    let media = Fixture::with_plugins(LibraryKind::Movies, plugins.extension_points()).await;
+    let media = Fixture::with_plugins(LibraryKind::Movies, plugins.clone()).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scan().await;
     let alien = media
