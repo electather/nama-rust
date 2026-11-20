@@ -479,7 +479,17 @@ impl RunningPlans {
             }
         });
         let keep_behind_ms = self.inner.settings.keep_behind_ms();
-        let running = Running::start(id, timeline, dir, start_ms, runs, keep_behind_ms).await?;
+        let started = Running::start(id, timeline, dir.clone(), start_ms, runs, keep_behind_ms);
+        let running = match started.await {
+            Ok(running) => running,
+            Err(err) => {
+                // No `Running` was built, so its `stop` won't delete the folder.
+                if let Err(delete) = tokio::fs::remove_dir_all(&dir).await {
+                    tracing::warn!(plan = id, "could not delete {}: {delete}", dir.display());
+                }
+                return Err(StartError::Run(err));
+            }
+        };
         self.insert(id, playback, Some(running), on_hardware);
         Ok(id)
     }
