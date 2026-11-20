@@ -13,6 +13,7 @@ include!("nama.v1.library.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
 include!("nama.v1.user.rs");
+include!("nama.v1.watchlist.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -43,6 +44,7 @@ pub mod __buffa {
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
         include!("nama.v1.user.__view.rs");
+        include!("nama.v1.watchlist.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -428,6 +430,10 @@ pub mod __buffa {
         reg.register_json_any(super::__NOTIFICATION_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__SET_NOTIFICATION_PREFERENCE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_NOTIFICATION_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__ADD_TO_WATCHLIST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__ADD_TO_WATCHLIST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -1854,5 +1860,21 @@ pub use self::__buffa::view::SetNotificationPreferenceRequestOwnedView;
 pub use self::__buffa::view::SetNotificationPreferenceResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetNotificationPreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AddToWatchlistRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::AddToWatchlistRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AddToWatchlistResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::AddToWatchlistResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RemoveFromWatchlistRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RemoveFromWatchlistRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RemoveFromWatchlistResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RemoveFromWatchlistResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

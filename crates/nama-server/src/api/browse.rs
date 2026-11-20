@@ -1,8 +1,9 @@
 //! What a Library holds: `nama.v1.BrowseService`.
 
-use std::{ffi::OsStr, path::Path};
+use std::{ffi::OsStr, path::Path, sync::Arc};
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_plugin_api::metadata::ExternalIds;
 use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
     GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
@@ -15,21 +16,26 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
+    browse::{Browse, Episode, ListedShow, Movie, Show, Started, Version},
+    db::Database,
     home_rows::{self, HomeRows, OnServer, RowTitle},
     library::{
-        Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie,
-        Listing, NotFound, Role, Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
+        Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
+        Slot, TitleKind, TitleSort, Unmatched, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
+    watchlist,
 };
 
 use super::{
-    ImageSources, Refused, ShownImages, caller, database_failed, external_id_to_proto,
-    proto_number, refuse,
+    ImageSources, ShownImages, caller, database_failed, external_id_to_proto, proto_number, refuse,
     requests::{missing_movie_to_proto, missing_show_to_proto},
     required_id,
 };
+
+mod refusals;
+
+pub(super) use refusals::{Fields, not_found, refused};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -39,6 +45,21 @@ pub(super) struct BrowseServiceHandler {
     /// Serves the posters of the missing titles Home rows show, which no Match stores.
     pub(super) artwork: Artwork,
     pub(super) images: ImageSources,
+    /// Holds the Watchlists that say whether a Movie or Show is on the caller's.
+    pub(super) db: Arc<Database>,
+}
+
+impl BrowseServiceHandler {
+    /// Whether the title of `kind` known by `ids` is on the User `user`'s Watchlist.
+    async fn on_watchlist(
+        &self,
+        user: i64,
+        kind: TitleKind,
+        ids: &ExternalIds,
+    ) -> Result<bool, ConnectError> {
+        let on = watchlist::has(&self.db, user, kind, ids).await;
+        on.map_err(database_failed)
+    }
 }
 
 #[expect(
@@ -98,9 +119,14 @@ impl BrowseService for BrowseServiceHandler {
             title: "movie_id",
             ..Fields::LIBRARY
         }))?;
+        let on_watchlist = (self.on_watchlist(user.id, TitleKind::Movie, &movie.ids)).await?;
         let images = self.images.shown().await?;
         Response::ok(GetMovieResponse {
-            movie: movie_to_proto(movie, state, &images).into(),
+            movie: proto::Movie {
+                on_watchlist,
+                ..movie_to_proto(movie, state, &images)
+            }
+            .into(),
             // Where a Library lives is shown only to those who may delete what's in it (AGENTS.md,
             // "Clients name ids"), not to every User who can browse it.
             read_only_folder: read_only_folder
@@ -161,9 +187,10 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn get_show(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, GetShowRequest>,
     ) -> ServiceResult<GetShowResponse> {
+        let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
         let id = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let show = self.browse.show(request.library_id, &id).await;
@@ -171,6 +198,7 @@ impl BrowseService for BrowseServiceHandler {
             title: "show_id",
             ..Fields::LIBRARY
         }))?;
+        let on_watchlist = (self.on_watchlist(user, TitleKind::Show, &show.ids)).await?;
         let images = self.images.shown().await?;
         let seasons = (show.seasons.keys())
             .map(|&number| {
@@ -185,7 +213,11 @@ impl BrowseService for BrowseServiceHandler {
             })
             .collect();
         Response::ok(GetShowResponse {
-            show: show_to_proto(&show, &images).into(),
+            show: proto::Show {
+                on_watchlist,
+                ..show_to_proto(&show, &images)
+            }
+            .into(),
             seasons,
             ..Default::default()
         })
@@ -260,10 +292,19 @@ impl BrowseService for BrowseServiceHandler {
         let listed = self.browse.continue_watching(user, &asked).await;
         let (started, page) = listed.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await?;
+        let mut entries = Vec::with_capacity(started.len());
+        // ponytail: one query per entry, on a page of at most 100; ask for the page's at once if
+        // Continue Watching gets slow.
+        for entry in started {
+            let (kind, ids) = match &entry {
+                Started::Movie { movie, .. } => (TitleKind::Movie, &movie.ids),
+                Started::Episode { show, .. } => (TitleKind::Show, &show.ids),
+            };
+            let on_watchlist = self.on_watchlist(user, kind, ids).await?;
+            entries.push(started_to_proto(entry, on_watchlist, &images));
+        }
         Response::ok(ListContinueWatchingResponse {
-            entries: (started.into_iter())
-                .map(|started| started_to_proto(started, &images))
-                .collect(),
+            entries,
             page: page.into(),
             ..Default::default()
         })
@@ -540,14 +581,25 @@ fn movie_to_proto(
     }
 }
 
-/// A Continue Watching entry as clients see it, with its images as `images` gives them.
-fn started_to_proto(started: Started, images: &ShownImages) -> proto::ContinueWatchingEntry {
+/// A Continue Watching entry as clients see it, with its images as `images` gives them, its Movie
+/// or Show `on_watchlist` or not.
+fn started_to_proto(
+    started: Started,
+    on_watchlist: bool,
+    images: &ShownImages,
+) -> proto::ContinueWatchingEntry {
     let (library_id, movie_or_episode) = match started {
         Started::Movie {
             library,
             movie,
             state,
-        } => (library, movie_to_proto(movie, Some(state), images).into()),
+        } => {
+            let movie = proto::Movie {
+                on_watchlist,
+                ..movie_to_proto(movie, Some(state), images)
+            };
+            (library, movie.into())
+        }
         Started::Episode {
             library,
             show,
@@ -556,7 +608,11 @@ fn started_to_proto(started: Started, images: &ShownImages) -> proto::ContinueWa
         } => {
             let started_episode = proto::ContinueWatchingEpisode {
                 episode: episode_to_proto(episode, state, images).into(),
-                show: show_to_proto(&show, images).into(),
+                show: proto::Show {
+                    on_watchlist,
+                    ..show_to_proto(&show, images)
+                }
+                .into(),
                 ..Default::default()
             };
             (library, started_episode.into())
@@ -701,82 +757,6 @@ fn version_to_proto(version: &Version) -> proto::Version {
         size: u64::try_from(version.file.size).unwrap_or_default(),
         tracks: version.tracks.iter().map(track_to_proto).collect(),
         ..Default::default()
-    }
-}
-
-/// The request's fields naming what Browse looks up, so the refusal for one it didn't find names
-/// its field. A request without one has `""`, and its refusal no field.
-#[derive(Clone, Copy)]
-pub(super) struct Fields {
-    pub(super) library: &'static str,
-    /// The Movie's, Show's or Episode's id; a Season's Show's.
-    pub(super) title: &'static str,
-    pub(super) season: &'static str,
-    /// An Episode's number within its Season.
-    pub(super) episode: &'static str,
-    pub(super) version: &'static str,
-}
-
-impl Fields {
-    /// For a call that looks nothing up by id.
-    pub(super) const NONE: Self = Self {
-        library: "",
-        title: "",
-        season: "",
-        episode: "",
-        version: "",
-    };
-    /// A Browse request naming only its Library, in `library_id`.
-    pub(super) const LIBRARY: Self = Self {
-        library: "library_id",
-        ..Self::NONE
-    };
-}
-
-/// What makes the Connect error a client gets for a Library, title, Season or Version that
-/// Browse didn't find, naming its field in `fields`. Database failures are logged, not sent.
-pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError {
-    move |err| match err {
-        browse::Error::NotFound(err) => not_found(fields, &err).into(),
-        browse::Error::PageTokenInvalid(_) => refuse(
-            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
-            err.to_string(),
-        )
-        .field("page.token")
-        .into(),
-        browse::Error::Database(err) => database_failed(err),
-    }
-}
-
-/// The refusal for finding nothing of what `fields` name.
-pub(super) fn not_found(fields: Fields, err: &NotFound) -> Refused {
-    use RefusalReason as R;
-    let message = err.to_string();
-    match *err {
-        NotFound::NoSuchLibrary(id) => refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
-            .field(fields.library)
-            .param("libraryId", &id),
-        NotFound::NothingMatched => {
-            refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message).field(fields.title)
-        }
-        NotFound::NoSuchSeason => {
-            refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message).field(fields.season)
-        }
-        NotFound::NoSuchEpisode => {
-            refuse(R::REFUSAL_REASON_EPISODE_NOT_FOUND, message).field(fields.episode)
-        }
-        NotFound::NoSuchVersion => {
-            refuse(R::REFUSAL_REASON_VERSION_NOT_FOUND, message).field(fields.version)
-        }
-        NotFound::WrongKind { wanted } => {
-            let kind = match wanted {
-                LibraryKind::Movies => "movies",
-                LibraryKind::Shows => "shows",
-            };
-            refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
-                .field(fields.library)
-                .param("libraryKind", &kind)
-        }
     }
 }
 

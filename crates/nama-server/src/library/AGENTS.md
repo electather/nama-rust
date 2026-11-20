@@ -18,4 +18,4 @@ What a Library holds: its contents, its settings (`libraries.rs`), asking its ti
 ### Neighbours
 
 - Uses: `db`, `events`, `requests` (the ADR 0012 call), `users` (`name_key`, which Library names are unique under), `plugins` (`ExtensionPoints`), `images`, `server_settings` (`ImageSettings`).
-- Used by: `scanner` and `matching` (also `Recognisers`, `ScanLocks`, `country_tag` and `PARSER_VERSION`), `browse`, `playback`, `requests`, `home_rows` (Contents, Libraries), the `api` parts and startup in `lib.rs`.
+- Used by: `scanner` and `matching` (also `Recognisers`, `ScanLocks`, `country_tag` and `PARSER_VERSION`), `browse`, `playback`, `requests`, `home_rows` (Contents, Libraries), `watchlist` (`TitleKind`), the `api` parts and startup in `lib.rs`.
