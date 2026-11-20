@@ -2310,6 +2310,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-theintrodb"
+version = "0.1.0"
+dependencies = [
+ "nama-pdk",
+ "serde",
+]
+
+[[package]]
 name = "nama-plugin-tmdb"
 version = "0.1.0"
 dependencies = [
