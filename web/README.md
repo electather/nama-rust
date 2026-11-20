@@ -77,6 +77,8 @@ cat dist/license/all.tmp build/license_fullnotice > path/to/web/public/licenses/
 
 `LIB_LICENSES` leaves out expat, which the Makefile still lists but JASSUB no longer bundles. The Makefile's own lint step can fail after `all.tmp` is written, and the `# Project: jassub` section comes out empty, so copy the copyright lines of JASSUB's `LICENSE` into it by hand. The Makefile also misses mimalloc, which Emscripten links into `jassub-worker-modern.wasm`, so add its `# Project: mimalloc` section by hand too, from the `LICENSE` in Emscripten's `system/lib/mimalloc`.
 
+`public/licenses/liberation-sans.txt` is the [Liberation fonts](https://github.com/liberationfonts/liberation-fonts) `LICENSE` (OFL 1.1), for JASSUB's fallback font `dist/default.woff2`. OFL 1.1 condition 2 asks each copy of the font to carry it, and the font's metadata names the license but doesn't hold its text. If a `jassub` bump changes that font, copy the `LICENSE` of its release again.
+
 ## How the app is put together
 
 The app is organised by feature (ADR 0064). [`src/AGENTS.md`](src/AGENTS.md) has the layout, which folder imports which, and the rules for each folder.
