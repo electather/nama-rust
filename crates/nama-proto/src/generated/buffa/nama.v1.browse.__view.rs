@@ -84,6 +84,16 @@ pub struct MovieView<'a> {
     ///
     /// Field 18: `on_watchlist`
     pub on_watchlist: bool,
+    /// A backdrop with its title written on it, in English for now, to show without the Title Logo
+    /// over it, such as on a Continue Watching card. Unset if its title sources have none. A Custom
+    /// Image never replaces it.
+    ///
+    /// Field 19: `titled_backdrop_url`
+    pub titled_backdrop_url: ::core::option::Option<&'a str>,
+    /// As `poster_thumbhash`, for the titled backdrop.
+    ///
+    /// Field 20: `titled_backdrop_thumbhash`
+    pub titled_backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -256,6 +266,22 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.on_watchlist = ::buffa::types::decode_bool(&mut cur)?;
             }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.titled_backdrop_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.titled_backdrop_thumbhash = Some(
+                    ::buffa::types::borrow_bytes(&mut cur)?,
+                );
+            }
             9u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -345,6 +371,10 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
             genres: self.genres.iter().map(|s| s.to_string()).collect(),
             content_rating: self.content_rating.map(|s| s.to_string()),
             on_watchlist: self.on_watchlist,
+            titled_backdrop_url: self.titled_backdrop_url.map(|s| s.to_string()),
+            titled_backdrop_thumbhash: self
+                .titled_backdrop_thumbhash
+                .map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -425,6 +455,12 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if self.on_watchlist {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if let Some(ref v) = self.titled_backdrop_url {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.titled_backdrop_thumbhash {
+            size += 2u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -504,6 +540,12 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if self.on_watchlist {
             ::buffa::types::put_bool_field(18u32, self.on_watchlist, buf);
+        }
+        if let Some(ref v) = self.titled_backdrop_url {
+            ::buffa::types::put_string_field(19u32, v, buf);
+        }
+        if let Some(ref v) = self.titled_backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(20u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -595,6 +637,16 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
         }
         if self.on_watchlist {
             __map.serialize_entry("onWatchlist", &self.on_watchlist)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.titled_backdrop_url {
+            __map.serialize_entry("titledBackdropUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.titled_backdrop_thumbhash {
+            __map
+                .serialize_entry(
+                    "titledBackdropThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -817,6 +869,22 @@ impl MovieOwnedView {
     #[must_use]
     pub fn on_watchlist(&self) -> bool {
         self.0.reborrow().on_watchlist
+    }
+    /// A backdrop with its title written on it, in English for now, to show without the Title Logo
+    /// over it, such as on a Continue Watching card. Unset if its title sources have none. A Custom
+    /// Image never replaces it.
+    ///
+    /// Field 19: `titled_backdrop_url`
+    #[must_use]
+    pub fn titled_backdrop_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().titled_backdrop_url
+    }
+    /// As `poster_thumbhash`, for the titled backdrop.
+    ///
+    /// Field 20: `titled_backdrop_thumbhash`
+    #[must_use]
+    pub fn titled_backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().titled_backdrop_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -5333,6 +5401,14 @@ pub struct ShowView<'a> {
     ///
     /// Field 15: `season_count`
     pub season_count: u32,
+    /// As `Movie.titled_backdrop_url`.
+    ///
+    /// Field 16: `titled_backdrop_url`
+    pub titled_backdrop_url: ::core::option::Option<&'a str>,
+    /// As `Movie.titled_backdrop_thumbhash`.
+    ///
+    /// Field 17: `titled_backdrop_thumbhash`
+    pub titled_backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -5477,6 +5553,22 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 )?;
                 view.season_count = ::buffa::types::decode_uint32(&mut cur)?;
             }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.titled_backdrop_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.titled_backdrop_thumbhash = Some(
+                    ::buffa::types::borrow_bytes(&mut cur)?,
+                );
+            }
             10u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -5533,6 +5625,10 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             first_air_date: self.first_air_date.map(|s| s.to_string()),
             on_watchlist: self.on_watchlist,
             season_count: self.season_count,
+            titled_backdrop_url: self.titled_backdrop_url.map(|s| s.to_string()),
+            titled_backdrop_thumbhash: self
+                .titled_backdrop_thumbhash
+                .map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5594,6 +5690,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if self.season_count != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_count) as u64;
         }
+        if let Some(ref v) = self.titled_backdrop_url {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.titled_backdrop_thumbhash {
+            size += 2u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5654,6 +5756,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if self.season_count != 0u32 {
             ::buffa::types::put_uint32_field(15u32, self.season_count, buf);
+        }
+        if let Some(ref v) = self.titled_backdrop_url {
+            ::buffa::types::put_string_field(16u32, v, buf);
+        }
+        if let Some(ref v) = self.titled_backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(17u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5733,6 +5841,16 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
                 .serialize_entry(
                     "seasonCount",
                     &::buffa::json_helpers::ProtoJson(&self.season_count),
+                )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.titled_backdrop_url {
+            __map.serialize_entry("titledBackdropUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.titled_backdrop_thumbhash {
+            __map
+                .serialize_entry(
+                    "titledBackdropThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
                 )?;
         }
         __map.end()
@@ -5929,6 +6047,20 @@ impl ShowOwnedView {
     #[must_use]
     pub fn season_count(&self) -> u32 {
         self.0.reborrow().season_count
+    }
+    /// As `Movie.titled_backdrop_url`.
+    ///
+    /// Field 16: `titled_backdrop_url`
+    #[must_use]
+    pub fn titled_backdrop_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().titled_backdrop_url
+    }
+    /// As `Movie.titled_backdrop_thumbhash`.
+    ///
+    /// Field 17: `titled_backdrop_thumbhash`
+    #[must_use]
+    pub fn titled_backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().titled_backdrop_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {

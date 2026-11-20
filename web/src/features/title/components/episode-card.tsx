@@ -20,7 +20,7 @@ export function EpisodeCard({ libraryId, episode }: { libraryId: bigint; episode
         <div className="-ms-2 mt-1 flex">
           <PlayedIconButton
             played={episode.watchState?.played === true}
-            label={`Played: ${episode.title}`}
+            label={`Watched: ${episode.title}`}
             onToggle={(played) => {
               setPlayed({ libraryId, target: { case: "episodeId", value: episodeId }, played });
             }}

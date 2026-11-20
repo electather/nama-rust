@@ -1,17 +1,15 @@
 import { CardMenuContent } from "@/features/home/components/card-menu-content";
 import { CardMenuTrigger } from "@/features/home/components/card-menu-trigger";
+import type { CardActions } from "@/features/home/lib/card-actions";
 import { DropdownMenu } from "@/shared/ui/dropdown-menu";
 
-/**
- * A card's menu, over the top corner of its art, which stays dark, on the scrim (DESIGN.md, "The
- * Legible Over Art Rule").
- */
-export function CardMenu({ title, onMarkWatched }: { title: string; onMarkWatched: () => void }) {
+/** A card's menu, at the end of its caption over the art, which stays dark (DESIGN.md, "The Legible Over Art Rule"). */
+export function CardMenu({ title, actions }: { title: string; actions: CardActions }) {
   return (
-    <div className="dark absolute inset-e-2 top-2 rounded-lg bg-scrim">
+    <div className="dark pointer-events-auto shrink-0 rounded-full">
       <DropdownMenu>
         <CardMenuTrigger title={title} />
-        <CardMenuContent onMarkWatched={onMarkWatched} />
+        <CardMenuContent {...actions} />
       </DropdownMenu>
     </div>
   );

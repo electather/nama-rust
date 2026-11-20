@@ -106,6 +106,7 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
             bitrate: Some(5_000_000),
             tracks,
             font_attachments: vec![],
+            chapters: vec![],
         }),
         device: firefox(),
         can_do: CanDo {
@@ -234,6 +235,7 @@ fn an_h264_and_aac_mp4_direct_plays_with_no_reasons() {
                 burn_in: vec![],
                 limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
             },
+            chapters: vec![],
         }
     );
 }
@@ -416,7 +418,9 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
     .unwrap();
 
     let tracks = match planned {
-        Some(Planned::Started(StartedPlan { plan, .. }) | Planned::Unplayable(plan)) => plan.tracks,
+        Some(Planned::Started(StartedPlan { plan, .. }) | Planned::Unplayable { plan, .. }) => {
+            plan.tracks
+        }
         None => vec![],
     };
     let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();

@@ -21,6 +21,7 @@ mod choices;
 mod codecs;
 mod direct_play;
 mod downloads;
+mod lasting;
 mod limits;
 mod preview_frames;
 mod probing;
@@ -36,6 +37,7 @@ mod tracks;
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
 pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
+pub(crate) use limits::{NAMED_LIMITS, limit_to_proto};
 pub(crate) use preview_frames::{PreviewFrames, router as preview_frames_router};
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
@@ -54,7 +56,7 @@ pub(crate) use track_preferences::{
     Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,
     is_language,
 };
-pub(crate) use tracks::{Probe, Track, TrackKind, Tracks, track_to_proto};
+pub(crate) use tracks::{Chapter, Probe, Track, TrackKind, Tracks, track_to_proto};
 
 use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32};
 
@@ -69,12 +71,11 @@ use crate::{
 };
 use probing::ProbeError;
 
-use choices::{
-    audio_asked, burns_in, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles,
-};
-use codecs::{file_audio, is_audio, played_audio_place, played_by, played_tracks};
+use choices::{audio_asked, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles};
+use codecs::{played_audio_place, played_by, played_tracks};
 use direct_play::direct_play_url;
-use limits::{fitted, limit_in_effect, network, on_local_network, picture, playback_limit};
+use lasting::{offers, playable_versions};
+use limits::{limit_in_effect, network, on_local_network, playback_limit};
 use steps::{
     converting, device_decoding, failed_on_device, failed_on_server, fallback, keyframes_unlisted,
     remux, server_busy, server_ffmpeg, too_busy_to_play, transcode, version_length, version_tracks,
@@ -144,6 +145,8 @@ pub(crate) struct Plan {
     /// one in `burn_in`, or else a text one the Server chose for the Device to show.
     pub(crate) starting_subtitle: Option<usize>,
     pub(crate) offers: Offers,
+    /// The Version's Chapters, or none when it has fewer than two, which the player has no use for.
+    pub(crate) chapters: Vec<Chapter>,
 }
 
 impl Plan {
@@ -220,7 +223,11 @@ pub(crate) struct StartedPlan {
 pub(crate) enum Planned {
     Started(StartedPlan),
     /// A plan that can't be played, which nothing keeps.
-    Unplayable(Plan),
+    Unplayable {
+        plan: Plan,
+        /// The other Versions of its title that would play, as [`playable_versions`] lists them.
+        playable_versions: Vec<i64>,
+    },
 }
 
 /// How a plan plays a Version, with what its method converts, for a Remux or a Transcode the
@@ -436,7 +443,7 @@ pub(crate) async fn plan(
         dropped: BTreeSet::new(),
     };
     loop {
-        match start_built(running, caller, facts.clone(), start_ms).await {
+        match start_built(probing, running, caller, facts.clone(), start_ms).await {
             Err(StartError::Keyframes(err)) => {
                 tracing::warn!(
                     version,
@@ -454,8 +461,10 @@ pub(crate) async fn plan(
     }
 }
 
-/// Builds the plan for `facts` and starts it in `running` if it plays, as [`plan`] says.
+/// Builds the plan for `facts` and starts it in `running` if it plays, as [`plan`] says, or else
+/// lists the other Versions that would play.
 async fn start_built(
+    probing: &Probing,
     running: &RunningPlans,
     caller: &Caller,
     mut facts: Facts,
@@ -463,10 +472,14 @@ async fn start_built(
 ) -> Result<Option<Planned>, StartError> {
     let plan = build(&mut facts);
     if plan.playing.is_none() {
-        return match too_busy_to_play(facts) {
-            Some(max) => Err(StartError::Busy(max)),
-            None => Ok(Some(Planned::Unplayable(plan))),
-        };
+        if let Some(max) = too_busy_to_play(facts.clone()) {
+            return Err(StartError::Busy(max));
+        }
+        let playable_versions = playable_versions(probing, &facts).await?;
+        return Ok(Some(Planned::Unplayable {
+            plan,
+            playable_versions,
+        }));
     }
     let (running, caller) = (running.clone(), caller.clone());
     // A Device giving up mid-wait mustn't leave ffmpeg and its folder with no plan (ADR 0029).
@@ -485,32 +498,6 @@ pub(crate) fn reason_to_proto(reason: &Reason) -> proto::PlaybackReason {
         decided: reason.decided,
         ..Default::default()
     }
-}
-
-/// Each Playback Limit below Original, by the API's name for it.
-pub(crate) const NAMED_LIMITS: [(PlaybackLimit, proto::PlaybackLimit); 3] = [
-    (
-        PlaybackLimit::P1080,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_1080P,
-    ),
-    (
-        PlaybackLimit::P720,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_720P,
-    ),
-    (
-        PlaybackLimit::P480,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_480P,
-    ),
-];
-
-/// `limit` as the API names it, `None` being Original.
-pub(crate) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLimit {
-    (NAMED_LIMITS.into_iter())
-        .find(|(ours, _)| Some(*ours) == limit)
-        .map_or(
-            proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
-            |(_, theirs)| theirs,
-        )
 }
 
 /// `accel` as the API names it.
@@ -700,6 +687,10 @@ fn build(facts: &mut Facts) -> Plan {
         burn_in: burned_in,
         starting_subtitle: burned_in.or(facts.shown_subtitle),
         offers: offers(facts, &lasting),
+        chapters: (facts.probe.as_ref())
+            .map(|probe| probe.chapters.clone())
+            .filter(|chapters| chapters.len() > 1)
+            .unwrap_or_default(),
     }
 }
 
@@ -759,40 +750,6 @@ fn allowed_by(reasons: &[Reason]) -> BTreeSet<Method> {
                 .any(|reason| reason.rules_out.contains(method))
         })
         .collect()
-}
-
-/// What a plan for `facts` can ever honour, with only the methods in `lasting` allowed.
-fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
-    let Some(probe) = &facts.probe else {
-        return Offers::default();
-    };
-    let transcodes = lasting.contains(&Method::Transcode);
-    let places = |keep: &dyn Fn(&Track) -> bool| {
-        (probe.tracks.iter().enumerate())
-            .filter(|(_, track)| keep(track))
-            .map(|(place, _)| place)
-            .collect()
-    };
-    // Only the file's own audio plays without a Remux or a Transcode.
-    let audio = if transcodes || lasting.contains(&Method::Remux) {
-        places(&is_audio)
-    } else {
-        file_audio(probe).into_iter().collect()
-    };
-    if !transcodes {
-        return Offers {
-            audio,
-            ..Offers::default()
-        };
-    }
-    let picture = picture(facts);
-    Offers {
-        audio,
-        burn_in: places(&|track| burns_in(&facts.device, probe, track)),
-        limits: (PlaybackLimit::ALL.into_iter())
-            .filter(|&limit| picture.and_then(|picture| fitted(picture, limit)).is_some())
-            .collect(),
-    }
 }
 
 #[cfg(test)]

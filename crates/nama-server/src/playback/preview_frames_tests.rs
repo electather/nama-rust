@@ -94,6 +94,7 @@ impl Fixture {
             bitrate: None,
             tracks: vec![video],
             font_attachments: Vec::new(),
+            chapters: Vec::new(),
         };
         self.tracks.store(file, probe).await.unwrap();
     }

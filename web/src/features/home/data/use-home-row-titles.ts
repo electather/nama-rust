@@ -1,16 +1,14 @@
-import { useQuery } from "@connectrpc/connect-query";
-
 import { BrowseService, type HomeRow } from "@/gen/nama/v1/browse_pb";
+import { usePaged } from "@/shared/hooks/use-paged";
 
-/** A row's one page on home: whole rows of posters at two and five columns. */
-const rowPage = { size: 10 };
+/** A page of a row: a little over a wide screen's shelf of posters. */
+const rowPage = { size: 12 };
 
-/** The titles of one Plugin's `row`, once they have loaded. */
+/** The titles of one Plugin's `row`, page by page as its shelf scrolls. */
 export function useHomeRowTitles(row: HomeRow) {
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- each row loads on its own, and Home never waits on one
-  return useQuery(BrowseService.method.listHomeRowTitles, {
+  return usePaged(BrowseService.method.listHomeRowTitles, {
     pluginId: row.pluginId,
     key: row.key,
     page: rowPage,
-  }).data?.titles;
+  });
 }

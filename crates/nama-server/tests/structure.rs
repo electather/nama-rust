@@ -160,7 +160,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ),
     (
         "src/playback/tracks",
-        &["version_probes", "tracks", "probe_failures"],
+        &["version_probes", "tracks", "chapters", "probe_failures"],
     ),
     (
         "src/requests/qualities",

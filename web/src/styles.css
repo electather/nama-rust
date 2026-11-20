@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "./home.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -22,8 +23,7 @@
   }
 }
 
-/* No Tailwind palette: a raw colour class like `bg-red-500` doesn't exist, so only the semantic
-   tokens below can colour anything (ADR 0016). */
+/* No Tailwind palette: `bg-red-500` doesn't exist, so only the tokens below colour (ADR 0016). */
 /* A scrolling list's own scrollbar, as quiet as a hairline. */
 @utility scrollbar-quiet {
   scrollbar-width: thin;

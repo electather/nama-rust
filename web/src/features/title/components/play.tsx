@@ -3,8 +3,7 @@ import type { ReactNode } from "react";
 import { VersionChoice } from "@/features/title/components/version-choice";
 import type { Version } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { PlayOrResume } from "@/shared/components/watch-state/play-or-resume";
-import { timeLeft } from "@/shared/lib/title-facts";
+import { PlayButton } from "@/shared/components/watch-state/play-button";
 
 /**
  * Play `version`, or Resume it with how far in you are once started, and a choice of Version, each
@@ -28,14 +27,13 @@ export function Play({
   const versionId = String(version.id);
   return (
     <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
-      <PlayOrResume
+      <PlayButton
         link={{
           to: "/libraries/$libraryId/movies/$movieId/play",
           params,
           search: { version: Number(versionId) },
         }}
         state={watchState}
-        detail={timeLeft(watchState)}
       />
       {versions.length > 1 && (
         <VersionChoice versions={versions} versionId={versionId} onChoose={onChoose} />

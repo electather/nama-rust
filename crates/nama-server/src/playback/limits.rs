@@ -3,13 +3,39 @@
 use std::net::IpAddr;
 
 use buffa::Enumeration;
-use nama_proto::nama::v1::PlaybackReasonKind as Kind;
+use nama_proto::nama::v1::{self as proto, PlaybackReasonKind as Kind};
 
 use super::{
     Candidates, Choice, Facts, Method, Network, PickedLimit, Reason, codecs::played_video,
-    limit_to_proto, tracks::TrackKind,
+    tracks::TrackKind,
 };
 use crate::{ffmpeg::VideoLimit, server_settings::PlaybackLimit};
+
+/// Each Playback Limit below Original, by the API's name for it.
+pub(crate) const NAMED_LIMITS: [(PlaybackLimit, proto::PlaybackLimit); 3] = [
+    (
+        PlaybackLimit::P1080,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_1080P,
+    ),
+    (
+        PlaybackLimit::P720,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_720P,
+    ),
+    (
+        PlaybackLimit::P480,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_480P,
+    ),
+];
+
+/// `limit` as the API names it, `None` being Original.
+pub(crate) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLimit {
+    (NAMED_LIMITS.into_iter())
+        .find(|(ours, _)| Some(*ours) == limit)
+        .map_or(
+            proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
+            |(_, theirs)| theirs,
+        )
+}
 
 /// The step for where the Device is: it rules nothing out, and says when the default Playback
 /// Limit for remote playback chose a limit the next step scales the picture down to or drops.

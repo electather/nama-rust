@@ -1,10 +1,11 @@
-import { type MessageInitShape, create } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { type ServiceImpl, createRouterTransport } from "@connectrpc/connect";
 import { TransportProvider } from "@connectrpc/connect-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, renderHook, screen, waitFor } from "@testing-library/react";
 import { type ReactNode, Suspense } from "react";
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { rgbaToThumbHash, thumbHashToDataURL } from "thumbhash";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import {
   continueWatchingQuery,
@@ -17,15 +18,18 @@ import {
   type ShowSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { ExternalIdSchema } from "@/gen/nama/v1/match_pb";
-import {
-  type SetPlayedRequest,
-  WatchStateService,
-  type WatchStateSchema,
-} from "@/gen/nama/v1/watch_state_pb";
+import { WatchStateService, type WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { heldBack } from "@/test-held-back";
+import { layOutShelves } from "@/test-layout";
 
-afterEach(cleanup);
+beforeEach(layOutShelves);
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 const alien = { namespace: "tmdb", value: "348" } as const;
 
@@ -39,7 +43,11 @@ function server(
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, browse);
+    router.service(BrowseService, {
+      listHomeRows: () => ({}),
+      listFeatured: () => ({}),
+      ...browse,
+    });
     router.service(WatchStateService, watchState);
   });
 }
@@ -49,9 +57,24 @@ function openHome(...entries: MessageInitShape<typeof ContinueWatchingEntrySchem
   openApp("/", server({ listContinueWatching: () => ({ entries }) }));
 }
 
+/** What the card `link` covers shows: its art, the preview until that loads, its Title Logo and its text. */
+function looksOf(link: HTMLElement) {
+  const card = link.parentElement;
+  return {
+    art: card?.querySelector("img:not([src^='data:'])")?.getAttribute("src") ?? undefined,
+    preview: card?.querySelector("img[src^='data:']")?.getAttribute("src") ?? undefined,
+    logo: card?.querySelector("img[alt]:not([alt=''])")?.getAttribute("src") ?? undefined,
+    text: card?.textContent,
+  };
+}
+
+/** One-pixel thumbhashes of two colours, so a titled Backdrop's preview differs from a Backdrop's. */
+const backdropHash = rgbaToThumbHash(1, 1, new Uint8Array([10, 0, 0, 255]));
+const titledHash = rgbaToThumbHash(1, 1, new Uint8Array([20, 0, 0, 255]));
+
 /**
  * A Continue Watching entry for Season `seasonNumber`'s Episode `episodeNumber` of `show`, in TV
- * (2), without a `watchState` when it's the Show's next Episode. The Episode's id is `episodeId`'s.
+ * (2), without a `watchState` when it's the Show's next Episode.
  */
 // oxlint-disable-next-line max-params -- an entry reads as its Show, Season, Episode and Watch State, in that order
 function episodeEntry(
@@ -66,7 +89,7 @@ function episodeEntry(
       case: "episode",
       value: {
         episode: {
-          id: episodeId(seasonNumber, episodeNumber),
+          id: { namespace: "tmdb", value: `${show.title}-${seasonNumber}-${episodeNumber}` },
           seasonNumber,
           episodeNumber,
           watchState,
@@ -77,12 +100,7 @@ function episodeEntry(
   } as const;
 }
 
-/** The id the fake Server gives Season `seasonNumber`'s Episode `episodeNumber`. */
-function episodeId(seasonNumber: number, episodeNumber: number) {
-  return { namespace: "tmdb", value: `${String(seasonNumber)}-${String(episodeNumber)}` };
-}
-
-test("home asks for Continue Watching's first page, a row's worth", async () => {
+test("home asks for Continue Watching's first page, a shelf's worth", async () => {
   const asked: ListContinueWatchingRequest[] = [];
   openApp(
     "/",
@@ -94,11 +112,12 @@ test("home asks for Continue Watching's first page, a row's worth", async () => 
     }),
   );
 
-  await screen.findByRole("heading", { name: "Libraries" });
+  await waitFor(() => {
+    expect(asked).not.toHaveLength(0);
+  });
   // Home may refetch on mount under load (#1238), so this checks each request's page, not how many.
   const pagesAsked = asked.map(({ page }) => ({ size: page?.size, token: page?.token }));
-  expect(pagesAsked).not.toHaveLength(0);
-  expect(pagesAsked).toStrictEqual(pagesAsked.map(() => ({ size: 6, token: "" })));
+  expect(pagesAsked).toStrictEqual(pagesAsked.map(() => ({ size: 8, token: "" })));
 });
 
 test("continue Watching doesn't ask again when home mounts over a second after its loader", async () => {
@@ -112,7 +131,7 @@ test("continue Watching doesn't ask again when home mounts over a second after i
     });
   });
   const queryClient = new QueryClient();
-  await queryClient.query(continueWatchingQuery(transport));
+  await queryClient.infiniteQuery(continueWatchingQuery(transport));
   // Only Date is faked, so Suspense and the transport still run on real timers.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(Date.now() + 2000);
@@ -150,13 +169,9 @@ test("a Movie's Continue Watching card resumes it, with how much is left", async
     },
   });
 
-  const card = await screen.findByRole("link", { name: /Alien/u });
+  const card = await screen.findByRole("link", { name: "Resume Alien, 1h 12m left" });
   expect(card.getAttribute("href")).toBe("/libraries/1/movies/tmdb-348/play");
-  expect(card.querySelector("img")?.getAttribute("src")).toBe(
-    "/media/artwork/tmdb/%2Falien-backdrop.jpg",
-  );
-  expect(within(card).getByText("1h 12m left")).toBeDefined();
-  expect(within(card).getByRole("progressbar", { name: "Watched" })).toBeDefined();
+  expect(looksOf(card).art).toBe("/media/artwork/tmdb/%2Falien-backdrop.jpg");
 });
 
 test("a Season 2 Episode's card shows its Show's Backdrop, not a Season's Poster", async () => {
@@ -168,91 +183,122 @@ test("a Season 2 Episode's card shows its Show's Backdrop, not a Season's Poster
   } as const;
   openHome(episodeEntry(dark, 2, 3, { positionMs: 1_020_000n, durationMs: 3_000_000n }));
 
-  const card = await screen.findByRole("link", { name: /Dark/u });
+  const card = await screen.findByRole("link", { name: "Resume Dark, S2, E3 · 33m left" });
+  expect(card.parentElement?.querySelector(String.raw`.before\:w-\(--played\)`)).not.toBeNull();
   expect(card.getAttribute("href")).toBe("/libraries/2/shows/tmdb-70523/seasons/2/episodes/3/play");
-  expect(card.querySelector("img")?.getAttribute("src")).toBe(
-    "/media/artwork/tmdb/%2Fdark-backdrop.jpg",
-  );
-  expect(within(card).getByText("S2, E3 · 33m left")).toBeDefined();
-  expect(within(card).getByRole("progressbar", { name: "Watched" })).toBeDefined();
+  expect(looksOf(card).art).toBe("/media/artwork/tmdb/%2Fdark-backdrop.jpg");
+  // Beside its bar, the card leaves out "left": the bar says it.
+  expect(card.parentElement?.textContent).toContain("S2, E3 · 33m");
+  expect(card.parentElement?.textContent).not.toContain("left");
 });
 
-test("a Show's next Episode's card says which it is, with no progress", async () => {
+/** `title` with its Backdrop, Title Logo and, only if `titled`, its titled Backdrop. */
+function withArt(title: string, titled: boolean) {
+  return {
+    title,
+    backdropUrl: `/${title}-backdrop.jpg`,
+    backdropThumbhash: backdropHash,
+    titleLogoUrl: `/${title}-logo.png`,
+    titledBackdropUrl: titled ? `/${title}-titled.jpg` : undefined,
+    titledBackdropThumbhash: titled ? titledHash : undefined,
+  };
+}
+
+/** What Alien's and Dark's Episode 2's cards show, with their titled Backdrops only if `titled`. */
+async function cardsWithArt(titled: boolean) {
+  const movie = { id: alien, ...withArt("Alien", titled) };
+  const dark = { id: { namespace: "tmdb", value: "70523" }, ...withArt("Dark", titled) };
+  const alienEntry = { libraryId: 1n, movieOrEpisode: { case: "movie", value: movie } } as const;
+  openHome(alienEntry, episodeEntry(dark, 1, 2));
+  return [
+    looksOf(await screen.findByRole("link", { name: "Play Alien" })),
+    looksOf(await screen.findByRole("link", { name: "Play Dark, S1, E2" })),
+  ];
+}
+
+test("a card shows its titled Backdrop and its preview, without its Title Logo or title", async () => {
+  const preview = thumbHashToDataURL(titledHash);
+  await expect(cardsWithArt(true)).resolves.toStrictEqual([
+    { art: "/Alien-titled.jpg", preview, logo: undefined, text: "" },
+    { art: "/Dark-titled.jpg", preview, logo: undefined, text: "S1, E2" },
+  ]);
+});
+
+test("a card without a titled Backdrop shows its Backdrop under its Title Logo", async () => {
+  const preview = thumbHashToDataURL(backdropHash);
+  await expect(cardsWithArt(false)).resolves.toStrictEqual([
+    { art: "/Alien-backdrop.jpg", preview, logo: "/Alien-logo.png", text: "" },
+    { art: "/Dark-backdrop.jpg", preview, logo: "/Dark-logo.png", text: "S1, E2" },
+  ]);
+});
+
+test("a Show's next Episode's card plays it, saying which it is", async () => {
   const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" } as const;
-  openHome(episodeEntry(dark, 1, 4));
+  const entry = episodeEntry(dark, 1, 4);
+  openHome({
+    ...entry,
+    movieOrEpisode: {
+      ...entry.movieOrEpisode,
+      value: {
+        ...entry.movieOrEpisode.value,
+        episode: { ...entry.movieOrEpisode.value.episode, runtimeMinutes: 47 },
+      },
+    },
+  });
 
-  const card = await screen.findByRole("link", { name: /Dark/u });
+  // Not started, it says how long it runs, with no bar.
+  const card = await screen.findByRole("link", { name: "Play Dark, S1, E4 · 47m" });
+  expect(card.parentElement?.querySelector(String.raw`.before\:w-\(--played\)`)).toBeNull();
   expect(card.getAttribute("href")).toBe("/libraries/2/shows/tmdb-70523/seasons/1/episodes/4/play");
-  expect(within(card).getByText("S1, E4")).toBeDefined();
-  expect(within(card).queryByRole("progressbar")).toBeNull();
 });
 
-test("a Special without a Backdrop shows the placeholder with its Show's title", async () => {
+test("a Special without a Backdrop shows its Show's title on a plain card", async () => {
   const severance = { id: { namespace: "tmdb", value: "95396" }, title: "Severance" } as const;
   openHome(episodeEntry(severance, 0, 1, { positionMs: 1n, durationMs: 60_000n }));
 
-  const card = await screen.findByRole("link", { name: /Severance/u });
-  expect(card.querySelector("img")).toBeNull();
-  expect(within(card).getByText("Specials, E1 · 1m left")).toBeDefined();
-  expect(within(card).getByRole("progressbar", { name: "Watched" })).toBeDefined();
-});
-
-/** Where the fake Server keeps `name`'s Title Logo. */
-function logo(name: string) {
-  return `/media/artwork/tmdb/%2F${name}-logo.png`;
-}
-
-test("continue Watching cards show each title's Title Logo in place of its title", async () => {
-  const dark = {
-    id: { namespace: "tmdb", value: "70523" },
-    title: "Dark",
-    titleLogoUrl: logo("dark"),
-  } as const;
-  openHome(
-    {
-      libraryId: 1n,
-      movieOrEpisode: {
-        case: "movie",
-        value: {
-          id: alien,
-          title: "Alien",
-          titleLogoUrl: logo("alien"),
-          watchState: { positionMs: 1n, durationMs: 60_000n },
-        },
-      },
-    },
-    episodeEntry(dark, 1, 1, { positionMs: 1n, durationMs: 60_000n }),
-  );
-
-  const alienCard = await screen.findByRole("link", { name: /Alien/u });
-  expect(within(alienCard).getByRole("img", { name: "Alien" }).getAttribute("src")).toBe(
-    logo("alien"),
-  );
-  const darkCard = screen.getByRole("link", { name: /Dark/u });
-  expect(within(darkCard).getByRole("img", { name: "Dark" }).getAttribute("src")).toBe(
-    logo("dark"),
-  );
+  const card = await screen.findByRole("link", {
+    name: "Resume Severance, Specials, E1 · 1m left",
+  });
+  expect(looksOf(card).art).toBeUndefined();
+  expect(card.parentElement?.textContent).toContain("Severance");
 });
 
 test("continue Watching hides when there's nothing", async () => {
-  openHome();
-  await expect(screen.findByRole("heading", { name: "Libraries" })).resolves.toBeDefined();
-  expect(screen.queryByRole("heading", { name: "Continue Watching" })).toBeNull();
+  const picks = { pluginId: "lists", key: "picks", heading: "Picks" };
+  const heat = { libraryId: 1n, id: { namespace: "tmdb", value: "949" }, title: "Heat" };
+  openApp(
+    "/",
+    server({
+      listContinueWatching: () => ({}),
+      listHomeRows: () => ({ rows: [picks] }),
+      listHomeRowTitles: () => ({ titles: [{ movieOrShow: { case: "movie", value: heat } }] }),
+    }),
+  );
+
+  // The first row loads after Continue Watching, which the loader starts first.
+  await screen.findByRole("link", { name: "Heat" });
+  expect(screen.queryByRole("region", { name: "Continue Watching" })).toBeNull();
 });
 
 /**
- * A fake Server whose Continue Watching lists `entry` until it's marked played, with what each
- * `SetPlayed` asked of it.
+ * A fake Server whose Continue Watching lists Dark's Episode 2 until it's marked watched, then its
+ * Episode 3, with each Episode marked noted in `asked`.
  */
-function serverMarking(entry: MessageInitShape<typeof ContinueWatchingEntrySchema>) {
-  let played = false;
-  const asked: Pick<SetPlayedRequest, "libraryId" | "target" | "played">[] = [];
+function serverMarking() {
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
+  const asked: { episode: string | undefined; played: boolean }[] = [];
   const transport = server(
-    { listContinueWatching: () => ({ entries: played ? [] : [entry] }) },
     {
-      setPlayed: ({ libraryId, target, played: markedPlayed }) => {
-        played = markedPlayed;
-        asked.push({ libraryId, target, played: markedPlayed });
+      listContinueWatching: () => ({
+        entries: [episodeEntry(dark, 1, asked.length === 0 ? 2 : 3)],
+      }),
+    },
+    {
+      setPlayed: ({ target, played }) => {
+        asked.push({
+          episode: target.case === "episodeId" ? target.value.value : undefined,
+          played,
+        });
         return {};
       },
     },
@@ -260,48 +306,91 @@ function serverMarking(entry: MessageInitShape<typeof ContinueWatchingEntrySchem
   return { transport, asked };
 }
 
-/** Marks the card for `title` watched from its menu, and waits for the card to leave the row. */
-async function markCardWatched(title: string) {
-  fireEvent.click(await screen.findByRole("button", { name: `More for ${title}` }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as watched" }));
-  await waitFor(() => {
-    expect(screen.queryByRole("link", { name: new RegExp(title, "u") })).toBeNull();
-  });
-}
-
-test("marking a Movie's card watched marks the Movie played and takes the card away", async () => {
-  const { transport, asked } = serverMarking({
+test("a card's menu opens its Show's page, or its Movie's", async () => {
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" } as const;
+  const alienEntry = {
     libraryId: 1n,
-    movieOrEpisode: {
-      case: "movie",
-      value: { id: alien, title: "Alien", watchState: { positionMs: 1n, durationMs: 60_000n } },
-    },
-  });
-  openApp("/", transport);
+    movieOrEpisode: { case: "movie", value: { id: alien, title: "Alien" } },
+  } as const;
+  openHome(episodeEntry(dark, 1, 2), alienEntry);
 
-  await markCardWatched("Alien");
-
-  expect(asked).toStrictEqual([
-    {
-      libraryId: 1n,
-      target: { case: "movieId", value: create(ExternalIdSchema, alien) },
-      played: true,
-    },
-  ]);
+  fireEvent.click(await screen.findByRole("button", { name: "More for Dark" }));
+  const show = await screen.findByRole("menuitem", { name: "Go to Show" });
+  expect(show.getAttribute("href")).toBe("/libraries/2/shows/tmdb-70523");
+  fireEvent.keyDown(show, { key: "Escape" });
+  fireEvent.click(await screen.findByRole("button", { name: "More for Alien" }));
+  const movie = await screen.findByRole("menuitem", { name: "Go to Movie" });
+  expect(movie.getAttribute("href")).toBe("/libraries/1/movies/tmdb-348");
 });
 
-test("marking an Episode's card watched marks that Episode played, not its Show", async () => {
-  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
-  const { transport, asked } = serverMarking(episodeEntry(dark, 1, 2));
+test("marking an Episode watched moves its card on to the Show's next Episode", async () => {
+  const { transport, asked } = serverMarking();
   openApp("/", transport);
 
-  await markCardWatched("Dark");
+  fireEvent.click(await screen.findByRole("button", { name: "More for Dark" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as watched" }));
 
-  expect(asked).toStrictEqual([
+  await expect(screen.findByRole("link", { name: "Play Dark, S1, E3" })).resolves.toBeDefined();
+  expect(asked).toStrictEqual([{ episode: "Dark-1-2", played: true }]);
+});
+
+/**
+ * A fake Server whose Continue Watching lists `entry` until it's removed, with each removal asked
+ * of it: whether it hid it, and which.
+ */
+function serverRemoving(entry: MessageInitShape<typeof ContinueWatchingEntrySchema>) {
+  let hidden = false;
+  const asked: { case: string | undefined; hidden: boolean }[] = [];
+  const transport = server(
+    { listContinueWatching: () => ({ entries: hidden ? [] : [entry] }) },
     {
-      libraryId: 2n,
-      target: { case: "episodeId", value: create(ExternalIdSchema, episodeId(1, 2)) },
-      played: true,
+      setHiddenFromContinueWatching: (request) => {
+        ({ hidden } = request);
+        asked.push({ case: request.target.case, hidden });
+        return {};
+      },
     },
-  ]);
+  );
+  return { transport, asked };
+}
+
+test("removing a Show from recently watched takes its card away", async () => {
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
+  const { transport, asked } = serverRemoving(episodeEntry(dark, 1, 2));
+  openApp("/", transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "More for Dark" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Remove from recently watched" }));
+
+  await waitFor(() => {
+    expect(screen.queryByRole("link", { name: /Dark/u })).toBeNull();
+  });
+  expect(asked).toStrictEqual([{ case: "showId", hidden: true }]);
+});
+
+/** Picks `item` from Dark's card's menu, which takes the card away, then the card `refuse` brings back. */
+async function leavesThenComesBack(item: string, refuse: () => void) {
+  fireEvent.click(await screen.findByRole("button", { name: "More for Dark" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: item }));
+  await waitFor(() => {
+    expect(screen.queryByRole("link", { name: /Dark/u })).toBeNull();
+  });
+  refuse();
+  return screen.findByRole("link", { name: /Dark/u });
+}
+
+test("a card leaves as you mark it watched or remove it, and comes back if the Server refuses", async () => {
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
+  const marking = heldBack();
+  const removing = heldBack();
+  const transport = server(
+    { listContinueWatching: () => ({ entries: [episodeEntry(dark, 1, 2)] }) },
+    { setPlayed: marking.answer, setHiddenFromContinueWatching: removing.answer },
+  );
+  openApp("/", transport);
+
+  await expect(leavesThenComesBack("Mark as watched", marking.refuse)).resolves.toBeDefined();
+  await expect(
+    leavesThenComesBack("Remove from recently watched", removing.refuse),
+  ).resolves.toBeDefined();
 });

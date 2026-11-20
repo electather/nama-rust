@@ -7,20 +7,18 @@ mod browsing;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/http.rs"]
 mod http;
+#[path = "support/kept_artwork.rs"]
+mod kept_artwork;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::{fs, path::Path, sync::Arc};
 
 use browsing::{ALIEN_1080P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
 use http::fetch;
+use kept_artwork::{kept, until_kept};
 use nama_plugin_api::PluginId;
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
@@ -34,7 +32,7 @@ use nama_server::{
     plugins::{ExtensionPoints, Registry},
 };
 use server::{
-    TestServer, WAIT,
+    TestServer,
     tmdb::{ALIEN, HEAT},
 };
 
@@ -53,32 +51,15 @@ const DARK_TITLE_LOGO: &str = "/b3eMvXwALgdBkBd2zZpDmpDWBbX.png";
 const SECRETS_STILL: &str = "/gNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
 const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
 
-/// Where `server` keeps TMDB's image at `path`, as the store escapes its leading `/`.
-fn kept(server: &TestServer, path: &str) -> PathBuf {
-    server
-        .data_dir()
-        .join("artwork/tmdb")
-        .join(path.replacen('/', "%2F", 1))
-}
-
-/// Waits until `server` keeps each of TMDB's images at `paths`, failing the test after [`WAIT`].
-async fn until_kept(server: &TestServer, paths: &[&str]) {
-    let all_kept = || paths.iter().all(|path| kept(server, path).exists());
-    let waited = tokio::time::timeout(WAIT, async {
-        while !all_kept() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-    assert!(waited.is_ok(), "never kept {paths:?}");
-}
+/// The Plugin whose images these tests keep.
+const TMDB: &str = "tmdb";
 
 #[tokio::test]
 async fn a_scan_downloads_a_matched_movies_poster_backdrop_and_title_logo_before_anyone_views_them()
 {
     let fx = Fixture::alien().await;
 
-    until_kept(&fx.server, &[POSTER, BACKDROP, TITLE_LOGO]).await;
+    until_kept(&fx.server, TMDB, &[POSTER, BACKDROP, TITLE_LOGO]).await;
 }
 
 #[tokio::test]
@@ -91,6 +72,7 @@ async fn a_scan_downloads_an_episodes_still_and_season_poster_and_its_shows_post
 
     until_kept(
         &fx.server,
+        TMDB,
         &[
             DARK_SEASON_1_POSTER,
             DARK_BACKDROP,
@@ -107,7 +89,7 @@ async fn an_episodes_still_is_dropped_once_no_match_stores_it() {
     let mut fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
     fx.write(DARK_S01E01, b"video");
     fx.items = fx.scan_and_match().await;
-    until_kept(&fx.server, &[SECRETS_STILL]).await;
+    until_kept(&fx.server, TMDB, &[SECRETS_STILL]).await;
 
     fx.matches
         .clear_match(ClearMatchRequest {
@@ -117,7 +99,7 @@ async fn an_episodes_still_is_dropped_once_no_match_stores_it() {
         .await
         .unwrap();
 
-    assert!(!kept(&fx.server, SECRETS_STILL).exists());
+    assert!(!kept(&fx.server, TMDB, SECRETS_STILL).exists());
 }
 
 #[tokio::test]
@@ -126,15 +108,15 @@ async fn a_pinned_match_downloads_its_titles_images() {
 
     pin(&fx, HEAT).await;
 
-    until_kept(&fx.server, &[HEAT_POSTER, HEAT_BACKDROP]).await;
+    until_kept(&fx.server, TMDB, &[HEAT_POSTER, HEAT_BACKDROP]).await;
 }
 
 /// A download that failed, or a Library Matched before Matches downloaded, is filled in.
 #[tokio::test]
 async fn a_scan_downloads_an_image_the_store_lacks_and_a_view_meanwhile_fetches_it() {
     let fx = Fixture::alien().await;
-    until_kept(&fx.server, &[POSTER]).await;
-    fs::remove_file(kept(&fx.server, POSTER)).unwrap();
+    until_kept(&fx.server, TMDB, &[POSTER]).await;
+    fs::remove_file(kept(&fx.server, TMDB, POSTER)).unwrap();
     let poster = fx
         .get_movie(fx.library, ALIEN)
         .await
@@ -143,11 +125,11 @@ async fn a_scan_downloads_an_image_the_store_lacks_and_a_view_meanwhile_fetches_
         .unwrap();
 
     let viewed = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
-    fs::remove_file(kept(&fx.server, POSTER)).unwrap();
+    fs::remove_file(kept(&fx.server, TMDB, POSTER)).unwrap();
     fx.scan_and_match().await;
 
     assert_eq!(viewed.status, 200);
-    until_kept(&fx.server, &[POSTER]).await;
+    until_kept(&fx.server, TMDB, &[POSTER]).await;
 }
 
 /// A client should try again later, rather than take the image to be gone.
@@ -161,9 +143,9 @@ async fn an_image_not_kept_from_a_provider_that_fails_is_unavailable() {
         .poster_url
         .unwrap();
     // Once the scan's downloads are done, so none writes the poster again.
-    until_kept(&fx.server, &[POSTER, BACKDROP]).await;
+    until_kept(&fx.server, TMDB, &[POSTER, BACKDROP]).await;
     fx.server.stop_tmdb();
-    fs::remove_file(kept(&fx.server, POSTER)).unwrap();
+    fs::remove_file(kept(&fx.server, TMDB, POSTER)).unwrap();
 
     let reply = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
 
@@ -173,12 +155,12 @@ async fn an_image_not_kept_from_a_provider_that_fails_is_unavailable() {
 #[tokio::test]
 async fn a_match_corrected_to_another_title_drops_the_old_titles_images() {
     let fx = Fixture::alien().await;
-    until_kept(&fx.server, &[POSTER, BACKDROP]).await;
+    until_kept(&fx.server, TMDB, &[POSTER, BACKDROP]).await;
 
     pin(&fx, HEAT).await;
 
-    assert!(!kept(&fx.server, POSTER).exists());
-    assert!(!kept(&fx.server, BACKDROP).exists());
+    assert!(!kept(&fx.server, TMDB, POSTER).exists());
+    assert!(!kept(&fx.server, TMDB, BACKDROP).exists());
 }
 
 #[tokio::test]
@@ -187,15 +169,15 @@ async fn deleting_a_library_drops_the_images_only_its_items_used() {
     let other = (fx.server)
         .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])
         .await;
-    until_kept(&fx.server, &[POSTER, BACKDROP]).await;
+    until_kept(&fx.server, TMDB, &[POSTER, BACKDROP]).await;
 
     delete_library(&fx.server, fx.library).await;
-    let shared_kept = kept(&fx.server, POSTER).exists();
+    let shared_kept = kept(&fx.server, TMDB, POSTER).exists();
     delete_library(&fx.server, other.id).await;
 
     assert!(shared_kept);
-    assert!(!kept(&fx.server, POSTER).exists());
-    assert!(!kept(&fx.server, BACKDROP).exists());
+    assert!(!kept(&fx.server, TMDB, POSTER).exists());
+    assert!(!kept(&fx.server, TMDB, BACKDROP).exists());
 }
 
 /// What a search shows goes to a cache of its own, so deleting it loses nothing a Match stores.
@@ -214,15 +196,15 @@ async fn a_search_results_image_is_cached_apart_from_the_kept_ones() {
     let poster = found[0].poster_url.clone().unwrap();
 
     let viewed = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
-    let kept_from_search = kept(&fx.server, POSTER).exists();
+    let kept_from_search = kept(&fx.server, TMDB, POSTER).exists();
     fx.write(ALIEN_1080P, b"video");
     fx.scan_and_match().await;
-    until_kept(&fx.server, &[POSTER]).await;
+    until_kept(&fx.server, TMDB, &[POSTER]).await;
     fs::remove_dir_all(fx.server.data_dir().join("artwork-cache")).unwrap();
 
     assert_eq!(viewed.status, 200);
     assert!(!kept_from_search);
-    assert!(kept(&fx.server, POSTER).exists());
+    assert!(kept(&fx.server, TMDB, POSTER).exists());
 }
 
 /// Pins the Alien file's Match to the Movie with the TMDB id `tmdb`, as the Admin.

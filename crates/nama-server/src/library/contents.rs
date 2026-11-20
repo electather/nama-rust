@@ -18,6 +18,7 @@ mod ids;
 mod items;
 mod listed;
 mod local_images;
+mod match_images;
 mod matched;
 mod pages;
 mod pins;

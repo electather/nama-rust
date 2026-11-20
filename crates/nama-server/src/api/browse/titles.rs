@@ -50,21 +50,36 @@ pub(super) fn started_to_proto(
     }
 }
 
-/// A Featured title as clients see it, with its images as `images` gives them.
-pub(super) fn featured_to_proto(featured: Featured, images: &ShownImages) -> proto::FeaturedTitle {
+/// A Featured title as clients see it, with its images as `images` gives them, its Movie or Show
+/// `on_watchlist` or not.
+pub(super) fn featured_to_proto(
+    featured: Featured,
+    on_watchlist: bool,
+    images: &ShownImages,
+) -> proto::FeaturedTitle {
     let (library_id, movie_or_show, next_episode) = match featured {
         Featured::Movie {
             library,
             movie,
             state,
-        } => (library, movie_to_proto(movie, state, images).into(), None),
+        } => {
+            let movie = proto::Movie {
+                on_watchlist,
+                ..movie_to_proto(movie, state, images)
+            };
+            (library, movie.into(), None)
+        }
         Featured::Show {
             library,
             show,
             next,
         } => {
             let next = next.map(|(episode, state)| episode_to_proto(episode, state, images));
-            (library, show_to_proto(&show, images).into(), next)
+            let show = proto::Show {
+                on_watchlist,
+                ..show_to_proto(&show, images)
+            };
+            (library, show.into(), next)
         }
     };
     proto::FeaturedTitle {

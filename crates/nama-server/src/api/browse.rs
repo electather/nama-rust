@@ -17,7 +17,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::{Browse, Episode, ListedShow, Movie, Show, Started, Version, season_count},
+    browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
     db::Database,
     home_rows::{HomeRows, OnServer, RowTitle},
     library::{
@@ -325,10 +325,18 @@ impl BrowseService for BrowseServiceHandler {
         let featured = self.browse.featured(user, &suggested).await;
         let featured = featured.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await?;
+        let mut titles = Vec::with_capacity(featured.len());
+        // ponytail: one query per title, as Continue Watching asks; Featured lists a handful.
+        for title in featured {
+            let (kind, ids) = match &title {
+                Featured::Movie { movie, .. } => (TitleKind::Movie, &movie.ids),
+                Featured::Show { show, .. } => (TitleKind::Show, &show.ids),
+            };
+            let on_watchlist = self.on_watchlist(user, kind, ids).await?;
+            titles.push(featured_to_proto(title, on_watchlist, &images));
+        }
         Response::ok(ListFeaturedResponse {
-            titles: (featured.into_iter())
-                .map(|title| featured_to_proto(title, &images))
-                .collect(),
+            titles,
             ..Default::default()
         })
     }
@@ -580,6 +588,7 @@ fn movie_to_proto(
     let shown = |role| images.movie_image(&movie.id, &movie.ids, role);
     let poster_url = shown(Role::Poster).or_else(|| movie.poster.map(artwork_url));
     let backdrop_url = shown(Role::Backdrop).or_else(|| movie.backdrop.map(artwork_url));
+    let titled_backdrop_url = movie.titled_backdrop.map(artwork_url);
     proto::Movie {
         title_logo_url: movie.logo.map(artwork_url),
         genres: movie.genres,
@@ -588,8 +597,10 @@ fn movie_to_proto(
         custom_backdrop: is_custom(Role::Backdrop),
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
+        titled_backdrop_thumbhash: images.thumbhash(titled_backdrop_url.as_deref()),
         poster_url,
         backdrop_url,
+        titled_backdrop_url,
         id: external_id_to_proto(&movie.id).into(),
         title: movie.title,
         original_title: movie.original_title,
@@ -628,6 +639,7 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
     let shown = |role| images.show_image(&show.id, &show.ids, role);
     let poster_url = shown(Role::Poster).or_else(|| show.poster().map(artwork_url));
     let backdrop_url = shown(Role::Backdrop).or_else(|| show.backdrop.as_ref().map(artwork_url));
+    let titled_backdrop_url = show.titled_backdrop.as_ref().map(artwork_url);
     proto::Show {
         id: external_id_to_proto(&show.id).into(),
         title: show.title.clone(),
@@ -635,8 +647,10 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         custom_backdrop: is_custom(Role::Backdrop),
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
+        titled_backdrop_thumbhash: images.thumbhash(titled_backdrop_url.as_deref()),
         poster_url,
         backdrop_url,
+        titled_backdrop_url,
         title_logo_url: show.logo.as_ref().map(artwork_url),
         genres: show.genres.clone(),
         content_rating: show.content_rating.clone(),

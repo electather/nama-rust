@@ -1,8 +1,7 @@
-import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { LinkOptions } from "@tanstack/react-router";
-import type { ComponentProps } from "react";
 
-import type { BackdropCard } from "@/features/home/components/backdrop-card";
+import type { Hiding } from "@/features/home/lib/hiding";
+import type { Marking } from "@/features/home/lib/marking";
 import type {
   ContinueWatchingEntry,
   ContinueWatchingEpisode,
@@ -10,19 +9,44 @@ import type {
   Movie,
   Show,
 } from "@/gen/nama/v1/browse_pb";
-import type { SetPlayedRequestSchema } from "@/gen/nama/v1/watch_state_pb";
-import { episodeName, metadataLine, timeLeft } from "@/shared/lib/title-facts";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
+import {
+  episodeName,
+  metadataLine,
+  remainingOf,
+  runtimeOf,
+  timeLeft,
+} from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
+import { isStarted } from "@/shared/lib/watch-progress";
 
 /**
- * A Continue Watching entry, keyed as the row lists it: where it plays, resuming where you stopped,
- * its card, and what marking its Movie or Episode watched asks.
+ * A Continue Watching entry: where it plays, resuming where you stopped, its card, and marking it
+ * watched or removing it.
  */
 export interface Card {
+  /** Unique on the shelf, which lists it by this. */
   key: string;
   link: LinkOptions;
-  backdrop: ComponentProps<typeof BackdropCard>;
-  markWatched: MessageInitShape<typeof SetPlayedRequestSchema>;
+  backdrop: {
+    url: string | undefined;
+    thumbhash: Uint8Array | undefined;
+    title: string;
+    /** Its Title Logo, shown in place of its title, if it has one. */
+    logoUrl: string | undefined;
+    /** Whether the art carries its title, so the card doesn't draw it again. */
+    titled: boolean;
+    /** Which Episode, and how much is left, such as "S1, E3 · 33m left", as its link says it. */
+    detail: string | undefined;
+    /** `detail` as the card shows it, beside its bar, which says the rest: "S1, E3 · 33m". */
+    shownDetail: string | undefined;
+    watchState: WatchState | undefined;
+  };
+  /** Its Movie's or Show's page, which its menu opens. */
+  page: { label: "Go to Movie" | "Go to Show"; link: LinkOptions };
+  marking: Marking;
+  hiding: Hiding;
 }
 
 /** The card of a Continue Watching entry, or none for one the Server left incomplete. */
@@ -46,64 +70,93 @@ function movieCard(library: bigint, movie: Movie): Card[] {
   return [
     {
       key: `${libraryId}/${movieId}`,
-      markWatched: {
-        libraryId: library,
-        target: { case: "movieId", value: movie.id },
-        played: true,
+      page: {
+        label: "Go to Movie",
+        link: { to: "/libraries/$libraryId/movies/$movieId", params: { libraryId, movieId } },
       },
+      marking: { libraryId: library, target: { case: "movieId", value: movie.id } },
+      hiding: { libraryId: library, target: { case: "movieId", value: movie.id } },
       link: {
         to: "/libraries/$libraryId/movies/$movieId/play",
         params: { libraryId, movieId },
       },
       backdrop: {
-        url: movie.backdropUrl,
-        thumbhash: movie.backdropThumbhash,
+        ...artOf(movie),
         title: movie.title,
-        logoUrl: movie.titleLogoUrl,
         detail: timeLeft(movie.watchState),
+        shownDetail: remainingOf(movie.watchState),
         watchState: movie.watchState,
       },
     },
   ];
 }
 
-// Protobuf message fields are always optional; the Server sets them.
-function episodeCard(library: bigint, { show, episode }: ContinueWatchingEpisode): Card[] {
-  return show && episode ? episodeCardOf(library, show, episode) : [];
-}
-
 /** An Episode shows its Show's Backdrop, saying which Episode it is, such as "S1, E3". */
-function episodeCardOf(library: bigint, show: Show, episode: Episode): Card[] {
-  if (!show.id || !episode.id) {
+function episodeCard(library: bigint, entry: ContinueWatchingEpisode): Card[] {
+  if (!isComplete(entry)) {
     return [];
   }
+  const { show, episode } = entry;
   const libraryId = String(library);
   const showId = titleParam(show.id);
   const season = String(episode.seasonNumber);
   const number = String(episode.episodeNumber);
+  const which = episodeName(episode.seasonNumber, episode.episodeNumber, "short");
+  const time = episodeTime(episode);
   return [
     {
       key: `${libraryId}/${showId}/${season}/${number}`,
-      markWatched: {
-        libraryId: library,
-        target: { case: "episodeId", value: episode.id },
-        played: true,
+      page: {
+        label: "Go to Show",
+        link: { to: "/libraries/$libraryId/shows/$showId", params: { libraryId, showId } },
       },
+      marking: { libraryId: library, target: { case: "episodeId", value: episode.id } },
+      // Removing an Episode removes its Show, till you play any of its Episodes again.
+      hiding: { libraryId: library, target: { case: "showId", value: show.id } },
       link: {
         to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
         params: { libraryId, showId, season, episode: number },
       },
       backdrop: {
-        url: show.backdropUrl,
-        thumbhash: show.backdropThumbhash,
+        ...artOf(show),
         title: show.title,
-        logoUrl: show.titleLogoUrl,
-        detail: metadataLine(
-          episodeName(episode.seasonNumber, episode.episodeNumber, "short"),
-          timeLeft(episode.watchState),
-        ),
+        detail: metadataLine(which, time.spoken),
+        shownDetail: metadataLine(which, time.shown),
         watchState: episode.watchState,
       },
     },
   ];
+}
+
+/** A card's art: its titled Backdrop, which needs no Title Logo, or else its Backdrop and Title Logo. */
+function artOf(movieOrShow: Movie | Show) {
+  if (movieOrShow.titledBackdropUrl !== undefined) {
+    const { titledBackdropUrl: url, titledBackdropThumbhash: thumbhash } = movieOrShow;
+    return { url, thumbhash, logoUrl: undefined, titled: true };
+  }
+  const { backdropUrl: url, backdropThumbhash: thumbhash, titleLogoUrl: logoUrl } = movieOrShow;
+  return { url, thumbhash, logoUrl, titled: false };
+}
+
+/** An Episode entry with its Show's and Episode's ids, as the Server always sends it. */
+type CompleteEpisode = ContinueWatchingEpisode & {
+  show: Show & { id: ExternalId };
+  episode: Episode & { id: ExternalId };
+};
+
+/** Whether the Server set `entry`'s ids: protobuf message fields are always optional. */
+function isComplete(entry: ContinueWatchingEpisode): entry is CompleteEpisode {
+  return entry.show?.id !== undefined && entry.episode?.id !== undefined;
+}
+
+/**
+ * An Episode's time as its card says it: what's left once you've started it, or else how long it
+ * runs, as its link says it and as the card shows it beside its bar.
+ */
+function episodeTime({ watchState, runtimeMinutes }: Episode) {
+  if (isStarted(watchState)) {
+    return { spoken: timeLeft(watchState), shown: remainingOf(watchState) };
+  }
+  const runtime = runtimeOf(runtimeMinutes, "short");
+  return { spoken: runtime, shown: runtime };
 }

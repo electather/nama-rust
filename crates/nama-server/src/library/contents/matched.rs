@@ -24,6 +24,9 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) runtime_minutes: Option<i64>,
     pub(crate) poster: Option<ImageRef>,
     pub(crate) backdrop: Option<ImageRef>,
+    /// The Backdrop with its title written on it, in the language artwork is picked in, for
+    /// clients that show it without its Title Logo over it.
+    pub(crate) titled_backdrop: Option<ImageRef>,
     pub(crate) logo: Option<ImageRef>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
@@ -47,6 +50,7 @@ impl<V> Movie<V> {
             runtime_minutes: self.runtime_minutes,
             poster: self.poster,
             backdrop: self.backdrop,
+            titled_backdrop: self.titled_backdrop,
             logo: self.logo,
             genres: self.genres,
             content_rating: self.content_rating,
@@ -108,6 +112,8 @@ pub(crate) struct Show<V = Version> {
     /// The [`METADATA_VERSION`](crate::library::versions::METADATA_VERSION) that stored `own_poster`.
     pub(crate) metadata_version: i64,
     pub(crate) backdrop: Option<ImageRef>,
+    /// As [`Movie::titled_backdrop`].
+    pub(crate) titled_backdrop: Option<ImageRef>,
     pub(crate) logo: Option<ImageRef>,
     pub(crate) overview: Option<String>,
     pub(crate) first_air_date: Option<String>,
@@ -351,61 +357,6 @@ impl Contents {
         }))
     }
 
-    pub(crate) async fn stores_image(
-        &self,
-        plugin: &str,
-        image: &str,
-    ) -> Result<bool, sqlx::Error> {
-        sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM item_matches
-                              WHERE state = 'matched'
-                                AND ((poster_plugin = ?1 AND poster = ?2)
-                                     OR (backdrop_plugin = ?1 AND backdrop = ?2)
-                                     OR (logo_plugin = ?1 AND logo = ?2)
-                                     OR (show_poster_plugin = ?1 AND show_poster = ?2)
-                                     OR (plugin = ?1 AND still = ?2)))
-               AS "stored!: bool""#,
-            plugin,
-            image
-        )
-        .fetch_one(self.db.reader())
-        .await
-    }
-
-    /// Each image a Match stores, as its Plugin and path, in the Library `library` or else in
-    /// every Library.
-    pub(crate) async fn images(
-        &self,
-        library: Option<i64>,
-    ) -> Result<Vec<(String, String)>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"WITH matched AS (
-                   SELECT item_matches.plugin, item_matches.poster, item_matches.poster_plugin,
-                          item_matches.backdrop, item_matches.backdrop_plugin, item_matches.logo,
-                          item_matches.logo_plugin, item_matches.still, item_matches.show_poster,
-                          item_matches.show_poster_plugin
-                   FROM item_matches
-                   JOIN library_items ON library_items.id = item_matches.item_id
-                   JOIN library_files ON library_files.id = library_items.file_id
-                   WHERE item_matches.state = 'matched'
-                     AND (?1 IS NULL OR library_files.library_id = ?1))
-               SELECT poster_plugin AS "plugin!", poster AS "path!" FROM matched
-               WHERE poster IS NOT NULL
-               UNION
-               SELECT backdrop_plugin, backdrop FROM matched WHERE backdrop IS NOT NULL
-               UNION
-               SELECT logo_plugin, logo FROM matched WHERE logo IS NOT NULL
-               UNION
-               SELECT show_poster_plugin, show_poster FROM matched WHERE show_poster IS NOT NULL
-               UNION
-               SELECT plugin, still FROM matched WHERE still IS NOT NULL"#,
-            library
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
-    }
-
     /// The oldest Library with an Item Matched to the Movie `id`, by any of its ids, if any.
     pub(crate) async fn library_with_movie(
         &self,
@@ -417,6 +368,10 @@ impl Contents {
 
     /// By title, ignoring case, grouped by [`primary_id`](super::primary_id): every Movie, or
     /// only those with one of `only` among their ids.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one query's columns, and the Movie each row fills"
+    )]
     pub(crate) async fn movies(
         &self,
         library: i64,
@@ -435,6 +390,7 @@ impl Contents {
                               item_matches.release_date, item_matches.runtime_minutes,
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.backdrop, item_matches.backdrop_plugin,
+                              item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
                               item_matches.logo, item_matches.logo_plugin, item_matches.genres,
                               item_matches.content_rating, library_items.added_at,
                               libraries.title_sources
@@ -486,6 +442,10 @@ impl Contents {
                     runtime_minutes: row.runtime_minutes,
                     poster: ImageRef::stored(row.poster, row.poster_plugin),
                     backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
+                    titled_backdrop: ImageRef::stored(
+                        row.titled_backdrop,
+                        row.titled_backdrop_plugin,
+                    ),
                     logo: ImageRef::stored(row.logo, row.logo_plugin),
                     genres: genres(row.genres.as_deref())?,
                     content_rating: row.content_rating,
@@ -529,7 +489,8 @@ impl Contents {
                               item_matches.title AS "title!",
                               item_matches.show_title AS "show_title!",
                               overview, release_date, runtime_minutes, poster, poster_plugin,
-                              backdrop, backdrop_plugin, logo, logo_plugin, still, genres,
+                              backdrop, backdrop_plugin, titled_backdrop, titled_backdrop_plugin,
+                              logo, logo_plugin, still, genres,
                               content_rating, show_poster, show_poster_plugin, show_overview,
                               show_first_air_date, metadata_version, library_items.added_at,
                               libraries.title_sources
@@ -574,6 +535,10 @@ impl Contents {
                     own_poster: ImageRef::stored(row.show_poster, row.show_poster_plugin),
                     metadata_version: row.metadata_version,
                     backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
+                    titled_backdrop: ImageRef::stored(
+                        row.titled_backdrop,
+                        row.titled_backdrop_plugin,
+                    ),
                     logo: ImageRef::stored(row.logo, row.logo_plugin),
                     overview: row.show_overview,
                     first_air_date: row.show_first_air_date,

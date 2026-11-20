@@ -207,6 +207,20 @@ impl Probing {
         }
     }
 
+    /// The other Versions of the title the Version `version` is of, in its Library, by path, each
+    /// with its current Tracks, sidecars included. One without current Tracks is left out, never
+    /// probed.
+    pub(super) async fn stored_other_versions(
+        &self,
+        version: i64,
+    ) -> sqlx::Result<Vec<(i64, Probe)>> {
+        let others = self.inner.contents.other_versions(version).await?;
+        let mut probes = self.inner.stored_tracks.of(&others).await?;
+        Ok((others.iter())
+            .filter_map(|other| Some((other.id, probes.remove(&other.id)?)))
+            .collect())
+    }
+
     /// The Version `version`'s file as stored, once a probe of it has finished. A probe it waited
     /// for may have read the file as it was before a scan changed it, so its Tracks may not be
     /// stored for the file returned.

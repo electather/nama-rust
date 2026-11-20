@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version_id, start_ms, title FROM chapters\n             WHERE version_id IN (SELECT value FROM json_each(?))\n             ORDER BY version_id, position",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "version_id"
+          }
+        }
+      },
+      {
+        "name": "start_ms",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "start_ms"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "title"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "306bdc43ea67e27f907fdf7c2b229a0a9b492d9b6368861c9ad401b7c35b4ca4"
+}

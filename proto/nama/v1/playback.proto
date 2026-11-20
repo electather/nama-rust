@@ -403,6 +403,11 @@ enum PlaybackMethod {
 
 message PlanPlaybackResponse {
   PlaybackPlan plan = 1;
+  // When `plan` can't be played, the other Versions of its title, in its Library, that would play
+  // on this Device, by id, best first: Direct Play, then Remux, then Transcode. Only what lasts
+  // counts, not a busy Server or a method that just failed on the Device, and a Version not
+  // probed yet isn't listed. Empty when `plan` plays.
+  repeated int64 playable_versions = 2;
 }
 
 // How the Server will play one Version on one Device, and why.
@@ -459,7 +464,18 @@ message PlaybackPlan {
   // The Version's Preview frames, for the seek bar to show the frame at a time. Unset until the
   // Server has made them of its file as it is now, in the background after probing it, which it
   // doesn't while its Library has `preview_frames` off.
-  PreviewFrames preview_frames = 15;
+  PreviewFrames preview_frames = 16;
+  // The Version's Chapters, in the order its file lists them. Empty when it has fewer than two, so
+  // the player keeps a plain seek bar.
+  repeated Chapter chapters = 15;
+}
+
+// A Chapter of the Version a plan plays.
+message Chapter {
+  // When it starts, in milliseconds from the Version's start.
+  uint64 start_ms = 1;
+  // Empty when the file names none; the player then labels it "Chapter N", counting from 1.
+  string title = 2;
 }
 
 // Where a Version's Preview frames are and how they're laid out: each sheet, fetched at
