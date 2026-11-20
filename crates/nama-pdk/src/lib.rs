@@ -1142,7 +1142,6 @@ mod tests {
                 ..SettingField::default()
             }
         );
-        assert!(!field.required && field.default_value.is_unset());
     }
 
     #[test]

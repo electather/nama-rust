@@ -51,8 +51,8 @@ impl OutsideService {
     ///
     /// # Errors
     ///
-    /// "{name} didn't answer" when nothing answers, or when `request` or `body` can't be passed
-    /// to the Server.
+    /// "{name} didn't answer" when nothing answers, or the kit's own error when `request` or
+    /// `body` can't be passed to the Server.
     pub fn send<'a, T: ToBytes<'a>>(
         &self,
         request: &HttpRequest,
@@ -91,8 +91,9 @@ impl OutsideService {
     fn refusal(&self, response: &Response) -> Refusal {
         let status = response.status_code();
         // A `Retry-After` may also be an HTTP date, which isn't worth parsing for a wording.
-        let retry_after_seconds =
-            (response.header("Retry-After")).and_then(|after| after.parse().ok());
+        let retry_after_seconds = response
+            .header("Retry-After")
+            .and_then(|after| after.parse().ok());
         let name = self.name;
         let wording = match (status, self.credential) {
             (401, Some(credential)) => format!("{name} refused the {credential}"),
@@ -254,10 +255,10 @@ mod tests {
 
     #[test]
     fn a_refusal_the_reader_finds_no_words_in_is_a_failed_status() {
-        assert_eq!(
-            refused(DISCORD, Response::new(502, "<html>Bad gateway</html>")),
-            "Discord failed with HTTP status 502"
-        );
+        let wordless = ["<html>Bad gateway</html>", r#"{"message": " "}"#]
+            .map(|body| refused(DISCORD, Response::new(502, body)));
+
+        assert_eq!(wordless, ["Discord failed with HTTP status 502"; 2]);
     }
 
     #[test]
