@@ -271,6 +271,7 @@ fn list_path(setting: &str) -> Result<Vec<&str>, Error> {
     }
 }
 
+/// The refresh's error for a list MDBList won't show: it answers a gone and a private list alike.
 fn gone(setting: &str) -> Error {
     Error::msg(format!("the MDBList list {setting} is gone or private"))
 }
