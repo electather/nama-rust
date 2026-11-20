@@ -55,6 +55,7 @@ impl Fixture {
                 Arc::clone(&db),
                 Arc::new(ffmpeg),
                 subtitles::Cache::new(data.path()),
+                crate::images::ImageStore::new(data.path(), Arc::clone(&db)),
             ),
             tracks: Tracks::new(Arc::clone(&db)),
             contents: Contents::new(db),

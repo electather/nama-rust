@@ -772,7 +772,8 @@ impl RunningPlans {
         let settings =
             crate::server_settings::Settings::new(Arc::clone(db), folder.join("transcodes"));
         let subtitles = subtitles::Cache::new(folder);
-        let probing = Probing::new(Arc::clone(db), Arc::clone(&ffmpeg), subtitles);
+        let images = crate::images::ImageStore::new(folder, Arc::clone(db));
+        let probing = Probing::new(Arc::clone(db), Arc::clone(&ffmpeg), subtitles, images);
         let contents = Contents::new(Arc::clone(db));
         Self::new(settings.playback(), ffmpeg, contents, probing, events)
     }
