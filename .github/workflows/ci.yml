@@ -38,7 +38,7 @@ jobs:
     permissions:
       pull-requests: read
     outputs:
-      rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' }}
+      rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' || steps.filter.outputs.rust_docs == 'true' }}
       web: ${{ github.event_name != 'pull_request' || steps.filter.outputs.web == 'true' }}
     steps:
       # On a PR it lists the changed files through the API, so it needs no checkout.
@@ -46,6 +46,10 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          # Markdown no check reads runs nothing. `rust_docs` is the Markdown the Rust jobs do read:
+          # the structure tests check nama-server's AGENTS.md files, and nama-pdk's README is its
+          # crate docs. web/'s Markdown stays in `web`, since `vp check` formats it.
+          predicate-quantifier: some-with-excludes
           # proto/ generates code on both sides, and a change to this file runs everything.
           filters: |
             rust:
@@ -61,12 +65,17 @@ jobs:
               - 'clippy.toml'
               - 'rustfmt.toml'
               - 'deny.toml'
+              - '!**/*.md'
+            rust_docs:
+              - 'crates/nama-server/**/AGENTS.md'
+              - 'crates/nama-pdk/README.md'
             web:
               - 'web/**'
               - 'proto/**'
               - '.impeccable/**'
               - 'DESIGN.md'
               - '.github/workflows/ci.yml'
+              - '!proto/**/*.md'
 
   # The checks that build nothing: formatting, the schema in proto/ (ADR 0007: lint, no breaking
   # changes to the client API against main but those declared in proto/BREAKING.md, generated
