@@ -1,7 +1,7 @@
 //! Tracks: what ffprobe found inside each Version, the facts of its whole file, its video, audio
-//! and subtitle Tracks and the fonts it carries.
+//! and subtitle Tracks, the fonts it carries and its Chapters.
 //!
-//! [`Tracks`] owns `version_probes`, `tracks` and `probe_failures` (see the area's `AGENTS.md`).
+//! [`Tracks`] owns `version_probes`, `tracks`, `chapters` and `probe_failures` (see the area's `AGENTS.md`).
 //! Their rows are keyed by Version id and go when the file goes; which files there are is for
 //! [`crate::library::Contents`] to say.
 
@@ -19,7 +19,7 @@ use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::Stored};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(super) const PROBE_VERSION: i64 = 11;
+pub(super) const PROBE_VERSION: i64 = 12;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on, or failed to list the
 /// keyframes of, at an older one is tried again, and those it read are left alone; when to bump
@@ -116,6 +116,17 @@ pub(crate) struct Probe {
     /// The fonts the file carries, each by its place among the file's attachments, which is how
     /// ffmpeg picks one out.
     pub(crate) font_attachments: Vec<usize>,
+    /// In the order the file lists them.
+    pub(crate) chapters: Vec<Chapter>,
+}
+
+/// A Chapter a Version's file marks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Chapter {
+    /// From the file's start.
+    pub(crate) start_ms: i64,
+    /// Empty when the file names none.
+    pub(crate) title: String,
 }
 
 impl Probe {
@@ -430,8 +441,7 @@ impl Tracks {
             .iter()
             .map(|file| (file.id, file.size, file.modified_ns))
             .collect();
-        let ids: Vec<i64> = files.iter().map(|file| file.id).collect();
-        let versions = json_array(&ids);
+        let versions = json_array(&files.iter().map(|file| file.id).collect::<Vec<_>>());
         let probes = sqlx::query!(
             "SELECT version_id, size, modified_ns, container, duration_ms, bitrate,
                     font_attachments
@@ -453,6 +463,7 @@ impl Tracks {
                     // Only `store` writes them, as JSON it made.
                     font_attachments: serde_json::from_str(&row.font_attachments)
                         .unwrap_or_default(),
+                    chapters: Vec::new(),
                 };
                 (row.version_id, probe)
             })
@@ -505,6 +516,31 @@ impl Tracks {
                 probe.tracks.push(track);
             }
         }
+        self.with_chapters(&versions, probes).await
+    }
+
+    /// `probes`, of the Versions `versions` lists as a JSON array, with their Chapters.
+    async fn with_chapters(
+        &self,
+        versions: &str,
+        mut probes: HashMap<i64, Probe>,
+    ) -> Result<HashMap<i64, Probe>, sqlx::Error> {
+        let chapters = sqlx::query!(
+            "SELECT version_id, start_ms, title FROM chapters
+             WHERE version_id IN (SELECT value FROM json_each(?))
+             ORDER BY version_id, position",
+            versions
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        for row in chapters {
+            if let Some(probe) = probes.get_mut(&row.version_id) {
+                probe.chapters.push(Chapter {
+                    start_ms: row.start_ms,
+                    title: row.title,
+                });
+            }
+        }
         Ok(probes)
     }
 }
@@ -554,6 +590,17 @@ async fn store(
     .await?;
     for (position, track) in (0_i64..).zip(probe.tracks) {
         store_track(conn, version, position, track).await?;
+    }
+    for (position, chapter) in (0_i64..).zip(probe.chapters) {
+        sqlx::query!(
+            "INSERT INTO chapters (version_id, position, start_ms, title) VALUES (?, ?, ?, ?)",
+            version,
+            position,
+            chapter.start_ms,
+            chapter.title
+        )
+        .execute(&mut *conn)
+        .await?;
     }
     Ok(())
 }

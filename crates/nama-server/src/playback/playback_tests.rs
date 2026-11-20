@@ -106,6 +106,7 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
             bitrate: Some(5_000_000),
             tracks,
             font_attachments: vec![],
+            chapters: vec![],
         }),
         device: firefox(),
         can_do: CanDo {
@@ -234,6 +235,7 @@ fn an_h264_and_aac_mp4_direct_plays_with_no_reasons() {
                 burn_in: vec![],
                 limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
             },
+            chapters: vec![],
         }
     );
 }

@@ -6,6 +6,8 @@
 mod browsing;
 #[path = "playback/burn_in.rs"]
 mod burn_in;
+#[path = "playback/chapters.rs"]
+mod chapters;
 #[path = "playback/failing_ffmpeg.rs"]
 mod failing_ffmpeg;
 #[path = "support/http.rs"]

@@ -14,7 +14,7 @@ use crate::{
     },
     playback::{
         subtitles,
-        tracks::{BaseLayer, Hdr, PROBE_VERSION, Probe, Track, TrackKind, Tracks},
+        tracks::{BaseLayer, Chapter, Hdr, PROBE_VERSION, Probe, Track, TrackKind, Tracks},
     },
 };
 
@@ -142,7 +142,7 @@ impl Fixture {
     }
 
     /// What probing found in the file at `relative`, if it read the file as it is stored now.
-    async fn probe(&self, relative: &str) -> Option<Probe> {
+    pub(super) async fn probe(&self, relative: &str) -> Option<Probe> {
         let file = self.stored(relative).await;
         self.tracks.of(&[file]).await.unwrap().remove(&file.id)
     }
@@ -344,6 +344,52 @@ EOF"#,
         })
     );
     assert_eq!(media.probe(alien).await, Some(probe));
+}
+
+/// An ffprobe in `bin` that reads any file as one starting 1.5 seconds in, which Chapters count
+/// from, and, when asked for its Chapters, with a titled one, an untitled one and another titled
+/// one.
+#[cfg(unix)]
+pub(super) fn ffprobe_reading_chapters(bin: &std::path::Path) -> Ffmpeg {
+    fake_ffprobe(
+        bin,
+        r#"chapters='[]'
+case "$*" in *-show_chapters*) chapters='[{"start_time": "1.500000", "tags": {"title": "Opening"}},
+  {"start_time": "601.750000"}, {"start_time": "3001.500000", "tags": {"title": "Credits"}}]' ;; esac
+cat <<EOF
+{"format": {"format_name": "matroska,webm", "start_time": "1.500000", "duration": "3600.000000"},
+ "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}], "chapters": $chapters}
+EOF"#,
+    )
+}
+
+/// The Chapters [`ffprobe_reading_chapters`] reads.
+#[cfg(unix)]
+pub(super) fn chapters_read() -> Vec<Chapter> {
+    let chapter = |start_ms, title: &str| Chapter {
+        start_ms,
+        title: title.to_owned(),
+    };
+    vec![
+        chapter(0, "Opening"),
+        chapter(600_250, ""),
+        chapter(3_000_000, "Credits"),
+    ]
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_files_chapters_are_stored_in_order_with_an_untitled_one_titled_empty() {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(ffprobe_reading_chapters(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write(alien, 10).await;
+
+    media.probe_changed().await;
+
+    let stored = media.probe(alien).await.map(|probe| probe.chapters);
+    assert_eq!(stored, Some(chapters_read()));
 }
 
 // The fake ffprobe is a shell script.
