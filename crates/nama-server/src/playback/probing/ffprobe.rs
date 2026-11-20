@@ -280,7 +280,7 @@ fn parse_probe(json: &[u8]) -> Result<(Probe, Starts), serde_json::Error> {
         font_attachments,
         chapters: (output.chapters.into_iter())
             .map(|mut chapter| Chapter {
-                // Counted from the file's start, as keyframes are, and one before it starts with it.
+                // Counted from the file's start, as keyframes are; one listed before it begins there.
                 start_ms: (chapter.start_time.as_deref())
                     .and_then(millis)
                     .map_or(0, |ms| (ms - starts.file_ms).max(0)),
