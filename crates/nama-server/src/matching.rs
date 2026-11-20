@@ -257,6 +257,7 @@ impl Metadata {
         Self {
             poster: picked.poster.or(self.poster),
             backdrop: picked.backdrop.or(self.backdrop),
+            titled_backdrop: picked.titled_backdrop,
             logo: picked.logo.or(self.logo),
             ..self
         }
@@ -284,6 +285,7 @@ impl Metadata {
                 .or_else(|| ImageRef::of(plugin, show.poster.as_ref())),
             backdrop: (picked.backdrop.clone())
                 .or_else(|| ImageRef::of(plugin, show.backdrop.as_ref())),
+            titled_backdrop: picked.titled_backdrop.clone(),
             logo: picked.logo.clone(),
             still: episode.still.clone(),
             genres: show.genres.clone(),
