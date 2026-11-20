@@ -39,3 +39,7 @@ Then output <promise>COMPLETE</promise>.
 <skill name="park">
 !`cat .sandcastle/park.md`
 </skill>
+
+<skill name="sandbox">
+!`cat .sandcastle/sandbox.md`
+</skill>

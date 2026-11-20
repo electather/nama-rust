@@ -19,6 +19,14 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 RUN curl -fsSL "https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-$(uname -m)" -o /usr/local/bin/buf \
   && chmod +x /usr/local/bin/buf
 
+# ffmpeg and ffprobe for the tests that make and probe media, the same static build CI uses (ci.yml, "BtbN").
+# Without them a review agent once fetched Debian's older ffmpeg, rebuilt the workspace and timed out (#1391).
+ARG FFMPEG_BUILD=n8.1-latest
+ARG FFMPEG_SERIES=8.1
+RUN arch=$(case "$(uname -m)" in aarch64) echo linuxarm64;; *) echo linux64;; esac) \
+  && curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-${FFMPEG_BUILD}-${arch}-gpl-${FFMPEG_SERIES}.tar.xz" \
+  | tar -xJ --strip-components=2 -C /usr/local/bin --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+
 # Headless Chromium, so a UI agent can screenshot its own screens (`playwright screenshot`).
 # As root: --with-deps apt-installs the browser's libraries.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
