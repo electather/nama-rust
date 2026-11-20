@@ -1,4 +1,4 @@
-/* The User's Subtitle Appearance (ADR 0068) on text subtitles: an outline unless they picked the
+/* The User's Subtitle Appearance (ADR 0070) on text subtitles: an outline unless they picked the
    box, at a size relative to the browser's own. `PlannedPlayer` sets `data-subtitle-*` around the
    `<video>` to `nama.v1.SubtitleSize` and `nama.v1.SubtitleBackground` numbers. A styled ASS Track
    libass draws and a burned-in one are pictures, not cues, so these leave them alone. */

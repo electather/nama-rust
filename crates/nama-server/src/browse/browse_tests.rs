@@ -12,7 +12,7 @@ use crate::{
         NotFound, Progress, Stored, TitleSort, WatchState, WatchStates,
         fixture::{MatchedMovie, decide, tmdb_movie},
     },
-    playback::{Probe, Sidecars, Track, TrackKind, Tracks},
+    playback::{Probe, StoredTracks, Track, TrackKind, Tracks},
     plugins::Registry,
     users::{Permissions, User, Users},
 };
@@ -347,8 +347,7 @@ async fn continue_watching_reads_no_library_for_a_user_who_started_nothing() {
     let browse = Browse {
         libraries: Libraries::new(Arc::clone(&unreadable)),
         contents: Contents::new(Arc::clone(&unreadable)),
-        tracks: Tracks::new(Arc::clone(&unreadable)),
-        sidecars: Sidecars::new(unreadable),
+        tracks: StoredTracks::new(unreadable),
         watch_states: WatchStates::new(db),
     };
 

@@ -19,7 +19,7 @@ use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::Stored};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(super) const PROBE_VERSION: i64 = 10;
+pub(super) const PROBE_VERSION: i64 = 11;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on, or failed to list the
 /// keyframes of, at an older one is tried again, and those it read are left alone; when to bump
@@ -425,7 +425,7 @@ impl Tracks {
     /// and modified time `Contents` stores for it now. An older [`PROBE_VERSION`]'s read still
     /// counts: it read the same bytes, and hiding it would blank every Version's Tracks after a
     /// bump until the probe pass catches up.
-    pub(crate) async fn of(&self, files: &[Stored]) -> Result<HashMap<i64, Probe>, sqlx::Error> {
+    pub(super) async fn of(&self, files: &[Stored]) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let read_at: HashSet<(i64, i64, i64)> = files
             .iter()
             .map(|file| (file.id, file.size, file.modified_ns))

@@ -267,7 +267,7 @@ async fn an_unknown_version_is_not_found() {
     assert_eq!(reply.status, 404);
 }
 
-/// Every User may play an Unmatched Item (ADR 0062).
+/// Every User may play an Unmatched Item (ADR 0069).
 #[tokio::test]
 async fn a_file_whose_match_was_cleared_is_still_served() {
     let fx = Fixture::alien().await;

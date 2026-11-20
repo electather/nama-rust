@@ -652,7 +652,7 @@ fn episode_to_proto(
 }
 
 /// `unmatched` as any User sees it: its ids and what its file's name was parsed as, never where the
-/// file is (ADR 0062).
+/// file is (ADR 0069).
 pub(super) fn unmatched_summary(unmatched: Unmatched) -> proto::UnmatchedItemSummary {
     let (kind, title, year, numbers) = match unmatched.item {
         Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),

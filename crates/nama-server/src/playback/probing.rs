@@ -1,6 +1,6 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
-//! [`super::tracks`]), with a Matroska file's keyframes when its Cues list them, and decides what a
-//! failure to probe one means for trying it again. It lists any other Version's keyframes in the
+//! [`super::tracks`]), with a Matroska or MP4 file's keyframes when its index lists them, and
+//! decides what a failure to probe one means for trying it again. It lists any other Version's keyframes in the
 //! background when first asked for them, and keeps them, or that listing them failed, for its
 //! file as it is ([`Probing::keyframes`]).
 //!
@@ -13,6 +13,7 @@
 
 mod cues;
 mod ffprobe;
+mod mp4;
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -30,9 +31,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use super::{
-    downloads,
-    sidecars::Sidecars,
-    subtitles,
+    StoredTracks, downloads, subtitles,
     tracks::{
         Keyframes, LastingReason, ListedKeyframes, PassingReason, Probe, ProbeFailure, Tracks,
     },
@@ -138,7 +137,7 @@ pub(crate) struct Probing {
 struct Inner {
     contents: Contents,
     tracks: Tracks,
-    sidecars: Sidecars,
+    stored_tracks: StoredTracks,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
     /// Where downloaded subtitles are kept, from which it deletes those of Versions gone.
@@ -172,7 +171,7 @@ impl Probing {
         Self {
             inner: Arc::new(Inner {
                 tracks: Tracks::new(Arc::clone(&db)),
-                sidecars: Sidecars::new(Arc::clone(&db)),
+                stored_tracks: StoredTracks::new(Arc::clone(&db)),
                 contents: Contents::new(db),
                 ffmpeg,
                 subtitles,
@@ -187,36 +186,47 @@ impl Probing {
         }
     }
 
-    /// The current Tracks of the Version `version`, probing it now if they aren't current, without
-    /// waiting for a background pass to reach it. If something is probing it already, waits for
-    /// that and returns what it found instead, or probes it itself if that gave up without finding
+    /// The current Tracks of the Version `version`, sidecars included, probing it now if they
+    /// aren't current, without waiting for a background pass to reach it. If something is probing
+    /// it already, waits for that instead, or probes it itself if that gave up without finding
     /// anything.
     pub(crate) async fn current(&self, version: i64) -> Result<Probe, Error> {
-        let mut probe = self.probed(version).await?;
-        (self.inner.sidecars)
-            .append_to([(version, &mut probe)])
-            .await?;
-        Ok(probe)
+        loop {
+            let file = self.probed(version).await?;
+            // Nothing is stored for a Version removed while it was probed, nor for this `file`
+            // when the probe waited for was of the file as it was before a scan changed it, so
+            // it's looked up and probed again.
+            if let Some(probe) = self.inner.stored_tracks.of(&[file]).await?.remove(&version) {
+                return Ok(probe);
+            }
+        }
     }
 
-    /// What probing read from the Version `version`'s file, as [`Self::current`] has it, without
-    /// its sidecars, which are never stored with it.
-    async fn probed(&self, version: i64) -> Result<Probe, Error> {
+    /// The Version `version`'s file as stored, once a probe of it has finished. A probe it waited
+    /// for may have read the file as it was before a scan changed it, so its Tracks may not be
+    /// stored for the file returned.
+    async fn probed(&self, version: i64) -> Result<Stored, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
         // ponytail: not held to PROBES_AT_ONCE, so a play press never queues; limit it apart if
         // many at once swamp the disk.
         loop {
             let mut prober = match try_claim(&self.inner.claimed, file) {
-                Ok(claim) => return Ok(self.probe_claimed(&path, claim).await?),
+                Ok(claim) => {
+                    self.probe_claimed(&path, claim).await?;
+                    return Ok(file);
+                }
                 Err(prober) => prober,
             };
             // An error means the prober gave up without a result, as when it was cancelled
             // midway, so it's probed here instead.
             if let Ok(found) = prober.wait_for(Option::is_some).await
-                && let Some(found) = Option::clone(&found)
+                && let Some(found) = found.as_ref()
             {
-                return found.map_err(Error::Probe);
+                return found
+                    .as_ref()
+                    .map(|_| file)
+                    .map_err(|err| Error::Probe(Arc::clone(err)));
             }
         }
     }
@@ -468,17 +478,17 @@ impl Probing {
             return Ok(probe);
         }
         match ffprobe::probe(&self.inner.ffmpeg, path).await {
-            Ok((probe, file_start_ms)) => {
-                let cued = match probe.container.as_str() {
-                    // ponytail: Matroska only; MP4's sample tables list keyframes too (#1128).
-                    "matroska,webm" => cues::listed(path, file_start_ms, probe.duration_ms).await,
+            Ok((probe, starts)) => {
+                let indexed = match probe.container.as_str() {
+                    "matroska,webm" => cues::listed(path, starts.file_ms, probe.duration_ms).await,
+                    "mov,mp4,m4a,3gp,3g2,mj2" => mp4::listed(path, starts, probe.duration_ms).await,
                     _ => None,
                 };
                 self.inner.tracks.store(file, probe.clone()).await?;
-                // Without usable Cues, the first Remux lists them by reading the whole file.
-                if let Some(cued) = cued {
+                // Without a usable index, the first Remux lists them by reading the whole file.
+                if let Some(indexed) = indexed {
                     (self.inner.tracks)
-                        .store_keyframes(file, &Keyframes::Listed(cued))
+                        .store_keyframes(file, &Keyframes::Listed(indexed))
                         .await?;
                 }
                 Ok(probe)
@@ -571,6 +581,18 @@ impl Probing {
         claim.found.send_replace(Some(listed));
         stored
     }
+}
+
+/// Whether `listed`, read from a container's index, is a list a whole-file listing could give:
+/// non-empty, increasing, the first at `first_ms` within rounding to the millisecond, and ending
+/// by `duration_ms`.
+fn plausible(listed: &ListedKeyframes, first_ms: i64, duration_ms: Option<i64>) -> bool {
+    let keyframes = &listed.keyframes_ms;
+    keyframes
+        .first()
+        .is_some_and(|first| (first - first_ms).abs() <= 1)
+        && keyframes.is_sorted_by(|earlier, later| earlier < later)
+        && (keyframes.last().zip(duration_ms)).is_some_and(|(last, duration)| *last <= duration)
 }
 
 /// What failing to probe the file at `path` with `err` means for trying it again.
