@@ -33,12 +33,12 @@ impl Fixture {
     async fn offsets(&self, version: i64) -> Vec<(u32, i32)> {
         let plan = self.plan(version).await.unwrap();
         self.stop(plan.id).await;
-        offsets(&plan)
+        places_and_offsets(&plan)
     }
 }
 
 /// The place and offset of each of `plan`'s subtitles.
-fn offsets(plan: &PlaybackPlan) -> Vec<(u32, i32)> {
+fn places_and_offsets(plan: &PlaybackPlan) -> Vec<(u32, i32)> {
     (plan.subtitles.iter())
         .map(|subtitle| (subtitle.place, subtitle.offset_ms))
         .collect()
@@ -56,12 +56,9 @@ async fn an_offset_comes_back_in_later_plans_for_its_track_alone_and_its_user_al
     fx.set_offset(version, 2, 1700).await.unwrap();
 
     assert_eq!(before, [(1, 0), (2, 0)]);
+    assert_eq!(fx.offsets(version).await, [(1, -250), (2, 1700)]);
     assert_eq!(
-        offsets(&fx.plan(version).await.unwrap()),
-        [(1, -250), (2, 1700)]
-    );
-    assert_eq!(
-        offsets(&plan_as(&lin, version).await.unwrap()),
+        places_and_offsets(&plan_as(&lin, version).await.unwrap()),
         [(1, 0), (2, 0)]
     );
 }
@@ -83,7 +80,7 @@ async fn a_sidecar_added_before_one_with_an_offset_starts_at_0_and_leaves_that_o
         .map(|subtitle| subtitle.track.language.as_deref())
         .collect();
     assert_eq!(languages, [None, Some("de"), Some("en")]);
-    assert_eq!(offsets(&plan), [(1, 0), (2, 0), (3, 1500)]);
+    assert_eq!(places_and_offsets(&plan), [(1, 0), (2, 0), (3, 1500)]);
 }
 
 #[tokio::test]

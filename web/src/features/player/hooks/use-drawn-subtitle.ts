@@ -8,10 +8,10 @@ import { type PlaybackSubtitle, SubtitleFormat } from "@/gen/nama/v1/playback_pb
 
 /**
  * Draws the plan's subtitle `drawn`, one in a format this Device draws, over the `<video>`, or
- * none, `offsetMs` later than its file times it, and says how each drawn so far is getting on: loading until it and the fonts it's drawn
- * with are fetched and read, or failed if they can't be fetched. When the renderer won't start or
- * throws, this Device stops drawing that format and `onRendererFailed` runs. A drawn subtitle
- * stays where its Track puts it, under the controls.
+ * none, `offsetMs` later than its file times it, and says how each drawn so far is getting on:
+ * loading until it and the fonts it's drawn with are fetched and read, or failed if they can't be
+ * fetched. When the renderer won't start or throws, this Device stops drawing that format and
+ * `onRendererFailed` runs. A drawn subtitle stays where its Track puts it, under the controls.
  */
 export function useDrawnSubtitle(
   videoRef: RefObject<HTMLVideoElement | null>,

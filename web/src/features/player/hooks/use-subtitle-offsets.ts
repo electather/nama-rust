@@ -9,12 +9,12 @@ import type { PlaybackSubtitle } from "@/gen/nama/v1/playback_pb";
  */
 export function useSubtitleOffsets(versionId: bigint) {
   // By place, which every plan for the Version gives its Tracks.
-  const [set, setSet] = useState<Partial<Record<number, number>>>({});
+  const [chosen, setChosen] = useState<Partial<Record<number, number>>>({});
   const save = useSetSubtitleOffset(versionId);
   return {
-    offsetOf: ({ place, offsetMs }: PlaybackSubtitle) => set[place] ?? offsetMs,
+    offsetOf: ({ place, offsetMs }: PlaybackSubtitle) => chosen[place] ?? offsetMs,
     shiftSubtitle: ({ place }: PlaybackSubtitle, offsetMs: number) => {
-      setSet((before) => ({ ...before, [place]: offsetMs }));
+      setChosen((before) => ({ ...before, [place]: offsetMs }));
       save(place, offsetMs);
     },
   };

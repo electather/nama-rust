@@ -8,7 +8,8 @@ import { SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 
 /**
  * Shows the plan's subtitle at the URL `shownSubtitle`, as a `<track>` or drawn, shifted by its
- * Subtitle Offset, and says how each shown so far is getting on. One drawn that fails to draw is chosen to burn in instead (ADR 0033).
+ * Subtitle Offset, and says how each shown so far is getting on. One drawn that fails to draw is
+ * chosen to burn in instead (ADR 0033).
  */
 export function useShownSubtitles(
   {
@@ -22,9 +23,9 @@ export function useShownSubtitles(
   >,
   videoRef: RefObject<HTMLVideoElement | null>,
 ) {
-  const shownOne = plan.subtitles.find(({ url }) => url === shown);
-  const offsetMs = shownOne === undefined ? 0 : offsetOf(shownOne);
-  const drawn = shownOne?.format === SubtitleFormat.WEBVTT ? undefined : shownOne;
+  const subtitle = plan.subtitles.find(({ url }) => url === shown);
+  const offsetMs = subtitle === undefined ? 0 : offsetOf(subtitle);
+  const drawn = subtitle?.format === SubtitleFormat.WEBVTT ? undefined : subtitle;
   useCueOffset(videoRef, shown, offsetMs);
   return {
     ...useSubtitles(videoRef, shown),

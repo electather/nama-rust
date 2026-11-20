@@ -4,7 +4,7 @@ import { OffsetStepper } from "@/features/player/components/offset-stepper";
 
 /**
  * A Subtitle Offset of `offsetMs`, with − and + that `shift` it a step either way, or, without
- * `shift`, disabled, saying a burned-in subtitle can't be offset.
+ * `shift`, disabled, saying a burned-in subtitle can't be.
  */
 export function OffsetControls({
   offsetMs,
@@ -29,7 +29,7 @@ export function OffsetControls({
       <OffsetStepper offsetMs={offsetMs} shift={shift} />
       {burnedIn ? (
         <p id={noteId} className="text-sm text-muted-foreground">
-          A burned-in subtitle can’t be offset.
+          Burned into the picture, so it can’t be offset.
         </p>
       ) : null}
     </fieldset>

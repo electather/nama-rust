@@ -167,6 +167,6 @@ test("a burned-in Track's offset is disabled, saying why", async () => {
 
   const group = screen.getByRole("group", { name: "Offset" });
   expect(group.hasAttribute("disabled")).toBe(true);
-  const note = within(group).getByText("A burned-in subtitle can’t be offset.");
+  const note = within(group).getByText("Burned into the picture, so it can’t be offset.");
   expect(group.getAttribute("aria-describedby")).toBe(note.id);
 });

@@ -12,34 +12,9 @@ const SIDECAR_HELLO: &str = "1\n00:00:00,000 --> 00:00:01,000\nSidecar hello\n";
 
 #[expect(
     clippy::unwrap_used,
-    clippy::indexing_slicing,
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
-    /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien in 1080p, with
-    /// an untagged SRT Track of its own and the sidecars `sidecars`, each a file name and what it
-    /// says, scanned and Matched, and returns it with that Version's id.
-    pub(super) async fn alien_with_sidecars<Says: AsRef<[u8]>>(
-        sidecars: &[(&str, Says)],
-    ) -> (Self, i64) {
-        let fx = Self::alien_written_by(ALIEN_1080P, |path| {
-            write_subtitled(path, HELLO_SRT, "srt");
-            for (name, says) in sidecars {
-                fs::write(path.with_file_name(name), says).unwrap();
-            }
-        })
-        .await;
-        let version = fx.version_ids(ALIEN).await[0];
-        (fx, version)
-    }
-
-    /// Writes `says` to Alien's sidecar `name` and scans again.
-    pub(super) async fn rewrite_sidecar(&self, name: &str, says: &str) {
-        let video = self.folder.join(ALIEN_1080P);
-        fs::write(video.with_file_name(name), says).unwrap();
-        self.scan_and_match().await;
-    }
-
     /// What the Server serves at `url`, fetched as the Admin.
     async fn served_text(&self, url: &str) -> String {
         String::from_utf8(self.fetch_ok(url).await).unwrap()
