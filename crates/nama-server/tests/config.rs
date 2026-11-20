@@ -23,7 +23,10 @@ fn defaults_apply_when_there_is_no_config_file_or_environment() {
 
         assert_eq!(config.name, "Nama");
         assert_eq!(config.listen, "0.0.0.0:7980".parse().unwrap());
-        assert_eq!(config.data_dir, PathBuf::from("data"));
+        // The Jail's working folder. Not `jail.directory()`: on macOS one can read `/var/...` and
+        // the other `/private/var/...`.
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(config.data_dir, cwd.join("data"));
         assert_eq!(config.trusted_proxies, []);
         Ok(())
     });
@@ -129,6 +132,40 @@ fn ffmpeg_and_ffprobe_paths_come_from_the_config_file_or_environment() {
             config.ffprobe,
             Some(PathBuf::from("/usr/lib/jellyfin-ffmpeg/ffprobe"))
         );
+        Ok(())
+    });
+}
+
+#[test]
+fn relative_paths_count_from_the_working_folder_and_a_bare_program_name_is_left_as_written() {
+    Jail::expect_with(|jail| {
+        jail.create_file(
+            "nama.toml",
+            r#"
+                data_dir = "data"
+                ffmpeg = "bin/ffmpeg"
+                ffprobe = "ffprobe"
+            "#,
+        )?;
+
+        let config = Config::load(None).unwrap().0;
+
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(config.data_dir, cwd.join("data"));
+        assert_eq!(config.ffmpeg, Some(cwd.join("bin/ffmpeg")));
+        assert_eq!(config.ffprobe, Some(PathBuf::from("ffprobe")));
+        Ok(())
+    });
+}
+
+#[test]
+fn an_empty_data_directory_is_an_error_naming_the_key() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_DATA_DIR", "");
+
+        let err = Config::load(None).unwrap_err();
+
+        assert!(err.to_string().contains("data_dir"), "{err}");
         Ok(())
     });
 }

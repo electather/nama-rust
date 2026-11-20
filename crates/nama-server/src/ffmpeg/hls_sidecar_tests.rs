@@ -1,7 +1,6 @@
-use std::path::Path;
-
 use super::{
-    BurnIn, FromCut, ImageSubtitle, SOFTWARE, Transcode, VideoConversion, args, ffmpeg, value_of,
+    BurnIn, FromCut, ImageSubtitle, SOFTWARE, Transcode, VideoConversion, args, ffmpeg, plan,
+    value_of,
 };
 
 #[test]
@@ -36,7 +35,7 @@ fn a_pgs_sidecar_is_burned_in_from_a_second_input_moved_back_to_its_first_pictur
     };
 
     for (from, video_input) in [(from_start, vec![]), (seeking, vec!["-ss", "6.000"])] {
-        let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+        let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, &plan(), from);
         let args = args(&run.unwrap());
 
         let copyts = args.iter().position(|arg| arg == "-copyts").unwrap();
