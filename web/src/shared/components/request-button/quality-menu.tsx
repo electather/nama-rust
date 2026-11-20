@@ -1,8 +1,6 @@
-import { ChevronDown } from "lucide-react";
-
+import { QualityChevron } from "@/shared/components/request-button/quality-chevron";
 import { QualityChoices } from "@/shared/components/request-button/quality-choices";
 import { useQualities } from "@/shared/hooks/use-qualities";
-import { Button } from "@/shared/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
 
 /**
@@ -29,16 +27,8 @@ export function QualityMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={
-          <Button
-            variant={variant}
-            aria-label={`Request ${what} at a Quality`}
-            disabled={disabled}
-          />
-        }
-      >
-        <ChevronDown aria-hidden className="size-4" />
-      </DropdownMenuTrigger>
+        render={<QualityChevron what={what} variant={variant} disabled={disabled} />}
+      />
       <DropdownMenuContent>
         <QualityChoices qualities={qualities} personalDefault={personalDefault} onPick={onPick} />
       </DropdownMenuContent>

@@ -14,6 +14,8 @@ export interface ChoiceProps {
   onChange?: (checked: boolean) => void;
   /** Its state, at the end of the row. */
   children: ReactNode;
+  /** What can be done about its state, such as Retry, after it and outside its description. */
+  action?: ReactNode;
 }
 
 /**
@@ -29,6 +31,7 @@ export function Choice({
   disabled,
   onChange,
   children,
+  action,
 }: ChoiceProps) {
   const stateId = useId();
   const descriptionId = useId();
@@ -55,6 +58,7 @@ export function Choice({
       <span id={stateId} className="ms-auto">
         {children}
       </span>
+      {action}
       {description !== undefined && (
         // Lined up with the label's text, past the checkbox and the gap after it.
         <p id={descriptionId} className="basis-full ps-7 text-sm text-muted-foreground">

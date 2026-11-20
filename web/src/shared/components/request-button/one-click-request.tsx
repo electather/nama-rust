@@ -19,6 +19,8 @@ export function OneClickRequest({
       variant={variant}
       aria-label={`Request ${what}`}
       disabled={disabled}
+      // Not `onClick={onRequest}`: the caller's `onRequest` takes an optional Quality, which the
+      // click event would fill.
       onClick={() => {
         onRequest();
       }}

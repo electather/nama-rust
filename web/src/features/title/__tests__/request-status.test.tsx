@@ -87,6 +87,13 @@ test("a Request downloading fills its pill to the percent, and says how long is 
   expect(pill.getAttribute("aria-valuenow")).toBe("40");
 });
 
+test("a download with no time left says only that it's downloading", async () => {
+  const downloads = [{ title: "Dune.2021.2160p", percent: 99, etaSeconds: 0n }];
+  openApp("/movies/tmdb-438631", server(yours(RequestState.PROCESSING, { downloads })));
+
+  await expect(screen.findByRole("progressbar", { name: "Downloading" })).resolves.toBeDefined();
+});
+
 const failed = yours(RequestState.FAILED, { failureReason: "Radarr is unreachable" });
 
 test("a Failed Request says why on hover and focus, and offers no Retry to its Requester", async () => {
@@ -135,4 +142,35 @@ test("a Season of yours Declined can be picked and Requested again, and one Fail
 
   expect(declined.disabled).toBe(false);
   expect(screen.getByRole<HTMLInputElement>("checkbox", { name: "Season 2" }).disabled).toBe(true);
+});
+
+test("a Request manager retries a Failed Season from its row", async () => {
+  const retried: bigint[] = [];
+  const show = create(FoundShowSchema, {
+    id: { namespace: "tmdb", value: "70523" },
+    title: "Dark",
+    seasons: [{ seasonNumber: 2, request: failed }],
+  });
+  openApp(
+    "/shows/tmdb-70523",
+    fakeServer({ signedIn: [...newUser, Permission.MANAGE_REQUESTS] }, {}, {}, (router) => {
+      router.service(RequestService, {
+        listRequests: () => ({}),
+        lookUpShow: () => ({ show }),
+        retryRequest: ({ id }) => {
+          retried.push(id);
+          return {};
+        },
+      });
+    }),
+  );
+
+  const season2 = await screen.findByRole("checkbox", { name: "Season 2" });
+  fireEvent.click(screen.getByRole("button", { name: "Retry Season 2 of Dark" }));
+
+  await waitFor(() => {
+    expect(retried).toStrictEqual([5n]);
+  });
+  expect(season2.getAttribute("aria-describedby")).not.toBeNull();
+  expect(screen.getByRole("checkbox", { description: "Failed" })).toBe(season2);
 });

@@ -3,7 +3,10 @@ import { useId } from "react";
 import type { Quality } from "@/gen/nama/v1/plugin_pb";
 import { DropdownMenuRadioItem } from "@/shared/ui/dropdown-menu";
 
-/** One Quality in the Quality menu, with its description, which Requests at it when picked. */
+/**
+ * One Quality in the Quality menu, marked if it's the Fulfiller's default, with its description,
+ * which Requests at it when picked.
+ */
 export function QualityItem({
   quality,
   onPick,
@@ -26,7 +29,7 @@ export function QualityItem({
       }}
     >
       <span className="flex flex-col py-1.5">
-        <span id={nameId}>{quality.name}</span>
+        <span id={nameId}>{quality.isDefault ? `${quality.name} (Default)` : quality.name}</span>
         {described && (
           <span id={descriptionId} className="text-muted-foreground">
             {quality.description}

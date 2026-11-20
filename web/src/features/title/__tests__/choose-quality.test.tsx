@@ -57,7 +57,12 @@ function server(
 
 /** The chevron beside Request that opens the Qualities to Request `what` at. */
 async function openQualities(what: string) {
-  fireEvent.click(await screen.findByRole("button", { name: `Request ${what} at a Quality` }));
+  const name = `Request ${what} at a Quality`;
+  // It's disabled until the Qualities load, and replaced by the menu's own once they do.
+  await waitFor(() => {
+    expect(screen.getByRole<HTMLButtonElement>("button", { name }).disabled).toBe(false);
+  });
+  fireEvent.click(screen.getByRole("button", { name }));
   return screen.findAllByRole("menuitemradio");
 }
 
@@ -73,13 +78,13 @@ test("request asks for a Movie at once, at the User's Quality", async () => {
   expect(screen.queryByRole("menu")).toBeNull();
 });
 
-test("the Quality menu checks the Fulfiller's default, and each Quality says what it is", async () => {
+test("the Quality menu checks and marks the Fulfiller's default, and each Quality says what it is", async () => {
   openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], []));
 
   const items = await openQualities("Dune");
 
   expect(items.map((item) => [item.textContent, item.getAttribute("aria-checked")])).toStrictEqual([
-    ["HD", "true"],
+    ["HD (Default)", "true"],
     ["4KAbout 50 GB per film", "false"],
   ]);
   expect(screen.getByRole("menuitemradio", { description: "About 50 GB per film" })).toBe(items[1]);
@@ -128,6 +133,28 @@ test("request is disabled while it's being sent", async () => {
   });
 });
 
+test("the Quality menu's chevron holds its place, disabled, while the Qualities load", async () => {
+  openApp(
+    "/movies/tmdb-438631",
+    fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
+      router.service(RequestService, {
+        listRequests: () => ({}),
+        lookUpMovie: () => ({ movie: dune }),
+        listMovieQualities: async () => {
+          await new Promise(() => {});
+          return {};
+        },
+      });
+    }),
+  );
+
+  const chevron = await screen.findByRole<HTMLButtonElement>("button", {
+    name: "Request Dune at a Quality",
+  });
+
+  expect(chevron.disabled).toBe(true);
+});
+
 test.each([
   { who: "may not choose", permissions: newUser, qualities: [hd, fourK] },
   { who: "has one Quality to choose from", permissions: mayChoose, qualities: [hd] },
@@ -140,7 +167,9 @@ test.each([
   await waitFor(() => {
     expect(asked.map(({ quality }) => quality)).toStrictEqual([undefined]);
   });
-  expect(screen.queryByRole("button", { name: "Request Dune at a Quality" })).toBeNull();
+  await waitFor(() => {
+    expect(screen.queryByRole("button", { name: "Request Dune at a Quality" })).toBeNull();
+  });
 });
 
 test("a Movie's page shows its open Request's Quality, and joining it offers no Quality menu", async () => {
