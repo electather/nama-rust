@@ -539,18 +539,18 @@ fn placement_problems_names_unplaced_twice_placed_and_gone_modules() {
     );
 }
 
-/// The test files among `paths`, crate-relative, that sit at any depth under `src/` beside a
-/// folder of their own in `folders`, crate-relative folder paths.
+/// A problem for each test file among `paths`, crate-relative, that sits at any depth under
+/// `src/` beside a folder of its own in `folders`, crate-relative folder paths.
 fn stray_tests(paths: &[&str], folders: &[&str]) -> Vec<String> {
     paths
         .iter()
         .filter(|path| path.starts_with("src/"))
         .filter_map(|path| {
-            let stem = path.strip_suffix("_tests.rs")?;
-            let (_, name) = stem.rsplit_once('/')?;
-            folders
-                .contains(&stem)
-                .then(|| format!("{path} sits beside {stem}/: move it to {stem}/{name}_tests.rs"))
+            let folder = path.strip_suffix("_tests.rs")?;
+            let (_, name) = folder.rsplit_once('/')?;
+            folders.contains(&folder).then(|| {
+                format!("{path} sits beside {folder}/: move it to {folder}/{name}_tests.rs")
+            })
         })
         .collect()
 }
