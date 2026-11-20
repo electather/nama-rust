@@ -100,6 +100,14 @@ service PlaybackService {
   rpc SetSubtitleBackground(SetSubtitleBackgroundRequest) returns (SetSubtitleBackgroundResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Sets the caller's Subtitle Offset for one subtitle Track of a Version, on every Device, which
+  // later plans give as `PlaybackSubtitle.offset_ms`. It's kept for that Track alone, so a sidecar
+  // or a downloaded subtitle added later starts at 0 (ADR 0070). Fails with `not_found` if there is
+  // no such Version, and is refused with `REFUSAL_REASON_TRACK_NOT_FOUND` if the Version has no
+  // subtitle Track at that place.
+  rpc SetSubtitleOffset(SetSubtitleOffsetRequest) returns (SetSubtitleOffsetResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message SearchSubtitlesRequest {
@@ -197,6 +205,18 @@ message SetSubtitleBackgroundRequest {
 }
 
 message SetSubtitleBackgroundResponse {}
+
+message SetSubtitleOffsetRequest {
+  // The Version, as browsing gave it.
+  int64 version_id = 1;
+  // The subtitle Track, by its place in the Version's `tracks`, counting from 0.
+  uint32 track = 2;
+  // How many milliseconds later than its file times it the Track shows from now on, negative for
+  // earlier.
+  int32 offset_ms = 3;
+}
+
+message SetSubtitleOffsetResponse {}
 
 // How big a User's text subtitles are, beside the size each browser or app shows them at.
 enum SubtitleSize {
@@ -530,6 +550,9 @@ message PlaybackSubtitle {
   // Where to fetch the fonts its file carries, on this Server, for an ASS one to be drawn with.
   // Empty for any other format.
   repeated string font_urls = 4;
+  // The caller's Subtitle Offset for it: how many milliseconds later than its file times it to show
+  // it, negative for earlier. 0 until they set one.
+  int32 offset_ms = 6;
 }
 
 // One fact that shaped a Playback Plan (ADR 0034).

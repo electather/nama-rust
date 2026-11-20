@@ -339,6 +339,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLAYBACK_SERVICE_GET_SUBTITLE_APPEARANCE_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_SET_SUBTITLE_SIZE_SPEC.procedure,    Access::SignedIn),
     (proto::PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC.procedure, Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SET_SUBTITLE_OFFSET_SPEC.procedure,  Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),

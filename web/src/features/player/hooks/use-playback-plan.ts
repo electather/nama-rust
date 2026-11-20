@@ -3,6 +3,7 @@ import { useState } from "react";
 import { usePlan } from "@/features/player/data/use-plan";
 import { useCantPlay } from "@/features/player/hooks/use-cant-play";
 import { useSubtitleChoice } from "@/features/player/hooks/use-subtitle-choice";
+import { useSubtitleOffsets } from "@/features/player/hooks/use-subtitle-offsets";
 import { type Asking, firstAsking } from "@/features/player/lib/asking";
 import { asker, choosers } from "@/features/player/lib/plan-choices";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
@@ -16,7 +17,8 @@ import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
  * at a place in the Version's Tracks, and `chooseLimit` with a Playback Limit. `chooseSubtitle`
  * shows a subtitle the Device shows itself, which `shownSubtitle` then holds, starting as the first
  * plan's `startingSubtitle`, or asks for a new plan from there with a subtitle Track burned in. The
- * plan says which of these it honoured, which may drop `justChose` (ADR 0031).
+ * plan says which of these it honoured, which may drop `justChose` (ADR 0031). `offsetOf` and
+ * `shiftSubtitle` read and set a subtitle's Subtitle Offset, which no plan is asked for.
  */
 export function usePlaybackPlan({
   versionId,
@@ -44,5 +46,6 @@ export function usePlaybackPlan({
     ...failing,
     ...choosers(askFromHere),
     ...subtitles,
+    ...useSubtitleOffsets(versionId),
   };
 }

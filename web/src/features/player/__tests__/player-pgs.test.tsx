@@ -13,15 +13,22 @@ import {
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
 
-/** What each PGS renderer drew, as text, whether the next one fails to start, and how many ended. */
-const bitsub = vi.hoisted((): { drawn: string[]; failsToStart: boolean; disposed: number } => ({
-  drawn: [],
-  failsToStart: false,
-  disposed: 0,
-}));
+/**
+ * What each PGS renderer drew, as text, each that drew, whether the next one fails to start, and how
+ * many ended.
+ */
+const bitsub = vi.hoisted(
+  (): {
+    drawn: string[];
+    renderers: { timeOffset: number }[];
+    failsToStart: boolean;
+    disposed: number;
+  } => ({ drawn: [], renderers: [], failsToStart: false, disposed: 0 }),
+);
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("libbitsub", () => ({
   PgsRenderer: class {
+    public timeOffset = 0;
     public constructor({
       subContent,
       onLoaded,
@@ -39,6 +46,7 @@ vi.mock("libbitsub", () => ({
         return;
       }
       bitsub.drawn.push(new TextDecoder().decode(subContent));
+      bitsub.renderers.push(this);
       onLoaded();
     }
     public dispose = vi.fn<() => void>(() => {
@@ -50,7 +58,7 @@ vi.mock("libbitsub", () => ({
 beforeEach(() => {
   // happy-dom doesn't name the ready states the player reads.
   Object.assign(HTMLMediaElement, { HAVE_METADATA: 1 });
-  Object.assign(bitsub, { drawn: [], failsToStart: false, disposed: 0 });
+  Object.assign(bitsub, { drawn: [], renderers: [], failsToStart: false, disposed: 0 });
 });
 
 afterEach(() => {
@@ -88,6 +96,7 @@ function server(asked: PlanPlaybackRequest[], twins = 0) {
     url: `/media/versions/7/subtitles/${turn + 2}`,
     place: turn + 2,
     format: SubtitleFormat.PGS,
+    offsetMs: 500,
   }));
   const burnInTracks = signs.map((_, turn) => turn + 2);
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
@@ -204,6 +213,21 @@ test("switching between a PGS Track, a text one and Off doesn't restart playback
   });
   expect(asked).toHaveLength(1);
   expect(screen.getByLabelText("Alien")).toBe(video);
+});
+
+test("a PGS Track is drawn at its offset, and a nudge shifts it without drawing it again", async () => {
+  await playing([]);
+  choose(/Signs/u);
+  await waitFor(() => {
+    expect(bitsub.renderers.map(({ timeOffset }) => timeOffset)).toStrictEqual([-0.5]);
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Show later" }));
+
+  await waitFor(() => {
+    expect(bitsub.renderers.map(({ timeOffset }) => timeOffset)).toStrictEqual([-0.6]);
+  });
+  expect(bitsub.drawn).toStrictEqual(["PGS"]);
 });
 
 test("a PGS Track that can't be fetched says so, as a text one does", async () => {

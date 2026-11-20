@@ -30,6 +30,7 @@ mod sidecars;
 mod steps;
 mod stored_tracks;
 mod subtitle_appearance;
+mod subtitle_offsets;
 mod subtitles;
 mod track_preferences;
 mod tracks;
@@ -50,6 +51,9 @@ pub(crate) use stored_tracks::StoredTracks;
 pub(crate) use subtitle_appearance::{
     SubtitleAppearance, of as subtitle_appearance_of, set_background as set_subtitle_background,
     set_size as set_subtitle_size,
+};
+pub(crate) use subtitle_offsets::{
+    SubtitleOffsets, of as subtitle_offsets_of, set as set_subtitle_offset,
 };
 pub(crate) use subtitles::Cache as SubtitleCache;
 pub(crate) use track_preferences::{
