@@ -579,7 +579,8 @@ async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_on_its_pa
 }
 
 /// The fake TMDB gives a search hit only its tmdb id, so this proves the hit's own id; the path
-/// through a hit's other ids is proved with [`OfficeHits`].
+/// through a hit's other ids is proved by
+/// [`a_custom_poster_kept_under_another_id_of_a_search_hit_shows_on_the_hit`].
 #[tokio::test]
 async fn a_custom_poster_kept_under_a_search_hits_id_shows_on_the_hit() {
     let fx = Fixture::alien().await;

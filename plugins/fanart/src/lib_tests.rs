@@ -325,8 +325,8 @@ fn an_asset_url_becomes_its_path() {
     assert_eq!(asset_path("not a url"), None);
 }
 
-// fanart.tv's conversation, through `nama_pdk::testing`: each test calls a title source method as
-// the Kernel would, against a fanart.tv answering with the recorded Heat and Severance lists.
+// fanart.tv's conversation, tested here rather than in the Server (ADR 0065), against the Heat and
+// Severance lists recorded in `fixtures/`.
 
 const API: &str = "http://fanart.test/v3";
 const ASSETS: &str = "http://assets.fanart.test";

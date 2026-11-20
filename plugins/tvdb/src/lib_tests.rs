@@ -121,14 +121,7 @@ fn a_show_has_its_ids_official_seasons_and_best_backdrop() {
     let series: Series = data(include_bytes!("../fixtures/series-extended.json")).unwrap();
     let show = series.show();
 
-    assert_eq!(
-        show.ids,
-        ids(&[
-            ("tvdb", "371980"),
-            ("imdb", "tt11280740"),
-            ("tmdb", "95396")
-        ])
-    );
+    assert_eq!(show.ids, severance_ids());
     assert_eq!(show.title, "Severance");
     assert_eq!(show.first_air_date.as_deref(), Some("2022-02-18"));
     assert_eq!(show.seasons, [0, 1, 2]);
@@ -212,8 +205,8 @@ fn a_query_is_percent_encoded() {
     assert_eq!(encoded("Dr. Who & Co"), "Dr.%20Who%20%26%20Co");
 }
 
-// TVDB's conversation, through `nama_pdk::testing`: each test calls a title source method as the
-// Kernel would, against a TVDB answering with the recorded Severance responses.
+// TVDB's conversation, tested here rather than in the Server (ADR 0065), against the Severance
+// responses recorded in `fixtures/`.
 
 const API: &str = "http://tvdb.test/v4";
 const ARTWORK: &str = "http://artworks.tvdb.test";
@@ -258,6 +251,15 @@ fn asked(kernel: &Kernel) -> Vec<String> {
         .collect()
 }
 
+/// The ids TVDB reports for Severance.
+fn severance_ids() -> Vec<TitleId> {
+    ids(&[
+        ("tvdb", "371980"),
+        ("imdb", "tt11280740"),
+        ("tmdb", "95396"),
+    ])
+}
+
 fn severance() -> TitleAsked {
     TitleAsked {
         id: title_id("tvdb", "371980").into(),
@@ -274,7 +276,7 @@ fn severance_season(season: u32) -> SeasonAsked {
 }
 
 #[test]
-fn a_call_logs_in_with_the_key_and_pin_then_sends_the_token() {
+fn a_call_logs_in_with_the_key_and_trimmed_pin_then_sends_the_token() {
     let mut kernel = kernel().setting("pin", " 1234 ");
 
     with(&mut kernel, || Tvdb::show(severance())).unwrap();
@@ -316,11 +318,7 @@ fn a_search_finds_shows_with_the_ids_tvdb_reports_and_their_english_names() {
     let hits: Vec<_> = (found.candidates.iter())
         .map(|hit| (hit.title.as_str(), hit.original_title.as_deref(), &hit.ids))
         .collect();
-    let severance_ids = ids(&[
-        ("tvdb", "371980"),
-        ("imdb", "tt11280740"),
-        ("tmdb", "95396"),
-    ]);
+    let severance_ids = severance_ids();
     assert_eq!(
         hits,
         [
@@ -348,14 +346,7 @@ fn a_show_comes_with_its_ids_official_seasons_and_best_backdrop() {
         ]
     );
     let show = answer.show.as_option().unwrap();
-    assert_eq!(
-        show.ids,
-        ids(&[
-            ("tvdb", "371980"),
-            ("imdb", "tt11280740"),
-            ("tmdb", "95396")
-        ])
-    );
+    assert_eq!(show.ids, severance_ids());
     assert_eq!(show.title, "Severance");
     assert_eq!(show.seasons, [0, 1, 2]);
     assert_eq!(
