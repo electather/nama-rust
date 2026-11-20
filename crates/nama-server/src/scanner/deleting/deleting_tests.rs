@@ -1,22 +1,12 @@
-use std::{
-    collections::HashMap,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, contract,
     fulfiller::{
-        Download, EpisodeNumber, EpisodeNumbers, Fulfilled, Fulfiller, MovieDeleted, Movies,
-        ShowDeleted, Shows, StopMonitoring, TitleId, TryAgainIn, show_deleted::Deleted,
+        EpisodeNumber, EpisodeNumbers, MovieDeleted, ShowDeleted, TitleId, show_deleted::Deleted,
         stop_monitoring::Title,
     },
     metadata::{ExternalId, ExternalIds},
 };
-use tokio::sync::Notify;
 
 use super::ToDelete;
 use crate::{
@@ -24,7 +14,7 @@ use crate::{
         Change, Decided, Item, LibraryKind, Metadata, TitleTarget,
         fixture::{decide, tmdb_movie},
     },
-    plugins::Registry,
+    plugins::{Registry, ScriptedFulfiller, Told},
     scanner::{Error, Scanner, tests::Fixture},
 };
 
@@ -115,16 +105,8 @@ async fn deleting(scanner: &Scanner) {
 }
 
 /// A Plugin whose Fulfillers stop monitoring whatever they're told, and what they were told.
-fn willing() -> (Registry, Arc<Busy>) {
-    let told = Arc::new(Busy {
-        willing: true,
-        ..Busy::default()
-    });
-    let plugins = Registry::new();
-    plugins
-        .enable(Arc::new(BusyPlugin(Arc::clone(&told))))
-        .unwrap();
-    (plugins, told)
+fn willing() -> (Registry, Arc<ScriptedFulfiller>) {
+    ScriptedFulfiller::default().enabled("willing")
 }
 
 fn tmdb(id: i64) -> Vec<TitleId> {
@@ -188,7 +170,7 @@ async fn deleting_episodes_or_a_season_stops_monitoring_those_and_the_ones_taken
     delete(season, Vec::new()).await.unwrap();
 
     assert_eq!(
-        *told.told.lock().unwrap(),
+        stopped(&told),
         [
             dark_episodes(&[3]),
             dark_episodes(&[1, 2]),
@@ -244,7 +226,7 @@ async fn deleting_a_show_stops_monitoring_every_current_season_and_a_movie_or_it
         ..Default::default()
     });
     assert_eq!(
-        *told.told.lock().unwrap(),
+        stopped(&told),
         [
             dark_deleted(Deleted::EveryCurrentSeason(true)),
             told_of_alien.clone(),
@@ -274,11 +256,7 @@ async fn a_preview_names_the_episodes_a_file_takes_along() {
 
 #[tokio::test]
 async fn a_delete_taking_along_an_episode_it_doesnt_name_is_refused_before_anything_is_asked() {
-    let busy = Arc::new(Busy::default());
-    let plugins = Registry::new();
-    plugins
-        .enable(Arc::new(BusyPlugin(Arc::clone(&busy))))
-        .unwrap();
+    let (plugins, told) = willing();
     let media = dark(&plugins).await;
 
     let refused = (media.scanner)
@@ -286,7 +264,7 @@ async fn a_delete_taking_along_an_episode_it_doesnt_name_is_refused_before_anyth
         .await;
 
     assert_eq!(unnamed(refused.unwrap_err()), ["Dark S01E02"]);
-    assert_eq!(busy.asked.load(Ordering::SeqCst), 0);
+    assert_eq!(told.asked(), 0);
     assert!(media.path("Dark - S01E01-E02.mkv").exists());
 }
 
@@ -338,95 +316,30 @@ async fn a_file_merged_while_the_delete_waited_for_the_scan_lock_refuses_it_and_
     assert!(media.path("Dark - S01E01-E02.mkv").exists());
 }
 
-/// How long [`Busy`] says to wait.
+/// How long the Fulfiller says to wait when it says to try again.
 const WAIT: Duration = Duration::from_millis(10);
 
-/// The Plugin `busy`, whose Fulfillers say to try again in [`WAIT`] the first time
-/// it is asked to stop monitoring a title, unless `willing`, counting each time it is asked and
-/// recording what it was told.
-#[derive(Default)]
-struct Busy {
-    willing: bool,
-    told: std::sync::Mutex<Vec<Title>>,
-    asked: AtomicUsize,
-    /// Holds each ask after the first until notified. The retry is due [`WAIT`] after the first
-    /// ask, and a slow delete can still be running then, so without it the count the test reads
-    /// once the delete returns could already include the retry.
-    again: Notify,
-}
-
-impl<K: 'static> Fulfiller<K> for Busy {
-    fn fulfill<'a>(
-        &'a self,
-        _request: &'a contract::Request,
-    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        Box::pin(async { Err("not asked here".into()) })
-    }
-
-    fn stop_monitoring<'a>(
-        &'a self,
-        title: &'a StopMonitoring,
-    ) -> BoxFuture<'a, Result<(), PluginError>> {
-        Box::pin(async {
-            if self.willing {
-                self.told.lock().unwrap().extend(title.title.clone());
-                return Ok(());
-            }
-            if self.asked.load(Ordering::SeqCst) > 0 {
-                self.again.notified().await;
-            }
-            if self.asked.fetch_add(1, Ordering::SeqCst) == 0 {
-                Err(TryAgainIn(WAIT).into())
-            } else {
-                Ok(())
-            }
-        })
-    }
-
-    fn progress<'a>(
-        &'a self,
-        _references: &'a [String],
-    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
-        Box::pin(async { Ok(HashMap::new()) })
-    }
-}
-
-/// The Plugin providing `.0`.
-struct BusyPlugin(Arc<Busy>);
-
-impl Plugin for BusyPlugin {
-    fn manifest(&self) -> Manifest {
-        Manifest {
-            version: "0.0.0".to_owned(),
-            extension_points: vec![
-                PointKey::provide::<dyn Fulfiller<Movies>>(),
-                PointKey::provide::<dyn Fulfiller<Shows>>(),
-            ],
-            ..Manifest::new(PluginId::from_static("busy"))
-        }
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::<Busy>::clone(&self.0));
-        registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::<Busy>::clone(&self.0));
-        Ok(())
-    }
+/// What `fulfiller` was told to stop monitoring.
+fn stopped(fulfiller: &ScriptedFulfiller) -> Vec<Title> {
+    let told = fulfiller.told().into_iter();
+    told.filter_map(|told| match told {
+        Told::StopMonitoring(stop) => stop.title,
+        Told::Fulfill(_) | Told::Unfollow(_) => None,
+    })
+    .collect()
 }
 
 /// Returns once `busy` was asked twice.
-async fn asked_twice(busy: &Busy) {
-    while busy.asked.load(Ordering::SeqCst) < 2 {
+async fn asked_twice(busy: &ScriptedFulfiller) {
+    while busy.asked() < 2 {
         tokio::time::sleep(WAIT).await;
     }
 }
 
 #[tokio::test]
 async fn a_delete_whose_fulfiller_says_to_try_again_still_deletes_and_asks_again_later() {
-    let busy = Arc::new(Busy::default());
-    let plugins = Registry::new();
-    plugins
-        .enable(Arc::new(BusyPlugin(Arc::clone(&busy))))
-        .unwrap();
+    let busy = ScriptedFulfiller::default().trying_again(1, WAIT).holding();
+    let (plugins, busy) = busy.enabled("busy");
     let media = Fixture::with_plugins(LibraryKind::Movies, plugins.clone()).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scan().await;
@@ -437,8 +350,8 @@ async fn a_delete_whose_fulfiller_says_to_try_again_still_deletes_and_asks_again
     let deleted = (media.scanner)
         .delete_media(alien, Vec::new(), "ada".to_owned())
         .await;
-    let asked_by_delete = busy.asked.load(Ordering::SeqCst);
-    busy.again.notify_one();
+    let asked_by_delete = busy.asked();
+    busy.let_one_through();
     let asked_again = tokio::time::timeout(Duration::from_secs(5), asked_twice(&busy)).await;
 
     let deleted = deleted.unwrap();
@@ -446,5 +359,5 @@ async fn a_delete_whose_fulfiller_says_to_try_again_still_deletes_and_asks_again
     assert!(!media.path("Alien (1979)").exists());
     assert_eq!(asked_by_delete, 1);
     asked_again.expect("it was never asked again");
-    assert_eq!(busy.asked.load(Ordering::SeqCst), 2);
+    assert_eq!(busy.asked(), 2);
 }

@@ -5,7 +5,7 @@
 mod doomed;
 mod files;
 
-use std::{io, path::Path, path::PathBuf, sync::Arc};
+use std::{io, path::Path, path::PathBuf};
 
 use nama_plugin_api::{
     PluginId,
@@ -20,8 +20,8 @@ pub(crate) use files::{File, read_only_folder};
 use super::{Error, Scanner};
 use crate::{
     library::{Change, LibraryEpisode, LibraryKind, TitleTarget, episode_name},
-    plugins::{Failure, Retryable, ask_again},
-    requests::{self, RequestTitle},
+    plugins::{AskedAbout, tell_fulfiller},
+    requests::RequestTitle,
 };
 
 /// What a User or Plugin deletes.
@@ -113,7 +113,7 @@ impl Scanner {
         })
     }
 
-    /// Deletes `target` for `by`: asks every Fulfiller of its kind to stop monitoring it, then
+    /// Deletes `target` for `by`: asks the Fulfiller of its kind to stop monitoring it, then
     /// ends the plans playing it, deletes it from disk for good, removes the Versions whose files
     /// went as a scan removes them, with the images only their Matches stored, logs that `by`
     /// deleted them, and cancels the Requests still waiting on what they were of.
@@ -257,9 +257,10 @@ impl Scanner {
         }
     }
 
-    /// Asks each enabled Fulfiller of `doomed`'s Library's kind to stop monitoring what it takes.
-    /// Returns the name of each that couldn't be told, failing or panicking, which isn't asked
-    /// again. One that says to try again is asked again later, in its scope (ADR 0047).
+    /// Asks the enabled Fulfiller of `doomed`'s Library's kind to stop monitoring what it takes.
+    /// Returns the name of the Fulfiller if it couldn't be told, lacking ids, failing or
+    /// panicking, which isn't asked again. One that says to try again is asked again later, in its
+    /// scope (ADR 0047).
     async fn stop_monitoring(&self, doomed: &Doomed) -> Vec<String> {
         let Some(title) = doomed.to_unmonitor.clone() else {
             return Vec::new();
@@ -268,52 +269,34 @@ impl Scanner {
             title: Some(title),
             ..Default::default()
         };
-        match doomed.library.kind {
+        let not_told = match doomed.library.kind {
             LibraryKind::Movies => self.ask_to_stop::<Movies>(&title, &doomed.title).await,
             LibraryKind::Shows => self.ask_to_stop::<Shows>(&title, &doomed.title).await,
-        }
+        };
+        let plugins = &self.inner.plugins;
+        not_told
+            .map(|plugin| plugins.name(&plugin))
+            .into_iter()
+            .collect()
     }
 
-    /// Asks each enabled Fulfiller of the kind `K` to stop monitoring `title`, which the log calls
-    /// `name`, but one that needs an id the title lacks. Returns the name of each not told.
-    async fn ask_to_stop<K: 'static>(&self, title: &StopMonitoring, name: &str) -> Vec<String> {
-        let (kind, ids) = match &title.title {
+    /// Asks the enabled Fulfiller of the kind `K` to stop monitoring `title`, which the log calls
+    /// `name`, unless it needs an id the title lacks. Returns the Plugin if it wasn't told.
+    async fn ask_to_stop<K: 'static>(
+        &self,
+        title: &StopMonitoring,
+        name: &str,
+    ) -> Option<PluginId> {
+        let (word, ids) = match &title.title {
             Some(Title::Movie(movie)) => ("Movie", &movie.ids[..]),
             Some(Title::Show(show)) => ("Show", &show.show_ids[..]),
             None => ("title", &[][..]),
         };
-        let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
-            let namespaces = ids.iter().map(|id| id.namespace.as_str());
-            if let Some(needs) = requests::unmet(&*fulfiller, namespaces) {
-                return Ok(Err(needs));
-            }
-            let stopped = fulfiller.stop_monitoring(title).await;
-            stopped.map(Ok).map_err(Retryable)
-        };
-        let plugins = &self.inner.plugins;
-        let mut not_told = Vec::new();
-        for plugin in plugins.providers::<dyn Fulfiller<K>>() {
-            let answer = plugins.ask(&plugin, &stop).await;
-            // `None`: it panicked, which disabled it, or was disabled meanwhile.
-            let reason = match answer.map(|answer| answer.result) {
-                Some(Ok(Ok(()))) => continue,
-                Some(Err(Failure {
-                    kind: Some(wait), ..
-                })) => {
-                    let (id, name) = (plugin.clone(), name.to_owned());
-                    let gave_up = move |reason: String| not_stopped(&id, &name, &reason);
-                    let stop_again = <dyn Fulfiller<K>>::stop_monitoring;
-                    ask_again(plugins, plugin, wait, title.clone(), stop_again, gave_up);
-                    continue;
-                }
-                Some(Ok(Err(needs))) => requests::missing(&plugin, kind, &needs),
-                Some(Err(failure)) => failure.message,
-                None => "it panicked or was disabled".to_owned(),
-            };
-            not_stopped(&plugin, name, &reason);
-            not_told.push(plugins.name(&plugin));
-        }
-        not_told
+        let about = AskedAbout::new(word, ids.iter().map(|id| id.namespace.as_str()));
+        let name = name.to_owned();
+        let not_stopped = move |plugin: &PluginId, reason: &str| not_stopped(plugin, &name, reason);
+        let stop = <dyn Fulfiller<K>>::stop_monitoring;
+        tell_fulfiller(&self.inner.plugins, &about, stop, title, not_stopped).await
     }
 }
 

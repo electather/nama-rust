@@ -24,7 +24,10 @@ use super::listing::{load, load_one};
 use super::{Error, Requests, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::{self, Answer, ExtensionPoints, Failure, RETRIES, Retryable, ask_again},
+    plugins::{
+        self, Answer, AskedAbout, ExtensionPoints, Failure, FulfillerOutcome, RETRIES,
+        ask_fulfiller, enabled_fulfiller, tell_fulfiller,
+    },
 };
 
 /// What a Fulfiller answered to a hand-off, and how long it said to wait if it said to try again,
@@ -159,9 +162,11 @@ impl HandOff {
     ) {
         while let Some(plugin) = came_up.recv().await {
             // One disabled since it came up provides nothing.
-            let movies = self.plugins.providers::<dyn Fulfiller<Movies>>();
-            let shows = self.plugins.providers::<dyn Fulfiller<Shows>>();
-            if !movies.contains(&plugin) && !shows.contains(&plugin) {
+            let fulfillers = [
+                enabled_fulfiller::<Movies>(&self.plugins),
+                enabled_fulfiller::<Shows>(&self.plugins),
+            ];
+            if !fulfillers.contains(&Some(plugin)) {
                 continue;
             }
             if let Err(err) = self.hand_off_waiting(requests).await {
@@ -249,120 +254,66 @@ impl HandOff {
         title: &str,
         ids: &[ExternalId],
     ) -> Option<Fulfilling> {
-        let told = &plugins::request(request);
-        // Asked inside the Plugin's containment, so the failure names the Plugin that would have
-        // been handed the Request.
-        let Answer { plugin, result } = self
-            .plugins
-            .ask_first(|fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
-                if let Some(needs) = unmet(&*fulfiller, namespaces(ids)) {
-                    return Ok(Err(needs));
-                }
-                fulfiller.fulfill(told).await.map(Ok).map_err(Retryable)
+        let about = AskedAbout::new(title, ids.iter().map(|id| id.namespace.as_str()));
+        let fulfill = <dyn Fulfiller<Kind>>::fulfill;
+        let told = plugins::request(request);
+        let outcome = ask_fulfiller(&self.plugins, &about, fulfill, &told);
+        let refused = |message| {
+            Err(Failure {
+                kind: Vec::new(),
+                message,
             })
-            .await?;
-        let mut try_again = None;
-        let result = match result {
-            Ok(Ok(fulfilled)) => Ok(fulfilled),
-            Ok(Err(needs)) => Err(Failure {
-                message: missing(&plugin, title, &needs),
-                kind: needs,
-            }),
-            Err(Failure { kind, message }) => {
-                try_again = kind;
-                Err(Failure {
-                    kind: Vec::new(),
-                    message,
-                })
+        };
+        let (plugin, result, try_again) = match outcome.await? {
+            FulfillerOutcome::Took { plugin, answer } => (plugin, Ok(answer), None),
+            FulfillerOutcome::LacksIds {
+                plugin,
+                needs,
+                reason,
+            } => {
+                let lacks = Failure {
+                    kind: needs,
+                    message: reason,
+                };
+                (plugin, Err(lacks), None)
             }
+            FulfillerOutcome::TryAgain {
+                plugin,
+                wait,
+                message,
+            } => (plugin, refused(message), Some(wait)),
+            FulfillerOutcome::Failed { plugin, message } => (plugin, refused(message), None),
+            // It waits in Approved until a Fulfiller comes up.
+            FulfillerOutcome::Gone { .. } => return None,
         };
         Some((Answer { plugin, result }, try_again))
     }
 
     /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show of `season`, the
-    /// Season Request of a Followed Show that ended. A failure, or a Show lacking every id it
-    /// needs, which skips it, is only logged: the Followed Show ended either way. One that says to
-    /// try again is asked again later, in its scope (ADR 0047).
+    /// Season Request of a Followed Show that ended. A failure, a panic, or a Show lacking every
+    /// id it needs, which skips it, is only logged: the Followed Show ended either way. One that
+    /// says to try again is asked again later, in its scope (ADR 0047).
     pub(super) async fn unfollow(&self, season: &Request) {
         let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season else {
             return;
         };
-        let told = &plugins::request(season);
-        let unfollowed = self
-            .plugins
-            .ask_first(|fulfiller: Arc<dyn Fulfiller<Shows>>| async move {
-                if let Some(needs) = unmet(&*fulfiller, namespaces(&asked.show_ids)) {
-                    return Ok(Err(needs));
-                }
-                fulfiller.unfollow(told).await.map(Ok).map_err(Retryable)
-            })
-            .await;
+        let namespaces = asked.show_ids.iter().map(|id| id.namespace.as_str());
+        let about = AskedAbout::new("Show", namespaces);
         let show = asked
             .show_id
             .as_option()
             .map(|id| format!("{}-{}", id.namespace, id.value));
-        let reason = match unfollowed {
-            Some(Answer {
-                plugin,
-                result: Ok(Err(needs)),
-            }) => missing(&plugin, "Show", &needs),
-            Some(Answer {
-                plugin,
-                result: Err(Failure {
-                    kind: Some(wait), ..
-                }),
-            }) => {
-                let unfollow = <dyn Fulfiller<Shows>>::unfollow;
-                let gave_up = move |reason: String| not_unfollowed(show.as_deref(), &reason);
-                ask_again(&self.plugins, plugin, wait, told.clone(), unfollow, gave_up);
-                return;
-            }
-            Some(Answer {
-                result: Err(failure),
-                ..
-            }) => failure.message,
-            _ => return,
+        let not_unfollowed = move |_: &PluginId, reason: &str| {
+            let show = show.as_deref();
+            warn!(
+                show,
+                reason, "the Shows Fulfiller didn't stop following the Show"
+            );
         };
-        not_unfollowed(show.as_deref(), &reason);
+        let unfollow = <dyn Fulfiller<Shows>>::unfollow;
+        let told = &plugins::request(season);
+        tell_fulfiller(&self.plugins, &about, unfollow, told, not_unfollowed).await;
     }
-}
-
-/// Logs that the Shows Fulfiller didn't stop following the Show known as `show`, and why.
-fn not_unfollowed(show: Option<&str>, reason: &str) {
-    warn!(
-        show,
-        reason, "the Shows Fulfiller didn't stop following the Show"
-    );
-}
-
-/// The namespaces of `ids`.
-fn namespaces(ids: &[ExternalId]) -> impl Iterator<Item = &str> {
-    ids.iter().map(|id| id.namespace.as_str())
-}
-
-/// The namespaces `fulfiller` needs when a title, known by ids in `namespaces`, has an id in none
-/// of them, so the Kernel doesn't ask it about the title.
-///
-/// ponytail: each caller reads this inside its `ask`, not with `read_provider`, so an unmet need
-/// clears the Fulfiller's recorded failure though its service wasn't called (`plugins/AGENTS.md`).
-pub(crate) fn unmet<'a, Kind: 'static>(
-    fulfiller: &dyn Fulfiller<Kind>,
-    mut namespaces: impl Iterator<Item = &'a str>,
-) -> Option<Vec<String>> {
-    let needs = fulfiller.needs();
-    let met = needs.is_empty() || namespaces.any(|namespace| needs.iter().any(|n| n == namespace));
-    (!met).then_some(needs)
-}
-
-/// Why the Plugin `plugin`'s Fulfiller wasn't handed a Request for a `title`, `Movie` or `Show`,
-/// which has no id in any of the namespaces it `needs`.
-pub(crate) fn missing(plugin: &PluginId, title: &str, needs: &[String]) -> String {
-    let ids = match needs {
-        [one] => format!("the {title}'s {one} id"),
-        [first @ .., last] => format!("one of the {title}'s {} or {last} ids", first.join(", ")),
-        [] => format!("the {title}'s id"),
-    };
-    format!("{plugin} needs {ids}, and none is known for it")
 }
 
 /// A hand-off's hold on one Request in [`HandOff::handing`], let go however the hand-off ends, a

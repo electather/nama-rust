@@ -22,7 +22,7 @@ use super::lock;
 use crate::{
     db::Database,
     events::{EventBus, event},
-    plugins::{self, ExtensionPoints, Failure},
+    plugins::{self, ExtensionPoints, Failure, enabled_fulfiller},
 };
 
 /// Hands `$query!` the SQL for whether a Request's Fulfiller has it and it isn't Available yet,
@@ -172,7 +172,7 @@ impl Progress {
             .collect()
     }
 
-    /// What `Kind`'s first ranked Fulfiller answers about `references`, asked in its scope so
+    /// What `Kind`'s Fulfiller answers about `references`, asked in its scope so
     /// disabling it ends the call at once (ADR 0047). `None` if there is none, or it was disabled
     /// before it answered.
     async fn ask_in_scope<Kind: 'static>(
@@ -180,13 +180,7 @@ impl Progress {
         references: Vec<String>,
         every: Duration,
     ) -> Option<Result<HashMap<String, Vec<Downloading>>, Failure>> {
-        // Only the first, unlike `ask_first`: one that panics is disabled, so the next round asks
-        // the next one.
-        let plugin = self
-            .plugins
-            .ranked::<dyn Fulfiller<Kind>>()
-            .into_iter()
-            .next()?;
+        let plugin = enabled_fulfiller::<Kind>(&self.plugins)?;
         let points = self.plugins.clone();
         let (answer, answered) = oneshot::channel();
         let asking = plugin.clone();

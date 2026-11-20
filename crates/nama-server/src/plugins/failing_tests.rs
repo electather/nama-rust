@@ -10,7 +10,9 @@ use nama_plugin_api::{
 
 use crate::{
     log_capture::CapturedLog,
-    plugins::{ExtensionPoints, Failing, FailureKind, ProviderError, Registry, Retryable},
+    plugins::{
+        ExtensionPoints, Failing, FailureKind, ProviderError, Registry, fulfilling::Retryable,
+    },
 };
 
 const PLUGIN: PluginId = PluginId::from_static("flaky");

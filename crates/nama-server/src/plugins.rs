@@ -5,10 +5,12 @@ mod blob_store;
 mod builtin;
 mod contract;
 mod failing;
+mod fulfilling;
 mod points;
 mod registry;
-mod retrying;
 mod scope;
+#[cfg(test)]
+mod scripted_fulfiller;
 mod tick;
 mod wasm;
 
@@ -38,9 +40,13 @@ use crate::{
 pub(crate) use blob_store::PluginBlobs;
 pub(crate) use contract::{download, notification, observed, request};
 pub use failing::Failing;
+pub(crate) use fulfilling::{
+    AskedAbout, FulfillerOutcome, RETRIES, ask_fulfiller, enabled_fulfiller, tell_fulfiller,
+};
 pub use points::ExtensionPoints;
 pub use registry::Registry;
-pub(crate) use retrying::{RETRIES, Retryable, ask_again};
+#[cfg(test)]
+pub(crate) use scripted_fulfiller::{ScriptedFulfiller, Told};
 #[cfg(test)]
 pub(crate) use wasm::KERNEL_IMPORTS;
 pub(crate) use wasm::read as read_installed;
