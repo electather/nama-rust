@@ -298,3 +298,14 @@ async fn a_search_lists_no_more_than_its_limit() {
     assert_eq!(titles(&found)[..1], ["Alien"], "the best first");
     assert_eq!(found.len(), 2);
 }
+
+#[tokio::test]
+async fn a_search_ending_in_a_year_ranks_titles_starting_with_its_words_by_that_year() {
+    let fx = Fixture::new().await;
+    fx.match_movie(1, "Dune 2021 Unboxed", "2019-01-01").await;
+    fx.match_movie(2, "Dune Messiah", "2021-09-15").await;
+
+    let found = fx.search("dune 2021").await;
+
+    assert_eq!(titles(&found), ["Dune Messiah", "Dune 2021 Unboxed"]);
+}

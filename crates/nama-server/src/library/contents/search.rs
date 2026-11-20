@@ -321,6 +321,8 @@ fn found_show(row: SearchRow) -> Option<FoundShow> {
 struct SearchWords<'a> {
     words: Vec<&'a str>,
     year: Option<&'a str>,
+    /// The words, then the year, lowercase and without accents, as [`Fit`] compares them.
+    compared: Vec<String>,
 }
 
 impl<'a> SearchWords<'a> {
@@ -337,7 +339,12 @@ impl<'a> SearchWords<'a> {
             }
             _ => None,
         };
-        (!words.is_empty()).then_some(Self { words, year })
+        let compared = words.iter().chain(&year).map(|word| folded(word)).collect();
+        (!words.is_empty()).then_some(Self {
+            words,
+            year,
+            compared,
+        })
     }
 
     /// The FTS5 query for `title_search` rows whose `column` has a word starting with each word,
@@ -400,7 +407,7 @@ impl Rank {
 enum Fit {
     /// The query is the title, or the title and its year.
     Exact,
-    /// The title starts with the query.
+    /// The title starts with the query, the year aside.
     Prefix,
     /// The title has each of the query's words whole, the year aside.
     AllWords,
@@ -411,16 +418,15 @@ impl Fit {
     /// How `title`, of `year`, fits `words`: its best fit with or without the marks that join
     /// words, as `title_search` holds it both ways.
     fn of(words: &SearchWords<'_>, title: &str, year: Option<&str>) -> Self {
-        let without_year: Vec<String> = words.words.iter().map(|word| folded(word)).collect();
-        let query: Vec<String> = (without_year.iter().cloned())
-            .chain(words.year.map(str::to_owned))
-            .collect();
+        let query = &words.compared;
+        // The year is the year band's to rank, past an exact title.
+        let without_year = query.get(..words.words.len()).unwrap_or_default();
         let fit = |variant: &str| {
             let variant = title_words(variant);
             let with_year = year.map(|year| [&variant[..], &[year.to_owned()]].concat());
-            if variant == query || with_year.is_some_and(|with_year| with_year == query) {
+            if variant == *query || with_year.is_some_and(|with_year| with_year == *query) {
                 Self::Exact
-            } else if starts_with(&variant, &query) {
+            } else if starts_with(&variant, without_year) {
                 Self::Prefix
             } else if without_year.iter().all(|word| variant.contains(word)) {
                 Self::AllWords
@@ -428,6 +434,7 @@ impl Fit {
                 Self::WordStarts
             }
         };
+        // The marks `title_search_rows` (migration 0036) joins words by: keep the two alike.
         let joined = title.replace(['-', '\'', '’', '.', '·'], "");
         fit(title).min(fit(&joined))
     }

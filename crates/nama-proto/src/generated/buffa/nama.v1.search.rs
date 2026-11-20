@@ -602,8 +602,8 @@ pub mod search_response {
 }
 /// A batch of results, ordered on the Server: Movies and Shows before Episodes, then an exact
 /// title ("Title Year" counts as exact), then a title starting with the query, then one holding
-/// each of its words whole, then one of the year asked for, then the better fit, then the
-/// shorter title.
+/// each of its words whole (in both, the year it ends with aside), then one of that year, then the
+/// better fit, then the shorter title.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
