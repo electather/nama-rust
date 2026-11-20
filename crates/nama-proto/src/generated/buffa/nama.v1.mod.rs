@@ -182,12 +182,6 @@ pub mod __buffa {
         reg.register_json_any(super::__SET_PLAYED_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SHOW_SEASON_JSON_ANY);
         reg.register_json_any(super::__SET_PLAYED_RESPONSE_JSON_ANY);
-        reg.register_json_any(
-            super::__SET_HIDDEN_FROM_CONTINUE_WATCHING_REQUEST_JSON_ANY,
-        );
-        reg.register_json_any(
-            super::__SET_HIDDEN_FROM_CONTINUE_WATCHING_RESPONSE_JSON_ANY,
-        );
         reg.register_json_any(super::__MOVIE_JSON_ANY);
         reg.register_json_any(super::__VERSION_JSON_ANY);
         reg.register_json_any(super::__TRACK_JSON_ANY);
@@ -887,14 +881,6 @@ pub use self::__buffa::view::ShowSeasonOwnedView;
 pub use self::__buffa::view::SetPlayedResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetPlayedResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetHiddenFromContinueWatchingRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SetHiddenFromContinueWatchingRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SetHiddenFromContinueWatchingResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SetHiddenFromContinueWatchingResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::MovieView;
 #[doc(inline)]

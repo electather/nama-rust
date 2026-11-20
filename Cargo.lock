@@ -2329,6 +2329,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-top-picks"
+version = "0.1.0"
+dependencies = [
+ "nama-pdk",
+]
+
+[[package]]
 name = "nama-plugin-tvdb"
 version = "0.1.0"
 dependencies = [

@@ -470,3 +470,51 @@ async fn upgrading_to_request_followed_shows_links_each_request_to_the_followed_
 
     assert_eq!(linked, [(1, 7)]);
 }
+
+/// The version of the migration that adds `featured_refreshes`.
+const FEATURED_REFRESHES: i64 = 20_261_120_122_751;
+
+#[tokio::test]
+async fn upgrading_to_featured_refreshes_keeps_each_users_suggestions_and_when_they_go_stale() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data_dir.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = migrations
+        .iter()
+        .map(|m| m.version)
+        .filter(|&version| version < FEATURED_REFRESHES)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    sqlx::raw_sql(
+        "INSERT INTO users (id, username, display_username, permissions, created_at, updated_at)
+         VALUES (1, 'ada', 'ada', 0, 0, 0);
+         INSERT INTO featured_suggestions (plugin_id, user_id, suggestions, stale_at)
+         VALUES ('rows', 1, '[[[\"movie\", \"tmdb-603\"], 0.5]]', 42);",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let db = Database::open(data_dir.path()).await.unwrap();
+    let kept: Vec<(String, String, i64)> = sqlx::query_as(
+        "SELECT s.plugin_id, s.suggestions, r.stale_at
+         FROM featured_suggestions s JOIN featured_refreshes r USING (plugin_id, user_id)",
+    )
+    .fetch_all(db.reader())
+    .await
+    .unwrap();
+    db.close().await;
+
+    assert_eq!(
+        kept,
+        [(
+            "rows".to_owned(),
+            r#"[[["movie", "tmdb-603"], 0.5]]"#.to_owned(),
+            42
+        )]
+    );
+}

@@ -125,6 +125,17 @@ pub struct UserRowsAsked {
         ::buffa::alloc::string::String,
         ::buffa::alloc::string::String,
     >,
+    /// The User's id (1.3.0), which the Kernel's functions, such as `list_watchlist`, take to answer
+    /// for that User.
+    ///
+    /// Field 2: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -133,6 +144,7 @@ impl ::core::fmt::Debug for UserRowsAsked {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("UserRowsAsked")
             .field("personal_settings", &self.personal_settings)
+            .field("user_id", &self.user_id)
             .finish()
     }
 }
@@ -169,6 +181,9 @@ impl ::buffa::Message for UserRowsAsked {
                 ::buffa::map_codec::Str,
                 _,
             >(&self.personal_settings, 1u64);
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -184,6 +199,9 @@ impl ::buffa::Message for UserRowsAsked {
             ::buffa::map_codec::Str,
             _,
         >(&self.personal_settings, 1u32, buf);
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -208,6 +226,13 @@ impl ::buffa::Message for UserRowsAsked {
                     _,
                 >(&mut self.personal_settings, buf, ctx)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -217,6 +242,7 @@ impl ::buffa::Message for UserRowsAsked {
     }
     fn clear(&mut self) {
         self.personal_settings.clear();
+        self.user_id = 0i64;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -267,6 +293,16 @@ pub struct UserFeaturedAsked {
         ::buffa::alloc::string::String,
         ::buffa::alloc::string::String,
     >,
+    /// As `UserRowsAsked.user_id`.
+    ///
+    /// Field 2: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -275,6 +311,7 @@ impl ::core::fmt::Debug for UserFeaturedAsked {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("UserFeaturedAsked")
             .field("personal_settings", &self.personal_settings)
+            .field("user_id", &self.user_id)
             .finish()
     }
 }
@@ -311,6 +348,9 @@ impl ::buffa::Message for UserFeaturedAsked {
                 ::buffa::map_codec::Str,
                 _,
             >(&self.personal_settings, 1u64);
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -326,6 +366,9 @@ impl ::buffa::Message for UserFeaturedAsked {
             ::buffa::map_codec::Str,
             _,
         >(&self.personal_settings, 1u32, buf);
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -350,6 +393,13 @@ impl ::buffa::Message for UserFeaturedAsked {
                     _,
                 >(&mut self.personal_settings, buf, ctx)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -359,6 +409,7 @@ impl ::buffa::Message for UserFeaturedAsked {
     }
     fn clear(&mut self) {
         self.personal_settings.clear();
+        self.user_id = 0i64;
         self.__buffa_unknown_fields.clear();
     }
 }

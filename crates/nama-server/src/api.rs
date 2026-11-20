@@ -317,7 +317,6 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_GET_UNMATCHED_VERSION_SPEC.procedure,  Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
-    (proto::WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
     (proto::WATCHLIST_SERVICE_ADD_TO_WATCHLIST_SPEC.procedure,    Access::SignedIn),
     (proto::WATCHLIST_SERVICE_REMOVE_FROM_WATCHLIST_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC.procedure,        Access::SignedIn),

@@ -12,6 +12,7 @@ Start from [`plugins/template`](../../plugins/template), a Notifier posting to a
 - [`plugins/discord`](../../plugins/discord): a Notifier reaching each User by their Personal settings, and telling the Kernel when one is gone.
 - [`plugins/webhook`](../../plugins/webhook): a Notifier posting to its channel alone.
 - [`plugins/mdblist`](../../plugins/mdblist): a Home row source.
+- [`plugins/top-picks`](../../plugins/top-picks): a Home row source giving each User their own rows and Featured suggestions from the Kernel's functions.
 - [`plugins/opensubtitles`](../../plugins/opensubtitles): a subtitle source.
 
 What the Kernel gives a running Plugin (its clock, its limits, its settings, its HTTP) is part of the contract and is listed once, in `nama-plugin-proto`'s README under [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). This README walks through writing a Plugin and links there for the rules; section 14 shows how a test stands in for the Kernel.

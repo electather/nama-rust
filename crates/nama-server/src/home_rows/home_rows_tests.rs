@@ -162,6 +162,8 @@ pub(super) struct Calls {
     asked: Mutex<Vec<Option<BTreeMap<String, String>>>>,
     /// In order, the Personal settings each `user_featured` call carried.
     pub(super) featured_asked: Mutex<Vec<BTreeMap<String, String>>>,
+    /// In order, the User id each `user_rows` and `user_featured` call carried.
+    pub(super) user_ids: Mutex<Vec<i64>>,
     /// Its `user_rows` and `user_featured` answer only once it holds this, so a test keeps a
     /// call in flight.
     pub(super) users_held: tokio::sync::Mutex<()>,
@@ -215,6 +217,7 @@ impl HomeRowSource for Recorded {
     ) -> BoxFuture<'a, Result<HomeRows, PluginError>> {
         let settings = asked.personal_settings.clone().into_iter().collect();
         self.calls.asked.lock().unwrap().push(Some(settings));
+        self.calls.user_ids.lock().unwrap().push(asked.user_id);
         Box::pin(async {
             let _held = self.calls.users_held.lock().await;
             Ok(given(vec![row("theirs", 3600, vec![movie("2")])]))
@@ -227,6 +230,7 @@ impl HomeRowSource for Recorded {
     ) -> BoxFuture<'a, Result<FeaturedSuggestions, PluginError>> {
         let settings = asked.personal_settings.clone().into_iter().collect();
         self.calls.featured_asked.lock().unwrap().push(settings);
+        self.calls.user_ids.lock().unwrap().push(asked.user_id);
         let handle = asked.personal_settings.get("handle").cloned();
         Box::pin(async move {
             let _held = self.calls.users_held.lock().await;
@@ -429,7 +433,7 @@ async fn a_source_giving_only_users_rows_is_never_asked_for_shared_ones() {
 }
 
 #[tokio::test]
-async fn each_users_rows_are_asked_with_only_their_own_personal_settings() {
+async fn each_users_rows_are_asked_with_their_id_and_only_their_own_personal_settings() {
     let (_dir, db, home, calls) = recorded(BOTH).await;
     let ada = insert_user(&db, "ada").await;
     let bea = insert_user(&db, "bea").await;
@@ -451,6 +455,7 @@ async fn each_users_rows_are_asked_with_only_their_own_personal_settings() {
         ],
         "the shared rows once, then each User with their own settings, none for Carl"
     );
+    assert_eq!(*calls.user_ids.lock().unwrap(), [ada, bea, carl]);
 }
 
 #[tokio::test]

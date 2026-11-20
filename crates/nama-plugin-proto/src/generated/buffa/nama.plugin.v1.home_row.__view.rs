@@ -234,6 +234,11 @@ pub struct UserRowsAskedView<'a> {
     ///
     /// Field 1: `personal_settings` (map)
     pub personal_settings: ::buffa::MapView<'a, &'a str, &'a str>,
+    /// The User's id (1.3.0), which the Kernel's functions, such as `list_watchlist`, take to answer
+    /// for that User.
+    ///
+    /// Field 2: `user_id`
+    pub user_id: i64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UserRowsAskedView<'a> {
@@ -266,6 +271,13 @@ impl<'a> ::buffa::MessageView<'a> for UserRowsAskedView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -334,6 +346,7 @@ impl<'a> ::buffa::MessageView<'a> for UserRowsAskedView<'a> {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
+            user_id: self.user_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -350,6 +363,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UserRowsAskedView<'a> {
             let entry_size: u64 = 1u64 + ::buffa::types::string_encoded_len(k) as u64
                 + 1u64 + ::buffa::types::string_encoded_len(v) as u64;
             size += 1u64 + ::buffa::encoding::varint_len(entry_size) as u64 + entry_size;
+        }
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -383,6 +399,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UserRowsAskedView<'a> {
                 )
                 .encode(buf);
             ::buffa::types::encode_string(v, buf);
+        }
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -422,6 +441,13 @@ impl<'__a> ::serde::Serialize for UserRowsAskedView<'__a> {
                 }
             }
             __map.serialize_entry("personalSettings", &_WM(&self.personal_settings))?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.user_id) {
+            __map
+                .serialize_entry(
+                    "userId",
+                    &::buffa::json_helpers::ProtoJson(&self.user_id),
+                )?;
         }
         __map.end()
     }
@@ -522,6 +548,14 @@ impl UserRowsAskedOwnedView {
     pub fn personal_settings(&self) -> &::buffa::MapView<'_, &'_ str, &'_ str> {
         &self.0.reborrow().personal_settings
     }
+    /// The User's id (1.3.0), which the Kernel's functions, such as `list_watchlist`, take to answer
+    /// for that User.
+    ///
+    /// Field 2: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> i64 {
+        self.0.reborrow().user_id
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<UserRowsAskedView<'static>>>
 for UserRowsAskedOwnedView {
@@ -560,6 +594,10 @@ pub struct UserFeaturedAskedView<'a> {
     ///
     /// Field 1: `personal_settings` (map)
     pub personal_settings: ::buffa::MapView<'a, &'a str, &'a str>,
+    /// As `UserRowsAsked.user_id`.
+    ///
+    /// Field 2: `user_id`
+    pub user_id: i64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UserFeaturedAskedView<'a> {
@@ -592,6 +630,13 @@ impl<'a> ::buffa::MessageView<'a> for UserFeaturedAskedView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -660,6 +705,7 @@ impl<'a> ::buffa::MessageView<'a> for UserFeaturedAskedView<'a> {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
+            user_id: self.user_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -676,6 +722,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UserFeaturedAskedView<'a> {
             let entry_size: u64 = 1u64 + ::buffa::types::string_encoded_len(k) as u64
                 + 1u64 + ::buffa::types::string_encoded_len(v) as u64;
             size += 1u64 + ::buffa::encoding::varint_len(entry_size) as u64 + entry_size;
+        }
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -709,6 +758,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UserFeaturedAskedView<'a> {
                 )
                 .encode(buf);
             ::buffa::types::encode_string(v, buf);
+        }
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -748,6 +800,13 @@ impl<'__a> ::serde::Serialize for UserFeaturedAskedView<'__a> {
                 }
             }
             __map.serialize_entry("personalSettings", &_WM(&self.personal_settings))?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.user_id) {
+            __map
+                .serialize_entry(
+                    "userId",
+                    &::buffa::json_helpers::ProtoJson(&self.user_id),
+                )?;
         }
         __map.end()
     }
@@ -850,6 +909,13 @@ impl UserFeaturedAskedOwnedView {
     #[must_use]
     pub fn personal_settings(&self) -> &::buffa::MapView<'_, &'_ str, &'_ str> {
         &self.0.reborrow().personal_settings
+    }
+    /// As `UserRowsAsked.user_id`.
+    ///
+    /// Field 2: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> i64 {
+        self.0.reborrow().user_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UserFeaturedAskedView<'static>>>

@@ -305,8 +305,9 @@ impl HomeRows {
     async fn refresh_now(&self, plugin: &PluginId, user: Option<i64>) {
         // Put off before the Plugin is asked, so one whose service is down isn't called on every
         // visit to home. A User's change to their Personal settings meanwhile deletes the put-off
-        // (the triggers on `personal_settings`), and `replace` then drops this answer, built from
-        // the old settings, rather than store it as fresh.
+        // (the triggers on `personal_settings`), as does one to their Watch State for a Plugin
+        // reading it (those on `watch_states`), and `replace` then drops this answer, built from
+        // what they changed, rather than store it as fresh.
         if let Err(err) = self.put_off(plugin, user).await {
             warn!(plugin = %plugin, user, "could not put off refreshing the Plugin's Home rows: {err}");
             return;
@@ -314,7 +315,7 @@ impl HomeRows {
         let answer = match user {
             None => self.ask_shared(plugin).await,
             Some(user) => match personal_settings_of(&self.db, user, plugin).await {
-                Ok(settings) => self.ask_user_rows(plugin, settings).await,
+                Ok(settings) => self.ask_user_rows(plugin, user, settings).await,
                 Err(err) => {
                     warn!(plugin = %plugin, user, "could not read Personal settings to refresh Home rows: {err}");
                     return;
@@ -364,17 +365,19 @@ impl HomeRows {
             .await
     }
 
-    /// Asks the Plugin `plugin` for a User's rows with only that User's Personal `settings`, each
-    /// value by key with whether it is secret. A secret one is blanked from the failure the
-    /// Plugins page and the log show.
+    /// Asks the Plugin `plugin` for the User `user`'s rows with only that User's Personal
+    /// `settings`, each value by key with whether it is secret. A secret one is blanked from the
+    /// failure the Plugins page and the log show.
     async fn ask_user_rows(
         &self,
         plugin: &PluginId,
+        user: i64,
         settings: BTreeMap<String, (String, bool)>,
     ) -> Option<Answer<Given>> {
         let (settings, secrets) = personal(settings);
         let asked = UserRowsAsked {
             personal_settings: settings.into_iter().collect(),
+            user_id: user,
             ..UserRowsAsked::default()
         };
         (self.points)
@@ -559,7 +562,7 @@ impl HomeRows {
     /// Replaces the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, with
     /// `rows`, fresh for `fresh_for`, in one write. Stores nothing once the put-off its refresh
     /// started with is gone, as the Plugin was forgotten or the User changed their Personal
-    /// settings meanwhile.
+    /// settings, or their Watch State for a Plugin reading it, meanwhile.
     async fn replace(
         &self,
         plugin: &PluginId,

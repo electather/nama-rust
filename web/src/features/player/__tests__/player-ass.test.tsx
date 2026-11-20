@@ -14,50 +14,35 @@ import { openTracks, rowIn, rowsOf } from "@/test-player";
 
 /** The options of each ASS renderer made, and whether the next one fails to start. */
 const libass = vi.hoisted(
-  (): {
-    made: { subContent: string; fonts: string[]; workerUrl: string }[];
-    failsToStart: boolean;
-  } => ({
+  (): { made: { subContent: string; fonts: Uint8Array[] }[]; failsToStart: boolean } => ({
     made: [],
     failsToStart: false,
   }),
 );
-vi.mock(import("@jellyfin/libass-wasm"), () => ({
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
+vi.mock("jassub", () => ({
   default: class {
-    public constructor(options: {
-      subContent: string;
-      fonts: string[];
-      workerUrl: string;
-      onReady: () => void;
-      onError: (error: unknown) => void;
-    }) {
+    public readonly ready: Promise<void>;
+    public readonly _worker = Object.assign(new EventTarget(), { terminate: vi.fn<() => void>() });
+    public constructor(options: { subContent: string; fonts: Uint8Array[] }) {
       libass.made.push(options);
-      // As its worker reports a renderer that won't start: after it's made, and then it disposes
-      // of itself.
-      queueMicrotask(
-        libass.failsToStart
-          ? () => {
-              options.onError("no wasm");
-              this.dispose();
-            }
-          : options.onReady,
-      );
+      // As its worker reports a track libass rejects.
+      this.ready = libass.failsToStart ? Promise.reject(new Error("no track")) : Promise.resolve();
     }
-    public disposed = false;
-    public dispose() {
-      // As the package's does, which posts to the worker it has dropped.
-      if (this.disposed) {
-        throw new TypeError("Cannot read properties of null");
-      }
-      this.disposed = true;
+    // As the package's does, which waits for it to be ready, so rethrows a failed start.
+    public async destroy() {
+      await this.ready;
     }
   },
 }));
 
-// happy-dom has no Web Worker, which the ASS renderer needs to be listed.
-vi.stubGlobal("Worker", vi.fn());
+/** A Web Worker, which happy-dom lacks, that reads `type` as a browser with module workers does. */
+function moduleWorker(_url: string, options?: WorkerOptions) {
+  void options?.type;
+}
 
 beforeEach(() => {
+  vi.stubGlobal("Worker", moduleWorker);
   // happy-dom doesn't name the ready states the player reads.
   Object.assign(HTMLMediaElement, { HAVE_METADATA: 1 });
   Object.assign(libass, { made: [], failsToStart: false });
@@ -66,6 +51,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const STYLED = "/media/versions/7/subtitles/1/ass";
@@ -185,7 +171,6 @@ test("an ASS Track says Loading… until it and its fonts are fetched, then is d
   const [made] = libass.made;
   expect(made?.subContent).toBe("ASS");
   expect(made?.fonts).toHaveLength(1);
-  expect(made?.workerUrl).toMatch(/^blob:/u);
   expect(asked).toHaveLength(1);
   expect(screen.getByLabelText("Alien")).toBe(video);
 });
@@ -200,6 +185,22 @@ test("an ASS Track whose font can't be fetched says so, and isn't drawn", async 
     expect(signs.textContent).toContain("Couldn’t load");
   });
   expect(libass.made).toStrictEqual([]);
+});
+
+test.each([
+  { lacking: "OffscreenCanvas", global: "HTMLCanvasElement" },
+  { lacking: "module workers", global: "Worker" },
+])("a Device without $lacking doesn't list ASS", async ({ global }) => {
+  // Stands in for a constructor without the method, or one that never reads `type`.
+  vi.stubGlobal(global, vi.fn());
+  const asked: PlanPlaybackRequest[] = [];
+
+  await playingWith(asked, SERVED);
+
+  expect(asked[0]?.deviceDecoding?.subtitleFormats).toStrictEqual([
+    SubtitleFormat.PGS,
+    SubtitleFormat.VOBSUB,
+  ]);
 });
 
 // Last: once the renderer fails, this page never lists ASS again, as after it a reload would.
