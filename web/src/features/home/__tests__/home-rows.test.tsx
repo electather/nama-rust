@@ -145,7 +145,17 @@ test("home draws Continue Watching where the Server lists it among the Plugins' 
   expect(headings).toStrictEqual(["Picks", "Continue Watching", "Trending Shows"]);
 });
 
-test("the first row loads at once, and each row below it only as you scroll near it", async () => {
+test("only the first Plugin row loads at once when Continue Watching sits below it", async () => {
+  scrollable();
+  const asked: ListHomeRowTitlesRequest[] = [];
+  openHome(asked, [picksRow, showsRow, continueWatchingRow]);
+
+  await screen.findByRole("link", { name: "Heat" });
+  await screen.findByRole("link", { name: /Alien/u });
+  expect(asked.map((request) => request.key)).toStrictEqual(["picks"]);
+});
+
+test("the first Plugin row loads at once, and each below it only as you scroll near", async () => {
   const { scrolled } = scrollable();
   const asked: ListHomeRowTitlesRequest[] = [];
   openHome(asked);

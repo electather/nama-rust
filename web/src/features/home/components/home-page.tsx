@@ -7,17 +7,27 @@ import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
 
 /**
  * Home: Featured, then its rows in the order the Server lists them, each loading on its own.
- * Featured and the top two rows load at once; each later row loads as you scroll near it. A
- * Kernel row this app doesn't know, from a newer Server, shows nothing.
+ * Featured, Continue Watching and the first Plugin row load at once wherever they sit; each
+ * later Plugin row loads as you scroll near it. A Kernel row this app doesn't know, from a newer
+ * Server, shows nothing.
  */
 export function HomePage() {
   const rows = useHomeRows();
+  // Counted among Plugin rows only: the route's loader starts Continue Watching wherever it sits,
+  // so counting it would load one more Plugin row at once whenever it moves down.
+  const firstPluginRow = rows.findIndex(({ kernelOrPlugin }) => kernelOrPlugin.case === "plugin");
   return (
     <HomeLayout hero={<FeaturedSection />}>
       {rows.map(({ kernelOrPlugin }, index) => {
         if (kernelOrPlugin.case === "plugin") {
           const row = kernelOrPlugin.value;
-          return <HomeRowSection key={`${row.pluginId}/${row.key}`} row={row} eager={index < 2} />;
+          return (
+            <HomeRowSection
+              key={`${row.pluginId}/${row.key}`}
+              row={row}
+              eager={index === firstPluginRow}
+            />
+          );
         }
         if (kernelOrPlugin.value === KernelHomeRow.CONTINUE_WATCHING) {
           return <ContinueWatching key="continue-watching" />;
