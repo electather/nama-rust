@@ -535,7 +535,7 @@ impl Ffmpeg {
         let mut args = charset.map_or_default(|charset| vec!["-sub_charenc", charset]);
         let map = format!("0:s:{}", subtitle.unwrap_or_default());
         args.extend(["-i", path, "-map", &map, "-c:s", codec, "-f", muxer, "-"]);
-        let output = self.read_out(&args).await?;
+        let output = self.read_out(&args, Priority::Normal).await?;
         if !output.status.success() {
             return Err(failed(&output));
         }
@@ -565,7 +565,7 @@ impl Ffmpeg {
             args.extend(["-map", &map, "-c:s", format, "-f", format].map(OsString::from));
             args.push(to.into());
         }
-        let output = self.read_out(&args).await?;
+        let output = self.read_out(&args, Priority::Normal).await?;
         // With no output file named, ffmpeg dumps the attachments and then fails for want of one,
         // so only what it wrote says whether that worked.
         if output.status.success() || subtitles.is_empty() && all_there(attachments).await? {
@@ -578,9 +578,7 @@ impl Ffmpeg {
     /// Writes a still `width` pixels wide, keeping its aspect ratio, of the file at `path`'s first
     /// video every `every_s` seconds, into `dir` as `1.jpg`, `2.jpg` and on. It decodes only the
     /// keyframes, so each still is of the last keyframe at or before its time, and runs on one
-    /// thread, as it's background work beside playback.
-    // ponytail: one thread rather than a lower OS priority, which needs `unsafe` or a `nice`
-    // program; lower it if Preview frames slow playback down.
+    /// thread at a low OS priority, as it's background work beside playback.
     pub(crate) async fn keyframe_stills(
         &self,
         path: &str,
@@ -595,9 +593,15 @@ impl Ffmpeg {
             .chain(["-map", "0:V:0", "-an", "-sn", "-vf"])
             .map(OsString::from)
             .collect();
-        args.push(format!("fps=1/{every_s},scale={width}:-2").into());
+        // `round=up` gives each time the last keyframe at or before it; ffmpeg's nearest takes
+        // one up to half an interval later. The height comes from the display aspect ratio, with
+        // square pixels out, as a sheet's frames are shown square: `-2` would keep an anamorphic
+        // video's stored shape, squashed.
+        args.push(
+            format!("fps=1/{every_s}:round=up,scale={width}:trunc(ow/dar/2)*2,setsar=1").into(),
+        );
         args.push(dir.join("%d.jpg").into());
-        let output = self.read_out(&args).await?;
+        let output = self.read_out(&args, Priority::Low).await?;
         if output.status.success() {
             Ok(())
         } else {
@@ -605,22 +609,62 @@ impl Ffmpeg {
         }
     }
 
-    /// What ffmpeg, quiet but for errors, writes given `args`, within [`READ_OUT_TIMEOUT`].
+    /// What ffmpeg, quiet but for errors, writes given `args` at `priority`, within
+    /// [`READ_OUT_TIMEOUT`].
     #[tracing::instrument(name = "ffmpeg extract", skip_all)]
     async fn read_out(
         &self,
         args: &[impl AsRef<OsStr>],
+        priority: Priority,
     ) -> Result<std::process::Output, ReadOutError> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Err(ReadOutError::Unavailable);
         };
-        let output = tokio::process::Command::new(&ffmpeg.path)
+        let mut command = tokio::process::Command::new(&ffmpeg.path);
+        command
             .args(["-v", "error", "-nostdin"])
             .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             // A fetch given up on, or a read cancelled at shutdown, stops ffmpeg too.
-            .kill_on_drop(true)
-            .output();
-        Ok(tokio::time::timeout(READ_OUT_TIMEOUT, output).await??)
+            .kill_on_drop(true);
+        #[cfg(windows)]
+        if priority == Priority::Low {
+            // `BELOW_NORMAL_PRIORITY_CLASS`, from `windows-sys`, which the Server doesn't depend on.
+            command.creation_flags(0x0000_4000);
+        }
+        let child = command.spawn()?;
+        #[cfg(unix)]
+        if priority == Priority::Low {
+            lower_priority(&child);
+        }
+        Ok(tokio::time::timeout(READ_OUT_TIMEOUT, child.wait_with_output()).await??)
+    }
+}
+
+/// How much CPU time ffmpeg gets beside the rest of the system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Priority {
+    Normal,
+    /// For background work, which yields to playback.
+    Low,
+}
+
+/// Lowers `child`'s OS priority to `nice`'s default, or logs why it couldn't.
+// Lowered once it has started, as lowering it before needs the `unsafe` `pre_exec`. On Linux this
+// lowers one thread, and those it starts later inherit it, so a thread ffmpeg starts in the moment
+// before keeps the old priority.
+#[cfg(unix)]
+fn lower_priority(child: &tokio::process::Child) {
+    const NICE: i32 = 10;
+    let pid = (child.id())
+        .and_then(|id| i32::try_from(id).ok())
+        .and_then(rustix::process::Pid::from_raw);
+    if let Some(pid) = pid
+        && let Err(err) = rustix::process::setpriority_process(Some(pid), NICE)
+    {
+        tracing::warn!("could not lower ffmpeg's priority: {err}");
     }
 }
 

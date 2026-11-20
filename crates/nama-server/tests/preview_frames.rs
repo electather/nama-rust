@@ -171,14 +171,14 @@ async fn preview_frames_are_made_after_probing_and_sent_on_the_plan() {
 
     frames.wait_until_made().await;
 
-    // 17 minutes at one every 10 s, the last 10 s and more short of one: 101, on two sheets.
+    // 17 minutes at one every 10 s, from 0 s to 1010 s: 102, on two sheets.
     let expected = PreviewFrames {
         interval_ms: 10_000,
         width: 320,
         height: 240,
         columns: 10,
         rows: 10,
-        count: 101,
+        count: 102,
         ..Default::default()
     };
     assert_eq!(frames.manifest().await, Some(expected));
