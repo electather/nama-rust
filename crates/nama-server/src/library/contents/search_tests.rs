@@ -92,6 +92,7 @@ fn office_episode(tmdb: i64, title: &str) -> Decided {
         runtime_minutes: None,
         poster: None,
         backdrop: None,
+        titled_backdrop: None,
         logo: None,
         still: None,
         genres: Vec::new(),

@@ -13,6 +13,7 @@ impl Contents {
                               WHERE state = 'matched'
                                 AND ((poster_plugin = ?1 AND poster = ?2)
                                      OR (backdrop_plugin = ?1 AND backdrop = ?2)
+                                     OR (titled_backdrop_plugin = ?1 AND titled_backdrop = ?2)
                                      OR (logo_plugin = ?1 AND logo = ?2)
                                      OR (show_poster_plugin = ?1 AND show_poster = ?2)
                                      OR (plugin = ?1 AND still = ?2)))
@@ -33,9 +34,10 @@ impl Contents {
         let rows = sqlx::query!(
             r#"WITH matched AS (
                    SELECT item_matches.plugin, item_matches.poster, item_matches.poster_plugin,
-                          item_matches.backdrop, item_matches.backdrop_plugin, item_matches.logo,
-                          item_matches.logo_plugin, item_matches.still, item_matches.show_poster,
-                          item_matches.show_poster_plugin
+                          item_matches.backdrop, item_matches.backdrop_plugin,
+                          item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
+                          item_matches.logo, item_matches.logo_plugin, item_matches.still,
+                          item_matches.show_poster, item_matches.show_poster_plugin
                    FROM item_matches
                    JOIN library_items ON library_items.id = item_matches.item_id
                    JOIN library_files ON library_files.id = library_items.file_id
@@ -45,6 +47,9 @@ impl Contents {
                WHERE poster IS NOT NULL
                UNION
                SELECT backdrop_plugin, backdrop FROM matched WHERE backdrop IS NOT NULL
+               UNION
+               SELECT titled_backdrop_plugin, titled_backdrop FROM matched
+               WHERE titled_backdrop IS NOT NULL
                UNION
                SELECT logo_plugin, logo FROM matched WHERE logo IS NOT NULL
                UNION

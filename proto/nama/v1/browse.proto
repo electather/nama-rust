@@ -161,6 +161,12 @@ message Movie {
   optional string content_rating = 17;
   // Whether it is on the caller's Watchlist, under any of its ids.
   bool on_watchlist = 18;
+  // A backdrop with its title written on it, in English for now, to show without the Title Logo
+  // over it, such as on a Continue Watching card. Unset if its title sources have none. A Custom
+  // Image never replaces it.
+  optional string titled_backdrop_url = 19;
+  // As `poster_thumbhash`, for the titled backdrop.
+  optional bytes titled_backdrop_thumbhash = 20;
 }
 
 // One file a Movie or Episode is available in.
@@ -370,6 +376,10 @@ message Show {
   bool on_watchlist = 14;
   // How many of its Seasons the Library has an Episode of, Specials aside.
   uint32 season_count = 15;
+  // As `Movie.titled_backdrop_url`.
+  optional string titled_backdrop_url = 16;
+  // As `Movie.titled_backdrop_thumbhash`.
+  optional bytes titled_backdrop_thumbhash = 17;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.

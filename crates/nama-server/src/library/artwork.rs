@@ -70,6 +70,9 @@ pub(crate) struct Picked {
     pub(crate) poster: Option<ImageRef>,
     /// Its backdrop.
     pub(crate) backdrop: Option<ImageRef>,
+    /// Its best Backdrop with text in [`LANGUAGE`], for clients that show it without a Title
+    /// Logo over it. `None` if no Backdrop has text in that language.
+    pub(crate) titled_backdrop: Option<ImageRef>,
     /// Its Title Logo.
     pub(crate) logo: Option<ImageRef>,
 }
@@ -355,18 +358,24 @@ impl Artwork {
 type Ranked<'a> = (usize, &'a Source, &'a title_source::Artwork);
 
 /// The best image of each kind in `lists`, which come in the sources' order, as [`ranked`] ranks
-/// them.
+/// them, and the best Backdrop in `language`.
 fn pick(lists: &[(Source, Vec<title_source::Artwork>)], language: &str) -> Picked {
-    let best = |kind| {
-        let (_, source, art) = ranked(lists, kind, language).into_iter().next()?;
-        Some(ImageRef {
-            plugin: source.plugin.clone(),
-            path: art.path.clone(),
-        })
+    let image = |(_, source, art): Ranked<'_>| ImageRef {
+        plugin: source.plugin.clone(),
+        path: art.path.clone(),
     };
+    let best = |kind| ranked(lists, kind, language).into_iter().next().map(image);
+    let backdrops = ranked(lists, ArtworkKind::Backdrop, language);
+    // Among Backdrops in one language, `ranked` already orders by source, rating, then votes.
+    let titled_backdrop = (backdrops.iter().copied())
+        .find(|(_, _, art)| {
+            (art.language.as_deref()).is_some_and(|lang| same_language(lang, language))
+        })
+        .map(image);
     Picked {
         poster: best(ArtworkKind::Poster),
-        backdrop: best(ArtworkKind::Backdrop),
+        backdrop: backdrops.first().copied().map(image),
+        titled_backdrop,
         logo: best(ArtworkKind::Logo),
     }
 }
@@ -382,15 +391,12 @@ fn ranked<'a>(
 ) -> Vec<Ranked<'a>> {
     // A Backdrop sits behind the app's own text, and title sources mark textless art by giving
     // it no language.
-    let language_rank = |art: &title_source::Artwork| {
-        let asked = |lang: &str| lang.eq_ignore_ascii_case(language);
-        match (art.kind, art.language.as_deref()) {
-            (ArtworkKind::Backdrop, None) => 0,
-            (ArtworkKind::Backdrop, Some(lang)) if asked(lang) => 1,
-            (_, Some(lang)) if asked(lang) => 0,
-            (_, None) => 1,
-            (_, Some(_)) => 2,
-        }
+    let language_rank = |art: &title_source::Artwork| match (art.kind, art.language.as_deref()) {
+        (ArtworkKind::Backdrop, None) => 0,
+        (ArtworkKind::Backdrop, Some(lang)) if same_language(lang, language) => 1,
+        (_, Some(lang)) if same_language(lang, language) => 0,
+        (_, None) => 1,
+        (_, Some(_)) => 2,
     };
     let rank = |(a_place, _, a): &Ranked<'_>, (b_place, _, b): &Ranked<'_>| -> Ordering {
         let rating = |art: &title_source::Artwork| art.rating.unwrap_or(f64::NEG_INFINITY);
@@ -411,6 +417,11 @@ fn ranked<'a>(
     // A stable sort keeps equals in their source's list order.
     of_kind.sort_by(rank);
     of_kind
+}
+
+/// Whether an image's `lang` is the `language` asked for.
+fn same_language(lang: &str, language: &str) -> bool {
+    lang.eq_ignore_ascii_case(language)
 }
 
 /// Where the store keeps `plugin`'s image at `path` in `dir`. Under [`KEPT_DIR`] it is where images

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH matched AS (\n                   SELECT item_matches.plugin, item_matches.poster, item_matches.poster_plugin,\n                          item_matches.backdrop, item_matches.backdrop_plugin,\n                          item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,\n                          item_matches.logo, item_matches.logo_plugin, item_matches.still,\n                          item_matches.show_poster, item_matches.show_poster_plugin\n                   FROM item_matches\n                   JOIN library_items ON library_items.id = item_matches.item_id\n                   JOIN library_files ON library_files.id = library_items.file_id\n                   WHERE item_matches.state = 'matched'\n                     AND (?1 IS NULL OR library_files.library_id = ?1))\n               SELECT poster_plugin AS \"plugin!\", poster AS \"path!\" FROM matched\n               WHERE poster IS NOT NULL\n               UNION\n               SELECT backdrop_plugin, backdrop FROM matched WHERE backdrop IS NOT NULL\n               UNION\n               SELECT titled_backdrop_plugin, titled_backdrop FROM matched\n               WHERE titled_backdrop IS NOT NULL\n               UNION\n               SELECT logo_plugin, logo FROM matched WHERE logo IS NOT NULL\n               UNION\n               SELECT show_poster_plugin, show_poster FROM matched WHERE show_poster IS NOT NULL\n               UNION\n               SELECT plugin, still FROM matched WHERE still IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster_plugin"
+          }
+        }
+      },
+      {
+        "name": "path!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "58e5d05dd7ddcdf56afb5a0f3818e97ca1b35b40ad898ae78376e8fd4c16e425"
+}
