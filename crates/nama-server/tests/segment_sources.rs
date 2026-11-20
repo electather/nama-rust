@@ -228,7 +228,7 @@ async fn list_plugins_says_which_plugins_are_segment_sources() {
         })
         .map(|plugin| plugin.id.as_str())
         .collect();
-    assert_eq!(sources, [SOURCE]);
+    assert_eq!(sources, [SOURCE, "theintrodb"]);
 }
 
 /// Playback Plans sending what was found, with a fake ffprobe, a shell script.

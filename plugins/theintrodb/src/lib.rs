@@ -16,7 +16,6 @@ use nama_pdk::{
 };
 use serde::Deserialize;
 
-/// Where TheIntroDB's media endpoint is.
 const MEDIA_URL: &str = "https://api.theintrodb.org/v4/media";
 
 const API_KEY: &str = "api_key";
@@ -24,10 +23,11 @@ const API_KEY: &str = "api_key";
 /// The Plugin-wide Store entry keeping when the requests of the last [`WINDOW_MS`] were sent.
 const SENT_KEY: &str = "sent";
 
-/// TheIntroDB's rate limit window, and how many `/media` requests it takes in one without and
-/// with an API key.
+/// TheIntroDB's rate limit window.
 const WINDOW_MS: u64 = 10_000;
+/// How many `/media` requests TheIntroDB takes in a [`WINDOW_MS`] without an API key.
 const ANONYMOUS_LIMIT: usize = 30;
+/// How many `/media` requests TheIntroDB takes in a [`WINDOW_MS`] with an API key.
 const KEYED_LIMIT: usize = 120;
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
@@ -69,7 +69,6 @@ fn manifest() -> Manifest {
     }
 }
 
-/// Asks TheIntroDB.
 struct TheIntroDb;
 
 impl SegmentSource for TheIntroDb {
@@ -144,7 +143,8 @@ fn pace(limit: usize) -> Result<(), Error> {
     sent.retain(|&at| now.saturating_sub(at) < WINDOW_MS);
     if sent.len() >= limit {
         return Err(Error::msg(format!(
-            "kept under TheIntroDB's limit of {limit} requests every 10 seconds"
+            "kept under TheIntroDB's limit of {limit} requests every {} seconds",
+            WINDOW_MS / 1000
         )));
     }
     sent.push(now);
@@ -173,15 +173,15 @@ struct Stretch {
     end_ms: Option<u64>,
 }
 
-/// The `/media` answer in `response`, empty for a 404, which is a title TheIntroDB doesn't know
-/// or has nothing for yet.
+/// The `/media` answer in `response`, empty for a title TheIntroDB doesn't know or has nothing
+/// for yet: a 404, or a 400 or 422 for an Episode or id it can't place.
 ///
 /// # Errors
 /// When TheIntroDB refused the request, such as past its rate limit, or answered something else.
 fn answered(response: &Response) -> Result<Media, Error> {
     match response.status_code() {
         200..300 => response.json(),
-        404 => Ok(Media::default()),
+        400 | 404 | 422 => Ok(Media::default()),
         429 => Err(Error::msg(
             "TheIntroDB is limiting this Server's requests; an API key raises the limit",
         )),
@@ -191,8 +191,8 @@ fn answered(response: &Response) -> Result<Media, Error> {
     }
 }
 
-/// The earliest stretch of each kind in `media`, leaving out those ending at 0, which TheIntroDB
-/// answers for "no segment".
+/// The earliest stretch of each kind in `media`, leaving out those ending at 0, and Credits
+/// starting at 0, which TheIntroDB answers for "no segment".
 fn segments(media: Media) -> Vec<SegmentResult> {
     [
         (SegmentKind::SEGMENT_KIND_INTRO, media.intro),
@@ -202,7 +202,10 @@ fn segments(media: Media) -> Vec<SegmentResult> {
     .into_iter()
     .filter_map(|(kind, stretches)| {
         let stretch = (stretches.into_iter())
-            .filter(|stretch| stretch.end_ms != Some(0))
+            .filter(|stretch| {
+                stretch.end_ms != Some(0)
+                    && (kind != SegmentKind::SEGMENT_KIND_CREDITS || stretch.start_ms != Some(0))
+            })
             .min_by_key(|stretch| stretch.start_ms.unwrap_or_default())?;
         Some(SegmentResult {
             kind: kind.into(),

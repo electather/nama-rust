@@ -134,8 +134,17 @@ fn a_movie_without_a_tvdb_id_is_asked_for_by_its_tmdb_id_and_an_unset_start_is_i
 fn a_title_theintrodb_doesnt_know_has_no_segments() {
     let mut kernel = answering(404, include_bytes!("../fixtures/unknown.json"));
 
-    let results = search(&mut kernel, fight_club()).unwrap();
+    let unknown = SegmentSearch {
+        ids: vec![id("tmdb", "9999999")],
+        ..fight_club()
+    };
 
+    let results = search(&mut kernel, unknown).unwrap();
+
+    assert_eq!(
+        sent_urls(&kernel),
+        ["https://api.theintrodb.org/v4/media?tmdb_id=9999999&duration_ms=8340000"]
+    );
     assert_eq!(found(&results), []);
 }
 
@@ -154,10 +163,10 @@ fn a_rate_limited_request_fails_so_the_kernel_asks_again() {
 }
 
 #[test]
-fn of_several_stretches_of_a_kind_the_earliest_is_kept_and_a_zero_end_is_none() {
+fn of_several_stretches_of_a_kind_the_earliest_is_kept_and_no_segment_is_left_out() {
     let body =
         br#"{"intro":[{"start_ms":120000,"end_ms":150000},{"start_ms":30000,"end_ms":90000}],
-        "recap":[{"start_ms":null,"end_ms":0}],"credits":[{"start_ms":0,"end_ms":0}],
+        "recap":[{"start_ms":null,"end_ms":0}],"credits":[{"start_ms":0,"end_ms":null}],
         "preview":[{"start_ms":1680000,"end_ms":1740000}]}"#;
     let mut kernel = answering(200, body);
 
@@ -167,6 +176,16 @@ fn of_several_stretches_of_a_kind_the_earliest_is_kept_and_a_zero_end_is_none() 
         found(&results),
         [(Some(SegmentKind::SEGMENT_KIND_INTRO), 30_000, Some(90_000))]
     );
+}
+
+#[test]
+fn an_episode_tvdb_doesnt_have_has_no_segments() {
+    let body = br#"{"error":"Season 99 Episode 99 does not exist on TVDB for this show"}"#;
+    let mut kernel = answering(400, body);
+
+    let results = search(&mut kernel, breaking_bad_pilot()).unwrap();
+
+    assert_eq!(found(&results), []);
 }
 
 #[test]
