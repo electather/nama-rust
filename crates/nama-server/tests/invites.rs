@@ -221,7 +221,7 @@ async fn an_invite_stops_working_7_days_after_it_was_made() {
     // the accept that whole second, rather than a fixed week after it was made.
     server.advance_clock(until_second(early_expiry - 1));
     let within = accept(&server, &token_of(&early), "Mum").await;
-    // `late` may have been made a second after `early`.
+    // From the last second `early` works to `late`'s expiry, which may be a second after `early`'s.
     let to_late_expiry = late_expiry - early_expiry + 1;
     server.advance_clock(Duration::from_secs(to_late_expiry.try_into().unwrap()));
     let after = accept(&server, &token_of(&late), "Dad").await;
