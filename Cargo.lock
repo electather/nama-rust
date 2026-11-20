@@ -2240,6 +2240,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-opensubtitles"
+version = "0.1.0"
+dependencies = [
+ "nama-pdk",
+ "serde",
+ "url",
+]
+
+[[package]]
 name = "nama-plugin-proto"
 version = "0.2.0"
 dependencies = [
