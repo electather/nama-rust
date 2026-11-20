@@ -110,25 +110,11 @@ fn spawn_server(config_file: &Path) -> KillOnDrop {
     ))
 }
 
-/// Points `data_dir`'s compile cache at the one this binary's tests share, as `TestServer` does,
-/// so a start doesn't compile every bundled Plugin afresh: seconds of CPU each under CI's load.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a cache that can't be linked fails the test that links it"
-)]
-fn share_compile_cache(data_dir: &Path) {
-    let shared = Path::new(env!("CARGO_TARGET_TMPDIR")).join("wasmtime-cache");
-    std::fs::create_dir_all(&shared).unwrap();
-    let wasmtime = data_dir.join("wasmtime");
-    std::fs::create_dir_all(&wasmtime).unwrap();
-    std::os::unix::fs::symlink(shared, wasmtime.join("cache")).unwrap();
-}
-
 #[test]
 fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_on_ctrl_c() {
     let dir = std::env::temp_dir().join(format!("nama-server-binary-{}", std::process::id()));
     let data_dir = dir.join("data");
-    share_compile_cache(&data_dir);
+    std::fs::create_dir_all(&dir).unwrap();
     let dir = RemoveOnDrop(dir);
     let config_file = dir.0.join("server.toml");
     std::fs::write(
@@ -280,10 +266,17 @@ fn server_logs_installed_plugins_enables_the_stored_ones_and_skips_the_ones_it_r
 
     // The refused files don't stop the Server.
     wait_for_line(&lines, "listening");
-    let cache = std::fs::read_dir(data_dir.join("wasmtime").join("cache")).unwrap();
+    // With the `testing` feature the cache is the one every test shares, not the data directory's,
+    // so this follows the cache config the Server wrote there.
+    let config = std::fs::read_to_string(data_dir.join("wasmtime").join("cache.toml")).unwrap();
+    let cache_dir = config
+        .lines()
+        .find_map(|line| line.strip_prefix("directory = "))
+        .unwrap();
+    let cache_dir: PathBuf = serde_json::from_str(cache_dir).unwrap();
     assert!(
-        cache.count() > 0,
-        "wasmtime cached nothing under the data directory"
+        std::fs::read_dir(cache_dir).unwrap().count() > 0,
+        "wasmtime cached nothing where the Server's cache config points"
     );
 }
 
@@ -295,7 +288,6 @@ fn plugin_settings_are_imported_from_the_config_once_and_the_config_is_ignored_a
     let dir = RemoveOnDrop(dir);
     let config_file = dir.0.join("server.toml");
     let data_dir = format!("data_dir = \"{}\"\n", dir.0.join("data").display());
-    share_compile_cache(&dir.0.join("data"));
 
     std::fs::write(
         &config_file,
@@ -366,7 +358,6 @@ fn backup_runs_beside_a_serving_server_and_restore_waits_for_it_to_stop() {
         format!("data_dir = \"{}\"\n", data_dir.display()),
     )
     .unwrap();
-    share_compile_cache(&data_dir);
     let backup = dir.0.join("backup.tar");
     let mut server = spawn_server(&config_file);
     wait_for_line(&log_lines(server.0.as_mut().unwrap()), "listening");

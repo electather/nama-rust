@@ -61,8 +61,6 @@ mod fulfiller_tests;
 #[cfg(test)]
 pub(crate) use automation::KERNEL_IMPORTS;
 pub(crate) use listing::read;
-#[cfg(feature = "testing")]
-pub use load::share_compile_cache;
 use load::{
     CALL_TIMEOUT, Compiled, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel,
     extism_config,
