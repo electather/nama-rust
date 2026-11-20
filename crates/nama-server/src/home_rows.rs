@@ -24,8 +24,8 @@ use tracing::{error, warn};
 
 mod store;
 use store::{
-    Refreshing, Scope, add_found, found_movie, found_show, from_json, lock, replace_if_marked,
-    set_stale_at,
+    Refreshing, Scope, add_found, delete_rows, found_movie, found_show, from_json, lock,
+    replace_if_marked, set_stale_at,
 };
 
 use crate::{
@@ -146,23 +146,22 @@ impl HomeRows {
     /// Plugin's shared rows before `reader`'s own, each in the Plugin's order, leaving out a row
     /// with no title to show `reader` and one of `reader`'s whose key a shared row has. Starts a
     /// background refresh of each of these scopes whose rows are stale or never were refreshed,
-    /// and lists what is stored meanwhile. Deletes the rows of a Plugin no longer serving them.
+    /// and lists what is stored meanwhile. Deletes the rows of a Plugin no longer giving them.
     pub(crate) async fn list(&self, reader: &User) -> Result<Vec<(PluginId, Row)>, Error> {
         // Stored first, so rows a refresh stores meanwhile aren't taken for a disabled Plugin's.
         let stored = self.stored(reader.id).await?;
         let serving = self.points.providers::<dyn HomeRowSource>();
         self.refresh_stale(&serving, reader.id).await?;
-        let (served, gone): (Vec<_>, Vec<_>) =
-            (stored.into_iter()).partition(|(plugin, _)| serving.contains(plugin));
-        // ponytail: deleted on the next listing rather than as the Plugin is disabled, which also
-        // catches a crash's disable; until then they're only hidden. Delete them from
-        // `PluginSettings::disable` if a disabled Plugin's stored rows ever matter sooner.
-        let gone: BTreeSet<PluginId> = gone.into_iter().map(|(plugin, _)| plugin).collect();
-        for plugin in gone {
-            self.forget(plugin).await?;
-        }
+        let gone = self.no_longer_given(&stored).await;
+        // ponytail: deleted on the next listing rather than as the Plugin is disabled or comes up
+        // as a new version, which also catches a crash's disable; until then they're only
+        // hidden. Delete them from `PluginSettings::disable` if a disabled Plugin's stored rows
+        // ever matter sooner.
+        self.forget(&gone).await?;
         let mut keys = HashSet::new();
-        let served: Vec<_> = (served.into_iter())
+        let served: Vec<_> = (stored.into_iter())
+            .filter(|((plugin, user), _)| !gone.contains(&(plugin.clone(), method_giving(*user))))
+            .map(|((plugin, _), row)| (plugin, row))
             .filter(|(plugin, row)| keys.insert((plugin.clone(), row.key.clone())))
             .collect();
         let titles: Vec<Title> = (served.iter())
@@ -176,8 +175,8 @@ impl HomeRows {
 
     /// The `asked` page of the titles of the row `key` of the Plugin `plugin` that `reader` sees,
     /// its shared one before `reader`'s own, that are on the Server or that `reader` may Request,
-    /// in the row's order, a title it names twice, or by two of its ids, once. A row no enabled
-    /// source gives has none.
+    /// in the row's order, a title it names twice, or by two of its ids, once. A row the Plugin
+    /// doesn't give, as it is disabled or its version stopped giving that scope, has none.
     pub(crate) async fn titles(
         &self,
         reader: &User,
@@ -187,11 +186,7 @@ impl HomeRows {
     ) -> Result<(Vec<RowTitle>, PageResponse), Error> {
         let list = serde_json::json!(["ListHomeRowTitles", plugin.as_str(), key]).to_string();
         let page = Page::<()>::read(asked, list.as_bytes())?;
-        let row = if self.serves(plugin) {
-            self.stored_row(reader.id, plugin, key).await?
-        } else {
-            Row::default()
-        };
+        let row = self.stored_row(reader.id, plugin, key).await?;
         let on_server = self.on_server(&row.titles).await?;
         // ponytail: pages in memory over at most `MAX_TITLES`, by place in the stored row, so a
         // refresh between two pages can skip or repeat a title. Store the rows' titles as rows
@@ -262,7 +257,7 @@ impl HomeRows {
     /// nothing if it isn't an enabled Home row source giving those rows, or they're already being
     /// refreshed.
     async fn refresh(&self, plugin: &PluginId, user: Option<i64>) {
-        if !self.gives(plugin, user).await {
+        if !self.gives(plugin, method_giving(user)).await {
             return;
         }
         let Some(refreshing) = Refreshing::start(&self.refreshing, (plugin.clone(), user)) else {
@@ -277,23 +272,29 @@ impl HomeRows {
         });
     }
 
-    /// Whether the Plugin `plugin` is an enabled Home row source.
-    fn serves(&self, plugin: &PluginId) -> bool {
-        self.points
-            .providers::<dyn HomeRowSource>()
-            .contains(plugin)
-    }
-
-    /// Whether the Plugin `plugin` is an enabled Home row source giving rows for `user`, or
-    /// shared rows for `None`.
-    async fn gives(&self, plugin: &PluginId, user: Option<i64>) -> bool {
-        let method = match user {
-            None => HomeRowMethod::Shared,
-            Some(_) => HomeRowMethod::User,
-        };
+    /// Whether the Plugin `plugin` is an enabled Home row source giving rows by `method`.
+    async fn gives(&self, plugin: &PluginId, method: HomeRowMethod) -> bool {
         let gives =
             (self.points).read_provider(plugin, |source: &dyn HomeRowSource| source.gives(method));
         gives.await.unwrap_or(false)
+    }
+
+    /// Each method `stored`'s Plugins no longer give rows by, as one is disabled or its version
+    /// stopped serving that export.
+    async fn no_longer_given(&self, stored: &[(Scope, Row)]) -> HashSet<(PluginId, HomeRowMethod)> {
+        let plugins: BTreeSet<&PluginId> = stored.iter().map(|((plugin, _), _)| plugin).collect();
+        // Both methods, even one `stored` has no rows by, so a version that stopped giving Users'
+        // rows deletes every User's on whichever User lists home first.
+        let asked = (plugins.into_iter()).flat_map(|plugin| {
+            [HomeRowMethod::Shared, HomeRowMethod::User].map(|method| (plugin, method))
+        });
+        let mut gone = HashSet::new();
+        for (plugin, method) in asked {
+            if !self.gives(plugin, method).await {
+                gone.insert((plugin.clone(), method));
+            }
+        }
+        gone
     }
 
     async fn refresh_now(&self, plugin: &PluginId, user: Option<i64>) {
@@ -482,10 +483,10 @@ impl HomeRows {
     }
 
     /// Every stored row `user` sees, in Plugin id order, then each Plugin's shared rows before
-    /// `user`'s own, each in the Plugin's order.
-    async fn stored(&self, user: i64) -> Result<Vec<(PluginId, Row)>, sqlx::Error> {
+    /// `user`'s own, each in the Plugin's order, with its scope.
+    async fn stored(&self, user: i64) -> Result<Vec<(Scope, Row)>, sqlx::Error> {
         let rows = sqlx::query!(
-            "SELECT plugin_id, key, heading, titles, missing FROM home_rows
+            "SELECT plugin_id, user_id, key, heading, titles, missing FROM home_rows
              WHERE user_id IS NULL OR user_id = ?
              ORDER BY plugin_id, user_id IS NOT NULL, position",
             user
@@ -500,7 +501,7 @@ impl HomeRows {
                     titles: from_json(&row.titles),
                     missing: from_json(&row.missing),
                 };
-                (PluginId::from(row.plugin_id), row_of)
+                ((PluginId::from(row.plugin_id), row.user_id), row_of)
             })
             .collect())
     }
@@ -523,31 +524,36 @@ impl HomeRows {
         Ok((rows.iter()).flat_map(|json| from_json(json)).collect())
     }
 
-    /// The titles of the Plugin `plugin`'s row `key` that `user` sees, its shared one before
-    /// `user`'s own, and those of them missing from the Server, as a [`Row`] with no key or
-    /// heading, an empty one if it has no such row.
+    /// The titles of the Plugin `plugin`'s row `key` that `user` sees in a scope it gives, its
+    /// shared one before `user`'s own, and those of them missing from the Server, as a [`Row`]
+    /// with no key or heading, an empty one if it has no such row.
     async fn stored_row(
         &self,
         user: i64,
         plugin: &PluginId,
         key: &str,
     ) -> Result<Row, sqlx::Error> {
-        let plugin = plugin.as_str();
-        let row = sqlx::query!(
-            "SELECT titles, missing FROM home_rows
+        let plugin_id = plugin.as_str();
+        let rows = sqlx::query!(
+            "SELECT user_id, titles, missing FROM home_rows
              WHERE plugin_id = ? AND key = ? AND (user_id IS NULL OR user_id = ?)
-             ORDER BY user_id IS NOT NULL LIMIT 1",
-            plugin,
+             ORDER BY user_id IS NOT NULL",
+            plugin_id,
             key,
             user
         )
-        .fetch_optional(self.db.reader())
+        .fetch_all(self.db.reader())
         .await?;
-        Ok(row.map_or_default(|row| Row {
-            titles: from_json(&row.titles),
-            missing: from_json(&row.missing),
-            ..Row::default()
-        }))
+        for row in rows {
+            if self.gives(plugin, method_giving(row.user_id)).await {
+                return Ok(Row {
+                    titles: from_json(&row.titles),
+                    missing: from_json(&row.missing),
+                    ..Row::default()
+                });
+            }
+        }
+        Ok(Row::default())
     }
 
     /// Replaces the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, with
@@ -585,22 +591,16 @@ impl HomeRows {
             .await
     }
 
-    /// Deletes the Plugin `plugin`'s rows in every scope, and when they were refreshed, so its
-    /// next enable starts afresh.
-    async fn forget(&self, plugin: PluginId) -> Result<(), sqlx::Error> {
+    /// Deletes each Plugin's rows that `gone` names by the method giving them, every User's for
+    /// [`HomeRowMethod::User`], and when they were refreshed, so the Plugin's next enable, or a
+    /// version giving them again, starts afresh.
+    async fn forget(&self, gone: &HashSet<(PluginId, HomeRowMethod)>) -> Result<(), sqlx::Error> {
+        if gone.is_empty() {
+            return Ok(());
+        }
+        let gone = gone.clone();
         self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    let plugin = plugin.as_str();
-                    sqlx::query!("DELETE FROM home_rows WHERE plugin_id = ?", plugin)
-                        .execute(&mut **tx)
-                        .await?;
-                    sqlx::query!("DELETE FROM home_row_refreshes WHERE plugin_id = ?", plugin)
-                        .execute(&mut **tx)
-                        .await?;
-                    Ok(())
-                })
-            })
+            .write(move |tx| Box::pin(async move { delete_rows(tx, &gone).await }))
             .await
     }
 
@@ -714,6 +714,14 @@ fn shown(
         })
         .filter(|(_, shown)| seen.insert(shown.shown_once_as()))
         .collect()
+}
+
+/// The method giving a Plugin's rows for `user`, or its shared rows for `None`.
+fn method_giving(user: Option<i64>) -> HomeRowMethod {
+    match user {
+        None => HomeRowMethod::Shared,
+        Some(_) => HomeRowMethod::User,
+    }
 }
 
 /// Whether `reader` may Request a title of each kind.

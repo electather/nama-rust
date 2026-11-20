@@ -533,7 +533,12 @@ mod home_rows {
         }
     }
 
+    #[cfg(not(any(feature = "home-rows-shared-only", feature = "home-rows-user-only")))]
     nama_pdk::home_row_source!(TestRows, [shared_rows, user_rows]);
+    #[cfg(feature = "home-rows-shared-only")]
+    nama_pdk::home_row_source!(TestRows, [shared_rows]);
+    #[cfg(feature = "home-rows-user-only")]
+    nama_pdk::home_row_source!(TestRows, [user_rows]);
 }
 
 #[cfg(feature = "subtitle-source")]

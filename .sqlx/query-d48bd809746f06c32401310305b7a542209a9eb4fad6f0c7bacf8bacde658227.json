@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM home_row_refreshes WHERE plugin_id = ? AND (user_id IS NOT NULL) = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "d48bd809746f06c32401310305b7a542209a9eb4fad6f0c7bacf8bacde658227"
+}

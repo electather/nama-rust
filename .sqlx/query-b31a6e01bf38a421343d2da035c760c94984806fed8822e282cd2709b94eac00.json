@@ -1,11 +1,22 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT titles, missing FROM home_rows\n             WHERE plugin_id = ? AND key = ? AND (user_id IS NULL OR user_id = ?)\n             ORDER BY user_id IS NOT NULL LIMIT 1",
+  "query": "SELECT user_id, titles, missing FROM home_rows\n             WHERE plugin_id = ? AND key = ? AND (user_id IS NULL OR user_id = ?)\n             ORDER BY user_id IS NOT NULL",
   "describe": {
     "columns": [
       {
-        "name": "titles",
+        "name": "user_id",
         "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "titles",
+        "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -16,7 +27,7 @@
       },
       {
         "name": "missing",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -30,9 +41,10 @@
       "Right": 3
     },
     "nullable": [
+      true,
       false,
       false
     ]
   },
-  "hash": "4d5f034788acac49c2f2881bdaa33f11b9b2ca43992f3ec88f022918f9c83dd9"
+  "hash": "b31a6e01bf38a421343d2da035c760c94984806fed8822e282cd2709b94eac00"
 }
