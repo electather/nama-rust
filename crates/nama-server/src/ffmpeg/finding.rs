@@ -59,6 +59,8 @@ fn bare_name(path: &Path) -> Option<&OsStr> {
 
 /// `name` at the path the config sets, or why it can't be run.
 fn at_configured_path(name: &str, path: &Path) -> Result<FoundProgram, String> {
+    // `Config::load` made a path with a folder absolute; left relative, it would break where
+    // ffmpeg runs in another folder (#1120).
     if !path.is_file() {
         return Err(format!(
             "{name} wasn't found at the configured path {}",
