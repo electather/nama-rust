@@ -215,15 +215,15 @@ pub mod kernel {
         Ok(call::<Requesters>("list_requesters", &asked)?.titles)
     }
 
-    /// The User `user_id`'s Watchlist, the title added first first, each by the id it was added
+    /// The User `user`'s Watchlist, the title added first first, each by the id it was added
     /// under, whether or not a Library has it. Needs `PERMISSION_READ_WATCHLISTS`.
     ///
     /// # Errors
     ///
     /// When the Kernel refused or couldn't be called.
-    pub fn watchlist(user_id: i64) -> Result<Vec<WatchlistTitle>, Error> {
+    pub fn watchlist(user: i64) -> Result<Vec<WatchlistTitle>, Error> {
         let asked = WatchlistAsked {
-            user_id,
+            user_id: user,
             ..WatchlistAsked::default()
         };
         Ok(call::<Watchlist>("list_watchlist", &asked)?.titles)

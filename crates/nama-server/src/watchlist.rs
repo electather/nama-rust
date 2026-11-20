@@ -91,14 +91,7 @@ pub(crate) async fn list(
     .fetch_all(db.reader())
     .await?;
     Ok((rows.into_iter())
-        .filter_map(|row| {
-            let kind = match row.kind.as_str() {
-                "movie" => TitleKind::Movie,
-                "show" => TitleKind::Show,
-                _ => return None,
-            };
-            Some((kind, row.title_id.parse().ok()?))
-        })
+        .filter_map(|row| Some((kind_of(&row.kind)?, row.title_id.parse().ok()?)))
         .collect())
 }
 
@@ -107,6 +100,15 @@ const fn stored(kind: TitleKind) -> &'static str {
     match kind {
         TitleKind::Movie => "movie",
         TitleKind::Show => "show",
+    }
+}
+
+/// The kind `watchlist` stores as `stored`, undoing [`stored`].
+fn kind_of(stored: &str) -> Option<TitleKind> {
+    match stored {
+        "movie" => Some(TitleKind::Movie),
+        "show" => Some(TitleKind::Show),
+        _ => None,
     }
 }
 

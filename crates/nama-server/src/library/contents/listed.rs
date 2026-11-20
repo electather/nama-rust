@@ -36,6 +36,10 @@ impl Contents {
     /// that come after `after`, by preferred id: namespace, then shorter value, then value, so a
     /// title Matched between two pages never moves one already listed. An Episode without a Show
     /// id is left out, as [`Contents::shows`] leaves it out.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one query, whose columns each row fills a title with"
+    )]
     pub(crate) async fn titles_page(
         &self,
         library: i64,
