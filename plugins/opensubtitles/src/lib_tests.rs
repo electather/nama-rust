@@ -282,8 +282,9 @@ fn a_stored_login_for_another_username_is_not_used() {
     with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap();
     let mut kernel = kernel.setting("username", "someone-else");
 
-    let _refused = with(&mut kernel, || OpenSubtitles::download(download_of("101")));
+    let err = with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap_err();
 
+    assert_eq!(err.downcast_ref(), Some(&Refused::Login));
     assert_eq!(sent_to(&kernel)[3..], ["login"]);
 }
 

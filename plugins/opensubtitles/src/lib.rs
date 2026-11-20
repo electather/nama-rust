@@ -274,10 +274,10 @@ fn kept_login() -> Option<LoggedIn> {
 }
 
 /// Keeps `login` in the Store for the next download. When the Admin didn't grant the Store, that
-/// download logs in again (ADR 0048: the Plugin carries on).
+/// download logs in again (ADR 0071: the Plugin carries on).
 fn keep(login: &LoggedIn) {
     if let Ok(login) = json::to_vec(login) {
-        let _refused: Result<(), Error> = kernel::store_put(LOGIN_KEY, None, &login);
+        let _not_kept: Result<(), Error> = kernel::store_put(LOGIN_KEY, None, &login);
     }
 }
 
