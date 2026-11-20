@@ -36,10 +36,13 @@ vi.mock("jassub", () => ({
   },
 }));
 
-// happy-dom has no Web Worker, which the ASS renderer needs to be listed.
-vi.stubGlobal("Worker", vi.fn());
+/** A Web Worker, which happy-dom lacks, that reads `type` as a browser with module workers does. */
+function moduleWorker(_url: string, options?: WorkerOptions) {
+  void options?.type;
+}
 
 beforeEach(() => {
+  vi.stubGlobal("Worker", moduleWorker);
   // happy-dom doesn't name the ready states the player reads.
   Object.assign(HTMLMediaElement, { HAVE_METADATA: 1 });
   Object.assign(libass, { made: [], failsToStart: false });
@@ -48,6 +51,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const STYLED = "/media/versions/7/subtitles/1/ass";
@@ -181,6 +185,22 @@ test("an ASS Track whose font can't be fetched says so, and isn't drawn", async 
     expect(signs.textContent).toContain("Couldn’t load");
   });
   expect(libass.made).toStrictEqual([]);
+});
+
+test.each([
+  { lacking: "OffscreenCanvas", global: "HTMLCanvasElement" },
+  { lacking: "module workers", global: "Worker" },
+])("a Device without $lacking doesn't list ASS", async ({ global }) => {
+  // Stands in for a constructor without the method, or one that never reads `type`.
+  vi.stubGlobal(global, vi.fn());
+  const asked: PlanPlaybackRequest[] = [];
+
+  await playingWith(asked, SERVED);
+
+  expect(asked[0]?.deviceDecoding?.subtitleFormats).toStrictEqual([
+    SubtitleFormat.PGS,
+    SubtitleFormat.VOBSUB,
+  ]);
 });
 
 // Last: once the renderer fails, this page never lists ASS again, as after it a reload would.

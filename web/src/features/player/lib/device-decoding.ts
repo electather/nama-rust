@@ -76,8 +76,36 @@ function drawnFormats() {
     return [];
   }
   const bitmaps = [SubtitleFormat.PGS, SubtitleFormat.VOBSUB];
-  // ASS's renderer runs in a Web Worker.
-  return "Worker" in globalThis ? [...bitmaps, SubtitleFormat.ASS] : bitmaps;
+  return startsJassub() ? [...bitmaps, SubtitleFormat.ASS] : bitmaps;
+}
+
+/**
+ * Whether JASSUB, the ASS renderer, can start here: its constructor hands its canvas to a module
+ * worker and throws without one, which would cost a second plan to burn the Track in (ADR 0033).
+ */
+function startsJassub() {
+  return (
+    "Worker" in globalThis &&
+    "transferControlToOffscreen" in HTMLCanvasElement.prototype &&
+    startsModuleWorkers()
+  );
+}
+
+/** Whether this browser starts a Web Worker from an ES module. */
+function startsModuleWorkers() {
+  let readsType = false;
+  // Only a browser that knows module workers reads `type`; the bad URL stops any worker starting.
+  try {
+    new Worker("blob://", {
+      get type() {
+        readsType = true;
+        return "module" as const;
+      },
+    }).terminate();
+  } catch {
+    // Thrown for the bad URL, after `type` is read.
+  }
+  return readsType;
 }
 
 /** How many audio channels this Device plays out at once, such as 6 for 5.1, or 0 if it can't say. */
