@@ -22,6 +22,7 @@ mod codecs;
 mod direct_play;
 mod downloads;
 mod limits;
+mod preview_frames;
 mod probing;
 mod running;
 mod sidecars;
@@ -35,6 +36,7 @@ mod tracks;
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
 pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
+pub(crate) use preview_frames::{PreviewFrames, router as preview_frames_router};
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
 pub(crate) use running::{
@@ -155,8 +157,7 @@ impl Plan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Reason {
     pub(crate) kind: Kind,
-    /// The values it mentions, by their key in the API, as its kind's comment in the schema
-    /// lists them.
+    /// The values it mentions, by their API key, as its kind's comment in the schema lists them.
     pub(crate) params: Vec<(&'static str, String)>,
     /// The Server's English sentence for it, which isn't API contract.
     pub(crate) text: String,
@@ -577,8 +578,7 @@ struct Facts {
 type Step = fn(&Facts, Option<&Candidates>) -> Vec<Reason>;
 
 /// What a Remux and a Transcode of a probed Version would each convert, worked out before the
-/// steps, which read them, so a plan's reasons and what it plays can't disagree (the area's
-/// `AGENTS.md`).
+/// steps that read them, so a plan's reasons and what it plays agree (the area's `AGENTS.md`).
 struct Candidates {
     /// The place in the Version's Tracks of the audio Track a plan plays, whatever its method.
     audio: Option<usize>,

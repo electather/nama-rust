@@ -68,6 +68,30 @@ pub fn write_h264_with_5_1(path: &Path, audio: &str) -> io::Result<()> {
     })
 }
 
+/// Writes 17 minutes of 320x240 H.264 video at a frame a second with a keyframe every 10, as
+/// Matroska, to `path`, with the ffmpeg on `PATH`, for a test to make two sheets of Preview
+/// frames of. Low as the frame rate is, it takes well under a second.
+///
+/// # Errors
+///
+/// If ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_17_minutes_h264(path: &Path) -> io::Result<()> {
+    write_test_media(path, |ffmpeg| {
+        ffmpeg
+            .args([
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=320x240:rate=1",
+                "-t",
+                "1020",
+            ])
+            .args(["-c:v", "libx264", "-preset", "ultrafast", "-g", "10"])
+            .args(["-f", "matroska"])
+    })
+}
+
 /// Writes 2 seconds of 1080p H.264 video with stereo AAC audio, as Matroska, to `path`, with the
 /// ffmpeg on `PATH`, for a test to play within a Playback Limit.
 ///

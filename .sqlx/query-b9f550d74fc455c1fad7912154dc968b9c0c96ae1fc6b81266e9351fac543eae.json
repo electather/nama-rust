@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT size, modified_ns FROM preview_frames WHERE version_id = ? AND frames IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "size",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "preview_frames",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "preview_frames",
+            "name": "modified_ns"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b9f550d74fc455c1fad7912154dc968b9c0c96ae1fc6b81266e9351fac543eae"
+}

@@ -7345,6 +7345,20 @@ pub struct PlaybackPlan {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub starting_subtitle: ::core::option::Option<u32>,
+    /// The Version's Preview frames, for the seek bar to show the frame at a time. Unset until the
+    /// Server has made them of its file as it is now, in the background after probing it, which it
+    /// doesn't while its Library has `preview_frames` off.
+    ///
+    /// Field 15: `preview_frames`
+    #[serde(
+        rename = "previewFrames",
+        alias = "preview_frames",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub preview_frames: ::buffa::MessageField<
+        PreviewFrames,
+        ::buffa::Inline<PreviewFrames>,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7365,6 +7379,7 @@ impl ::core::fmt::Debug for PlaybackPlan {
             .field("burn_in_tracks", &self.burn_in_tracks)
             .field("playback_limits", &self.playback_limits)
             .field("starting_subtitle", &self.starting_subtitle)
+            .field("preview_frames", &self.preview_frames)
             .finish()
     }
 }
@@ -7493,6 +7508,14 @@ impl ::buffa::Message for PlaybackPlan {
         if let Some(v) = self.starting_subtitle {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if self.preview_frames.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.preview_frames.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7586,6 +7609,14 @@ impl ::buffa::Message for PlaybackPlan {
         }
         if let Some(v) = self.starting_subtitle {
             ::buffa::types::put_uint32_field(14u32, v, buf);
+        }
+        if self.preview_frames.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                15u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.preview_frames.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7813,6 +7844,17 @@ impl ::buffa::Message for PlaybackPlan {
                     ::buffa::types::decode_uint32(buf)?,
                 );
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.preview_frames.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7834,6 +7876,7 @@ impl ::buffa::Message for PlaybackPlan {
         self.playback_limits.clear();
         self.reasons.clear();
         self.starting_subtitle = ::core::option::Option::None;
+        self.preview_frames = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7864,6 +7907,251 @@ pub const __PLAYBACK_PLAN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     type_url: "type.googleapis.com/nama.v1.PlaybackPlan",
     to_json: ::buffa::type_registry::any_to_json::<PlaybackPlan>,
     from_json: ::buffa::type_registry::any_from_json::<PlaybackPlan>,
+    is_wkt: false,
+};
+/// Where a Version's Preview frames are and how they're laid out: each sheet, fetched at
+/// `/media/versions/<id>/preview-frames/<n>.jpg` with `n` counting from 0, holds `columns` by `rows`
+/// frames, left to right then top to bottom, the last sheet as many as are left. Frame `i` shows the
+/// Version at `i * interval_ms`, from its keyframes, so up to a few seconds early.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PreviewFrames {
+    /// Field 1: `interval_ms`
+    #[serde(
+        rename = "intervalMs",
+        alias = "interval_ms",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub interval_ms: u32,
+    /// Of one frame, in pixels.
+    ///
+    /// Field 2: `width`
+    #[serde(
+        rename = "width",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub width: u32,
+    /// Field 3: `height`
+    #[serde(
+        rename = "height",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub height: u32,
+    /// Field 4: `columns`
+    #[serde(
+        rename = "columns",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub columns: u32,
+    /// Field 5: `rows`
+    #[serde(
+        rename = "rows",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub rows: u32,
+    /// How many frames there are in all.
+    ///
+    /// Field 6: `count`
+    #[serde(
+        rename = "count",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub count: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PreviewFrames {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PreviewFrames")
+            .field("interval_ms", &self.interval_ms)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("columns", &self.columns)
+            .field("rows", &self.rows)
+            .field("count", &self.count)
+            .finish()
+    }
+}
+impl PreviewFrames {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewFrames";
+}
+::buffa::impl_default_instance!(PreviewFrames);
+impl ::buffa::MessageName for PreviewFrames {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PreviewFrames";
+    const FULL_NAME: &'static str = "nama.v1.PreviewFrames";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewFrames";
+}
+impl ::buffa::Message for PreviewFrames {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.interval_ms != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.interval_ms) as u64;
+        }
+        if self.width != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.width) as u64;
+        }
+        if self.height != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.height) as u64;
+        }
+        if self.columns != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.columns) as u64;
+        }
+        if self.rows != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.rows) as u64;
+        }
+        if self.count != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.count) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.interval_ms != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.interval_ms, buf);
+        }
+        if self.width != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.width, buf);
+        }
+        if self.height != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.height, buf);
+        }
+        if self.columns != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.columns, buf);
+        }
+        if self.rows != 0u32 {
+            ::buffa::types::put_uint32_field(5u32, self.rows, buf);
+        }
+        if self.count != 0u32 {
+            ::buffa::types::put_uint32_field(6u32, self.count, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.interval_ms = ::buffa::types::decode_uint32(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.width = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.height = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.columns = ::buffa::types::decode_uint32(buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.rows = ::buffa::types::decode_uint32(buf)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.count = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.interval_ms = 0u32;
+        self.width = 0u32;
+        self.height = 0u32;
+        self.columns = 0u32;
+        self.rows = 0u32;
+        self.count = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PreviewFrames {
+    const PROTO_FQN: &'static str = "nama.v1.PreviewFrames";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PreviewFrames {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PREVIEW_FRAMES_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.PreviewFrames",
+    to_json: ::buffa::type_registry::any_to_json::<PreviewFrames>,
+    from_json: ::buffa::type_registry::any_from_json::<PreviewFrames>,
     is_wkt: false,
 };
 /// A subtitle the Device shows itself: a text one as a WebVTT `<track>`, or one it draws.

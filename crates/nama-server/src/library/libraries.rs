@@ -41,9 +41,12 @@ pub(crate) struct Library {
     /// The ids of the Plugins whose Recognisers it asks, first asked first; none asks only the
     /// Kernel's own Matching (ADR 0050).
     pub(crate) recognisers: Vec<String>,
+    /// Whether Preview frames are made for its Versions.
+    pub(crate) preview_frames: bool,
 }
 
-/// The orders a Library asks its Plugins in, as a create or an update gives them.
+/// The orders a Library asks its Plugins in, and whether it makes Preview frames, as a create or
+/// an update gives them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Order {
     /// Title source namespaces, first asked first; empty keeps the stored order. A new Library's
@@ -52,6 +55,8 @@ pub(crate) struct Order {
     /// Recogniser Plugin ids, first asked first; `None` keeps the stored order, or none for a
     /// new Library.
     pub(crate) recognisers: Option<Vec<String>>,
+    /// `None` keeps the stored setting, or makes them for a new Library.
+    pub(crate) preview_frames: Option<bool>,
 }
 
 /// Why a change to the Libraries was refused or failed.
@@ -147,7 +152,7 @@ impl Libraries {
     ) -> Result<Library, Error> {
         let order = Order {
             title_sources: default_title_sources(),
-            recognisers: None,
+            ..Order::default()
         };
         (self.create_in_order(name, kind, folders, order)).await
     }
@@ -177,7 +182,8 @@ impl Libraries {
     pub(crate) async fn list(&self) -> Result<Vec<Library>, Error> {
         let mut tx = self.db.reader().begin().await?;
         let rows = sqlx::query!(
-            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers
+            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers,
+                      preview_frames AS "preview_frames: bool"
                FROM libraries ORDER BY id"#
         )
         .fetch_all(&mut *tx)
@@ -218,6 +224,7 @@ impl Libraries {
                 kind: row.kind,
                 title_sources: split_sources(&row.title_sources),
                 recognisers: split_recognisers(&row.recognisers),
+                preview_frames: row.preview_frames,
             })
             .collect())
     }
@@ -225,8 +232,9 @@ impl Libraries {
     pub(crate) async fn get(&self, id: i64) -> Result<Library, Error> {
         let mut tx = self.db.reader().begin().await?;
         let row = sqlx::query!(
-            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers FROM libraries
-               WHERE id = ?"#,
+            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers,
+                      preview_frames AS "preview_frames: bool"
+               FROM libraries WHERE id = ?"#,
             id
         )
         .fetch_optional(&mut *tx)
@@ -255,6 +263,7 @@ impl Libraries {
             empty_folders,
             title_sources: split_sources(&row.title_sources),
             recognisers: split_recognisers(&row.recognisers),
+            preview_frames: row.preview_frames,
         })
     }
 
@@ -376,13 +385,17 @@ async fn create(
     let Order {
         title_sources,
         recognisers,
+        preview_frames,
     } = order;
+    let preview_frames = preview_frames.unwrap_or(true);
     ensure_name_free(conn, &name).await?;
     ensure_folders_free(conn, &folders, None).await?;
     let id = sqlx::query_scalar!(
-        r#"INSERT INTO libraries (name, kind) VALUES (?, ?) RETURNING id AS "id!""#,
+        r#"INSERT INTO libraries (name, kind, preview_frames) VALUES (?, ?, ?)
+           RETURNING id AS "id!""#,
         name,
         kind,
+        preview_frames,
     )
     .fetch_one(&mut *conn)
     .await?;
@@ -401,6 +414,7 @@ async fn create(
         empty_folders: Vec::new(),
         title_sources,
         recognisers,
+        preview_frames,
     })
 }
 
@@ -416,6 +430,7 @@ async fn update(
     let Order {
         title_sources,
         recognisers,
+        preview_frames,
     } = order;
     let current = sqlx::query_scalar!("SELECT name FROM libraries WHERE id = ?", id)
         .fetch_optional(&mut *conn)
@@ -427,9 +442,11 @@ async fn update(
         ensure_name_free(conn, &name).await?;
     }
     let row = sqlx::query!(
-        r#"UPDATE libraries SET name = ? WHERE id = ?
-           RETURNING kind AS "kind: Kind", title_sources, recognisers"#,
+        r#"UPDATE libraries SET name = ?, preview_frames = coalesce(?, preview_frames) WHERE id = ?
+           RETURNING kind AS "kind: Kind", title_sources, recognisers,
+                     preview_frames AS "preview_frames: bool""#,
         name,
+        preview_frames,
         id,
     )
     .fetch_one(&mut *conn)
@@ -483,6 +500,7 @@ async fn update(
         empty_folders,
         title_sources,
         recognisers,
+        preview_frames: row.preview_frames,
     })
 }
 

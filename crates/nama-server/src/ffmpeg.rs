@@ -30,8 +30,8 @@ pub(crate) use self::hls::{
 use self::hls::{VideoArgs, aac, hls_output, map_audio, pgs_start_ms, seconds, video_args};
 #[cfg(any(test, feature = "testing"))]
 pub use self::test_media::{
-    FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_1080p_h264, write_black_with_pgs,
-    write_black_with_pgs_sidecar, write_h264_with_5_1, write_hevc_with_5_1,
+    FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_17_minutes_h264, write_1080p_h264,
+    write_black_with_pgs, write_black_with_pgs_sidecar, write_h264_with_5_1, write_hevc_with_5_1,
 };
 use crate::config::Config;
 
@@ -86,24 +86,24 @@ const TEST_CLIP: &str = "testsrc2=size=1280x720:rate=24:duration=1";
 const TEST_HDR_CLIP: &str = "testsrc2=size=1280x720:rate=24:duration=1,format=yuv420p10le,\
                              setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc";
 
-/// How long ffmpeg may take to read one subtitle out of a file. Matroska interleaves it with the
-/// video, so the whole file is read. Raised rather than grown with the file's size: an hour reads
-/// 60 GB at 17 MB/s, slower than a spinning disk or a NAS on gigabit, so only a stuck read
-/// outlasts it.
-const SUBTITLE_TIMEOUT: Duration = Duration::from_hours(1);
+/// How long ffmpeg may take to read one subtitle, or a Version's Preview frames, out of a file.
+/// Matroska interleaves a subtitle with the video, so the whole file is read. Raised rather than
+/// grown with the file's size: an hour reads 60 GB at 17 MB/s, slower than a spinning disk or a
+/// NAS on gigabit, so only a stuck read outlasts it.
+const READ_OUT_TIMEOUT: Duration = Duration::from_hours(1);
 
 /// Subtitle codecs, as ffprobe names them, that are text the Server serves as WebVTT. Others that
 /// aren't images either, such as teletext, need a library ffmpeg may lack, or are unknown.
 pub(crate) const TEXT_SUBTITLES: &[&str] = &["subrip", "mov_text", "webvtt", "ass", "ssa"];
 
-/// Why reading a subtitle, or a font for one, out of a file failed.
+/// Why reading a subtitle, a font for one, or Preview frames out of a file failed.
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum SubtitleError {
+pub(crate) enum ReadOutError {
     #[error("the Server has no ffmpeg")]
     Unavailable,
     #[error("ffmpeg couldn't be run: {0}")]
     Run(#[from] io::Error),
-    #[error("ffmpeg took longer than {}s", SUBTITLE_TIMEOUT.as_secs())]
+    #[error("ffmpeg took longer than {}s", READ_OUT_TIMEOUT.as_secs())]
     TimedOut(#[from] tokio::time::error::Elapsed),
     #[error("ffmpeg failed: {0}")]
     Failed(String),
@@ -526,7 +526,7 @@ impl Ffmpeg {
         subtitle: Option<usize>,
         codec: &str,
         muxer: &str,
-    ) -> Result<Vec<u8>, SubtitleError> {
+    ) -> Result<Vec<u8>, ReadOutError> {
         let charset = match subtitle {
             // Matroska and MP4 store text subtitles as UTF-8.
             Some(_) => None,
@@ -553,7 +553,7 @@ impl Ffmpeg {
         path: &str,
         subtitles: &[(usize, &str, PathBuf)],
         attachments: &[(usize, PathBuf)],
-    ) -> Result<(), SubtitleError> {
+    ) -> Result<(), ReadOutError> {
         let mut args: Vec<OsString> = vec![];
         for (attachment, to) in attachments {
             args.push(format!("-dump_attachment:t:{attachment}").into());
@@ -575,14 +575,44 @@ impl Ffmpeg {
         }
     }
 
-    /// What ffmpeg, quiet but for errors, writes given `args`, within [`SUBTITLE_TIMEOUT`].
+    /// Writes a still `width` pixels wide, keeping its aspect ratio, of the file at `path`'s first
+    /// video every `every_s` seconds, into `dir` as `1.jpg`, `2.jpg` and on. It decodes only the
+    /// keyframes, so each still is of the last keyframe at or before its time, and runs on one
+    /// thread, as it's background work beside playback.
+    // ponytail: one thread rather than a lower OS priority, which needs `unsafe` or a `nice`
+    // program; lower it if Preview frames slow playback down.
+    pub(crate) async fn keyframe_stills(
+        &self,
+        path: &str,
+        every_s: u32,
+        width: u32,
+        dir: &Path,
+    ) -> Result<(), ReadOutError> {
+        let mut args: Vec<OsString> = ["-threads", "1", "-filter_threads", "1"]
+            .into_iter()
+            .chain(["-skip_frame", "nokey", "-i", path])
+            // `V`, not `v`: a cover's picture isn't the video.
+            .chain(["-map", "0:V:0", "-an", "-sn", "-vf"])
+            .map(OsString::from)
+            .collect();
+        args.push(format!("fps=1/{every_s},scale={width}:-2").into());
+        args.push(dir.join("%d.jpg").into());
+        let output = self.read_out(&args).await?;
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(failed(&output))
+        }
+    }
+
+    /// What ffmpeg, quiet but for errors, writes given `args`, within [`READ_OUT_TIMEOUT`].
     #[tracing::instrument(name = "ffmpeg extract", skip_all)]
     async fn read_out(
         &self,
         args: &[impl AsRef<OsStr>],
-    ) -> Result<std::process::Output, SubtitleError> {
+    ) -> Result<std::process::Output, ReadOutError> {
         let Ok(ffmpeg) = &self.ffmpeg else {
-            return Err(SubtitleError::Unavailable);
+            return Err(ReadOutError::Unavailable);
         };
         let output = tokio::process::Command::new(&ffmpeg.path)
             .args(["-v", "error", "-nostdin"])
@@ -590,7 +620,7 @@ impl Ffmpeg {
             // A fetch given up on, or a read cancelled at shutdown, stops ffmpeg too.
             .kill_on_drop(true)
             .output();
-        Ok(tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??)
+        Ok(tokio::time::timeout(READ_OUT_TIMEOUT, output).await??)
     }
 }
 
@@ -623,9 +653,9 @@ fn charset_of(bytes: &[u8]) -> Option<&'static str> {
 }
 
 /// A failed read-out, saying what ffmpeg wrote to stderr.
-fn failed(output: &std::process::Output) -> SubtitleError {
+fn failed(output: &std::process::Output) -> ReadOutError {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    SubtitleError::Failed(stderr.trim().to_owned())
+    ReadOutError::Failed(stderr.trim().to_owned())
 }
 
 /// Has a Remux's `command`, whose input seeks to `start_ms`, drop the audio from before it,

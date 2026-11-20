@@ -144,7 +144,7 @@ fn canonical(path: &Path) -> String {
 }
 
 #[tokio::test]
-async fn a_created_library_can_be_read_back_and_is_listed() {
+async fn a_created_library_can_be_read_back_and_is_listed_with_preview_frames_on() {
     let fx = Fixture::start().await;
     let films = fx.folder("films");
     let more_films = fx.folder("more-films");
@@ -161,12 +161,14 @@ async fn a_created_library_can_be_read_back_and_is_listed() {
     assert_eq!(created.name, "Movies");
     assert_eq!(created.kind, LibraryKind::LIBRARY_KIND_MOVIES);
     assert_eq!(created.folders, [films, more_films]);
+    assert!(created.preview_frames);
     assert_eq!(fx.get(created.id).await.unwrap(), created);
     assert_eq!(fx.list().await, [created]);
 }
 
 #[tokio::test]
-async fn updating_a_library_renames_it_and_replaces_its_folders_but_keeps_its_kind() {
+async fn updating_a_library_renames_it_and_replaces_its_folders_but_keeps_its_kind_and_preview_frames()
+ {
     let fx = Fixture::start().await;
     let tv = fx.folder("tv");
     let more_tv = fx.folder("more-tv");
@@ -184,6 +186,10 @@ async fn updating_a_library_renames_it_and_replaces_its_folders_but_keeps_its_ki
     assert_eq!(updated.name, "Television");
     assert_eq!(updated.kind, LibraryKind::LIBRARY_KIND_SHOWS);
     assert_eq!(updated.folders, [more_tv, tv]);
+    assert!(
+        updated.preview_frames,
+        "an update leaving it out turned Preview frames off"
+    );
     assert_eq!(fx.get(created.id).await.unwrap(), updated);
 }
 

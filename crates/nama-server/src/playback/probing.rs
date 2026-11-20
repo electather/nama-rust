@@ -16,7 +16,8 @@ mod ffprobe;
 mod mp4;
 
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    collections::{HashMap, HashSet, hash_map::Entry},
+    io,
     sync::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicBool, Ordering},
@@ -26,12 +27,12 @@ use std::{
 
 use futures_util::StreamExt;
 use nama_proto::nama::v1::ProbingFinished;
-use tokio::sync::watch;
+use tokio::sync::{Notify, watch};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use super::{
-    StoredTracks, downloads, subtitles,
+    StoredTracks, subtitles,
     tracks::{
         Keyframes, LastingReason, ListedKeyframes, PassingReason, Probe, ProbeFailure, Tracks,
     },
@@ -40,7 +41,7 @@ use crate::{
     db::Database,
     diagnostics,
     ffmpeg::Ffmpeg,
-    images::ImageStore,
+    images::{DOWNLOADED_SUBTITLES_DIR, ImageStore, PREVIEW_FRAMES_DIR},
     library::{Contents, Stored},
 };
 
@@ -64,7 +65,7 @@ pub(crate) enum ProbeError {
     #[error("the Server has no ffprobe")]
     Unavailable,
     #[error("ffprobe couldn't be run: {0}")]
-    Run(#[from] std::io::Error),
+    Run(#[from] io::Error),
     #[error("ffprobe took too long")]
     TimedOut(#[from] tokio::time::error::Elapsed),
     #[error("ffprobe failed: {0}")]
@@ -140,8 +141,11 @@ struct Inner {
     stored_tracks: StoredTracks,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
-    /// Where downloaded subtitles are kept, from which it deletes those of Versions gone.
+    /// Where downloaded subtitles and Preview frames are kept, from which it deletes those of
+    /// Versions gone.
     images: ImageStore,
+    /// Told each time a background pass has probed what it found stale.
+    passed: Notify,
     /// Background passes and whole-file reads, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -182,6 +186,7 @@ impl Probing {
                 whole_file_reads: tokio::sync::Semaphore::new(WHOLE_FILE_READS_AT_ONCE),
                 claimed: Claims::default(),
                 listing: Claims::default(),
+                passed: Notify::new(),
             }),
         }
     }
@@ -301,7 +306,10 @@ impl Probing {
             async move {
                 let pass = probing.probe_stale(library);
                 match probing.inner.cancel.run_until_cancelled(pass).await {
-                    Some(Ok(probed)) => finished(probed),
+                    Some(Ok(probed)) => {
+                        probing.inner.passed.notify_one();
+                        finished(probed);
+                    }
                     Some(Err(err)) => {
                         tracing::error!(library, "probing a Library's files failed: {err}");
                     }
@@ -317,6 +325,12 @@ impl Probing {
         self.inner.subtitles.clone()
     }
 
+    /// Waits until a background pass has probed what it found stale, or returns at once if one
+    /// has since the last call.
+    pub(super) async fn pass_finished(&self) {
+        self.inner.passed.notified().await;
+    }
+
     /// Cancels the probes running, waits for them to stop, and starts no more passes.
     pub(crate) async fn shutdown(&self) {
         self.inner.cancel.cancel();
@@ -325,9 +339,9 @@ impl Probing {
     }
 
     /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
-    /// since they were cached, and deletes those downloaded for Versions gone, or logs why it
-    /// couldn't.
-    pub(crate) async fn clean_subtitles(&self) {
+    /// since they were cached, and deletes the subtitles downloaded for Versions gone and their
+    /// Preview frames, or logs why it couldn't.
+    pub(crate) async fn clean_leftovers(&self) {
         // ponytail: reads every stored file, and lists every downloaded subtitle, after each scan;
         // clean only the Library scanned once Libraries get big.
         let stored = match self.inner.contents.every_stored().await {
@@ -340,8 +354,11 @@ impl Probing {
         if let Err(err) = self.inner.subtitles.keep_only(&stored).await {
             tracing::error!("could not throw away subtitles of files gone or changed: {err}");
         }
-        if let Err(err) = downloads::keep_only(&self.inner.images, &stored).await {
-            tracing::error!("could not delete the subtitles downloaded for Versions gone: {err}");
+        let images = &self.inner.images;
+        for dir in [DOWNLOADED_SUBTITLES_DIR, PREVIEW_FRAMES_DIR] {
+            if let Err(err) = keep_only(images, dir, &stored).await {
+                tracing::error!("could not list {dir} to delete those of Versions gone: {err}");
+            }
         }
     }
 
@@ -661,6 +678,28 @@ fn try_claim<T>(claims: &Claims<T>, file: Stored) -> Result<Claim<T>, watch::Rec
             })
         }
     }
+}
+
+/// Deletes from `images` the folder under `dir` of every Version but `stored`'s, going on past one
+/// it can't delete, which it logs.
+///
+/// # Errors
+///
+/// If the store can't be listed.
+async fn keep_only(images: &ImageStore, dir: &str, stored: &[Stored]) -> io::Result<()> {
+    let current: HashSet<String> = stored.iter().map(|file| file.id.to_string()).collect();
+    let kept: HashSet<String> = (images.list(dir).await?.into_iter())
+        .filter_map(|key| key.get(1).cloned())
+        .collect();
+    for gone in kept.difference(&current) {
+        if let Err(err) = images.delete_dir_on_disk(&[dir, gone]).await {
+            tracing::error!(
+                version = gone,
+                "could not delete a gone Version's {dir}: {err}"
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Locks `mutex`, which no code panics while holding.

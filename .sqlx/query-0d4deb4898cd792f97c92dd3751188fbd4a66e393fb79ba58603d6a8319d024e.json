@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO preview_frames\n                             (version_id, size, modified_ns, interval_ms, width, height,\n                              sheet_columns, sheet_rows, frames)\n                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "0d4deb4898cd792f97c92dd3751188fbd4a66e393fb79ba58603d6a8319d024e"
+}

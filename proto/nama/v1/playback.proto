@@ -456,6 +456,25 @@ message PlaybackPlan {
   // burns in, or would if it could be played, or else, when the request left the choice to the
   // Server, one of `subtitles` that the player shows itself. Unset for none.
   optional uint32 starting_subtitle = 14;
+  // The Version's Preview frames, for the seek bar to show the frame at a time. Unset until the
+  // Server has made them of its file as it is now, in the background after probing it, which it
+  // doesn't while its Library has `preview_frames` off.
+  PreviewFrames preview_frames = 15;
+}
+
+// Where a Version's Preview frames are and how they're laid out: each sheet, fetched at
+// `/media/versions/<id>/preview-frames/<n>.jpg` with `n` counting from 0, holds `columns` by `rows`
+// frames, left to right then top to bottom, the last sheet as many as are left. Frame `i` shows the
+// Version at `i * interval_ms`, from its keyframes, so up to a few seconds early.
+message PreviewFrames {
+  uint32 interval_ms = 1;
+  // Of one frame, in pixels.
+  uint32 width = 2;
+  uint32 height = 3;
+  uint32 columns = 4;
+  uint32 rows = 5;
+  // How many frames there are in all.
+  uint32 count = 6;
 }
 
 // A subtitle the Device shows itself: a text one as a WebVTT `<track>`, or one it draws.

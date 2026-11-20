@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name, kind AS \"kind: Kind\", title_sources, recognisers\n               FROM libraries ORDER BY id",
+  "query": "SELECT id AS \"id!\", name, kind AS \"kind: Kind\", title_sources, recognisers,\n                      preview_frames AS \"preview_frames: bool\"\n               FROM libraries ORDER BY id",
   "describe": {
     "columns": [
       {
@@ -57,6 +57,17 @@
             "name": "recognisers"
           }
         }
+      },
+      {
+        "name": "preview_frames: bool",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "preview_frames"
+          }
+        }
       }
     ],
     "parameters": {
@@ -67,8 +78,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "c2e02b80becd574f668af6c319a4755eba083de59970f379603e080ce149b179"
+  "hash": "575335e8239fcaab7b8e0f5b765de41140bf1ec0f4f836855da9aa7a573af3d4"
 }
