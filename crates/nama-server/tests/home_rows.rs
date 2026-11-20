@@ -2,6 +2,8 @@
 //! Plugin built as a Home row source, refreshed in the background, its rows showing the titles on
 //! the Server and those missing from it to Request.
 
+#[path = "support/home_row_plugin.rs"]
+mod home_row_plugin;
 #[path = "support/http.rs"]
 #[expect(dead_code, reason = "this binary reads only a response's status")]
 mod http;
@@ -21,15 +23,14 @@ use connectrpc::{
     ErrorCode,
     client::{ClientConfig, HttpClient},
 };
+use home_row_plugin::{PLUGIN, disable, enable, install, set_handle, text};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
-    ExtensionPointFailure, GetPluginRequest, HomeRowTitle, LibraryKind, ListHomeRowTitlesRequest,
-    ListHomeRowTitlesResponse, ListHomeRowsRequest, ListPluginsRequest, PageRequest, Permission,
-    PluginServiceClient, RefusalReason, RequestState, SettingValue, UpdatePersonalSettingsRequest,
-    UpdatePluginSettingsRequest, UserServiceClient, home_row_title::MovieOrShow,
-    setting_value::Value,
+    BrowseServiceClient, ExtensionPoint, ExtensionPointFailure, GetPluginRequest, HomeRowTitle,
+    LibraryKind, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest,
+    PageRequest, Permission, PluginServiceClient, RefusalReason, RequestState,
+    UpdatePluginSettingsRequest, home_row_title::MovieOrShow,
 };
 use refused::assert_refused;
 use server::{
@@ -38,14 +39,8 @@ use server::{
     tmdb::{ALIEN, DARK, DUNE, HEAT},
 };
 
-const PLUGIN: &str = "test-plugin";
-
 /// A Server with the fake TMDB, a Movies Library of Alien and Heat, and the test Plugin built as a
 /// Home row source, its `home_rows` setting `rows`, not yet enabled.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn installed(builder: Builder, rows: &str) -> TestServer {
     let server = builder.tmdb().start().await;
     let library = (server)
@@ -58,14 +53,7 @@ async fn installed(builder: Builder, rows: &str) -> TestServer {
         )
         .await;
     server.scan_and_match(&library).await;
-    let dir = server.data_dir().join("plugins");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test.wasm"), test_plugin::build("home-rows")).unwrap();
-    // Listing is what reads `plugins/`.
-    (plugins(&server))
-        .list_plugins(ListPluginsRequest::default())
-        .await
-        .unwrap();
+    install(&server).await;
     set_rows(&server, rows).await;
     server
 }
@@ -81,47 +69,12 @@ fn plugins(server: &TestServer) -> PluginServiceClient<HttpClient> {
     PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
 
-fn text(text: &str) -> SettingValue {
-    SettingValue {
-        value: Some(Value::TextValue(text.to_owned())),
-        ..Default::default()
-    }
-}
-
 fn browse(server: &TestServer) -> BrowseServiceClient<HttpClient> {
     BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
 
 fn browse_as(server: &TestServer, who: &SignedIn) -> BrowseServiceClient<HttpClient> {
     BrowseServiceClient::new(HttpClient::plaintext(), server.client_config_as(&who.token))
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn enable(server: &TestServer) {
-    (plugins(server))
-        .enable_plugin(EnablePluginRequest {
-            id: PLUGIN.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn disable(server: &TestServer) {
-    (plugins(server))
-        .disable_plugin(DisablePluginRequest {
-            id: PLUGIN.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
 }
 
 /// Saves `rows` as the test Plugin's `home_rows` setting, the keys of the rows it gives.
@@ -134,22 +87,6 @@ async fn set_rows(server: &TestServer, rows: &str) {
         .update_plugin_settings(UpdatePluginSettingsRequest {
             id: PLUGIN.to_owned(),
             settings: std::iter::once(("home_rows".to_owned(), text(rows))).collect(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-}
-
-/// Saves `handle` as `user`'s `handle` Personal setting for the test Plugin.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn set_handle(user: &SignedIn, handle: &str) {
-    UserServiceClient::new(HttpClient::plaintext(), user.client_config())
-        .update_personal_settings(UpdatePersonalSettingsRequest {
-            plugin_id: PLUGIN.to_owned(),
-            settings: std::iter::once(("handle".to_owned(), text(handle))).collect(),
             ..Default::default()
         })
         .await
