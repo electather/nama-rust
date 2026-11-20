@@ -31,8 +31,8 @@ pub struct Kernel {
     settings: HashMap<String, String>,
     http: Option<Handler>,
     sent: Vec<Sent>,
-    // Each of these, down to `delete_media`, is `None` when the Admin didn't grant the
-    // Permission its Kernel functions need.
+    // Each `Option` is `None` when the Admin didn't grant the Plugin Permission its Kernel
+    // functions need.
     store: Option<Store>,
     libraries: Option<Vec<Library>>,
     watch_states: Option<Vec<(TitleRef, WatchState)>>,
@@ -597,7 +597,6 @@ mod tests {
         }
     }
 
-    /// The Library 1's titles, each by its id's value.
     fn titles_of_library_1(count: usize) -> Vec<Title> {
         (0..count)
             .map(|id| titled(movie(1, &id.to_string())))
