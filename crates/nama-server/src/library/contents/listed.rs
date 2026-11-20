@@ -62,7 +62,7 @@ impl Contents {
                                   library_files.path, item_matches.genres,
                                   item_matches.content_rating, "#
                         + $listed_id
-                        + r#" AS listed_id,
+                        + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id,
                                   ROW_NUMBER() OVER (
                                       PARTITION BY ids.item_id
                                       ORDER BY instr(',' || libraries.title_sources || ',',
