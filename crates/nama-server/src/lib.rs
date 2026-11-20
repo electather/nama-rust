@@ -49,7 +49,7 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
-    users::SetupCode,
+    users::{SetupCode, Users},
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,
@@ -128,6 +128,7 @@ pub fn serve(
         probing.clone(),
     );
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
+    let users = Users::new(Arc::clone(&db), points.clone());
     let home_rows = HomeRows::new(Arc::clone(&db), points.clone(), requests.clone());
     let artwork = Artwork::new(images.clone(), points.clone());
     let plugin_logos = PluginLogos::new(images.clone());
@@ -143,13 +144,14 @@ pub fn serve(
         running.clone(),
         requests.clone(),
     );
-    let automation = Automation::serve(Arc::clone(&db), scanner.clone(), points);
+    let automation = Automation::serve(Arc::clone(&db), scanner.clone(), points, users.clone());
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let load_settings = load_settings(settings.clone(), images.clone(), plugins.extension_points());
     let app = api::router(
         config,
         db,
         plugins.clone(),
+        users,
         scanner.clone(),
         custom_images,
         plugin_logos,

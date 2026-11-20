@@ -53,7 +53,8 @@ pub(super) fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
         RunningPlans::for_tests(db, events.clone(), data),
         Requests::new(Arc::clone(db), events, points.clone()),
     );
-    Automation::serve(Arc::clone(db), scanner, points)
+    let users = Users::new(Arc::clone(db), points.clone());
+    Automation::serve(Arc::clone(db), scanner, points, users)
 }
 
 /// The Kernel's functions for the cleanup Plugin on `db`, granted only `permission`, and the

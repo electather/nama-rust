@@ -294,6 +294,8 @@ pub enum Error {
 
 impl Users {
     /// The Users kept in `db`, whose passwords the Authenticator enabled in `plugins` checks.
+    ///
+    /// A Server builds one and clones it, since a second has its own channels (`users/AGENTS.md`).
     #[must_use]
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {

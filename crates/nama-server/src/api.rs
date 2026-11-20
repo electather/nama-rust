@@ -86,6 +86,7 @@ pub(crate) fn router(
     config: &Config,
     db: Arc<Database>,
     plugin_settings: PluginSettings,
+    users: Users,
     scanner: Scanner,
     custom_images: CustomImages,
     plugin_logos: PluginLogos,
@@ -103,7 +104,6 @@ pub(crate) fn router(
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
     let plugins = plugin_settings.extension_points();
-    let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let image_settings = settings.images();
     let local_images = LocalImages::new(Arc::clone(&db), image_store.clone());
