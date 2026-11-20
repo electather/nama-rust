@@ -14,7 +14,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-const TIMEOUT: Duration = Duration::from_secs(30);
+// A fresh data directory compiles every bundled Plugin before the Server listens, which passes
+// 30 s under CI's full parallel load. Under nextest's 90 s kill (`.config/nextest.toml`).
+const TIMEOUT: Duration = Duration::from_secs(75);
 
 /// Kills the server if the test fails before it exits, so no process is left behind.
 struct KillOnDrop(Option<Child>);
