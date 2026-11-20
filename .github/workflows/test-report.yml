@@ -1,7 +1,8 @@
 name: test-report
 
 # Records each finished CI run's test results on the `test-history` branch, writes a summary of
-# its flaky and slow tests, and keeps one `needs-triage` issue per flaky test (ADR 0022).
+# its flaky and slow tests, keeps one `needs-triage` issue per flaky test (ADR 0022), and sends a
+# copy of the results to Grafana Cloud (ADR 0073).
 # `crates/nama-test-report` holds the logic; this workflow does the git and `gh` work around it.
 #
 # A `workflow_run` workflow, so the write token lives here and never in CI, whose Dependabot runs
@@ -145,3 +146,23 @@ jobs:
               retitle) gh issue edit "$(field issue)" --title "$(field title)" ;;
             esac
           done < "$RUNNER_TEMP/out/issue-actions.jsonl"
+      - name: Send the history to Grafana Cloud
+        if: steps.reports.outputs.found
+        env:
+          GRAFANA_CLOUD_OTLP_ENDPOINT: ${{ secrets.GRAFANA_CLOUD_OTLP_ENDPOINT }}
+          GRAFANA_CLOUD_OTLP_AUTH: ${{ secrets.GRAFANA_CLOUD_OTLP_AUTH }}
+        run: |
+          if [ -z "$GRAFANA_CLOUD_OTLP_ENDPOINT" ] || [ -z "$GRAFANA_CLOUD_OTLP_AUTH" ]; then
+            echo "::notice::No Grafana Cloud secrets, so nothing sent."
+            exit 0
+          fi
+          # Empty when this CI run is already recorded or ran no tests, as when appending.
+          if [ ! -s "$RUNNER_TEMP/out/history.jsonl" ]; then
+            exit 0
+          fi
+          # The branch is the record and Grafana a copy, so a failed send only warns (ADR 0073).
+          if ! gzip -c "$RUNNER_TEMP/out/otlp-logs.json" | curl -sS --fail-with-body \
+              -H "Authorization: $GRAFANA_CLOUD_OTLP_AUTH" -H 'Content-Type: application/json' \
+              -H 'Content-Encoding: gzip' --data-binary @- "$GRAFANA_CLOUD_OTLP_ENDPOINT/v1/logs"; then
+            echo "::warning::Couldn't send CI run $RUN_ID's test results to Grafana Cloud."
+          fi
