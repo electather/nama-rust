@@ -46,7 +46,7 @@ pub(crate) struct Automation {
 }
 
 impl Automation {
-    /// Serves the Kernel's functions to each Plugin `points` enables.
+    /// Serves the Kernel's functions to each Plugin enabled in `points`.
     pub(crate) fn serve(db: Arc<Database>, scanner: Scanner, points: ExtensionPoints) -> Arc<Self> {
         let automation = Arc::new(Self {
             db,

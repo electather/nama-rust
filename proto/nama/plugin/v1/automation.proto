@@ -24,7 +24,7 @@ import "nama/plugin/v1/request.proto";
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
-// Point, and no Manifest names them. They are versioned with the contract, not with
+// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`, not with
 // `AutomationService`, which covers only `Tick`.
 
 // The Extension Point for an Automation Plugin, served through the WASM export the rpc names.
