@@ -368,8 +368,11 @@ enum ExtensionPoint {
   // Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
   // Admin granted it allow, such as Cleanup (ADR 0048).
   EXTENSION_POINT_AUTOMATION = 11;
+  // Searches an outside service, such as OpenSubtitles.com, for a Version's subtitles and
+  // downloads one a User picks (ADR 0067).
+  EXTENSION_POINT_SUBTITLE_SOURCE = 12;
   // Gives rows of titles for every User's home page, which the Server draws (ADR 0058).
-  EXTENSION_POINT_HOME_ROW = 12;
+  EXTENSION_POINT_HOME_ROW = 13;
 }
 
 // What kind of value a setting takes.

@@ -22,15 +22,15 @@ use crate::{
     images::PluginLogos,
     library::{CustomImageUrls, CustomImages, Slot},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
-    plugins::{CheckError, EnableError, Failing, Listed},
+    plugins::{CheckError, EnableError, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
 };
 
-use super::{
-    database_failed,
-    extension_points::{extension_points_to_proto, public_points},
-    refuse,
-};
+use super::{database_failed, refuse};
+
+mod points;
+
+use points::{extension_points_to_proto, failures};
 
 /// `nama.v1.PluginService`: the Server's Plugins and their settings. Needs
 /// `PERMISSION_MANAGE_SETTINGS`, or `PERMISSION_ADMIN` for a Plugin's log lines, which
@@ -241,14 +241,7 @@ impl PluginServiceHandler {
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let logo = logo(&self.plugin_logos, &stored.plugin, &custom).await;
-        let points = self.plugin_settings.extension_points();
-        let failures = public_points()
-            .into_iter()
-            .filter_map(|(key, point)| {
-                let failing = points.failing(&stored.plugin.id, key)?;
-                Some(failure_to_proto(point, failing))
-            })
-            .collect();
+        let failures = failures(&self.plugin_settings.extension_points(), &stored.plugin.id);
         Ok(proto::Plugin {
             failures,
             ..plugin_to_proto(stored.plugin, stored.stored.settings, &stored.granted, logo)
@@ -516,19 +509,6 @@ fn plugin_line_to_proto(line: PluginLine) -> proto::PluginLogLine {
         at_ms: line.at_ms,
         level: level.into(),
         text: line.text,
-        ..Default::default()
-    }
-}
-
-fn failure_to_proto(
-    point: proto::ExtensionPoint,
-    failing: Failing,
-) -> proto::ExtensionPointFailure {
-    proto::ExtensionPointFailure {
-        point: point.into(),
-        last_error: failing.last_error,
-        at_ms: failing.at_ms,
-        failed_in_a_row: failing.in_a_row,
         ..Default::default()
     }
 }

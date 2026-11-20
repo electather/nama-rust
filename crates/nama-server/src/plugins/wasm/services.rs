@@ -18,6 +18,7 @@ use nama_plugin_api::{
     notifier::Notifier,
     points::Events,
     recogniser::Recogniser,
+    subtitle_source::SubtitleSource,
 };
 use nama_plugin_proto::services;
 use tracing::warn;
@@ -173,6 +174,10 @@ pub(super) const SHARED_ROWS: Method = Method {
     limit: HOME_ROWS_TIMEOUT,
     ..provider(services::HOME_ROW, "SharedRows", "shared_rows")
 };
+pub(super) const SUBTITLE_SEARCH: Method =
+    provider(services::SUBTITLE_SOURCE, "Search", "subtitle_search");
+pub(super) const SUBTITLE_DOWNLOAD: Method =
+    provider(services::SUBTITLE_SOURCE, "Download", "subtitle_download");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -276,6 +281,15 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn HomeRowSource>,
         register: |registrar, running| {
             registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        service: services::SUBTITLE_SOURCE,
+        crash_group: services::SUBTITLE_SOURCE,
+        methods: &[SUBTITLE_SEARCH, SUBTITLE_DOWNLOAD],
+        key: PointKey::provide::<dyn SubtitleSource>,
+        register: |registrar, running| {
+            registrar.provide::<dyn SubtitleSource>(Priority::DEFAULT, Arc::new(running));
         },
     },
 ];

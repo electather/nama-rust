@@ -2,6 +2,7 @@
 
 mod api;
 mod automation;
+pub mod backup;
 pub use library::{Artwork, ArtworkError};
 mod browse;
 pub mod config;
@@ -113,7 +114,7 @@ pub fn serve(
         events.clone(),
     );
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
-    let home_rows = HomeRows::new(Arc::clone(&db), points.clone());
+    let home_rows = HomeRows::new(Arc::clone(&db), points.clone(), requests.clone());
     let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
     let artwork = Artwork::new(images.clone(), points.clone());
     let plugin_logos = PluginLogos::new(images.clone());

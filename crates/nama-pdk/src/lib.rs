@@ -28,6 +28,7 @@ mod home_row;
 mod log;
 mod notification_text;
 mod recogniser;
+mod subtitle_source;
 
 pub use automation::{
     Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
@@ -38,6 +39,9 @@ pub use home_row::{HomeRow, HomeRowSource, HomeRowTitle, HomeRows};
 pub use recogniser::{
     FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
     TitleRecognised, TitleToRecognise,
+};
+pub use subtitle_source::{
+    SubtitleDownload, SubtitleFile, SubtitleResult, SubtitleResults, SubtitleSearch, SubtitleSource,
 };
 
 #[doc(hidden)]

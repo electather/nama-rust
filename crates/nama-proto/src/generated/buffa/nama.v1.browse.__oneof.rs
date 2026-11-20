@@ -123,6 +123,8 @@ pub mod home_row_title {
     pub enum MovieOrShow {
         Movie(::buffa::alloc::boxed::Box<super::super::super::MovieInLibrary>),
         Show(::buffa::alloc::boxed::Box<super::super::super::ShowInLibrary>),
+        MissingMovie(::buffa::alloc::boxed::Box<super::super::super::MovieHit>),
+        MissingShow(::buffa::alloc::boxed::Box<super::super::super::ShowHit>),
     }
     impl ::buffa::Oneof for MovieOrShow {}
     impl From<super::super::super::MovieInLibrary> for MovieOrShow {
@@ -147,6 +149,26 @@ pub mod home_row_title {
             Self::Some(MovieOrShow::from(v))
         }
     }
+    impl From<super::super::super::MovieHit> for MovieOrShow {
+        fn from(v: super::super::super::MovieHit) -> Self {
+            Self::MissingMovie(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::MovieHit> for ::core::option::Option<MovieOrShow> {
+        fn from(v: super::super::super::MovieHit) -> Self {
+            Self::Some(MovieOrShow::from(v))
+        }
+    }
+    impl From<super::super::super::ShowHit> for MovieOrShow {
+        fn from(v: super::super::super::ShowHit) -> Self {
+            Self::MissingShow(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ShowHit> for ::core::option::Option<MovieOrShow> {
+        fn from(v: super::super::super::ShowHit) -> Self {
+            Self::Some(MovieOrShow::from(v))
+        }
+    }
     impl ::serde::Serialize for MovieOrShow {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -160,6 +182,12 @@ pub mod home_row_title {
                 }
                 Self::Show(v) => {
                     map.serialize_entry("show", &**v)?;
+                }
+                Self::MissingMovie(v) => {
+                    map.serialize_entry("missingMovie", &**v)?;
+                }
+                Self::MissingShow(v) => {
+                    map.serialize_entry("missingShow", &**v)?;
                 }
             }
             map.end()

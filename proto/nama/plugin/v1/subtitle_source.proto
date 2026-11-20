@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/plugin/v1/request.proto";
+import "nama/plugin/v1/title_source.proto";
+
+// The Extension Point for a subtitle source, which searches an outside service, such as
+// OpenSubtitles.com, for a Version's subtitles and downloads one a User picks (ADR 0067). An
+// Installed Plugin serves it through the WASM exports each rpc names, each taking and returning its
+// messages encoded as protobuf.
+//
+// The Kernel asks only while a User with Download subtitles watches, and stores what they download
+// itself. The outside service's rate limits are the Plugin's to keep: the Kernel doesn't count
+// calls.
+service SubtitleSourceService {
+  // The `subtitle_search` export: the source's subtitles for one Version.
+  rpc Search(SubtitleSearch) returns (SubtitleResults);
+  // The `subtitle_download` export: one of the subtitles a search found.
+  rpc Download(SubtitleDownload) returns (SubtitleFile);
+}
+
+// What the `subtitle_search` export searches for: a Version of a Movie or of an Episode.
+message SubtitleSearch {
+  // Movie, or Show for an Episode.
+  TitleKind kind = 1;
+  // The Movie's or Show's External IDs, at most one per namespace.
+  repeated TitleId ids = 2;
+  // For an Episode, its Season's number. Season 0 holds specials.
+  optional uint32 season = 3;
+  // For an Episode, its number within the Season.
+  optional uint32 episode = 4;
+  // The Version's file name, without its folders, such as `Alien.1979.1080p.BluRay.mkv`.
+  string file_name = 5;
+  // The file's OpenSubtitles hash, if the Kernel could read it: its size plus the 64-bit
+  // little-endian sums of its first and last 64 KiB, as 16 lowercase hex digits.
+  optional string hash = 6;
+  // The languages wanted, as BCP 47 tags such as `en` or `pt-BR`. Never empty.
+  repeated string languages = 7;
+}
+
+// What the `subtitle_search` export returns.
+message SubtitleResults {
+  // The subtitles found, best first. Empty if none fit.
+  repeated SubtitleResult results = 1;
+}
+
+// One subtitle a search found.
+message SubtitleResult {
+  // What the `subtitle_download` export is asked for to download it. Never empty.
+  string id = 1;
+  // Its language, as a BCP 47 tag such as `en` or `pt-BR`.
+  string language = 2;
+  // Its name at the source, such as its release name, for the User to pick it by.
+  string name = 3;
+  // Whether it's for the deaf and hard of hearing (SDH), as subtitles that also describe sounds.
+  bool sdh = 4;
+}
+
+// What the `subtitle_download` export is asked for.
+message SubtitleDownload {
+  // A `SubtitleResult.id` the source returned.
+  string id = 1;
+}
+
+// What the `subtitle_download` export returns: the subtitle's file.
+message SubtitleFile {
+  // The file's bytes, at most `BLOB_MAX_BYTES`; the Kernel refuses a larger one.
+  bytes data = 1;
+  // Its format, as its extension names it without the dot, such as `srt`, `ass` or `vtt`.
+  string format = 2;
+}

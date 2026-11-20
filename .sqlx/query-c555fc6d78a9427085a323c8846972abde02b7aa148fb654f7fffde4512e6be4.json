@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT image_store_plugin FROM server_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "image_store_plugin",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "image_store_plugin"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c555fc6d78a9427085a323c8846972abde02b7aa148fb654f7fffde4512e6be4"
+}

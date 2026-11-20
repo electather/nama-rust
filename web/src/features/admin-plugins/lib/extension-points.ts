@@ -2,6 +2,7 @@ import {
   Activity,
   Bell,
   CalendarClock,
+  Captions,
   Database,
   Film,
   Fingerprint,
@@ -30,6 +31,7 @@ export const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.BLOB_STORE]: { label: "Blob store", Icon: Database },
   [ExtensionPoint.AUTOMATION]: { label: "Automation", Icon: CalendarClock },
   [ExtensionPoint.HOME_ROW]: { label: "Home rows", Icon: Rows3 },
+  [ExtensionPoint.SUBTITLE_SOURCE]: { label: "Subtitle source", Icon: Captions },
 };
 
 /** What a point's failing calls leave undone, for the points where that isn't plain. */
