@@ -160,8 +160,8 @@ impl ShownImages {
         }
     }
 
-    /// The image an image without a Custom Image or one beside the media shows, the downloaded
-    /// one: the titled Backdrop, the Title Logo or an Episode's Still (#1339).
+    /// The downloaded image, for those that have no Custom Image or image beside the media: the
+    /// titled Backdrop, the Title Logo and an Episode's Still (#1339).
     pub(crate) fn downloaded(&self, downloaded: Option<Downloaded<'_>>) -> ShownImage {
         let url = downloaded.map(|downloaded| match downloaded {
             Downloaded::Stored { plugin, path } => artwork::url(plugin, path),
@@ -201,7 +201,6 @@ impl ShownImages {
 }
 
 impl TitleImage {
-    /// The Custom Image slot that stands in for this image of the title `id`.
     fn slot(self, id: &ExternalId) -> Slot {
         match self {
             Self::Movie(role) => Slot::movie(id, role),

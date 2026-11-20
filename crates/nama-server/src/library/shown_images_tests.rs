@@ -225,6 +225,11 @@ async fn each_image_shows_its_custom_image_else_the_one_beside_its_media_else_th
             ShownImage::default(),
         ),
         (
+            "a Movie with no Backdrop",
+            title(3, BACKDROP, None),
+            ShownImage::default(),
+        ),
+        (
             "a Movie's Custom Poster kept under its other id",
             images.of_title(&tmdb(5), &ids(&tmdb(5), &[&imdb("tt5")]), POSTER, poster),
             showing(&custom(&Slot::movie(&imdb("tt5"), Role::Poster)), true),
@@ -259,6 +264,16 @@ async fn each_image_shows_its_custom_image_else_the_one_beside_its_media_else_th
             "a Show's downloaded Poster",
             title(3, SHOW_POSTER, poster),
             showing(&poster_url, false),
+        ),
+        (
+            "a Show's downloaded Backdrop",
+            title(3, SHOW_BACKDROP, backdrop),
+            showing(&backdrop_url, false),
+        ),
+        (
+            "a Show with no Poster",
+            title(3, SHOW_POSTER, None),
+            ShownImage::default(),
         ),
         (
             "a Show with no Backdrop",
