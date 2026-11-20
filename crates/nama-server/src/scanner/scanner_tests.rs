@@ -35,7 +35,7 @@ pub(super) struct Fixture {
     pub(super) probing: Option<Probing>,
     pub(super) db: Arc<Database>,
     pub(super) contents: Contents,
-    events: EventBus,
+    pub(super) events: EventBus,
     pub(super) library: i64,
     pub(super) root: PathBuf,
     _media: TempDir,

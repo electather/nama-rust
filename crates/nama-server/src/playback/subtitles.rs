@@ -40,8 +40,8 @@ mod ass;
 mod text_pass;
 
 use super::{
-    Probing, Sidecars,
-    tracks::{PROBE_VERSION, Probe, Track, TrackKind, Tracks},
+    Probing, StoredTracks,
+    tracks::{PROBE_VERSION, Probe, Track, TrackKind},
 };
 use crate::{
     ffmpeg::{Ffmpeg, SubtitleError, TextSubtitle},
@@ -98,8 +98,7 @@ fn served_with_styling(track: &Track) -> Option<proto::SubtitleFormat> {
 #[derive(Debug, Clone)]
 pub(super) struct Subtitles {
     pub(super) contents: Contents,
-    pub(super) tracks: Tracks,
-    pub(super) sidecars: Sidecars,
+    pub(super) tracks: StoredTracks,
     pub(super) ffmpeg: Arc<Ffmpeg>,
     pub(super) cache: Cache,
     /// Runs text passes, which read whole files, in the background.
@@ -206,13 +205,8 @@ async fn probed(
     };
     // `of` leaves out what was read from what the file held before, which would pick the wrong
     // stream out of it now.
-    let Some(mut probe) = subtitles.tracks.of(&[file]).await?.remove(&version) else {
-        return Ok(None);
-    };
-    (subtitles.sidecars)
-        .append_to([(version, &mut probe)])
-        .await?;
-    Ok(Some((path, file, probe)))
+    let probe = subtitles.tracks.of(&[file]).await?.remove(&version);
+    Ok(probe.map(|probe| (path, file, probe)))
 }
 
 /// Why a subtitle couldn't be served.

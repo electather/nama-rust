@@ -4,8 +4,10 @@ use std::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
+    time::Duration,
 };
 
+use futures_util::StreamExt;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     contract::{
@@ -15,10 +17,12 @@ use nama_plugin_api::{
     metadata::ExternalId,
     recogniser::Recogniser,
 };
+use nama_proto::nama::v1::{EventType, ScanFinished, subscribe_response};
 use tokio_util::sync::CancellationToken;
 
 use super::{super::tests::Fixture, Planned, items, listed, recognise};
 use crate::{
+    events::{Filter, event},
     library::{Change, Item, LibraryKind},
     log_capture::CapturedLog,
     plugins::Registry,
@@ -344,6 +348,51 @@ async fn a_scan_asks_newly_listed_recognisers_about_unparsed_files_once() {
         "listing it reads the unparsed file again"
     );
     assert_eq!((again.updated, asked()), (0, 1), "nothing changed since");
+}
+
+#[tokio::test]
+async fn a_rescan_with_nothing_changed_finishes_while_other_writes_hold_the_writer() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.scan().await;
+    let finished = Filter {
+        types: vec![EventType::EVENT_TYPE_SCAN_FINISHED],
+        ..Filter::default()
+    };
+    let mut finished = Box::pin(media.events.subscribe_as_admin(finished));
+    let (holding, held) = tokio::sync::oneshot::channel();
+    let (release, released) = tokio::sync::oneshot::channel::<()>();
+    let db = Arc::clone(&media.db);
+    let busy = tokio::spawn(async move {
+        let held_until_released = async {
+            holding.send(()).unwrap();
+            released.await.map_err(sqlx::Error::decode)
+        };
+        db.write(|_| Box::pin(held_until_released)).await
+    });
+    held.await.unwrap();
+    let scanner = media.scanner.clone();
+    let library = media.library;
+    let rescan = tokio::spawn(async move { scanner.scan(library).await });
+
+    let published = tokio::time::timeout(Duration::from_secs(5), finished.next()).await;
+
+    release.send(()).unwrap();
+    busy.await.unwrap().unwrap();
+    rescan.await.unwrap().unwrap();
+    let expected = event(ScanFinished {
+        library_id: media.library,
+        unchanged: 1,
+        ..Default::default()
+    });
+    assert_eq!(
+        published
+            .ok()
+            .flatten()
+            .and_then(|response| response.message),
+        Some(subscribe_response::Message::from(expected)),
+        "the rescan waited for the writer"
+    );
 }
 
 #[tokio::test]

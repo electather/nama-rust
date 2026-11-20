@@ -326,7 +326,8 @@ impl Scanner {
         }
         let library = self.inner.libraries.get(id).await?;
         let scan_number = self.publish_started(id);
-        read_again_if_changed(&self.inner.db, &self.inner.plugins, &library).await?;
+        let libraries = &self.inner.libraries;
+        read_again_if_changed(&self.inner.db, libraries, &self.inner.plugins, &library).await?;
         let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
         let mut found =
