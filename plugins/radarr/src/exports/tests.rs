@@ -73,12 +73,13 @@ fn body_of(kernel: &Kernel, request: &str) -> Value {
     json::from_slice(&sent.body).unwrap()
 }
 
-fn fixture(text: &str) -> (u16, Value) {
-    (200, json::from_str(text).unwrap())
+/// The recorded answer `text` with `status`.
+fn fixture(status: u16, text: &str) -> (u16, Value) {
+    (status, json::from_str(text).unwrap())
 }
 
 fn profiles() -> (u16, Value) {
-    fixture(include_str!("../../fixtures/qualityprofile.json"))
+    fixture(200, include_str!("../../fixtures/qualityprofile.json"))
 }
 
 /// Radarr's quality profiles once an Admin removed HD-1080p.
@@ -91,7 +92,7 @@ fn profiles_without_hd() -> (u16, Value) {
 
 /// Alien as Radarr has it, at Ultra-HD.
 fn alien_found() -> (u16, Value) {
-    fixture(include_str!("../../fixtures/movie-alien.json"))
+    fixture(200, include_str!("../../fixtures/movie-alien.json"))
 }
 
 fn id(namespace: &str, value: &str) -> TitleId {
@@ -153,7 +154,7 @@ fn choices<'a>(checked: &'a CheckedSettings, key: &str) -> Vec<(&'a str, &'a str
 
 #[test]
 fn the_settings_check_offers_radarrs_quality_profiles_and_root_folders() {
-    let folders = fixture(include_str!("../../fixtures/rootfolder.json"));
+    let folders = fixture(200, include_str!("../../fixtures/rootfolder.json"));
     let mut kernel = radarr_answering(vec![profiles(), folders]);
 
     let checked = check_settings(&mut kernel).unwrap();
@@ -180,6 +181,7 @@ fn the_settings_check_stops_offering_a_profile_removed_from_radarr() {
 
     let checked = check_settings(&mut kernel).unwrap();
 
+    assert_eq!(asked(&kernel), ["GET qualityprofile", "GET rootfolder"]);
     assert_eq!(
         choices(&checked, "quality_profile"),
         [("1", "Any"), ("5", "Ultra-HD")]
@@ -199,8 +201,8 @@ fn the_settings_check_with_a_wrong_key_or_radarr_down_fails_in_plain_words() {
 
 #[test]
 fn a_movie_is_added_at_the_settings_profile_and_folder_and_searched_for() {
-    let added = fixture(include_str!("../../fixtures/movie.json"));
-    let mut kernel = radarr_answering(vec![profiles(), (201, added.1)]);
+    let added = fixture(201, include_str!("../../fixtures/movie.json"));
+    let mut kernel = radarr_answering(vec![profiles(), added]);
 
     let fulfilled = with(&mut kernel, || {
         RadarrFulfiller::fulfill(movie(HEAT, "Heat"))
@@ -229,8 +231,8 @@ fn a_movie_is_added_at_the_settings_profile_and_folder_and_searched_for() {
 
 #[test]
 fn a_movie_is_added_at_its_qualitys_profile() {
-    let added = fixture(include_str!("../../fixtures/movie.json"));
-    let mut kernel = radarr_answering(vec![profiles(), (201, added.1)]);
+    let added = fixture(201, include_str!("../../fixtures/movie.json"));
+    let mut kernel = radarr_answering(vec![profiles(), added]);
     let heat_in_4k = at_quality(movie(HEAT, "Heat"), "4K", "5");
 
     let fulfilled = with(&mut kernel, || RadarrFulfiller::fulfill(heat_in_4k)).unwrap();
@@ -241,8 +243,8 @@ fn a_movie_is_added_at_its_qualitys_profile() {
 
 #[test]
 fn a_movie_radarr_already_has_reports_the_profile_radarr_has_it_at() {
-    let exists = fixture(include_str!("../../fixtures/movie-exists.json"));
-    let mut kernel = radarr_answering(vec![profiles(), (400, exists.1), alien_found()]);
+    let exists = fixture(400, include_str!("../../fixtures/movie-exists.json"));
+    let mut kernel = radarr_answering(vec![profiles(), exists, alien_found()]);
 
     let fulfilled = with(&mut kernel, || {
         RadarrFulfiller::fulfill(movie(ALIEN, "Alien"))
@@ -262,14 +264,15 @@ fn a_movie_radarr_already_has_reports_the_profile_radarr_has_it_at() {
 
 #[test]
 fn a_movie_radarr_cant_find_fails_with_radarrs_reason() {
-    let not_found = fixture(include_str!("../../fixtures/movie-not-found.json"));
-    let mut kernel = radarr_answering(vec![profiles(), (400, not_found.1)]);
+    let not_found = fixture(400, include_str!("../../fixtures/movie-not-found.json"));
+    let mut kernel = radarr_answering(vec![profiles(), not_found]);
 
     let failed = with(&mut kernel, || {
         RadarrFulfiller::fulfill(movie(DUNE, "Dune"))
     })
     .unwrap_err();
 
+    assert_eq!(asked(&kernel), ["GET qualityprofile", "POST movie"]);
     assert_eq!(
         failed.to_string(),
         "Radarr said: A movie with this ID was not found."
@@ -322,7 +325,7 @@ fn a_hand_off_with_radarr_down_fails_in_plain_words() {
 
 #[test]
 fn progress_reads_radarrs_queue_once_for_every_movie_asked_about() {
-    let queue = fixture(include_str!("../../fixtures/queue.json"));
+    let queue = fixture(200, include_str!("../../fixtures/queue.json"));
     let mut kernel = radarr_answering(vec![queue]);
     let references = vec![HEAT.to_string(), ALIEN.to_string()];
 

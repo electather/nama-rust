@@ -3,7 +3,7 @@
 //! settings check and a service that is down or refuses the key, Radarr's tests cover, but for
 //! progress, which is tested here.
 
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use nama_pdk::{
     Download, Fulfiller, Request, Response, StopMonitoring, TitleId, TryAgainIn,
@@ -34,7 +34,7 @@ fn settings() -> Kernel {
 }
 
 /// Sonarr, answering each request with the next of `answers`, a status and a JSON body.
-fn sonarr(answers: Vec<(u16, Value)>) -> Kernel {
+fn sonarr_answering(answers: Vec<(u16, Value)>) -> Kernel {
     let mut answers = answers.into_iter();
     settings().http(move |_request, _body| {
         let (status, body) = answers
@@ -74,12 +74,13 @@ fn body_of(kernel: &Kernel, request: &str) -> Value {
     json::from_slice(&sent.body).unwrap()
 }
 
-fn fixture(text: &str) -> (u16, Value) {
-    (200, json::from_str(text).unwrap())
+/// The recorded answer `text` with `status`.
+fn fixture(status: u16, text: &str) -> (u16, Value) {
+    (status, json::from_str(text).unwrap())
 }
 
 fn profiles() -> (u16, Value) {
-    fixture(include_str!("../../fixtures/qualityprofile.json"))
+    fixture(200, include_str!("../../fixtures/qualityprofile.json"))
 }
 
 /// Sonarr has no Show by the id asked, or finds none by it.
@@ -89,7 +90,7 @@ fn none() -> (u16, Value) {
 
 /// Dark as Sonarr's lookup finds it, while Sonarr doesn't have it.
 fn dark_looked_up() -> (u16, Value) {
-    fixture(include_str!("../../fixtures/series-lookup.json"))
+    fixture(200, include_str!("../../fixtures/series-lookup.json"))
 }
 
 /// Dark as Sonarr has it, at the profile Any, monitoring Seasons 1 and 3.
@@ -180,12 +181,12 @@ fn dark_episodes(numbers: &[(u32, u32)]) -> EpisodeNumbers {
 
 /// Dark's Episodes as Sonarr lists them, two per Season.
 fn dark_episodes_listed() -> (u16, Value) {
-    fixture(include_str!("../../fixtures/episode.json"))
+    fixture(200, include_str!("../../fixtures/episode.json"))
 }
 
 #[test]
 fn a_season_of_a_show_sonarr_lacks_adds_it_with_only_that_season_monitored_and_searched_for() {
-    let mut kernel = sonarr(vec![profiles(), none(), dark_looked_up(), (201, json!({}))]);
+    let mut kernel = sonarr_answering(vec![profiles(), none(), dark_looked_up(), (201, json!({}))]);
 
     let fulfilled = with(&mut kernel, || SonarrFulfiller::fulfill(dark_season(1))).unwrap();
 
@@ -226,14 +227,15 @@ fn a_season_of_a_show_sonarr_lacks_adds_it_with_only_that_season_monitored_and_s
 
 #[test]
 fn a_whole_show_sonarr_lacks_is_added_with_its_new_seasons_monitored() {
-    let mut kernel = sonarr(vec![profiles(), none(), dark_looked_up(), (201, json!({}))]);
+    let mut kernel = sonarr_answering(vec![profiles(), none(), dark_looked_up(), (201, json!({}))]);
 
-    with(&mut kernel, || {
+    let fulfilled = with(&mut kernel, || {
         SonarrFulfiller::fulfill(followed_dark_season(1))
     })
     .unwrap();
 
     assert_eq!(body_of(&kernel, "POST series")["monitorNewItems"], "all");
+    assert_eq!(fulfilled.reference, "334824/1");
 }
 
 #[test]
@@ -242,7 +244,7 @@ fn a_later_season_is_monitored_and_searched_for_alone_and_reports_the_profile_so
         {"id": 201, "seasonNumber": 2, "episodeNumber": 1},
         {"id": 202, "seasonNumber": 2, "episodeNumber": 2}
     ]);
-    let mut kernel = sonarr(vec![
+    let mut kernel = sonarr_answering(vec![
         profiles(),
         dark_found(),
         no_commands(),
@@ -289,7 +291,7 @@ fn a_later_season_is_monitored_and_searched_for_alone_and_reports_the_profile_so
 
 #[test]
 fn a_whole_show_sonarr_has_gets_its_new_seasons_monitored() {
-    let mut kernel = sonarr(vec![
+    let mut kernel = sonarr_answering(vec![
         profiles(),
         dark_found(),
         no_commands(),
@@ -321,13 +323,13 @@ fn a_show_another_hand_off_added_meanwhile_gets_the_season_monitored_at_its_prof
         {"seasonNumber": 1, "monitored": false},
         {"seasonNumber": 3, "monitored": false}
     ]}]);
-    let exists = fixture(include_str!("../../fixtures/series-exists.json"));
+    let exists = fixture(400, include_str!("../../fixtures/series-exists.json"));
     let episodes = json!([{"id": 301, "seasonNumber": 3, "episodeNumber": 1}]);
-    let mut kernel = sonarr(vec![
+    let mut kernel = sonarr_answering(vec![
         profiles(),
         none(),
         (200, lookup),
-        (400, exists.1),
+        exists,
         dark_found(),
         no_commands(),
         accepted(),
@@ -370,7 +372,7 @@ fn a_show_another_hand_off_added_meanwhile_gets_the_season_monitored_at_its_prof
 fn a_season_of_a_show_sonarr_is_refreshing_is_tried_again_in_5_seconds_changing_nothing() {
     let refreshing = json!([{"name": "RefreshSeries", "status": "started",
         "body": {"seriesIds": [DARK_SONARR_ID]}}]);
-    let mut kernel = sonarr(vec![profiles(), dark_found(), (200, refreshing)]);
+    let mut kernel = sonarr_answering(vec![profiles(), dark_found(), (200, refreshing)]);
 
     let error = with(&mut kernel, || SonarrFulfiller::fulfill(dark_season(3))).unwrap_err();
 
@@ -390,10 +392,18 @@ fn a_season_of_a_show_sonarr_is_refreshing_is_tried_again_in_5_seconds_changing_
 
 #[test]
 fn a_show_sonarr_cant_find_fails_in_plain_words() {
-    let mut kernel = sonarr(vec![profiles(), none(), none()]);
+    let mut kernel = sonarr_answering(vec![profiles(), none(), none()]);
 
     let error = with(&mut kernel, || SonarrFulfiller::fulfill(dark_season(1))).unwrap_err();
 
+    assert_eq!(
+        asked(&kernel),
+        [
+            "GET qualityprofile",
+            "GET series?tvdbId=334824",
+            "GET series/lookup?term=tvdb:334824",
+        ]
+    );
     assert_eq!(
         error.to_string(),
         "Sonarr couldn't find the Show by its TVDB id, 334824"
@@ -416,7 +426,7 @@ fn a_show_without_a_tvdb_id_is_refused_without_asking_sonarr() {
 
 #[test]
 fn cancelling_a_followed_show_turns_off_sonarrs_new_season_monitoring() {
-    let mut kernel = sonarr(vec![dark_found(), no_commands(), accepted()]);
+    let mut kernel = sonarr_answering(vec![dark_found(), no_commands(), accepted()]);
 
     with(&mut kernel, || {
         SonarrFulfiller::unfollow(followed_dark_season(1))
@@ -437,8 +447,18 @@ fn cancelling_a_followed_show_turns_off_sonarrs_new_season_monitoring() {
     );
 }
 
-/// What Sonarr's queue in `queue.json` holds for Seasons 1 and 3 of Dark.
-fn downloads_of_seasons_1_and_3(mut downloads: HashMap<String, Vec<Download>>) {
+#[test]
+fn progress_reads_sonarrs_queue_once_for_every_season_asked_about() {
+    let queue = fixture(200, include_str!("../../fixtures/queue.json"));
+    let mut kernel = sonarr_answering(vec![queue]);
+    let references = vec!["334824/1".to_owned(), "334824/3".to_owned()];
+
+    let mut downloads = with(&mut kernel, || SonarrFulfiller::progress(references)).unwrap();
+
+    assert_eq!(
+        asked(&kernel),
+        ["GET queue?pageSize=1000&includeSeries=true"]
+    );
     let season_1_pack = Download {
         title: "Dark.S01.1080p.NF.WEB-DL.x264".to_owned(),
         percent: 25.0,
@@ -474,25 +494,10 @@ fn downloads_of_seasons_1_and_3(mut downloads: HashMap<String, Vec<Download>>) {
 }
 
 #[test]
-fn progress_reads_sonarrs_queue_once_for_every_season_asked_about() {
-    let queue = fixture(include_str!("../../fixtures/queue.json"));
-    let mut kernel = sonarr(vec![queue]);
-    let references = vec!["334824/1".to_owned(), "334824/3".to_owned()];
-
-    let downloads = with(&mut kernel, || SonarrFulfiller::progress(references)).unwrap();
-
-    assert_eq!(
-        asked(&kernel),
-        ["GET queue?pageSize=1000&includeSeries=true"]
-    );
-    downloads_of_seasons_1_and_3(downloads);
-}
-
-#[test]
 fn progress_with_sonarr_refusing_the_key_or_down_fails_in_plain_words() {
     let progress = || SonarrFulfiller::progress(vec!["334824/1".to_owned()]);
 
-    let refused = with(&mut sonarr(vec![(401, Value::Null)]), progress);
+    let refused = with(&mut sonarr_answering(vec![(401, Value::Null)]), progress);
     let down = with(&mut sonarr_down(), progress);
 
     assert_eq!(
@@ -503,7 +508,7 @@ fn progress_with_sonarr_refusing_the_key_or_down_fails_in_plain_words() {
 
 #[test]
 fn deleting_episodes_has_sonarr_unmonitor_those_episodes_only() {
-    let mut kernel = sonarr(vec![
+    let mut kernel = sonarr_answering(vec![
         dark_found(),
         no_commands(),
         dark_episodes_listed(),
@@ -533,7 +538,7 @@ fn deleting_episodes_has_sonarr_unmonitor_those_episodes_only() {
 
 #[test]
 fn deleting_a_season_has_sonarr_unmonitor_it_and_its_episodes_and_leave_the_others() {
-    let mut kernel = sonarr(vec![
+    let mut kernel = sonarr_answering(vec![
         dark_found(),
         no_commands(),
         dark_episodes_listed(),
@@ -560,7 +565,7 @@ fn deleting_a_season_has_sonarr_unmonitor_it_and_its_episodes_and_leave_the_othe
 
 #[test]
 fn deleting_a_show_has_sonarr_unmonitor_every_season_and_keep_following_new_ones() {
-    let mut kernel = sonarr(vec![
+    let mut kernel = sonarr_answering(vec![
         dark_found(),
         no_commands(),
         dark_episodes_listed(),
@@ -598,7 +603,7 @@ fn deleting_a_show_has_sonarr_unmonitor_every_season_and_keep_following_new_ones
 
 #[test]
 fn deleting_a_show_sonarr_doesnt_have_changes_nothing() {
-    let mut kernel = sonarr(vec![none()]);
+    let mut kernel = sonarr_answering(vec![none()]);
 
     with(&mut kernel, || {
         SonarrFulfiller::stop_monitoring(dark_deleted(Deleted::EveryCurrentSeason(true)))

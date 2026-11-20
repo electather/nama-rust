@@ -505,13 +505,13 @@ async fn deleting_a_movie_or_one_of_its_versions_has_its_fulfiller_stop_monitori
     let fulfiller = fx.server.fulfiller();
     let first = fx.version_ids(ALIEN).await[0];
 
-    fulfiller.watch(fx.folder.join(ALIEN_1080P));
+    fulfiller.check_file(fx.folder.join(ALIEN_1080P));
     let one_version = fx.delete(version(first)).await.unwrap();
-    fulfiller.watch(fx.folder.join(ALIEN_2160P));
+    fulfiller.check_file(fx.folder.join(ALIEN_2160P));
     let every_version = fx.delete(movie(fx.library, ALIEN)).await.unwrap();
 
     assert_eq!(fulfiller.stopped_monitoring(), [ALIEN, ALIEN]);
-    assert_eq!(fulfiller.watched_was_there(), [true, true]);
+    assert_eq!(fulfiller.checked_file_was_there(), [true, true]);
     assert_eq!(one_version.fulfillers_not_told, [""; 0]);
     assert_eq!(every_version.fulfillers_not_told, [""; 0]);
     assert!(!fx.exists(ALIEN_1080P) && !fx.exists(ALIEN_2160P));
