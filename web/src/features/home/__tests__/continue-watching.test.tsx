@@ -1,8 +1,15 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { ServiceImpl } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { type ServiceImpl, createRouterTransport } from "@connectrpc/connect";
+import { TransportProvider } from "@connectrpc/connect-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
+import { type ReactNode, Suspense } from "react";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
+import {
+  continueWatchingQuery,
+  useContinueWatching,
+} from "@/features/home/data/use-continue-watching";
 import {
   BrowseService,
   type ContinueWatchingEntrySchema,
@@ -74,6 +81,41 @@ test("home asks for Continue Watching's first page, a row's worth", async () => 
   const pagesAsked = asked.map(({ page }) => ({ size: page?.size, token: page?.token }));
   expect(pagesAsked).not.toHaveLength(0);
   expect(pagesAsked).toStrictEqual(pagesAsked.map(() => ({ size: 6, token: "" })));
+});
+
+test("continue Watching doesn't ask again when home mounts over a second after its loader", async () => {
+  let asked = 0;
+  const transport = createRouterTransport((router) => {
+    router.service(BrowseService, {
+      listContinueWatching: () => {
+        asked += 1;
+        return {};
+      },
+    });
+  });
+  const queryClient = new QueryClient();
+  await queryClient.query(continueWatchingQuery(transport));
+  // Only Date is faked, so Suspense and the transport still run on real timers.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.now() + 2000);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <TransportProvider transport={transport}>
+      <QueryClientProvider client={queryClient}>
+        <Suspense>{children}</Suspense>
+      </QueryClientProvider>
+    </TransportProvider>
+  );
+  try {
+    renderHook(useContinueWatching, { wrapper });
+    // A refetch on mount would have started by now; wait for it to reach the Server.
+    await waitFor(() => {
+      expect(queryClient.isFetching()).toBe(0);
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+
+  expect(asked).toBe(1);
 });
 
 test("a Movie's Continue Watching card resumes it, with how much is left", async () => {
