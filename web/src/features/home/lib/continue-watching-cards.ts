@@ -129,12 +129,12 @@ function episodeCard(library: bigint, entry: ContinueWatchingEpisode): Card[] {
 }
 
 /** A card's art: its titled Backdrop, which needs no Title Logo, or else its Backdrop and Title Logo. */
-function artOf(title: Movie | Show) {
-  if (title.titledBackdropUrl !== undefined) {
-    const { titledBackdropUrl: url, titledBackdropThumbhash: thumbhash } = title;
+function artOf(movieOrShow: Movie | Show) {
+  if (movieOrShow.titledBackdropUrl !== undefined) {
+    const { titledBackdropUrl: url, titledBackdropThumbhash: thumbhash } = movieOrShow;
     return { url, thumbhash, logoUrl: undefined, titled: true };
   }
-  const { backdropUrl: url, backdropThumbhash: thumbhash, titleLogoUrl: logoUrl } = title;
+  const { backdropUrl: url, backdropThumbhash: thumbhash, titleLogoUrl: logoUrl } = movieOrShow;
   return { url, thumbhash, logoUrl, titled: false };
 }
 
