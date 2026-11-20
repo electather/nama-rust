@@ -257,7 +257,7 @@ async fn a_switch_copies_every_original_and_nothing_else_then_uses_the_new_store
 }
 
 #[tokio::test]
-async fn every_original_dir_is_a_folder_an_image_is_written_to() {
+async fn every_original_dir_is_a_folder_an_image_or_a_subtitle_is_written_to() {
     assert_eq!(
         ORIGINAL_DIRS,
         [
@@ -265,7 +265,8 @@ async fn every_original_dir_is_a_folder_an_image_is_written_to() {
             "artwork-cache",
             "custom-images",
             "local-images",
-            "plugin-logos"
+            "plugin-logos",
+            "downloaded-subtitles"
         ]
     );
 }

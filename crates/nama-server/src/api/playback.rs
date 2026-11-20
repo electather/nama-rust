@@ -4,28 +4,30 @@ use std::sync::Arc;
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_plugin_api::contract::SubtitleResult;
 use nama_proto::nama::v1::{
-    self as proto, GetAutoplayRequest, GetAutoplayResponse, GetSubtitleAppearanceRequest,
+    self as proto, DownloadSubtitleRequest, DownloadSubtitleResponse, FoundSubtitle,
+    GetAutoplayRequest, GetAutoplayResponse, GetSubtitleAppearanceRequest,
     GetSubtitleAppearanceResponse, GetTrackPreferencesRequest, GetTrackPreferencesResponse,
     PickedTrackKind, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, RefusalReason,
-    ReportTrackPickRequest, ReportTrackPickResponse, SetAudioPreferenceRequest,
-    SetAudioPreferenceResponse, SetAutoplayRequest, SetAutoplayResponse,
-    SetSubtitleBackgroundRequest, SetSubtitleBackgroundResponse, SetSubtitlePreferenceRequest,
-    SetSubtitlePreferenceResponse, SetSubtitleSizeRequest, SetSubtitleSizeResponse,
-    StopPlaybackRequest, StopPlaybackResponse, SubtitleKind, UsersAudioPreference,
-    UsersSubtitlePreference,
+    ReportTrackPickRequest, ReportTrackPickResponse, SearchSubtitlesRequest,
+    SearchSubtitlesResponse, SetAudioPreferenceRequest, SetAudioPreferenceResponse,
+    SetAutoplayRequest, SetAutoplayResponse, SetSubtitleBackgroundRequest,
+    SetSubtitleBackgroundResponse, SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse,
+    SetSubtitleSizeRequest, SetSubtitleSizeResponse, StopPlaybackRequest, StopPlaybackResponse,
+    SubtitleKind, UsersAudioPreference, UsersSubtitlePreference,
 };
 
 use crate::{
     db::Database,
     ffmpeg::Abilities,
     playback::{
-        self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, Method, NAMED_LIMITS,
-        PickedLimit, Planned, Preferred, Probing, ProbingError, RunningPlans, StartError,
-        StartedPlan, SubtitleAppearance, SubtitlePreference, TrackKind, TrackPreferenceError,
-        TrackPreferences, is_autoplay_on, is_language, limit_to_proto, method_to_proto,
-        reason_to_proto, set_autoplay, set_subtitle_background, set_subtitle_size,
-        subtitle_appearance_of, track_to_proto,
+        self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, DownloadError, Method,
+        NAMED_LIMITS, PickedLimit, Planned, Preferred, Probing, ProbingError, RunningPlans,
+        StartError, StartedPlan, SubtitleAppearance, SubtitleDownloads, SubtitlePreference,
+        TrackKind, TrackPreferenceError, TrackPreferences, is_autoplay_on, is_language,
+        limit_to_proto, method_to_proto, reason_to_proto, set_autoplay, set_subtitle_background,
+        set_subtitle_size, subtitle_appearance_of, track_to_proto,
     },
     server_settings::{PlaybackLimit, PlaybackSettings},
 };
@@ -39,6 +41,7 @@ pub(super) struct PlaybackServiceHandler {
     pub(super) running: RunningPlans,
     pub(super) settings: PlaybackSettings,
     pub(super) preferences: TrackPreferences,
+    pub(super) downloads: SubtitleDownloads,
     pub(super) db: Arc<Database>,
 }
 
@@ -262,6 +265,39 @@ impl PlaybackService for PlaybackServiceHandler {
         Response::ok(SetAutoplayResponse::default())
     }
 
+    async fn search_subtitles(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SearchSubtitlesRequest>,
+    ) -> ServiceResult<SearchSubtitlesResponse> {
+        let request = request.to_owned_message();
+        if request.languages.is_empty() {
+            let refused = refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "name at least one language",
+            );
+            return Err(refused.field("languages").into());
+        }
+        let found = (self.downloads)
+            .search(request.version_id, request.languages)
+            .await
+            .map_err(|err| subtitles_failed(err, "languages"))?;
+        let subtitles = (found.into_iter())
+            .map(|(plugin, found)| FoundSubtitle {
+                plugin_id: plugin.to_string(),
+                id: found.id,
+                language: found.language,
+                name: found.name,
+                sdh: found.sdh,
+                ..Default::default()
+            })
+            .collect();
+        Response::ok(SearchSubtitlesResponse {
+            subtitles,
+            ..Default::default()
+        })
+    }
+
     async fn get_subtitle_appearance(
         &self,
         ctx: RequestContext,
@@ -276,6 +312,33 @@ impl PlaybackService for PlaybackServiceHandler {
             background: background.into(),
             ..Default::default()
         })
+    }
+
+    async fn download_subtitle(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, DownloadSubtitleRequest>,
+    ) -> ServiceResult<DownloadSubtitleResponse> {
+        let request = request.to_owned_message();
+        let Some(subtitle) = request.subtitle.into_option() else {
+            let refused = refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "name the subtitle to download",
+            );
+            return Err(refused.field("subtitle").into());
+        };
+        let found = SubtitleResult {
+            id: subtitle.id,
+            language: subtitle.language,
+            name: subtitle.name,
+            sdh: subtitle.sdh,
+            ..Default::default()
+        };
+        (self.downloads)
+            .download(request.version_id, &subtitle.plugin_id.into(), found)
+            .await
+            .map_err(|err| subtitles_failed(err, "subtitle.language"))?;
+        Response::ok(DownloadSubtitleResponse::default())
     }
 
     async fn set_subtitle_size(
@@ -316,6 +379,29 @@ impl PlaybackService for PlaybackServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(SetSubtitleBackgroundResponse::default())
+    }
+}
+
+/// The error a subtitle search or download that failed with `err` is answered with, naming the
+/// request field `language_field` for a language it refuses.
+fn subtitles_failed(err: DownloadError, language_field: &str) -> ConnectError {
+    let message = err.to_string();
+    match err {
+        DownloadError::NoSuchVersion => version_not_found(),
+        DownloadError::UnknownLanguage(language) => {
+            refuse(RefusalReason::REFUSAL_REASON_UNKNOWN_LANGUAGE, message)
+                .field(language_field)
+                .param("language", &language)
+                .into()
+        }
+        DownloadError::NoSource(_) => {
+            refuse(RefusalReason::REFUSAL_REASON_NO_SUBTITLE_SOURCE, message).into()
+        }
+        DownloadError::Database(err) => database_failed(err),
+        DownloadError::Store(err) => {
+            tracing::error!("keeping a downloaded subtitle failed: {err}");
+            ConnectError::internal("the Server couldn't keep the subtitle")
+        }
     }
 }
 

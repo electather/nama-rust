@@ -381,6 +381,7 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
         Arc::clone(&db),
         Arc::new(h264_aac_ffprobe(data.path())),
         subtitles::Cache::new(data.path()),
+        crate::images::ImageStore::new(data.path(), Arc::clone(&db)),
     );
     let settings = Settings::new(Arc::clone(&db), data.path().join("transcodes"));
     let ffmpeg = Arc::new(Ffmpeg::default());
