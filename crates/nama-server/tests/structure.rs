@@ -557,7 +557,7 @@ fn stray_tests(paths: &[&str], folders: &[&str]) -> Vec<String> {
 
 /// The rule is "Unit tests sit beside their file" in `crates/nama-server/AGENTS.md`.
 #[test]
-fn a_files_unit_tests_sit_in_its_folder() {
+fn a_file_with_a_folder_keeps_its_unit_tests_there() {
     let files = rust_files();
     let paths: Vec<&str> = files.iter().map(|file| file.path.as_str()).collect();
     let mut folders: Vec<&str> = paths
