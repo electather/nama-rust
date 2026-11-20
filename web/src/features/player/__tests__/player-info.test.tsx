@@ -64,7 +64,7 @@ const remuxing = serverPlaying({
     },
     {
       kind: PlaybackReasonKind.DEVICE_PLAYS_FEWER_CHANNELS,
-      params: { channels: "2" },
+      params: { channels: "2", codec: "aac" },
       text: serverText,
       decided: true,
     },
@@ -120,7 +120,7 @@ test("playback info leads with the reasons that decided the plan, in its own wor
   expect(lists).toStrictEqual([
     [
       "This Device can’t decode Dolby Digital Plus audio, so it can’t be Direct Played.",
-      "Its audio is converted to Stereo, as this Device doesn’t play 5.1.",
+      "Its audio is converted to AAC Stereo, as this Device doesn’t play 5.1.",
       "Something new stood in the way",
     ],
     [
@@ -175,7 +175,7 @@ test("playback info words every kind of reason the schema has, naming its params
       "This Device can’t show Dolby Vision, so it can’t be Direct Played or Remuxed.",
       "Direct Play failed on this Device.",
       "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to 1280×534.",
-      "Its audio is converted to 5.1, the most a Remux or a Transcode makes.",
+      "Its audio is converted to HEVC 5.1, the most a Remux or a Transcode makes.",
       "It Transcodes on the GPU with NVIDIA NVENC.",
     ]),
   );

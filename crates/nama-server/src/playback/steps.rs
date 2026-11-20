@@ -9,8 +9,8 @@ use super::{
     Candidates, Facts, Fallback, Method, Playing, Reason, RunningTranscodes, accel_to_proto, build,
     choices::burn_in,
     codecs::{
-        aac_channels, channels_of, converted_channels, hdr_name, played_hdr, played_tracks,
-        played_video, transcoded_hdr, undecodable, undecodable_container,
+        audio_codec_name, audio_conversion, channels_of, hdr_name, played_hdr, played_tracks,
+        played_video, remux_audio_conversion, transcoded_hdr, undecodable, undecodable_container,
     },
     limits::video_limit,
     method_to_proto,
@@ -18,8 +18,8 @@ use super::{
 };
 use crate::{
     ffmpeg::{
-        Accel, Gpu, Hardware, Remux, RemuxAudio, ToneMapper, Transcode, TranscodeAudio,
-        VideoConversion,
+        Accel, AudioConversion, Gpu, Hardware, Remux, RemuxAudio, ToneMapper, Transcode,
+        TranscodeAudio, VideoConversion,
     },
     server_settings::HardwareChoice,
 };
@@ -185,19 +185,19 @@ pub(super) fn converting(
     candidates: Option<&Candidates>,
     playing: Option<&Playing>,
 ) -> Vec<Reason> {
-    let (method, channels) = match playing {
+    let (method, conversion) = match playing {
         Some(Playing::Remux { remux, .. }) => (
             Method::Remux,
-            remux.audio.and_then(|audio| audio.aac_channels),
+            remux.audio.and_then(|audio| audio.conversion),
         ),
         Some(Playing::Transcode { transcode, .. }) => (
             Method::Transcode,
-            transcode.audio.map(|audio| audio.aac_channels),
+            transcode.audio.map(|audio| audio.conversion),
         ),
         None | Some(Playing::DirectPlay) => return vec![],
     };
-    let mut reasons: Vec<Reason> = channels
-        .and_then(|channels| fewer_channels(facts, candidates, channels, method))
+    let mut reasons: Vec<Reason> = conversion
+        .and_then(|conversion| fewer_channels(facts, candidates, conversion, method))
         .into_iter()
         .collect();
     if let Some(Playing::Transcode { transcode, .. }) = playing {
@@ -217,11 +217,11 @@ pub(super) fn converting(
     reasons
 }
 
-/// Why `method` converts the played audio to `channels` channels, if that's fewer than it has.
+/// Why `method` converts the played audio as `conversion` says, if to fewer channels than it has.
 fn fewer_channels(
     facts: &Facts,
     candidates: Option<&Candidates>,
-    channels: i64,
+    AudioConversion { encoder, channels }: AudioConversion,
     method: Method,
 ) -> Option<Reason> {
     let played = (candidates?.audio)
@@ -250,10 +250,15 @@ fn fewer_channels(
         6 => "5.1".to_owned(),
         n => format!("{n}-channel"),
     };
-    let text = format!("Its audio is converted to {name}, {why}");
+    let codec = encoder.ffmpeg_name();
+    let text = format!(
+        "Its audio is converted to {} {name}, {why}",
+        audio_codec_name(codec)
+    );
     Some(
         Reason::new(kind, text)
             .with("channels", &channels)
+            .with("codec", &codec)
             .deciding(),
     )
 }
@@ -391,7 +396,7 @@ fn video_conversion(facts: &Facts) -> VideoConversion {
 pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> Remux {
     let audio = audio.map(|(track, played)| RemuxAudio {
         track,
-        aac_channels: aac_channels(&facts.device, played),
+        conversion: remux_audio_conversion(&facts.device, played),
     });
     let video = facts.probe.as_ref().and_then(played_video);
     Remux {
@@ -404,7 +409,7 @@ pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> Remux {
 pub(super) fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> Transcode {
     let audio = audio.map(|(track, played)| TranscodeAudio {
         track,
-        aac_channels: converted_channels(&facts.device, played),
+        conversion: audio_conversion(&facts.device, played),
     });
     Transcode {
         audio,

@@ -104,11 +104,11 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
   [PlaybackReasonKind.METHOD_FAILED_ON_SERVER]: (param) =>
     `${param.method()} failed on the Server: its ffmpeg stopped before writing anything.`,
   [PlaybackReasonKind.DEVICE_PLAYS_FEWER_CHANNELS]: (param) =>
-    `Its audio is converted to ${param.channels()}, as this Device doesn’t play 5.1.`,
+    `Its audio is converted to ${param.codec()} ${param.channels()}, as this Device doesn’t play 5.1.`,
   [PlaybackReasonKind.DEVICE_CHANNELS_UNKNOWN]: (param) =>
-    `Its audio is converted to ${param.channels()}, as this Device doesn’t say it plays more.`,
+    `Its audio is converted to ${param.codec()} ${param.channels()}, as this Device doesn’t say it plays more.`,
   [PlaybackReasonKind.CONVERSION_CHANNELS_CAPPED]: (param) =>
-    `Its audio is converted to ${param.channels()}, the most a Remux or a Transcode makes.`,
+    `Its audio is converted to ${param.codec()} ${param.channels()}, the most a Remux or a Transcode makes.`,
   [PlaybackReasonKind.HDR_TONE_MAPPED]: (param) =>
     `Its ${param.hdr()} picture is converted to SDR, which this Device shows.`,
   [PlaybackReasonKind.HDR_NOT_TONE_MAPPED]: (param) =>

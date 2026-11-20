@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
 
 use super::{
-    Accel, BurnIn, FRENCH_SRT, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, ImageSubtitle,
-    Keyframe, PERSIAN_SRT, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode, TranscodeAudio,
-    VideoConversion, VideoLimit, sidecar_charset,
+    Accel, AudioConversion, AudioEncoder, BurnIn, FRENCH_SRT, Ffmpeg, FoundProgram, FromCut,
+    Hardware, HlsRun, ImageSubtitle, Keyframe, PERSIAN_SRT, Remux, RemuxAudio, TextSubtitle,
+    ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit, sidecar_charset,
 };
 
 /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
@@ -29,6 +29,12 @@ fn args(run: &HlsRun) -> Vec<String> {
         .map(|arg| arg.to_string_lossy().into_owned())
         .collect()
 }
+
+const fn converted(encoder: AudioEncoder, channels: i64) -> AudioConversion {
+    AudioConversion { encoder, channels }
+}
+
+const ENCODERS: [AudioEncoder; 3] = [AudioEncoder::Aac, AudioEncoder::Ac3, AudioEncoder::Eac3];
 
 /// A Transcode's video converted in software, with nothing else asked of it.
 const SOFTWARE: VideoConversion = VideoConversion {
@@ -96,7 +102,7 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
     let remux = Remux {
         audio: Some(RemuxAudio {
             track: 1,
-            aac_channels: Some(2),
+            conversion: Some(converted(AudioEncoder::Aac, 2)),
         }),
         hevc: false,
     };
@@ -157,7 +163,7 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
     let transcode = Transcode {
         audio: Some(TranscodeAudio {
             track: 0,
-            aac_channels: 6,
+            conversion: converted(AudioEncoder::Aac, 6),
         }),
         video: SOFTWARE,
     };
@@ -264,17 +270,16 @@ fn a_remux_without_audio_seeks_halfway_back_to_the_keyframe_before_and_at_most_h
 
 #[test]
 fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time() {
-    let audio = |aac_channels| Remux {
+    let audio = |conversion| Remux {
         audio: Some(RemuxAudio {
             track: 0,
-            aac_channels,
+            conversion,
         }),
         hevc: false,
     };
     let third = keyframe(3, 6000, Some(4000));
 
     let copied = remux_args(audio(None), third);
-    let converted = remux_args(audio(Some(2)), third);
     let silent = remux_args(
         Remux {
             audio: None,
@@ -286,9 +291,12 @@ fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time
     assert_eq!(input_seek(&copied), Some("5.917"));
     assert_eq!(value_of(&copied, "-copypriorss:a"), Some("0"));
     assert_eq!(value_of(&copied, "-af"), None);
-    assert_eq!(input_seek(&converted), Some("5.917"));
-    assert_eq!(value_of(&converted, "-af"), Some("atrim=start=6.941"));
-    assert_eq!(value_of(&converted, "-copypriorss:a"), None);
+    for encoder in ENCODERS {
+        let args = remux_args(audio(Some(converted(encoder, 2))), third);
+        assert_eq!(input_seek(&args), Some("5.917"), "{encoder:?}");
+        assert_eq!(value_of(&args, "-af"), Some("atrim=start=6.941"));
+        assert_eq!(value_of(&args, "-copypriorss:a"), None);
+    }
     assert_eq!(input_seek(&silent), Some("5.500"));
     assert_eq!(value_of(&silent, "-copypriorss:a"), None);
     assert_eq!(value_of(&silent, "-af"), None);
@@ -296,10 +304,10 @@ fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time
 
 #[test]
 fn a_remux_of_a_file_starting_late_seeks_by_the_files_own_times_only_to_cut_copied_audio() {
-    let audio = |aac_channels| Remux {
+    let audio = |conversion| Remux {
         audio: Some(RemuxAudio {
             track: 0,
-            aac_channels,
+            conversion,
         }),
         hevc: false,
     };
@@ -318,7 +326,8 @@ fn a_remux_of_a_file_starting_late_seeks_by_the_files_own_times_only_to_cut_copi
     assert_eq!(value_of(&copied, "-copypriorss:a"), Some("0"));
     assert_eq!(value_of(&at_0(audio(None)), "-seek_timestamp"), None);
     assert_eq!(input_seek(&at_0(audio(None))), Some("5.917"));
-    for unchanged in [audio(Some(2)), silent] {
+    let remuxes = ENCODERS.map(|encoder| audio(Some(converted(encoder, 2))));
+    for unchanged in remuxes.into_iter().chain([silent]) {
         assert_eq!(late(unchanged), at_0(unchanged));
     }
 }
@@ -328,7 +337,7 @@ fn a_remux_from_the_first_keyframe_keeps_the_audio_from_the_files_start() {
     let remux = Remux {
         audio: Some(RemuxAudio {
             track: 0,
-            aac_channels: None,
+            conversion: None,
         }),
         hevc: false,
     };
@@ -571,21 +580,21 @@ fn a_cached_text_subtitle_is_burned_in_from_its_ass_with_its_fonts_by_libass() {
 }
 
 #[test]
-fn audio_is_converted_to_aac_with_its_channels_or_else_copied() {
-    let audio = |aac_channels| Remux {
+fn audio_is_converted_to_its_codec_with_its_channels_or_else_copied() {
+    let audio = |conversion| Remux {
         audio: Some(RemuxAudio {
             track: 0,
-            aac_channels,
+            conversion,
         }),
         hevc: false,
     };
     let first = keyframe(0, 0, None);
 
-    let converted = remux_args(audio(Some(6)), first);
+    let surround = remux_args(audio(Some(converted(AudioEncoder::Eac3, 6))), first);
     let copied = remux_args(audio(None), first);
 
-    assert_eq!(value_of(&converted, "-c:a"), Some("aac"));
-    assert_eq!(value_of(&converted, "-ac"), Some("6"));
+    assert_eq!(value_of(&surround, "-c:a"), Some("eac3"));
+    assert_eq!(value_of(&surround, "-ac"), Some("6"));
     assert_eq!(value_of(&copied, "-c:a"), None);
     assert_eq!(value_of(&copied, "-ac"), None);
 }

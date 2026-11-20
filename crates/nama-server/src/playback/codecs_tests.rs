@@ -1,11 +1,11 @@
-use nama_proto::nama::v1::PlaybackReasonKind as Kind;
+use nama_proto::nama::v1::{AudioCodec, PlaybackReasonKind as Kind};
 
 use crate::playback::{
     Facts, Method, build,
     tests::{
         Given, MKV, MP4, audio, audio_with, decided, dolby_vision_8, facts, firefox, given,
-        hdr_video, in_container, kind_and_params, kinds, remuxing, subtitle, transcoded, video,
-        video_hdr,
+        hdr_video, in_container, kind_and_params, kinds, reason_of, remuxing, subtitle, transcoded,
+        video, video_hdr,
     },
     tracks::{BaseLayer, Hdr, Track, TrackKind},
 };
@@ -235,9 +235,67 @@ fn converted_audio_has_as_many_channels_as_the_device_plays_up_to_5_1_and_says_w
             .map(|reason| (kind_and_params(reason), reason.decided))
             .collect();
         let expected: Vec<_> = (why.into_iter())
-            .map(|(kind, channels)| ((kind, vec![("channels", channels)]), true))
+            .map(|(kind, channels)| {
+                let params = vec![("channels", channels), ("codec", "aac")];
+                ((kind, params), true)
+            })
             .collect();
         assert_eq!(channel_reasons, expected, "{case}");
+    }
+}
+
+#[test]
+fn surround_audio_is_converted_to_e_ac_3_or_else_ac_3_where_the_device_decodes_it_else_to_aac() {
+    let (eac3, ac3) = (AudioCodec::AUDIO_CODEC_EAC3, AudioCodec::AUDIO_CODEC_AC3);
+    let cases = [
+        (vec![ac3, eac3], "eac3", "E-AC-3"),
+        (vec![ac3], "ac3", "AC-3"),
+        (vec![], "aac", "AAC"),
+    ];
+    for (decodes, codec, name) in cases {
+        for (codec_of_video, method) in [("h264", Method::Remux), ("hevc", Method::Transcode)] {
+            let truehd = audio_with("truehd", true, Some(8));
+            let mut facts = in_container(MKV, Some(vec![video(codec_of_video), truehd]));
+            facts.device.audio_channels = 6;
+            facts.device.audio_codecs.extend(&decodes);
+
+            let plan = build(&mut facts);
+
+            let case = format!("{method:?} on a Device decoding {decodes:?}");
+            assert_eq!(plan.method(), Some(method), "{case}");
+            assert_eq!(plan.tracks[1], audio_with(codec, true, Some(6)), "{case}");
+            let capped = reason_of(&plan, Kind::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED);
+            let params = vec![("channels", "6"), ("codec", codec)];
+            assert_eq!(kind_and_params(capped).1, params, "{case}");
+            let text = format!("Its audio is converted to {name} 5.1, ");
+            assert!(capped.text.starts_with(&text), "{case}: {}", capped.text);
+        }
+    }
+}
+
+#[test]
+fn stereo_audio_or_audio_for_a_device_that_plays_only_stereo_is_converted_to_aac() {
+    for (source, plays) in [(2, 6), (8, 2)] {
+        let mut facts = in_container(
+            MKV,
+            Some(vec![
+                video("h264"),
+                audio_with("truehd", true, Some(source)),
+            ]),
+        );
+        facts.device.audio_channels = plays;
+        facts
+            .device
+            .audio_codecs
+            .extend([AudioCodec::AUDIO_CODEC_AC3, AudioCodec::AUDIO_CODEC_EAC3]);
+
+        let plan = build(&mut facts);
+
+        assert_eq!(
+            plan.tracks[1],
+            audio_with("aac", true, Some(2)),
+            "{source} on {plays}"
+        );
     }
 }
 
@@ -275,7 +333,7 @@ fn video_the_device_cant_decode_is_transcoded_to_h264_and_aac_and_the_plan_says_
             ),
             (
                 Kind::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
-                vec![("channels", "2")]
+                vec![("channels", "2"), ("codec", "aac")]
             ),
             (
                 Kind::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED,

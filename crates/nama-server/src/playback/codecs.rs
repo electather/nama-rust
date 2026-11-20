@@ -9,7 +9,7 @@ use super::{
     steps::hdr_reason,
     tracks::{Hdr, Probe, Track, TrackKind},
 };
-use crate::ffmpeg::{Remux, RemuxAudio, Transcode, VideoConversion};
+use crate::ffmpeg::{AudioConversion, AudioEncoder, Remux, RemuxAudio, Transcode, VideoConversion};
 
 /// Each video codec a Device can say it decodes, as ffprobe names it, with its name in plain words.
 const VIDEO_CODECS: [(&str, proto::VideoCodec, &str); 5] = [
@@ -133,19 +133,19 @@ pub(super) fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Tr
                 Remux {
                     audio:
                         Some(RemuxAudio {
-                            aac_channels: Some(channels),
+                            conversion: Some(conversion),
                             ..
                         }),
                     ..
                 },
             ..
-        }) => converted_to_aac(tracks, *channels),
+        }) => converted_audio(tracks, *conversion),
         Some(Playing::Transcode {
             transcode: Transcode { audio, video },
             ..
         }) => {
             let tracks = match audio {
-                Some(audio) => converted_to_aac(tracks, audio.aac_channels),
+                Some(audio) => converted_audio(tracks, audio.conversion),
                 None => tracks,
             };
             converted_to_h264(tracks, video)
@@ -154,21 +154,45 @@ pub(super) fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Tr
     }
 }
 
-/// How many channels a Remux converts the audio Track `audio` to, as AAC, if `device` can't
-/// decode it, as [`converted_channels`] says.
-pub(super) fn aac_channels(device: &DeviceDecoding, audio: &Track) -> Option<i64> {
+/// What a Remux converts the audio Track `audio` to, if `device` can't decode it, as
+/// [`audio_conversion`] says.
+pub(super) fn remux_audio_conversion(
+    device: &DeviceDecoding,
+    audio: &Track,
+) -> Option<AudioConversion> {
     if undecodable(audio, device).is_empty() {
         return None;
     }
-    Some(converted_channels(device, audio))
+    Some(audio_conversion(device, audio))
 }
 
-/// How many channels the audio Track `audio` has once converted to AAC for `device`: as many as
-/// it has, up to 5.1 if the Device plays 5.1 and stereo otherwise.
-pub(super) fn converted_channels(device: &DeviceDecoding, audio: &Track) -> i64 {
+/// What the audio Track `audio` is converted to for `device`: as many channels as it has, up to
+/// 5.1 if the Device plays 5.1 and stereo otherwise, as E-AC-3, or else AC-3, if that's more than
+/// stereo and the Device decodes it, or else as AAC.
+pub(super) fn audio_conversion(device: &DeviceDecoding, audio: &Track) -> AudioConversion {
     let most = if device.audio_channels >= 6 { 6 } else { 2 };
     // Stereo when the file doesn't say, which every Device plays.
-    channels_of(audio).unwrap_or(2).min(most)
+    let channels = channels_of(audio).unwrap_or(2).min(most);
+    let decodes = |codec| device.audio_codecs.contains(&codec);
+    // Many TVs and soundbars downmix surround AAC to stereo, but pass Dolby's codecs on as
+    // surround.
+    let encoder = if channels <= 2 {
+        AudioEncoder::Aac
+    } else if decodes(proto::AudioCodec::AUDIO_CODEC_EAC3) {
+        AudioEncoder::Eac3
+    } else if decodes(proto::AudioCodec::AUDIO_CODEC_AC3) {
+        AudioEncoder::Ac3
+    } else {
+        AudioEncoder::Aac
+    };
+    AudioConversion { encoder, channels }
+}
+
+/// The audio codec ffprobe names `ffprobe_name`, in plain words if it's one a Device can decode.
+pub(super) fn audio_codec_name(ffprobe_name: &str) -> &str {
+    (AUDIO_CODECS.iter())
+        .find(|(name, ..)| *name == ffprobe_name)
+        .map_or(ffprobe_name, |(.., plain)| plain)
 }
 
 /// How many channels the audio Track `audio` has, if the file says.
@@ -179,12 +203,15 @@ pub(super) const fn channels_of(audio: &Track) -> Option<i64> {
     }
 }
 
-/// `tracks` with their audio converted to AAC with `channels` channels.
-fn converted_to_aac(mut tracks: Vec<Track>, channels: i64) -> Vec<Track> {
+/// `tracks` with their audio converted as `conversion` says.
+fn converted_audio(mut tracks: Vec<Track>, conversion: AudioConversion) -> Vec<Track> {
     for track in &mut tracks {
-        if let TrackKind::Audio { channels: played } = &mut track.kind {
-            "aac".clone_into(&mut track.codec);
-            *played = Some(channels);
+        if let TrackKind::Audio { channels } = &mut track.kind {
+            conversion
+                .encoder
+                .ffmpeg_name()
+                .clone_into(&mut track.codec);
+            *channels = Some(conversion.channels);
         }
     }
     tracks

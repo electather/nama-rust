@@ -8,7 +8,7 @@ use super::{
     tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
 };
 use crate::{
-    ffmpeg::{CanDo, Remux, RemuxAudio, Transcode},
+    ffmpeg::{AudioConversion, AudioEncoder, CanDo, Remux, RemuxAudio, Transcode},
     server_settings::{HardwareChoice, PlaybackLimit},
 };
 
@@ -149,13 +149,15 @@ pub(super) fn falls_back_to(plan: &Plan) -> Option<Fallback> {
     }
 }
 
-/// A Remux playing the audio Track `track`, converting it to AAC with `aac_channels` if given.
-pub(super) const fn remuxing(track: usize, aac_channels: Option<i64>) -> Playing {
+/// A Remux playing the audio Track `track`, converting it with the encoder and channels
+/// `converted` gives, if given.
+pub(super) fn remuxing(track: usize, converted: Option<(AudioEncoder, i64)>) -> Playing {
     Playing::Remux {
         remux: Remux {
             audio: Some(RemuxAudio {
                 track,
-                aac_channels,
+                conversion: converted
+                    .map(|(encoder, channels)| AudioConversion { encoder, channels }),
             }),
             hevc: false,
         },

@@ -4,9 +4,9 @@ use std::{
 };
 
 use super::{
-    Ffmpeg, FromCut, Keyframe, Remux, RemuxAudio, ToneMapper, Transcode, TranscodeAudio,
-    VideoConversion, VideoLimit, test_media::write_test_media, write_h264_with_5_1,
-    write_hevc_with_5_1,
+    AudioConversion, AudioEncoder, Ffmpeg, FromCut, Keyframe, Remux, RemuxAudio, ToneMapper,
+    Transcode, TranscodeAudio, VideoConversion, VideoLimit, test_media::write_test_media,
+    write_h264_with_5_1, write_hevc_with_5_1,
 };
 use crate::config::Config;
 
@@ -41,18 +41,18 @@ async fn remux_with(
     assert!(output.status.success(), "{output:?}");
 }
 
-/// Remuxes the file at `path` into `dir` from `from`, its audio converted to AAC with
-/// `aac_channels` if given, until ffmpeg is done.
+/// Remuxes the file at `path` into `dir` from `from`, its audio converted as `conversion` says
+/// if given, until ffmpeg is done.
 async fn remux(
     ffmpeg: &Ffmpeg,
     path: &Path,
     dir: &Path,
     from: Keyframe,
-    aac_channels: Option<i64>,
+    conversion: Option<AudioConversion>,
 ) {
     let audio = RemuxAudio {
         track: 0,
-        aac_channels,
+        conversion,
     };
     let remux = Remux {
         audio: Some(audio),
@@ -158,7 +158,10 @@ async fn transcode(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, n: usize) {
     let transcode = Transcode {
         audio: Some(TranscodeAudio {
             track: 0,
-            aac_channels: 2,
+            conversion: AudioConversion {
+                encoder: AudioEncoder::Aac,
+                channels: 2,
+            },
         }),
         video: VideoConversion {
             hardware: None,
@@ -391,6 +394,37 @@ async fn an_hevc_remux_writes_its_video_as_hvc1_not_hev1() {
 }
 
 #[tokio::test]
+async fn a_remux_converting_surround_to_e_ac_3_writes_e_ac_3_5_1_hls() {
+    let ffmpeg = system_ffmpeg();
+    let work = tempfile::tempdir().unwrap();
+    let file = work.path().join("alien.mkv");
+    write_h264_with_5_1(&file, "dts").unwrap();
+    let dir = work.path().join("remux");
+    let first = Keyframe {
+        n: 0,
+        ms: 0,
+        previous_ms: None,
+    };
+    let surround = AudioConversion {
+        encoder: AudioEncoder::Eac3,
+        channels: 6,
+    };
+
+    remux(&ffmpeg, &file, &dir, first, Some(surround)).await;
+
+    let ffprobe = &ffmpeg.ffprobe.as_ref().unwrap().path;
+    let probed = tokio::process::Command::new(ffprobe)
+        .args(["-v", "error", "-select_streams", "a", "-show_entries"])
+        .args(["stream=codec_name,channels", "-of", "default=nw=1:nk=1"])
+        .arg(dir.join("init-0.mp4"))
+        .output()
+        .await
+        .unwrap();
+    assert!(probed.status.success(), "{probed:?}");
+    assert_eq!(String::from_utf8_lossy(&probed.stdout).trim(), "eac3\n6");
+}
+
+#[tokio::test]
 async fn a_remux_started_at_a_keyframe_starts_its_audio_where_a_run_from_the_first_does() {
     let ffmpeg = system_ffmpeg();
     let work = tempfile::tempdir().unwrap();
@@ -411,12 +445,16 @@ async fn a_remux_started_at_a_keyframe_starts_its_audio_where_a_run_from_the_fir
     // or a frame of 1024 samples from a file starting before 0 (`start_audio_at`), and converted
     // to AAC within its frame, which can fall differently.
     let copied_within = if start_ms < 0 { 1024 } else { 88 };
-    for (aac_channels, within) in [(None, copied_within), (Some(2), 1024)] {
-        let run = |name: &str| work.path().join(format!("{name}-{aac_channels:?}"));
+    let stereo_aac = AudioConversion {
+        encoder: AudioEncoder::Aac,
+        channels: 2,
+    };
+    for (conversion, within) in [(None, copied_within), (Some(stereo_aac), 1024)] {
+        let run = |name: &str| work.path().join(format!("{name}-{conversion:?}"));
         let (whole, restarted) = (run("whole"), run("restarted"));
-        remux(&ffmpeg, &file, &whole, first, aac_channels).await;
+        remux(&ffmpeg, &file, &whole, first, conversion).await;
 
-        remux(&ffmpeg, &file, &restarted, third, aac_channels).await;
+        remux(&ffmpeg, &file, &restarted, third, conversion).await;
 
         let (expected, actual) = (
             starts_at(&fs::read(cut(&whole, 0, 3)).unwrap(), AUDIO),
@@ -424,7 +462,7 @@ async fn a_remux_started_at_a_keyframe_starts_its_audio_where_a_run_from_the_fir
         );
         assert!(
             expected.abs_diff(actual) <= within,
-            "{aac_channels:?}: {actual} against {expected}"
+            "{conversion:?}: {actual} against {expected}"
         );
     }
 }
@@ -449,7 +487,7 @@ async fn a_remux_of_a_file_starting_after_0_starts_its_copied_audio_where_a_run_
     let copied = Remux {
         audio: Some(RemuxAudio {
             track: 0,
-            aac_channels: None,
+            conversion: None,
         }),
         hevc: false,
     };
