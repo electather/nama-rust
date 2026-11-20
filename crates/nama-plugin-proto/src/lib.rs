@@ -34,7 +34,7 @@ pub mod nama {
 /// It covers the Manifest, the messages the services share and what the Kernel gives a Plugin;
 /// each service has a version of its own, in [`SERVICES`]. It is not this crate's version;
 /// `AGENTS.md` says when it changes.
-pub const CONTRACT_VERSION: &str = "0.5.1";
+pub const CONTRACT_VERSION: &str = "0.5.2";
 
 /// The full names of the `nama.plugin.v1` services, the Extension Points an Installed Plugin can
 /// serve, as a Manifest's `Point.service` names them.
@@ -51,8 +51,7 @@ pub mod services {
     pub const EVENT_OBSERVER: &str = "nama.plugin.v1.EventObserverService";
     /// A title source, which the Kernel searches and fetches Movies and Shows from.
     pub const TITLE_SOURCE: &str = "nama.plugin.v1.TitleSourceService";
-    /// An Automation Plugin, which the Kernel ticks on a schedule and which may call the Kernel's
-    /// functions; those are versioned with it.
+    /// An Automation Plugin, which the Kernel ticks on a schedule.
     pub const AUTOMATION: &str = "nama.plugin.v1.AutomationService";
     /// A Recogniser, which proposes what a file is or which title an Item names; the Kernel
     /// decides.
