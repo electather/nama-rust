@@ -70,8 +70,8 @@ function server(saved: SetSubtitleOffsetRequest[], burnedIn?: number) {
 
 /**
  * Opens the player and gives each `<track>` one cue, from 10 s to 12 s as its file times it, in a
- * stand-in for its text track, which happy-dom makes anew each time it's asked. Returns, by URL,
- * when each cue starts and ends now.
+ * stand-in for its text track, which happy-dom makes anew each time it's asked. As a browser's, it
+ * has no cues while disabled. Returns, by URL, when each cue starts and ends now.
  */
 async function playing(saved: SetSubtitleOffsetRequest[], burnedIn?: number) {
   openApp(PLAYER, server(saved, burnedIn));
@@ -79,7 +79,13 @@ async function playing(saved: SetSubtitleOffsetRequest[], burnedIn?: number) {
   const cues = new Map<string, VTTCue>();
   for (const element of video.querySelectorAll("track")) {
     const cue = new VTTCue(10, 12, "Hello");
-    Object.defineProperty(element, "track", { value: { mode: "disabled", cues: [cue] } });
+    const track = {
+      mode: "disabled",
+      get cues() {
+        return this.mode === "disabled" ? null : [cue];
+      },
+    };
+    Object.defineProperty(element, "track", { value: track });
     cues.set(element.getAttribute("src") ?? "", cue);
   }
   const loaded = (url: string) => {
@@ -150,6 +156,18 @@ test("each Track keeps its own offset, so switching away and back restores it", 
     expect(timed(FRENCH)).toStrictEqual([9.9, 11.9]);
   });
   expect(timed(ENGLISH)).toStrictEqual([11.6, 13.6]);
+});
+
+test("a text subtitle the browser loaded before it was picked shows its Track's offset once picked", async () => {
+  const { loaded, timed } = await playing([]);
+  // As Chrome loads the one the system's captions setting prefers, which the player then hides.
+  loaded(ENGLISH);
+
+  pickIn("Subtitles", /English/u);
+
+  await waitFor(() => {
+    expect(timed(ENGLISH)).toStrictEqual([11.5, 13.5]);
+  });
 });
 
 test("with subtitles off there's no offset", async () => {

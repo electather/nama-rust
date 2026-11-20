@@ -26,9 +26,12 @@ export function useShownSubtitles(
   const subtitle = plan.subtitles.find(({ url }) => url === shown);
   const offsetMs = subtitle === undefined ? 0 : offsetOf(subtitle);
   const drawn = subtitle?.format === SubtitleFormat.WEBVTT ? undefined : subtitle;
+  const shownStates = useSubtitles(videoRef, shown);
+  // After `useSubtitles` shows it: a disabled track has no cues, and one the browser loaded before
+  // it was picked fires no `load` again.
   useCueOffset(videoRef, shown, offsetMs);
   return {
-    ...useSubtitles(videoRef, shown),
+    ...shownStates,
     ...useDrawnSubtitle(videoRef, { subtitle: drawn, offsetMs }, () => {
       if (videoRef.current && drawn) {
         chooseSubtitle(videoRef.current, drawn.place);
