@@ -26,7 +26,7 @@ const STOP_FILE = ".sandcastle/STOP";
 // SIGUSR1 (see handover.sh) does the same for this run alone, so a newer run can start beside it: it drains.
 let draining = false;
 const stopping = () => draining || existsSync(STOP_FILE);
-// Opus for implement and review; fix (merge main, mend CI) is narrow enough for Sonnet, with Opus as fallback.
+// Opus for implement and review; triage and fix (merge main, mend CI) are narrow enough for Sonnet, fix with Opus as fallback.
 const OPUS = sandcastle.claudeCode("claude-opus-5-5", { effort: "high" });
 const SONNET = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" });
 const READY = "ready-for-agent";
@@ -752,7 +752,7 @@ async function triage(issue: Issue): Promise<Outcome> {
   let out: string;
   try {
     stage(issue, "triage");
-    out = (await agent(box, issue, "triage", { ME })).stdout;
+    out = (await agent(box, issue, "triage", { ME }, SONNET)).stdout;
   } finally {
     await box.close();
     ok("git", "branch", "-D", issue.branch);

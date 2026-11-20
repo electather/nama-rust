@@ -499,9 +499,10 @@ fn delete_and_write_again(dir: &Path, n: usize, until: std::time::Instant) {
     while std::time::Instant::now() < until {
         fs::write(&whole, n.to_string()).unwrap();
         // Gone only briefly, so the requests that find it gone and wait leave many more. Windows
-        // refuses to delete it while a request reads it, so it's tried again.
+        // refuses to delete it while a request reads it, so it's tried again, and keeps its name
+        // until the last reader closes it, so the rename is tried again too.
         if fs::remove_file(&file).is_ok() {
-            fs::rename(&whole, &file).unwrap();
+            while fs::rename(&whole, &file).is_err() {}
         }
     }
 }
