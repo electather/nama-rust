@@ -57,7 +57,7 @@ function episodeEntry(
   } as const;
 }
 
-test("home asks for Continue Watching a row's worth at a time", async () => {
+test("home asks only for the first row's worth of Continue Watching", async () => {
   const asked: ListContinueWatchingRequest[] = [];
   openApp(
     "/",
@@ -70,9 +70,10 @@ test("home asks for Continue Watching a row's worth at a time", async () => {
   );
 
   await screen.findByRole("heading", { name: "Libraries" });
-  const pagesAsked = asked.map(({ page }) => [page?.size, page?.token]);
+  // Home may refetch on mount under load (#1238), so this checks each request's page, not how many.
+  const pagesAsked = asked.map(({ page }) => ({ size: page?.size, token: page?.token }));
   expect(pagesAsked).not.toHaveLength(0);
-  expect(pagesAsked).toStrictEqual(pagesAsked.map(() => [6, ""]));
+  expect(pagesAsked).toStrictEqual(pagesAsked.map(() => ({ size: 6, token: "" })));
 });
 
 test("a Movie's Continue Watching card resumes it, with how much is left", async () => {
