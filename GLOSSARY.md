@@ -210,7 +210,7 @@ One installment of a Show, numbered within a Season.
 _Avoid_: chapter, part
 
 **Version**:
-One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0062).
+One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0069).
 _Avoid_: copy, edition, file
 
 **Taken along**:

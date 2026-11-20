@@ -320,7 +320,7 @@ impl Contents {
     }
 
     /// The path of the Version `version` and the file stored there, or `None` unless the file
-    /// holds an Item, Matched or not (ADR 0062), so a file whose name didn't parse is never served
+    /// holds an Item, Matched or not (ADR 0069), so a file whose name didn't parse is never served
     /// or probed.
     pub(crate) async fn version_file(
         &self,

@@ -149,3 +149,29 @@ fn describe(
         }
     }
 }
+
+/// A Registry listing `plugin` as an Installed Plugin, as if it were found on disk.
+#[cfg(test)]
+pub(super) fn listing(plugin: Installed) -> Registry {
+    let registry = Registry::new();
+    registry.list_installed(Found(vec![(PathBuf::from("test.wasm"), Ok(plugin))]));
+    registry
+}
+
+/// What `points` records once the listed `plugin` fails at `point`, panicking if it doesn't
+/// within 5 seconds. The Registry logs a failure as it records it, so a test reads the log after.
+#[cfg(test)]
+pub(super) async fn until_failing(
+    points: &crate::plugins::ExtensionPoints,
+    plugin: &PluginId,
+    point: nama_plugin_api::PointKey,
+) -> crate::plugins::Failing {
+    // An Installed Plugin's call runs on a blocking thread, which yielding alone doesn't wait for.
+    for _ in 0..500 {
+        if let Some(failing) = points.failing(plugin, point) {
+            return failing;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("{plugin} didn't fail at {point:?} within 5 seconds");
+}
