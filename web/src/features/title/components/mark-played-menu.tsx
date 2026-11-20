@@ -1,9 +1,9 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Ellipsis } from "lucide-react";
 
-import { useSetPlayed } from "@/features/title/data/use-set-played";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { SetPlayedRequestSchema } from "@/gen/nama/v1/watch_state_pb";
+import { useSetPlayed } from "@/shared/hooks/use-set-played";
 import { seasonName } from "@/shared/lib/title-facts";
 import { Button } from "@/shared/ui/button";
 import {

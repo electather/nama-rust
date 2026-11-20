@@ -1,21 +1,28 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { LinkOptions } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
 import type { BackdropCard } from "@/features/home/components/backdrop-card";
-import type { Hiding } from "@/features/home/lib/hiding";
 import type {
   ContinueWatchingEntry,
   ContinueWatchingEpisode,
+  Episode,
   Movie,
+  Show,
 } from "@/gen/nama/v1/browse_pb";
+import type { SetPlayedRequestSchema } from "@/gen/nama/v1/watch_state_pb";
 import { episodeName, metadataLine, timeLeft } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
-/** A Continue Watching entry: where it plays, resuming where you stopped, its card, and hiding it. */
+/**
+ * A Continue Watching entry, keyed as the row lists it: where it plays, resuming where you stopped,
+ * its card, and what marking its Movie or Episode watched asks.
+ */
 export interface Card {
+  key: string;
   link: LinkOptions;
   backdrop: ComponentProps<typeof BackdropCard>;
-  hiding: Hiding;
+  markWatched: MessageInitShape<typeof SetPlayedRequestSchema>;
 }
 
 /** The card of a Continue Watching entry, or none for one the Server left incomplete. */
@@ -38,11 +45,11 @@ function movieCard(library: bigint, movie: Movie): Card[] {
   const movieId = titleParam(movie.id);
   return [
     {
-      hiding: {
-        key: `${libraryId}/${movieId}`,
-        title: movie.title,
+      key: `${libraryId}/${movieId}`,
+      markWatched: {
         libraryId: library,
         target: { case: "movieId", value: movie.id },
+        played: true,
       },
       link: {
         to: "/libraries/$libraryId/movies/$movieId/play",
@@ -60,10 +67,14 @@ function movieCard(library: bigint, movie: Movie): Card[] {
   ];
 }
 
-/** An Episode shows its Show's Backdrop, saying which Episode it is, such as "S1, E3". */
+// Protobuf message fields are always optional; the Server sets them.
 function episodeCard(library: bigint, { show, episode }: ContinueWatchingEpisode): Card[] {
-  // Protobuf message fields are always optional; the Server sets them.
-  if (!show?.id || !episode) {
+  return show && episode ? episodeCardOf(library, show, episode) : [];
+}
+
+/** An Episode shows its Show's Backdrop, saying which Episode it is, such as "S1, E3". */
+function episodeCardOf(library: bigint, show: Show, episode: Episode): Card[] {
+  if (!show.id || !episode.id) {
     return [];
   }
   const libraryId = String(library);
@@ -72,11 +83,11 @@ function episodeCard(library: bigint, { show, episode }: ContinueWatchingEpisode
   const number = String(episode.episodeNumber);
   return [
     {
-      hiding: {
-        key: `${libraryId}/${showId}/${season}/${number}`,
-        title: show.title,
+      key: `${libraryId}/${showId}/${season}/${number}`,
+      markWatched: {
         libraryId: library,
-        target: { case: "showId", value: show.id },
+        target: { case: "episodeId", value: episode.id },
+        played: true,
       },
       link: {
         to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
