@@ -303,6 +303,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_LIST_EPISODES_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_NEXT_EPISODE_SPEC.procedure,       Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_FEATURED_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROWS_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC.procedure,   Access::SignedIn),
     (proto::BROWSE_SERVICE_SEARCH_LIBRARIES_SPEC.procedure,       Access::SignedIn),

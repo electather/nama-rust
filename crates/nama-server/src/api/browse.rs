@@ -7,15 +7,16 @@ use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
     GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
     GetUnmatchedVersionResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
-    ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest, ListGenresResponse,
-    ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest, ListHomeRowsResponse,
-    ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
-    ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission, SearchLibrariesRequest,
-    SearchLibrariesResponse, ShowSort, SortDirection, WatchedFilter,
+    ListEpisodesRequest, ListEpisodesResponse, ListFeaturedRequest, ListFeaturedResponse,
+    ListGenresRequest, ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse,
+    ListHomeRowsRequest, ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse,
+    ListShowsRequest, ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort,
+    Permission, SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection,
+    WatchedFilter,
 };
 
 use crate::{
-    browse::{Browse, Episode, ListedShow, Movie, Show, Started, Version},
+    browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version},
     home_rows::{HomeRows, OnServer, RowTitle},
     library::{
         Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
@@ -269,6 +270,23 @@ impl BrowseService for BrowseServiceHandler {
                 .map(|started| started_to_proto(started, &images))
                 .collect(),
             page: page.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_featured(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListFeaturedRequest>,
+    ) -> ServiceResult<ListFeaturedResponse> {
+        let user = caller(&ctx)?.user.id;
+        let featured = self.browse.featured(user).await;
+        let featured = featured.map_err(refused(Fields::NONE))?;
+        let images = self.images.shown().await?;
+        Response::ok(ListFeaturedResponse {
+            titles: (featured.into_iter())
+                .map(|title| featured_to_proto(title, &images))
+                .collect(),
             ..Default::default()
         })
     }
@@ -573,6 +591,31 @@ fn started_to_proto(started: Started, images: &ShownImages) -> proto::ContinueWa
     }
 }
 
+/// A Featured title as clients see it, with its images as `images` gives them.
+fn featured_to_proto(featured: Featured, images: &ShownImages) -> proto::FeaturedTitle {
+    let (library_id, movie_or_show, next_episode) = match featured {
+        Featured::Movie {
+            library,
+            movie,
+            state,
+        } => (library, movie_to_proto(movie, state, images).into(), None),
+        Featured::Show {
+            library,
+            show,
+            next,
+        } => {
+            let next = next.map(|(episode, state)| episode_to_proto(episode, state, images));
+            (library, show_to_proto(&show, images).into(), next)
+        }
+    };
+    proto::FeaturedTitle {
+        library_id,
+        movie_or_show: Some(movie_or_show),
+        next_episode: next_episode.into(),
+        ..Default::default()
+    }
+}
+
 fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
     // Stored positions and durations are never negative.
     let unsigned = |ms: i64| u64::try_from(ms).unwrap_or_default();
@@ -611,6 +654,8 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         content_rating: show.content_rating.clone(),
         overview: show.overview.clone(),
         first_air_date: show.first_air_date.clone(),
+        // Season 0 holds the Specials.
+        season_count: u32::try_from(show.seasons.range(1..).count()).unwrap_or(u32::MAX),
         ..Default::default()
     }
 }

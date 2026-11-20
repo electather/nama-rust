@@ -46,6 +46,7 @@ fn a_movie_and_a_show_carry_their_title_logo_url() {
         logo: Some(logo()),
         genres: Vec::new(),
         content_rating: None,
+        added_at: 0,
         versions: Vec::new(),
     };
     let show = Show {
@@ -60,6 +61,7 @@ fn a_movie_and_a_show_carry_their_title_logo_url() {
         first_air_date: None,
         genres: Vec::new(),
         content_rating: None,
+        added_at: 0,
         seasons: BTreeMap::new(),
     };
     let url = Some(artwork_url("fanart", "/logo.png"));

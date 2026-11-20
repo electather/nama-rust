@@ -27,6 +27,8 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) logo: Option<ImageRef>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
+    /// When its first Version was added, in seconds since the Unix epoch.
+    pub(crate) added_at: i64,
     /// The files Matched to it, by path.
     pub(crate) versions: Vec<V>,
 }
@@ -48,6 +50,7 @@ impl<V> Movie<V> {
             logo: self.logo,
             genres: self.genres,
             content_rating: self.content_rating,
+            added_at: self.added_at,
             versions: self.versions.into_iter().map(version).collect(),
         }
     }
@@ -110,6 +113,8 @@ pub(crate) struct Show<V = Version> {
     pub(crate) first_air_date: Option<String>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
+    /// When its newest Episode was added, in seconds since the Unix epoch.
+    pub(crate) added_at: i64,
     /// The Seasons the Library has Episodes of, by number.
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
@@ -431,7 +436,8 @@ impl Contents {
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.backdrop, item_matches.backdrop_plugin,
                               item_matches.logo, item_matches.logo_plugin, item_matches.genres,
-                              item_matches.content_rating, libraries.title_sources
+                              item_matches.content_rating, library_items.added_at,
+                              libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
@@ -483,9 +489,11 @@ impl Contents {
                     logo: ImageRef::stored(row.logo, row.logo_plugin),
                     genres: genres(row.genres.as_deref())?,
                     content_rating: row.content_rating,
+                    added_at: row.added_at,
                     versions: Vec::new(),
                 }),
             };
+            movie.added_at = movie.added_at.min(row.added_at);
             movie.versions.push(version);
         }
         let mut movies: Vec<Movie> = movies.into_values().collect();
@@ -523,7 +531,8 @@ impl Contents {
                               overview, release_date, runtime_minutes, poster, poster_plugin,
                               backdrop, backdrop_plugin, logo, logo_plugin, still, genres,
                               content_rating, show_poster, show_poster_plugin, show_overview,
-                              show_first_air_date, metadata_version, libraries.title_sources
+                              show_first_air_date, metadata_version, library_items.added_at,
+                              libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
@@ -570,9 +579,11 @@ impl Contents {
                     first_air_date: row.show_first_air_date,
                     genres: genres(row.genres.as_deref())?,
                     content_rating: row.content_rating,
+                    added_at: row.added_at,
                     seasons: BTreeMap::new(),
                 }),
             };
+            show.added_at = show.added_at.max(row.added_at);
             let season = show.seasons.entry(row.season).or_insert_with(|| Season {
                 poster: ImageRef::stored(row.poster, row.poster_plugin),
                 episodes: Vec::new(),

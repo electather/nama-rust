@@ -22,8 +22,10 @@ use crate::{
     scanner::read_only_folder,
 };
 
+mod featured;
 mod watching;
 
+pub(crate) use featured::Featured;
 pub(crate) use watching::Started;
 
 /// A Movie whose Versions have their Tracks.
