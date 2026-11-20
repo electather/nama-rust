@@ -138,13 +138,16 @@ impl Kernel {
         self
     }
 
-    /// The Kernel, the Admin having granted the Plugin Read Requests, with `title` Requested by
-    /// the Users `user_ids`: none for a title whose Requesters were all deleted. A title not given
-    /// here was Requested by nothing.
+    /// The Kernel, the Admin having granted the Plugin Read Requests, with `title` Requested and
+    /// the Users `user_ids` added to its Requesters: none for a title whose Requesters were all
+    /// deleted. A title not given here is one nobody Requested.
     #[must_use]
     pub fn requesters(mut self, title: TitleRef, user_ids: impl IntoIterator<Item = i64>) -> Self {
         let scripted = self.requesters.get_or_insert_default();
-        scripted.push((title, user_ids.into_iter().collect()));
+        match scripted.iter_mut().find(|(of, _)| *of == title) {
+            Some((_, requesters)) => requesters.extend(user_ids),
+            None => scripted.push((title, user_ids.into_iter().collect())),
+        }
         self
     }
 
@@ -731,6 +734,7 @@ mod tests {
     fn requesters_answer_each_title_and_whether_anything_requested_it() {
         let mut kernel = Kernel::new()
             .requesters(movie(1, "1"), [7])
+            .requesters(movie(1, "1"), [8])
             .requesters(movie(1, "2"), []);
 
         let asked = [movie(1, "1"), movie(1, "2"), movie(1, "3")];
@@ -739,7 +743,7 @@ mod tests {
         let read: Vec<_> = (answered.iter())
             .map(|title| (title.requested, title.user_ids.as_slice()))
             .collect();
-        assert_eq!(read, [(true, &[7][..]), (true, &[]), (false, &[])]);
+        assert_eq!(read, [(true, &[7, 8][..]), (true, &[]), (false, &[])]);
     }
 
     #[test]
