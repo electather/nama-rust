@@ -20,10 +20,11 @@ use std::time::{Duration, Instant};
 
 use browsing::{ALIEN_1080P, Fixture};
 use connectrpc::client::{ClientConfig, HttpClient};
-use home_row_plugin::{disable, enable, set_handle};
+use home_row_plugin::{PLUGIN, disable, enable, set_handle};
 use nama_proto::nama::v1::{
-    BrowseServiceClient, FeaturedTitle, LibraryKind, ListEpisodesRequest, ListFeaturedRequest,
-    ReportProgressRequest, WatchStateServiceClient, featured_title::MovieOrShow,
+    BrowseServiceClient, EnablePluginRequest, FeaturedTitle, LibraryKind, ListEpisodesRequest,
+    ListFeaturedRequest, PluginPermission, ReportProgressRequest, WatchStateServiceClient,
+    featured_title::MovieOrShow,
 };
 use server::{
     TestServer, WAIT,
@@ -277,4 +278,37 @@ async fn disabling_the_plugin_drops_its_suggestions() {
     disable(&fx.server).await;
 
     assert_eq!(featured(ada.client_config()).await, []);
+}
+
+#[tokio::test]
+async fn starting_a_title_keeps_a_plugin_reading_watch_states_suggestions_listed() {
+    let files = [ALIEN_1080P, "Heat (1995) {tmdb-949}/Heat (1995).mkv"];
+    let fx = library_of(
+        LibraryKind::LIBRARY_KIND_MOVIES,
+        &files,
+        TestServer::builder().moves_clock(),
+    )
+    .await;
+    fx.server.install_test_plugin("home-rows").await;
+    (fx.server.plugin_service())
+        .enable_plugin(EnablePluginRequest {
+            id: PLUGIN.to_owned(),
+            granted_permissions: vec![PluginPermission::PLUGIN_PERMISSION_READ_WATCH_STATES.into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let ada = fx.server.user_with_default_permissions("Ada").await;
+    set_handle(&ada, "ada").await;
+    fx.server.advance_clock(FIFTEEN_DAYS);
+    featured_once_it_lists(ada.client_config(), "Heat").await;
+
+    start(ada.client_config(), fx.version_ids(ALIEN).await[0]).await;
+
+    let listed = featured(ada.client_config()).await;
+    assert!(
+        titles(&listed).contains(&"Heat"),
+        "the Plugin's stale suggestions are still listed: {:?}",
+        titles(&listed)
+    );
 }

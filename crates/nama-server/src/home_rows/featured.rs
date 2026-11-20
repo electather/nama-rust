@@ -128,13 +128,17 @@ impl HomeRows {
         }
     }
 
-    /// Each Plugin's suggestions for the User `user`, with when they go stale.
+    /// Each Plugin's suggestions for the User `user`, with when they go stale: at once if a change
+    /// deleted their put-off.
     async fn stored_suggestions(
         &self,
         user: i64,
     ) -> Result<HashMap<PluginId, (i64, Vec<Suggestion>)>, sqlx::Error> {
         let rows = sqlx::query!(
-            "SELECT plugin_id, suggestions, stale_at FROM featured_suggestions WHERE user_id = ?",
+            r#"SELECT s.plugin_id, s.suggestions, coalesce(r.stale_at, 0) AS "stale_at!: i64"
+               FROM featured_suggestions s
+               LEFT JOIN featured_refreshes r ON r.plugin_id = s.plugin_id AND r.user_id = s.user_id
+               WHERE s.user_id = ?"#,
             user
         )
         .fetch_all(self.db.reader())
@@ -155,9 +159,18 @@ impl HomeRows {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
+                    // An empty row until the first answer, so `featured` sees the put-off and a
+                    // failing Plugin isn't asked again on every visit.
                     sqlx::query!(
-                        "INSERT INTO featured_suggestions (plugin_id, user_id, suggestions, stale_at)
-                         VALUES (?, ?, '[]', ?)
+                        "INSERT INTO featured_suggestions (plugin_id, user_id, suggestions)
+                         VALUES (?, ?, '[]') ON CONFLICT (plugin_id, user_id) DO NOTHING",
+                        plugin,
+                        user
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query!(
+                        "INSERT INTO featured_refreshes (plugin_id, user_id, stale_at) VALUES (?, ?, ?)
                          ON CONFLICT (plugin_id, user_id) DO UPDATE SET stale_at = excluded.stale_at",
                         plugin,
                         user,
@@ -189,9 +202,18 @@ impl HomeRows {
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE featured_suggestions SET suggestions = ?, stale_at = ?
-                         WHERE plugin_id = ? AND user_id = ?",
+                        "UPDATE featured_suggestions SET suggestions = ?1
+                         WHERE plugin_id = ?2 AND user_id = ?3
+                           AND EXISTS (SELECT 1 FROM featured_refreshes r
+                                       WHERE r.plugin_id = ?2 AND r.user_id = ?3)",
                         suggestions,
+                        plugin,
+                        user
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query!(
+                        "UPDATE featured_refreshes SET stale_at = ? WHERE plugin_id = ? AND user_id = ?",
                         stale_at,
                         plugin,
                         user
@@ -204,7 +226,7 @@ impl HomeRows {
             .await
     }
 
-    /// Deletes every User's suggestions from each Plugin no longer giving them, as it is disabled
+    /// Deletes every User's suggestions, and their put-offs, from each Plugin no longer giving them, as it is disabled
     /// or its version stopped serving `user_featured`.
     async fn forget_featured_of_plugins_no_longer_giving_it(&self) -> Result<(), sqlx::Error> {
         let plugins = sqlx::query_scalar!("SELECT DISTINCT plugin_id FROM featured_suggestions")
@@ -225,6 +247,13 @@ impl HomeRows {
                 Box::pin(async move {
                     sqlx::query!(
                         "DELETE FROM featured_suggestions
+                         WHERE plugin_id IN (SELECT value FROM json_each(?))",
+                        gone
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query!(
+                        "DELETE FROM featured_refreshes
                          WHERE plugin_id IN (SELECT value FROM json_each(?))",
                         gone
                     )

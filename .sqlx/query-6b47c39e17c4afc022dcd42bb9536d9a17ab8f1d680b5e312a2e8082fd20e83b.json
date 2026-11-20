@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE featured_refreshes SET stale_at = ? WHERE plugin_id = ? AND user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "6b47c39e17c4afc022dcd42bb9536d9a17ab8f1d680b5e312a2e8082fd20e83b"
+}

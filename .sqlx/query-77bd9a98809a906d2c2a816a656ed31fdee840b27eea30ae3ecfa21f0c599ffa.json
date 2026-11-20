@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT plugin_id, suggestions, stale_at FROM featured_suggestions WHERE user_id = ?",
+  "query": "SELECT s.plugin_id, s.suggestions, coalesce(r.stale_at, 0) AS \"stale_at!: i64\"\n               FROM featured_suggestions s\n               LEFT JOIN featured_refreshes r ON r.plugin_id = s.plugin_id AND r.user_id = s.user_id\n               WHERE s.user_id = ?",
   "describe": {
     "columns": [
       {
@@ -26,15 +26,10 @@
         }
       },
       {
-        "name": "stale_at",
+        "name": "stale_at!: i64",
         "ordinal": 2,
         "type_info": "Integer",
-        "origin": {
-          "Table": {
-            "table": "featured_suggestions",
-            "name": "stale_at"
-          }
-        }
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -46,5 +41,5 @@
       false
     ]
   },
-  "hash": "5340bf70f325adbc96d4ac89c7d5ec584165c9b5ef84920c59ac8d9bcf110bf5"
+  "hash": "77bd9a98809a906d2c2a816a656ed31fdee840b27eea30ae3ecfa21f0c599ffa"
 }
