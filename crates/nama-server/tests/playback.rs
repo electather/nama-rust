@@ -29,6 +29,8 @@ mod resumed_ranges;
 mod server;
 #[path = "playback/sidecars.rs"]
 mod sidecars;
+#[path = "playback/subtitle_offsets.rs"]
+mod subtitle_offsets;
 #[path = "playback/subtitle_pass.rs"]
 mod subtitle_pass;
 

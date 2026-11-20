@@ -64,8 +64,8 @@ macro_rules! automation {
 /// of its calls (ADR 0071). Each needs a Plugin Permission the Manifest requests in `permissions`
 /// and the Admin granted, and fails with the Kernel's plain words when it wasn't. Off wasm32, as
 /// in a Plugin's unit tests, the [`testing::Kernel`](crate::testing::Kernel) a test installs with
-/// [`testing::with`](crate::testing::with) answers the Store's and the others fail; called outside
-/// `with`, each panics.
+/// [`testing::with`](crate::testing::with) answers every one of them; called outside `with`, each
+/// panics.
 pub mod kernel {
     use buffa::Message;
     use extism_pdk::Error;
@@ -152,7 +152,7 @@ pub mod kernel {
     }
 
     /// The most titles one page of [`titles_page`] holds.
-    const MAX_PAGE_SIZE: u32 = 1000;
+    pub(crate) const MAX_PAGE_SIZE: u32 = 1000;
 
     /// A page of up to `page_size` of the Library `library_id`'s titles, by kind and then id,
     /// from `page_token`: empty for the first page, or the `next_page_token` of the page before,

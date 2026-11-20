@@ -8,12 +8,6 @@ mod browsing;
 #[expect(dead_code, reason = "this binary uploads no Custom Image through it")]
 #[path = "support/custom_images.rs"]
 mod custom_images;
-#[expect(dead_code, reason = "this binary removes no quality profile")]
-#[path = "support/fake_servarr.rs"]
-mod fake_servarr;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_sonarr.rs"]
-mod fake_sonarr;
 #[path = "support/fake_tvdb.rs"]
 mod fake_tvdb;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -25,7 +19,6 @@ mod server;
 
 use connectrpc::client::HttpClient;
 use custom_images::image;
-use fake_sonarr::FakeSonarr;
 use fake_tvdb::{FakeTvdb, SEVERANCE};
 use hyper::{Request, body::Bytes};
 use image::ImageFormat;
@@ -80,17 +73,20 @@ async fn a_library_searching_tvdb_first_matches_a_show_through_tvdb() {
 }
 
 #[tokio::test]
-async fn a_season_of_a_tvdb_show_comes_from_tvdb_and_reaches_sonarr_with_its_tvdb_id() {
+async fn a_season_of_a_tvdb_show_comes_from_tvdb_and_reaches_its_fulfiller_with_its_tvdb_id() {
     let plugins = Registry::new();
     plugins.set_provider_precedence::<dyn TitleSource>(vec![
         PluginId::from_static("tmdb"),
         PluginId::from_static("tvdb"),
     ]);
-    let server = TestServer::builder().plugins(plugins).tmdb().start().await;
+    let server = TestServer::builder()
+        .plugins(plugins)
+        .tmdb()
+        .shows_fulfiller(&[])
+        .start()
+        .await;
     let tvdb = FakeTvdb::start().await;
     tvdb.enable_on(&server).await;
-    let sonarr = FakeSonarr::start().await;
-    sonarr.enable_on(&server).await;
     let ada = server.user_with_default_permissions("Ada").await;
 
     let asked = server
@@ -108,15 +104,12 @@ async fn a_season_of_a_tvdb_show_comes_from_tvdb_and_reaches_sonarr_with_its_tvd
         panic!("asked {} Requests, not one", asked.len());
     };
     let approved = server.approve(pending.id).await;
-    sonarr.finish_refreshes().await;
 
     assert_eq!(approved.state, RequestState::Processing);
-    let added: Vec<_> = sonarr
-        .shows()
-        .iter()
-        .map(|show| show["tvdbId"].clone())
+    let handed: Vec<_> = (server.fulfiller().handed_seasons().into_iter())
+        .map(|(_, tvdb_id, season_number, _)| (tvdb_id, season_number))
         .collect();
-    assert_eq!(added, [serde_json::json!(SEVERANCE)]);
+    assert_eq!(handed, [(Some(SEVERANCE), 1)]);
     let season = format!("/v4/series/{SEVERANCE}/episodes/default?season=1");
     assert!(tvdb.requests().contains(&season), "{:?}", tvdb.requests());
     let from_tmdb = server.tmdb().requests();

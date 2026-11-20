@@ -13,9 +13,10 @@ use nama_proto::nama::v1::{
     ReportTrackPickRequest, ReportTrackPickResponse, SearchSubtitlesRequest,
     SearchSubtitlesResponse, SetAudioPreferenceRequest, SetAudioPreferenceResponse,
     SetAutoplayRequest, SetAutoplayResponse, SetSubtitleBackgroundRequest,
-    SetSubtitleBackgroundResponse, SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse,
-    SetSubtitleSizeRequest, SetSubtitleSizeResponse, StopPlaybackRequest, StopPlaybackResponse,
-    SubtitleKind, UsersAudioPreference, UsersSubtitlePreference,
+    SetSubtitleBackgroundResponse, SetSubtitleOffsetRequest, SetSubtitleOffsetResponse,
+    SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse, SetSubtitleSizeRequest,
+    SetSubtitleSizeResponse, StopPlaybackRequest, StopPlaybackResponse, SubtitleKind,
+    UsersAudioPreference, UsersSubtitlePreference,
 };
 
 use crate::{
@@ -25,9 +26,10 @@ use crate::{
         self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, DownloadError, Method,
         NAMED_LIMITS, PickedLimit, Planned, Preferred, PreviewFrames, Probing, ProbingError,
         RunningPlans, Segment, SegmentKind, StartError, StartedPlan, SubtitleAppearance,
-        SubtitleDownloads, SubtitlePreference, TrackKind, TrackPreferenceError, TrackPreferences,
-        is_autoplay_on, is_language, limit_to_proto, method_to_proto, reason_to_proto, segments_of,
-        set_autoplay, set_subtitle_background, set_subtitle_size, subtitle_appearance_of,
+        SubtitleDownloads, SubtitleOffsets, SubtitlePreference, Track, TrackKind,
+        TrackPreferenceError, TrackPreferences, is_autoplay_on, is_language, limit_to_proto,
+        method_to_proto, reason_to_proto, segments_of, set_autoplay, set_subtitle_background,
+        set_subtitle_offset, set_subtitle_size, subtitle_appearance_of, subtitle_offsets_of,
         track_to_proto,
     },
     server_settings::{PlaybackLimit, PlaybackSettings},
@@ -59,6 +61,7 @@ impl PlaybackService for PlaybackServiceHandler {
         request: ServiceRequest<'_, PlanPlaybackRequest>,
     ) -> ServiceResult<PlanPlaybackResponse> {
         let caller = caller(&ctx)?;
+        let user = caller.user.id;
         let client = client_ip(&ctx)?;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
@@ -115,7 +118,9 @@ impl PlaybackService for PlaybackServiceHandler {
             (segments_of(&self.db, request.version_id).await).map_err(database_failed)?;
         let preview_frames =
             (self.preview_frames.of(request.version_id).await).map_err(database_failed)?;
-        let mut response = planned_to_proto(plan, segments);
+        let offsets = (subtitle_offsets_of(&self.db, user, request.version_id).await)
+            .map_err(database_failed)?;
+        let mut response = planned_to_proto(plan, segments, &offsets);
         if let Some(shown) = response.plan.as_option_mut() {
             shown.preview_frames = preview_frames.into();
         }
@@ -387,6 +392,25 @@ impl PlaybackService for PlaybackServiceHandler {
             .map_err(database_failed)?;
         Response::ok(SetSubtitleBackgroundResponse::default())
     }
+
+    async fn set_subtitle_offset(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetSubtitleOffsetRequest>,
+    ) -> ServiceResult<SetSubtitleOffsetResponse> {
+        let user = caller(&ctx)?.user.id;
+        let SetSubtitleOffsetRequest {
+            version_id: version,
+            track,
+            offset_ms,
+            ..
+        } = request.to_owned_message();
+        let (place, track) = self.track_at(version, track, is_subtitle).await?;
+        set_subtitle_offset(&self.db, user, version, (place, &track), offset_ms)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(SetSubtitleOffsetResponse::default())
+    }
 }
 
 /// The error a subtitle search or download that failed with `err` is answered with, naming the
@@ -567,14 +591,26 @@ impl PlaybackServiceHandler {
         })
     }
 
-    /// What describes the Track at `place` in the Version `version`'s Tracks, probing it first if
-    /// they aren't current. Refused unless `is_kind` says it is of the kind picked.
+    /// What describes the Track at `place` in the Version `version`'s Tracks, as [`Self::track_at`]
+    /// finds it.
     async fn picked(
         &self,
         version: i64,
         place: u32,
         is_kind: fn(&TrackKind) -> bool,
     ) -> Result<Description, ConnectError> {
+        let (_, track) = self.track_at(version, place, is_kind).await?;
+        Ok(Description::of(&track))
+    }
+
+    /// The Track at `place` in the Version `version`'s Tracks, with that place, probing it first if
+    /// they aren't current. Refused unless `is_kind` says it is of the kind asked for.
+    async fn track_at(
+        &self,
+        version: i64,
+        place: u32,
+        is_kind: fn(&TrackKind) -> bool,
+    ) -> Result<(usize, Track), ConnectError> {
         let probe = match self.probing.current(version).await {
             Ok(probe) => Some(probe),
             // Its Tracks aren't known, so no plan offered one to pick.
@@ -582,11 +618,11 @@ impl PlaybackServiceHandler {
             Err(ProbingError::NoSuchVersion(_)) => return Err(version_not_found()),
             Err(ProbingError::Database(err)) => return Err(database_failed(err)),
         };
-        let track = (probe.as_ref())
+        let found = (probe.as_ref())
             .zip(usize::try_from(place).ok())
-            .and_then(|(probe, place)| probe.tracks.get(place))
-            .filter(|track| is_kind(&track.kind));
-        track.map(Description::of).ok_or_else(|| {
+            .and_then(|(probe, place)| Some((place, probe.tracks.get(place)?.clone())))
+            .filter(|(_, track)| is_kind(&track.kind));
+        found.ok_or_else(|| {
             refuse(
                 RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
                 "the Version has no Track of the kind picked at that place",
@@ -634,7 +670,11 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
     }
 }
 
-fn planned_to_proto(planned: Planned, segments: Vec<Segment>) -> PlanPlaybackResponse {
+fn planned_to_proto(
+    planned: Planned,
+    segments: Vec<Segment>,
+    offsets: &SubtitleOffsets,
+) -> PlanPlaybackResponse {
     let (id, url, plan, playable_versions) = match planned {
         Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan, vec![]),
         // The API's plan id 0 is no plan.
@@ -668,6 +708,7 @@ fn planned_to_proto(planned: Planned, segments: Vec<Segment>) -> PlanPlaybackRes
                 url: subtitle.url.clone(),
                 format: subtitle.format.into(),
                 font_urls: subtitle.font_urls.clone(),
+                offset_ms: offsets.of(subtitle.place, &subtitle.track),
                 ..Default::default()
             })
             .collect(),

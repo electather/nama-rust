@@ -60,11 +60,11 @@ use nama_proto::nama::v1::{
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
-    db::Database,
+    db::{self, Database},
     events::{EventBus, event},
     library::{
-        Artwork, Change, Contents, CustomImages, Libraries, LibraryError, LibraryKind, LocalImages,
-        NotFound, Recognisers, ScanLock, ScanLocks,
+        Artwork, Change, Contents, CustomImages, LastScan, Libraries, LibraryError, LibraryKind,
+        LocalImages, NotFound, Recognisers, ScanLock, ScanLocks,
     },
     matching::{self, Matcher, count},
     playback::{Probing, RunningPlans, Sidecars},
@@ -394,6 +394,7 @@ impl Scanner {
             // changed file's subtitles.
             probing.clean_leftovers().await;
         }
+        let finished_at = db::now();
         self.inner.events.publish(vec![event(ScanFinished {
             library_id: id,
             added: summary.added,
@@ -402,6 +403,22 @@ impl Scanner {
             unchanged: summary.unchanged,
             ..Default::default()
         })]);
+        // After `ScanFinished`, which mustn't wait behind other writes when nothing changed
+        // (#1130), and before Matching, so `MatchingFinished` finds it recorded.
+        let last = LastScan {
+            finished_at,
+            added: summary.added,
+            updated: summary.updated,
+            removed: summary.removed,
+            unchanged: summary.unchanged,
+        };
+        // Only bookkeeping, so Matching still follows the `ScanFinished` already sent.
+        if let Err(err) = self.inner.libraries.record_last_scan(id, last).await {
+            tracing::error!(
+                library = id,
+                "recording a Library's last scan failed: {err}"
+            );
+        }
         let matched = self.inner.matcher.match_library(scan, &cancel).await?;
         self.inner.events.publish(vec![event(MatchingFinished {
             library_id: id,

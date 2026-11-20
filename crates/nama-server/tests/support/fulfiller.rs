@@ -4,6 +4,7 @@
 use std::{
     collections::HashMap,
     future,
+    path::PathBuf,
     sync::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicBool, Ordering},
@@ -89,6 +90,10 @@ pub(crate) struct FakeFulfiller {
     stopped_monitoring: Arc<Mutex<Vec<i64>>>,
     /// What of a Show it was told to stop monitoring each time, in order.
     stopped_monitoring_shows: Arc<Mutex<Vec<ShowDeleted>>>,
+    /// The file it checks for each time it is told to stop monitoring a Movie.
+    checked_file: Arc<Mutex<Option<PathBuf>>>,
+    /// Whether the checked file was there each time it was told to stop monitoring a Movie.
+    checked_file_was_there: Arc<Mutex<Vec<bool>>>,
     /// Whether it panics when told to stop monitoring.
     panics_stopping_monitoring: Arc<AtomicBool>,
     /// What it says it is downloading, by reference.
@@ -212,6 +217,24 @@ impl FakeFulfiller {
             .store(true, Ordering::Relaxed);
     }
 
+    /// Has each Movie it is told to stop monitoring from now on note whether the file at `path`
+    /// was there then.
+    pub(crate) fn check_file(&self, path: PathBuf) {
+        *self
+            .checked_file
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(path);
+    }
+
+    /// Whether the checked file was there each time it was told to stop monitoring a Movie, in
+    /// order.
+    pub(crate) fn checked_file_was_there(&self) -> Vec<bool> {
+        self.checked_file_was_there
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
     /// The TMDB id of each Movie it was told to stop monitoring, in order.
     pub(crate) fn stopped_monitoring(&self) -> Vec<i64> {
         self.stopped_monitoring
@@ -318,6 +341,16 @@ impl Fulfiller<Movies> for FakeFulfiller {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(tmdb_id);
+        if let Some(checked) = &*self
+            .checked_file
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+        {
+            self.checked_file_was_there
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(checked.exists());
+        }
         let refuses = self.refuses.load(Ordering::Relaxed);
         Box::pin(async move {
             if refuses {

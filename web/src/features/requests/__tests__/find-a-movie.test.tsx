@@ -88,7 +88,7 @@ test("a Movie found that isn't on the Server shows as Pending once Requested, wi
   const results = await search("Dune");
   fireEvent.click(await within(results).findByRole("button", { name: "Request Dune" }));
 
-  await expect(within(results).findByText("Pending")).resolves.toBeDefined();
+  await expect(within(results).findByText("Pending approval")).resolves.toBeDefined();
   expect(within(results).queryByRole("button", { name: "Request Dune" })).toBeNull();
 });
 
@@ -110,13 +110,13 @@ test("a Movie someone else Requested shows its state, and Requesting it joins", 
   await screen.findByLabelText("Find a Movie or Show");
 
   const results = await search("Heat");
-  await expect(within(results).findByText("Approved")).resolves.toBeDefined();
+  await expect(within(results).findByText("Requested")).resolves.toBeDefined();
   fireEvent.click(within(results).getByRole("button", { name: "Request Heat" }));
 
   await waitFor(() => {
     expect(within(results).queryByRole("button", { name: "Request Heat" })).toBeNull();
   });
-  expect(within(results).getByText("Approved")).toBeDefined();
+  expect(within(results).getByText("Requested")).toBeDefined();
 });
 
 test("the state filter isn't shown while a search's results are", async () => {
@@ -144,7 +144,7 @@ test("a Movie's page shows its Request state after Requesting it, without a relo
   expect(screen.getByText("Paul Atreides travels to Arrakis.")).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Request Dune" }));
 
-  await expect(screen.findByText("Pending")).resolves.toBeDefined();
+  await expect(screen.findByText("Pending approval")).resolves.toBeDefined();
 });
 
 test("a Movie's page shows how far its Processing Request's download has got", async () => {
@@ -156,9 +156,8 @@ test("a Movie's page shows how far its Processing Request's download has got", a
   };
   openApp("/movies/tmdb-438631", searchableServer([{ ...notOnTheServer, request: downloading }]));
 
-  const bar = await screen.findByRole("progressbar", { name: "Downloaded" });
-  expect(bar.getAttribute("aria-valuenow")).toBe("42");
-  expect(screen.getByText("Dune.2021.2160p")).toBeDefined();
+  const pill = await screen.findByRole("progressbar", { name: "Downloading" });
+  expect(pill.getAttribute("aria-valuenow")).toBe("42");
 });
 
 test("a Movie's page for one in a Library opens it there", async () => {

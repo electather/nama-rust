@@ -75,6 +75,15 @@ pub struct LibraryView<'a> {
     ///
     /// Field 12: `segment_source_ids`
     pub segment_source_ids: ::buffa::RepeatedView<'a, &'a str>,
+    /// The Library's last Scan that finished storing, as its `ScanFinished` said, replaced by each
+    /// one that does. Recorded just after that `ScanFinished` is sent, so it may not be read yet on
+    /// it, and before the Scan's `MatchingFinished`. Unset before its first, and in `ListLibraries`
+    /// for a caller without `PERMISSION_MANAGE_LIBRARIES`.
+    ///
+    /// Field 13: `last_scan`
+    pub last_scan: ::buffa::MessageFieldView<
+        super::super::__buffa::view::LastScanView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
@@ -157,6 +166,27 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.preview_frames = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.last_scan.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.last_scan = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::LastScanView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -251,6 +281,15 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
+            last_scan: match self.last_scan.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::LastScan,
+                        ::buffa::Inline<super::super::LastScan>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -258,7 +297,7 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -301,13 +340,21 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         for v in &self.segment_source_ids {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.last_scan.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.last_scan.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -350,6 +397,14 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         }
         for v in &self.segment_source_ids {
             ::buffa::types::put_string_field(12u32, v, buf);
+        }
+        if self.last_scan.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.last_scan.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -411,6 +466,11 @@ impl<'__a> ::serde::Serialize for LibraryView<'__a> {
         }
         if !self.segment_source_ids.is_empty() {
             __map.serialize_entry("segmentSourceIds", &*self.segment_source_ids)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.last_scan.as_option() {
+                __map.serialize_entry("lastScan", __v)?;
+            }
         }
         __map.end()
     }
@@ -608,6 +668,18 @@ impl LibraryOwnedView {
     pub fn segment_source_ids(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().segment_source_ids
     }
+    /// The Library's last Scan that finished storing, as its `ScanFinished` said, replaced by each
+    /// one that does. Recorded just after that `ScanFinished` is sent, so it may not be read yet on
+    /// it, and before the Scan's `MatchingFinished`. Unset before its first, and in `ListLibraries`
+    /// for a caller without `PERMISSION_MANAGE_LIBRARIES`.
+    ///
+    /// Field 13: `last_scan`
+    #[must_use]
+    pub fn last_scan(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::LastScanView<'_>> {
+        &self.0.reborrow().last_scan
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<LibraryView<'static>>>
 for LibraryOwnedView {
@@ -632,6 +704,387 @@ impl ::buffa::HasMessageView for super::super::Library {
     type ViewHandle = LibraryOwnedView;
 }
 impl ::serde::Serialize for LibraryOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What a Library's last finished Scan stored. A Scan that fails or is cancelled leaves it as it
+/// was.
+#[derive(Clone, Debug, Default)]
+pub struct LastScanView<'a> {
+    /// When the Scan finished storing, in seconds since the Unix epoch.
+    ///
+    /// Field 1: `finished_at`
+    pub finished_at: i64,
+    /// As `ScanFinished.added`.
+    ///
+    /// Field 2: `added`
+    pub added: u64,
+    /// As `ScanFinished.updated`.
+    ///
+    /// Field 3: `updated`
+    pub updated: u64,
+    /// As `ScanFinished.removed`.
+    ///
+    /// Field 4: `removed`
+    pub removed: u64,
+    /// As `ScanFinished.unchanged`.
+    ///
+    /// Field 5: `unchanged`
+    pub unchanged: u64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for LastScanView<'a> {
+    type Owned = super::super::LastScan;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.finished_at = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.added = ::buffa::types::decode_uint64(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.updated = ::buffa::types::decode_uint64(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.removed = ::buffa::types::decode_uint64(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.unchanged = ::buffa::types::decode_uint64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::LastScan, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::LastScan, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::LastScan {
+            finished_at: self.finished_at,
+            added: self.added,
+            updated: self.updated,
+            removed: self.removed,
+            unchanged: self.unchanged,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for LastScanView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.finished_at != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.finished_at) as u64;
+        }
+        if self.added != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.added) as u64;
+        }
+        if self.updated != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.updated) as u64;
+        }
+        if self.removed != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.removed) as u64;
+        }
+        if self.unchanged != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.unchanged) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.finished_at != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.finished_at, buf);
+        }
+        if self.added != 0u64 {
+            ::buffa::types::put_uint64_field(2u32, self.added, buf);
+        }
+        if self.updated != 0u64 {
+            ::buffa::types::put_uint64_field(3u32, self.updated, buf);
+        }
+        if self.removed != 0u64 {
+            ::buffa::types::put_uint64_field(4u32, self.removed, buf);
+        }
+        if self.unchanged != 0u64 {
+            ::buffa::types::put_uint64_field(5u32, self.unchanged, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for LastScanView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.finished_at) {
+            __map
+                .serialize_entry(
+                    "finishedAt",
+                    &::buffa::json_helpers::ProtoJson(&self.finished_at),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u64(&self.added) {
+            __map
+                .serialize_entry(
+                    "added",
+                    &::buffa::json_helpers::ProtoJson(&self.added),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u64(&self.updated) {
+            __map
+                .serialize_entry(
+                    "updated",
+                    &::buffa::json_helpers::ProtoJson(&self.updated),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u64(&self.removed) {
+            __map
+                .serialize_entry(
+                    "removed",
+                    &::buffa::json_helpers::ProtoJson(&self.removed),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u64(&self.unchanged) {
+            __map
+                .serialize_entry(
+                    "unchanged",
+                    &::buffa::json_helpers::ProtoJson(&self.unchanged),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for LastScanView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "LastScan";
+    const FULL_NAME: &'static str = "nama.v1.LastScan";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.LastScan";
+}
+::buffa::impl_default_view_instance!(LastScanView);
+::buffa::impl_view_reborrow!(LastScanView);
+/** Self-contained, `'static` owned view of a `LastScan` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`LastScanView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`LastScanView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct LastScanOwnedView(::buffa::OwnedView<LastScanView<'static>>);
+impl LastScanOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(LastScanOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            LastScanOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::LastScan,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            LastScanOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`LastScanView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &LastScanView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::LastScan {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// When the Scan finished storing, in seconds since the Unix epoch.
+    ///
+    /// Field 1: `finished_at`
+    #[must_use]
+    pub fn finished_at(&self) -> i64 {
+        self.0.reborrow().finished_at
+    }
+    /// As `ScanFinished.added`.
+    ///
+    /// Field 2: `added`
+    #[must_use]
+    pub fn added(&self) -> u64 {
+        self.0.reborrow().added
+    }
+    /// As `ScanFinished.updated`.
+    ///
+    /// Field 3: `updated`
+    #[must_use]
+    pub fn updated(&self) -> u64 {
+        self.0.reborrow().updated
+    }
+    /// As `ScanFinished.removed`.
+    ///
+    /// Field 4: `removed`
+    #[must_use]
+    pub fn removed(&self) -> u64 {
+        self.0.reborrow().removed
+    }
+    /// As `ScanFinished.unchanged`.
+    ///
+    /// Field 5: `unchanged`
+    #[must_use]
+    pub fn unchanged(&self) -> u64 {
+        self.0.reborrow().unchanged
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<LastScanView<'static>>>
+for LastScanOwnedView {
+    fn from(inner: ::buffa::OwnedView<LastScanView<'static>>) -> Self {
+        LastScanOwnedView(inner)
+    }
+}
+impl ::core::convert::From<LastScanOwnedView>
+for ::buffa::OwnedView<LastScanView<'static>> {
+    fn from(wrapper: LastScanOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<LastScanView<'static>>>
+for LastScanOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<LastScanView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::LastScan {
+    type View<'a> = LastScanView<'a>;
+    type ViewHandle = LastScanOwnedView;
+}
+impl ::serde::Serialize for LastScanOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

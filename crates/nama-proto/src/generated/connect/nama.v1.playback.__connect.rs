@@ -102,6 +102,14 @@ pub type OwnedSetSubtitleBackgroundRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetSubtitleBackgroundResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetSubtitleOffsetRequestView<'static>>`.
+pub type OwnedSetSubtitleOffsetRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleOffsetRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetSubtitleOffsetResponseView<'static>>`.
+pub type OwnedSetSubtitleOffsetResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleOffsetResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::PlanPlaybackResponse>
 for crate::messages::nama::v1::__buffa::view::PlanPlaybackResponseView<'_> {
     fn encode(
@@ -544,6 +552,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetSubtitleOffsetResponse>
+for crate::messages::nama::v1::__buffa::view::SetSubtitleOffsetResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetSubtitleOffsetResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleOffsetResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const PLAYBACK_SERVICE_SERVICE_NAME: &str = "nama.v1.PlaybackService";
 /// Static [`Spec`](::connectrpc::Spec) for the `PlanPlayback` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -621,6 +663,12 @@ pub const PLAYBACK_SERVICE_SET_SUBTITLE_SIZE_SPEC: ::connectrpc::Spec = ::connec
 /// Static [`Spec`](::connectrpc::Spec) for the `SetSubtitleBackground` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.PlaybackService/SetSubtitleBackground",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetSubtitleOffset` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_SET_SUBTITLE_OFFSET_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/SetSubtitleOffset",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -1013,6 +1061,33 @@ pub trait PlaybackService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetSubtitleBackgroundResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Sets the caller's Subtitle Offset for one subtitle Track of a Version, on every Device, which
+    /// later plans give as `PlaybackSubtitle.offset_ms`. It's kept for that Track alone, so a sidecar
+    /// or a downloaded subtitle added later starts at 0 (ADR 0070). Fails with `not_found` if there is
+    /// no such Version, and is refused with `REFUSAL_REASON_TRACK_NOT_FOUND` if the Version has no
+    /// subtitle Track at that place.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_subtitle_offset<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetSubtitleOffsetRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetSubtitleOffsetResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1425,6 +1500,35 @@ impl<S: PlaybackService> PlaybackServiceExt for S {
                 },
             )
             .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC)
+            .route_view(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "SetSubtitleOffset",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetSubtitleOffsetRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetSubtitleOffsetRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_subtitle_offset(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetSubtitleOffsetResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_OFFSET_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1555,6 +1659,12 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC),
+                )
+            }
+            "SetSubtitleOffset" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_OFFSET_SPEC),
                 )
             }
             _ => None,
@@ -1851,6 +1961,28 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SetSubtitleBackgroundResponse,
+                        >(format)
+                })
+            }
+            "SetSubtitleOffset" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetSubtitleOffsetRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetSubtitleOffsetRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetSubtitleOffsetRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_subtitle_offset(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetSubtitleOffsetResponse,
                         >(format)
                 })
             }
@@ -2561,6 +2693,51 @@ where
                 &self.transport,
                 &self.config,
                 PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetSubtitleOffset RPC. Sends a request to /nama.v1.PlaybackService/SetSubtitleOffset.
+    pub async fn set_subtitle_offset(
+        &self,
+        request: crate::messages::nama::v1::SetSubtitleOffsetRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetSubtitleOffsetResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_subtitle_offset_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetSubtitleOffset RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_subtitle_offset_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetSubtitleOffsetRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetSubtitleOffsetResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_SET_SUBTITLE_OFFSET_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

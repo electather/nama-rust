@@ -12,20 +12,24 @@ import {
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { openTracks, rowIn, rowsOf } from "@/test-player";
 
-/** The options of each ASS renderer made, and whether the next one fails to start. */
+/** The options of each ASS renderer made, each renderer, and whether the next one fails to start. */
 const libass = vi.hoisted(
-  (): { made: { subContent: string; fonts: Uint8Array[] }[]; failsToStart: boolean } => ({
-    made: [],
-    failsToStart: false,
-  }),
+  (): {
+    made: { subContent: string; fonts: Uint8Array[] }[];
+    renderers: { timeOffset: number; resize: () => Promise<void> }[];
+    failsToStart: boolean;
+  } => ({ made: [], renderers: [], failsToStart: false }),
 );
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("jassub", () => ({
   default: class {
     public readonly ready: Promise<void>;
+    public timeOffset = 0;
+    public resize = vi.fn<() => Promise<void>>(async () => {});
     public readonly _worker = Object.assign(new EventTarget(), { terminate: vi.fn<() => void>() });
     public constructor(options: { subContent: string; fonts: Uint8Array[] }) {
       libass.made.push(options);
+      libass.renderers.push(this);
       // As its worker reports a track libass rejects.
       this.ready = libass.failsToStart ? Promise.reject(new Error("no track")) : Promise.resolve();
     }
@@ -45,7 +49,7 @@ beforeEach(() => {
   vi.stubGlobal("Worker", moduleWorker);
   // happy-dom doesn't name the ready states the player reads.
   Object.assign(HTMLMediaElement, { HAVE_METADATA: 1 });
-  Object.assign(libass, { made: [], failsToStart: false });
+  Object.assign(libass, { made: [], renderers: [], failsToStart: false });
 });
 
 afterEach(() => {
@@ -92,6 +96,7 @@ function server(asked: PlanPlaybackRequest[]) {
             place: 1,
             format: SubtitleFormat.ASS,
             fontUrls: [FONT],
+            offsetMs: 2000,
           };
           return { plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/v", subtitles: [drawn] } };
         }
@@ -173,6 +178,22 @@ test("an ASS Track says Loading… until it and its fonts are fetched, then is d
   expect(made?.fonts).toHaveLength(1);
   expect(asked).toHaveLength(1);
   expect(screen.getByLabelText("Alien")).toBe(video);
+});
+
+test("an ASS Track is drawn at its offset, and a nudge shifts and redraws it in place", async () => {
+  await playingWith([], SERVED);
+  fireEvent.click(rowIn("Subtitles", /Signs/u));
+  await waitFor(() => {
+    expect(libass.renderers.map(({ timeOffset }) => timeOffset)).toStrictEqual([-2]);
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Show earlier" }));
+
+  await waitFor(() => {
+    expect(libass.renderers.map(({ timeOffset }) => timeOffset)).toStrictEqual([-1.9]);
+  });
+  // A paused video draws no next frame of its own.
+  expect(libass.renderers[0]?.resize).toHaveBeenCalledWith();
 });
 
 test("an ASS Track whose font can't be fetched says so, and isn't drawn", async () => {
