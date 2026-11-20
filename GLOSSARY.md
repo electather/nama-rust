@@ -297,6 +297,10 @@ _Avoid_: shelf, section, rail, carousel
 The few Movies and Shows at the top of a User's home page, which the Kernel picks by weight from its own suggestions and those Plugins give. It isn't a Home row: it has no heading, and only titles on the Server can be in it.
 _Avoid_: hero, spotlight, banner, billboard
 
+**Home layout**:
+The order of a User's Home rows, and which of them and whether Featured are shown. Featured is always at the top. An Admin sets the default Home layout; a User follows it until they change their own, and a row they haven't placed goes to the end of theirs.
+_Avoid_: arrangement, customization, home settings, home preferences
+
 ## Playback
 
 **Track**:
