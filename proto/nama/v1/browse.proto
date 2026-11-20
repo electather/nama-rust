@@ -159,6 +159,8 @@ message Movie {
   // Its Content Rating in its title source's country, such as `R`. Unset if it has none
   // there.
   optional string content_rating = 17;
+  // Whether it is on the caller's Watchlist, under any of its ids.
+  bool on_watchlist = 18;
 }
 
 // One file a Movie or Episode is available in.
@@ -364,8 +366,10 @@ message Show {
   optional string overview = 12;
   // When it first aired, as `YYYY-MM-DD`.
   optional string first_air_date = 13;
+  // As `Movie.on_watchlist`.
+  bool on_watchlist = 14;
   // How many of its Seasons the Library has an Episode of, Specials aside.
-  uint32 season_count = 14;
+  uint32 season_count = 15;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.

@@ -1,7 +1,8 @@
 name: test-report
 
-# Records each finished CI run's test results on the `test-history` branch, writes a summary of
-# its flaky and slow tests, and keeps one `needs-triage` issue per flaky test (ADR 0022).
+# Records each finished CI run's test results on the ref `refs/ci/test-history`, writes a summary of
+# its flaky and slow tests, keeps one `needs-triage` issue per flaky test (ADR 0022), and sends a
+# copy of the results to Grafana Cloud (ADR 0073).
 # `crates/nama-test-report` holds the logic; this workflow does the git and `gh` work around it.
 #
 # A `workflow_run` workflow, so the write token lives here and never in CI, whose Dependabot runs
@@ -15,7 +16,7 @@ on:
 permissions:
   # Downloads the CI run's artifacts.
   actions: read
-  # Pushes to `test-history`.
+  # Pushes to `refs/ci/test-history`.
   contents: write
   issues: write
 
@@ -40,8 +41,9 @@ jobs:
         run: |
           if ! error=$(gh run download "$RUN_ID" --pattern "test-reports-$RUN_ATTEMPT-*" \
               --dir "$RUNNER_TEMP/reports" 2>&1); then
-            # This attempt uploaded none: its tests never ran.
-            if grep -q 'no valid artifacts' <<< "$error"; then
+            # This attempt uploaded none: its tests never ran. Older gh says the first, newer the
+            # second, and the runner image picks the version.
+            if grep -qE 'no valid artifacts|no artifact matches any of the names or patterns' <<< "$error"; then
               echo "::notice::CI run $RUN_ID attempt $RUN_ATTEMPT has no test reports; nothing to record."
               exit 0
             fi
@@ -56,19 +58,18 @@ jobs:
       - name: Read the history and the flaky-test issues
         if: steps.reports.outputs.found
         run: |
-          git fetch origin +refs/heads/test-history:refs/remotes/origin/test-history || true
-          if git rev-parse --verify -q origin/test-history; then
-            git worktree add --detach history origin/test-history
+          # Outside `refs/heads`, so a clone never fetches it (ADR 0073).
+          git fetch origin +refs/ci/test-history:refs/ci/test-history || true
+          if git rev-parse -q --verify refs/ci/test-history; then
+            git worktree add --detach history refs/ci/test-history
           else
             git worktree add --detach history
             git -C history checkout -q --orphan test-history
             git -C history rm -rfq --ignore-unmatch .
           fi
-          # The tool needs the last 30 days: every month they touch, three when they span February.
-          for month in $(for days in $(seq 30 -1 0); do
-              date -u -d "${RUN_STARTED_AT:0:10} -$days days" +%Y-%m
-            done | uniq); do
-            cat "history/$month.jsonl" 2> /dev/null || true
+          # The tool needs the last 30 days.
+          for days in $(seq 30 -1 0); do
+            cat "history/$(date -u -d "${RUN_STARTED_AT:0:10} -$days days" +%F).jsonl" 2> /dev/null || true
           done > "$RUNNER_TEMP/recent.jsonl"
           # Not `--app github-actions`: it returns none of the issues github-actions opened.
           gh issue list --search "author:app/github-actions" --state all --limit 1000 \
@@ -94,23 +95,34 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          month="${RUN_STARTED_AT:0:7}.jsonl"
+          day="${RUN_STARTED_AT:0:10}"
+          cutoff=$(date -u -d "$day -60 days" +%F)
           # Empty when this CI run is already recorded (a re-run of this workflow) or ran no tests.
           if [ ! -s "$RUNNER_TEMP/out/history.jsonl" ]; then
             exit 0
           fi
           for attempt in 1 2 3 4 5; do
-            cat "$RUNNER_TEMP/out/history.jsonl" >> "$month"
-            git add "$month"
-            git commit -qm "CI run $RUN_ID, attempt $RUN_ATTEMPT"
-            git push -q origin HEAD:refs/heads/test-history && exit 0
+            base=$(git rev-parse -q --verify refs/ci/test-history || true)
+            cat "$RUNNER_TEMP/out/history.jsonl" >> "$day.jsonl"
+            # The history keeps 60 days (ADR 0073).
+            for file in *.jsonl; do
+              if [[ "${file%.jsonl}" < "$cutoff" ]]; then
+                rm "$file"
+              fi
+            done
+            git add -A
+            # No parent, so the days dropped above leave the repository, not only the tree. The
+            # lease refuses the push if another report pushed after `base`.
+            commit=$(git commit-tree "$(git write-tree)" -m "CI run $RUN_ID, attempt $RUN_ATTEMPT")
+            git push -q --force-with-lease="refs/ci/test-history:$base" origin \
+              "$commit:refs/ci/test-history" && exit 0
             # Another report pushed first. Lines are only ever appended, so start again from its
             # history rather than merge.
             sleep $((attempt * 5))
-            git fetch -q origin +refs/heads/test-history:refs/remotes/origin/test-history
-            git reset -q --hard origin/test-history
+            git fetch -q origin +refs/ci/test-history:refs/ci/test-history
+            git reset -q --hard refs/ci/test-history
           done
-          echo "::error::Couldn't push to test-history"
+          echo "::error::Couldn't push to refs/ci/test-history"
           exit 1
       - name: Update the flaky-test issues
         if: steps.reports.outputs.found
@@ -126,3 +138,23 @@ jobs:
               retitle) gh issue edit "$(field issue)" --title "$(field title)" ;;
             esac
           done < "$RUNNER_TEMP/out/issue-actions.jsonl"
+      - name: Send the history to Grafana Cloud
+        if: steps.reports.outputs.found
+        env:
+          GRAFANA_CLOUD_OTLP_ENDPOINT: ${{ secrets.GRAFANA_CLOUD_OTLP_ENDPOINT }}
+          GRAFANA_CLOUD_OTLP_AUTH: ${{ secrets.GRAFANA_CLOUD_OTLP_AUTH }}
+        run: |
+          if [ -z "$GRAFANA_CLOUD_OTLP_ENDPOINT" ] || [ -z "$GRAFANA_CLOUD_OTLP_AUTH" ]; then
+            echo "::notice::No Grafana Cloud secrets, so nothing sent."
+            exit 0
+          fi
+          # Empty when this CI run is already recorded or ran no tests, as when appending.
+          if [ ! -s "$RUNNER_TEMP/out/history.jsonl" ]; then
+            exit 0
+          fi
+          # The branch is the record and Grafana a copy, so a failed send only warns (ADR 0073).
+          if ! gzip -c "$RUNNER_TEMP/out/otlp-logs.json" | curl -sS --fail-with-body \
+              -H "Authorization: $GRAFANA_CLOUD_OTLP_AUTH" -H 'Content-Type: application/json' \
+              -H 'Content-Encoding: gzip' --data-binary @- "$GRAFANA_CLOUD_OTLP_ENDPOINT/v1/logs"; then
+            echo "::warning::Couldn't send CI run $RUN_ID's test results to Grafana Cloud."
+          fi

@@ -1,8 +1,9 @@
 //! What a Library holds: `nama.v1.BrowseService`.
 
-use std::{ffi::OsStr, path::Path};
+use std::{ffi::OsStr, path::Path, sync::Arc};
 
-use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_plugin_api::metadata::ExternalIds;
 use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
     GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
@@ -17,16 +18,18 @@ use nama_proto::nama::v1::{
 
 use crate::{
     browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
+    db::Database,
     home_rows::{HomeRows, OnServer, RowTitle},
     library::{
         Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
-        Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
+        Slot, TitleKind, TitleSort, Unmatched, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
+    watchlist,
 };
 
 use super::{
-    ImageSources, ShownImages, caller, external_id_to_proto, proto_number,
+    ImageSources, ShownImages, caller, database_failed, external_id_to_proto, proto_number,
     requests::{missing_movie_to_proto, missing_show_to_proto},
     required_id,
 };
@@ -44,6 +47,21 @@ pub(super) struct BrowseServiceHandler {
     /// Serves the posters of the missing titles Home rows show, which no Match stores.
     pub(super) artwork: Artwork,
     pub(super) images: ImageSources,
+    /// Holds the Watchlists that say whether a Movie or Show is on the caller's.
+    pub(super) db: Arc<Database>,
+}
+
+impl BrowseServiceHandler {
+    /// Whether the title of `kind` known by `ids` is on the User `user`'s Watchlist.
+    async fn on_watchlist(
+        &self,
+        user: i64,
+        kind: TitleKind,
+        ids: &ExternalIds,
+    ) -> Result<bool, ConnectError> {
+        let on = watchlist::has(&self.db, user, kind, ids).await;
+        on.map_err(database_failed)
+    }
 }
 
 #[expect(
@@ -103,9 +121,14 @@ impl BrowseService for BrowseServiceHandler {
             title: "movie_id",
             ..Fields::LIBRARY
         }))?;
+        let on_watchlist = (self.on_watchlist(user.id, TitleKind::Movie, &movie.ids)).await?;
         let images = self.images.shown().await?;
         Response::ok(GetMovieResponse {
-            movie: movie_to_proto(movie, state, &images).into(),
+            movie: proto::Movie {
+                on_watchlist,
+                ..movie_to_proto(movie, state, &images)
+            }
+            .into(),
             // Where a Library lives is shown only to those who may delete what's in it (AGENTS.md,
             // "Clients name ids"), not to every User who can browse it.
             read_only_folder: read_only_folder
@@ -166,9 +189,10 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn get_show(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, GetShowRequest>,
     ) -> ServiceResult<GetShowResponse> {
+        let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
         let id = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let show = self.browse.show(request.library_id, &id).await;
@@ -176,6 +200,7 @@ impl BrowseService for BrowseServiceHandler {
             title: "show_id",
             ..Fields::LIBRARY
         }))?;
+        let on_watchlist = (self.on_watchlist(user, TitleKind::Show, &show.ids)).await?;
         let images = self.images.shown().await?;
         let seasons = (show.seasons.keys())
             .map(|&number| {
@@ -190,7 +215,11 @@ impl BrowseService for BrowseServiceHandler {
             })
             .collect();
         Response::ok(GetShowResponse {
-            show: show_to_proto(&show, &images).into(),
+            show: proto::Show {
+                on_watchlist,
+                ..show_to_proto(&show, &images)
+            }
+            .into(),
             seasons,
             ..Default::default()
         })
@@ -265,10 +294,19 @@ impl BrowseService for BrowseServiceHandler {
         let listed = self.browse.continue_watching(user, &asked).await;
         let (started, page) = listed.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await?;
+        let mut entries = Vec::with_capacity(started.len());
+        // ponytail: one query per entry, on a page of at most 100; ask for the page's at once if
+        // Continue Watching gets slow.
+        for entry in started {
+            let (kind, ids) = match &entry {
+                Started::Movie { movie, .. } => (TitleKind::Movie, &movie.ids),
+                Started::Episode { show, .. } => (TitleKind::Show, &show.ids),
+            };
+            let on_watchlist = self.on_watchlist(user, kind, ids).await?;
+            entries.push(started_to_proto(entry, on_watchlist, &images));
+        }
         Response::ok(ListContinueWatchingResponse {
-            entries: (started.into_iter())
-                .map(|started| started_to_proto(started, &images))
-                .collect(),
+            entries,
             page: page.into(),
             ..Default::default()
         })
@@ -562,14 +600,25 @@ fn movie_to_proto(
     }
 }
 
-/// A Continue Watching entry as clients see it, with its images as `images` gives them.
-fn started_to_proto(started: Started, images: &ShownImages) -> proto::ContinueWatchingEntry {
+/// A Continue Watching entry as clients see it, with its images as `images` gives them, its Movie
+/// or Show `on_watchlist` or not.
+fn started_to_proto(
+    started: Started,
+    on_watchlist: bool,
+    images: &ShownImages,
+) -> proto::ContinueWatchingEntry {
     let (library_id, movie_or_episode) = match started {
         Started::Movie {
             library,
             movie,
             state,
-        } => (library, movie_to_proto(movie, Some(state), images).into()),
+        } => {
+            let movie = proto::Movie {
+                on_watchlist,
+                ..movie_to_proto(movie, Some(state), images)
+            };
+            (library, movie.into())
+        }
         Started::Episode {
             library,
             show,
@@ -578,7 +627,11 @@ fn started_to_proto(started: Started, images: &ShownImages) -> proto::ContinueWa
         } => {
             let started_episode = proto::ContinueWatchingEpisode {
                 episode: episode_to_proto(episode, state, images).into(),
-                show: show_to_proto(&show, images).into(),
+                show: proto::Show {
+                    on_watchlist,
+                    ..show_to_proto(&show, images)
+                }
+                .into(),
                 ..Default::default()
             };
             (library, started_episode.into())

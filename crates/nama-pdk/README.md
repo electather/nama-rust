@@ -274,7 +274,7 @@ nama_pdk::blob_store!(Bucket);
 
 Send requests with `nama_pdk::http_request`, which takes the error the call fails with when nothing answers and answers a `nama_pdk::Response`. `nama_pdk::extism_pdk` has no `config` or `http`, so settings and requests always go through `nama-pdk`, which a test can stand in for (section 14). Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
 
-Plugins are not given HTTP response headers today: a response carries its status and body only. A later stage may add them, so don't build on either.
+A response carries its status, headers and body. `Response::header` reads a header whatever case it is asked in, such as `Retry-After` on a 429, so a Plugin keeps to an outside service's rate limits. A test (section 14) answers with headers through `Response::with_header`.
 
 ## 10. The call budget
 
@@ -305,7 +305,7 @@ Copy `target/wasm32-unknown-unknown/release/nama_plugin_hello.wasm` into `<data_
 
 ## 14. Testing a Plugin
 
-A Plugin's native unit tests call its Extension Point methods, such as `fulfill`, `deliver` or `put`, the way the Kernel would, through `nama_pdk::testing` (ADR [0065](../../docs/adr/0065-a-plugin-tests-its-conversation-through-nama-pdk.md)). `testing::with(&mut kernel, || ...)` gives the call a `testing::Kernel` holding the Plugin's settings and a handler answering its HTTP requests; afterwards `kernel.sent()` lists the requests it sent, in order, with their bodies. A request sent with no handler panics, so it can't reach the Plugin as an error it might retry or swallow, and a handler should panic too at one it didn't expect, as a queue does once it runs out; a handler answering `Err` is a host that can't be reached, and the request fails with the Plugin's own words for that. Those words come back to the Plugin, where the Server would end the call with them, so pass them up with `?` for the test to see what the Server would. The Kernel doesn't check the Manifest's allowed hosts, which the Server's own tests cover. `testing` is unstable: the Kernel's functions can't be scripted yet.
+A Plugin's native unit tests call its Extension Point methods, such as `fulfill`, `deliver` or `put`, the way the Kernel would, through `nama_pdk::testing` (ADR [0065](../../docs/adr/0065-a-plugin-tests-its-conversation-through-nama-pdk.md)). `testing::with(&mut kernel, || ...)` gives the call a `testing::Kernel` holding the Plugin's settings and a handler answering its HTTP requests, with headers through `Response::with_header` where a test needs them; afterwards `kernel.sent()` lists the requests it sent, in order, with their bodies. A request sent with no handler panics, so it can't reach the Plugin as an error it might retry or swallow, and a handler should panic too at one it didn't expect, as a queue does once it runs out; a handler answering `Err` is a host that can't be reached, and the request fails with the Plugin's own words for that. Those words come back to the Plugin, where the Server would end the call with them, so pass them up with `?` for the test to see what the Server would. The Kernel doesn't check the Manifest's allowed hosts, which the Server's own tests cover. `testing` is unstable: the Kernel's functions can't be scripted yet.
 
 ```rust
 use nama_pdk::{

@@ -974,6 +974,16 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Whether it is on the caller's Watchlist, under any of its ids.
+    ///
+    /// Field 18: `on_watchlist`
+    #[serde(
+        rename = "onWatchlist",
+        alias = "on_watchlist",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub on_watchlist: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -998,6 +1008,7 @@ impl ::core::fmt::Debug for Movie {
             .field("title_logo_url", &self.title_logo_url)
             .field("genres", &self.genres)
             .field("content_rating", &self.content_rating)
+            .field("on_watchlist", &self.on_watchlist)
             .finish()
     }
 }
@@ -1193,6 +1204,9 @@ impl ::buffa::Message for Movie {
         if let Some(ref v) = self.content_rating {
             size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.on_watchlist {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1268,6 +1282,9 @@ impl ::buffa::Message for Movie {
         }
         if let Some(ref v) = self.content_rating {
             ::buffa::types::put_string_field(17u32, v, buf);
+        }
+        if self.on_watchlist {
+            ::buffa::types::put_bool_field(18u32, self.on_watchlist, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1465,6 +1482,13 @@ impl ::buffa::Message for Movie {
                     buf,
                 )?;
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.on_watchlist = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1490,6 +1514,7 @@ impl ::buffa::Message for Movie {
         self.title_logo_url = ::core::option::Option::None;
         self.genres.clear();
         self.content_rating = ::core::option::Option::None;
+        self.on_watchlist = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4507,9 +4532,19 @@ pub struct Show {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub first_air_date: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `Movie.on_watchlist`.
+    ///
+    /// Field 14: `on_watchlist`
+    #[serde(
+        rename = "onWatchlist",
+        alias = "on_watchlist",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub on_watchlist: bool,
     /// How many of its Seasons the Library has an Episode of, Specials aside.
     ///
-    /// Field 14: `season_count`
+    /// Field 15: `season_count`
     #[serde(
         rename = "seasonCount",
         alias = "season_count",
@@ -4537,6 +4572,7 @@ impl ::core::fmt::Debug for Show {
             .field("content_rating", &self.content_rating)
             .field("overview", &self.overview)
             .field("first_air_date", &self.first_air_date)
+            .field("on_watchlist", &self.on_watchlist)
             .field("season_count", &self.season_count)
             .finish()
     }
@@ -4694,6 +4730,9 @@ impl ::buffa::Message for Show {
         if let Some(ref v) = self.first_air_date {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.on_watchlist {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         if self.season_count != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_count) as u64;
         }
@@ -4751,8 +4790,11 @@ impl ::buffa::Message for Show {
         if let Some(ref v) = self.first_air_date {
             ::buffa::types::put_string_field(13u32, v, buf);
         }
+        if self.on_watchlist {
+            ::buffa::types::put_bool_field(14u32, self.on_watchlist, buf);
+        }
         if self.season_count != 0u32 {
-            ::buffa::types::put_uint32_field(14u32, self.season_count, buf);
+            ::buffa::types::put_uint32_field(15u32, self.season_count, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4911,6 +4953,13 @@ impl ::buffa::Message for Show {
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
+                self.on_watchlist = ::buffa::types::decode_bool(buf)?;
+            }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
                 self.season_count = ::buffa::types::decode_uint32(buf)?;
             }
             _ => {
@@ -4934,6 +4983,7 @@ impl ::buffa::Message for Show {
         self.content_rating = ::core::option::Option::None;
         self.overview = ::core::option::Option::None;
         self.first_air_date = ::core::option::Option::None;
+        self.on_watchlist = false;
         self.season_count = 0u32;
         self.__buffa_unknown_fields.clear();
     }

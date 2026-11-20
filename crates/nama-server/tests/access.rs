@@ -140,7 +140,7 @@ const BROWSE: [&str; 9] = [
 ];
 
 /// Every other unary RPC that needs a session.
-const SIGNED_IN: [&str; 15] = [
+const SIGNED_IN: [&str; 17] = [
     SIGN_OUT,
     "/nama.v1.SignInService/WhoAmI",
     "/nama.v1.SignInService/Reauthenticate",
@@ -150,6 +150,8 @@ const SIGNED_IN: [&str; 15] = [
     "/nama.v1.UserService/RevokeDevice",
     "/nama.v1.WatchStateService/ReportProgress",
     "/nama.v1.WatchStateService/SetPlayed",
+    "/nama.v1.WatchlistService/AddToWatchlist",
+    "/nama.v1.WatchlistService/RemoveFromWatchlist",
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.RequestService/ListRequests",
     "/nama.v1.RequestService/GetRequest",
