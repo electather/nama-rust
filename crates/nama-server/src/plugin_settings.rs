@@ -772,7 +772,8 @@ fn lock_ignoring_poison<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// `permission`'s name, such as `PERMISSION_STORE`.
+/// `permission`'s name, such as `PERMISSION_STORE`. The migration's `plugins_reading_watch_states`
+/// view finds Plugins granted Read Watch States by it.
 fn permission_name(permission: Permission) -> &'static str {
     buffa::Enumeration::proto_name(&permission)
 }
