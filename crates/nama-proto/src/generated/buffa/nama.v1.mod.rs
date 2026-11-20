@@ -236,6 +236,7 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_HOME_ROWS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROWS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_HOME_ROW_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
@@ -306,6 +307,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__LAST_SCAN_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_LIBRARIES_REQUEST_JSON_ANY);
@@ -1092,6 +1094,10 @@ pub use self::__buffa::view::HomeRowView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::PluginHomeRowView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginHomeRowOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ListHomeRowTitlesRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListHomeRowTitlesRequestOwnedView;
@@ -1371,6 +1377,10 @@ pub use self::__buffa::view::PlaybackOwnedView;
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LastScanView;
+#[doc(inline)]
+pub use self::__buffa::view::LastScanOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::CreateLibraryRequestView;
 #[doc(inline)]

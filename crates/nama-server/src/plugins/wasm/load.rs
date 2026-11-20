@@ -35,7 +35,9 @@ use super::{
     points,
     services::{CHECK_SETTINGS, TITLE_SEARCH, known_exports},
 };
-use crate::plugins::{contain_sync, kept_logo, registry::personal_settings_refusal};
+use crate::plugins::{
+    contain_sync, drop_flawed_presentation, kept_logo, registry::personal_settings_refusal,
+};
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
@@ -223,8 +225,8 @@ pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<M
 }
 
 /// What `package`, naming `points` and with the exports `exported`, says about its Plugin, as the
-/// Kernel reads it. Its logo is taken out, so the package kept with the Plugin never holds one
-/// the Server dropped.
+/// Kernel reads it. Its logo, setup text, links and licence are taken out, so the package kept
+/// with the Plugin never holds one the Server dropped.
 fn manifest(
     package: &mut wire::Manifest,
     points: &[&Point],
@@ -244,7 +246,7 @@ fn manifest(
         .collect::<Result<_, _>>()?;
     let id = PluginId::from(package.id.clone());
     let logo_svg = kept_logo(&id, &mem::take(&mut package.logo_svg));
-    let manifest = Manifest {
+    let mut manifest = Manifest {
         id,
         name: package.name.clone(),
         description: package.description.clone(),
@@ -253,6 +255,10 @@ fn manifest(
         personal_settings,
         extension_points: points.iter().map(|point| (point.key)()).collect(),
         logo_svg,
+        setup_markdown: mem::take(&mut package.setup_markdown),
+        homepage_url: mem::take(&mut package.homepage_url),
+        source_url: mem::take(&mut package.source_url),
+        license: mem::take(&mut package.license),
         permissions,
         tick_every: names(points, services::AUTOMATION)
             .then(|| Duration::from_secs(package.tick_every_seconds.into())),
@@ -262,6 +268,7 @@ fn manifest(
             searches: exported.contains(&TITLE_SEARCH.export),
         }),
     };
+    drop_flawed_presentation(&mut manifest);
     match personal_settings_refusal(&manifest) {
         Some(reason) => Err(Refused::PersonalSettings(reason)),
         None => Ok(manifest),

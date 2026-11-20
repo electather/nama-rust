@@ -306,6 +306,15 @@ message Plugin {
   // failing. Only points whose calls the Server records are listed, such as a Recogniser or a
   // Notifier; the rest show their failures only in the log.
   repeated ExtensionPointFailure failures = 14;
+  // How to set it up, as Markdown its author wrote, or empty if it gives none. Raw text: render it
+  // as data, never as HTML (ADR 0058).
+  string setup_markdown = 15;
+  // Its homepage or docs, an http or https URL, or empty if it gives none.
+  string homepage_url = 16;
+  // Where its source lives, an http or https URL, or empty if it gives none.
+  string source_url = 17;
+  // Its licence as an SPDX expression, such as `MIT`, or empty if it gives none.
+  string license = 18;
 }
 
 // An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call

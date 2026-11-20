@@ -28,6 +28,7 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::PluginKind;
 use thiserror::Error;
 use tracing::{Instrument as _, Span, error, warn};
+use url::Url;
 
 use crate::{
     diagnostics,
@@ -54,8 +55,9 @@ pub struct Listed {
     pub id: PluginId,
     /// Whether it is Built-in or Installed.
     pub kind: PluginKind,
-    /// What it said about itself when the Server read it, without a logo the Server dropped, or
-    /// why the Server refused it, in which case it can't be enabled.
+    /// What it said about itself when the Server read it, without a logo, setup text, link or
+    /// licence the Server dropped, or why the Server refused it, in which case it can't be
+    /// enabled.
     pub manifest: Result<Manifest, String>,
     /// Whether it has a settings check, which [`Registry::check_settings`] runs.
     pub checks_settings: bool,
@@ -303,6 +305,77 @@ fn kept_logo(plugin: &PluginId, logo: &str) -> Option<String> {
     };
     warn!(plugin = %plugin, "dropped its logo: {why}");
     None
+}
+
+/// The most bytes a Manifest's homepage or source URL may have.
+const MAX_URL_BYTES: usize = 2 * 1024;
+/// The most bytes a Manifest's setup text may have.
+const MAX_SETUP_BYTES: usize = 4 * 1024;
+/// The most characters a Manifest's licence may have.
+const MAX_LICENSE_CHARS: usize = 128;
+
+/// A Manifest's text field as the Server keeps it, or why it drops it.
+type FieldCheck = fn(&str) -> Result<String, String>;
+
+/// Empties each of `manifest`'s setup text, links and licence that is flawed, logging why, which
+/// leaves the Plugin otherwise as it was.
+fn drop_flawed_presentation(manifest: &mut Manifest) {
+    let checked: [(&str, &mut String, FieldCheck); 4] = [
+        ("setup_markdown", &mut manifest.setup_markdown, kept_setup),
+        ("homepage_url", &mut manifest.homepage_url, kept_url),
+        ("source_url", &mut manifest.source_url, kept_url),
+        ("license", &mut manifest.license, kept_license),
+    ];
+    // Empty is none, as protobuf sends a field left out.
+    for (field, value, check) in checked
+        .into_iter()
+        .filter(|(_, value, _)| !value.is_empty())
+    {
+        *value = check(value).unwrap_or_else(|why| {
+            warn!(plugin = %manifest.id, "dropped its {field}: {why}");
+            String::new()
+        });
+    }
+}
+
+fn kept_setup(markdown: &str) -> Result<String, String> {
+    if markdown.len() > MAX_SETUP_BYTES {
+        return Err(format!("it is over {MAX_SETUP_BYTES} bytes"));
+    }
+    Ok(markdown.to_owned())
+}
+
+/// `url` as [`Url`] writes it, if it is an http or https URL a client may link to. Parsed as
+/// browsers do (WHATWG), so a scheme hidden behind spaces or tabs is still found, and kept as
+/// parsed, since a browser would read `https:host` as a link relative to the page.
+fn kept_url(url: &str) -> Result<String, String> {
+    // Before parsing too, so a huge scheme is never parsed or logged.
+    if url.len() > MAX_URL_BYTES {
+        return Err(format!("it is over {MAX_URL_BYTES} bytes"));
+    }
+    let url = Url::parse(url).map_err(|err| format!("it isn't a URL: {err}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(format!("its scheme is {}, not http or https", url.scheme()));
+    }
+    let url = String::from(url);
+    // Parsing percent-encodes, which can lengthen it.
+    if url.len() > MAX_URL_BYTES {
+        return Err(format!("it is over {MAX_URL_BYTES} bytes"));
+    }
+    Ok(url)
+}
+
+/// `license` if it is an SPDX expression by its characters alone: whether its ids are SPDX's
+/// isn't checked, so a new licence needs no new Server.
+fn kept_license(license: &str) -> Result<String, String> {
+    let allowed = |byte: u8| byte.is_ascii_alphanumeric() || b" .-+()".contains(&byte);
+    if !license.bytes().all(allowed) || !license.bytes().any(|byte| byte.is_ascii_alphanumeric()) {
+        return Err("it isn't an SPDX expression".to_owned());
+    }
+    if license.chars().count() > MAX_LICENSE_CHARS {
+        return Err(format!("it is over {MAX_LICENSE_CHARS} characters"));
+    }
+    Ok(license.to_owned())
 }
 
 /// `answer`, its error turned into a [`Failure`] once it is ready, for [`contain_call`] to await

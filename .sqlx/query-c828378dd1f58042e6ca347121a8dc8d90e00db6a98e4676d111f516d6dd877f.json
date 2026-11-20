@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", last_scan_at AS \"finished_at!\",\n                  last_scan_added AS \"added: u64\", last_scan_updated AS \"updated: u64\",\n                  last_scan_removed AS \"removed: u64\", last_scan_unchanged AS \"unchanged: u64\"\n           FROM libraries WHERE last_scan_at IS NOT NULL AND (?1 IS NULL OR id = ?1)",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "finished_at!",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "last_scan_at"
+          }
+        }
+      },
+      {
+        "name": "added: u64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "last_scan_added"
+          }
+        }
+      },
+      {
+        "name": "updated: u64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "last_scan_updated"
+          }
+        }
+      },
+      {
+        "name": "removed: u64",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "last_scan_removed"
+          }
+        }
+      },
+      {
+        "name": "unchanged: u64",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "last_scan_unchanged"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c828378dd1f58042e6ca347121a8dc8d90e00db6a98e4676d111f516d6dd877f"
+}

@@ -19,8 +19,8 @@ export function useWatchState(
   useEffect(() => {
     const video = videoRef.current;
     return video
-      ? followVideo(video, startPositionMs, (position) => {
-          report({ versionId, ...position });
+      ? followVideo(video, startPositionMs, (position, final) => {
+          report({ versionId, ...position }, final);
         })
       : undefined;
   }, [videoRef, versionId, startPositionMs, report]);

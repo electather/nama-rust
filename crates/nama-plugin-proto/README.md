@@ -81,6 +81,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `HomeRowService` 1.3.0 adds `user_id` to `UserRowsAsked` and `UserFeaturedAsked`, the User a call is for, so a Plugin can ask the Kernel's functions, such as `list_watchlist`, about them. A Plugin built before skips it and works as before.
   `HomeRowService` 1.4.0: the Kernel asks a Plugin granted `PERMISSION_READ_WATCH_STATES` for a User's `user_rows` and `user_featured` again on their next visit to home once they start a title or mark one played or unplayed, and drops an answer to a refresh started before, so a Plugin ranking by Watch State needn't shorten its time to live. A position update alone doesn't. A Plugin built before is only asked more often.
   `segment_source.proto` adds `SegmentSourceService` 1.0.0, a Segment source whose required `segment_search` export says where a Version's Intro, Recap and Credits are (ADR 0075).
+  `CONTRACT_VERSION` 0.5.5: the Manifest adds the optional `setup_markdown`, `homepage_url`, `source_url` and `license`, which the Server sends clients with the Plugin; the Kernel drops a flawed one, logging why, and still loads the Plugin.
 
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 

@@ -13,7 +13,7 @@ export function LibraryRow({ library }: { library: Library }) {
     <AdminRow
       end={
         <div className="flex items-center gap-3">
-          <ScanStatus libraryId={library.id} />
+          <ScanStatus libraryId={library.id} lastScan={library.lastScan} />
           <ScanButton library={library} />
         </div>
       }

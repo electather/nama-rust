@@ -36,7 +36,7 @@ Depend on nothing else from Nama: the contract is all a Plugin may see.
 
 ## 2. The Manifest
 
-Every Plugin exports `manifest()`, which the Server calls once when it loads the Plugin. [`nama_pdk::manifest`](src/lib.rs) fills in the Plugin's `id` (which the Server keeps its settings under), its `version`, and its `contract`: a semver requirement on `CONTRACT_VERSION`, the version of the contract this `nama-pdk` was built against. Fill in the rest with struct update syntax: `name` and `description` for admins, and `logo_svg`, which must read on a light and a dark tile alike. The fields are documented in [`manifest.proto`](../../proto/nama/plugin/v1/manifest.proto).
+Every Plugin exports `manifest()`, which the Server calls once when it loads the Plugin. [`nama_pdk::manifest`](src/lib.rs) fills in the Plugin's `id` (which the Server keeps its settings under), its `version`, and its `contract`: a semver requirement on `CONTRACT_VERSION`, the version of the contract this `nama-pdk` was built against. Fill in the rest with struct update syntax: `name` and `description` for admins, `logo_svg`, which must read on a light and a dark tile alike, and `setup_markdown`, `homepage_url`, `source_url` and `license`, which the Server sends clients with the Plugin. The fields are documented in [`manifest.proto`](../../proto/nama/plugin/v1/manifest.proto).
 
 ```rust
 use nama_pdk::{Buffa, FnResult, Manifest, extism_pdk, plugin_fn, services};

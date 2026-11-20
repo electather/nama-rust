@@ -4910,6 +4910,46 @@ pub struct Plugin {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub failures: ::buffa::alloc::vec::Vec<ExtensionPointFailure>,
+    /// How to set it up, as Markdown its author wrote, or empty if it gives none. Raw text: render it
+    /// as data, never as HTML (ADR 0058).
+    ///
+    /// Field 15: `setup_markdown`
+    #[serde(
+        rename = "setupMarkdown",
+        alias = "setup_markdown",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub setup_markdown: ::buffa::alloc::string::String,
+    /// Its homepage or docs, an http or https URL, or empty if it gives none.
+    ///
+    /// Field 16: `homepage_url`
+    #[serde(
+        rename = "homepageUrl",
+        alias = "homepage_url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub homepage_url: ::buffa::alloc::string::String,
+    /// Where its source lives, an http or https URL, or empty if it gives none.
+    ///
+    /// Field 17: `source_url`
+    #[serde(
+        rename = "sourceUrl",
+        alias = "source_url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub source_url: ::buffa::alloc::string::String,
+    /// Its licence as an SPDX expression, such as `MIT`, or empty if it gives none.
+    ///
+    /// Field 18: `license`
+    #[serde(
+        rename = "license",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub license: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4921,6 +4961,10 @@ impl ::core::fmt::Debug for Plugin {
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
             .field("failures", &self.failures)
+            .field("setup_markdown", &self.setup_markdown)
+            .field("homepage_url", &self.homepage_url)
+            .field("source_url", &self.source_url)
+            .field("license", &self.license)
             .finish()
     }
 }
@@ -4978,6 +5022,20 @@ impl ::buffa::Message for Plugin {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.setup_markdown.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.setup_markdown) as u64;
+        }
+        if !self.homepage_url.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.homepage_url) as u64;
+        }
+        if !self.source_url.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.source_url) as u64;
+        }
+        if !self.license.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.license) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5014,6 +5072,18 @@ impl ::buffa::Message for Plugin {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if !self.setup_markdown.is_empty() {
+            ::buffa::types::put_string_field(15u32, &self.setup_markdown, buf);
+        }
+        if !self.homepage_url.is_empty() {
+            ::buffa::types::put_string_field(16u32, &self.homepage_url, buf);
+        }
+        if !self.source_url.is_empty() {
+            ::buffa::types::put_string_field(17u32, &self.source_url, buf);
+        }
+        if !self.license.is_empty() {
+            ::buffa::types::put_string_field(18u32, &self.license, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5070,6 +5140,34 @@ impl ::buffa::Message for Plugin {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.failures.push(elem);
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.setup_markdown, buf)?;
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.homepage_url, buf)?;
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.source_url, buf)?;
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.license, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5082,6 +5180,10 @@ impl ::buffa::Message for Plugin {
         self.checks_settings = false;
         self.summary = ::buffa::MessageField::none();
         self.failures.clear();
+        self.setup_markdown.clear();
+        self.homepage_url.clear();
+        self.source_url.clear();
+        self.license.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
