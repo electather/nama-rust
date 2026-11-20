@@ -7,7 +7,7 @@ import { usePaged } from "@/shared/hooks/use-paged";
 
 /**
  * The Library `libraryId`'s Unmatched Items, folded away at the foot of its page by what their
- * names say, never where their files are (ADR 0062). Nothing if it has none.
+ * names say, never where their files are (ADR 0069). Nothing if it has none.
  */
 export function NotMatched({ libraryId }: { libraryId: bigint }) {
   const { data, hasNextPage, fetchNextPage, totalSize } = usePaged(

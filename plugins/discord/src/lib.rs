@@ -19,8 +19,8 @@ const WEBHOOK: &str = "webhook";
 )]
 mod exports {
     use nama_pdk::{
-        Buffa, FnResult, Manifest, Notification, Notifier, Recipient, RecipientGone,
-        extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
+        Buffa, FnResult, Manifest, Notification, Notifier, Recipient, RecipientGone, Response,
+        extism_pdk::{self, Error, HttpRequest, Json},
         nama_plugin_proto::nama::plugin::v1::{
             PersonalSettingsCheck, PersonalSettingsChecked, UserRecipient,
         },
@@ -71,7 +71,7 @@ mod exports {
             return Ok(());
         };
         let webhook = super::webhook(user.personal_settings.get(WEBHOOK).map(String::as_str))?;
-        let api_url = config::get(API_URL)?
+        let api_url = nama_pdk::setting(API_URL)?
             .ok_or_else(|| Error::msg(format!("the setting {API_URL} isn't set")))?;
         let url = format!("{}/api/webhooks/{webhook}", api_url.trim_end_matches('/'));
         let request = HttpRequest::new(url)
@@ -92,7 +92,7 @@ mod exports {
     }
 
     /// Why Discord refused a message: its status, and its own words if it gave any.
-    fn refused(response: &HttpResponse) -> Error {
+    fn refused(response: &Response) -> Error {
         let status = response.status_code();
         match response.json::<Refusal>() {
             Ok(Refusal { message }) => Error::msg(format!(

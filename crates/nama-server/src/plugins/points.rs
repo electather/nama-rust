@@ -86,10 +86,7 @@ impl ExtensionPoints {
             Ok(Err(failure)) => {
                 let error = failure.blanked(&entry.secrets).message;
                 self.provider_failed(&entry.plugin, key, &error);
-                // An Installed Plugin's Observer already logged it, in `call_method`.
-                if !self.read(|state| state.is_installed(&entry.plugin)) {
-                    warn!(plugin = %entry.plugin, point = P::NAME, error, "observer failed");
-                }
+                warn!(plugin = %entry.plugin, point = P::NAME, error, "observer failed");
             }
             Err(message) => self.disable_after_panic(entry, P::NAME, &message),
         }

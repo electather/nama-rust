@@ -34,7 +34,7 @@ pub(super) struct Fixture {
     pub(super) probing: Option<Probing>,
     pub(super) db: Arc<Database>,
     pub(super) contents: Contents,
-    events: EventBus,
+    pub(super) events: EventBus,
     pub(super) library: i64,
     pub(super) root: PathBuf,
     _media: TempDir,
@@ -78,11 +78,11 @@ impl Fixture {
             ServerUrl::default(),
             BUFFERED,
         );
+        let images = ImageStore::new(data.path(), Arc::clone(&db));
         let probing = ffmpeg.map(|ffmpeg| {
             let subtitles = SubtitleCache::new(data.path());
-            Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles)
+            Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles, images.clone())
         });
-        let images = ImageStore::new(data.path(), Arc::clone(&db));
         Self {
             scanner: Scanner::new(
                 Arc::clone(&db),

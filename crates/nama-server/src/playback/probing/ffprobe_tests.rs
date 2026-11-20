@@ -1,4 +1,4 @@
-use super::parse_probe;
+use super::{Starts, parse_probe};
 use crate::playback::tracks::{BaseLayer, Hdr, Probe, Track, TrackKind};
 
 /// Cut down from ffprobe 7.0's output for a Blu-ray remux with cover art.
@@ -35,7 +35,7 @@ fn track(codec: &str, language: Option<&str>, default: bool, kind: TrackKind) ->
 
 #[test]
 fn ffprobe_output_reads_as_tracks_without_cover_art_and_its_attachment_as_a_font() {
-    let probe = parse_probe(BLU_RAY_REMUX.as_bytes()).unwrap();
+    let (probe, _) = parse_probe(BLU_RAY_REMUX.as_bytes()).unwrap();
 
     let Some(TrackKind::Video { frame_rate, .. }) = probe.tracks.first().map(|t| &t.kind) else {
         panic!("no video Track first: {probe:?}");
@@ -113,7 +113,7 @@ fn a_subtitle_carries_its_header_only_when_ffprobe_counts_bytes_of_one() {
             "format": {"format_name": "mpeg"}
         }"#;
 
-    let probe = parse_probe(json.as_bytes()).unwrap();
+    let (probe, _) = parse_probe(json.as_bytes()).unwrap();
 
     let headers: Vec<_> = (probe.tracks.iter())
         .map(|track| matches!(track.kind, TrackKind::Subtitle { header: true, .. }))
@@ -141,7 +141,7 @@ fn a_font_is_an_attachment_whose_mime_type_or_else_file_name_says_so() {
             "format": {"format_name": "matroska,webm"}
         }"#;
 
-    let probe = parse_probe(json.as_bytes()).unwrap();
+    let (probe, _) = parse_probe(json.as_bytes()).unwrap();
 
     assert_eq!(probe.font_attachments, [1, 2, 3, 5, 6]);
 }
@@ -168,7 +168,7 @@ fn dolby_vision(profile: u8, compatibility: u8, transfer: &str) -> String {
 }
 
 fn video_of(json: &str) -> TrackKind {
-    let probe = parse_probe(json.as_bytes()).unwrap();
+    let (probe, _) = parse_probe(json.as_bytes()).unwrap();
     probe.tracks.into_iter().next().unwrap().kind
 }
 
@@ -254,7 +254,7 @@ fn keyframes_are_the_packets_flagged_k_in_time_order() {
 fn a_missing_or_zero_format_duration_reads_as_unknown() {
     let with_format = |format: &str| {
         let json = format!(r#"{{"format": {{"format_name": "matroska,webm"{format}}}}}"#);
-        parse_probe(json.as_bytes()).unwrap().duration_ms
+        parse_probe(json.as_bytes()).unwrap().0.duration_ms
     };
 
     assert_eq!(with_format(""), None);
@@ -269,7 +269,7 @@ fn an_avi_with_the_placeholder_frame_count_has_no_known_duration() {
             r#"{{"format": {{"format_name": "avi", "duration": "2866.375000"}},
                 "streams": [{{"codec_type": "video", "nb_frames": "{nb_frames}"}}]}}"#
         );
-        parse_probe(json.as_bytes()).unwrap().duration_ms
+        parse_probe(json.as_bytes()).unwrap().0.duration_ms
     };
 
     assert_eq!(avi_with("1073741824"), None);
@@ -282,7 +282,7 @@ fn only_an_avi_reads_the_placeholder_frame_count_as_unfilled() {
             "streams": [{"codec_type": "video", "nb_frames": "1073741824"}]}"#;
 
     assert_eq!(
-        parse_probe(json.as_bytes()).unwrap().duration_ms,
+        parse_probe(json.as_bytes()).unwrap().0.duration_ms,
         Some(2000)
     );
 }
@@ -336,7 +336,7 @@ fn a_subtitle_is_sdh_when_flagged_or_titled_so_but_audio_titled_so_is_not() {
             "format": {"format_name": "matroska,webm"}
         }"#;
 
-    let probe = parse_probe(json.as_bytes()).unwrap();
+    let (probe, _) = parse_probe(json.as_bytes()).unwrap();
 
     let sdh: Vec<_> = (probe.tracks.iter())
         .map(|track| (track.title.as_deref(), track.sdh))
@@ -356,5 +356,28 @@ fn a_subtitle_is_sdh_when_flagged_or_titled_so_but_audio_titled_so_is_not() {
             (Some("SDH"), false),
             (Some("CC"), false),
         ]
+    );
+}
+
+#[test]
+fn the_video_starts_where_its_first_stream_other_than_cover_art_does() {
+    let json = r#"{
+            "streams": [
+                {"codec_type": "video", "start_time": "0.000000",
+                 "disposition": {"attached_pic": 1}},
+                {"codec_type": "audio", "start_time": "0.000000"},
+                {"codec_type": "video", "start_time": "0.023000"}
+            ],
+            "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "start_time": "0.000000"}
+        }"#;
+
+    let (_, starts) = parse_probe(json.as_bytes()).unwrap();
+
+    assert_eq!(
+        starts,
+        Starts {
+            file_ms: 0,
+            video_ms: Some(23),
+        }
     );
 }

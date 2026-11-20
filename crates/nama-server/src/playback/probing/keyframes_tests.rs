@@ -1,13 +1,16 @@
 use std::{fs, time::Duration};
+#[cfg(unix)]
+use std::{path::Path, process::Command};
 
-use super::tests::Fixture;
+use super::tests::{Fixture, system_ffmpeg};
 #[cfg(unix)]
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
 use super::{
-    Error, Keyframes, LISTING_WAIT, ListedKeyframes, ProbeError, WHOLE_FILE_READS_AT_ONCE,
-    ffprobe::WHOLE_FILE_TIMEOUT,
+    Error, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE, ffprobe::WHOLE_FILE_TIMEOUT,
 };
+use super::{Keyframes, ListedKeyframes, Probe, ffprobe, plausible};
+use crate::ffmpeg;
 #[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
 
@@ -15,7 +18,7 @@ use crate::ffmpeg::Ffmpeg;
 /// Tracks, and lists keyframes at 0 and at as many seconds as the file has bytes, so a changed
 /// file lists differently. Each listing logs a line to `bin/runs` first, then takes a second.
 #[cfg(unix)]
-fn listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
+fn listing_ffprobe(bin: &Path) -> Ffmpeg {
     ffprobe_listing_by(
         bin,
         r#"sleep 1
@@ -26,14 +29,14 @@ fn listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
 
 /// As [`listing_ffprobe`], but each listing fails, as on a file ffprobe can't read through.
 #[cfg(unix)]
-fn failing_listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
+fn failing_listing_ffprobe(bin: &Path) -> Ffmpeg {
     ffprobe_listing_by(bin, "echo 'read failed' >&2; exit 1")
 }
 
 /// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
 /// Tracks, and lists keyframes by running `listing`, after logging a line to `bin/runs`.
 #[cfg(unix)]
-fn ffprobe_listing_by(bin: &std::path::Path, listing: &str) -> Ffmpeg {
+fn ffprobe_listing_by(bin: &Path, listing: &str) -> Ffmpeg {
     let runs = bin.join("runs");
     fake_ffprobe(
         bin,
@@ -412,4 +415,205 @@ async fn shutting_down_stops_a_listing_and_keeps_nothing() {
         .await
         .unwrap();
     assert!(kept.is_none(), "{kept:?}");
+}
+
+#[tokio::test]
+async fn a_version_read_by_an_older_probe_gets_its_keyframes_from_its_cues_when_probed_again() {
+    let media = Fixture::with_ffmpeg(system_ffmpeg()).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    let path = media.path(alien);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    ffmpeg::write_h264_with_5_1(&path, "aac").unwrap();
+    media.store(alien).await;
+    let file = media.stored(alien).await;
+    // As the probe version before stored it: Tracks, but no keyframes.
+    let tracks_only = Probe {
+        container: "matroska,webm".to_owned(),
+        duration_ms: Some(14_000),
+        bitrate: None,
+        tracks: vec![],
+        font_attachments: vec![],
+    };
+    media.tracks.store(file, tracks_only).await.unwrap();
+    media.tracks.read_by_older_probe(file.id).await;
+
+    media.probe_changed().await;
+
+    let cued = ListedKeyframes {
+        file_start_ms: 0,
+        // A keyframe every 2 seconds.
+        keyframes_ms: (0..7).map(|n| n * 2_000).collect(),
+    };
+    assert_eq!(
+        media.tracks.keyframes(file).await.unwrap(),
+        Some(Keyframes::Listed(cued))
+    );
+}
+
+#[test]
+fn index_keyframes_are_plausible_only_from_where_the_first_should_fall_in_order_and_by_the_end() {
+    let from_23 = |keyframes_ms: &[i64]| {
+        let listed = ListedKeyframes {
+            file_start_ms: 0,
+            keyframes_ms: keyframes_ms.to_vec(),
+        };
+        plausible(&listed, 23, Some(5000))
+    };
+
+    assert!(from_23(&[23, 2023]));
+    assert!(from_23(&[24, 2024]), "within a millisecond's rounding");
+    let refused: [(&[i64], _); 5] = [
+        (&[], "none"),
+        (&[0, 2000], "the first before where it should fall"),
+        (&[100, 2023], "the first after"),
+        (&[23, 3023, 2023], "out of order"),
+        (&[23, 7023], "past the end"),
+    ];
+    for (keyframes_ms, why) in refused {
+        assert!(!from_23(keyframes_ms), "{why}");
+    }
+}
+
+/// The ffprobe on `PATH`, behind a shell script in `bin` that first logs each whole-file listing
+/// to `bin/runs`, which [`probe_runs`] counts.
+#[cfg(unix)]
+fn system_ffprobe_logging_listings(bin: &Path) -> Ffmpeg {
+    let real = system_ffmpeg().ffprobe.unwrap().path;
+    fake_ffprobe(
+        bin,
+        &format!(
+            "case \"$*\" in *packet=pts_time,flags*) echo list >> '{}' ;; esac\nexec '{}' \"$@\"",
+            bin.join("runs").display(),
+            real.display()
+        ),
+    )
+}
+
+/// Overwrites the ID of the Cues element in the Matroska file at `path`, so the `SeekHead` points
+/// at no Cues, while ffprobe still reads the file's Tracks.
+#[cfg(unix)]
+fn corrupt_cues(path: &Path) {
+    let mut bytes = fs::read(path).unwrap();
+    let cues_id = [0x1C, 0x53, 0xBB, 0x6B];
+    // The last: the SeekHead names the ID too, and ffmpeg writes the Cues after the Clusters.
+    let at = bytes.windows(4).rposition(|id| id == cues_id).unwrap();
+    bytes[at..at + 4].fill(0);
+    fs::write(path, bytes).unwrap();
+}
+
+#[cfg(unix)]
+impl Fixture {
+    /// Writes Alien at `relative` as an MP4: [`ffmpeg::write_h264_with_5_1`]'s MKV, copied by
+    /// the ffmpeg on `PATH` with the arguments `options` adds, given that MKV, before the output.
+    fn write_alien_mp4(&self, relative: &str, options: impl FnOnce(&mut Command, &Path)) {
+        let path = self.path(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        let mkv = scratch.path().join("alien.mkv");
+        ffmpeg::write_h264_with_5_1(&mkv, "aac").unwrap();
+        let mut copy = Command::new("ffmpeg");
+        copy.args(["-v", "error", "-i"]).arg(&mkv);
+        options(&mut copy, &mkv);
+        let status = copy.args(["-c", "copy"]).arg(&path).status().unwrap();
+        assert!(status.success());
+    }
+
+    /// Stores the file written at `relative` as a Version, probes it as a scan would, and
+    /// returns the keyframes probing kept for it. Fails the test if ffprobe couldn't read it, so
+    /// a fixture it can't read never passes as one without an index.
+    async fn probe_written(&self, relative: &str) -> Option<Keyframes> {
+        self.store(relative).await;
+        self.match_to_alien(relative).await;
+        self.probe_changed().await;
+        let file = self.stored(relative).await;
+        let probed = self.tracks.of(&[file]).await.unwrap();
+        assert!(probed.contains_key(&file.id), "ffprobe couldn't read it");
+        self.tracks.keyframes(file).await.unwrap()
+    }
+
+    /// The keyframes the ffprobe on `PATH` lists by reading the whole file at `relative`.
+    async fn whole_file_listing(&self, relative: &str) -> ListedKeyframes {
+        let path = self.path(relative);
+        ffprobe::keyframes(&system_ffmpeg(), path.to_str().unwrap())
+            .await
+            .unwrap()
+    }
+}
+
+// The logging ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_fragmented_mp4_keeps_no_keyframes_when_probed_and_lists_them_from_the_whole_file() {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(system_ffprobe_logging_listings(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mp4";
+    media.write_alien_mp4(alien, |copy, _| {
+        copy.args(["-movflags", "frag_keyframe+empty_moov"]);
+    });
+
+    let kept = media.probe_written(alien).await;
+    let version = media.file_id(alien).await;
+    let listed = media.probing.keyframes(version).await.unwrap();
+
+    assert_eq!(kept, None);
+    assert_eq!(listed, media.whole_file_listing(alien).await);
+    assert_eq!(probe_runs(bin.path()), 1);
+}
+
+// The logging ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_mp4_whose_video_starts_with_an_empty_edit_keeps_the_keyframes_a_whole_file_listing_gives()
+ {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(system_ffprobe_logging_listings(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mp4";
+    media.write_alien_mp4(alien, |copy, mkv| {
+        // Video delayed behind the audio, so ffmpeg starts the video's `elst` with an empty edit.
+        copy.args(["-itsoffset", "2", "-i"])
+            .arg(mkv)
+            .args(["-map", "0:a", "-map", "1:v"]);
+    });
+
+    let kept = media.probe_written(alien).await;
+    let version = media.file_id(alien).await;
+    let planned = media.probing.keyframes(version).await.unwrap();
+
+    let whole_file = media.whole_file_listing(alien).await;
+    assert!(
+        whole_file.keyframes_ms.first() >= Some(&2_000),
+        "the video isn't delayed: {whole_file:?}"
+    );
+    assert_eq!(kept, Some(Keyframes::Listed(whole_file.clone())));
+    assert_eq!(planned, whole_file);
+    assert_eq!(probe_runs(bin.path()), 0);
+}
+
+// The logging ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_mkv_whose_cues_are_corrupted_keeps_no_keyframes_when_probed_and_lists_them_once_from_the_whole_file()
+ {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(system_ffprobe_logging_listings(bin.path())).await;
+    let (intact, alien) = (
+        "Alien (1979)/Alien (1979) - Intact.mkv",
+        "Alien (1979)/Alien (1979).mkv",
+    );
+    let path = media.path(alien);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    ffmpeg::write_h264_with_5_1(&path, "aac").unwrap();
+    fs::copy(&path, media.path(intact)).unwrap();
+    corrupt_cues(&path);
+    // The same file with its Cues whole keeps them, so a Probing that stopped reading Cues at
+    // all fails here rather than passing as one that falls back.
+    assert!(media.probe_written(intact).await.is_some());
+
+    let kept = media.probe_written(alien).await;
+    let version = media.file_id(alien).await;
+    let listed = media.probing.keyframes(version).await.unwrap();
+
+    assert_eq!(kept, None);
+    assert_eq!(listed, media.whole_file_listing(alien).await);
+    assert_eq!(probe_runs(bin.path()), 1);
 }

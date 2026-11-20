@@ -524,9 +524,162 @@ mod exports {
 
     #[cfg(test)]
     mod tests {
-        use nama_pdk::TitleId;
+        use std::time::Duration;
 
-        use super::needed_tvdb_id;
+        use nama_pdk::{
+            Fulfiller, Request, Response, TitleId, TryAgainIn,
+            extism_pdk::json::{self, Value, json},
+            nama_plugin_proto::nama::plugin::v1::RequestedSeason,
+            testing::{Kernel, with},
+        };
+
+        use super::{SonarrFulfiller, needed_tvdb_id};
+
+        const DARK_TVDB: i64 = 81189;
+        /// Sonarr's own id for Dark, once it has it.
+        const DARK_SONARR_ID: i64 = 7;
+
+        /// Sonarr's settings, answering each request with the next of `answers`, a status and a
+        /// JSON body.
+        fn sonarr(answers: Vec<(u16, Value)>) -> Kernel {
+            let mut answers = answers.into_iter();
+            Kernel::new()
+                .setting("url", "http://sonarr.test")
+                .setting("api_key", "key")
+                .setting("quality_profile", "4")
+                .setting("root_folder", "/tv")
+                .http(move |_request, _body| {
+                    let (status, body) = answers
+                        .next()
+                        .expect("Sonarr is asked no more than scripted");
+                    Ok(Response::new(status, body.to_string()))
+                })
+        }
+
+        /// What the Plugin asked Sonarr, as `<method> <API path>`.
+        fn asked(kernel: &Kernel) -> Vec<String> {
+            (kernel.sent().iter())
+                .map(|sent| {
+                    let method = sent.request.method.as_deref().unwrap_or("GET");
+                    let path = sent
+                        .request
+                        .url
+                        .trim_start_matches("http://sonarr.test/api/v3/");
+                    format!("{method} {path}")
+                })
+                .collect()
+        }
+
+        /// An Approved Request for Season 3 of Dark.
+        fn dark_season_3() -> Request {
+            let tvdb = id("tvdb", &DARK_TVDB.to_string());
+            Request {
+                movie_or_season: RequestedSeason {
+                    season_number: 3,
+                    show_ids: vec![tvdb],
+                    ..RequestedSeason::default()
+                }
+                .into(),
+                ..Request::default()
+            }
+        }
+
+        fn profiles() -> (u16, Value) {
+            (
+                200,
+                json!([{"id": 1, "name": "Any"}, {"id": 4, "name": "HD-1080p"}]),
+            )
+        }
+
+        /// Dark as Sonarr has it, at the profile Any.
+        fn dark_found() -> (u16, Value) {
+            let seasons = json!([{"seasonNumber": 1, "monitored": true}]);
+            (
+                200,
+                json!([{"id": DARK_SONARR_ID, "qualityProfileId": 1, "seasons": seasons}]),
+            )
+        }
+
+        #[test]
+        fn a_show_another_hand_off_added_meanwhile_gets_the_season_monitored_at_its_profile() {
+            let lookup = json!([{"tvdbId": DARK_TVDB, "title": "Dark", "seasons": [
+                {"seasonNumber": 1, "monitored": false},
+                {"seasonNumber": 3, "monitored": false}
+            ]}]);
+            let exists = json::from_str(include_str!("../fixtures/series-exists.json")).unwrap();
+            let episodes = json!([{"id": 301, "seasonNumber": 3, "episodeNumber": 1}]);
+            let mut kernel = sonarr(vec![
+                profiles(),
+                (200, json!([])),
+                (200, lookup),
+                (400, exists),
+                dark_found(),
+                (200, json!([])),
+                (200, json!({})),
+                (200, episodes),
+                (202, json!({})),
+                (201, json!({})),
+            ]);
+
+            let fulfilled =
+                with(&mut kernel, || SonarrFulfiller::fulfill(dark_season_3())).unwrap();
+
+            assert_eq!(
+                asked(&kernel),
+                [
+                    "GET qualityprofile",
+                    "GET series?tvdbId=81189",
+                    "GET series/lookup?term=tvdb:81189",
+                    "POST series",
+                    "GET series?tvdbId=81189",
+                    "GET command",
+                    "POST seasonpass",
+                    "GET episode?seriesId=7&seasonNumber=3",
+                    "PUT episode/monitor",
+                    "POST command",
+                ]
+            );
+            let monitored: Value = (kernel.sent().iter())
+                .find(|sent| sent.request.url.ends_with("/seasonpass"))
+                .map(|sent| json::from_slice(&sent.body).unwrap())
+                .unwrap();
+            assert_eq!(
+                monitored,
+                json!({"series": [{"id": DARK_SONARR_ID, "monitored": true, "seasons": [
+                    {"seasonNumber": 3, "monitored": true}
+                ]}]})
+            );
+            assert_eq!(
+                (
+                    fulfilled.reference.as_str(),
+                    fulfilled.profile_name.as_str()
+                ),
+                ("81189/3", "Any")
+            );
+        }
+
+        #[test]
+        fn a_season_of_a_show_sonarr_is_refreshing_is_tried_again_in_5_seconds_changing_nothing() {
+            let refreshing = json!([{"name": "RefreshSeries", "status": "started",
+                "body": {"seriesIds": [DARK_SONARR_ID]}}]);
+            let mut kernel = sonarr(vec![profiles(), dark_found(), (200, refreshing)]);
+
+            let error =
+                with(&mut kernel, || SonarrFulfiller::fulfill(dark_season_3())).unwrap_err();
+
+            assert_eq!(
+                error.downcast_ref::<TryAgainIn>(),
+                Some(&TryAgainIn(Duration::from_secs(5)))
+            );
+            assert_eq!(
+                asked(&kernel),
+                [
+                    "GET qualityprofile",
+                    "GET series?tvdbId=81189",
+                    "GET command"
+                ]
+            );
+        }
 
         fn id(namespace: &str, value: &str) -> TitleId {
             TitleId {

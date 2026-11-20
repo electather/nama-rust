@@ -34,7 +34,6 @@ use nama_plugin_proto::{
 use semver::{Version, VersionReq};
 use thiserror::Error;
 use tokio::task;
-use tracing::warn;
 
 use super::{CheckTimedOut, registry::Make, secret_values, without_secrets};
 
@@ -59,6 +58,8 @@ mod calls_tests;
 #[path = "wasm/fulfiller_tests.rs"]
 mod fulfiller_tests;
 
+#[cfg(test)]
+pub(crate) use automation::KERNEL_IMPORTS;
 pub(crate) use listing::read;
 use load::{
     CALL_TIMEOUT, Compiled, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel,
@@ -171,7 +172,7 @@ pub(super) struct Installed {
 struct Running {
     package: Arc<wire::Manifest>,
     compiled: Arc<Compiled>,
-    /// The values of its secret settings, which the failures it logs mustn't show.
+    /// The values of its secret settings, which the crash it disables itself with mustn't show.
     secrets: Arc<[String]>,
     /// How many calls in a row crashed, counted apart for each of its points' `crash_group`s.
     crashes: Arc<AtomicU32>,
@@ -203,10 +204,11 @@ impl Running {
         }
     }
 
-    /// [`Self::call_blocking`] for a Provider, whose caller gets why it failed, to log or show
-    /// such as a Request's reason for being Failed: in the Plugin's own words, or that it crashed.
+    /// [`Self::call_blocking`], handing back why it failed for the Registry to log or the caller
+    /// to show, such as a Request's reason for being Failed: a crash starts "it crashed: ", and
+    /// anything else, such as the Plugin's own words or a host function's refusal, doesn't.
     /// Counts its crashes as [`Self::count_crash`] does.
-    async fn provide(
+    async fn call_counted(
         &self,
         name: &'static str,
         input: Vec<u8>,
@@ -225,15 +227,13 @@ impl Running {
             failure_cause(&err)
         };
         self.count_crash(&err, &without_secrets(cause.clone(), &self.secrets));
+        // So an Admin tells a crash from a refusal in the Plugin's own words.
+        let cause = if is_crash(&err) {
+            format!("it crashed: {cause}")
+        } else {
+            cause
+        };
         Err(cause.into())
-    }
-
-    /// Logs why a call to its Observer failed, and counts it as [`Self::count_crash`] does.
-    fn observer_failed(&self, err: &extism::Error) {
-        let cause = without_secrets(failure_cause(err), &self.secrets);
-        let failed = if is_crash(err) { "crashed" } else { "failed" };
-        warn!(plugin = %self.package.id, "observer {failed}: {cause}");
-        self.count_crash(err, &cause);
     }
 
     /// Counts the crashes in a row, `err` among them if it is one. On the
@@ -282,8 +282,8 @@ fn is_out_of_memory(err: &extism::Error) -> bool {
 }
 
 /// Why a call failed: the [`printable`] root cause, with the memory cap's bare "oom" put in plain
-/// words. A timeout's bare "timeout" is left to the callers: [`Running::provide`] words it, and the
-/// settings check reports it as [`CheckTimedOut`].
+/// words. A timeout's bare "timeout" is left to the callers: [`Running::call_counted`] words it,
+/// and the settings check reports it as [`CheckTimedOut`].
 fn failure_cause(err: &extism::Error) -> String {
     if is_out_of_memory(err) {
         format!("it used more than {} MiB of memory", MEMORY_MAX_PAGES / 16)

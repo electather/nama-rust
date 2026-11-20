@@ -1,19 +1,22 @@
 use std::{
     collections::{BTreeSet, HashSet},
-    sync::{Arc, Mutex, PoisonError},
+    sync::Arc,
 };
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, contract,
     fulfiller::Movies,
-    metadata::{ExternalId, ExternalIds, IMDB, MetadataError, TitleSource},
+    metadata::{ExternalId, ExternalIds, IMDB, TitleMethod},
 };
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::RequestState;
 
 use super::{Wanted, ask_movie, ask_seasons};
 use crate::db::Database;
-use crate::library::{Metadata, fixture::tmdb_movie};
+use crate::library::{
+    Metadata,
+    fixture::tmdb_movie,
+    scripted::{Refusal, ScriptedSource, SourcesAsked},
+};
 use crate::plugins::Registry;
 use crate::requests::deciding::{cancel, decline};
 use crate::requests::listing::load_one;
@@ -281,129 +284,26 @@ fn an_unavailable_look_up_says_no_title_source_could_answer() {
     );
 }
 
-/// What the [`ShowSource`]s were asked, each as `<source> <method> <id>`, in the order asked.
-type SourcesAsked = Arc<Mutex<Vec<String>>>;
-
-/// The asks in `asked`.
-fn sources_asked(asked: &SourcesAsked) -> Vec<String> {
-    asked.lock().unwrap_or_else(PoisonError::into_inner).clone()
-}
-
-/// A title source keeping titles under `.0`, as the Plugin of that id, at priority `.1`, looking
-/// them up by no other namespace: it knows one Show, `<namespace>-1`, also known as `tmdb-7`, with
-/// Season 1, which it finds by any title if `.2`, it searches.
-#[derive(Clone)]
-struct ShowSource(&'static str, Priority, bool, SourcesAsked);
-
-/// Enables a [`ShowSource`] under `aa`, first in Admin precedence and not searching, then one
-/// under `bb`, which searches, both noting their asks in `asked`.
+/// Enables a source under `aa`, first in Admin precedence as its id sorts first, and not searching,
+/// then one under `bb`, which searches, both noting their asks in `asked`. Each looks titles up by
+/// no other namespace and has one Show, `<namespace>-1`, also known as `tmdb-7`, with Season 1.
 fn enable_aa_then_bb(plugins: &Registry, asked: &SourcesAsked) {
-    for (namespace, priority, searches) in [
-        ("aa", Priority::EARLY, false),
-        ("bb", Priority::DEFAULT, true),
-    ] {
-        let source = ShowSource(namespace, priority, searches, Arc::clone(asked));
+    for (namespace, searches) in [("aa", false), ("bb", true)] {
+        let id = format!("{namespace}-1");
+        let ids = [id.as_str(), "tmdb-7"];
+        let source = ScriptedSource::new(namespace, asked).with_show(&ids, "Show", &[1]);
+        let source = source.with_season(&id, 1, &[]);
+        let source = if searches {
+            source.found(&ids, "Show")
+        } else {
+            source.refusing(&[TitleMethod::Search], Refusal::Unsupported)
+        };
         plugins.enable(Arc::new(source)).unwrap();
     }
 }
 
-impl ShowSource {
-    /// Notes the ask of `method` by `id`, and says whether `id` is its Show's.
-    fn note(&self, method: &str, id: &contract::TitleId) -> bool {
-        let ask = format!("{} {method} {}-{}", self.0, id.namespace, id.value);
-        self.3
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(ask);
-        id.namespace == self.0 && id.value == "1"
-    }
-
-    fn ids(&self) -> Vec<contract::TitleId> {
-        let id = |namespace: &str, value: &str| contract::TitleId {
-            namespace: namespace.to_owned(),
-            value: value.to_owned(),
-            ..Default::default()
-        };
-        vec![id("tmdb", "7"), id(self.0, "1")]
-    }
-}
-
-impl TitleSource for ShowSource {
-    fn namespace(&self) -> &str {
-        self.0
-    }
-
-    fn search<'a>(
-        &'a self,
-        _query: &'a contract::SearchQuery,
-    ) -> BoxFuture<'a, Result<contract::SearchResults, MetadataError>> {
-        let ids = self.ids();
-        let candidates = vec![contract::Candidate {
-            id: ids[1].clone().into(),
-            ids,
-            ..Default::default()
-        }];
-        let found = self.2.then(|| contract::SearchResults {
-            candidates,
-            ..Default::default()
-        });
-        Box::pin(async { found.ok_or(MetadataError::Unsupported) })
-    }
-
-    fn show<'a>(
-        &'a self,
-        asked: &'a contract::TitleAsked,
-    ) -> BoxFuture<'a, Result<contract::ShowAnswer, MetadataError>> {
-        let show = self.note("show", &asked.id).then(|| contract::Show {
-            ids: self.ids(),
-            seasons: vec![1],
-            ..Default::default()
-        });
-        let show = show.into();
-        Box::pin(async {
-            Ok(contract::ShowAnswer {
-                show,
-                ..Default::default()
-            })
-        })
-    }
-
-    fn season<'a>(
-        &'a self,
-        asked: &'a contract::SeasonAsked,
-    ) -> BoxFuture<'a, Result<contract::SeasonAnswer, MetadataError>> {
-        let knows = self.note("season", &asked.show) && asked.season == 1;
-        let season = knows.then(|| contract::Season {
-            number: 1,
-            ..Default::default()
-        });
-        let season = season.into();
-        Box::pin(async {
-            Ok(contract::SeasonAnswer {
-                season,
-                ..Default::default()
-            })
-        })
-    }
-}
-
-impl Plugin for ShowSource {
-    fn manifest(&self) -> Manifest {
-        Manifest {
-            version: "0.0.0".to_owned(),
-            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
-            ..Manifest::new(PluginId::from_static(self.0))
-        }
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        registrar.provide::<dyn TitleSource>(self.1, Arc::new(self.clone()));
-        Ok(())
-    }
-}
-
 /// The Show `bb-1` and its Season 1, asked of the source keeping it.
-const FROM_BB: [&str; 2] = ["bb show bb-1", "bb season bb-1"];
+const FROM_BB: [&str; 2] = ["bb show bb-1", "bb season bb-1 1"];
 
 #[tokio::test]
 async fn a_season_request_fetches_the_show_from_its_keeping_source_not_the_first_ranked() {
@@ -423,7 +323,7 @@ async fn a_season_request_fetches_the_show_from_its_keeping_source_not_the_first
         .await
         .unwrap();
 
-    assert_eq!(sources_asked(&asked), FROM_BB);
+    assert_eq!(asked.lines(), FROM_BB);
     let kept_under = asked_season(&opened[0]).show_id.as_option().unwrap();
     assert_eq!(
         (kept_under.namespace.as_str(), kept_under.value.as_str()),
@@ -447,7 +347,7 @@ async fn a_show_look_up_fetches_from_its_keeping_source_not_the_first_ranked() {
         .await
         .unwrap();
 
-    assert_eq!(sources_asked(&asked), FROM_BB);
+    assert_eq!(asked.lines(), FROM_BB);
     assert_eq!(found.plugin.as_str(), "bb");
     assert_eq!(found.seasons.len(), 1);
 }
@@ -485,7 +385,7 @@ async fn following_a_show_fetches_it_from_its_keeping_source_not_the_first_ranke
         .await
         .unwrap();
 
-    assert_eq!(sources_asked(&asked), FROM_BB);
+    assert_eq!(asked.lines(), FROM_BB);
     assert_eq!(seasons.len(), 1);
 }
 

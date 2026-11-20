@@ -20,11 +20,13 @@ mod autoplay;
 mod choices;
 mod codecs;
 mod direct_play;
+mod downloads;
 mod limits;
 mod probing;
 mod running;
 mod sidecars;
 mod steps;
+mod stored_tracks;
 mod subtitle_appearance;
 mod subtitles;
 mod track_preferences;
@@ -32,6 +34,7 @@ mod tracks;
 
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
+pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
 pub(crate) use running::{
@@ -39,6 +42,7 @@ pub(crate) use running::{
     router as running_router, sweep_leftovers,
 };
 pub(crate) use sidecars::{Sidecar, Sidecars, VersionSidecars, is_sidecar};
+pub(crate) use stored_tracks::StoredTracks;
 pub(crate) use subtitle_appearance::{
     SubtitleAppearance, of as subtitle_appearance_of, set_background as set_subtitle_background,
     set_size as set_subtitle_size,
