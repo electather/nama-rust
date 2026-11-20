@@ -984,6 +984,27 @@ pub struct Movie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub on_watchlist: bool,
+    /// A backdrop with its title written on it, in English for now, to show without the Title Logo
+    /// over it, such as on a Continue Watching card. Unset if its title sources have none. A Custom
+    /// Image never replaces it.
+    ///
+    /// Field 19: `titled_backdrop_url`
+    #[serde(
+        rename = "titledBackdropUrl",
+        alias = "titled_backdrop_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub titled_backdrop_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `poster_thumbhash`, for the titled backdrop.
+    ///
+    /// Field 20: `titled_backdrop_thumbhash`
+    #[serde(
+        rename = "titledBackdropThumbhash",
+        alias = "titled_backdrop_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub titled_backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1009,6 +1030,8 @@ impl ::core::fmt::Debug for Movie {
             .field("genres", &self.genres)
             .field("content_rating", &self.content_rating)
             .field("on_watchlist", &self.on_watchlist)
+            .field("titled_backdrop_url", &self.titled_backdrop_url)
+            .field("titled_backdrop_thumbhash", &self.titled_backdrop_thumbhash)
             .finish()
     }
 }
@@ -1117,6 +1140,26 @@ impl Movie {
         self.content_rating = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::titled_backdrop_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_titled_backdrop_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.titled_backdrop_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::titled_backdrop_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_titled_backdrop_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.titled_backdrop_thumbhash = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Movie);
 impl ::buffa::MessageName for Movie {
@@ -1207,6 +1250,12 @@ impl ::buffa::Message for Movie {
         if self.on_watchlist {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if let Some(ref v) = self.titled_backdrop_url {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.titled_backdrop_thumbhash {
+            size += 2u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1285,6 +1334,12 @@ impl ::buffa::Message for Movie {
         }
         if self.on_watchlist {
             ::buffa::types::put_bool_field(18u32, self.on_watchlist, buf);
+        }
+        if let Some(ref v) = self.titled_backdrop_url {
+            ::buffa::types::put_string_field(19u32, v, buf);
+        }
+        if let Some(ref v) = self.titled_backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(20u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1489,6 +1544,30 @@ impl ::buffa::Message for Movie {
                 )?;
                 self.on_watchlist = ::buffa::types::decode_bool(buf)?;
             }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .titled_backdrop_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .titled_backdrop_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1515,6 +1594,8 @@ impl ::buffa::Message for Movie {
         self.genres.clear();
         self.content_rating = ::core::option::Option::None;
         self.on_watchlist = false;
+        self.titled_backdrop_url = ::core::option::Option::None;
+        self.titled_backdrop_thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4552,6 +4633,25 @@ pub struct Show {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub season_count: u32,
+    /// As `Movie.titled_backdrop_url`.
+    ///
+    /// Field 16: `titled_backdrop_url`
+    #[serde(
+        rename = "titledBackdropUrl",
+        alias = "titled_backdrop_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub titled_backdrop_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `Movie.titled_backdrop_thumbhash`.
+    ///
+    /// Field 17: `titled_backdrop_thumbhash`
+    #[serde(
+        rename = "titledBackdropThumbhash",
+        alias = "titled_backdrop_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub titled_backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4574,6 +4674,8 @@ impl ::core::fmt::Debug for Show {
             .field("first_air_date", &self.first_air_date)
             .field("on_watchlist", &self.on_watchlist)
             .field("season_count", &self.season_count)
+            .field("titled_backdrop_url", &self.titled_backdrop_url)
+            .field("titled_backdrop_thumbhash", &self.titled_backdrop_thumbhash)
             .finish()
     }
 }
@@ -4665,6 +4767,26 @@ impl Show {
         self.first_air_date = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::titled_backdrop_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_titled_backdrop_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.titled_backdrop_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::titled_backdrop_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_titled_backdrop_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.titled_backdrop_thumbhash = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Show);
 impl ::buffa::MessageName for Show {
@@ -4736,6 +4858,12 @@ impl ::buffa::Message for Show {
         if self.season_count != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_count) as u64;
         }
+        if let Some(ref v) = self.titled_backdrop_url {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.titled_backdrop_thumbhash {
+            size += 2u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4795,6 +4923,12 @@ impl ::buffa::Message for Show {
         }
         if self.season_count != 0u32 {
             ::buffa::types::put_uint32_field(15u32, self.season_count, buf);
+        }
+        if let Some(ref v) = self.titled_backdrop_url {
+            ::buffa::types::put_string_field(16u32, v, buf);
+        }
+        if let Some(ref v) = self.titled_backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(17u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4962,6 +5096,30 @@ impl ::buffa::Message for Show {
                 )?;
                 self.season_count = ::buffa::types::decode_uint32(buf)?;
             }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .titled_backdrop_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .titled_backdrop_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4985,6 +5143,8 @@ impl ::buffa::Message for Show {
         self.first_air_date = ::core::option::Option::None;
         self.on_watchlist = false;
         self.season_count = 0u32;
+        self.titled_backdrop_url = ::core::option::Option::None;
+        self.titled_backdrop_thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

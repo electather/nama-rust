@@ -317,6 +317,7 @@ pub(super) fn matched(ids: ExternalIds, show_ids: ExternalIds) -> Decided {
         runtime_minutes: None,
         poster: None,
         backdrop: None,
+        titled_backdrop: None,
         logo: None,
         still: None,
         genres: Vec::new(),

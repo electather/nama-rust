@@ -1,9 +1,10 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use nama_proto::nama::v1::{
     PageRequest, SortDirection,
     UnmatchedItemSort::{self, UNMATCHED_ITEM_SORT_FOUND, UNMATCHED_ITEM_SORT_PATH},
 };
+use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tempfile::TempDir;
 
 use super::{
@@ -14,7 +15,11 @@ use super::{
     },
     Decided,
 };
-use crate::{db, library::libraries::Kind, page::Page};
+use crate::{
+    db::{self, Database},
+    library::libraries::Kind,
+    page::Page,
+};
 
 #[tokio::test]
 async fn undecided_leaves_out_decided_items() {
@@ -268,4 +273,48 @@ async fn items_of_one_file_found_together_list_one_a_page_in_every_order() {
             );
         }
     }
+}
+
+/// The version of the migration that adds `item_matches.titled_backdrop`.
+const TITLED_BACKDROPS: i64 = 20_261_120_123_216;
+
+#[tokio::test]
+async fn upgrading_to_titled_backdrops_keeps_each_match_and_has_the_next_scan_fetch_it_again() {
+    let data = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = (migrations.iter().map(|migration| migration.version))
+        .filter(|&version| version < TITLED_BACKDROPS)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    // Matched at metadata version 4, the last before titled Backdrops.
+    sqlx::raw_sql(
+        "INSERT INTO libraries (id, name, kind) VALUES (1, 'Movies', 'movies');
+         INSERT INTO library_files (id, library_id, path, size, modified_ns)
+         VALUES (1, 1, '/media/Alien (1979).mkv', 10, 0);
+         INSERT INTO library_items (id, file_id, kind, title, year)
+         VALUES (1, 1, 'movie', 'Alien', 1979);
+         INSERT INTO item_matches (item_id, state, plugin, title, backdrop, backdrop_plugin,
+                                   decided_at, metadata_version)
+         VALUES (1, 'matched', 'tmdb', 'Alien', '/textless.jpg', 'tmdb', 0, 4);
+         INSERT INTO item_match_ids (item_id, scope, namespace, value)
+         VALUES (1, 'title', 'tmdb', '348');",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let contents = Contents::new(Arc::new(Database::open(data.path()).await.unwrap()));
+    let outdated = contents.outdated(1).await.unwrap();
+    let alien = contents.movies(1, None).await.unwrap().remove(0);
+
+    let outdated: Vec<i64> = outdated.into_iter().map(|(item, ..)| item).collect();
+    assert_eq!(outdated, [1]);
+    let backdrop = alien.backdrop.map(|image| image.path);
+    assert_eq!(backdrop.as_deref(), Some("/textless.jpg"));
+    assert_eq!(alien.titled_backdrop, None);
 }
