@@ -78,11 +78,11 @@ impl Fixture {
             ServerUrl::default(),
             BUFFERED,
         );
+        let images = ImageStore::new(data.path(), Arc::clone(&db));
         let probing = ffmpeg.map(|ffmpeg| {
             let subtitles = SubtitleCache::new(data.path());
-            Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles)
+            Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles, images.clone())
         });
-        let images = ImageStore::new(data.path(), Arc::clone(&db));
         Self {
             scanner: Scanner::new(
                 Arc::clone(&db),

@@ -55,6 +55,7 @@ impl Fixture {
                 Arc::clone(&db),
                 Arc::new(ffmpeg),
                 subtitles::Cache::new(data.path()),
+                crate::images::ImageStore::new(data.path(), Arc::clone(&db)),
             ),
             tracks: Tracks::new(Arc::clone(&db)),
             contents: Contents::new(db),
@@ -160,7 +161,7 @@ impl Fixture {
 }
 
 /// The ffmpeg and ffprobe on `PATH`, which tests that probe need.
-fn system_ffmpeg() -> Ffmpeg {
+pub(super) fn system_ffmpeg() -> Ffmpeg {
     let path = std::env::var_os("PATH").unwrap_or_default();
     let ffmpeg = Ffmpeg::find(&Config::default(), &path);
     assert!(
@@ -687,7 +688,7 @@ async fn an_mkv_written_to_a_pipe_probes_to_its_real_length() {
         .unwrap();
     assert!(status.success());
 
-    let probe = ffprobe::probe(&ffmpeg, file.to_str().unwrap())
+    let (probe, _) = ffprobe::probe(&ffmpeg, file.to_str().unwrap())
         .await
         .unwrap();
 
@@ -716,7 +717,7 @@ async fn an_avi_written_to_a_pipe_probes_to_its_real_length() {
         .unwrap();
     assert!(status.success());
 
-    let probe = ffprobe::probe(&ffmpeg, file.to_str().unwrap())
+    let (probe, _) = ffprobe::probe(&ffmpeg, file.to_str().unwrap())
         .await
         .unwrap();
 

@@ -27,7 +27,7 @@ use tracing::error;
 
 use super::{
     Installed, Point, Refused,
-    automation::{FUNCTIONS, Reach, import},
+    automation::{KERNEL_IMPORTS, Reach, import},
     bundled::BUNDLED,
     calls::Calls,
     check_exports, contract,
@@ -52,6 +52,11 @@ pub(super) const TICK_TIMEOUT: Duration = Duration::from_secs(60);
 /// How long a blob store call may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`],
 /// since one call carries a whole object, up to `BLOB_MAX_BYTES`, to or from an outside store.
 pub(super) const BLOB_TIMEOUT: Duration = Duration::from_secs(60);
+
+// Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
+/// How long a Home row refresh may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`],
+/// since a refresh may page an outside service for 3 rows of 200 titles each (ADR 0058).
+pub(super) const HOME_ROWS_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How much memory one call into an Installed Plugin may use, in 64 KiB pages: the guest's own and
@@ -334,7 +339,7 @@ fn build(
     });
     // Every import is defined whether or not the Plugin may call it, so a Plugin importing them
     // still instantiates to read its Manifest or check its settings.
-    let builder = FUNCTIONS.iter().fold(
+    let builder = KERNEL_IMPORTS.iter().fold(
         PluginBuilder::new(manifest)
             .with_cache_config(cache_config)
             .with_function_in_namespace("nama", "now", [], [ValType::I64], UserData::new(()), now)
@@ -346,10 +351,10 @@ fn build(
                 UserData::new(log),
                 plugin_log::import,
             ),
-        |builder, function| {
+        |builder, &function| {
             builder.with_function_in_namespace(
                 "nama",
-                function.name,
+                function,
                 [ValType::I64],
                 [ValType::I64],
                 reach.clone(),

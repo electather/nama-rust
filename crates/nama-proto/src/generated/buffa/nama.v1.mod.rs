@@ -234,6 +234,11 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SUBTITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SUBTITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FOUND_SUBTITLE_JSON_ANY);
+        reg.register_json_any(super::__DOWNLOAD_SUBTITLE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DOWNLOAD_SUBTITLE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
@@ -244,6 +249,12 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_AUTOPLAY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_AUTOPLAY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_AUTOPLAY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_SUBTITLE_APPEARANCE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SUBTITLE_APPEARANCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_SIZE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_SIZE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_BACKGROUND_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_BACKGROUND_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USERS_AUDIO_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
@@ -283,6 +294,7 @@ pub mod __buffa {
         reg.register_json_any(super::__FOLLOWED_SHOW_WITHDRAWN_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_STARTED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_ENDED_JSON_ANY);
+        reg.register_json_any(super::__ADMIN_STOP_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
@@ -317,6 +329,12 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_ARTWORK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_ARTWORK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__TITLE_SOURCE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLAYS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLAYS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAY_JSON_ANY);
+        reg.register_json_any(super::__TRANSCODE_HARDWARE_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_SETTINGS_REQUEST_JSON_ANY);
@@ -1061,6 +1079,26 @@ pub use self::__buffa::view::HomeRowTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowTitleOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::SearchSubtitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSubtitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSubtitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSubtitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundSubtitleView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundSubtitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadSubtitleRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadSubtitleRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadSubtitleResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadSubtitleResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::GetTrackPreferencesRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::GetTrackPreferencesRequestOwnedView;
@@ -1100,6 +1138,30 @@ pub use self::__buffa::view::SetAutoplayRequestOwnedView;
 pub use self::__buffa::view::SetAutoplayResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetAutoplayResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSubtitleAppearanceRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSubtitleAppearanceRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSubtitleAppearanceResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSubtitleAppearanceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleSizeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleSizeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleSizeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleSizeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleBackgroundRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleBackgroundRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleBackgroundResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleBackgroundResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UsersAudioPreferenceView;
 #[doc(inline)]
@@ -1257,6 +1319,10 @@ pub use self::__buffa::view::PlaybackEndedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackEndedOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::AdminStopView;
+#[doc(inline)]
+pub use self::__buffa::view::AdminStopOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::PlaybackChangedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackChangedOwnedView;
@@ -1392,6 +1458,30 @@ pub use self::__buffa::view::ListArtworkResponseOwnedView;
 pub use self::__buffa::view::TitleSourceView;
 #[doc(inline)]
 pub use self::__buffa::view::TitleSourceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPlaysRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPlaysRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPlaysResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPlaysResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlayView;
+#[doc(inline)]
+pub use self::__buffa::view::PlayOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TranscodeHardwareView;
+#[doc(inline)]
+pub use self::__buffa::view::TranscodeHardwareOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlayRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlayRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlayResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlayResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoRequestView;
 #[doc(inline)]

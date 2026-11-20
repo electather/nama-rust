@@ -27,7 +27,7 @@ const SECRET: &str = "secret";
 mod exports {
     use nama_pdk::{
         Buffa, FnResult, Manifest, Notification, Notifier, Recipient,
-        extism_pdk::{self, Error, HttpRequest, config},
+        extism_pdk::{self, Error, HttpRequest},
         plugin_fn,
     };
 
@@ -62,13 +62,13 @@ mod exports {
         let Some(text) = nama_pdk::what_happened(notification) else {
             return Ok(());
         };
-        let url =
-            config::get(URL)?.ok_or_else(|| Error::msg(format!("the setting {URL} isn't set")))?;
+        let url = nama_pdk::setting(URL)?
+            .ok_or_else(|| Error::msg(format!("the setting {URL} isn't set")))?;
         let body = super::body(notification, &text)?;
         let mut request = HttpRequest::new(url)
             .with_method("POST")
             .with_header("Content-Type", "application/json");
-        if let Some(secret) = config::get(SECRET)?.filter(|secret| !secret.is_empty()) {
+        if let Some(secret) = nama_pdk::setting(SECRET)?.filter(|secret| !secret.is_empty()) {
             request = request.with_header("X-Nama-Signature", super::signature(&secret, &body)?);
         }
         // Not naming the URL, which may hold a token.

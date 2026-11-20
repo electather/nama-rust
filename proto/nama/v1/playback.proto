@@ -64,7 +64,78 @@ service PlaybackService {
   rpc SetAutoplay(SetAutoplayRequest) returns (SetAutoplayResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Asks every enabled subtitle source for a Version's subtitles in `languages`, for a User with
+  // `PERMISSION_DOWNLOAD_SUBTITLES` watching it (ADR 0067). A source that fails is left out. Fails
+  // with `not_found` if there is no such Version, and is refused with
+  // `REFUSAL_REASON_FIELD_REQUIRED` for no `languages`, with `REFUSAL_REASON_UNKNOWN_LANGUAGE` for
+  // one that isn't a language tag, and with `REFUSAL_REASON_NO_SUBTITLE_SOURCE` if none is enabled
+  // or every one failed.
+  rpc SearchSubtitles(SearchSubtitlesRequest) returns (SearchSubtitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Downloads a subtitle `SearchSubtitles` found and keeps it in the Server's blob store, so every
+  // User sees it as the Version's last Track until the Version is deleted (ADR 0067). One already
+  // downloaded keeps its place. Fails with `not_found` if there is no such Version, and is refused
+  // with `REFUSAL_REASON_FIELD_REQUIRED` for no `subtitle`, with
+  // `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the subtitle's language isn't a language tag, and with
+  // `REFUSAL_REASON_NO_SUBTITLE_SOURCE` if its source isn't enabled or fails, or gives a file that
+  // isn't a subtitle or is over 20 MiB.
+  rpc DownloadSubtitle(DownloadSubtitleRequest) returns (DownloadSubtitleResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Returns how big the caller's text subtitles are and what's behind them, on every Device: their
+  // Subtitle Appearance. A styled ASS Track the Device draws, and a burned-in one, keep their own.
+  rpc GetSubtitleAppearance(GetSubtitleAppearanceRequest) returns (GetSubtitleAppearanceResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Sets the size of the caller's text subtitles, on every Device. Refused with
+  // `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `SUBTITLE_SIZE_UNSPECIFIED` or a value the Server
+  // doesn't know.
+  rpc SetSubtitleSize(SetSubtitleSizeRequest) returns (SetSubtitleSizeResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Sets what's behind the caller's text subtitles, on every Device. Refused with
+  // `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `SUBTITLE_BACKGROUND_UNSPECIFIED` or a value the Server
+  // doesn't know.
+  rpc SetSubtitleBackground(SetSubtitleBackgroundRequest) returns (SetSubtitleBackgroundResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
+
+message SearchSubtitlesRequest {
+  // The Version being watched, as browsing gave it.
+  int64 version_id = 1;
+  // The languages wanted, as BCP 47 tags such as `en` or `pt-BR`.
+  repeated string languages = 2;
+}
+
+message SearchSubtitlesResponse {
+  // What the sources found, each source's best first.
+  repeated FoundSubtitle subtitles = 1;
+}
+
+// A subtitle a subtitle source found for a Version.
+message FoundSubtitle {
+  // The Plugin whose subtitle source found it.
+  string plugin_id = 1;
+  // What its source downloads it by.
+  string id = 2;
+  // Its language, as a BCP 47 tag such as `en` or `pt-BR`.
+  string language = 3;
+  // Its name at the source, such as its release name, which its Track is titled with.
+  string name = 4;
+  // Whether it's for the deaf and hard of hearing (SDH), as subtitles that also describe sounds.
+  bool sdh = 5;
+}
+
+message DownloadSubtitleRequest {
+  // The Version being watched, as browsing gave it.
+  int64 version_id = 1;
+  // The subtitle, as `SearchSubtitles` found it for that Version.
+  FoundSubtitle subtitle = 2;
+}
+
+message DownloadSubtitleResponse {}
 
 message GetTrackPreferencesRequest {}
 
@@ -102,6 +173,50 @@ message SetAutoplayRequest {
 }
 
 message SetAutoplayResponse {}
+
+message GetSubtitleAppearanceRequest {}
+
+message GetSubtitleAppearanceResponse {
+  // The caller's text subtitle size: `SUBTITLE_SIZE_DEFAULT` until they pick another.
+  SubtitleSize size = 1;
+  // What's behind the caller's text subtitles: `SUBTITLE_BACKGROUND_OUTLINE` until they pick
+  // another.
+  SubtitleBackground background = 2;
+}
+
+message SetSubtitleSizeRequest {
+  // The caller's text subtitle size from now on.
+  SubtitleSize size = 1;
+}
+
+message SetSubtitleSizeResponse {}
+
+message SetSubtitleBackgroundRequest {
+  // What's behind the caller's text subtitles from now on.
+  SubtitleBackground background = 1;
+}
+
+message SetSubtitleBackgroundResponse {}
+
+// How big a User's text subtitles are, beside the size each browser or app shows them at.
+enum SubtitleSize {
+  SUBTITLE_SIZE_UNSPECIFIED = 0;
+  SUBTITLE_SIZE_SMALL = 1;
+  // The size each browser or app shows text subtitles at on its own.
+  SUBTITLE_SIZE_DEFAULT = 2;
+  SUBTITLE_SIZE_LARGE = 3;
+  SUBTITLE_SIZE_LARGEST = 4;
+}
+
+// What's behind a User's text subtitles. Either keeps them legible over any frame, which is why
+// there's no bare text.
+enum SubtitleBackground {
+  SUBTITLE_BACKGROUND_UNSPECIFIED = 0;
+  // A dark edge around each letter, and nothing behind the line.
+  SUBTITLE_BACKGROUND_OUTLINE = 1;
+  // A dark box behind each line.
+  SUBTITLE_BACKGROUND_BOX = 2;
+}
 
 // What a User wants audio to start as in everything they play, unless the Show or Movie has an
 // Audio Preference of its own.

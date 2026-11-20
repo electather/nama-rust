@@ -1,0 +1,40 @@
+/* The User's Subtitle Appearance (ADR 0068) on text subtitles: an outline unless they picked the
+   box, at a size relative to the browser's own. `PlannedPlayer` sets `data-subtitle-*` around the
+   `<video>` to `nama.v1.SubtitleSize` and `nama.v1.SubtitleBackground` numbers. A styled ASS Track
+   libass draws and a burned-in one are pictures, not cues, so these leave them alone. */
+/* styles.css is at Fallow's line limit, so the tokens sit with their only user. */
+:root {
+  /* Text subtitles, the same in every theme since they sit over the video. White ink is 21:1 on
+     the black edge, and 10.4:1 on the edge at 75%, the box, over a white frame (WCAG 2), so either
+     keeps AA. */
+  --subtitle-ink: oklch(1 0 0);
+  --subtitle-edge: oklch(0 0 0);
+}
+video::cue {
+  color: var(--subtitle-ink);
+  background-color: transparent;
+  /* An edge all round each letter, at least a pixel wide, not a soft shadow, which a white frame
+     shows through. */
+  text-shadow:
+    max(1px, 0.06em) 0 var(--subtitle-edge),
+    min(-1px, -0.06em) 0 var(--subtitle-edge),
+    0 max(1px, 0.06em) var(--subtitle-edge),
+    0 min(-1px, -0.06em) var(--subtitle-edge),
+    max(1px, 0.04em) max(1px, 0.04em) var(--subtitle-edge),
+    min(-1px, -0.04em) max(1px, 0.04em) var(--subtitle-edge),
+    max(1px, 0.04em) min(-1px, -0.04em) var(--subtitle-edge),
+    min(-1px, -0.04em) min(-1px, -0.04em) var(--subtitle-edge);
+}
+[data-subtitle-background="2"] video::cue {
+  background-color: color-mix(in oklab, var(--subtitle-edge) 75%, transparent);
+  text-shadow: none;
+}
+[data-subtitle-size="1"] video::cue {
+  font-size: 80%;
+}
+[data-subtitle-size="3"] video::cue {
+  font-size: 125%;
+}
+[data-subtitle-size="4"] video::cue {
+  font-size: 150%;
+}

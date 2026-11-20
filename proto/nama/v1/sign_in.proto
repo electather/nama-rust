@@ -128,6 +128,9 @@ enum Permission {
   PERMISSION_CHOOSE_QUALITY = 13;
   // Deletes media from the Libraries' folders, for good (ADR 0038).
   PERMISSION_DELETE_MEDIA = 14;
+  // Searches the subtitle sources for the Version they're watching and downloads one of the
+  // subtitles found, which every User then sees as one of its Tracks (ADR 0067).
+  PERMISSION_DOWNLOAD_SUBTITLES = 15;
 }
 
 // A person's identity on one Server.

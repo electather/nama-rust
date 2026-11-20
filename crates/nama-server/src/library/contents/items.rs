@@ -2,11 +2,11 @@
 
 use std::borrow::Cow;
 
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use crate::library::title_source::TitleKind;
 
-use super::parse_hint;
+use super::{Contents, ids_from_json, ids_sql, parse_hint};
 
 /// Something a file holds, as far as its path says.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,5 +146,49 @@ impl<'a> From<&'a Item> for ItemRow<'a> {
                 episode: Some(episode),
             },
         }
+    }
+}
+
+/// A Version's first Item, by season and episode, as a subtitle source is asked about it.
+#[derive(Debug)]
+pub(crate) struct FirstItem {
+    /// The path of the Version's file.
+    pub(crate) path: String,
+    pub(crate) kind: ItemKind,
+    /// For an Episode, its Season's number and its own.
+    pub(crate) episode: Option<(i64, i64)>,
+    /// Its Movie's ids, or for an Episode its Show's: none unless it's Matched.
+    pub(crate) ids: ExternalIds,
+}
+
+impl Contents {
+    /// The Version `version`'s [`FirstItem`], or `None` if there's no such Version or its file
+    /// holds no Item.
+    pub(crate) async fn first_item(&self, version: i64) -> Result<Option<FirstItem>, sqlx::Error> {
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_files.path, library_items.kind AS "kind: ItemKind",
+                              library_items.season, library_items.episode, "#
+                        + $ids
+                        + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS "ids?: String"
+                       FROM library_files
+                       JOIN library_items ON library_items.file_id = library_files.id
+                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+                                             AND item_matches.state = 'matched'
+                       WHERE library_files.id = ?
+                       ORDER BY library_items.season, library_items.episode
+                       LIMIT 1"#,
+                    version
+                )
+            };
+        }
+        let row = ids_sql!(select).fetch_optional(self.db.reader()).await?;
+        Ok(row.map(|row| FirstItem {
+            path: row.path,
+            kind: row.kind,
+            episode: row.season.zip(row.episode),
+            ids: ids_from_json(row.ids.as_deref()),
+        }))
     }
 }

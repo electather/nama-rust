@@ -12,6 +12,6 @@ What the Kernel gives an Installed Plugin (HTTP, settings and the Kernel's funct
 
 - No clock: a Tick carries the Kernel's clock, and `nama_pdk::now` keeps its native branch for S3's signing.
 - An answer the test didn't script panics rather than reaching the Plugin as an error a Plugin might retry or swallow. A test can script a host that can't be reached.
-- The in-process end doesn't check a Manifest's allowed hosts; the Kernel does, and the Server's tests cover it.
+- The in-process end doesn't check a Manifest's allowed hosts; the Kernel does, and the Server's tests cover it. The Server's own test Plugin calls Extism's HTTP directly for that, since `nama_pdk::http_request` puts a Plugin's "didn't answer" in place of the Kernel's refusal.
 - A Server-level test of a Plugin's conversation is deleted only once the Plugin's own test asserts the same requests. Tests of what the Kernel does with a Plugin stay.
 - `Registry::tick_now` and `tick_only_on_demand` go once the Kernel's functions are scriptable and Cleanup's tests no longer need a Server.

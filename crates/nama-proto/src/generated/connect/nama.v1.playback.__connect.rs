@@ -62,6 +62,46 @@ pub type OwnedSetAutoplayRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetAutoplayResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetAutoplayResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SearchSubtitlesRequestView<'static>>`.
+pub type OwnedSearchSubtitlesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SearchSubtitlesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SearchSubtitlesResponseView<'static>>`.
+pub type OwnedSearchSubtitlesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SearchSubtitlesResponseView<'static>,
+>;
+///Shorthand for `OwnedView<DownloadSubtitleRequestView<'static>>`.
+pub type OwnedDownloadSubtitleRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DownloadSubtitleRequestView<'static>,
+>;
+///Shorthand for `OwnedView<DownloadSubtitleResponseView<'static>>`.
+pub type OwnedDownloadSubtitleResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DownloadSubtitleResponseView<'static>,
+>;
+///Shorthand for `OwnedView<GetSubtitleAppearanceRequestView<'static>>`.
+pub type OwnedGetSubtitleAppearanceRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetSubtitleAppearanceRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetSubtitleAppearanceResponseView<'static>>`.
+pub type OwnedGetSubtitleAppearanceResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetSubtitleAppearanceResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetSubtitleSizeRequestView<'static>>`.
+pub type OwnedSetSubtitleSizeRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleSizeRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetSubtitleSizeResponseView<'static>>`.
+pub type OwnedSetSubtitleSizeResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleSizeResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetSubtitleBackgroundRequestView<'static>>`.
+pub type OwnedSetSubtitleBackgroundRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetSubtitleBackgroundResponseView<'static>>`.
+pub type OwnedSetSubtitleBackgroundResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::PlanPlaybackResponse>
 for crate::messages::nama::v1::__buffa::view::PlanPlaybackResponseView<'_> {
     fn encode(
@@ -334,6 +374,176 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchSubtitlesResponse>
+for crate::messages::nama::v1::__buffa::view::SearchSubtitlesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchSubtitlesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SearchSubtitlesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DownloadSubtitleResponse>
+for crate::messages::nama::v1::__buffa::view::DownloadSubtitleResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DownloadSubtitleResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DownloadSubtitleResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetSubtitleAppearanceResponse>
+for crate::messages::nama::v1::__buffa::view::GetSubtitleAppearanceResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetSubtitleAppearanceResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetSubtitleAppearanceResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetSubtitleSizeResponse>
+for crate::messages::nama::v1::__buffa::view::SetSubtitleSizeResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetSubtitleSizeResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleSizeResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetSubtitleBackgroundResponse>
+for crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetSubtitleBackgroundResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const PLAYBACK_SERVICE_SERVICE_NAME: &str = "nama.v1.PlaybackService";
 /// Static [`Spec`](::connectrpc::Spec) for the `PlanPlayback` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -381,6 +591,36 @@ pub const PLAYBACK_SERVICE_GET_AUTOPLAY_SPEC: ::connectrpc::Spec = ::connectrpc:
 /// Static [`Spec`](::connectrpc::Spec) for the `SetAutoplay` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.PlaybackService/SetAutoplay",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SearchSubtitles` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_SEARCH_SUBTITLES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/SearchSubtitles",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `DownloadSubtitle` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_DOWNLOAD_SUBTITLE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/DownloadSubtitle",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetSubtitleAppearance` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_GET_SUBTITLE_APPEARANCE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/GetSubtitleAppearance",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetSubtitleSize` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_SET_SUBTITLE_SIZE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/SetSubtitleSize",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetSubtitleBackground` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/SetSubtitleBackground",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -642,6 +882,137 @@ pub trait PlaybackService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetAutoplayResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Asks every enabled subtitle source for a Version's subtitles in `languages`, for a User with
+    /// `PERMISSION_DOWNLOAD_SUBTITLES` watching it (ADR 0067). A source that fails is left out. Fails
+    /// with `not_found` if there is no such Version, and is refused with
+    /// `REFUSAL_REASON_FIELD_REQUIRED` for no `languages`, with `REFUSAL_REASON_UNKNOWN_LANGUAGE` for
+    /// one that isn't a language tag, and with `REFUSAL_REASON_NO_SUBTITLE_SOURCE` if none is enabled
+    /// or every one failed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn search_subtitles<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SearchSubtitlesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SearchSubtitlesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Downloads a subtitle `SearchSubtitles` found and keeps it in the Server's blob store, so every
+    /// User sees it as the Version's last Track until the Version is deleted (ADR 0067). One already
+    /// downloaded keeps its place. Fails with `not_found` if there is no such Version, and is refused
+    /// with `REFUSAL_REASON_FIELD_REQUIRED` for no `subtitle`, with
+    /// `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the subtitle's language isn't a language tag, and with
+    /// `REFUSAL_REASON_NO_SUBTITLE_SOURCE` if its source isn't enabled or fails, or gives a file that
+    /// isn't a subtitle or is over 20 MiB.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn download_subtitle<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::DownloadSubtitleRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::DownloadSubtitleResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns how big the caller's text subtitles are and what's behind them, on every Device: their
+    /// Subtitle Appearance. A styled ASS Track the Device draws, and a burned-in one, keep their own.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_subtitle_appearance<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetSubtitleAppearanceRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetSubtitleAppearanceResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Sets the size of the caller's text subtitles, on every Device. Refused with
+    /// `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `SUBTITLE_SIZE_UNSPECIFIED` or a value the Server
+    /// doesn't know.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_subtitle_size<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetSubtitleSizeRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetSubtitleSizeResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Sets what's behind the caller's text subtitles, on every Device. Refused with
+    /// `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `SUBTITLE_BACKGROUND_UNSPECIFIED` or a value the Server
+    /// doesn't know.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_subtitle_background<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetSubtitleBackgroundRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetSubtitleBackgroundResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -909,6 +1280,151 @@ impl<S: PlaybackService> PlaybackServiceExt for S {
                 },
             )
             .with_spec(PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC)
+            .route_view_idempotent(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "SearchSubtitles",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SearchSubtitlesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SearchSubtitlesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.search_subtitles(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SearchSubtitlesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_SEARCH_SUBTITLES_SPEC)
+            .route_view(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "DownloadSubtitle",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::DownloadSubtitleRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::DownloadSubtitleRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.download_subtitle(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::DownloadSubtitleResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_DOWNLOAD_SUBTITLE_SPEC)
+            .route_view_idempotent(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "GetSubtitleAppearance",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetSubtitleAppearanceRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetSubtitleAppearanceRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_subtitle_appearance(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetSubtitleAppearanceResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_GET_SUBTITLE_APPEARANCE_SPEC)
+            .route_view(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "SetSubtitleSize",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetSubtitleSizeRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetSubtitleSizeRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_subtitle_size(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetSubtitleSizeResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_SIZE_SPEC)
+            .route_view(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "SetSubtitleBackground",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetSubtitleBackgroundRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_subtitle_background(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetSubtitleBackgroundResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1009,6 +1525,36 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC),
+                )
+            }
+            "SearchSubtitles" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(PLAYBACK_SERVICE_SEARCH_SUBTITLES_SPEC),
+                )
+            }
+            "DownloadSubtitle" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLAYBACK_SERVICE_DOWNLOAD_SUBTITLE_SPEC),
+                )
+            }
+            "GetSubtitleAppearance" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(PLAYBACK_SERVICE_GET_SUBTITLE_APPEARANCE_SPEC),
+                )
+            }
+            "SetSubtitleSize" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_SIZE_SPEC),
+                )
+            }
+            "SetSubtitleBackground" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC),
                 )
             }
             _ => None,
@@ -1196,6 +1742,116 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                     svc.set_autoplay(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::SetAutoplayResponse>(format)
+                })
+            }
+            "SearchSubtitles" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SearchSubtitlesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SearchSubtitlesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SearchSubtitlesRequest,
+                    >::from_parts(&req, &body);
+                    svc.search_subtitles(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SearchSubtitlesResponse,
+                        >(format)
+                })
+            }
+            "DownloadSubtitle" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::DownloadSubtitleRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::DownloadSubtitleRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::DownloadSubtitleRequest,
+                    >::from_parts(&req, &body);
+                    svc.download_subtitle(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::DownloadSubtitleResponse,
+                        >(format)
+                })
+            }
+            "GetSubtitleAppearance" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetSubtitleAppearanceRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetSubtitleAppearanceRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetSubtitleAppearanceRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_subtitle_appearance(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::GetSubtitleAppearanceResponse,
+                        >(format)
+                })
+            }
+            "SetSubtitleSize" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetSubtitleSizeRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetSubtitleSizeRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetSubtitleSizeRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_subtitle_size(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetSubtitleSizeResponse,
+                        >(format)
+                })
+            }
+            "SetSubtitleBackground" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetSubtitleBackgroundRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetSubtitleBackgroundRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_subtitle_background(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetSubtitleBackgroundResponse,
+                        >(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -1680,6 +2336,231 @@ where
                 &self.transport,
                 &self.config,
                 PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SearchSubtitles RPC. Sends a request to /nama.v1.PlaybackService/SearchSubtitles.
+    pub async fn search_subtitles(
+        &self,
+        request: crate::messages::nama::v1::SearchSubtitlesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SearchSubtitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.search_subtitles_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SearchSubtitles RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn search_subtitles_with_options(
+        &self,
+        request: crate::messages::nama::v1::SearchSubtitlesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SearchSubtitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_SEARCH_SUBTITLES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the DownloadSubtitle RPC. Sends a request to /nama.v1.PlaybackService/DownloadSubtitle.
+    pub async fn download_subtitle(
+        &self,
+        request: crate::messages::nama::v1::DownloadSubtitleRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DownloadSubtitleResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.download_subtitle_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the DownloadSubtitle RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn download_subtitle_with_options(
+        &self,
+        request: crate::messages::nama::v1::DownloadSubtitleRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DownloadSubtitleResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_DOWNLOAD_SUBTITLE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetSubtitleAppearance RPC. Sends a request to /nama.v1.PlaybackService/GetSubtitleAppearance.
+    pub async fn get_subtitle_appearance(
+        &self,
+        request: crate::messages::nama::v1::GetSubtitleAppearanceRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetSubtitleAppearanceResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_subtitle_appearance_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetSubtitleAppearance RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_subtitle_appearance_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetSubtitleAppearanceRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetSubtitleAppearanceResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_GET_SUBTITLE_APPEARANCE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetSubtitleSize RPC. Sends a request to /nama.v1.PlaybackService/SetSubtitleSize.
+    pub async fn set_subtitle_size(
+        &self,
+        request: crate::messages::nama::v1::SetSubtitleSizeRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetSubtitleSizeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_subtitle_size_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetSubtitleSize RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_subtitle_size_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetSubtitleSizeRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetSubtitleSizeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_SET_SUBTITLE_SIZE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetSubtitleBackground RPC. Sends a request to /nama.v1.PlaybackService/SetSubtitleBackground.
+    pub async fn set_subtitle_background(
+        &self,
+        request: crate::messages::nama::v1::SetSubtitleBackgroundRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_subtitle_background_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetSubtitleBackground RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_subtitle_background_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetSubtitleBackgroundRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetSubtitleBackgroundResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

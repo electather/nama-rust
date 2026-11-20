@@ -171,7 +171,14 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/library/custom_images", &["custom_images"]),
     ("src/playback/track_preferences", &["track_preferences"]),
     ("src/playback/autoplay", &["autoplay_off"]),
-    ("src/playback/sidecars", &["sidecar_subtitles"]),
+    (
+        "src/playback/subtitle_appearance",
+        &["subtitle_appearances"],
+    ),
+    (
+        "src/playback/sidecars",
+        &["sidecar_subtitles", "downloaded_subtitles"],
+    ),
     ("src/library/watch_states", &["watch_states"]),
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/automation/store", &["plugin_store"]),

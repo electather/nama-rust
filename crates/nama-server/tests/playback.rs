@@ -10,6 +10,8 @@ mod burn_in;
 mod http;
 #[path = "playback/keyframes.rs"]
 mod keyframes;
+#[path = "playback/now_playing.rs"]
+mod now_playing;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]

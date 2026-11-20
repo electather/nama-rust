@@ -3,7 +3,7 @@
 The Kernel's functions an Automation Plugin calls (ADR 0048), served to each Plugin by `Automation::serve`.
 
 - **One owner for the Store:** only `store.rs` reads or writes `plugin_store`, tests included. A key is at most 256 bytes, a value at most 64 KiB, and a Plugin keeps at most 10 000 entries, Plugin-wide and per-User together, counted in the write that adds one; entries outlive disabling the Plugin, and deleting a User deletes theirs.
-- **Permission first:** every Kernel function checks its Plugin Permission before anything else, against the one table in `Method::needs` in `../automation.rs`, and refuses in plain words naming the Plugin and the Permission.
+- **Permission first:** the one table in `../automation.rs` names each Kernel function's Plugin Permission, and dispatch checks it before decoding the request or running the handler, refusing in plain words naming the Plugin and the Permission. A handler never checks a Permission itself.
 - **Reuse, never write another area's tables:** a Kernel function answers through the operation that already has one owner, such as `Libraries::list` or `Scanner::start_delete`.
 - **Held weakly by Plugins:** `Automation` holds the Scanner and the Extension Points, which hold the Plugins, so each Plugin's Kernel functions hold it through a `Weak`; startup holds it until the Plugins have stopped, or the database never closes at shutdown.
 

@@ -1,7 +1,8 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
-//! [`super::tracks`]), and decides what a failure to probe one means for trying it again. It also
-//! lists a Version's keyframes in the background when first asked for them, and keeps them, or
-//! that listing them failed, for its file as it is ([`Probing::keyframes`]).
+//! [`super::tracks`]), with a Matroska or MP4 file's keyframes when its index lists them, and
+//! decides what a failure to probe one means for trying it again. It lists any other Version's keyframes in the
+//! background when first asked for them, and keeps them, or that listing them failed, for its
+//! file as it is ([`Probing::keyframes`]).
 //!
 //! After a Library's files change, those without current Tracks, never probed or changed or read
 //! by an older probe version since, are probed in the background, a few at a time
@@ -10,7 +11,9 @@
 //! timeout, is tried again on the next few passes first. A Version can also be probed right away
 //! ([`Probing::current`]), which waits for a background probe of it rather than probe it twice.
 
+mod cues;
 mod ffprobe;
+mod mp4;
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -28,6 +31,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use super::{
+    downloads,
     sidecars::Sidecars,
     subtitles,
     tracks::{
@@ -38,6 +42,7 @@ use crate::{
     db::Database,
     diagnostics,
     ffmpeg::Ffmpeg,
+    images::ImageStore,
     library::{Contents, Stored},
 };
 
@@ -51,8 +56,9 @@ const PROBES_AT_ONCE: usize = 3;
 const WHOLE_FILE_READS_AT_ONCE: usize = 2;
 
 /// How long a plan waits for a Version's keyframes before it Transcodes instead, well short of
-/// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866).
-const LISTING_WAIT: Duration = Duration::from_secs(30);
+/// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866). Short,
+/// as reading a whole big file takes minutes, and a Matroska file's Cues usually spare it (#1122).
+const LISTING_WAIT: Duration = Duration::from_secs(5);
 
 /// Why probing a file failed.
 #[derive(Debug, thiserror::Error)]
@@ -136,6 +142,8 @@ struct Inner {
     sidecars: Sidecars,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
+    /// Where downloaded subtitles are kept, from which it deletes those of Versions gone.
+    images: ImageStore,
     /// Background passes and whole-file reads, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -153,9 +161,15 @@ struct Inner {
 }
 
 impl Probing {
-    /// Probes with `ffmpeg`'s ffprobe, or not at all without one, and throws away what
-    /// `subtitles` caches for files gone or changed.
-    pub(crate) fn new(db: Arc<Database>, ffmpeg: Arc<Ffmpeg>, subtitles: subtitles::Cache) -> Self {
+    /// Probes with `ffmpeg`'s ffprobe, or not at all without one, throws away what `subtitles`
+    /// caches for files gone or changed, and deletes from `images` the subtitles downloaded for
+    /// Versions gone.
+    pub(crate) fn new(
+        db: Arc<Database>,
+        ffmpeg: Arc<Ffmpeg>,
+        subtitles: subtitles::Cache,
+        images: ImageStore,
+    ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 tracks: Tracks::new(Arc::clone(&db)),
@@ -163,6 +177,7 @@ impl Probing {
                 contents: Contents::new(db),
                 ffmpeg,
                 subtitles,
+                images,
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 running: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
@@ -213,11 +228,11 @@ impl Probing {
     }
 
     /// When the Version `version`'s file starts and each keyframe of its first video falls: as
-    /// kept for its file as it is now, or else listed in the background, which reads the whole
-    /// file, and kept. If something is listing them already, waits for that instead. Waits at
-    /// most [`LISTING_WAIT`] for a listing, then returns [`ProbeError::NotListedYet`] while it
-    /// carries on. They're kept only while the Version's Tracks were read from its file as it is
-    /// now.
+    /// kept for its file as it is now, by probing or an earlier listing, or else listed in the
+    /// background, which reads the whole file, and kept. If something is listing them already,
+    /// waits for that instead. Waits at most [`LISTING_WAIT`] for a listing, then returns
+    /// [`ProbeError::NotListedYet`] while it carries on. They're kept only while the Version's
+    /// Tracks were read from its file as it is now.
     pub(super) async fn keyframes(&self, version: i64) -> Result<ListedKeyframes, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
@@ -301,19 +316,23 @@ impl Probing {
     }
 
     /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
-    /// since they were cached, or logs why it couldn't.
+    /// since they were cached, and deletes those downloaded for Versions gone, or logs why it
+    /// couldn't.
     pub(crate) async fn clean_subtitles(&self) {
-        // ponytail: reads every stored file after each scan; clean only the Library scanned once
-        // Libraries get big.
-        let cleaned = match self.inner.contents.every_stored().await {
-            Ok(stored) => self.inner.subtitles.keep_only(&stored).await,
+        // ponytail: reads every stored file, and lists every downloaded subtitle, after each scan;
+        // clean only the Library scanned once Libraries get big.
+        let stored = match self.inner.contents.every_stored().await {
+            Ok(stored) => stored,
             Err(err) => {
                 tracing::error!("could not read which files to keep subtitles for: {err}");
                 return;
             }
         };
-        if let Err(err) = cleaned {
+        if let Err(err) = self.inner.subtitles.keep_only(&stored).await {
             tracing::error!("could not throw away subtitles of files gone or changed: {err}");
+        }
+        if let Err(err) = downloads::keep_only(&self.inner.images, &stored).await {
+            tracing::error!("could not delete the subtitles downloaded for Versions gone: {err}");
         }
     }
 
@@ -450,8 +469,19 @@ impl Probing {
             return Ok(probe);
         }
         match ffprobe::probe(&self.inner.ffmpeg, path).await {
-            Ok(probe) => {
+            Ok((probe, starts)) => {
+                let indexed = match probe.container.as_str() {
+                    "matroska,webm" => cues::listed(path, starts.file_ms, probe.duration_ms).await,
+                    "mov,mp4,m4a,3gp,3g2,mj2" => mp4::listed(path, starts, probe.duration_ms).await,
+                    _ => None,
+                };
                 self.inner.tracks.store(file, probe.clone()).await?;
+                // Without a usable index, the first Remux lists them by reading the whole file.
+                if let Some(indexed) = indexed {
+                    (self.inner.tracks)
+                        .store_keyframes(file, &Keyframes::Listed(indexed))
+                        .await?;
+                }
                 Ok(probe)
             }
             Err(err) => {
@@ -542,6 +572,18 @@ impl Probing {
         claim.found.send_replace(Some(listed));
         stored
     }
+}
+
+/// Whether `listed`, read from a container's index, is a list a whole-file listing could give:
+/// non-empty, increasing, the first at `first_ms` within rounding to the millisecond, and ending
+/// by `duration_ms`.
+fn plausible(listed: &ListedKeyframes, first_ms: i64, duration_ms: Option<i64>) -> bool {
+    let keyframes = &listed.keyframes_ms;
+    keyframes
+        .first()
+        .is_some_and(|first| (first - first_ms).abs() <= 1)
+        && keyframes.is_sorted_by(|earlier, later| earlier < later)
+        && (keyframes.last().zip(duration_ms)).is_some_and(|(last, duration)| *last <= duration)
 }
 
 /// What failing to probe the file at `path` with `err` means for trying it again.

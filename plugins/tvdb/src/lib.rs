@@ -3,10 +3,10 @@
 //! builds it for wasm32 and bundles it in its binary.
 
 use nama_pdk::{
-    Candidate, Episode, Image, ImageAnswer, ImageAsked, Manifest, SearchQuery, SearchResults,
-    Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId, TitleKind,
-    TitleSource,
-    extism_pdk::{Error, HttpRequest, HttpResponse, Json, config, json},
+    Candidate, Episode, Image, ImageAnswer, ImageAsked, Manifest, Response, SearchQuery,
+    SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId,
+    TitleKind, TitleSource,
+    extism_pdk::{Error, HttpRequest, Json, json},
     nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
     services,
 };
@@ -180,7 +180,7 @@ impl TitleSource for Tvdb {
             image: Image {
                 // The Server gives a Plugin no response headers, so the type comes from the path.
                 content_type: content_type(&asked.path).to_owned(),
-                bytes: response.body(),
+                bytes: response.into_body(),
                 ..Image::default()
             }
             .into(),
@@ -204,7 +204,7 @@ impl Api {
     /// TVDB's rate limits bite.
     fn login() -> Result<Self, Error> {
         let url = setting(API_URL)?.trim_end_matches('/').to_owned();
-        let pin = config::get(PIN)?
+        let pin = nama_pdk::setting(PIN)?
             .map(|pin| pin.trim().to_owned())
             .filter(|pin| !pin.is_empty());
         let body = match pin {
@@ -226,7 +226,7 @@ impl Api {
                 "TVDB has no login at the API URL (HTTP status 404)",
             ));
         };
-        let Login { token } = data(&response.body())?;
+        let Login { token } = data(response.body())?;
         Ok(Self { url, token })
     }
 
@@ -237,22 +237,22 @@ impl Api {
         let Some(response) = accepted(send(&request, None)?, "TVDB")? else {
             return Ok(None);
         };
-        data(&response.body()).map(Some)
+        data(response.body()).map(Some)
     }
 }
 
 /// The setting `key`, which the Server sets before every call.
 fn setting(key: &str) -> Result<String, Error> {
-    config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
+    nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
 }
 
-fn send(request: &HttpRequest, body: Option<json::Value>) -> Result<HttpResponse, Error> {
+fn send(request: &HttpRequest, body: Option<json::Value>) -> Result<Response, Error> {
     nama_pdk::http_request(request, body.map(Json), "TVDB didn't answer")
 }
 
 /// `response` if `service` took the request, `None` for a 404, else an error naming the status
 /// and nothing of the request, which may hold the key.
-fn accepted(response: HttpResponse, service: &str) -> Result<Option<HttpResponse>, Error> {
+fn accepted(response: Response, service: &str) -> Result<Option<Response>, Error> {
     match response.status_code() {
         200..300 => Ok(Some(response)),
         404 => Ok(None),

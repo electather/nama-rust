@@ -5,8 +5,8 @@ use std::time::{Duration, SystemTime};
 
 use instant_xml::FromXml;
 use nama_pdk::{
-    BLOB_MAX_BYTES, BlobPage, BlobStore, Manifest,
-    extism_pdk::{Error, HttpRequest, config},
+    BLOB_MAX_BYTES, BlobPage, BlobStore, Manifest, Response,
+    extism_pdk::{Error, HttpRequest},
     nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
     services,
 };
@@ -46,7 +46,7 @@ mod exports {
 
     #[plugin_fn]
     pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
-        super::check(&super::store()?, super::send)?;
+        super::check()?;
         Ok(Buffa(CheckedSettings::default()))
     }
 }
@@ -142,23 +142,23 @@ struct S3;
 
 impl BlobStore for S3 {
     fn put(key: String, bytes: Vec<u8>) -> Result<(), Error> {
-        store()?.put(&key, bytes, send)
+        store()?.put(&key, bytes)
     }
 
     fn get(key: String) -> Result<Option<Vec<u8>>, Error> {
-        store()?.get(&key, send)
+        store()?.get(&key)
     }
 
     fn delete(key: String) -> Result<(), Error> {
-        store()?.delete(&key, send)
+        store()?.delete(&key)
     }
 
     fn list(prefix: String, page_token: String) -> Result<BlobPage, Error> {
-        store()?.list(&prefix, &page_token, PAGE_KEYS, send)
+        store()?.list(&prefix, &page_token, PAGE_KEYS)
     }
 
     fn exists(key: String) -> Result<bool, Error> {
-        store()?.exists(&key, send)
+        store()?.exists(&key)
     }
 }
 
@@ -166,41 +166,12 @@ nama_pdk::blob_store!(S3);
 
 /// The bucket the Server's settings for this call name, signing at the Server's time.
 fn store() -> Result<Store, Error> {
-    Store::new(|key| config::get(key), nama_pdk::now())
+    Store::new(nama_pdk::now())
 }
 
 /// Proves the settings by listing one key, as `check_settings()` does.
-fn check(store: &Store, send: impl FnOnce(Call) -> Result<Answer, Error>) -> Result<(), Error> {
-    store.list("", "", 1, send).map(drop)
-}
-
-/// One request to S3, signed in its URL, so it needs no headers.
-#[derive(Debug)]
-struct Call {
-    method: &'static str,
-    url: Url,
-    body: Option<Vec<u8>>,
-}
-
-/// S3's answer to a [`Call`]: the Server gives a Plugin no response headers.
-#[derive(Debug)]
-struct Answer {
-    status: u16,
-    body: Vec<u8>,
-}
-
-/// Sends `call` through the Server, the only transport outside the tests.
-fn send(call: Call) -> Result<Answer, Error> {
-    let unreachable = format!(
-        "S3 at {} didn't answer",
-        call.url.host_str().unwrap_or("the endpoint")
-    );
-    let request = HttpRequest::new(call.url.as_str()).with_method(call.method);
-    let response = nama_pdk::http_request(&request, call.body, &unreachable)?;
-    Ok(Answer {
-        status: response.status_code(),
-        body: response.body(),
-    })
+fn check() -> Result<(), Error> {
+    store()?.list("", "", 1).map(drop)
 }
 
 /// The bucket the settings name, and how to sign a request to it.
@@ -212,17 +183,14 @@ struct Store {
 }
 
 impl Store {
-    /// The bucket `setting` names, signing at `now`.
+    /// The bucket the settings name, signing at `now`.
     ///
     /// # Errors
     /// If a required setting is missing, the endpoint isn't a URL a bucket can be reached at, or
     /// only one of the access key's ID and secret is set.
-    fn new(
-        setting: impl Fn(&str) -> Result<Option<String>, Error>,
-        now: SystemTime,
-    ) -> Result<Self, Error> {
+    fn new(now: SystemTime) -> Result<Self, Error> {
         let text = |key| -> Result<Option<String>, Error> {
-            Ok(setting(key)?
+            Ok(nama_pdk::setting(key)?
                 .map(|value| value.trim().to_owned())
                 .filter(|value| !value.is_empty()))
         };
@@ -269,12 +237,7 @@ impl Store {
     }
 
     /// Stores `bytes` at `key`, replacing any object there.
-    fn put(
-        &self,
-        key: &str,
-        bytes: Vec<u8>,
-        send: impl FnOnce(Call) -> Result<Answer, Error>,
-    ) -> Result<(), Error> {
+    fn put(&self, key: &str, bytes: Vec<u8>) -> Result<(), Error> {
         if bytes.len() > BLOB_MAX_BYTES {
             return Err(Error::msg(format!(
                 "{key} is over the {} MiB an object may be, so it wasn't stored",
@@ -283,60 +246,48 @@ impl Store {
         }
         let object = self.object(key);
         let action = self.bucket.put_object(self.credentials.as_ref(), &object);
-        let answer = send(self.call(&action, Some(bytes)))?;
-        match answer.status {
+        let answer = self.send(&action, Some(bytes))?;
+        match answer.status_code() {
             200..300 => Ok(()),
             _ => Err(refused(&format!("store {key}"), &answer)),
         }
     }
 
     /// The object at `key`, `None` if there is none.
-    fn get(
-        &self,
-        key: &str,
-        send: impl FnOnce(Call) -> Result<Answer, Error>,
-    ) -> Result<Option<Vec<u8>>, Error> {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>, Error> {
         let object = self.object(key);
         let action = self.bucket.get_object(self.credentials.as_ref(), &object);
-        let answer = send(self.call(&action, None))?;
-        match answer.status {
-            200..300 => Ok(Some(answer.body)),
+        let answer = self.send(&action, None)?;
+        match answer.status_code() {
+            200..300 => Ok(Some(answer.into_body())),
             // A missing bucket is the settings' fault, not a missing object.
-            404 if s3_error(&answer.body).is_none_or(|err| err.code != "NoSuchBucket") => Ok(None),
+            404 if s3_error(answer.body()).is_none_or(|err| err.code != "NoSuchBucket") => Ok(None),
             _ => Err(refused(&format!("read {key}"), &answer)),
         }
     }
 
     /// Deletes the object at `key`; a missing one is already deleted.
-    fn delete(
-        &self,
-        key: &str,
-        send: impl FnOnce(Call) -> Result<Answer, Error>,
-    ) -> Result<(), Error> {
+    fn delete(&self, key: &str) -> Result<(), Error> {
         let object = self.object(key);
         let action = self
             .bucket
             .delete_object(self.credentials.as_ref(), &object);
-        let answer = send(self.call(&action, None))?;
-        match answer.status {
+        let answer = self.send(&action, None)?;
+        match answer.status_code() {
             // S3 answers 204 for a missing object too, but some S3-compatible stores answer 404.
             200..300 => Ok(()),
-            404 if s3_error(&answer.body).is_none_or(|err| err.code != "NoSuchBucket") => Ok(()),
+            404 if s3_error(answer.body()).is_none_or(|err| err.code != "NoSuchBucket") => Ok(()),
             _ => Err(refused(&format!("delete {key}"), &answer)),
         }
     }
 
     /// Whether an object is at `key`.
-    fn exists(
-        &self,
-        key: &str,
-        send: impl FnOnce(Call) -> Result<Answer, Error>,
-    ) -> Result<bool, Error> {
+    fn exists(&self, key: &str) -> Result<bool, Error> {
         let object = self.object(key);
         let action = self.bucket.head_object(self.credentials.as_ref(), &object);
         // A HEAD answer has no body, so a refusal says its status only.
-        let answer = send(self.call(&action, None))?;
-        match answer.status {
+        let answer = self.send(&action, None)?;
+        match answer.status_code() {
             200..300 => Ok(true),
             404 => Ok(false),
             _ => Err(refused(&format!("say whether {key} exists"), &answer)),
@@ -344,29 +295,23 @@ impl Store {
     }
 
     /// A page of at most `max_keys` keys starting with `prefix`, going on from `page_token`.
-    fn list(
-        &self,
-        prefix: &str,
-        page_token: &str,
-        max_keys: usize,
-        send: impl FnOnce(Call) -> Result<Answer, Error>,
-    ) -> Result<BlobPage, Error> {
+    fn list(&self, prefix: &str, page_token: &str, max_keys: usize) -> Result<BlobPage, Error> {
         let mut action = self.bucket.list_objects_v2(self.credentials.as_ref());
         action.with_prefix(self.object(prefix));
         if !page_token.is_empty() {
             action.with_continuation_token(page_token);
         }
         action.with_max_keys(max_keys);
-        let answer = send(self.call(&action, None))?;
-        if !(200..300).contains(&answer.status) {
+        let answer = self.send(&action, None)?;
+        if !(200..300).contains(&answer.status_code()) {
             return Err(refused(
                 &format!("list the keys starting with {prefix:?}"),
                 &answer,
             ));
         }
-        let listed = String::from_utf8(answer.body)
+        let listed = std::str::from_utf8(answer.body())
             .ok()
-            .and_then(|body| ListObjectsV2::parse_response(&body).ok())
+            .and_then(|body| ListObjectsV2::parse_response(body).ok())
             .ok_or_else(|| Error::msg("S3 answered a listing with something unexpected"))?;
         Ok(BlobPage {
             keys: listed
@@ -384,13 +329,19 @@ impl Store {
         format!("{}{key}", self.prefix)
     }
 
-    /// `action` as a [`Call`], signed at [`Self::now`].
-    fn call<'a, A: S3Action<'a>>(&self, action: &A, body: Option<Vec<u8>>) -> Call {
-        Call {
-            method: A::METHOD.to_str(),
-            url: action.sign_with_time(SIGNED_FOR, &self.now),
-            body,
-        }
+    /// Sends `action`, signed in its URL at [`Self::now`], so it needs no headers.
+    fn send<'a, A: S3Action<'a>>(
+        &self,
+        action: &A,
+        body: Option<Vec<u8>>,
+    ) -> Result<Response, Error> {
+        let url = action.sign_with_time(SIGNED_FOR, &self.now);
+        let unreachable = format!(
+            "S3 at {} didn't answer",
+            url.host_str().unwrap_or("the endpoint")
+        );
+        let request = HttpRequest::new(url.as_str()).with_method(A::METHOD.to_str());
+        nama_pdk::http_request(&request, body, &unreachable)
     }
 }
 
@@ -409,8 +360,8 @@ fn s3_error(body: &[u8]) -> Option<S3Error> {
 }
 
 /// The error for S3 refusing to `action`, with S3's error code and message if it gave them.
-fn refused(action: &str, answer: &Answer) -> Error {
-    match s3_error(&answer.body) {
+fn refused(action: &str, answer: &Response) -> Error {
+    match s3_error(answer.body()) {
         Some(S3Error {
             code,
             message: Some(message),
@@ -421,7 +372,7 @@ fn refused(action: &str, answer: &Answer) -> Error {
         }) => Error::msg(format!("S3 refused to {action}: {code}")),
         None => Error::msg(format!(
             "S3 refused to {action} with HTTP status {}",
-            answer.status
+            answer.status_code()
         )),
     }
 }

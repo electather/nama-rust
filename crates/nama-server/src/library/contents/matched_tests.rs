@@ -699,3 +699,56 @@ async fn shows_come_in_title_order_ignoring_case() {
     let titles: Vec<_> = shows.iter().map(|show| show.title.as_str()).collect();
     assert_eq!(titles, ["Band of Brothers", "BEEF"]);
 }
+
+#[tokio::test]
+async fn a_version_is_named_by_its_movie_or_its_first_episodes_show_and_number() {
+    let fx = Fixture::new().await;
+    let alien = MatchedMovie::store(&fx.contents, fx.library, ALIEN, tmdb_movie(348, "Alien"))
+        .await
+        .version;
+    let path = "/media/firefly/Season 01/firefly - S01E02-E03.mkv";
+    let episode = |number| Item::Episode {
+        show: "firefly".to_owned(),
+        year: None,
+        hint: None,
+        season: 1,
+        episode: number,
+    };
+    let change = Change::Store {
+        path: path.to_owned(),
+        size: 10,
+        modified_ns: 0,
+        items: vec![episode(2), episode(3)],
+    };
+    fx.contents.apply(fx.library, vec![change]).await.unwrap();
+    let first = fx.item(path).await;
+    let metadata = super::super::Metadata {
+        show_title: Some("Firefly".to_owned()),
+        show_ids: ExternalIds::from_iter([ExternalId::tmdb(1437)]),
+        ..tmdb_movie(1001, "The Train Job")
+    };
+    fx.contents
+        .record(vec![(first, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+    let shows = fx.contents.shows(fx.library, None).await.unwrap();
+    let both = shows[0].seasons[&1].episodes[0].versions[0].file.id;
+
+    let matched = fx.contents.version_title(both).await.unwrap();
+    fx.contents
+        .record(vec![(first, Decided::Unmatched(None))])
+        .await
+        .unwrap();
+    let unmatched = fx.contents.version_title(both).await.unwrap();
+
+    assert_eq!(matched.as_deref(), Some("Firefly S01E02"));
+    assert_eq!(unmatched.as_deref(), Some("firefly S01E02"));
+    let movie = fx.contents.version_title(alien).await.unwrap();
+    assert_eq!(movie.as_deref(), Some("Alien"));
+    let gone = fx
+        .contents
+        .version_title(both.max(alien) + 1)
+        .await
+        .unwrap();
+    assert_eq!(gone, None);
+}

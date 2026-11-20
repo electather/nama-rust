@@ -571,6 +571,8 @@ pub enum ExtensionPoint {
     /// Searches an outside service, such as OpenSubtitles.com, for a Version's subtitles and
     /// downloads one a User picks (ADR 0067).
     EXTENSION_POINT_SUBTITLE_SOURCE = 12i32,
+    /// Gives rows of titles for every User's home page, which the Server draws (ADR 0058).
+    EXTENSION_POINT_HOME_ROW = 13i32,
 }
 impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -612,6 +614,9 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_SUBTITLE_SOURCE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SubtitleSource: Self = Self::EXTENSION_POINT_SUBTITLE_SOURCE;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_HOME_ROW`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const HomeRow: Self = Self::EXTENSION_POINT_HOME_ROW;
 }
 impl ::core::default::Default for ExtensionPoint {
     fn default() -> Self {
@@ -726,6 +731,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             10i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_BLOB_STORE),
             11i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_AUTOMATION),
             12i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SUBTITLE_SOURCE),
+            13i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_HOME_ROW),
             _ => ::core::option::Option::None,
         }
     }
@@ -749,6 +755,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_BLOB_STORE => "EXTENSION_POINT_BLOB_STORE",
             Self::EXTENSION_POINT_AUTOMATION => "EXTENSION_POINT_AUTOMATION",
             Self::EXTENSION_POINT_SUBTITLE_SOURCE => "EXTENSION_POINT_SUBTITLE_SOURCE",
+            Self::EXTENSION_POINT_HOME_ROW => "EXTENSION_POINT_HOME_ROW",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -794,6 +801,9 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_SUBTITLE_SOURCE" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_SUBTITLE_SOURCE)
             }
+            "EXTENSION_POINT_HOME_ROW" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_HOME_ROW)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -812,6 +822,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_BLOB_STORE,
             Self::EXTENSION_POINT_AUTOMATION,
             Self::EXTENSION_POINT_SUBTITLE_SOURCE,
+            Self::EXTENSION_POINT_HOME_ROW,
         ]
     }
 }

@@ -17,4 +17,4 @@ An S3-compatible store, such as MinIO, needs path-style addressing. A Plugin may
 
 ## Tests
 
-`src/lib_tests.rs` runs against `src/fake_s3.rs`, an S3 bucket in memory that checks each request's signature with the secret it was given, so the tests need no network and no credentials.
+`src/lib_tests.rs` calls the blob store's methods through `nama_pdk::testing`, answered by `src/fake_s3.rs`, an S3 bucket in memory that checks each request's signature with the secret it was given, so the tests need no network and no credentials.
