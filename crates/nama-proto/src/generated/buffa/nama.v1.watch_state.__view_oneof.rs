@@ -28,20 +28,3 @@ pub mod set_played_request {
         ),
     }
 }
-pub mod set_hidden_from_continue_watching_request {
-    #[allow(unused_imports)]
-    use super::*;
-    #[derive(Clone, Debug)]
-    pub enum Target<'a> {
-        MovieId(
-            ::buffa::alloc::boxed::Box<
-                super::super::super::super::__buffa::view::ExternalIdView<'a>,
-            >,
-        ),
-        ShowId(
-            ::buffa::alloc::boxed::Box<
-                super::super::super::super::__buffa::view::ExternalIdView<'a>,
-            >,
-        ),
-    }
-}

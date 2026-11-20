@@ -32,13 +32,6 @@ service WatchStateService {
   rpc SetPlayed(SetPlayedRequest) returns (SetPlayedResponse) {
     option idempotency_level = IDEMPOTENT;
   }
-  // Hides a Movie or Show that is Matched in a Library from the caller's Continue Watching, or
-  // shows it again, without changing its Watch State. It stays hidden until the caller's Watch
-  // State of the Movie, or of any of the Show's Episodes, next changes, as when they play it; a
-  // new Episode doesn't show it again. Fails as `SetPlayed` does.
-  rpc SetHiddenFromContinueWatching(SetHiddenFromContinueWatchingRequest) returns (SetHiddenFromContinueWatchingResponse) {
-    option idempotency_level = IDEMPOTENT;
-  }
 }
 
 // A User's progress through a Movie or Episode.
@@ -93,19 +86,3 @@ message ShowSeason {
 }
 
 message SetPlayedResponse {}
-
-message SetHiddenFromContinueWatchingRequest {
-  // The Library the Movie or Show is in.
-  int64 library_id = 1;
-  // What to hide, identified as browsing identifies it.
-  oneof target {
-    // A Movie of a Movies Library, by its id as `ListMovies` gave it.
-    ExternalId movie_id = 2;
-    // A Show of a Shows Library, by its id as `ListShows` gave it.
-    ExternalId show_id = 3;
-  }
-  // Whether it is now hidden. False undoes hiding it.
-  bool hidden = 4;
-}
-
-message SetHiddenFromContinueWatchingResponse {}

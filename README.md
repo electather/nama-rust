@@ -150,4 +150,4 @@ The Server, Hub, `nama-plugin-api` and Built-in Plugins are AGPL-3.0-only ([`LIC
 
 This product uses the TMDB API but is not endorsed or certified by TMDB. Metadata and images are provided by [The Movie Database (TMDB)](https://www.themoviedb.org).
 
-The web app draws ASS subtitles with [JASSUB](https://github.com/ThaUnknown/jassub), which bundles libass, FreeType, HarfBuzz, FriBidi and more. Their notices ship with the web app, at `/licenses/jassub.txt` on a Server.
+The web app draws ASS subtitles with [JASSUB](https://github.com/ThaUnknown/jassub), which bundles libass, FreeType, HarfBuzz, FriBidi and more. Their notices ship with the web app, at `/licenses/jassub.txt` on a Server, and the SIL Open Font License of JASSUB's fallback font, Liberation Sans, at `/licenses/liberation-sans.txt`.

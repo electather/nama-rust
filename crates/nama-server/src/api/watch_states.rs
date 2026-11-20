@@ -2,10 +2,8 @@
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
-    ExternalId, RefusalReason, ReportProgressRequest, ReportProgressResponse,
-    SetHiddenFromContinueWatchingRequest, SetHiddenFromContinueWatchingResponse, SetPlayedRequest,
-    SetPlayedResponse, WatchStateService,
-    set_hidden_from_continue_watching_request::Target as Hide, set_played_request::Target,
+    ExternalId, RefusalReason, ReportProgressRequest, ReportProgressResponse, SetPlayedRequest,
+    SetPlayedResponse, WatchStateService, set_played_request::Target,
 };
 
 use crate::{
@@ -106,34 +104,6 @@ impl WatchStateService for WatchStateServiceHandler {
         let marked = self.browse.mark(user, library, target, played).await;
         marked.map_err(refused(fields))?;
         Response::ok(SetPlayedResponse::default())
-    }
-
-    async fn set_hidden_from_continue_watching(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, SetHiddenFromContinueWatchingRequest>,
-    ) -> ServiceResult<SetHiddenFromContinueWatchingResponse> {
-        let user = caller(&ctx)?.user.id;
-        let SetHiddenFromContinueWatchingRequest {
-            library_id: library,
-            target,
-            hidden,
-            ..
-        } = request.to_owned_message();
-        let target = target.ok_or_else(|| {
-            refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                "say which Movie or Show to hide",
-            )
-            .field("target")
-        })?;
-        let (target, fields) = match target {
-            Hide::MovieId(id) => movie_target(*id)?,
-            Hide::ShowId(id) => show_target(*id)?,
-        };
-        let hid = self.browse.hide(user, library, target, hidden).await;
-        hid.map_err(refused(fields))?;
-        Response::ok(SetHiddenFromContinueWatchingResponse::default())
     }
 }
 
