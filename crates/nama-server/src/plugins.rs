@@ -43,8 +43,6 @@ pub(crate) use retrying::{RETRIES, Retryable, ask_again};
 #[cfg(test)]
 pub(crate) use wasm::KERNEL_IMPORTS;
 pub(crate) use wasm::read as read_installed;
-#[cfg(feature = "testing")]
-pub use wasm::share_compile_cache;
 
 /// How long a Plugin's settings check may take before it counts as failed.
 pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);

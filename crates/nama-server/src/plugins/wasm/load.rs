@@ -127,30 +127,23 @@ fn wasm_files(dir: &Path) -> io::Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// The compile cache every Server in this process shares, set by [`share_compile_cache`].
-#[cfg(feature = "testing")]
-static SHARED_CACHE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-
-/// Has every Server this process starts from now on cache compiled Plugins in `dir`, not in its
-/// own data directory, so each test doesn't compile every bundled Plugin afresh. wasmtime keys
-/// its cache by content and writes it atomically, so test processes may share one. The first
-/// call wins.
-#[cfg(feature = "testing")]
-pub fn share_compile_cache(dir: PathBuf) {
-    let _: Result<(), PathBuf> = SHARED_CACHE.set(dir);
-}
-
 /// Writes the wasmtime cache config that Extism reads, pointing the cache at
-/// `<data_dir>/wasmtime/cache/`, and returns its path. Extism takes the cache's location only
+/// `<data_dir>/wasmtime/cache/`, or with the `testing` feature at one directory every test shares,
+/// and returns its path. Extism takes the cache's location only
 /// from such a file.
 pub(super) fn write_cache_config(data_dir: &Path) -> io::Result<PathBuf> {
     // wasmtime requires an absolute cache directory.
     let dir = std::path::absolute(data_dir)?.join("wasmtime");
     fs::create_dir_all(&dir)?;
-    // A JSON string is also a valid TOML basic string, escapes included.
+    #[cfg(not(feature = "testing"))]
     let cache_dir = dir.join("cache");
+    // Every test starts its Servers in fresh data directories, and compiling the bundled Plugins
+    // into an empty cache costs seconds of CPU a Server: under nextest's parallel load that made
+    // trivial tests take 12 s in CI. wasmtime keys its cache by content and writes it atomically,
+    // so every test process shares one.
     #[cfg(feature = "testing")]
-    let cache_dir = SHARED_CACHE.get().cloned().unwrap_or(cache_dir);
+    let cache_dir = std::env::temp_dir().join("nama-test-wasmtime-cache");
+    // A JSON string is also a valid TOML basic string, escapes included.
     let cache_dir = serde_json::to_string(&cache_dir)?;
     let file = dir.join("cache.toml");
     fs::write(&file, format!("[cache]\ndirectory = {cache_dir}\n"))?;

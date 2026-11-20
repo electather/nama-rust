@@ -188,11 +188,6 @@ impl Builder {
             fulfiller,
             ..
         } = self;
-        // Compiling the bundled Plugins into an empty cache costs seconds of CPU a Server, which
-        // under nextest's parallel load made trivial tests take 15 s in CI.
-        nama_server::plugins::share_compile_cache(
-            Path::new(env!("CARGO_TARGET_TMPDIR")).join("wasmtime-cache"),
-        );
         plugins.describe_builtin(|| Arc::new(LocalAuth));
         // Every Server has TMDB Built in, and a Library created naming no title source orders it.
         if plugins.plugin(&Tmdb::ID).is_none() {
