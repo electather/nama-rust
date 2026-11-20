@@ -14,7 +14,8 @@ way.
 | `episode.json` | `GET /api/v3/episode?seriesId=1`, Dark's Episodes, trimmed to two per Season |
 | `queue.json` | `GET /api/v3/queue?includeSeries=true`, downloading Dark's Season 1 as a pack, listed once per Episode as Sonarr does, a Season 2 Episode queued, and two Season 3 Episodes, one of them blocked from import |
 
-The tests script the rest inline: a Show Sonarr has (`GET /api/v3/series?tvdbId=`), its commands
-(`GET /api/v3/command`), and `202 Accepted` to `POST /api/v3/seasonpass`,
+The tests script the rest inline: a Show Sonarr has (`GET /api/v3/series?tvdbId=`), or `[]` for
+one it doesn't have or can't find, its commands (`GET /api/v3/command`), `201 Created` to
+`POST /api/v3/series` and `POST /api/v3/command`, and `202 Accepted` to `POST /api/v3/seasonpass`,
 `PUT /api/v3/series/editor` and `PUT /api/v3/episode/monitor`. A request without the right
 `X-Api-Key` gets Sonarr's `401 Unauthorized`, with no body.

@@ -90,7 +90,7 @@ pub(crate) struct FakeFulfiller {
     stopped_monitoring: Arc<Mutex<Vec<i64>>>,
     /// What of a Show it was told to stop monitoring each time, in order.
     stopped_monitoring_shows: Arc<Mutex<Vec<ShowDeleted>>>,
-    /// The file [`FakeFulfiller::checked_file_was_there`] looks for.
+    /// The file it checks for each time it is told to stop monitoring a Movie.
     checked_file: Arc<Mutex<Option<PathBuf>>>,
     /// Whether the checked file was there each time it was told to stop monitoring a Movie.
     checked_file_was_there: Arc<Mutex<Vec<bool>>>,

@@ -302,19 +302,39 @@ fn a_whole_show_sonarr_has_gets_its_new_seasons_monitored() {
         (201, json!({})),
     ]);
 
-    with(&mut kernel, || {
+    let fulfilled = with(&mut kernel, || {
         SonarrFulfiller::fulfill(followed_dark_season(2))
     })
     .unwrap();
 
     assert_eq!(
-        asked(&kernel)[3..5],
-        ["PUT series/editor", "POST seasonpass"]
+        asked(&kernel),
+        [
+            "GET qualityprofile",
+            "GET series?tvdbId=334824",
+            "GET command",
+            "PUT series/editor",
+            "POST seasonpass",
+            "GET episode?seriesId=7&seasonNumber=2",
+            "PUT episode/monitor",
+            "POST command",
+        ]
     );
     assert_eq!(
         body_of(&kernel, "PUT series/editor"),
         json!({"seriesIds": [DARK_SONARR_ID], "monitorNewItems": "all"})
     );
+    assert_eq!(
+        body_of(&kernel, "POST seasonpass"),
+        json!({"series": [{"id": DARK_SONARR_ID, "monitored": true, "seasons": [
+            {"seasonNumber": 2, "monitored": true}
+        ]}]})
+    );
+    let reported = (
+        fulfilled.reference.as_str(),
+        fulfilled.profile_name.as_str(),
+    );
+    assert_eq!(reported, ("334824/2", "Any"));
 }
 
 #[test]
