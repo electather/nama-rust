@@ -13,7 +13,7 @@ use axum::{
 use futures_util::StreamExt as _;
 use tower_http::services::ServeFile;
 
-use super::{Probing, Sidecars, Tracks, running::RunningPlans, subtitles};
+use super::{Probing, StoredTracks, running::RunningPlans, subtitles};
 use crate::{db::Database, ffmpeg::Ffmpeg, library::Contents, users::Caller};
 
 pub(super) fn direct_play_url(version: i64) -> String {
@@ -34,8 +34,7 @@ pub(crate) fn router(
 ) -> Router {
     let subtitles = subtitles::router(subtitles::Subtitles {
         contents: contents.clone(),
-        tracks: Tracks::new(Arc::clone(db)),
-        sidecars: Sidecars::new(Arc::clone(db)),
+        tracks: StoredTracks::new(Arc::clone(db)),
         ffmpeg,
         cache: probing.subtitle_cache(),
         probing,

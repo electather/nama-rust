@@ -2,8 +2,8 @@
 //!
 //! [`Sidecars`] owns `sidecar_subtitles` (see the area's `AGENTS.md`). A scan finds the files and
 //! says which Version each is beside; their rows go when the Version goes. Only their names and
-//! metadata are read, never the files. Readers of a Version's Tracks append them with
-//! [`Sidecars::append_to`] (see the area's `AGENTS.md`).
+//! metadata are read, never the files. Readers of a Version's Tracks get them through
+//! [`super::StoredTracks`] (see the area's `AGENTS.md`).
 
 use std::{collections::HashMap, ffi::OsStr, path::Path, sync::Arc};
 
@@ -68,7 +68,7 @@ impl Sidecars {
 
     /// Appends to the Tracks of each of `probes`, by Version id, the sidecars stored beside it, in
     /// path order, after the file's own, so those keep their places.
-    pub(crate) async fn append_to(
+    pub(super) async fn append_to(
         &self,
         probes: impl IntoIterator<Item = (i64, &mut Probe)>,
     ) -> Result<(), sqlx::Error> {

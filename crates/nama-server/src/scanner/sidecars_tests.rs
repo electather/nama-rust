@@ -8,7 +8,7 @@ use std::{
 use super::tests::{Fixture, summary};
 use crate::{
     library::LibraryKind,
-    playback::{Probe, Sidecar, Sidecars, Track, Tracks},
+    playback::{Probe, Sidecar, Sidecars, StoredTracks, Track, TrackKind, Tracks},
 };
 
 const VIDEO: &str = "Alien (1979)/Alien (1979).mkv";
@@ -41,14 +41,24 @@ async fn stored(media: &Fixture) -> Vec<(String, i64)> {
         .collect()
 }
 
-/// What probing found in the stored file at `relative`, and the probe version that read it, if
-/// it has been probed.
+/// What probing found in the stored file at `relative`, without its sidecars, and the probe
+/// version that read it, if it has been probed.
 async fn probe(media: &Fixture, relative: &str) -> (Option<Probe>, Option<i64>) {
     let stored = media.contents.stored(media.library).await.unwrap();
     let file = stored[media.path(relative).to_str().unwrap()];
-    let tracks = Tracks::new(Arc::clone(&media.db));
-    let probe = tracks.of(&[file]).await.unwrap().remove(&file.id);
-    (probe, tracks.probe_version_of(file.id).await)
+    let read = StoredTracks::new(Arc::clone(&media.db)).of(&[file]).await;
+    let probe = read.unwrap().remove(&file.id).map(|mut probe| {
+        let in_file = |track: &Track| match &track.kind {
+            TrackKind::Subtitle { sidecar, .. } => sidecar.is_none(),
+            TrackKind::Video { .. } | TrackKind::Audio { .. } => true,
+        };
+        probe.tracks.retain(in_file);
+        probe
+    });
+    let probe_version = Tracks::new(Arc::clone(&media.db))
+        .probe_version_of(file.id)
+        .await;
+    (probe, probe_version)
 }
 
 #[tokio::test]

@@ -30,8 +30,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use super::{
-    sidecars::Sidecars,
-    subtitles,
+    StoredTracks, subtitles,
     tracks::{
         Keyframes, LastingReason, ListedKeyframes, PassingReason, Probe, ProbeFailure, Tracks,
     },
@@ -136,7 +135,7 @@ pub(crate) struct Probing {
 struct Inner {
     contents: Contents,
     tracks: Tracks,
-    sidecars: Sidecars,
+    stored_tracks: StoredTracks,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
     /// Background passes and whole-file reads, so shutting down can wait for them.
@@ -162,7 +161,7 @@ impl Probing {
         Self {
             inner: Arc::new(Inner {
                 tracks: Tracks::new(Arc::clone(&db)),
-                sidecars: Sidecars::new(Arc::clone(&db)),
+                stored_tracks: StoredTracks::new(Arc::clone(&db)),
                 contents: Contents::new(db),
                 ffmpeg,
                 subtitles,
@@ -176,36 +175,44 @@ impl Probing {
         }
     }
 
-    /// The current Tracks of the Version `version`, probing it now if they aren't current, without
-    /// waiting for a background pass to reach it. If something is probing it already, waits for
-    /// that and returns what it found instead, or probes it itself if that gave up without finding
+    /// The current Tracks of the Version `version`, sidecars included, probing it now if they
+    /// aren't current, without waiting for a background pass to reach it. If something is probing
+    /// it already, waits for that instead, or probes it itself if that gave up without finding
     /// anything.
     pub(crate) async fn current(&self, version: i64) -> Result<Probe, Error> {
-        let mut probe = self.probed(version).await?;
-        (self.inner.sidecars)
-            .append_to([(version, &mut probe)])
-            .await?;
-        Ok(probe)
+        loop {
+            let file = self.probed(version).await?;
+            // A scan that changed or removed the file while it was probed left nothing stored for
+            // it as it is now, so it's looked up and probed again.
+            if let Some(probe) = self.inner.stored_tracks.of(&[file]).await?.remove(&version) {
+                return Ok(probe);
+            }
+        }
     }
 
-    /// What probing read from the Version `version`'s file, as [`Self::current`] has it, without
-    /// its sidecars, which are never stored with it.
-    async fn probed(&self, version: i64) -> Result<Probe, Error> {
+    /// The Version `version`'s file as stored, once probing has read it and stored what it holds.
+    async fn probed(&self, version: i64) -> Result<Stored, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
         // ponytail: not held to PROBES_AT_ONCE, so a play press never queues; limit it apart if
         // many at once swamp the disk.
         loop {
             let mut prober = match try_claim(&self.inner.claimed, file) {
-                Ok(claim) => return Ok(self.probe_claimed(&path, claim).await?),
+                Ok(claim) => {
+                    self.probe_claimed(&path, claim).await?;
+                    return Ok(file);
+                }
                 Err(prober) => prober,
             };
             // An error means the prober gave up without a result, as when it was cancelled
             // midway, so it's probed here instead.
             if let Ok(found) = prober.wait_for(Option::is_some).await
-                && let Some(found) = Option::clone(&found)
+                && let Some(found) = found.as_ref()
             {
-                return found.map_err(Error::Probe);
+                return found
+                    .as_ref()
+                    .map(|_| file)
+                    .map_err(|err| Error::Probe(Arc::clone(err)));
             }
         }
     }
