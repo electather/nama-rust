@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-20, #1376
+
+- None that `buf breaking` reports: in `nama/v1/browse.proto`, `HomeRow.plugin_id` (1), `HomeRow.key` (2) and `HomeRow.heading` (3) are deleted with their numbers and names reserved.
+- A `HomeRow` is now the oneof `kernel_or_plugin` of `kernel` (4), a `KernelHomeRow` that today is only Continue Watching, and `plugin` (5), a `PluginHomeRow` holding the Plugin id, key and heading the `HomeRow` held. `ListHomeRows` lists Continue Watching first, then the Plugin rows as before.
+- A client built before reads each row with an empty Plugin id, key and heading, so it asks `ListHomeRowTitles` for no row; it must regenerate, read the Plugin's rows from `plugin`, and draw each Kernel row where the response puts it. The web app is the only client.
+
 ## 2026-11-20, #1331
 
 - `RPC_NO_DELETE`, `nama/v1/watch_state.proto`: `WatchStateService.SetHiddenFromContinueWatching`.

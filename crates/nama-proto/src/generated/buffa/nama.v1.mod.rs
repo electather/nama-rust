@@ -236,6 +236,7 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_HOME_ROWS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROWS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_HOME_ROW_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
@@ -1091,6 +1092,10 @@ pub use self::__buffa::view::ListHomeRowsResponseOwnedView;
 pub use self::__buffa::view::HomeRowView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginHomeRowView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginHomeRowOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListHomeRowTitlesRequestView;
 #[doc(inline)]

@@ -810,6 +810,147 @@ impl ::buffa::Enumeration for ShowSort {
         ]
     }
 }
+/// A Home row the Kernel builds.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum KernelHomeRow {
+    KERNEL_HOME_ROW_UNSPECIFIED = 0i32,
+    KERNEL_HOME_ROW_CONTINUE_WATCHING = 1i32,
+}
+impl KernelHomeRow {
+    ///Idiomatic alias for [`Self::KERNEL_HOME_ROW_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::KERNEL_HOME_ROW_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::KERNEL_HOME_ROW_CONTINUE_WATCHING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ContinueWatching: Self = Self::KERNEL_HOME_ROW_CONTINUE_WATCHING;
+}
+impl ::core::default::Default for KernelHomeRow {
+    fn default() -> Self {
+        Self::KERNEL_HOME_ROW_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for KernelHomeRow {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for KernelHomeRow {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = KernelHomeRow;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(KernelHomeRow)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<KernelHomeRow, E> {
+                <KernelHomeRow as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<KernelHomeRow, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <KernelHomeRow as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<KernelHomeRow, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <KernelHomeRow as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<KernelHomeRow, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for KernelHomeRow {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for KernelHomeRow {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::KERNEL_HOME_ROW_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::KERNEL_HOME_ROW_CONTINUE_WATCHING),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::KERNEL_HOME_ROW_UNSPECIFIED => "KERNEL_HOME_ROW_UNSPECIFIED",
+            Self::KERNEL_HOME_ROW_CONTINUE_WATCHING => {
+                "KERNEL_HOME_ROW_CONTINUE_WATCHING"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "KERNEL_HOME_ROW_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::KERNEL_HOME_ROW_UNSPECIFIED)
+            }
+            "KERNEL_HOME_ROW_CONTINUE_WATCHING" => {
+                ::core::option::Option::Some(Self::KERNEL_HOME_ROW_CONTINUE_WATCHING)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[Self::KERNEL_HOME_ROW_UNSPECIFIED, Self::KERNEL_HOME_ROW_CONTINUE_WATCHING]
+    }
+}
 /// A Movie some items of a Library are Matched to, with the metadata its Match stores.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -12169,11 +12310,275 @@ pub const __LIST_HOME_ROWS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
     from_json: ::buffa::type_registry::any_from_json::<ListHomeRowsResponse>,
     is_wkt: false,
 };
-/// A headed row of titles a Plugin gives for the home page. Its Plugin and key name it.
+/// A headed row of titles on the home page, which the Kernel builds or a Plugin gives.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize)]
+#[serde(default)]
+pub struct HomeRow {
+    #[serde(flatten)]
+    pub kernel_or_plugin: ::core::option::Option<
+        __buffa::oneof::home_row::KernelOrPlugin,
+    >,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for HomeRow {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("HomeRow")
+            .field("kernel_or_plugin", &self.kernel_or_plugin)
+            .finish()
+    }
+}
+impl HomeRow {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.HomeRow";
+}
+::buffa::impl_default_instance!(HomeRow);
+impl ::buffa::MessageName for HomeRow {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "HomeRow";
+    const FULL_NAME: &'static str = "nama.v1.HomeRow";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.HomeRow";
+}
+impl ::buffa::Message for HomeRow {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if let ::core::option::Option::Some(ref v) = self.kernel_or_plugin {
+            match v {
+                __buffa::oneof::home_row::KernelOrPlugin::Kernel(x) => {
+                    size += 1u64 + ::buffa::types::int32_encoded_len(x.to_i32()) as u64;
+                }
+                __buffa::oneof::home_row::KernelOrPlugin::Plugin(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if let ::core::option::Option::Some(ref v) = self.kernel_or_plugin {
+            match v {
+                __buffa::oneof::home_row::KernelOrPlugin::Kernel(x) => {
+                    ::buffa::types::put_int32_field(4u32, x.to_i32(), buf);
+                }
+                __buffa::oneof::home_row::KernelOrPlugin::Plugin(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.kernel_or_plugin = ::core::option::Option::Some(
+                    __buffa::oneof::home_row::KernelOrPlugin::Kernel(
+                        ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                    ),
+                );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::home_row::KernelOrPlugin::Plugin(ref mut existing),
+                ) = self.kernel_or_plugin
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.kernel_or_plugin = ::core::option::Option::Some(
+                        __buffa::oneof::home_row::KernelOrPlugin::Plugin(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.kernel_or_plugin = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for HomeRow {
+    const PROTO_FQN: &'static str = "nama.v1.HomeRow";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for HomeRow {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl<'de> ::serde::de::Visitor<'de> for _V {
+            type Value = HomeRow;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str("struct HomeRow")
+            }
+            #[allow(clippy::field_reassign_with_default)]
+            fn visit_map<A: ::serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> ::core::result::Result<HomeRow, A::Error> {
+                let mut __oneof_kernel_or_plugin: ::core::option::Option<
+                    __buffa::oneof::home_row::KernelOrPlugin,
+                > = None;
+                while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
+                    match key.as_str() {
+                        "kernel" => {
+                            let v: ::core::option::Option<
+                                ::buffa::EnumValue<KernelHomeRow>,
+                            > = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ::buffa::EnumValue<KernelHomeRow>,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_kernel_or_plugin.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'kernel_or_plugin'",
+                                        ),
+                                    );
+                                }
+                                __oneof_kernel_or_plugin = Some(
+                                    __buffa::oneof::home_row::KernelOrPlugin::Kernel(v),
+                                );
+                            }
+                        }
+                        "plugin" => {
+                            let v: ::core::option::Option<PluginHomeRow> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            PluginHomeRow,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_kernel_or_plugin.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'kernel_or_plugin'",
+                                        ),
+                                    );
+                                }
+                                __oneof_kernel_or_plugin = Some(
+                                    __buffa::oneof::home_row::KernelOrPlugin::Plugin(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        _ => {
+                            map.next_value::<::serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                let mut __r = <HomeRow as ::core::default::Default>::default();
+                __r.kernel_or_plugin = __oneof_kernel_or_plugin;
+                Ok(__r)
+            }
+        }
+        d.deserialize_map(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for HomeRow {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __HOME_ROW_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.HomeRow",
+    to_json: ::buffa::type_registry::any_to_json::<HomeRow>,
+    from_json: ::buffa::type_registry::any_from_json::<HomeRow>,
+    is_wkt: false,
+};
+pub mod home_row {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::home_row::KernelOrPlugin;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::home_row::KernelOrPlugin as KernelOrPluginView;
+}
+/// A Home row a Plugin gives, whose titles `ListHomeRowTitles` lists. Its Plugin and key name it.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
-pub struct HomeRow {
+pub struct PluginHomeRow {
     /// The Plugin that gives it.
     ///
     /// Field 1: `plugin_id`
@@ -12206,30 +12611,30 @@ pub struct HomeRow {
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
-impl ::core::fmt::Debug for HomeRow {
+impl ::core::fmt::Debug for PluginHomeRow {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("HomeRow")
+        f.debug_struct("PluginHomeRow")
             .field("plugin_id", &self.plugin_id)
             .field("key", &self.key)
             .field("heading", &self.heading)
             .finish()
     }
 }
-impl HomeRow {
+impl PluginHomeRow {
     /// Protobuf type URL for this message, for use with `Any::pack` and
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.HomeRow";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PluginHomeRow";
 }
-::buffa::impl_default_instance!(HomeRow);
-impl ::buffa::MessageName for HomeRow {
+::buffa::impl_default_instance!(PluginHomeRow);
+impl ::buffa::MessageName for PluginHomeRow {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "HomeRow";
-    const FULL_NAME: &'static str = "nama.v1.HomeRow";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.HomeRow";
+    const NAME: &'static str = "PluginHomeRow";
+    const FULL_NAME: &'static str = "nama.v1.PluginHomeRow";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PluginHomeRow";
 }
-impl ::buffa::Message for HomeRow {
+impl ::buffa::Message for PluginHomeRow {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -12318,8 +12723,8 @@ impl ::buffa::Message for HomeRow {
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for HomeRow {
-    const PROTO_FQN: &'static str = "nama.v1.HomeRow";
+impl ::buffa::ExtensionSet for PluginHomeRow {
+    const PROTO_FQN: &'static str = "nama.v1.PluginHomeRow";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -12327,7 +12732,7 @@ impl ::buffa::ExtensionSet for HomeRow {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for HomeRow {
+impl ::buffa::json_helpers::ProtoElemJson for PluginHomeRow {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -12341,17 +12746,17 @@ impl ::buffa::json_helpers::ProtoElemJson for HomeRow {
     }
 }
 #[doc(hidden)]
-pub const __HOME_ROW_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.HomeRow",
-    to_json: ::buffa::type_registry::any_to_json::<HomeRow>,
-    from_json: ::buffa::type_registry::any_from_json::<HomeRow>,
+pub const __PLUGIN_HOME_ROW_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.PluginHomeRow",
+    to_json: ::buffa::type_registry::any_to_json::<PluginHomeRow>,
+    from_json: ::buffa::type_registry::any_from_json::<PluginHomeRow>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListHomeRowTitlesRequest {
-    /// As `HomeRow.plugin_id`.
+    /// As `PluginHomeRow.plugin_id`.
     ///
     /// Field 1: `plugin_id`
     #[serde(
@@ -12361,7 +12766,7 @@ pub struct ListHomeRowTitlesRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub plugin_id: ::buffa::alloc::string::String,
-    /// As `HomeRow.key`.
+    /// As `PluginHomeRow.key`.
     ///
     /// Field 2: `key`
     #[serde(

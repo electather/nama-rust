@@ -59,6 +59,19 @@ pub mod featured_title {
         ),
     }
 }
+pub mod home_row {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, Debug)]
+    pub enum KernelOrPlugin<'a> {
+        Kernel(::buffa::EnumValue<super::super::super::super::KernelHomeRow>),
+        Plugin(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::PluginHomeRowView<'a>,
+            >,
+        ),
+    }
+}
 pub mod home_row_title {
     #[allow(unused_imports)]
     use super::*;

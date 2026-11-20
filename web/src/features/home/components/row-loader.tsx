@@ -1,7 +1,7 @@
 import { type ReactNode, Suspense } from "react";
 
 import { RowShelf } from "@/features/home/components/row-shelf";
-import type { HomeRow } from "@/gen/nama/v1/browse_pb";
+import type { PluginHomeRow } from "@/gen/nama/v1/browse_pb";
 import { ErrorBoundary } from "@/shared/components/error-boundary";
 
 /**
@@ -13,7 +13,7 @@ export function RowLoader({
   headingId,
   loading,
 }: {
-  row: HomeRow;
+  row: PluginHomeRow;
   headingId: string;
   loading: ReactNode;
 }) {
