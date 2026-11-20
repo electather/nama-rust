@@ -7,7 +7,6 @@ use nama_plugin_api::{
     BoxFuture, PluginError, PluginId,
     fulfiller::{Fulfiller, TryAgainIn},
 };
-use tracing::warn;
 
 use super::{ExtensionPoints, Failure, FailureKind, ProviderError};
 
@@ -17,14 +16,14 @@ use super::{ExtensionPoints, Failure, FailureKind, ProviderError};
 // or be asked forever; make it the Fulfiller's to say if a service needs longer.
 pub(crate) const RETRIES: u32 = 10;
 
-/// Asks the Plugin `plugin`'s Fulfiller of `Kind` again after `wait`, as it said to, to `call`
-/// with `asked`, and again each time it says to try again, up to [`RETRIES`] times. The waits run
-/// in the Plugin's scope, so disabling it ends them at once (ADR 0047). Logs once that the
-/// Fulfiller didn't do `what` when it gives up, fails or panics. The Hand-off retries its own way
-/// (`plugins/AGENTS.md`).
+/// Tells the Plugin `plugin`'s Fulfiller of `Kind` `asked` again with `call` after `wait`, as it
+/// said to try again, and again each time it says so, up to [`RETRIES`] times. The waits run in the
+/// Plugin's scope, so disabling it ends them at once (ADR 0047). Hands `gave_up` why, once, when
+/// the Fulfiller fails, panics or still says to try again after the last; the caller logs it as it
+/// logs a first ask that failed.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the Plugin, its wait, what to ask it and what the log calls it are each the caller's"
+    reason = "the Plugin, its wait, what to tell it and how to log giving up are each the caller's"
 )]
 pub(crate) fn ask_again<Kind: 'static, Asked: Send + Sync + 'static>(
     plugins: &ExtensionPoints,
@@ -32,11 +31,12 @@ pub(crate) fn ask_again<Kind: 'static, Asked: Send + Sync + 'static>(
     mut wait: Duration,
     asked: Asked,
     call: FulfillerCall<Kind, Asked>,
-    what: String,
+    gave_up: impl FnOnce(&PluginId, String) + Send + 'static,
 ) {
     let points = plugins.clone();
+    let scope = plugin.clone();
     // Not spawned if the Plugin was disabled meanwhile, which leaves nothing to tell.
-    plugins.spawn_in(&plugin.clone(), async move {
+    plugins.spawn_in(&scope, async move {
         let asked = &asked;
         let ask = |fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
             call(&*fulfiller, asked).await.map_err(Retryable)
@@ -54,7 +54,7 @@ pub(crate) fn ask_again<Kind: 'static, Asked: Send + Sync + 'static>(
                 Some(Err(failure)) => failure.message,
                 None => "it panicked or was disabled".to_owned(),
             };
-            warn!(plugin = %plugin, retried, reason, "a Fulfiller didn't {what}");
+            gave_up(&plugin, format!("{reason}, asked again {retried} times"));
             return;
         }
     });

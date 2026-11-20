@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU32, Ordering},
     },
     time::Duration,
@@ -14,7 +14,7 @@ use nama_plugin_api::{
 };
 
 use super::{RETRIES, ask_again};
-use crate::{log_capture::CapturedLog, plugins::Registry};
+use crate::plugins::Registry;
 
 const ID: PluginId = PluginId::from_static("busy");
 const WAIT: Duration = Duration::from_secs(5);
@@ -69,8 +69,8 @@ impl Plugin for BusyPlugin {
 }
 
 /// How many times a [`Busy`] that says to try again `busy_for` times is asked by [`ask_again`],
-/// once every wait is over, and what was logged meanwhile.
-async fn asked_again(busy_for: u32) -> (u32, String) {
+/// once every wait is over, and each reason it handed `gave_up`.
+async fn asked_again(busy_for: u32) -> (u32, Vec<String>) {
     let busy = Arc::new(Busy {
         busy_for,
         asked: AtomicU32::new(0),
@@ -79,36 +79,40 @@ async fn asked_again(busy_for: u32) -> (u32, String) {
     plugins
         .enable(Arc::new(BusyPlugin(Arc::clone(&busy))))
         .unwrap();
-    let log = CapturedLog::start();
+    let reasons = Arc::new(Mutex::new(Vec::new()));
 
+    let gave_up = {
+        let reasons = Arc::clone(&reasons);
+        move |_: &PluginId, reason| reasons.lock().unwrap().push(reason)
+    };
+    let unfollow = <dyn Fulfiller<Shows>>::unfollow;
     let points = plugins.extension_points();
-    ask_again(
-        &points,
-        ID,
-        WAIT,
-        Request::default(),
-        <dyn Fulfiller<Shows>>::unfollow,
-        "unfollow it".to_owned(),
-    );
+    ask_again(&points, ID, WAIT, Request::default(), unfollow, gave_up);
     // The paused clock jumps through every wait while all else is idle.
     tokio::time::sleep(WAIT * (RETRIES + 1)).await;
 
-    (busy.asked.load(Ordering::SeqCst), log.finish())
+    let reasons = reasons.lock().unwrap().clone();
+    (busy.asked.load(Ordering::SeqCst), reasons)
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_fulfiller_is_asked_again_until_it_acts_and_nothing_is_logged() {
-    let (asked, log) = asked_again(2).await;
+async fn a_fulfiller_is_asked_again_until_it_acts_without_giving_up() {
+    let (asked, gave_up) = asked_again(2).await;
 
     assert_eq!(asked, 3);
-    assert_eq!(log, "");
+    assert_eq!(gave_up, [""; 0]);
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_fulfiller_that_keeps_saying_to_try_again_is_asked_retries_times_then_logged_once() {
-    let (asked, log) = asked_again(u32::MAX).await;
+async fn a_fulfiller_that_keeps_saying_to_try_again_is_asked_retries_times_then_given_up_on_once() {
+    let (asked, gave_up) = asked_again(u32::MAX).await;
 
     assert_eq!(asked, RETRIES);
-    assert_eq!(log.matches("didn't unfollow it").count(), 1, "{log}");
-    assert!(log.contains("retried=10"), "{log}");
+    let [reason] = &gave_up[..] else {
+        panic!("gave up {} times", gave_up.len());
+    };
+    assert!(
+        reason.ends_with(&format!("asked again {RETRIES} times")),
+        "{reason}"
+    );
 }

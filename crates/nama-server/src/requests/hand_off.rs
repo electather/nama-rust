@@ -312,9 +312,10 @@ impl HandOff {
                     kind: Some(wait), ..
                 }),
             }) => {
-                let what = format!("stop following the Show {}", show.unwrap_or_default());
                 let unfollow = <dyn Fulfiller<Shows>>::unfollow;
-                ask_again(&self.plugins, plugin, wait, told.clone(), unfollow, what);
+                let gave_up =
+                    move |_: &PluginId, reason: String| not_unfollowed(show.as_deref(), &reason);
+                ask_again(&self.plugins, plugin, wait, told.clone(), unfollow, gave_up);
                 return;
             }
             Some(Answer {
@@ -323,11 +324,16 @@ impl HandOff {
             }) => failure.message,
             _ => return,
         };
-        warn!(
-            show,
-            reason, "the Shows Fulfiller didn't stop following the Show"
-        );
+        not_unfollowed(show.as_deref(), &reason);
     }
+}
+
+/// Logs that the Shows Fulfiller didn't stop following the Show known as `show`, and why.
+fn not_unfollowed(show: Option<&str>, reason: &str) {
+    warn!(
+        show,
+        reason, "the Shows Fulfiller didn't stop following the Show"
+    );
 }
 
 /// The namespaces of `ids`.

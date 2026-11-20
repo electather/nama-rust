@@ -300,26 +300,31 @@ impl Scanner {
                 Some(Err(Failure {
                     kind: Some(wait), ..
                 })) => {
-                    let stop_again = <dyn Fulfiller<K>>::stop_monitoring;
-                    let what =
-                        format!("stop monitoring {name}, deleted, so it may download it again");
-                    ask_again(plugins, plugin, wait, title.clone(), stop_again, what);
+                    let (stop_again, name) = (<dyn Fulfiller<K>>::stop_monitoring, name.to_owned());
+                    let gave_up =
+                        move |id: &PluginId, reason: String| not_stopped(id, &name, &reason);
+                    ask_again(plugins, plugin, wait, title.clone(), stop_again, gave_up);
                     continue;
                 }
                 Some(Ok(Err(needs))) => requests::missing(&plugin, kind, &needs),
                 Some(Err(failure)) => failure.message,
                 None => "it panicked or was disabled".to_owned(),
             };
-            tracing::warn!(
-                plugin = %plugin,
-                title = name,
-                reason,
-                "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
-            );
+            not_stopped(&plugin, name, &reason);
             not_told.push(plugins.name(&plugin));
         }
         not_told
     }
+}
+
+/// Logs that the Plugin `plugin`'s Fulfiller didn't stop monitoring the deleted `name`, and why.
+fn not_stopped(plugin: &PluginId, name: &str, reason: &str) {
+    tracing::warn!(
+        plugin = %plugin,
+        title = name,
+        reason,
+        "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
+    );
 }
 
 #[cfg(test)]
