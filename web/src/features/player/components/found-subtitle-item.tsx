@@ -28,7 +28,7 @@ export function FoundSubtitleItem({
       type="button"
       aria-disabled={busy}
       onClick={busy ? undefined : onPick}
-      className="flex min-h-10 w-full cursor-pointer items-center rounded-md px-2.5 py-2 text-start wrap-anywhere transition-colors outline-none select-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:cursor-default"
+      className="flex min-h-10 w-full cursor-pointer items-center rounded-md px-2.5 py-2 text-start wrap-anywhere transition-colors outline-none select-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:cursor-default aria-disabled:text-muted-foreground"
     >
       <span>
         <ChoiceLabel name={name} details={metadataLine(details, note)} />

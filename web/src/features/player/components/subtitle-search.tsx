@@ -38,7 +38,10 @@ export function SubtitleSearch({
         Icon={Search}
         label={search.isPending ? "Searching…" : "Search for subtitles"}
         onClick={() => {
-          search.mutate();
+          // Every source counts the calls, so a click while it searches asks nothing more.
+          if (!search.isPending) {
+            search.mutate();
+          }
         }}
       />
       <FoundSubtitles

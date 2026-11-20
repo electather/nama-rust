@@ -32,11 +32,16 @@ const found = [
   { pluginId: "opensubtitles", id: "3", language: "fr", name: "Alien.1979.FR.SDH", sdh: true },
 ];
 
-/** The fake Server's subtitle source: whether one is `enabled` (by default it is), what it finds or how it fails. */
+/**
+ * The fake Server's subtitle source: whether one is `enabled` (by default it is), what it finds
+ * or how it fails, and whether the Server `renames` a download's Track, as it keeps the name a
+ * file downloaded before had.
+ */
 interface Source {
   enabled?: boolean;
   search?: () => { subtitles: typeof found };
   download?: () => object;
+  renames?: boolean;
 }
 
 /**
@@ -69,7 +74,13 @@ function server(permissions: Permission[], source: Source = {}) {
       planPlayback: () => {
         calls.plans += 1;
         const downloads = calls.downloaded.map(({ language, name, sdh }, at) => ({
-          track: { codec: "subrip", language, title: name, sdh, kind: subtitle },
+          track: {
+            codec: "subrip",
+            language,
+            title: source.renames === true ? `${name} (kept before)` : name,
+            sdh,
+            kind: subtitle,
+          },
           place: 3 + at,
           url: `/media/versions/7/subtitles/${3 + at}`,
           format: SubtitleFormat.WEBVTT,
@@ -159,6 +170,22 @@ describe("searching for subtitles from the player", () => {
     openTracks();
     const picked = await waitFor(() => rowIn("Subtitles", /FR\.SDH/u));
     expect(picked.getAttribute("aria-checked")).toBe("true");
+  });
+
+  test("a download the new plan lists by another name leaves the Track shown before", async () => {
+    const calls = await openPanel(mayDownload, { renames: true });
+    search();
+    await results();
+
+    fireEvent.click(screen.getByRole("button", { name: /FR\.SDH/u }));
+
+    await waitFor(() => {
+      expect(calls.plans).toBe(2);
+    });
+    await screen.findByLabelText("Alien");
+    openTracks();
+    await waitFor(() => rowIn("Subtitles", /kept before/u));
+    expect(rowIn("Subtitles", /English/u).getAttribute("aria-checked")).toBe("true");
   });
 
   test("a failed search says so quietly and leaves the Track playing", async () => {
