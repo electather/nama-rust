@@ -5690,6 +5690,566 @@ impl ::serde::Serialize for SetSubtitleBackgroundResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
+#[derive(Clone, Debug, Default)]
+pub struct SetSubtitleOffsetRequestView<'a> {
+    /// The Version, as browsing gave it.
+    ///
+    /// Field 1: `version_id`
+    pub version_id: i64,
+    /// The subtitle Track, by its place in the Version's `tracks`, counting from 0.
+    ///
+    /// Field 2: `track`
+    pub track: u32,
+    /// How many milliseconds later than its file times it the Track shows from now on, negative for
+    /// earlier.
+    ///
+    /// Field 3: `offset_ms`
+    pub offset_ms: i32,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for SetSubtitleOffsetRequestView<'a> {
+    type Owned = super::super::SetSubtitleOffsetRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.version_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.track = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.offset_ms = ::buffa::types::decode_int32(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::SetSubtitleOffsetRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::SetSubtitleOffsetRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::SetSubtitleOffsetRequest {
+            version_id: self.version_id,
+            track: self.track,
+            offset_ms: self.offset_ms,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for SetSubtitleOffsetRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.version_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.version_id) as u64;
+        }
+        if self.track != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.track) as u64;
+        }
+        if self.offset_ms != 0i32 {
+            size += 1u64 + ::buffa::types::int32_encoded_len(self.offset_ms) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.version_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.version_id, buf);
+        }
+        if self.track != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.track, buf);
+        }
+        if self.offset_ms != 0i32 {
+            ::buffa::types::put_int32_field(3u32, self.offset_ms, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for SetSubtitleOffsetRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.version_id) {
+            __map
+                .serialize_entry(
+                    "versionId",
+                    &::buffa::json_helpers::ProtoJson(&self.version_id),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.track) {
+            __map
+                .serialize_entry(
+                    "track",
+                    &::buffa::json_helpers::ProtoJson(&self.track),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i32(&self.offset_ms) {
+            __map
+                .serialize_entry(
+                    "offsetMs",
+                    &::buffa::json_helpers::ProtoJson(&self.offset_ms),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for SetSubtitleOffsetRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SetSubtitleOffsetRequest";
+    const FULL_NAME: &'static str = "nama.v1.SetSubtitleOffsetRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetSubtitleOffsetRequest";
+}
+::buffa::impl_default_view_instance!(SetSubtitleOffsetRequestView);
+::buffa::impl_view_reborrow!(SetSubtitleOffsetRequestView);
+/** Self-contained, `'static` owned view of a `SetSubtitleOffsetRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SetSubtitleOffsetRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SetSubtitleOffsetRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct SetSubtitleOffsetRequestOwnedView(
+    ::buffa::OwnedView<SetSubtitleOffsetRequestView<'static>>,
+);
+impl SetSubtitleOffsetRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SetSubtitleOffsetRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SetSubtitleOffsetRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::SetSubtitleOffsetRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SetSubtitleOffsetRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`SetSubtitleOffsetRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &SetSubtitleOffsetRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::SetSubtitleOffsetRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Version, as browsing gave it.
+    ///
+    /// Field 1: `version_id`
+    #[must_use]
+    pub fn version_id(&self) -> i64 {
+        self.0.reborrow().version_id
+    }
+    /// The subtitle Track, by its place in the Version's `tracks`, counting from 0.
+    ///
+    /// Field 2: `track`
+    #[must_use]
+    pub fn track(&self) -> u32 {
+        self.0.reborrow().track
+    }
+    /// How many milliseconds later than its file times it the Track shows from now on, negative for
+    /// earlier.
+    ///
+    /// Field 3: `offset_ms`
+    #[must_use]
+    pub fn offset_ms(&self) -> i32 {
+        self.0.reborrow().offset_ms
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<SetSubtitleOffsetRequestView<'static>>>
+for SetSubtitleOffsetRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<SetSubtitleOffsetRequestView<'static>>) -> Self {
+        SetSubtitleOffsetRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<SetSubtitleOffsetRequestOwnedView>
+for ::buffa::OwnedView<SetSubtitleOffsetRequestView<'static>> {
+    fn from(wrapper: SetSubtitleOffsetRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<SetSubtitleOffsetRequestView<'static>>>
+for SetSubtitleOffsetRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SetSubtitleOffsetRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::SetSubtitleOffsetRequest {
+    type View<'a> = SetSubtitleOffsetRequestView<'a>;
+    type ViewHandle = SetSubtitleOffsetRequestOwnedView;
+}
+impl ::serde::Serialize for SetSubtitleOffsetRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct SetSubtitleOffsetResponseView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for SetSubtitleOffsetResponseView<'a> {
+    type Owned = super::super::SetSubtitleOffsetResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::SetSubtitleOffsetResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::SetSubtitleOffsetResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::SetSubtitleOffsetResponse {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for SetSubtitleOffsetResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for SetSubtitleOffsetResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for SetSubtitleOffsetResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SetSubtitleOffsetResponse";
+    const FULL_NAME: &'static str = "nama.v1.SetSubtitleOffsetResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetSubtitleOffsetResponse";
+}
+::buffa::impl_default_view_instance!(SetSubtitleOffsetResponseView);
+::buffa::impl_view_reborrow!(SetSubtitleOffsetResponseView);
+/** Self-contained, `'static` owned view of a `SetSubtitleOffsetResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SetSubtitleOffsetResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SetSubtitleOffsetResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct SetSubtitleOffsetResponseOwnedView(
+    ::buffa::OwnedView<SetSubtitleOffsetResponseView<'static>>,
+);
+impl SetSubtitleOffsetResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SetSubtitleOffsetResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SetSubtitleOffsetResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::SetSubtitleOffsetResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SetSubtitleOffsetResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`SetSubtitleOffsetResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &SetSubtitleOffsetResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::SetSubtitleOffsetResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<SetSubtitleOffsetResponseView<'static>>>
+for SetSubtitleOffsetResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<SetSubtitleOffsetResponseView<'static>>) -> Self {
+        SetSubtitleOffsetResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<SetSubtitleOffsetResponseOwnedView>
+for ::buffa::OwnedView<SetSubtitleOffsetResponseView<'static>> {
+    fn from(wrapper: SetSubtitleOffsetResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<SetSubtitleOffsetResponseView<'static>>>
+for SetSubtitleOffsetResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SetSubtitleOffsetResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::SetSubtitleOffsetResponse {
+    type View<'a> = SetSubtitleOffsetResponseView<'a>;
+    type ViewHandle = SetSubtitleOffsetResponseOwnedView;
+}
+impl ::serde::Serialize for SetSubtitleOffsetResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
 /// What a User wants audio to start as in everything they play, unless the Show or Movie has an
 /// Audio Preference of its own.
 #[derive(Clone, Debug, Default)]
@@ -10997,6 +11557,11 @@ pub struct PlaybackSubtitleView<'a> {
     ///
     /// Field 4: `font_urls`
     pub font_urls: ::buffa::RepeatedView<'a, &'a str>,
+    /// The caller's Subtitle Offset for it: how many milliseconds later than its file times it to show
+    /// it, negative for earlier. 0 until they set one.
+    ///
+    /// Field 6: `offset_ms`
+    pub offset_ms: i32,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
@@ -11073,6 +11638,13 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.offset_ms = ::buffa::types::decode_int32(&mut cur)?;
+            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -11119,6 +11691,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
             url: self.url.to_string(),
             format: self.format,
             font_urls: self.font_urls.iter().map(|s| s.to_string()).collect(),
+            offset_ms: self.offset_ms,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -11153,6 +11726,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSubtitleView<'a> {
         if self.place != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.place) as u64;
         }
+        if self.offset_ms != 0i32 {
+            size += 1u64 + ::buffa::types::int32_encoded_len(self.offset_ms) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -11186,6 +11762,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSubtitleView<'a> {
         }
         if self.place != 0u32 {
             ::buffa::types::put_uint32_field(5u32, self.place, buf);
+        }
+        if self.offset_ms != 0i32 {
+            ::buffa::types::put_int32_field(6u32, self.offset_ms, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -11228,6 +11807,13 @@ impl<'__a> ::serde::Serialize for PlaybackSubtitleView<'__a> {
         }
         if !self.font_urls.is_empty() {
             __map.serialize_entry("fontUrls", &*self.font_urls)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i32(&self.offset_ms) {
+            __map
+                .serialize_entry(
+                    "offsetMs",
+                    &::buffa::json_helpers::ProtoJson(&self.offset_ms),
+                )?;
         }
         __map.end()
     }
@@ -11360,6 +11946,14 @@ impl PlaybackSubtitleOwnedView {
     #[must_use]
     pub fn font_urls(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().font_urls
+    }
+    /// The caller's Subtitle Offset for it: how many milliseconds later than its file times it to show
+    /// it, negative for earlier. 0 until they set one.
+    ///
+    /// Field 6: `offset_ms`
+    #[must_use]
+    pub fn offset_ms(&self) -> i32 {
+        self.0.reborrow().offset_ms
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackSubtitleView<'static>>>

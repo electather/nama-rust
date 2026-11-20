@@ -12,14 +12,14 @@ const SIDECAR_HELLO: &str = "1\n00:00:00,000 --> 00:00:01,000\nSidecar hello\n";
 
 #[expect(
     clippy::unwrap_used,
-    clippy::indexing_slicing,
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
-    /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien in 1080p, with
-    /// an untagged SRT Track of its own and the sidecars `sidecars`, each a file name and what it
-    /// says, scanned and Matched, and returns it with that Version's id.
-    async fn alien_with_sidecars<Says: AsRef<[u8]>>(sidecars: &[(&str, Says)]) -> (Self, i64) {
+    /// As [`Self::alien_written_by`] in 1080p, with an untagged SRT Track of its own and the
+    /// sidecars `sidecars`, each a file name and what it says, with that Version's id.
+    pub(super) async fn alien_with_sidecars<Says: AsRef<[u8]>>(
+        sidecars: &[(&str, Says)],
+    ) -> (Self, i64) {
         let fx = Self::alien_written_by(ALIEN_1080P, |path| {
             write_subtitled(path, HELLO_SRT, "srt");
             for (name, says) in sidecars {
@@ -27,12 +27,12 @@ impl Fixture {
             }
         })
         .await;
-        let version = fx.version_ids(ALIEN).await[0];
+        let version = *fx.version_ids(ALIEN).await.first().unwrap();
         (fx, version)
     }
 
     /// Writes `says` to Alien's sidecar `name` and scans again.
-    async fn rewrite_sidecar(&self, name: &str, says: &str) {
+    pub(super) async fn rewrite_sidecar(&self, name: &str, says: &str) {
         let video = self.folder.join(ALIEN_1080P);
         fs::write(video.with_file_name(name), says).unwrap();
         self.scan_and_match().await;

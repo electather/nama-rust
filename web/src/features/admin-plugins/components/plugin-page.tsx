@@ -2,6 +2,7 @@ import { notFound } from "@tanstack/react-router";
 
 import { ExtensionPoints } from "@/features/admin-plugins/components/extension-points";
 import { LogoChoice } from "@/features/admin-plugins/components/logo-choice";
+import { PluginAbout } from "@/features/admin-plugins/components/plugin-about";
 import { PluginIdentity } from "@/features/admin-plugins/components/plugin-identity";
 import { PluginLog } from "@/features/admin-plugins/components/plugin-log";
 import { PluginQualities } from "@/features/admin-plugins/components/plugin-qualities";
@@ -33,6 +34,7 @@ export function PluginPage({ id }: { id: string }) {
       <PointFailures failures={plugin.failures} />
       {summary.refusedReason === "" ? (
         <>
+          <PluginAbout plugin={plugin} />
           <LogoChoice summary={summary} />
           <PluginSettingsSection plugin={plugin} />
           <PluginQualities plugin={plugin} />

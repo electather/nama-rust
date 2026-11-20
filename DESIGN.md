@@ -108,7 +108,7 @@ Pure neutrals and nothing else. The artwork supplies the colour, so the interfac
 - **Rim** (`oklch(0.538 0 0)`, `--input`): the edge of every control, 3:1 or better on every surface. At 30% it's the fill of an Input.
 
 ### Destructive
-- **Red** (`oklch(0.702 0.189 22.2)`): ink for something that can't be undone and for Declined and Failed, on its own 10% tint (4.8:1 or better), always with an icon and a word.
+- **Red** (`oklch(0.702 0.189 22.2)`): ink for something that can't be undone and for Declined and Failed, on its own 10% tint, 15% on a Request's pill (4.8:1 or better), always with an icon and a word.
 
 The neutrals have no chroma. A coloured background competes with the artwork, so the ramp is pure grey. There are no status colours besides Destructive: Pending, Available and the other states are told apart by their icon and word. The values live in shadcn's `.dark` tokens, so a light theme later only needs new `:root` values (ADR 0016).
 
@@ -157,12 +157,13 @@ Only the app shell exists so far. The tokens above set the shape every component
 - **Cards**: Card, 14px radius, a hairline border, 18px padding. No shadow.
 - **Inputs**: the Rim at 30% as a fill, a full Rim border, 10px radius. Focus turns the border Near-white with a 3px ring at 50%.
 - **Menus**: Popover, 14px radius, a hairline, `shadow-md`. Items are 10px-radius rows that turn Accent when highlighted.
-- **Sliders and progress**: a Muted track with a Near-white fill; a slider's thumb is Near-white.
+- **Sliders and progress**: a Muted track with a Near-white fill; a slider's thumb is Near-white. A Request's pill fills with Ink at 25% instead, so its label reads over it.
 - **Posters**: 2:3, 10px radius, a hairline border. A 2px progress bar sits under a poster with Watch State.
 - **Backdrop cards**: 16:9, 10px radius, a hairline border, with the title over the art in Headline on the scrim, or its Title Logo, up to 48px tall and 60% of the card wide, and a Label line under the card. A Library's says its kind. A Continue Watching card shows its titled Backdrop instead when there is one, with no title or Title Logo over it, since the art carries it. It puts ▶ and the 2px progress bar at the bottom of the card, under the title if it's drawn, and under the card which Episode and how much is left, such as "S1, E3 · 33m left" or "1h 12m left". Without a Backdrop, the box is plain Muted with the title in it.
 - **Title page top**: a Movie's or Show's page opens on its Backdrop, full width under the app bar, scrolling away with the page. The art is clear above the title, so it shows, and the title sits on at least the scrim however many lines it takes, fading into the page at the bottom. The title is its Title Logo, up to 112px tall (144px from `sm`) and 80% wide (448px from `sm`), or else its title in Display, and either way the `<h1>`. Under the art go a Label line of what it is, its genres and its year and runtime (a Show: its first air year), then its Content Rating and, on a Movie, its badges (4K, HDR or Dolby Vision, SDH), each in a 6px-radius box with a 14% hairline. Then the Play or Resume pill, with a 2px progress bar and what's left beside Resume, then the overview in Body, clamped to two lines with a ghost "More" that turns to "Less". A Request page shares only the Backdrop and title, always as text.
 - **Episode cards**: a Show's Episodes, in the Backdrop cards' grid. The Still is 16:9, 10px radius, a hairline border, with nothing over it, and without one the box is plain Muted. Under it go a Label naming the Episode ("Episode 3", "Specials, Episode 3"), the title in Title, the synopsis in Label clamped to three lines, a Label line of air date, runtime and the Version's picture and sound, the 2px progress bar once started, then the played toggle and Delete.
 - **State labels**: pill, Secondary fill, Ink, with an icon. Declined and Failed are red on a 10% red tint instead. No other state has a colour.
+- **Request pills**: a title shows its Request as a state label that says what's left for whoever asked: Pending reads "Pending approval", Approved "Requested", and Processing with a download "Downloading", filled to its percent with the time left. Declined and Failed are red on a 15% red tint, and Failed gives its reason on hover and on focus. The Requests pages keep the Glossary's words.
 
 ## 6. Do's and Don'ts
 

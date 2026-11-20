@@ -11,6 +11,8 @@ const TONES = {
   // Something gave way, such as a Playback Limit the player couldn't keep: it stands out of the
   // picture without the alarm of Destructive.
   warning: "bg-secondary text-foreground",
+  // Declined or Failed: DESIGN.md keeps Destructive the only status colour, so no other state uses it.
+  destructive: "bg-destructive/15 text-destructive",
 };
 
 /** A state as a labelled pill, with an icon so it never rests on colour alone. */

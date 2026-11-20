@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT track, offset_ms FROM subtitle_offsets WHERE user_id = ? AND version_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "track",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subtitle_offsets",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "name": "offset_ms",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "subtitle_offsets",
+            "name": "offset_ms"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "426ddf8d5d30d6c9cf1c64636a03c30e73fcc4093a6d207928c140ab67330d3e"
+}

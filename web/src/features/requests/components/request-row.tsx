@@ -3,11 +3,11 @@ import { useRouteContext } from "@tanstack/react-router";
 import { FulfillerLink } from "@/features/requests/components/fulfiller-link";
 import { Reason } from "@/features/requests/components/reason";
 import { RequestActions } from "@/features/requests/components/request-actions";
+import { RequestProgress } from "@/features/requests/components/request-progress";
+import { RequestStateLabel } from "@/features/requests/components/request-state-label";
 import { aboutRequest, failedBy, reasonOf, titleOf } from "@/features/requests/lib/request-facts";
 import type { FollowedShow, Request } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { RequestProgress } from "@/shared/components/request-progress/request-progress";
-import { RequestStateLabel } from "@/shared/components/request-state/request-state-label";
 import { may } from "@/shared/lib/permissions";
 
 /** A Request, or a Followed Show, with its state and what the signed-in User may do to it. */

@@ -108,9 +108,9 @@ test("picking Seasons 1 and 2 and Requesting them shows both as Pending, without
   fireEvent.click(checkbox("Season 2"));
   fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
 
-  await expect(within(seasonRow("Season 1")).findByText("Pending")).resolves.toBeDefined();
-  expect(within(seasonRow("Season 2")).getByText("Pending")).toBeDefined();
-  expect(within(seasonRow("Season 3")).queryByText("Pending")).toBeNull();
+  await expect(within(seasonRow("Season 1")).findByText("Pending approval")).resolves.toBeDefined();
+  expect(within(seasonRow("Season 2")).getByText("Pending approval")).toBeDefined();
+  expect(within(seasonRow("Season 3")).queryByText("Pending approval")).toBeNull();
   expect(asked).toStrictEqual([[1, 2]]);
   expect(checkbox("Season 1").disabled).toBe(true);
   expect(checkbox("Season 1").checked).toBe(false);
@@ -131,11 +131,11 @@ test("a Season someone else Requests meanwhile shows its state from the Events s
   show.seasons[2] = create(FoundSeasonSchema, { seasonNumber: 3, request });
   events.send({ event: { case: "requestCreated", value: { request } } });
 
-  await expect(within(seasonRow("Season 3")).findByText("Pending")).resolves.toBeDefined();
+  await expect(within(seasonRow("Season 3")).findByText("Pending approval")).resolves.toBeDefined();
   expect(checkbox("Season 3").disabled).toBe(false);
 });
 
-test("a Processing Season shows how far its downloads have got, under its row", async () => {
+test("a Processing Season's pill fills to how far its downloads have got", async () => {
   const request = {
     id: 7n,
     state: RequestState.PROCESSING,
@@ -153,9 +153,8 @@ test("a Processing Season shows how far its downloads have got, under its row", 
   await screen.findByRole("heading", { name: "Dark" });
 
   const row = seasonRow("Season 2");
-  const bar = within(row).getByRole("progressbar", { name: "Downloaded" });
-  expect(bar.getAttribute("aria-valuenow")).toBe("70");
-  expect(within(row).getByText("Dark.S02E02")).toBeDefined();
+  const pill = within(row).getByRole("progressbar", { name: "Downloading" });
+  expect(pill.getAttribute("aria-valuenow")).toBe("70");
   expect(within(seasonRow("Season 1")).queryByRole("progressbar")).toBeNull();
 });
 
@@ -189,7 +188,7 @@ test("a Season someone else Requested shows its state, and Requesting it joins",
   });
   openApp("/shows/tmdb-70523", transport);
   await screen.findByRole("heading", { name: "Dark" });
-  expect(within(seasonRow("Season 1")).getByText("Approved")).toBeDefined();
+  expect(within(seasonRow("Season 1")).getByText("Requested")).toBeDefined();
 
   fireEvent.click(checkbox("Season 1"));
   fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
@@ -198,7 +197,7 @@ test("a Season someone else Requested shows its state, and Requesting it joins",
     expect(checkbox("Season 1").disabled).toBe(true);
   });
   expect(asked).toStrictEqual([[1]]);
-  expect(within(seasonRow("Season 1")).getByText("Approved")).toBeDefined();
+  expect(within(seasonRow("Season 1")).getByText("Requested")).toBeDefined();
 });
 
 test("requesting with no Season picked says to pick one", async () => {
@@ -271,7 +270,9 @@ test("picking Whole Show leaves out the Seasons, and Requesting it shows it Pend
   const seasonsWhilePicked = [checkbox("Season 1").disabled, checkbox("Season 3").disabled];
   fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
 
-  await expect(within(seasonRow("Whole Show")).findByText("Pending")).resolves.toBeDefined();
+  await expect(
+    within(seasonRow("Whole Show")).findByText("Pending approval"),
+  ).resolves.toBeDefined();
   expect(seasonsWhilePicked).toStrictEqual([true, true]);
   expect(followed).toStrictEqual(["tmdb-70523"]);
   expect(asked).toStrictEqual([]);
@@ -285,7 +286,7 @@ test("a Show someone else follows shows its state, and Requesting the Whole Show
   });
   openApp("/shows/tmdb-70523", transport);
   await screen.findByRole("heading", { name: "Dark" });
-  expect(within(seasonRow("Whole Show")).getByText("Approved")).toBeDefined();
+  expect(within(seasonRow("Whole Show")).getByText("Requested")).toBeDefined();
 
   fireEvent.click(checkbox("Whole Show"));
   fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
