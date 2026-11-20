@@ -1,12 +1,11 @@
 //! Deleting media: working out what a delete of a title takes ([`doomed`]), refusing it, asking
 //! Fulfillers to stop monitoring it, deleting its files ([`files`]) under the Library's scan lock,
-//! and what must follow (ADR 0038). Also asking a Fulfiller again to stop monitoring what a delete
-//! took, when it said to try again.
+//! and what must follow (ADR 0038).
 
 mod doomed;
 mod files;
 
-use std::{io, path::Path, path::PathBuf, sync::Arc, time::Duration};
+use std::{io, path::Path, path::PathBuf, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
@@ -21,7 +20,7 @@ pub(crate) use files::{File, read_only_folder};
 use super::{Error, Scanner};
 use crate::{
     library::{Change, LibraryEpisode, LibraryKind, TitleTarget, episode_name},
-    plugins::{ExtensionPoints, Failure, RETRIES, Retryable},
+    plugins::{Failure, Retryable, ask_again},
     requests::{self, RequestTitle},
 };
 
@@ -301,13 +300,10 @@ impl Scanner {
                 Some(Err(Failure {
                     kind: Some(wait), ..
                 })) => {
-                    let (title, name) = (title.clone(), name.to_owned());
-                    let again = StopAgain {
-                        plugin,
-                        title,
-                        name,
-                    };
-                    again.after::<K>(plugins, wait, 1);
+                    let stop_again = <dyn Fulfiller<K>>::stop_monitoring;
+                    let what =
+                        format!("stop monitoring {name}, deleted, so it may download it again");
+                    ask_again(plugins, plugin, wait, title.clone(), stop_again, what);
                     continue;
                 }
                 Some(Ok(Err(needs))) => requests::missing(&plugin, kind, &needs),
@@ -323,51 +319,6 @@ impl Scanner {
             not_told.push(plugins.name(&plugin));
         }
         not_told
-    }
-}
-
-/// A deleted title the Plugin `plugin`'s Fulfiller said to ask it again to stop monitoring:
-/// `title`, which the log calls `name`.
-struct StopAgain {
-    plugin: PluginId,
-    title: StopMonitoring,
-    name: String,
-}
-
-impl StopAgain {
-    /// Asks the Fulfiller of `K` again after `wait`, as it said to, the `retry`th time in a row.
-    /// Waits in the Plugin's scope in `plugins`, so disabling it ends the wait at once (ADR 0047),
-    /// and logs giving up.
-    fn after<K: 'static>(self, plugins: &ExtensionPoints, wait: Duration, retry: u32) {
-        let points = plugins.clone();
-        let plugin = self.plugin.clone();
-        // Not spawned if the Plugin was disabled meanwhile, which leaves nothing to tell.
-        plugins.spawn_in(&plugin, async move {
-            tokio::time::sleep(wait).await;
-            let title = &self.title;
-            let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
-                fulfiller.stop_monitoring(title).await.map_err(Retryable)
-            };
-            let answer = points.ask(&self.plugin, stop).await;
-            let reason = match answer.map(|answer| answer.result) {
-                Some(Ok(())) => return,
-                Some(Err(Failure {
-                    kind: Some(again), ..
-                })) if retry < RETRIES => {
-                    self.after::<K>(&points, again, retry + 1);
-                    return;
-                }
-                Some(Err(failure)) => failure.message,
-                None => "it panicked or was disabled".to_owned(),
-            };
-            tracing::warn!(
-                plugin = %self.plugin,
-                title = self.name,
-                reason,
-                retry,
-                "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
-            );
-        });
     }
 }
 

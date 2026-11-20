@@ -24,7 +24,7 @@ use super::listing::{load, load_one};
 use super::{Error, Requests, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::{self, Answer, ExtensionPoints, Failure, RETRIES, Retryable},
+    plugins::{self, Answer, ExtensionPoints, Failure, RETRIES, Retryable, ask_again},
 };
 
 /// What a Fulfiller answered to a hand-off, and how long it said to wait if it said to try again,
@@ -281,14 +281,9 @@ impl HandOff {
 
     /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show of `season`, the
     /// Season Request of a Followed Show that ended. A failure, or a Show lacking every id it
-    /// needs, which skips it, is only logged: the Followed Show ended either way.
+    /// needs, which skips it, is only logged: the Followed Show ended either way. One that says to
+    /// try again is asked again later, in its scope (ADR 0047).
     pub(super) async fn unfollow(&self, season: &Request) {
-        self.unfollow_retried(season, 0).await;
-    }
-
-    /// [`Self::unfollow`], after the Fulfiller said to try again `retried` times in a row. Asks it
-    /// again in its scope when it says so again, up to [`RETRIES`] times.
-    async fn unfollow_retried(&self, season: &Request, retried: u32) {
         let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season else {
             return;
         };
@@ -302,6 +297,10 @@ impl HandOff {
                 fulfiller.unfollow(told).await.map(Ok).map_err(Retryable)
             })
             .await;
+        let show = asked
+            .show_id
+            .as_option()
+            .map(|id| format!("{}-{}", id.namespace, id.value));
         let reason = match unfollowed {
             Some(Answer {
                 plugin,
@@ -312,8 +311,10 @@ impl HandOff {
                 result: Err(Failure {
                     kind: Some(wait), ..
                 }),
-            }) if retried < RETRIES => {
-                self.unfollow_later(&plugin, season.clone(), wait, retried + 1);
+            }) => {
+                let what = format!("stop following the Show {}", show.unwrap_or_default());
+                let unfollow = <dyn Fulfiller<Shows>>::unfollow;
+                ask_again(&self.plugins, plugin, wait, told.clone(), unfollow, what);
                 return;
             }
             Some(Answer {
@@ -323,24 +324,9 @@ impl HandOff {
             _ => return,
         };
         warn!(
-            show = asked
-                .show_id
-                .as_option()
-                .map(|id| format!("{}-{}", id.namespace, id.value)),
-            reason, retried, "the Shows Fulfiller didn't stop following the Show"
+            show,
+            reason, "the Shows Fulfiller didn't stop following the Show"
         );
-    }
-
-    /// Tells the Plugin `plugin`'s Fulfiller again after `wait` to stop following the Show of
-    /// `season`, as it said to, which is the `retried`th time in a row. The wait runs in the
-    /// Plugin's scope, so disabling it ends the wait at once (ADR 0047).
-    fn unfollow_later(&self, plugin: &PluginId, season: Request, wait: Duration, retried: u32) {
-        let hand_off = self.clone();
-        // Not spawned if the Plugin was disabled meanwhile, which leaves nothing to tell.
-        self.plugins.spawn_in(plugin, async move {
-            tokio::time::sleep(wait).await;
-            hand_off.unfollow_retried(&season, retried).await;
-        });
     }
 }
 
