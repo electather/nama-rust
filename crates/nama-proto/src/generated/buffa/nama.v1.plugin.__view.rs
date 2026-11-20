@@ -7320,6 +7320,23 @@ pub struct PluginView<'a> {
         'a,
         super::super::__buffa::view::ExtensionPointFailureView<'a>,
     >,
+    /// How to set it up, as Markdown its author wrote, or empty if it gives none. Raw text: render it
+    /// as data, never as HTML (ADR 0058).
+    ///
+    /// Field 15: `setup_markdown`
+    pub setup_markdown: &'a str,
+    /// Its homepage or docs, an http or https URL, or empty if it gives none.
+    ///
+    /// Field 16: `homepage_url`
+    pub homepage_url: &'a str,
+    /// Where its source lives, an http or https URL, or empty if it gives none.
+    ///
+    /// Field 17: `source_url`
+    pub source_url: &'a str,
+    /// Its licence as an SPDX expression, such as `MIT`, or empty if it gives none.
+    ///
+    /// Field 18: `license`
+    pub license: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
@@ -7379,6 +7396,34 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.checks_settings = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.setup_markdown = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.homepage_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.source_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.license = ::buffa::types::borrow_str(&mut cur)?;
             }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -7460,6 +7505,10 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            setup_markdown: self.setup_markdown.to_string(),
+            homepage_url: self.homepage_url.to_string(),
+            source_url: self.source_url.to_string(),
+            license: self.license.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -7497,6 +7546,20 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if !self.setup_markdown.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.setup_markdown) as u64;
+        }
+        if !self.homepage_url.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.homepage_url) as u64;
+        }
+        if !self.source_url.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.source_url) as u64;
+        }
+        if !self.license.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.license) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -7536,6 +7599,18 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        if !self.setup_markdown.is_empty() {
+            ::buffa::types::put_string_field(15u32, &self.setup_markdown, buf);
+        }
+        if !self.homepage_url.is_empty() {
+            ::buffa::types::put_string_field(16u32, &self.homepage_url, buf);
+        }
+        if !self.source_url.is_empty() {
+            ::buffa::types::put_string_field(17u32, &self.source_url, buf);
+        }
+        if !self.license.is_empty() {
+            ::buffa::types::put_string_field(18u32, &self.license, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -7570,6 +7645,18 @@ impl<'__a> ::serde::Serialize for PluginView<'__a> {
         }
         if !self.failures.is_empty() {
             __map.serialize_entry("failures", &*self.failures)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.setup_markdown) {
+            __map.serialize_entry("setupMarkdown", self.setup_markdown)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.homepage_url) {
+            __map.serialize_entry("homepageUrl", self.homepage_url)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.source_url) {
+            __map.serialize_entry("sourceUrl", self.source_url)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.license) {
+            __map.serialize_entry("license", self.license)?;
         }
         __map.end()
     }
@@ -7696,6 +7783,35 @@ impl PluginOwnedView {
         super::super::__buffa::view::ExtensionPointFailureView<'_>,
     > {
         &self.0.reborrow().failures
+    }
+    /// How to set it up, as Markdown its author wrote, or empty if it gives none. Raw text: render it
+    /// as data, never as HTML (ADR 0058).
+    ///
+    /// Field 15: `setup_markdown`
+    #[must_use]
+    pub fn setup_markdown(&self) -> &'_ str {
+        self.0.reborrow().setup_markdown
+    }
+    /// Its homepage or docs, an http or https URL, or empty if it gives none.
+    ///
+    /// Field 16: `homepage_url`
+    #[must_use]
+    pub fn homepage_url(&self) -> &'_ str {
+        self.0.reborrow().homepage_url
+    }
+    /// Where its source lives, an http or https URL, or empty if it gives none.
+    ///
+    /// Field 17: `source_url`
+    #[must_use]
+    pub fn source_url(&self) -> &'_ str {
+        self.0.reborrow().source_url
+    }
+    /// Its licence as an SPDX expression, such as `MIT`, or empty if it gives none.
+    ///
+    /// Field 18: `license`
+    #[must_use]
+    pub fn license(&self) -> &'_ str {
+        self.0.reborrow().license
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginView<'static>>> for PluginOwnedView {

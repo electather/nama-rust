@@ -489,9 +489,22 @@ fn plugin_to_proto(
         .flat_map(|manifest| &manifest.settings.fields)
         .map(|field| setting_to_proto(field, stored.get(&field.key)))
         .collect();
+    let [setup_markdown, homepage_url, source_url, license] =
+        plugin.manifest.as_ref().map_or_default(|manifest| {
+            [
+                manifest.setup_markdown.clone(),
+                manifest.homepage_url.clone(),
+                manifest.source_url.clone(),
+                manifest.license.clone(),
+            ]
+        });
     proto::Plugin {
         checks_settings: plugin.checks_settings,
         settings,
+        setup_markdown,
+        homepage_url,
+        source_url,
+        license,
         summary: plugin_summary_to_proto(plugin, stored, granted, logo).into(),
         ..Default::default()
     }
