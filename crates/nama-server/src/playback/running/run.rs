@@ -112,13 +112,16 @@ struct FfmpegRun {
 
 impl FfmpegRun {
     /// Stops it, and returns once ffmpeg has exited and `task`, watching it, has noted what it
-    /// wrote and marked it stopped. `task` is taken, so a run stopped already isn't waited for
-    /// again.
+    /// wrote and marked it stopped. `task` is taken once it has ended, so a run stopped already
+    /// isn't waited for again, and a stop cut short, as by its request being dropped, leaves it
+    /// for the next stop to wait for.
     async fn stop(&self, task: &mut Option<JoinHandle<()>>) {
         self.stop.cancel();
-        if let Some(task) = task.take() {
+        if let Some(handle) = task {
             // A panic in it was reported as it happened.
-            let _: Result<(), _> = task.await;
+            let _: Result<(), _> = handle.await;
+            // Right after, as awaiting a `JoinHandle` that has ended panics.
+            *task = None;
         }
     }
 }
@@ -435,14 +438,16 @@ impl Running {
     /// Waits for `ffmpeg`, doing the run `run`, to end, or stops it once it has written far
     /// enough ahead, then logs why if it failed and marks it stopped.
     async fn watch(self: Arc<Self>, mut ffmpeg: Run, run: Arc<FfmpegRun>) {
-        let outcome = tokio::select! {
-            outcome = &mut ffmpeg => outcome,
+        let worth_falling_back = tokio::select! {
+            outcome = &mut ffmpeg => self.log_failure(outcome),
             () = self.written_far_ahead(&run) => {
                 run.stop.cancel();
-                ffmpeg.await
+                // Never fallen back from, even if it failed as it stopped: `fall_back` leaves
+                // what runs next to whoever stopped the run, and here nobody else did.
+                self.log_failure(ffmpeg.await);
+                false
             }
         };
-        let worth_falling_back = self.log_failure(outcome);
         // What it wrote since last looked, for its fallback, `will_write` and `init`, which reads
         // it once marked stopped, so before.
         self.note_written(&run).await;
