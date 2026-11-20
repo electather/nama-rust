@@ -34,10 +34,14 @@ export function useReportProgress() {
     (report: Report, final: boolean) => {
       if (final) {
         finalReports.add(report);
+        // The page opened on leaving may share the player's queries, long stale by now, and the
+        // refresh this report causes covers it: unmarked, it would also fetch the old position on
+        // mounting.
+        queryClient.setQueriesData({ queryKey: browseKey }, (data) => data);
       }
       mutate(report);
     },
-    [mutate],
+    [mutate, queryClient],
   );
 }
 
