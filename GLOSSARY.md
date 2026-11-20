@@ -289,6 +289,10 @@ _Avoid_: on deck, in progress, resume list, Next Up
 A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching; a Plugin may provide others, shared by every User or each User's own, which can hold titles not on the Server for the User to Request.
 _Avoid_: shelf, section, rail, carousel
 
+**Featured**:
+The few Movies and Shows at the top of a User's home page, which the Kernel picks by weight from its own suggestions and those Plugins give. It isn't a Home row: it has no heading, and only titles on the Server can be in it.
+_Avoid_: hero, spotlight, banner, billboard
+
 ## Playback
 
 **Track**:
