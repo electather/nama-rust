@@ -16,8 +16,9 @@ pub use nama_plugin_proto::{
         Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, CheckedSettings,
         ConnectionStarted, Download, Episode, EpisodeAnswer, EpisodeAsked, Fulfilled, Image,
         ImageAnswer, ImageAsked, Manifest, Movie, MovieAnswer, Notification, Point, Request,
-        SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
-        StopMonitoring, TitleAsked, TitleId, TitleKind, delivery::Recipient,
+        SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, SettingField, SettingKind,
+        SettingValue, Show, ShowAnswer, StopMonitoring, TitleAsked, TitleId, TitleKind,
+        delivery::Recipient, setting_value,
     },
     services,
 };
@@ -27,6 +28,7 @@ mod blob_store;
 mod home_row;
 mod log;
 mod notification_text;
+mod outside_service;
 mod recogniser;
 mod segment_source;
 mod subtitle_source;
@@ -42,6 +44,7 @@ pub use home_row::{
     FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowSource, HomeRowTitle, HomeRows,
     UserFeaturedAsked, UserRowsAsked,
 };
+pub use outside_service::{OutsideService, Refusal};
 pub use recogniser::{
     FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
     TitleRecognised, TitleToRecognise,
@@ -117,6 +120,7 @@ macro_rules! __extism_log_is_closed {
 pub use notification_text::what_happened;
 
 use ::extism_pdk::{Error, FromBytesOwned, HttpRequest, ToBytes};
+use buffa::{Inline, MessageField};
 use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices};
 
 /// The value of the id in `namespace` among a title's `ids`, such as its `tmdb` id, if it has one.
@@ -847,6 +851,38 @@ where
     }
 }
 
+/// A Manifest's setting `key`, shown to an admin as `label` with `description`, optional and with
+/// no default. Set `required`, `default_value` (with [`setting_default`]), `min_value` or
+/// `max_value` with struct update syntax.
+#[must_use]
+pub fn setting_field(
+    key: &str,
+    label: &str,
+    description: impl Into<String>,
+    kind: SettingKind,
+) -> SettingField {
+    SettingField {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        description: description.into(),
+        kind: kind.into(),
+        ..SettingField::default()
+    }
+}
+
+/// A [`SettingField`]'s `default_value` holding `value`, such as
+/// `setting_value::Value::BoolValue(true)`.
+#[must_use]
+pub fn setting_default(
+    value: setting_value::Value,
+) -> MessageField<SettingValue, Inline<SettingValue>> {
+    SettingValue {
+        value: Some(value),
+        ..SettingValue::default()
+    }
+    .into()
+}
+
 /// The Library ids the `SETTING_KIND_LIBRARIES` setting `key` holds, in the order the admin gave
 /// them; none if it isn't set. A Library deleted since may be among them: skip an id the Kernel no
 /// longer lists.
@@ -871,18 +907,31 @@ fn library_ids(key: &str, text: &str) -> Result<Vec<i64>, Error> {
         .collect()
 }
 
-/// The setting `key`, as text, or `None` if it isn't set; what it holds when is in [What the
-/// Kernel gives a Plugin](https://github.com/electather/nama-rust/blob/main/crates/nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin).
-/// Off wasm32 it is the setting the [`testing::Kernel`] holds.
+/// The setting `key`, as text, or `None` if it isn't set or is blank (empty or only whitespace);
+/// what it holds when is in [What the Kernel gives a Plugin](https://github.com/electather/nama-rust/blob/main/crates/nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin).
+/// Any other value comes back untrimmed, since only the Plugin knows whether its whitespace
+/// belongs to it, as in a password. Off wasm32 it is the setting the [`testing::Kernel`] holds.
 ///
 /// # Errors
 ///
 /// When the Server's config can't be read.
 pub fn setting(key: &str) -> Result<Option<String>, Error> {
     #[cfg(target_arch = "wasm32")]
-    return ::extism_pdk::config::get(key);
+    let stored = ::extism_pdk::config::get(key)?;
     #[cfg(not(target_arch = "wasm32"))]
-    Ok(testing::setting(key))
+    let stored = testing::setting(key);
+    Ok(stored.filter(|value| !value.trim().is_empty()))
+}
+
+/// The setting `key`, read as [`setting`] reads it, for a Plugin setting the Plugin can't work
+/// without. Personal settings are never in the config (ADR 0046), so it can't read one.
+///
+/// # Errors
+///
+/// "the setting {key} isn't set" when it is unset or blank, naming the key and never a value, or
+/// when the Server's config can't be read.
+pub fn required_setting(key: &str) -> Result<String, Error> {
+    setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
 }
 
 /// Sends `request` with `body`. If the Server can't send it, such as when nothing answers at its
@@ -1067,7 +1116,101 @@ fn clear_error() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{SearchQuery, SearchResults, TitleSource, extism_pdk::Error, library_ids};
+    use crate::{
+        SearchQuery, SearchResults, SettingField, SettingKind, SettingValue, TitleSource,
+        extism_pdk::Error,
+        library_ids, setting_default, setting_field, setting_value,
+        testing::{Kernel, with},
+    };
+
+    #[test]
+    fn a_setting_field_is_optional_with_no_default() {
+        let field = setting_field(
+            "url",
+            "URL",
+            format!("Where {} answers.", "the service"),
+            SettingKind::SETTING_KIND_URL,
+        );
+
+        assert_eq!(
+            field,
+            SettingField {
+                key: "url".to_owned(),
+                label: "URL".to_owned(),
+                description: "Where the service answers.".to_owned(),
+                kind: SettingKind::SETTING_KIND_URL.into(),
+                ..SettingField::default()
+            }
+        );
+        assert!(!field.required && field.default_value.is_unset());
+    }
+
+    #[test]
+    fn a_setting_default_holds_its_value() {
+        let field = SettingField {
+            default_value: setting_default(setting_value::Value::IntegerValue(30)),
+            ..SettingField::default()
+        };
+
+        assert_eq!(
+            field.default_value.into_option(),
+            Some(SettingValue {
+                value: Some(setting_value::Value::IntegerValue(30)),
+                ..SettingValue::default()
+            })
+        );
+    }
+
+    #[test]
+    fn a_blank_setting_isnt_set_and_any_other_is_kept_untrimmed() {
+        let mut kernel = Kernel::new()
+            .setting("empty", "")
+            .setting("spaces", " \t ")
+            .setting("password", " p w ");
+
+        let read = with(&mut kernel, || {
+            ["empty", "spaces", "password", "unset"].map(|key| crate::setting(key).unwrap())
+        });
+
+        assert_eq!(read, [None, None, Some(" p w ".to_owned()), None]);
+    }
+
+    #[test]
+    fn a_blank_library_setting_holds_no_ids() {
+        let mut kernel = Kernel::new().setting("keep", " ");
+
+        let ids = with(&mut kernel, || crate::setting_library_ids("keep").unwrap());
+
+        assert_eq!(ids, Vec::<i64>::new());
+    }
+
+    #[test]
+    fn a_required_setting_is_read_as_stored() {
+        let mut kernel = Kernel::new().setting("url", " http://service.test ");
+
+        let read = with(&mut kernel, || crate::required_setting("url").unwrap());
+
+        assert_eq!(read, " http://service.test ");
+    }
+
+    #[test]
+    fn a_required_setting_unset_or_blank_names_its_key() {
+        let mut kernel = Kernel::new().setting("empty", "").setting("spaces", "  ");
+
+        let failed = with(&mut kernel, || {
+            ["unset", "empty", "spaces"]
+                .map(|key| crate::required_setting(key).unwrap_err().to_string())
+        });
+
+        assert_eq!(
+            failed,
+            [
+                "the setting unset isn't set",
+                "the setting empty isn't set",
+                "the setting spaces isn't set",
+            ]
+        );
+    }
 
     #[test]
     fn library_ids_are_read_from_their_config_text() {
