@@ -29,4 +29,8 @@ export const pluginPermissions: Partial<
     about:
       "It sees which Users asked for each Movie and Episode, and nothing else about their Requests.",
   },
+  [PluginPermission.READ_WATCHLISTS]: {
+    label: "Read Watchlists",
+    about: "It sees the Movies and Shows on every User's Watchlist.",
+  },
 };

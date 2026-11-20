@@ -35,6 +35,7 @@ pub(crate) const KERNEL_IMPORTS: &[&str] = &[
     "list_watch_states",
     "list_users",
     "list_requesters",
+    "list_watchlist",
     "delete_media",
 ];
 

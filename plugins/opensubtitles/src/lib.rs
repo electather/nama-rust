@@ -5,16 +5,17 @@
 use std::fmt;
 
 use nama_pdk::{
-    CheckedSettings, Manifest, Response, SubtitleDownload, SubtitleFile, SubtitleResult,
-    SubtitleResults, SubtitleSearch, SubtitleSource, TitleKind,
+    CheckedSettings, Manifest, Permission, Response, SubtitleDownload, SubtitleFile,
+    SubtitleResult, SubtitleResults, SubtitleSearch, SubtitleSource, TitleKind,
     extism_pdk::{
         Error, HttpRequest, Json,
         json::{self, json},
     },
+    kernel,
     nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind},
     services,
 };
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use url::Url;
 
 /// Where OpenSubtitles' REST API is.
@@ -23,6 +24,9 @@ const API_URL: &str = "https://api.opensubtitles.com/api/v1/";
 const API_KEY: &str = "api_key";
 const USERNAME: &str = "username";
 const PASSWORD: &str = "password";
+
+/// The Plugin-wide Store entry keeping the last [`LoggedIn`].
+const LOGIN_KEY: &str = "login";
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -68,6 +72,8 @@ fn manifest() -> Manifest {
         points: vec![nama_pdk::point(services::SUBTITLE_SOURCE)],
         // Download links point at another host of OpenSubtitles' than its API.
         allowed_hosts: vec!["*.opensubtitles.com".to_owned()],
+        // To keep a login between downloads; without it, each download logs in.
+        permissions: vec![Permission::PERMISSION_STORE.into()],
         settings: vec![
             setting(
                 API_KEY,
@@ -115,12 +121,7 @@ impl SubtitleSource for OpenSubtitles {
         let file_id: u64 = (download.id.parse()).map_err(|_not_a_number| {
             Error::msg(format!("{:?} isn't an OpenSubtitles file id", download.id))
         })?;
-        let LoggedIn { token, base_url } = login()?;
-        // OpenSubtitles answers each account the host its later requests go to, such as
-        // `vip-api.opensubtitles.com` for a VIP one.
-        let url = format!("https://{base_url}/api/v1/download");
-        let request = post(&url)?.with_header("Authorization", format!("Bearer {token}"));
-        let link: Link = answered(send(&request, Some(json!({ "file_id": file_id })))?)?;
+        let link = link(file_id)?;
         // The link is on a file host, not the API, so its statuses don't mean what `accepted`
         // reads them as, such as a 403 meaning a wrong API key.
         let fetched = send(&HttpRequest::new(&link.link), None)?;
@@ -250,21 +251,68 @@ struct Link {
     file_name: String,
 }
 
-/// What a login answers: the token a download needs, and the API host to send it to.
-#[derive(Deserialize)]
+/// Where the file `file_id` is, asked with the login the Store keeps, if it does and OpenSubtitles
+/// still takes its token, else with a fresh one the Store then keeps. OpenSubtitles limits logins
+/// tighter than other calls, and its 401 is the only sign a token expired.
+fn link(file_id: u64) -> Result<Link, Error> {
+    let username = setting(USERNAME)?;
+    if let Some(kept) = kept_login().filter(|kept| kept.username == username) {
+        match accepted(ask_link(&kept, file_id)?) {
+            Err(Refused::Login) => {}
+            answer => return parsed(&answer?),
+        }
+    }
+    let login = login()?;
+    keep(&login);
+    answered(ask_link(&login, file_id)?)
+}
+
+/// The login the Store keeps, or `None` when it keeps none or isn't granted.
+fn kept_login() -> Option<LoggedIn> {
+    let kept = kernel::store_get(LOGIN_KEY, None).ok()??;
+    json::from_slice(&kept).ok()
+}
+
+/// Keeps `login` in the Store for the next download. When the Admin didn't grant the Store, that
+/// download logs in again (ADR 0071: the Plugin carries on).
+fn keep(login: &LoggedIn) {
+    if let Ok(login) = json::to_vec(login) {
+        let _not_kept: Result<(), Error> = kernel::store_put(LOGIN_KEY, None, &login);
+    }
+}
+
+/// OpenSubtitles' answer to asking with `login` where the file `file_id` is, asked of the host
+/// its login answered: OpenSubtitles answers each account the host its later requests go to, such
+/// as `vip-api.opensubtitles.com` for a VIP one.
+fn ask_link(login: &LoggedIn, file_id: u64) -> Result<Response, Error> {
+    let LoggedIn {
+        token, base_url, ..
+    } = login;
+    let request = post(&format!("https://{base_url}/api/v1/download"))?
+        .with_header("Authorization", format!("Bearer {token}"));
+    send(&request, Some(json!({ "file_id": file_id })))
+}
+
+/// What a login answers: the token a download needs, and the API host to send it to, kept with
+/// the username it logged in, so a login for an account the Admin replaced isn't used.
+#[derive(Deserialize, Serialize)]
 struct LoggedIn {
     token: String,
     base_url: String,
+    // OpenSubtitles' answer leaves it out.
+    #[serde(default)]
+    username: String,
 }
 
 /// Logs in to the settings' account.
-///
-/// ponytail: one login per download, since each call is a fresh instance with nowhere to keep the
-/// token; OpenSubtitles limits logins tighter than other calls, so Users downloading at once may
-/// get `Refused::RateLimit`. Keep the token once a subtitle source can store between calls.
 fn login() -> Result<LoggedIn, Error> {
-    let body = json!({ "username": setting(USERNAME)?, "password": setting(PASSWORD)? });
-    answered(send(&post(&format!("{API_URL}login"))?, Some(body))?)
+    let username = setting(USERNAME)?;
+    let body = json!({ "username": username, "password": setting(PASSWORD)? });
+    let logged_in: LoggedIn = answered(send(&post(&format!("{API_URL}login"))?, Some(body))?)?;
+    Ok(LoggedIn {
+        username,
+        ..logged_in
+    })
 }
 
 /// A request to OpenSubtitles' API at `url`, with the headers it wants on every one.
@@ -292,7 +340,15 @@ fn send(request: &HttpRequest, body: Option<json::Value>) -> Result<Response, Er
 /// # Errors
 /// If OpenSubtitles refused the request, or answered with something unexpected.
 fn answered<T: DeserializeOwned>(response: Response) -> Result<T, Error> {
-    accepted(response)?.json().map_err(|err| {
+    parsed(&accepted(response)?)
+}
+
+/// `response` read as JSON.
+///
+/// # Errors
+/// If OpenSubtitles answered with something unexpected.
+fn parsed<T: DeserializeOwned>(response: &Response) -> Result<T, Error> {
+    response.json().map_err(|err| {
         Error::msg(format!(
             "OpenSubtitles answered with something unexpected: {err}"
         ))
@@ -312,7 +368,12 @@ fn accepted(response: Response) -> Result<Response, Refused> {
         406 => Refused::Quota {
             renews_in: (response.json::<Quota>().ok()).and_then(|quota| quota.reset_time),
         },
-        429 => Refused::RateLimit,
+        429 => Refused::RateLimit {
+            // OpenSubtitles gives seconds, though HTTP allows a date too.
+            retry_after: response
+                .header("Retry-After")
+                .and_then(|after| after.parse().ok()),
+        },
         status => Refused::Status(status),
     })
 }
@@ -322,10 +383,10 @@ fn accepted(response: Response) -> Result<Response, Refused> {
 enum Refused {
     /// The API key is wrong.
     ApiKey,
-    /// The username or password is wrong.
+    /// The username or password is wrong, or a kept login's token expired.
     Login,
-    /// The Server sent more requests than OpenSubtitles takes.
-    RateLimit,
+    /// The Server sent more requests than OpenSubtitles takes, until the seconds it gives pass.
+    RateLimit { retry_after: Option<u64> },
     /// The account has downloaded all it may today, until it renews in the time OpenSubtitles
     /// gives, such as `3 hours and 12 minutes`.
     Quota { renews_in: Option<String> },
@@ -338,10 +399,13 @@ impl fmt::Display for Refused {
         match self {
             Self::ApiKey => write!(f, "OpenSubtitles refused the API key"),
             Self::Login => write!(f, "OpenSubtitles refused the username or password"),
-            Self::RateLimit => write!(
-                f,
-                "OpenSubtitles is limiting this Server's requests; try again in a few seconds"
-            ),
+            Self::RateLimit { retry_after } => {
+                write!(f, "OpenSubtitles is limiting this Server's requests; ")?;
+                match retry_after {
+                    Some(seconds) => write!(f, "try again in {seconds} s"),
+                    None => write!(f, "try again in a few seconds"),
+                }
+            }
             Self::Quota { renews_in } => {
                 write!(
                     f,

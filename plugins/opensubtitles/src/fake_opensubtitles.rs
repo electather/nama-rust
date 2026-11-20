@@ -22,9 +22,6 @@ pub(super) const USERNAME: &str = "admin";
 /// The account's password.
 pub(super) const PASSWORD: &str = "hunter2";
 
-/// The token a login answers, which a download needs.
-const TOKEN: &str = "fake-token";
-
 /// One subtitle the fake serves.
 pub(super) struct FakeSubtitle {
     pub(super) file_id: u64,
@@ -63,6 +60,8 @@ pub(super) struct FakeOpenSubtitles {
     pub(super) base_url: &'static str,
     /// Whether the file host refuses every link, as it does one that expired.
     pub(super) links_expired: bool,
+    /// The token a login answers, and the only one a download takes.
+    pub(super) token: &'static str,
 }
 
 impl Default for FakeOpenSubtitles {
@@ -73,6 +72,7 @@ impl Default for FakeOpenSubtitles {
             rate_limited: false,
             base_url: "api.opensubtitles.com",
             links_expired: false,
+            token: "fake-token",
         }
     }
 }
@@ -100,7 +100,8 @@ impl FakeOpenSubtitles {
             return answer(
                 429,
                 &json!({ "message": "Throttle limit reached. Retry later." }),
-            );
+            )
+            .with_header("Retry-After", "7");
         }
         let method = request.method.as_deref().unwrap_or("GET");
         let body: Value = json::from_slice(body).unwrap_or_default();
@@ -110,7 +111,7 @@ impl FakeOpenSubtitles {
             ("POST", "/api/v1/download")
                 if host == Some(self.base_url)
                     && header("Authorization").and_then(|auth| auth.strip_prefix("Bearer "))
-                        == Some(TOKEN) =>
+                        == Some(self.token) =>
             {
                 self.download(&body)
             }
@@ -201,7 +202,7 @@ impl FakeOpenSubtitles {
                 &json!({
                     "user": { "allowed_downloads": 20, "vip": false },
                     "base_url": self.base_url,
-                    "token": TOKEN,
+                    "token": self.token,
                     "status": 200,
                 }),
             )

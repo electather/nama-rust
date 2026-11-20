@@ -34,7 +34,7 @@ pub(crate) use decisions::{
     Decided, Decisions, ImageRef, Metadata, TiedTitle, Unmatched, UnmatchedReason,
 };
 pub(crate) use files::{Change, Stored};
-pub(crate) use ids::{DEFAULT_ORDER, parse_hint, primary_id};
+pub(crate) use ids::{DEFAULT_ORDER, matched_ids, parse_hint, primary_id};
 use ids::{ids_from_json, ids_sql, listed_id_sql, primary_id_in};
 use items::ItemRow;
 pub(crate) use items::{Item, ItemKind, Name};

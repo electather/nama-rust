@@ -8,15 +8,14 @@ use std::{
 
 use buffa::MessageField;
 use nama_plugin_api::{
-    PluginId,
     automation::{
-        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries as ListedLibraries,
-        LibrariesAsked, LibraryKind, Permission, Requesters, RequestersAsked, StoreKey, StoreValue,
-        TitleRef, TitleRefKind, Titles, TitlesAsked, Users as ListedUsers, UsersAsked,
-        WatchStates as ListedWatchStates, WatchStatesAsked,
+        DeleteAsked, DeleteStarted, Libraries as ListedLibraries, LibrariesAsked, LibraryKind,
+        Permission, Requesters, RequestersAsked, StoreKey, StoreValue, Titles, TitlesAsked,
+        Users as ListedUsers, UsersAsked, WatchStates as ListedWatchStates, WatchStatesAsked,
+        Watchlist, WatchlistAsked,
     },
-    fulfiller::TitleId,
-    metadata::{ExternalId, ExternalIds},
+    contract,
+    metadata::ExternalId,
     settings::{SettingValue, Settings},
 };
 use nama_plugin_tmdb::{
@@ -24,205 +23,27 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 
-use super::{Automation, FUNCTIONS, permission_name};
+use super::{
+    FUNCTIONS, permission_name,
+    testing::{
+        ALIEN_TMDB_ID, DARK_TMDB_ID, LIES_TMDB_ID, SECRETS_TMDB_ID, UNREADABLE, ask, delete,
+        episode_ref, kernel, movie_ref, movies, titles_asked, two_episodes_in_one_file,
+        two_episodes_in_one_file_also_known_as, users,
+    },
+};
 use crate::{
     db::{self, Database},
     events::EventBus,
-    images::ImageStore,
     library::{
-        self, Artwork, Change, Contents, CustomImages, Decided, Item, Libraries, LocalImages,
-        Metadata, MovieOrEpisode, Progress, WatchStates,
+        Contents, Libraries, Metadata, MovieOrEpisode, Progress, TitleKind, WatchStates,
         fixture::{self, MatchedMovie, tmdb_movie},
     },
-    playback::RunningPlans,
     plugins::{ExtensionPoints, KERNEL_IMPORTS, Registry},
     requests::Requests,
-    scanner::Scanner,
     server_settings::ServerUrl,
     users::{Permissions, User, Users},
+    watchlist,
 };
-
-#[path = "../../tests/support/kernel.rs"]
-mod kernel_support;
-use kernel_support::ask;
-
-const ALIEN_TMDB_ID: i64 = 348;
-
-/// The Automation of a Server on `db`, whose Scanner deletes and publishes nowhere.
-fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
-    let points = ExtensionPoints::default();
-    let images = ImageStore::new(data, Arc::clone(db));
-    let events = EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default());
-    let scanner = Scanner::new(
-        Arc::clone(db),
-        crate::plugin_settings::PluginSettings::for_tests(Arc::clone(db), Registry::new()),
-        Artwork::new(images.clone(), points.clone()),
-        CustomImages::new(Arc::clone(db), images.clone()),
-        LocalImages::new(Arc::clone(db), images),
-        events.clone(),
-        None,
-        RunningPlans::for_tests(db, events.clone(), data),
-        Requests::new(Arc::clone(db), events, points.clone()),
-    );
-    Automation::serve(Arc::clone(db), scanner, points)
-}
-
-/// The Kernel's functions for the cleanup Plugin on `db`, granted only `permission`, and the
-/// Automation they need kept alive.
-fn kernel(
-    db: &Arc<Database>,
-    data: &Path,
-    permission: Permission,
-) -> (Arc<Automation>, Arc<dyn Kernel>) {
-    let automation = automation(db, data);
-    let kernel = Automation::kernel(
-        &Arc::downgrade(&automation),
-        PluginId::from_static("cleanup"),
-        HashSet::from([permission]),
-    );
-    (automation, kernel)
-}
-
-/// The Movie `tmdb` of the Library `library`, as a Plugin names it.
-fn movie_ref(library: i64, tmdb: i64) -> TitleRef {
-    TitleRef {
-        library_id: library,
-        kind: TitleRefKind::TITLE_REF_KIND_MOVIE.into(),
-        id: MessageField::some(TitleId {
-            namespace: "tmdb".to_owned(),
-            value: tmdb.to_string(),
-            ..TitleId::default()
-        }),
-        ..TitleRef::default()
-    }
-}
-
-/// Creates a User for each of `names` on `db`, and gives their ids.
-async fn users<const N: usize>(db: &Arc<Database>, names: [&str; N]) -> [i64; N] {
-    let root = User {
-        id: 0,
-        name: "Root".to_owned(),
-        permissions: Permissions::ADMIN,
-        created_at: 0,
-    };
-    let plugins = Registry::new();
-    plugins
-        .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
-        .unwrap();
-    let users = Users::new(Arc::clone(db), plugins.extension_points());
-    let mut ids = [0; N];
-    for (id, name) in ids.iter_mut().zip(names) {
-        *id = (users.create(&root, name, "correct horse battery staple"))
-            .await
-            .unwrap();
-    }
-    ids
-}
-
-/// The Episode `tmdb` of the Library `library`, as a Plugin names it.
-fn episode_ref(library: i64, tmdb: i64) -> TitleRef {
-    TitleRef {
-        kind: TitleRefKind::TITLE_REF_KIND_EPISODE.into(),
-        ..movie_ref(library, tmdb)
-    }
-}
-
-const SECRETS_TMDB_ID: i64 = 1_001;
-const LIES_TMDB_ID: i64 = 1_002;
-
-/// A Shows Library on `folder` holding one file, `Dark - S01E01-E02.mkv`, Matched to both
-/// Episodes, Secrets and Lies. Gives the Library's id and the file's path.
-async fn two_episodes_in_one_file(db: &Arc<Database>, folder: &Path) -> (i64, String) {
-    two_episodes_in_one_file_also_known_as(db, folder, |_tmdb| None).await
-}
-
-/// [`two_episodes_in_one_file`], with each Episode also given the id `also(its TMDB id)`.
-async fn two_episodes_in_one_file_also_known_as(
-    db: &Arc<Database>,
-    folder: &Path,
-    also: impl Fn(i64) -> Option<ExternalId>,
-) -> (i64, String) {
-    let root = folder.canonicalize().unwrap();
-    let library = (Libraries::new(Arc::clone(db)))
-        .create(
-            "Shows",
-            library::LibraryKind::Shows,
-            vec![root.to_str().unwrap().to_owned()],
-        )
-        .await
-        .unwrap()
-        .id;
-    let path = root.join("Dark - S01E01-E02.mkv");
-    fs::write(&path, "dark").unwrap();
-    let path = path.to_str().unwrap().to_owned();
-    let episode = |number| Item::Episode {
-        show: "Dark".to_owned(),
-        year: None,
-        hint: None,
-        season: 1,
-        episode: number,
-    };
-    let contents = Contents::new(Arc::clone(db));
-    let file = Change::Store {
-        path: path.clone(),
-        size: 10,
-        modified_ns: 0,
-        items: vec![episode(1), episode(2)],
-    };
-    contents.apply(library, vec![file]).await.unwrap();
-    let matched = |tmdb, title| {
-        let mut ids = ExternalIds::from_iter([ExternalId::tmdb(tmdb)]);
-        if let Some(also) = also(tmdb) {
-            ids.insert(also);
-        }
-        Decided::Matched(Box::new(Metadata {
-            ids,
-            show_ids: ExternalIds::from_iter([ExternalId::tmdb(70_523)]),
-            show_title: Some("Dark".to_owned()),
-            ..tmdb_movie(tmdb, title)
-        }))
-    };
-    let decided = vec![
-        matched(SECRETS_TMDB_ID, "Secrets"),
-        matched(LIES_TMDB_ID, "Lies"),
-    ];
-    fixture::decide(&contents, library, &path, decided).await;
-    (library, path)
-}
-
-/// Creates a Movie for each of `tmdb_ids` in a Movies Library on `folder`, and gives its id.
-async fn movies(db: &Arc<Database>, folder: &Path, tmdb_ids: &[i64]) -> i64 {
-    let library = fixture::movies_library(db, folder).await;
-    let contents = Contents::new(Arc::clone(db));
-    let root = folder.canonicalize().unwrap();
-    for &tmdb in tmdb_ids {
-        let path = root.join(format!("{tmdb}.mkv"));
-        let matched = tmdb_movie(tmdb, &format!("Movie {tmdb}"));
-        MatchedMovie::store(&contents, library, path.to_str().unwrap(), matched).await;
-    }
-    library
-}
-
-/// A request no function can read: a varint cut off.
-const UNREADABLE: &[u8] = &[0xff];
-
-fn titles_asked(library: i64, page_size: u32, page_token: &str) -> TitlesAsked {
-    TitlesAsked {
-        library_id: library,
-        page_size,
-        page_token: page_token.to_owned(),
-        ..TitlesAsked::default()
-    }
-}
-
-/// What `kernel` answers deleting `title`.
-async fn delete(kernel: &Arc<dyn Kernel>, title: TitleRef) -> Result<DeleteStarted, KernelRefused> {
-    let asked = DeleteAsked {
-        title_ref: MessageField::some(title),
-        ..DeleteAsked::default()
-    };
-    ask(kernel, "delete_media", &asked).await
-}
 
 #[tokio::test]
 async fn every_function_refuses_a_plugin_not_granted_its_permission_before_reading_the_request() {
@@ -311,6 +132,43 @@ async fn list_titles_gives_each_movie_with_the_id_its_watch_state_uses() {
     assert_eq!(title.title, "Alien");
     assert_eq!(title.show_title, None);
     assert_eq!(*title.title_ref, movie_ref(alien.library, ALIEN_TMDB_ID));
+}
+
+#[tokio::test]
+async fn list_titles_gives_genres_content_rating_and_an_episodes_show_id() {
+    let data = tempfile::tempdir().unwrap();
+    let movies = tempfile::tempdir().unwrap();
+    let shows = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let horror = Metadata {
+        genres: vec!["Horror".to_owned(), "Science Fiction".to_owned()],
+        content_rating: Some("R".to_owned()),
+        ..tmdb_movie(ALIEN_TMDB_ID, "Alien")
+    };
+    let alien = MatchedMovie::new(&db, movies.path(), horror).await;
+    let (dark, _path) = two_episodes_in_one_file(&db, shows.path()).await;
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
+
+    let mut listed = Vec::new();
+    for library in [alien.library, dark] {
+        let page = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 0, "")).await;
+        listed.extend(page.unwrap().titles.into_iter().map(|title| {
+            let show = title.show_id.as_option().map(|id| id.value.clone());
+            (title.genres, title.content_rating, show)
+        }));
+    }
+
+    let dark_episode = (
+        vec!["Drama".to_owned()],
+        Some("TV-MA".to_owned()),
+        Some(DARK_TMDB_ID.to_string()),
+    );
+    let alien_movie = (
+        vec!["Horror".to_owned(), "Science Fiction".to_owned()],
+        Some("R".to_owned()),
+        None,
+    );
+    assert_eq!(listed, [alien_movie, dark_episode.clone(), dark_episode]);
 }
 
 #[tokio::test]
@@ -467,6 +325,31 @@ async fn list_watch_states_gives_each_users_watch_state_of_each_title() {
     assert_eq!(states, [(ada, false, 500, 1000), (bo, true, 0, 0)]);
     assert!(watched.states.iter().all(|state| state.updated_at_ms > 0));
     assert_eq!(unwatched.states, []);
+}
+
+#[tokio::test]
+async fn list_watch_states_for_one_user_gives_no_other_users_watch_state() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
+    let alien = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
+    let watch_states = WatchStates::new(Arc::clone(&db));
+    for user in [ada, bo] {
+        watch_states
+            .mark(user, vec![alien.clone()], true)
+            .await
+            .unwrap();
+    }
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCH_STATES);
+
+    let asked = WatchStatesAsked {
+        titles: vec![movie_ref(1, ALIEN_TMDB_ID)],
+        user_id: Some(bo),
+        ..WatchStatesAsked::default()
+    };
+    let listed = ask(&kernel, "list_watch_states", &asked).await.unwrap();
+
+    assert_eq!(users_played(&listed), [(bo, true)]);
 }
 
 /// The Users and what they did of each Watch State `listed` gives of its one title.
@@ -737,7 +620,7 @@ async fn list_requesters_gives_who_requested_each_movie_and_episode() {
     let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
     requests.create(&asker(ada), &alien, None).await.unwrap();
     requests.create(&asker(bo), &alien, None).await.unwrap();
-    let dark = ExternalId::tmdb(70_523);
+    let dark = ExternalId::tmdb(DARK_TMDB_ID);
     requests.follow(&asker(bo), &dark, None).await.unwrap();
     let movies = movies(&db, movie_folder.path(), &[ALIEN_TMDB_ID, 1]).await;
     let (shows, _path) = two_episodes_in_one_file(&db, show_folder.path()).await;
@@ -797,4 +680,42 @@ async fn list_requesters_gives_a_title_whose_only_requester_was_deleted_as_reque
         .unwrap();
 
     assert_eq!(requested(&listed), [(true, vec![])]);
+}
+
+#[tokio::test]
+async fn list_watchlist_gives_that_users_watchlist_only() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
+    let (dark, alien) = (
+        ExternalId::tmdb(DARK_TMDB_ID),
+        ExternalId::tmdb(ALIEN_TMDB_ID),
+    );
+    watchlist::add(&db, ada, TitleKind::Show, &dark)
+        .await
+        .unwrap();
+    watchlist::add(&db, ada, TitleKind::Movie, &alien)
+        .await
+        .unwrap();
+    watchlist::add(&db, bo, TitleKind::Movie, &ExternalId::tmdb(1))
+        .await
+        .unwrap();
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCHLISTS);
+
+    let asked = WatchlistAsked {
+        user_id: ada,
+        ..WatchlistAsked::default()
+    };
+    let listed: Watchlist = ask(&kernel, "list_watchlist", &asked).await.unwrap();
+
+    let listed: HashSet<_> = (listed.titles.iter())
+        .map(|title| (title.kind, title.id.value.clone()))
+        .collect();
+    let show = contract::TitleKind::TITLE_KIND_SHOW.into();
+    let movie = contract::TitleKind::TITLE_KIND_MOVIE.into();
+    let expected = HashSet::from([
+        (show, DARK_TMDB_ID.to_string()),
+        (movie, ALIEN_TMDB_ID.to_string()),
+    ]);
+    assert_eq!(listed, expected);
 }
