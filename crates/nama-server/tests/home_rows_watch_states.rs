@@ -169,14 +169,16 @@ async fn starting_playing_through_and_marking_a_title_played_or_unplayed_asks_th
 
     watch_alien(&fx, &ada, 60_000).await;
     open_home_until_asked(&ada, "ada", 2).await;
-    // Past 90% of its duration, it becomes played.
-    watch_alien(&fx, &ada, 6_900_000).await;
+    mark_alien(&fx, &ada, true).await;
     open_home_until_asked(&ada, "ada", 3).await;
     mark_alien(&fx, &ada, false).await;
     open_home_until_asked(&ada, "ada", 4).await;
-    mark_alien(&fx, &ada, true).await;
-
+    watch_alien(&fx, &ada, 60_000).await;
     open_home_until_asked(&ada, "ada", 5).await;
+    // Past 90% of its duration, it becomes played.
+    watch_alien(&fx, &ada, 6_900_000).await;
+
+    open_home_until_asked(&ada, "ada", 6).await;
 }
 
 #[tokio::test]

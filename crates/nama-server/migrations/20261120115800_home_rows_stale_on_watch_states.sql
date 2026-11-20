@@ -1,10 +1,10 @@
 -- A Plugin granted Read Watch States may build a User's own Home rows and Featured suggestions
 -- from their Watch State, such as leaving out what they started (#1326). So starting a title,
 -- marking it played or marking it unplayed makes that User's rows and suggestions from each such
--- Plugin stale, as saving their Personal settings does (`20261119222302_home_rows_per_user.sql`,
--- `20261120093958_featured_suggestions.sql`): their next visit to home asks the Plugin again, and
--- an answer to a refresh started before is dropped. A position the player reports while playing
--- changes neither, so playback's frequent writes cost nothing.
+-- Plugin stale, as saving their Personal settings does (the triggers on `personal_settings`): their
+-- next visit to home asks the Plugin again, and an answer to a refresh started before is dropped. A
+-- position the player reports while playing changes neither, so playback's frequent writes cost
+-- nothing.
 
 -- The Plugins an Admin granted Read Watch States, which `plugin_settings` keeps by its name.
 CREATE VIEW plugins_reading_watch_states AS
