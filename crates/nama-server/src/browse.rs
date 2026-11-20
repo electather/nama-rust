@@ -26,7 +26,7 @@ mod featured;
 mod watching;
 
 pub(crate) use featured::Featured;
-pub(crate) use watching::{SPECIALS, Started};
+pub(crate) use watching::Started;
 
 /// A Movie whose Versions have their Tracks.
 pub(crate) type Movie = LibraryMovie<Version>;
@@ -56,6 +56,13 @@ pub(crate) enum Error {
     PageTokenInvalid(#[from] page::TokenInvalid),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+/// How many of `show`'s Seasons the Library has an Episode of, Specials aside.
+pub(crate) fn season_count(show: &Show) -> usize {
+    (show.seasons.keys())
+        .filter(|&&season| season != watching::SPECIALS)
+        .count()
 }
 
 /// A Show as a page of a Library's Shows lists it.

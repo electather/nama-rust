@@ -16,7 +16,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::{Browse, Episode, Featured, ListedShow, Movie, SPECIALS, Show, Started, Version},
+    browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
     home_rows::{HomeRows, OnServer, RowTitle},
     library::{
         Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
@@ -654,8 +654,7 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         content_rating: show.content_rating.clone(),
         overview: show.overview.clone(),
         first_air_date: show.first_air_date.clone(),
-        season_count: u32::try_from(show.seasons.keys().filter(|&&n| n != SPECIALS).count())
-            .unwrap_or(u32::MAX),
+        season_count: u32::try_from(season_count(show)).unwrap_or(u32::MAX),
         ..Default::default()
     }
 }

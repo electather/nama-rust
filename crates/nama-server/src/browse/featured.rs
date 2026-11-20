@@ -54,12 +54,13 @@ enum Title {
 }
 
 impl Title {
-    /// What makes two suggestions the same title: a Movie and a Show may share an id.
-    fn key(&self) -> (bool, ExternalId) {
-        match self {
-            Self::Movie(movie) => (false, movie.id.clone()),
-            Self::Show(show) => (true, show.id.clone()),
-        }
+    /// Each id it goes by, with whether it is a Show's: a Movie and a Show may share an id.
+    fn ids(&self) -> impl Iterator<Item = (bool, ExternalId)> + '_ {
+        let (is_show, ids) = match self {
+            Self::Movie(movie) => (false, &movie.ids),
+            Self::Show(show) => (true, &show.ids),
+        };
+        ids.iter().map(move |id| (is_show, id))
     }
 
     const fn added_at(&self) -> i64 {
@@ -171,8 +172,15 @@ fn heaviest(mut suggested: Vec<Suggestion>) -> Vec<Suggestion> {
     suggested.sort_by(|a, b| {
         (b.weight.total_cmp(&a.weight)).then(b.title.added_at().cmp(&a.title.added_at()))
     });
+    // By every id, not the preferred one: two Libraries preferring different title sources give
+    // the same title a different `id` each.
     let mut seen = HashSet::new();
-    suggested.retain(|suggestion| seen.insert(suggestion.title.key()));
+    suggested.retain(|suggestion| {
+        let ids: Vec<_> = suggestion.title.ids().collect();
+        let first = !ids.iter().any(|id| seen.contains(id));
+        seen.extend(ids);
+        first
+    });
     suggested.truncate(FEATURED_TITLES);
     suggested
 }
