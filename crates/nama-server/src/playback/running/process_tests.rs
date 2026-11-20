@@ -46,10 +46,16 @@ async fn a_run_dropped_kills_its_ffmpeg() {
 #[tokio::test]
 async fn a_stopped_run_ends_once_its_ffmpeg_has_exited() {
     let bin = tempfile::tempdir().unwrap();
-    let ffmpeg = spawn(bin.path(), "#!/bin/sh\nsleep 30\n", bin.path());
+    let started = bin.path().join("started");
+    let ffmpeg = spawn(bin.path(), "#!/bin/sh\ntouch \"$1\"\nsleep 30\n", &started);
     let pid = ffmpeg.id().unwrap();
     let stop = CancellationToken::new();
     let running = tokio::spawn(run(ffmpeg, stop.clone()));
+    // Stopped only once it runs: one killed before it starts may be reaped before `ps` looks,
+    // even by a run that doesn't wait for it.
+    while !started.exists() {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
 
     stop.cancel();
     let outcome = running.await.unwrap();
