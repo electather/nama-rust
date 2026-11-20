@@ -1,14 +1,12 @@
 //! The Kernel's functions, which an Installed Plugin calls as Extism imports in the namespace
-//! `nama`: one row per function, each answering a `KernelAnswer` (`automation.proto`).
+//! `nama`: each passes its name and bytes to the enablement's Kernel and answers a `KernelAnswer`
+//! (`automation.proto`).
 
 use std::sync::{Arc, PoisonError};
 
 use buffa::Message;
 use extism::{CurrentPlugin, UserData, Val};
-use nama_plugin_api::{
-    BoxFuture,
-    automation::{Kernel, KernelRefused},
-};
+use nama_plugin_api::automation::{Kernel, KernelRefused};
 use nama_plugin_proto::nama::plugin::v1::{KernelAnswer, kernel_answer};
 use tokio::runtime::Handle;
 
@@ -27,82 +25,28 @@ pub(super) struct Reach {
     pub(super) calls: Calls,
 }
 
-/// One Kernel function: its import name and how it answers an encoded request.
-pub(super) struct Function {
-    pub(super) name: &'static str,
-    answer: fn(&Handle, &dyn Kernel, &[u8]) -> kernel_answer::Result,
-}
-
-/// Every Kernel function, as `automation.proto` lists them.
-pub(super) const FUNCTIONS: &[Function] = &[
-    Function {
-        name: "store_get",
-        answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::store_get),
-    },
-    Function {
-        name: "store_put",
-        answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::store_put),
-    },
-    Function {
-        name: "store_delete",
-        answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::store_delete),
-    },
-    Function {
-        name: "list_libraries",
-        answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::list_libraries),
-    },
-    Function {
-        name: "list_titles",
-        answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::list_titles),
-    },
-    Function {
-        name: "list_watch_states",
-        answer: |runtime, kernel, request| {
-            answer(runtime, kernel, request, Kernel::list_watch_states)
-        },
-    },
-    Function {
-        name: "list_users",
-        answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::list_users),
-    },
-    Function {
-        name: "list_requesters",
-        answer: |runtime, kernel, request| {
-            answer(runtime, kernel, request, Kernel::list_requesters)
-        },
-    },
-    Function {
-        name: "delete_media",
-        answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::delete_media),
-    },
+/// The name of each Kernel function, as `automation.proto` lists them.
+pub(crate) const KERNEL_IMPORTS: &[&str] = &[
+    "store_get",
+    "store_put",
+    "store_delete",
+    "list_libraries",
+    "list_titles",
+    "list_watch_states",
+    "list_users",
+    "list_requesters",
+    "delete_media",
 ];
-
-/// Decodes `request`, asks `call` of `kernel` on `runtime` and encodes its response.
-fn answer<Req: Message, Resp: Message>(
-    runtime: &Handle,
-    kernel: &dyn Kernel,
-    request: &[u8],
-    call: for<'a> fn(&'a dyn Kernel, &'a Req) -> BoxFuture<'a, Result<Resp, KernelRefused>>,
-) -> kernel_answer::Result {
-    let Ok(request) = Req::decode_from_slice(request) else {
-        return refused("the Kernel couldn't read the request");
-    };
-    // An import runs on the blocking thread its call runs on, so blocking here is allowed.
-    match runtime.block_on(call(kernel, &request)) {
-        Ok(response) => kernel_answer::Result::Answer(response.encode_to_vec()),
-        Err(KernelRefused(words)) => kernel_answer::Result::Refused(words),
-    }
-}
 
 fn refused(words: &str) -> kernel_answer::Result {
     kernel_answer::Result::Refused(words.to_owned())
 }
 
-/// The Extism host function for `function`: reads the request block the Plugin passes, and
-/// returns a fresh block holding the encoded `KernelAnswer`. A request it can't read is refused,
-/// never a trap.
+/// The Extism host function for `function`: reads the request block the Plugin passes, hands it
+/// to the enablement's Kernel, and returns a fresh block holding the encoded `KernelAnswer`. A
+/// request it can't find is refused, never a trap.
 pub(super) fn import(
-    function: &'static Function,
+    function: &'static str,
 ) -> impl Fn(&mut CurrentPlugin, &[Val], &mut [Val], UserData<Reach>) -> Result<(), extism::Error>
 + Send
 + Sync
@@ -126,7 +70,11 @@ pub(super) fn import(
                 // The call is found by its instance's id rather than through Extism's host
                 // context, since a call made with one skips the check of the export's return code.
                 let _paused = reach.calls.pause(plugin.id().as_u128());
-                (function.answer)(&runtime, kernel.as_ref(), &request)
+                // An import runs on the blocking thread its call runs on, so blocking is allowed.
+                match runtime.block_on(kernel.call(function, request)) {
+                    Ok(response) => kernel_answer::Result::Answer(response),
+                    Err(KernelRefused(words)) => kernel_answer::Result::Refused(words),
+                }
             }
         };
         let answer = KernelAnswer {

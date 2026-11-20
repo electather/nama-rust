@@ -196,6 +196,9 @@ pub enum Permission {
     PERMISSION_CHOOSE_QUALITY = 13i32,
     /// Deletes media from the Libraries' folders, for good (ADR 0038).
     PERMISSION_DELETE_MEDIA = 14i32,
+    /// Searches the subtitle sources for the Version they're watching and downloads one of the
+    /// subtitles found, which every User then sees as one of its Tracks (ADR 0067).
+    PERMISSION_DOWNLOAD_SUBTITLES = 15i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -243,6 +246,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_DELETE_MEDIA`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DeleteMedia: Self = Self::PERMISSION_DELETE_MEDIA;
+    ///Idiomatic alias for [`Self::PERMISSION_DOWNLOAD_SUBTITLES`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DownloadSubtitles: Self = Self::PERMISSION_DOWNLOAD_SUBTITLES;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -353,6 +359,7 @@ impl ::buffa::Enumeration for Permission {
             12i32 => ::core::option::Option::Some(Self::PERMISSION_VIEW_REQUESTS),
             13i32 => ::core::option::Option::Some(Self::PERMISSION_CHOOSE_QUALITY),
             14i32 => ::core::option::Option::Some(Self::PERMISSION_DELETE_MEDIA),
+            15i32 => ::core::option::Option::Some(Self::PERMISSION_DOWNLOAD_SUBTITLES),
             _ => ::core::option::Option::None,
         }
     }
@@ -376,6 +383,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_VIEW_REQUESTS => "PERMISSION_VIEW_REQUESTS",
             Self::PERMISSION_CHOOSE_QUALITY => "PERMISSION_CHOOSE_QUALITY",
             Self::PERMISSION_DELETE_MEDIA => "PERMISSION_DELETE_MEDIA",
+            Self::PERMISSION_DOWNLOAD_SUBTITLES => "PERMISSION_DOWNLOAD_SUBTITLES",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -423,6 +431,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_DELETE_MEDIA" => {
                 ::core::option::Option::Some(Self::PERMISSION_DELETE_MEDIA)
             }
+            "PERMISSION_DOWNLOAD_SUBTITLES" => {
+                ::core::option::Option::Some(Self::PERMISSION_DOWNLOAD_SUBTITLES)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -443,6 +454,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_VIEW_REQUESTS,
             Self::PERMISSION_CHOOSE_QUALITY,
             Self::PERMISSION_DELETE_MEDIA,
+            Self::PERMISSION_DOWNLOAD_SUBTITLES,
         ]
     }
 }

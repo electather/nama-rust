@@ -3,12 +3,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use buffa::Message;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, Registrar,
     automation::{
-        Automation, DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked,
-        Permission, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Tick,
-        Titles, TitlesAsked, Users, UsersAsked, WatchStates, WatchStatesAsked,
+        Automation, Kernel, KernelRefused, Permission, StoreEntry, StoreKey, StoreValue, Tick,
     },
     settings::Settings,
 };
@@ -24,93 +23,27 @@ mod test_plugin;
 
 const NOT_GRANTED: &str = "the Admin didn't grant this Plugin PERMISSION_READ_LIBRARIES";
 
-/// A Kernel that records each Store call with its key and bytes, and refuses everything else.
-#[derive(Default)]
-struct Fake {
-    calls: Mutex<Vec<(&'static str, String, Vec<u8>)>>,
-}
+/// The function and request of each call a [`recording`] Kernel was asked.
+type Calls = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
 
-impl Fake {
-    fn record(&self, function: &'static str, key: &str, value: &[u8]) {
-        self.calls
-            .lock()
-            .unwrap()
-            .push((function, key.to_owned(), value.to_vec()));
-    }
-}
-
-fn refuse<'a, T: Send + 'a>(words: &str) -> BoxFuture<'a, Result<T, KernelRefused>> {
-    let refused = KernelRefused(words.to_owned());
-    Box::pin(async move { Err(refused) })
-}
-
-impl Kernel for Fake {
-    fn store_get<'a>(
-        &'a self,
-        key: &'a StoreKey,
-    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>> {
-        self.record("store_get", &key.key, &[]);
-        let value = StoreValue {
-            value: Some(b"kept".to_vec()),
-            ..StoreValue::default()
-        };
-        Box::pin(async move { Ok(value) })
-    }
-
-    fn store_put<'a>(
-        &'a self,
-        entry: &'a StoreEntry,
-    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        self.record("store_put", &entry.key, &entry.value);
-        Box::pin(async { Ok(Stored::default()) })
-    }
-
-    fn store_delete<'a>(
-        &'a self,
-        key: &'a StoreKey,
-    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        self.record("store_delete", &key.key, &[]);
-        Box::pin(async { Ok(Stored::default()) })
-    }
-
-    fn list_libraries<'a>(
-        &'a self,
-        _: &'a LibrariesAsked,
-    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
-        refuse(NOT_GRANTED)
-    }
-
-    fn list_titles<'a>(
-        &'a self,
-        _: &'a TitlesAsked,
-    ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
-        refuse("not faked")
-    }
-
-    fn list_watch_states<'a>(
-        &'a self,
-        _: &'a WatchStatesAsked,
-    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
-        refuse("not faked")
-    }
-
-    fn list_users<'a>(&'a self, _: &'a UsersAsked) -> BoxFuture<'a, Result<Users, KernelRefused>> {
-        refuse("not faked")
-    }
-
-    fn list_requesters<'a>(
-        &'a self,
-        _: &'a RequestersAsked,
-    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
-        refuse("not faked")
-    }
-
-    fn delete_media<'a>(
-        &'a self,
-        _: &'a DeleteAsked,
-    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>> {
-        refuse("not faked")
-    }
+/// A Kernel that records each call on `calls`, answers the Store's functions, `store_get` with
+/// "kept", and refuses everything else as not granted.
+fn recording(calls: Calls) -> Arc<dyn Kernel> {
+    Arc::new(
+        move |function: &str, request| -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
+            calls.lock().unwrap().push((function.to_owned(), request));
+            let answer = match function {
+                "store_get" => Ok(StoreValue {
+                    value: Some(b"kept".to_vec()),
+                    ..StoreValue::default()
+                }
+                .encode_to_vec()),
+                "store_put" | "store_delete" => Ok(Vec::new()),
+                _ => Err(KernelRefused(NOT_GRANTED.to_owned())),
+            };
+            Box::pin(async move { answer })
+        },
+    )
 }
 
 /// The test Plugin built with its `automation` feature, loaded as the Server loads it.
@@ -136,8 +69,8 @@ fn automation(plugin: &Installed, kernel: Option<Arc<dyn Kernel>>) -> Arc<dyn Au
 #[tokio::test(flavor = "multi_thread")]
 async fn a_tick_reaches_the_kernels_store_and_gets_its_refusals_back_without_crashing() {
     let data_dir = tempfile::tempdir().unwrap();
-    let fake = Arc::new(Fake::default());
-    let kernel: Arc<dyn Kernel> = Arc::<Fake>::clone(&fake);
+    let calls = Calls::default();
+    let kernel = recording(Arc::clone(&calls));
     let automation = automation(&automation_plugin(&data_dir), Some(kernel));
 
     // A crash every time would disable the Plugin by the third.
@@ -146,12 +79,20 @@ async fn a_tick_reaches_the_kernels_store_and_gets_its_refusals_back_without_cra
         assert!(failed.to_string().contains(NOT_GRANTED), "{failed}");
     }
 
-    let calls = fake.calls.lock().unwrap();
+    let put = StoreEntry {
+        key: "ticked".to_owned(),
+        value: b"yes".to_vec(),
+        ..StoreEntry::default()
+    };
+    let get = StoreKey {
+        key: "ticked".to_owned(),
+        ..StoreKey::default()
+    };
     assert_eq!(
-        calls[..2],
+        calls.lock().unwrap()[..2],
         [
-            ("store_put", "ticked".to_owned(), b"yes".to_vec()),
-            ("store_get", "ticked".to_owned(), Vec::new()),
+            ("store_put".to_owned(), put.encode_to_vec()),
+            ("store_get".to_owned(), get.encode_to_vec()),
         ]
     );
 }
@@ -214,16 +155,14 @@ async fn an_enabled_plugin_is_granted_only_what_its_manifest_requests_once_the_k
         .enable_by_id_granting(&id, Settings::default(), granted)
         .unwrap();
     let kernel = kept.lock().unwrap().clone().unwrap();
-    let key = StoreKey::default();
-
-    let before = kernel.store_get(&key).await.unwrap_err();
+    let before = kernel.call("store_get", Vec::new()).await.unwrap_err();
     let made = Arc::new(Mutex::new(Vec::new()));
     let making = Arc::clone(&made);
     registry.serve_kernel(Arc::new(move |plugin, permissions| {
         making.lock().unwrap().push((plugin, permissions));
-        Arc::new(Fake::default())
+        recording(Calls::default())
     }));
-    kernel.store_get(&key).await.unwrap();
+    kernel.call("store_get", Vec::new()).await.unwrap();
 
     assert_eq!(before.0, "the Server isn't serving yet");
     assert_eq!(

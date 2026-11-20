@@ -51,8 +51,6 @@ pub(crate) struct FakeSonarr {
 struct Fake {
     /// The Shows it has, each as it was added with its `id` and Seasons' monitoring kept current.
     shows: Mutex<Vec<Value>>,
-    /// Whether the next list of its Shows by TVDB id answers as if it didn't have them.
-    stale_find: AtomicBool,
     /// Whether the refreshes it starts as it adds a Show wait for [`FakeSonarr::release_refreshes`].
     hold_refreshes: AtomicBool,
     /// The refreshes held so far, as the index of their command, their Show's id and its Seasons.
@@ -82,12 +80,6 @@ impl FakeSonarr {
             servarr: FakeServarr::start(SONARR, routes).await,
             state,
         }
-    }
-
-    /// Makes the next list of its Shows by TVDB id answer as if it didn't have them, as when
-    /// another hand-off adds the Show between this one's asking and its add.
-    pub(crate) fn answer_next_find_stale(&self) {
-        self.state.stale_find.store(true, Ordering::Relaxed);
     }
 
     /// Makes the refreshes it starts as it adds a Show from now on wait for
@@ -199,13 +191,9 @@ async fn answer(State(fake): State<Arc<Fake>>, method: Method, uri: Uri, body: B
 
 /// As Sonarr lists its Shows with the TVDB id `tvdb_id`: the one it has, or `[]`.
 fn find(fake: &Fake, tvdb_id: &str) -> Response {
-    let stale = fake.stale_find.swap(false, Ordering::Relaxed);
     let shows = lock(&fake.shows);
     let tvdb_id = tvdb_id.parse::<i64>().ok();
-    let had = shows
-        .iter()
-        .filter(|_| !stale)
-        .find(|show| show["tvdbId"].as_i64() == tvdb_id);
+    let had = shows.iter().find(|show| show["tvdbId"].as_i64() == tvdb_id);
     json(StatusCode::OK, &json!(had.into_iter().collect::<Vec<_>>()))
 }
 

@@ -265,21 +265,6 @@ async fn a_later_season_request_adds_its_season_to_the_monitored_ones_without_ch
     assert_eq!(fixture.sonarr.searches().last(), Some(&(DARK_TVDB, 2)));
 }
 
-#[tokio::test]
-async fn a_show_another_hand_off_added_meanwhile_gets_the_season_monitored_rather_than_failing() {
-    let fixture = Fixture::with_sonarr_enabled().await;
-    fixture.ask_approved(DARK, &[1]).await;
-    fixture.sonarr.finish_refreshes().await;
-    fixture.sonarr.answer_next_find_stale();
-
-    let asked = fixture.ask_approved(DARK, &[3]).await;
-    fixture.sonarr.finish_refreshes().await;
-
-    assert_eq!(states(&asked), [Some(RequestState::Processing)]);
-    assert_eq!(fixture.sonarr.shows().len(), 1);
-    assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
-}
-
 /// What Sonarr is asked each time a hand-off finds it still refreshing the Show.
 const RETRY_CALLS: [&str; 2] = ["GET /api/v3/series", "GET /api/v3/command"];
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO downloaded_subtitles (version_id, path, size, modified_ns, codec,\n                                                           language, title, sdh)\n                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n                         ON CONFLICT (version_id, path) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "a2a17a1fb5e9486d937038dbd563d559229f693e6f5940198162348d3e2a3c68"
+}
