@@ -21,6 +21,7 @@ mod choices;
 mod codecs;
 mod direct_play;
 mod downloads;
+mod lasting;
 mod limits;
 mod probing;
 mod running;
@@ -67,12 +68,11 @@ use crate::{
 };
 use probing::ProbeError;
 
-use choices::{
-    audio_asked, burns_in, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles,
-};
-use codecs::{file_audio, is_audio, played_audio_place, played_by, played_tracks};
+use choices::{audio_asked, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles};
+use codecs::{played_audio_place, played_by, played_tracks};
 use direct_play::direct_play_url;
-use limits::{fitted, limit_in_effect, network, on_local_network, picture, playback_limit};
+use lasting::offers;
+use limits::{limit_in_effect, network, on_local_network, playback_limit};
 use steps::{
     converting, device_decoding, failed_on_device, failed_on_server, fallback, keyframes_unlisted,
     remux, server_busy, server_ffmpeg, too_busy_to_play, transcode, version_length, version_tracks,
@@ -759,40 +759,6 @@ fn allowed_by(reasons: &[Reason]) -> BTreeSet<Method> {
                 .any(|reason| reason.rules_out.contains(method))
         })
         .collect()
-}
-
-/// What a plan for `facts` can ever honour, with only the methods in `lasting` allowed.
-fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
-    let Some(probe) = &facts.probe else {
-        return Offers::default();
-    };
-    let transcodes = lasting.contains(&Method::Transcode);
-    let places = |keep: &dyn Fn(&Track) -> bool| {
-        (probe.tracks.iter().enumerate())
-            .filter(|(_, track)| keep(track))
-            .map(|(place, _)| place)
-            .collect()
-    };
-    // Only the file's own audio plays without a Remux or a Transcode.
-    let audio = if transcodes || lasting.contains(&Method::Remux) {
-        places(&is_audio)
-    } else {
-        file_audio(probe).into_iter().collect()
-    };
-    if !transcodes {
-        return Offers {
-            audio,
-            ..Offers::default()
-        };
-    }
-    let picture = picture(facts);
-    Offers {
-        audio,
-        burn_in: places(&|track| burns_in(&facts.device, probe, track)),
-        limits: (PlaybackLimit::ALL.into_iter())
-            .filter(|&limit| picture.and_then(|picture| fitted(picture, limit)).is_some())
-            .collect(),
-    }
 }
 
 #[cfg(test)]
