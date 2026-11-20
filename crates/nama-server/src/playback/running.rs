@@ -258,8 +258,8 @@ impl RunningPlans {
     /// The Transcodes running, every Device's own included: a player stops its old plan before
     /// asking for a new one.
     // ponytail: the plan isn't kept until after probing, the folder, spawning ffmpeg and up to
-    // `START_WAIT` waiting for its first file, so Devices planning in that window can pass the cap together
-    // until Transcodes end; reserve room under the plans' lock if that ever matters.
+    // `START_WAIT` waiting for its first file, so Devices planning in that window can pass the cap
+    // together until Transcodes end; reserve room under the plans' lock if that ever matters.
     pub(super) fn running_transcodes(&self) -> RunningTranscodes {
         let plans = lock(&self.inner.plans);
         let transcodes: Vec<_> = (plans.values())
@@ -496,7 +496,7 @@ impl RunningPlans {
         Box::new(move || {
             let Some(inner) = inner.upgrade() else { return };
             // Under the lock `insert` publishes under, so it can't come before `PlaybackStarted`.
-            // shortcut: a fallback landing just as the plan is kept is told by both; tell it once
+            // ponytail: a fallback landing just as the plan is kept is told by both; tell it once
             // if an Observer ever minds.
             let plans = lock(&inner.plans);
             if plans.contains_key(&id) {
