@@ -605,7 +605,8 @@ impl TestServer {
         LibraryServiceClient::new(HttpClient::plaintext(), self.client_config())
     }
 
-    fn plugin_service(&self) -> PluginServiceClient<HttpClient> {
+    /// The Plugin service, as the Admin calls it.
+    pub(crate) fn plugin_service(&self) -> PluginServiceClient<HttpClient> {
         PluginServiceClient::new(HttpClient::plaintext(), self.client_config())
     }
 

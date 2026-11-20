@@ -7,6 +7,12 @@ mod home_row_plugin;
 #[path = "support/http.rs"]
 #[expect(dead_code, reason = "this binary reads only a response's status")]
 mod http;
+#[path = "support/installed_test_plugin.rs"]
+#[expect(
+    dead_code,
+    reason = "this binary enables the test Plugin itself, after its settings"
+)]
+mod installed_test_plugin;
 #[path = "support/log.rs"]
 mod log;
 #[path = "support/refused.rs"]
@@ -23,7 +29,7 @@ use connectrpc::{
     ErrorCode,
     client::{ClientConfig, HttpClient},
 };
-use home_row_plugin::{PLUGIN, disable, enable, install, set_handle, text};
+use home_row_plugin::{PLUGIN, disable, enable, set_handle, text};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
@@ -53,7 +59,7 @@ async fn installed(builder: Builder, rows: &str) -> TestServer {
         )
         .await;
     server.scan_and_match(&library).await;
-    install(&server).await;
+    server.install_test_plugin("home-rows").await;
     set_rows(&server, rows).await;
     server
 }

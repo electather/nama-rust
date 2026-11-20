@@ -1,16 +1,13 @@
-//! The test Plugin built as a Home row source, installed, enabled and given a User's `handle`
+//! The test Plugin built as a Home row source, enabled and given a User's `handle`
 //! through the API.
 
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
-    DisablePluginRequest, EnablePluginRequest, ListPluginsRequest, PluginServiceClient,
-    SettingValue, UpdatePersonalSettingsRequest, UserServiceClient, setting_value::Value,
+    DisablePluginRequest, EnablePluginRequest, PluginServiceClient, SettingValue,
+    UpdatePersonalSettingsRequest, UserServiceClient, setting_value::Value,
 };
 
-use crate::{
-    server::{SignedIn, TestServer},
-    test_plugin,
-};
+use crate::server::{SignedIn, TestServer};
 
 /// The test Plugin's id.
 pub(crate) const PLUGIN: &str = "test-plugin";
@@ -19,23 +16,7 @@ fn plugins(server: &TestServer) -> PluginServiceClient<HttpClient> {
     PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
 
-/// Installs the test Plugin, built as a Home row source, on `server`, not yet enabled.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-pub(crate) async fn install(server: &TestServer) {
-    let dir = server.data_dir().join("plugins");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test.wasm"), test_plugin::build("home-rows")).unwrap();
-    // Listing is what reads `plugins/`.
-    (plugins(server))
-        .list_plugins(ListPluginsRequest::default())
-        .await
-        .unwrap();
-}
-
-/// Enables the test Plugin [`install`] installed.
+/// Enables the installed test Plugin.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"

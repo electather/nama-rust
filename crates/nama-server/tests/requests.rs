@@ -4,6 +4,12 @@
 #[expect(dead_code, reason = "these tests fetch only whole files")]
 #[path = "support/http.rs"]
 mod http;
+#[path = "support/installed_test_plugin.rs"]
+#[expect(
+    dead_code,
+    reason = "this binary enables the test Plugin itself, after its settings"
+)]
+mod installed_test_plugin;
 #[path = "support/log.rs"]
 mod log;
 #[path = "support/refused.rs"]
@@ -44,12 +50,11 @@ use nama_proto::nama::v1::{
     CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
     DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
     GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
-    ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, ListRequestsRequest,
-    ListRequestsResponse, MovieHit, PageRequest, Permission, PluginServiceClient, Quality,
-    RefusalReason, Request, RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest,
-    SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest, TitleKind,
-    UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, event, request::MovieOrSeason,
-    setting_value,
+    ListOfferedQualitiesRequest, ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse,
+    MovieHit, PageRequest, Permission, PluginServiceClient, Quality, RefusalReason, Request,
+    RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
+    SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
+    WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -227,23 +232,9 @@ impl Fixture {
     /// an Admin would, with its text `settings`.
     async fn with_installed_plugin(settings: &[(&str, &str)]) -> Self {
         let fixture = Self::start().await;
-        let dir = fixture.server.data_dir().join("plugins");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("test.wasm"), test_plugin::build("")).unwrap();
-        // Listing is what reads `plugins/`.
-        let plugins = fixture.plugin_service();
-        plugins
-            .list_plugins(ListPluginsRequest::default())
-            .await
-            .unwrap();
+        fixture.server.install_test_plugin("").await;
         fixture.set_installed_settings(settings).await;
-        plugins
-            .enable_plugin(EnablePluginRequest {
-                id: "test-plugin".to_owned(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
+        fixture.enable("test-plugin").await.unwrap();
         fixture
     }
 

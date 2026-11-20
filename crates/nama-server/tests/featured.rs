@@ -7,6 +7,9 @@
 mod browsing;
 #[path = "support/home_row_plugin.rs"]
 mod home_row_plugin;
+#[path = "support/installed_test_plugin.rs"]
+#[expect(dead_code, reason = "this binary only installs the test Plugin")]
+mod installed_test_plugin;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
@@ -17,7 +20,7 @@ use std::time::{Duration, Instant};
 
 use browsing::{ALIEN_1080P, Fixture};
 use connectrpc::client::{ClientConfig, HttpClient};
-use home_row_plugin::{disable, enable, install, set_handle};
+use home_row_plugin::{disable, enable, set_handle};
 use nama_proto::nama::v1::{
     BrowseServiceClient, FeaturedTitle, LibraryKind, ListEpisodesRequest, ListFeaturedRequest,
     ReportProgressRequest, WatchStateServiceClient, featured_title::MovieOrShow,
@@ -236,7 +239,7 @@ async fn a_plugins_suggestions_rank_by_weight_among_the_kernels_for_their_user_a
     .await;
     let ada = fx.server.user_with_default_permissions("Ada").await;
     let bea = fx.server.user_with_default_permissions("Bea").await;
-    install(&fx.server).await;
+    fx.server.install_test_plugin("home-rows").await;
     enable(&fx.server).await;
     // For any handle, the test Plugin suggests Heat at 1.0, Alien at 0.0 and a Movie no title
     // source has at 1.0.
@@ -264,7 +267,7 @@ async fn disabling_the_plugin_drops_its_suggestions() {
         TestServer::builder().moves_clock(),
     )
     .await;
-    install(&fx.server).await;
+    fx.server.install_test_plugin("home-rows").await;
     enable(&fx.server).await;
     let ada = fx.server.user_with_default_permissions("Ada").await;
     set_handle(&ada, "ada").await;

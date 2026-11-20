@@ -1,5 +1,8 @@
 //! Subtitle sources over the API (ADR 0067): the test Plugin built as a subtitle source.
 
+#[path = "support/installed_test_plugin.rs"]
+#[expect(dead_code, reason = "this binary only installs the test Plugin")]
+mod installed_test_plugin;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
@@ -13,9 +16,7 @@ use server::TestServer;
 #[tokio::test]
 async fn a_plugin_serving_subtitles_is_listed_under_the_subtitle_source_point() {
     let server = TestServer::builder().start().await;
-    let dir = server.data_dir().join("plugins");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test.wasm"), test_plugin::build("subtitle-source")).unwrap();
+    server.install_test_plugin("subtitle-source").await;
 
     let listed = PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
         .list_plugins(ListPluginsRequest::default())
