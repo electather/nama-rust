@@ -55,6 +55,12 @@ fn check_settings() -> Result<CheckedSettings, Error> {
     Ok(CheckedSettings::default())
 }
 
+const SETUP: &str = "\
+1. Sign in to [OpenSubtitles.com](https://www.opensubtitles.com/), or sign up there for free.
+2. Under [API consumers](https://www.opensubtitles.com/consumers), create a consumer and copy its API key into the API key setting below.
+3. Enter your account's username and password. Every download counts against that account's daily limit.
+";
+
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
@@ -95,6 +101,14 @@ fn manifest() -> Manifest {
                 SettingKind::SETTING_KIND_SECRET,
             ),
         ],
+        setup_markdown: SETUP.to_owned(),
+        homepage_url: "https://www.opensubtitles.com/".to_owned(),
+        source_url: concat!(
+            env!("CARGO_PKG_REPOSITORY"),
+            "/tree/main/plugins/opensubtitles"
+        )
+        .to_owned(),
+        license: env!("CARGO_PKG_LICENSE").to_owned(),
         ..nama_pdk::manifest("opensubtitles", env!("CARGO_PKG_VERSION"))
     }
 }
