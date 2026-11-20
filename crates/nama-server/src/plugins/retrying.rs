@@ -16,8 +16,8 @@ use super::{ExtensionPoints, Failure, FailureKind, ProviderError};
 // or be asked forever; make it the Fulfiller's to say if a service needs longer.
 pub(crate) const RETRIES: u32 = 10;
 
-/// Tells the Plugin `plugin`'s Fulfiller of `Kind` `asked` again with `call` after `wait`, as it
-/// said to try again, and again each time it says so, up to [`RETRIES`] times. The waits run in the
+/// Asks the Plugin `plugin`'s Fulfiller again, after `wait`, to `call` about `asked`, as it said to
+/// try again, and again each time it says so, up to [`RETRIES`] times. The waits run in the
 /// Plugin's scope, so disabling it ends them at once (ADR 0047). Hands `gave_up` why, once, when
 /// the Fulfiller fails, panics or still says to try again after the last; the caller logs it as it
 /// logs a first ask that failed.
@@ -31,7 +31,7 @@ pub(crate) fn ask_again<Kind: 'static, Asked: Send + Sync + 'static>(
     mut wait: Duration,
     asked: Asked,
     call: FulfillerCall<Kind, Asked>,
-    gave_up: impl FnOnce(&PluginId, String) + Send + 'static,
+    gave_up: impl FnOnce(String) + Send + 'static,
 ) {
     let points = plugins.clone();
     let scope = plugin.clone();
@@ -54,7 +54,7 @@ pub(crate) fn ask_again<Kind: 'static, Asked: Send + Sync + 'static>(
                 Some(Err(failure)) => failure.message,
                 None => "it panicked or was disabled".to_owned(),
             };
-            gave_up(&plugin, format!("{reason}, asked again {retried} times"));
+            gave_up(format!("{reason}, asked again {retried} times"));
             return;
         }
     });

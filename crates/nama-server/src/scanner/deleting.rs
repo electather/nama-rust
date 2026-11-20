@@ -300,9 +300,9 @@ impl Scanner {
                 Some(Err(Failure {
                     kind: Some(wait), ..
                 })) => {
-                    let (stop_again, name) = (<dyn Fulfiller<K>>::stop_monitoring, name.to_owned());
-                    let gave_up =
-                        move |id: &PluginId, reason: String| not_stopped(id, &name, &reason);
+                    let (id, name) = (plugin.clone(), name.to_owned());
+                    let gave_up = move |reason: String| not_stopped(&id, &name, &reason);
+                    let stop_again = <dyn Fulfiller<K>>::stop_monitoring;
                     ask_again(plugins, plugin, wait, title.clone(), stop_again, gave_up);
                     continue;
                 }

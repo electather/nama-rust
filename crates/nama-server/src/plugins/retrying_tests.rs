@@ -50,7 +50,6 @@ impl Fulfiller<Shows> for Busy {
     }
 }
 
-/// The Plugin providing `.0`.
 struct BusyPlugin(Arc<Busy>);
 
 impl Plugin for BusyPlugin {
@@ -83,7 +82,7 @@ async fn asked_again(busy_for: u32) -> (u32, Vec<String>) {
 
     let gave_up = {
         let reasons = Arc::clone(&reasons);
-        move |_: &PluginId, reason| reasons.lock().unwrap().push(reason)
+        move |reason| reasons.lock().unwrap().push(reason)
     };
     let unfollow = <dyn Fulfiller<Shows>>::unfollow;
     let points = plugins.extension_points();
@@ -100,7 +99,7 @@ async fn a_fulfiller_is_asked_again_until_it_acts_without_giving_up() {
     let (asked, gave_up) = asked_again(2).await;
 
     assert_eq!(asked, 3);
-    assert_eq!(gave_up, [""; 0]);
+    assert!(gave_up.is_empty(), "{gave_up:?}");
 }
 
 #[tokio::test(start_paused = true)]

@@ -313,8 +313,7 @@ impl HandOff {
                 }),
             }) => {
                 let unfollow = <dyn Fulfiller<Shows>>::unfollow;
-                let gave_up =
-                    move |_: &PluginId, reason: String| not_unfollowed(show.as_deref(), &reason);
+                let gave_up = move |reason: String| not_unfollowed(show.as_deref(), &reason);
                 ask_again(&self.plugins, plugin, wait, told.clone(), unfollow, gave_up);
                 return;
             }
