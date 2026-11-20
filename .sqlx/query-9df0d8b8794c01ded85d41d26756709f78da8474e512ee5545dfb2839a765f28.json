@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings (id, url, default_home_layout) VALUES (1, '', ?)\n         ON CONFLICT (id) DO UPDATE SET default_home_layout = excluded.default_home_layout",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "9df0d8b8794c01ded85d41d26756709f78da8474e512ee5545dfb2839a765f28"
+}

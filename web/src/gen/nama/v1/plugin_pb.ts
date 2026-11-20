@@ -1268,7 +1268,8 @@ export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
  */
 export const PluginService: GenService<{
   /**
-   * Lists every Plugin on the Server, by id, without its settings.
+   * Lists every Plugin on the Server, by id, without its settings. Reads the Installed Plugins
+   * again first, and drops each one no longer there from the default Home layout.
    *
    * @generated from rpc nama.v1.PluginService.ListPlugins
    */

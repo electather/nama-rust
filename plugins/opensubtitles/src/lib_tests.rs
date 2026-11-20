@@ -86,6 +86,25 @@ fn manifest_serves_subtitles_from_an_api_key_and_an_account() {
 }
 
 #[test]
+fn manifest_says_where_to_get_an_api_key_and_gives_its_links_and_licence() {
+    let manifest = manifest();
+
+    let setup = &manifest.setup_markdown;
+    assert!(
+        setup.contains("https://www.opensubtitles.com/consumers"),
+        "{setup}"
+    );
+    assert_eq!(
+        [manifest.homepage_url, manifest.source_url, manifest.license],
+        [
+            "https://www.opensubtitles.com/",
+            "https://github.com/electather/nama-rust/tree/main/plugins/opensubtitles",
+            "AGPL-3.0-only",
+        ]
+    );
+}
+
+#[test]
 fn a_movie_is_searched_by_its_imdb_id_in_the_wanted_languages() {
     let fake = serving(vec![
         FakeSubtitle {

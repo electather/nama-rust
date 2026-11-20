@@ -488,7 +488,8 @@ pub const PLUGIN_SERVICE_LIST_PLUGIN_LOG_LINES_SPEC: ::connectrpc::Spec = ::conn
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait PluginService: Send + Sync + 'static {
-    /// Lists every Plugin on the Server, by id, without its settings.
+    /// Lists every Plugin on the Server, by id, without its settings. Reads the Installed Plugins
+    /// again first, and drops each one no longer there from the default Home layout.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

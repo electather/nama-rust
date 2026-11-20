@@ -58,6 +58,25 @@ fn manifest_serves_the_title_source_under_tvdb_with_four_settings() {
 }
 
 #[test]
+fn manifest_says_where_to_get_an_api_key_and_gives_its_links_and_licence() {
+    let manifest = manifest();
+
+    let setup = &manifest.setup_markdown;
+    assert!(
+        setup.contains("https://thetvdb.com/dashboard/account/apikey"),
+        "{setup}"
+    );
+    assert_eq!(
+        [manifest.homepage_url, manifest.source_url, manifest.license],
+        [
+            "https://thetvdb.com/",
+            "https://github.com/electather/nama-rust/tree/main/plugins/tvdb",
+            "AGPL-3.0-only",
+        ]
+    );
+}
+
+#[test]
 fn login_reads_the_token() {
     let login: Login = data(include_bytes!("../fixtures/login.json")).unwrap();
 

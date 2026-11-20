@@ -2418,7 +2418,8 @@ export const BrowseService: GenService<{
    * equal weight the most recently added first, each once. Suggested are their Continue Watching
    * entries, at 0.8 halving every 14 days since their Watch State changed, and the titles added
    * to a Library in the last 14 days, at 0.5 fading to nothing over them. A title suggested twice
-   * keeps its heavier weight, and is listed in the Library that suggestion came from.
+   * keeps its heavier weight, and is listed in the Library that suggestion came from. Lists none
+   * while the default Home layout hides Featured.
    *
    * @generated from rpc nama.v1.BrowseService.ListFeatured
    */
@@ -2471,10 +2472,12 @@ export const BrowseService: GenService<{
     output: typeof GetUnmatchedVersionResponseSchema;
   },
   /**
-   * Lists the caller's Home rows in the order Home shows them: the Kernel's first, then the rows
-   * Plugins give (ADR 0058), each enabled Plugin's in Plugin id order, then in the order the
-   * Plugin gave them. A Plugin row with no title to show the caller, as `ListHomeRowTitles` shows
-   * them, is left out. Featured isn't a Home row, so it's never listed.
+   * Lists the caller's Home rows in the order Home shows them: the default Home layout's
+   * (`ServerService.GetDefaultHomeLayout`), leaving out the rows it hides. The rows it doesn't
+   * place follow, the Kernel's first, then the rows Plugins give (ADR 0058), each enabled
+   * Plugin's in Plugin id order, then in the order the Plugin gave them. A Plugin row with no title
+   * to show the caller, as `ListHomeRowTitles` shows them, is left out. Featured isn't a Home row,
+   * so it's never listed.
    * Never waits on a Plugin: rows past their time to live are refreshed in the background, and
    * what was stored before is listed meanwhile, so a Plugin's first rows show on a later call.
    *

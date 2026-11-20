@@ -50,10 +50,15 @@ export function stopDrawing(format: SubtitleFormat) {
 /** What this Device decodes, found out afresh: the Server never stores it. */
 export async function findDeviceDecoding() {
   const video = document.createElement("video");
+  const nativeHls = playsHlsNatively();
+  const mse = "MediaSource" in globalThis || "ManagedMediaSource" in globalThis;
+  // hls.js plays a Remux or Transcode through MSE, which may refuse a codec the browser decodes
+  // from a file, as E-AC-3 and AC-3 can be. Native HLS doesn't use MSE.
+  const types: MediaDecodingType[] = !nativeHls && mse ? ["file", "media-source"] : ["file"];
   const [videoCodecs, audioCodecs, h26410bit] = await Promise.all([
-    decodable(VIDEO_CODECS, (contentType) => ({ type: "file", video: { contentType, ...FILM } })),
-    decodable(AUDIO_CODECS, (contentType) => ({ type: "file", audio: { contentType } })),
-    decodes({ type: "file", video: { contentType: H264_10BIT, ...FILM } }),
+    decodable(VIDEO_CODECS, types, (contentType) => ({ video: { contentType, ...FILM } })),
+    decodable(AUDIO_CODECS, types, (contentType) => ({ audio: { contentType } })),
+    decodes(types, { video: { contentType: H264_10BIT, ...FILM } }),
   ]);
   return {
     containers: keysOf(CONTAINERS).filter(
@@ -63,8 +68,8 @@ export async function findDeviceDecoding() {
     audioCodecs,
     hdr: matchMedia("(dynamic-range: high)").matches,
     h26410bit,
-    nativeHls: playsHlsNatively(),
-    mse: "MediaSource" in globalThis || "ManagedMediaSource" in globalThis,
+    nativeHls,
+    mse,
     audioChannels: audioChannels(),
     subtitleFormats: drawnFormats().filter((format) => !failedRenderers.has(format)),
   };
@@ -125,14 +130,15 @@ export function playsHlsNatively() {
   return document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "";
 }
 
-/** Those of `codecs` this Device decodes, as `configuration` asks about each one's media type. */
+/** Those of `codecs` this Device decodes from each of `types`, as `media` describes each one's type. */
 async function decodable<C extends number>(
   codecs: Record<C, string>,
-  configuration: (contentType: string) => MediaDecodingConfiguration,
+  types: MediaDecodingType[],
+  media: (contentType: string) => ConfigurationWithoutType,
 ) {
   const decoded = await Promise.all(
     keysOf(codecs).map(async (codec) =>
-      (await decodes(configuration(codecs[codec]))) ? [codec] : [],
+      (await decodes(types, media(codecs[codec]))) ? [codec] : [],
     ),
   );
   return decoded.flat();
@@ -147,11 +153,19 @@ function keysOf<C extends number>(table: Record<C, string>) {
     .filter((key): key is C => key in table);
 }
 
-async function decodes(configuration: MediaDecodingConfiguration) {
+type ConfigurationWithoutType = Omit<MediaDecodingConfiguration, "type">;
+
+/** Whether this Device decodes `media` from every one of `types`. */
+async function decodes(types: MediaDecodingType[], media: ConfigurationWithoutType) {
   // A browser without MediaCapabilities, or that rejects the type, can't be counted on to decode it.
   try {
-    const info = await navigator.mediaCapabilities.decodingInfo(configuration);
-    return info.supported;
+    const supported = await Promise.all(
+      types.map(async (type) => {
+        const info = await navigator.mediaCapabilities.decodingInfo({ ...media, type });
+        return info.supported;
+      }),
+    );
+    return supported.every(Boolean);
   } catch {
     return false;
   }

@@ -33,6 +33,12 @@ mod exports {
     }
 }
 
+const SETUP: &str = "\
+1. Sign in to [fanart.tv](https://fanart.tv/), or sign up there for free.
+2. [Get a project API key](https://fanart.tv/get-an-api-key/) and paste it into the API key setting below.
+3. Optionally, paste the personal API key from your fanart.tv profile into the Personal API key setting, to get new artwork sooner.
+";
+
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
@@ -90,6 +96,10 @@ fn manifest() -> Manifest {
                 "https://assets.fanart.tv",
             ),
         ],
+        setup_markdown: SETUP.to_owned(),
+        homepage_url: "https://fanart.tv/".to_owned(),
+        source_url: concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/main/plugins/fanart").to_owned(),
+        license: env!("CARGO_PKG_LICENSE").to_owned(),
         ..nama_pdk::manifest("fanart", env!("CARGO_PKG_VERSION"))
     }
 }

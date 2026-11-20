@@ -76,6 +76,25 @@ fn manifest_serves_home_rows_from_api_key_and_up_to_three_lists() {
 }
 
 #[test]
+fn manifest_says_where_to_get_an_api_key_and_gives_its_links_and_licence() {
+    let manifest = manifest();
+
+    let setup = &manifest.setup_markdown;
+    assert!(
+        setup.contains("https://mdblist.com/preferences/"),
+        "{setup}"
+    );
+    assert_eq!(
+        [manifest.homepage_url, manifest.source_url, manifest.license],
+        [
+            "https://mdblist.com/",
+            "https://github.com/electather/nama-rust/tree/main/plugins/mdblist",
+            "AGPL-3.0-only",
+        ]
+    );
+}
+
+#[test]
 fn a_list_becomes_a_row_headed_by_its_name_of_its_tmdb_ids_in_rank_order() {
     let mut fake = FakeMdbList::default();
     fake.lists.push(FakeList {
