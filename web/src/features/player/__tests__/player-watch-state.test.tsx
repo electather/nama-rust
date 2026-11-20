@@ -104,3 +104,82 @@ test("hiding the page reports where it is", async () => {
     expect(reports.map(({ positionMs }) => positionMs)).toStrictEqual([90_000n]);
   });
 });
+
+/**
+ * A fake Server with Episode 3 of Dark's Season 1 in Library 2, played once a report reaches its
+ * end, which counts how often each browse call is asked.
+ */
+function episodeServer() {
+  const reports: ReportProgressRequest[] = [];
+  const asked = { getShow: 0, listEpisodes: 0, getNextEpisode: 0 };
+  const episode = () => ({
+    id: { namespace: "tmdb", value: "3" },
+    seasonNumber: 1,
+    episodeNumber: 3,
+    title: "Past and Present",
+    versions: [{ id: 3n, fileName: "Dark S01E03.mkv", size: 1n }],
+    watchState: { played: reports.at(-1)?.positionMs === 3_000_000n },
+  });
+  const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
+  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
+    router.service(BrowseService, {
+      getShow: () => {
+        asked.getShow += 1;
+        return {
+          show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" },
+          seasons: [{ number: 1 }],
+        };
+      },
+      listEpisodes: () => {
+        asked.listEpisodes += 1;
+        return { episodes: [episode()] };
+      },
+      getNextEpisode: () => {
+        asked.getNextEpisode += 1;
+        return {};
+      },
+    });
+    router.service(PlaybackService, {
+      getAutoplay: () => ({ on: false }),
+      planPlayback: () => ({
+        plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/3" },
+      }),
+    });
+    router.service(WatchStateService, {
+      reportProgress: (request) => {
+        reports.push(request);
+        return {};
+      },
+    });
+  });
+  return { transport, reports, asked };
+}
+
+test("playing an Episode only reports, and leaving it shows it played", async () => {
+  const { transport, reports, asked } = episodeServer();
+  const router = openApp("/libraries/2/shows/tmdb-70523/seasons/1/episodes/3/play", transport);
+  const video = await screen.findByLabelText<HTMLVideoElement>("Past and Present");
+  Object.defineProperty(video, "duration", { value: 3000 });
+  fireEvent(video, new Event("loadedmetadata"));
+  await waitFor(() => {
+    expect(router.state.status).toBe("idle");
+  });
+  const opened = { ...asked };
+
+  video.currentTime = 600;
+  fireEvent(video, new Event("timeupdate"));
+  fireEvent(video, new Event("pause"));
+  fireEvent(video, new Event("seeked"));
+  await waitFor(() => {
+    expect(reports).toHaveLength(3);
+  });
+  await act(async () => {});
+  expect(asked).toStrictEqual(opened);
+
+  video.currentTime = 3000;
+  fireEvent.click(screen.getByRole("link", { name: "Back" }));
+  const watched = await screen.findByRole("button", { name: "Watched: Past and Present" });
+  await waitFor(() => {
+    expect(watched.getAttribute("aria-pressed")).toBe("true");
+  });
+});

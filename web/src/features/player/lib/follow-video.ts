@@ -6,21 +6,28 @@ const REPORT_EVERY_MS = 10_000;
 
 /**
  * Starts `video` from `startPositionMs` and passes how far in it is to `report` every few seconds,
- * on pause and seek, when the page is hidden or closed, and in the cleanup it returns.
+ * on pause and seek, when the page is hidden or closed, and, as the `final` report, in the cleanup
+ * it returns.
  */
 export function followVideo(
   video: HTMLVideoElement,
   startPositionMs: bigint,
-  report: (position: Pick<ReportProgressRequest, "positionMs" | "durationMs">) => void,
+  report: (
+    position: Pick<ReportProgressRequest, "positionMs" | "durationMs">,
+    final: boolean,
+  ) => void,
 ) {
   let reportedAt = 0;
-  const send = () => {
+  const reportPosition = (final: boolean) => {
     // Until the file's length is known there's nothing to report.
     if (!(video.duration > 0) || !Number.isFinite(video.duration)) {
       return;
     }
     reportedAt = Date.now();
-    report({ positionMs: toMs(video.currentTime), durationMs: toMs(video.duration) });
+    report({ positionMs: toMs(video.currentTime), durationMs: toMs(video.duration) }, final);
+  };
+  const send = () => {
+    reportPosition(false);
   };
   let resumed = false;
   // Once: a reloaded source mustn't seek back to where it started.
@@ -67,6 +74,6 @@ export function followVideo(
     }
     document.removeEventListener("visibilitychange", sendIfHidden);
     window.removeEventListener("pagehide", send);
-    send();
+    reportPosition(true);
   };
 }
