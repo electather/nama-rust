@@ -177,3 +177,26 @@ async fn a_version_in_a_library_with_preview_frames_off_is_left_alone() {
     fx.frames.make(fx.movie.version).await.unwrap();
     assert_eq!(fx.ffmpeg_runs(), 0);
 }
+
+#[tokio::test]
+async fn the_sheets_of_a_version_removed_while_they_were_made_are_deleted() {
+    let fx = Fixture::new().await;
+    let version = fx.movie.version;
+    let (_, file) = fx.contents.version_file(version).await.unwrap().unwrap();
+    let images = &fx.frames.inner.images;
+    let sheet = sheet_key(version, file.size, file.modified_ns, 0);
+    (images
+        .write(&sheet.each_ref().map(String::as_str), b"sheet")
+        .await)
+        .unwrap();
+    let removed = vec![Change::Remove(version)];
+    fx.contents.apply(fx.movie.library, removed).await.unwrap();
+
+    let made = proto::PreviewFrames {
+        count: 1,
+        ..Default::default()
+    };
+    fx.frames.record(file, Some(made)).await.unwrap();
+
+    assert_eq!(images.list(DIR).await.unwrap(), Vec::<Vec<String>>::new());
+}

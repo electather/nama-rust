@@ -238,19 +238,22 @@ impl PreviewFrames {
             .delete_dir(&[DIR, &version.to_string()])
             .await?;
         let stills = tempfile::tempdir()?;
-        let packed = match (self.inner.ffmpeg)
+        let made = (self.inner.ffmpeg)
             .keyframe_stills(&path, INTERVAL_S, WIDTH, stills.path())
+            .await;
+        // Packed, and the stills deleted with their folder, off the runtime's threads, as a
+        // Version has hundreds. The task owns the folder, so one left running when playback
+        // cancels this still has it.
+        let packed = tokio::task::spawn_blocking(move || made.map(|()| pack(stills.path())))
             .await
-        {
-            Ok(()) => {
-                let dir = stills.path().to_owned();
-                tokio::task::spawn_blocking(move || pack(&dir))
-                    .await
-                    .map_err(io::Error::from)?
-                    .unwrap_or_else(|err| {
-                        tracing::warn!(version, "could not pack a Version's Preview frames: {err}");
-                        None
-                    })
+            .map_err(io::Error::from)?;
+        let packed = match packed {
+            Ok(Ok(packed)) => packed,
+            // Such as a full temporary folder, which says nothing about the file.
+            Ok(Err(ImageError::IoError(err))) => return Err(err.into()),
+            Ok(Err(err)) => {
+                tracing::warn!(version, "could not pack a Version's Preview frames: {err}");
+                None
             }
             Err(err @ (ReadOutError::Unavailable | ReadOutError::Run(_))) => {
                 return Err(Error::Ffmpeg(err));
@@ -284,7 +287,8 @@ impl PreviewFrames {
     }
 
     /// Records `manifest` as what was made of `file`, or `None` as that making them failed,
-    /// replacing what was recorded for its Version. A Version removed meanwhile records nothing.
+    /// replacing what was recorded for its Version. A Version removed meanwhile records nothing,
+    /// and keeps no sheets.
     async fn record(
         &self,
         file: Stored,
@@ -324,7 +328,11 @@ impl PreviewFrames {
             })
             .await;
         match recorded {
-            Err(sqlx::Error::Database(err)) if err.is_foreign_key_violation() => Ok(()),
+            // Its sheets were written after the sweep of gone Versions' sheets, or during it.
+            Err(sqlx::Error::Database(err)) if err.is_foreign_key_violation() => {
+                let gone = file.id.to_string();
+                Ok(self.inner.images.delete_dir_on_disk(&[DIR, &gone]).await?)
+            }
             recorded => Ok(recorded?),
         }
     }
