@@ -420,8 +420,8 @@ impl ImageStore {
     /// # Errors
     ///
     /// As [`Self::write`], or if the copy can't be written.
-    // shortcut: a Plugin store's object is kept on local disk too; fetch it from the store when
-    // it's read if that disk use matters.
+    // ponytail: a Plugin store's object is kept on local disk too, and isn't made again if that
+    // copy is lost; fetch it from the store when it's read if either matters.
     pub(crate) async fn write_on_disk(&self, key: &[&str], bytes: &[u8]) -> io::Result<PathBuf> {
         self.write(key, bytes).await?;
         let path = under(self.dir.clone(), key);

@@ -24,4 +24,4 @@ Left out for now:
 - The contract adds `SubtitleSourceService` 1.0.0. `CONTRACT_VERSION` stays as it is, since only a service is added (`crates/nama-plugin-proto/AGENTS.md`), and a Plugin built before it is unaffected.
 - Switching blob stores copies `downloaded-subtitles` along with the other folders ADR 0052 names.
 - Other apps reading the Library, such as Bazarr or Jellyfin, don't see downloaded subtitles.
-- While the blob store's Plugin is disabled, downloaded subtitles can't be played, just as images can't be read.
+- A download is also kept on local disk, since ffmpeg reads a subtitle file by path, so it still plays while the blob store's Plugin is disabled.

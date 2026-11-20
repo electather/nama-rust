@@ -129,7 +129,7 @@ impl SubtitleDownloads {
             season: season.and_then(|number| u32::try_from(number).ok()),
             episode: episode.and_then(|number| u32::try_from(number).ok()),
             file_name: file_name.to_owned(),
-            // shortcut: no OpenSubtitles hash, which reads the file's ends; add it once a source
+            // ponytail: no OpenSubtitles hash, which reads the file's ends; add it once a source
             // finds too little by ids and name.
             hash: None,
             languages,
@@ -204,14 +204,24 @@ impl SubtitleDownloads {
     }
 }
 
-/// Deletes from `images` the downloaded subtitles of every Version but `stored`'s.
+/// Deletes from `images` the downloaded subtitles of every Version but `stored`'s, going on past a
+/// Version's it can't delete, which it logs.
+///
+/// # Errors
+///
+/// If the store can't be listed.
 pub(super) async fn keep_only(images: &ImageStore, stored: &[Stored]) -> io::Result<()> {
     let current: HashSet<String> = stored.iter().map(|file| file.id.to_string()).collect();
     let kept: HashSet<String> = (images.list(DIR).await?.into_iter())
         .filter_map(|key| key.get(1).cloned())
         .collect();
     for gone in kept.difference(&current) {
-        images.delete_dir_on_disk(&[DIR, gone]).await?;
+        if let Err(err) = images.delete_dir_on_disk(&[DIR, gone]).await {
+            tracing::error!(
+                version = gone,
+                "could not delete a gone Version's subtitles: {err}"
+            );
+        }
     }
     Ok(())
 }

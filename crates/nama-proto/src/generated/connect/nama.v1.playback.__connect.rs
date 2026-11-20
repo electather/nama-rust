@@ -772,7 +772,8 @@ pub trait PlaybackService: Send + Sync + 'static {
     /// Downloads a subtitle `SearchSubtitles` found and keeps it in the Server's blob store, so every
     /// User sees it as the Version's last Track until the Version is deleted (ADR 0067). One already
     /// downloaded keeps its place. Fails with `not_found` if there is no such Version, and is refused
-    /// with `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the subtitle's language isn't a language tag, and with
+    /// with `REFUSAL_REASON_FIELD_REQUIRED` for no `subtitle`, with
+    /// `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the subtitle's language isn't a language tag, and with
     /// `REFUSAL_REASON_NO_SUBTITLE_SOURCE` if its source isn't enabled or fails, or gives a file that
     /// isn't a subtitle or is over 20 MiB.
     ///

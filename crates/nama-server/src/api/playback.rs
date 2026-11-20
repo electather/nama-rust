@@ -301,7 +301,13 @@ impl PlaybackService for PlaybackServiceHandler {
         request: ServiceRequest<'_, DownloadSubtitleRequest>,
     ) -> ServiceResult<DownloadSubtitleResponse> {
         let request = request.to_owned_message();
-        let subtitle = request.subtitle.into_option().unwrap_or_default();
+        let Some(subtitle) = request.subtitle.into_option() else {
+            let refused = refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "name the subtitle to download",
+            );
+            return Err(refused.field("subtitle").into());
+        };
         let found = SubtitleResult {
             id: subtitle.id,
             language: subtitle.language,
