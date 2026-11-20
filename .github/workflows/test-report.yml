@@ -1,6 +1,6 @@
 name: test-report
 
-# Records each finished CI run's test results on the `test-history` branch, writes a summary of
+# Records each finished CI run's test results on the ref `refs/ci/test-history`, writes a summary of
 # its flaky and slow tests, keeps one `needs-triage` issue per flaky test (ADR 0022), and sends a
 # copy of the results to Grafana Cloud (ADR 0073).
 # `crates/nama-test-report` holds the logic; this workflow does the git and `gh` work around it.
@@ -16,7 +16,7 @@ on:
 permissions:
   # Downloads the CI run's artifacts.
   actions: read
-  # Pushes to `test-history`.
+  # Pushes to `refs/ci/test-history`.
   contents: write
   issues: write
 
@@ -58,24 +58,19 @@ jobs:
       - name: Read the history and the flaky-test issues
         if: steps.reports.outputs.found
         run: |
+          # Outside `refs/heads`, so a clone never fetches it (ADR 0073).
+          git fetch origin +refs/ci/test-history:refs/ci/test-history || true
+          # The history moved off the `test-history` branch; start from it until the ref exists.
+          # ponytail: delete with the branch.
           git fetch origin +refs/heads/test-history:refs/remotes/origin/test-history || true
-          if git rev-parse --verify -q origin/test-history; then
-            git worktree add --detach history origin/test-history
+          if start=$(git rev-parse -q --verify refs/ci/test-history ||
+              git rev-parse -q --verify origin/test-history); then
+            git worktree add --detach history "$start"
           else
             git worktree add --detach history
             git -C history checkout -q --orphan test-history
             git -C history rm -rfq --ignore-unmatch .
           fi
-          # ADR 0022 kept a file per month; split each by day (ADR 0073). `time` is the last field,
-          # and a quote inside a test name is escaped, so the first match is always it.
-          # ponytail: delete once test-history holds no YYYY-MM.jsonl.
-          for file in history/????-??.jsonl; do
-            [ -e "$file" ] || continue
-            awk 'match($0, /"time":"[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) {
-              print > ("history/" substr($0, RSTART + 8, 10) ".jsonl")
-            }' "$file"
-            rm "$file"
-          done
           # The tool needs the last 30 days.
           for days in $(seq 30 -1 0); do
             cat "history/$(date -u -d "${RUN_STARTED_AT:0:10} -$days days" +%F).jsonl" 2> /dev/null || true
@@ -111,7 +106,7 @@ jobs:
             exit 0
           fi
           for attempt in 1 2 3 4 5; do
-            base=$(git rev-parse -q --verify origin/test-history || true)
+            base=$(git rev-parse -q --verify refs/ci/test-history || true)
             cat "$RUNNER_TEMP/out/history.jsonl" >> "$day.jsonl"
             # The history keeps 60 days (ADR 0073).
             for file in *.jsonl; do
@@ -123,15 +118,15 @@ jobs:
             # No parent, so the days dropped above leave the repository, not only the tree. The
             # lease refuses the push if another report pushed after `base`.
             commit=$(git commit-tree "$(git write-tree)" -m "CI run $RUN_ID, attempt $RUN_ATTEMPT")
-            git push -q --force-with-lease="refs/heads/test-history:$base" origin \
-              "$commit:refs/heads/test-history" && exit 0
+            git push -q --force-with-lease="refs/ci/test-history:$base" origin \
+              "$commit:refs/ci/test-history" && exit 0
             # Another report pushed first. Lines are only ever appended, so start again from its
             # history rather than merge.
             sleep $((attempt * 5))
-            git fetch -q origin +refs/heads/test-history:refs/remotes/origin/test-history
-            git reset -q --hard origin/test-history
+            git fetch -q origin +refs/ci/test-history:refs/ci/test-history
+            git reset -q --hard refs/ci/test-history
           done
-          echo "::error::Couldn't push to test-history"
+          echo "::error::Couldn't push to refs/ci/test-history"
           exit 1
       - name: Update the flaky-test issues
         if: steps.reports.outputs.found
