@@ -140,6 +140,10 @@ _Avoid_: storage backend, bucket, object store, file host
 A Provider that searches an outside service, such as OpenSubtitles.com, for a Version's subtitles and downloads one a User picks (ADR 0067).
 _Avoid_: subtitle provider, subtitle agent, subtitle downloader
 
+**Segment source**:
+A Provider that says where a Version's Segments are, such as from an outside service like TheIntroDB. Each Library asks its own Segment sources in its own order, after the Kernel has looked for Segments in the Version's Chapter names.
+_Avoid_: segment provider, intro detector, skipper
+
 **Fulfiller**:
 A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
 _Avoid_: downloader, *arr, client
@@ -211,7 +215,7 @@ _Avoid_: series
 
 **Episode**:
 One installment of a Show, numbered within a Season.
-_Avoid_: chapter, part
+_Avoid_: part
 
 **Version**:
 One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0069).
@@ -274,7 +278,7 @@ One pass over a Library: storing what changed in its folders, then Matching the 
 _Avoid_: pass, sync, refresh
 
 **Probing**:
-Reading a Version's file to learn its Tracks and, when the file lists them, where its keyframes are.
+Reading a Version's file to learn its Tracks and, when the file lists them, its Chapters and where its keyframes are.
 _Avoid_: analysis, inspection
 
 **Watch State**:
@@ -298,6 +302,18 @@ _Avoid_: hero, spotlight, banner, billboard
 **Track**:
 One video, audio or subtitle stream inside a Version, such as its English audio or its French subtitles.
 _Avoid_: stream, channel
+
+**Chapter**:
+A named part of a Version, as its file lists it.
+_Avoid_: section, part
+
+**Segment**:
+A stretch of a Version that the player acts on, of one kind: Intro, Recap or Credits.
+_Avoid_: marker, skip marker, media segment
+
+**Preview frame**:
+A small picture of a Version at one time, shown while scrubbing.
+_Avoid_: trickplay, thumbnail, BIF
 
 **Base Layer**:
 The picture inside a Dolby Vision Track that a player without Dolby Vision shows instead: HDR10, HLG or SDR. Some Dolby Vision Tracks have none, and only a Dolby Vision player can show them.
