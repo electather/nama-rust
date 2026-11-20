@@ -1297,40 +1297,12 @@ async fn a_pgs_track_turned_on_mid_play_is_burned_into_a_transcode_from_there() 
         (Some(1), vec![1])
     );
     // The player asks first for the segment 7 seconds falls in, where ffmpeg starts.
-    let picture = last_frame(&fx, &plan.url, "1.m4s").await;
+    let picture = sidecars::last_frame(&fx, &plan.url, "1.m4s").await;
     assert!(picture[108 * 320 + 108] > 200, "the square is burned in");
     assert!(
         picture[10 * 320 + 10] < 50,
         "the picture around it stays black"
     );
-}
-
-/// The last frame of the segment `segment` of the 320×240 plan at `url`, as 8-bit grey pixels row
-/// by row.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn last_frame(fx: &Fixture, url: &str, segment: &str) -> Vec<u8> {
-    // The segment first, so ffmpeg starts there and the init segment is that run's.
-    let segment = fx.fetch_ok(&beside(url, segment)).await;
-    let mut mp4 = fx.fetch_ok(&beside(url, "init.mp4")).await;
-    mp4.extend(segment);
-    let file = tempfile::NamedTempFile::new().unwrap();
-    fs::write(file.path(), mp4).unwrap();
-    let output = std::process::Command::new("ffmpeg")
-        .args(["-v", "error", "-i"])
-        .arg(file.path())
-        .args(["-f", "rawvideo", "-pix_fmt", "gray", "-"])
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-    output
-        .stdout
-        .rchunks_exact(320 * 240)
-        .next()
-        .unwrap()
-        .to_vec()
 }
 
 #[tokio::test]
