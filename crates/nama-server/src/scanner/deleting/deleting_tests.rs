@@ -106,7 +106,7 @@ async fn deleting(scanner: &Scanner) {
 
 /// A Plugin whose Fulfillers stop monitoring whatever they're told, and what they were told.
 fn willing() -> (Registry, Arc<ScriptedFulfiller>) {
-    ScriptedFulfiller::default().enabled("busy")
+    ScriptedFulfiller::default().enabled("willing")
 }
 
 fn tmdb(id: i64) -> Vec<TitleId> {
@@ -256,7 +256,7 @@ async fn a_preview_names_the_episodes_a_file_takes_along() {
 
 #[tokio::test]
 async fn a_delete_taking_along_an_episode_it_doesnt_name_is_refused_before_anything_is_asked() {
-    let (plugins, busy) = willing();
+    let (plugins, told) = willing();
     let media = dark(&plugins).await;
 
     let refused = (media.scanner)
@@ -264,7 +264,7 @@ async fn a_delete_taking_along_an_episode_it_doesnt_name_is_refused_before_anyth
         .await;
 
     assert_eq!(unnamed(refused.unwrap_err()), ["Dark S01E02"]);
-    assert_eq!(busy.asked(), 0);
+    assert_eq!(told.asked(), 0);
     assert!(media.path("Dark - S01E01-E02.mkv").exists());
 }
 
