@@ -1312,7 +1312,16 @@ async fn a_pgs_track_turned_on_mid_play_is_burned_into_a_transcode_from_there() 
 async fn last_frame(fx: &Fixture, url: &str, segment: &str) -> Vec<u8> {
     // The segment first, so ffmpeg starts there and the init segment is that run's.
     let segment = fx.fetch_ok(&beside(url, segment)).await;
-    let mut mp4 = fx.fetch_ok(&beside(url, "init.mp4")).await;
+    let init = fx.fetch_ok(&beside(url, "init.mp4")).await;
+    // What a failure saw of each part, so a bad one is told apart from a mismatched pair (#1305).
+    let seen = format!(
+        "init {} bytes {:02x?}, segment {} bytes {:02x?}",
+        init.len(),
+        init.get(..16).unwrap_or(&init),
+        segment.len(),
+        segment.get(..16).unwrap_or(&segment)
+    );
+    let mut mp4 = init;
     mp4.extend(segment);
     let file = tempfile::NamedTempFile::new().unwrap();
     fs::write(file.path(), mp4).unwrap();
@@ -1322,7 +1331,7 @@ async fn last_frame(fx: &Fixture, url: &str, segment: &str) -> Vec<u8> {
         .args(["-f", "rawvideo", "-pix_fmt", "gray", "-"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "{output:?}");
+    assert!(output.status.success(), "{seen}: {output:?}");
     output
         .stdout
         .rchunks_exact(320 * 240)
