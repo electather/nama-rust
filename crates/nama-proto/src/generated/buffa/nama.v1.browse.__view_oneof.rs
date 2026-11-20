@@ -57,5 +57,15 @@ pub mod home_row_title {
                 super::super::super::super::__buffa::view::ShowInLibraryView<'a>,
             >,
         ),
+        MissingMovie(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::MovieHitView<'a>,
+            >,
+        ),
+        MissingShow(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ShowHitView<'a>,
+            >,
+        ),
     }
 }

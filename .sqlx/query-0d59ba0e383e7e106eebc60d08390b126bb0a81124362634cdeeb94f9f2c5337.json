@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT plugin_id, key, heading, titles FROM home_rows ORDER BY plugin_id, position",
+  "query": "SELECT plugin_id, key, heading, titles, missing FROM home_rows\n             ORDER BY plugin_id, position",
   "describe": {
     "columns": [
       {
@@ -46,6 +46,17 @@
             "name": "titles"
           }
         }
+      },
+      {
+        "name": "missing",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "missing"
+          }
+        }
       }
     ],
     "parameters": {
@@ -55,8 +66,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "829554b5eb64dcdaba44e67da370ae48c1b21fe9b507e67388291494614416a4"
+  "hash": "0d59ba0e383e7e106eebc60d08390b126bb0a81124362634cdeeb94f9f2c5337"
 }

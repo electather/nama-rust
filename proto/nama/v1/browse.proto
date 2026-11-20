@@ -4,6 +4,7 @@ package nama.v1;
 
 import "nama/v1/match.proto";
 import "nama/v1/page.proto";
+import "nama/v1/request.proto";
 import "nama/v1/watch_state.proto";
 
 // Browsing what a Library holds, and the caller's Continue Watching, for any signed-in User.
@@ -93,14 +94,16 @@ service BrowseService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Lists the Home rows Plugins give every User (ADR 0058): each enabled Plugin's, in Plugin id
-  // order, then in the order the Plugin gave them. A row with no title on the Server is left out.
+  // order, then in the order the Plugin gave them. A row with no title to show the caller, as
+  // `ListHomeRowTitles` shows them, is left out.
   // Never waits on a Plugin: rows past their time to live are refreshed in the background, and
   // what was stored before is listed meanwhile, so a Plugin's first rows show on a later call.
   rpc ListHomeRows(ListHomeRowsRequest) returns (ListHomeRowsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Lists a page of one Home row's titles that are on the Server, in the row's order, each in the
-  // oldest Library that has it. A row its Plugin no longer gives lists none. Fails with
+  // Lists a page of one Home row's titles, in the row's order: each on the Server in the oldest
+  // Library that has it, and each missing one the title source had at the row's last refresh, if
+  // the caller may Request its kind. A row its Plugin no longer gives lists none. Fails with
   // `invalid_argument` if `page.token` isn't one an earlier call for the same row returned.
   rpc ListHomeRowTitles(ListHomeRowTitlesRequest) returns (ListHomeRowTitlesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -668,10 +671,15 @@ message ListHomeRowTitlesResponse {
   PageResponse page = 2;
 }
 
-// A title in a Home row, as a search finds it.
+// A title in a Home row: on the Server as a search finds it, or missing as a search for titles to
+// Request finds it.
 message HomeRowTitle {
   oneof movie_or_show {
     MovieInLibrary movie = 1;
     ShowInLibrary show = 2;
+    // A Movie on no Library, which `RequestService.LookUpMovie` opens by `id`.
+    MovieHit missing_movie = 3;
+    // A Show on no Library, which `RequestService.LookUpShow` opens by `id`.
+    ShowHit missing_show = 4;
   }
 }

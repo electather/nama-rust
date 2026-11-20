@@ -1,6 +1,6 @@
 import { Found } from "@/features/requests/components/found";
-import { ShowCard } from "@/features/requests/components/show-card";
 import { useSearchShows } from "@/features/requests/data/use-search-shows";
+import { ShowCard } from "@/shared/components/title-cards/show-card";
 import { titleParam } from "@/shared/lib/title-param";
 
 /** The Shows found for `title`, each opening its page to pick Seasons. */

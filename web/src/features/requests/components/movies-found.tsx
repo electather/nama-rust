@@ -1,6 +1,6 @@
 import { Found } from "@/features/requests/components/found";
-import { MovieCard } from "@/features/requests/components/movie-card";
 import { useSearchMovies } from "@/features/requests/data/use-search-movies";
+import { MovieCard } from "@/shared/components/title-cards/movie-card";
 import { titleParam } from "@/shared/lib/title-param";
 
 /** The Movies found for `title`, each with where it is on its way here. */
