@@ -20,7 +20,7 @@ Success means:
 - Requests feel native. Asking for a title and watching it move to Available is one continuous flow, not a bolted-on Seerr.
 - Admin is calm and clear. Libraries, Matching and Plugins are understandable without reading docs.
 
-Scope: Movies and Shows only. Music, audiobooks, podcasts, photos, books and Live TV stay out: each has a dedicated app people already run beside Jellyfin (Navidrome, Audiobookshelf, Immich), and Jellyfin's breadth is part of why it feels cluttered (`docs/research/jellyfin-feature-research.md` §7 D3).
+Scope: Movies and Shows only. Music, audiobooks, podcasts, photos, books and Live TV stay out: each has a dedicated app people already run beside Jellyfin (Navidrome, Audiobookshelf, Immich), and Jellyfin's breadth is part of why it feels cluttered (`docs/research/jellyfin-feature-research.md` §7 D3). These, Live TV, IPTV and `.strm`, are permanent non-goals, in Plugins and clients too ([ADR 0078](docs/adr/0078-namas-non-goals.md)).
 
 ## Brand Personality
 
