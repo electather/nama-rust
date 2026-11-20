@@ -35,3 +35,7 @@ Park what you find outside the ticket:
 <skill name="park">
 !`cat .sandcastle/park.md`
 </skill>
+
+<skill name="sandbox">
+!`cat .sandcastle/sandbox.md`
+</skill>

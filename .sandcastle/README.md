@@ -18,7 +18,7 @@ It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26
 
 Sandboxes refuse `git stash` (`git-guard.sh`, the image's `git`): each sandbox is a worktree of the host repo, so they all share one `refs/stash` and a pop can take another ticket's work (#750). Rebuild the image after editing it (`npx --prefix .sandcastle sandcastle docker build-image`).
 
-Agents stay on their ticket's PR. What they find elsewhere they park as a `needs-triage` issue (`.sandcastle/park.md`, inlined into each prompt; never `ready-for-agent`), which the triage loop picks up. Their `GH_TOKEN` comes from `.sandcastle/.env`.
+Agents stay on their ticket's PR. What they find elsewhere they park as a `needs-triage` issue (`.sandcastle/park.md`, inlined into each prompt; never `ready-for-agent`), which the triage loop picks up. `.sandcastle/sandbox.md`, inlined into the build, review and fix prompts, keeps them off the sandbox's tools and build. Their `GH_TOKEN` comes from `.sandcastle/.env`.
 
 An issue with sub-issues is never built directly, and it doesn't carry `ready-for-agent` (see `docs/agents/triage-labels.md`). The factory builds its labelled sub-issues (each gets the parent as context) and closes the parent once the last one is closed.
 
@@ -109,6 +109,7 @@ Failures:
 - **Issue closed while it's being built:** the factory notices within a minute (and at every stage change), stops that issue's agent, closes its PR and records it as cancelled. The rest of the run carries on. Once the merge has started, closing the issue no longer stops it.
 - **Babysat PR closed, or its issue closed or without `ready-for-agent`:** the babysitter lets go within a minute and leaves the PR as it is.
 - **GitHub API rate limit** (5000 calls an hour, shared by both machines' factories and your own `gh`): not a crash. Work that hits it is dropped and taken again, and nothing new starts until the limit resets.
+- **Agent silent for 30 minutes** (sandcastle's idle timeout): that issue crashes and the rest of the run carries on. The next run takes it again.
 - **No CI run starts within 15 minutes** (GitHub delays them during incidents): an infra error, below.
 - **PR merged by hand:** the factory notices within a minute, at any stage, stops that issue and records it as merged ("merged by hand"), closing finished parents as usual.
 - **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run starts no new builds or triages but keeps babysitting PRs, each at most once more, then exits with code 1. Rerun once the problem is fixed: an issue without a PR is built again, one with a PR is only babysat.

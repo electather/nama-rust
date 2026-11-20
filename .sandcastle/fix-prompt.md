@@ -19,3 +19,7 @@ If you can't fix it, output `<blocked>one-line reason</blocked>`. Otherwise outp
 <skill name="park">
 !`cat .sandcastle/park.md`
 </skill>
+
+<skill name="sandbox">
+!`cat .sandcastle/sandbox.md`
+</skill>

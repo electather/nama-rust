@@ -105,6 +105,11 @@ const REPO_URL = gh("repo", "view", "--json", "url", "--jq", ".url");
 const record = recorder(LOGS, RUN, REPO_URL);
 const log = (msg: string) => console.log(`${new Date().toTimeString().slice(0, 8)} ${msg}`);
 
+// One agent went silent (sandcastle's idleTimeoutSeconds), e.g. waiting on a background build. Not infra: the other
+// slots are fine, so only that issue crashes and the run goes on (#1391 stopped a whole run for an hour).
+// The message, not `instanceof`: sandcastle may hand the error back wrapped in an Effect FiberFailure.
+const idleTimedOut = (e: unknown) => /Agent idle for \d+ seconds/.test(String((e as Error)?.message ?? e));
+
 // GitHub allows 5000 API calls an hour per user, shared with the other machine's factory and the user's own gh.
 // Running out is a wait, not a crash: it ended a whole run once, eight babysat PRs at a time. Work that hits it is
 // dropped and taken again after the reset; the loops start nothing until then.
@@ -1315,6 +1320,12 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
       log(`⏸ #${issue.number} ${why}: taken again after the reset`);
       outcome = "interrupted";
       finish(issue, outcome, why);
+    } else if (idleTimedOut(e)) {
+      // `taken` keeps it out of this run; the next run builds or babysits it again.
+      const why = `crashed at ${stageOf.get(issue.number)?.stage ?? "start"}: ${oneLine(e)}`;
+      appendFileSync(`${LOGS}/crash-issue-${issue.number}.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
+      log(`✗ #${issue.number} ${why} (details: ${LOGS}/crash-issue-${issue.number}.log); the run goes on`);
+      finish(issue, "crashed", why);
     } else {
       // Infra failure (docker, auth, Claude limit): don't relabel; let in-flight issues finish, pick nothing new.
       // The next run picks the issue (no PR yet) or its PR (babysit) up again.
