@@ -10,7 +10,8 @@ import { PlaybackService } from "@/gen/nama/v1/playback_pb";
  */
 export function useSearchSubtitles(versionId: bigint) {
   const transport = useTransport();
-  // A mutation, not a query: it runs only when the User asks, and every source counts the calls.
+  // A mutation, not a query: it runs only when the User asks, as every source counts the calls,
+  // so it reads the Subtitle Preference then too, rather than on every play.
   return useMutation({
     mutationFn: async () => {
       const preferences = await callUnaryMethod(

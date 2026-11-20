@@ -60,13 +60,13 @@ function server(permissions: Permission[], source: Source = {}) {
       }),
     });
     router.service(PlaybackService, {
-      getTrackPreferences: () => ({ subtitle: { language: "fr" } }),
+      getTrackPreferences: () => ({ subtitle: { language: "fre" } }),
       getSubtitleAppearance: () => ({}),
       getAutoplay: () => ({ on: true }),
       planPlayback: () => {
         calls.plans += 1;
-        const downloads = calls.downloaded.map(({ language, name }, at) => ({
-          track: { codec: "subrip", language, title: name, kind: subtitle },
+        const downloads = calls.downloaded.map(({ language, name, sdh }, at) => ({
+          track: { codec: "subrip", language, title: name, sdh, kind: subtitle },
           place: 3 + at,
           url: `/media/versions/7/subtitles/${3 + at}`,
           format: SubtitleFormat.WEBVTT,

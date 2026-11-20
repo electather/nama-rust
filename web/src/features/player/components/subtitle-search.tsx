@@ -26,7 +26,7 @@ export function SubtitleSearch({
   const pick = (subtitle: FoundSubtitle) => {
     const onSuccess = () => {
       if (videoRef.current) {
-        planned.chooseDownloaded(videoRef.current, subtitle.name);
+        planned.chooseDownloaded(videoRef.current, subtitle);
       }
     };
     download.mutate({ versionId, subtitle }, { onSuccess });

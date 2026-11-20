@@ -11,13 +11,20 @@ export function searchLanguages(preferred: string | undefined, browser: readonly
 
 /** `found`, those in the `preferred` language first, each group in the order the Server gave. */
 export function preferredFirst(found: FoundSubtitle[], preferred: string | undefined) {
-  const isPreferred = ({ language }: FoundSubtitle) => bareLanguage(language) === preferred;
+  const wanted = preferred === undefined ? undefined : bareLanguage(preferred);
+  const isPreferred = ({ language }: FoundSubtitle) => bareLanguage(language) === wanted;
   return [
     ...found.filter((each) => isPreferred(each)),
     ...found.filter((each) => !isPreferred(each)),
   ];
 }
 
+/** The language `tag` names, as its shortest ISO 639 code: `en` for `eng` or `en-US`. */
 function bareLanguage(tag: string) {
-  return tag.split("-")[0]?.toLowerCase() ?? tag;
+  try {
+    return new Intl.Locale(tag).language;
+  } catch {
+    // A tag that isn't a language tag is compared as it is.
+    return tag;
+  }
 }

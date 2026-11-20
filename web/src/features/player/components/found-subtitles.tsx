@@ -4,8 +4,8 @@ import { FoundSubtitleItem } from "@/features/player/components/found-subtitle-i
 import type { FoundSubtitle, FoundSubtitleSchema } from "@/gen/nama/v1/playback_pb";
 
 /**
- * What a subtitle search found, if it's done, the one `picked` downloading while `busy`, as `pick`
- * downloads it.
+ * What a subtitle search found, once it has. `pick` downloads one; while it's `busy`, the one
+ * `picked` says it's downloading.
  */
 export function FoundSubtitles({
   found,
