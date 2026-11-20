@@ -1,6 +1,6 @@
-//! Home rows a Plugin gives every User, over the API (ADR 0058): the test Plugin built as a Home
-//! row source, refreshed in the background, its rows showing the titles on the Server and those
-//! missing from it to Request.
+//! Home rows a Plugin gives, every User's and each User's own, over the API (ADR 0058): the test
+//! Plugin built as a Home row source, refreshed in the background, its rows showing the titles on
+//! the Server and those missing from it to Request.
 
 #[path = "support/http.rs"]
 #[expect(dead_code, reason = "this binary reads only a response's status")]
@@ -17,15 +17,19 @@ mod test_plugin;
 
 use std::time::{Duration, Instant};
 
-use connectrpc::{ErrorCode, client::HttpClient};
+use connectrpc::{
+    ErrorCode,
+    client::{ClientConfig, HttpClient},
+};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
     BrowseServiceClient, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
     ExtensionPointFailure, GetPluginRequest, HomeRowTitle, LibraryKind, ListHomeRowTitlesRequest,
     ListHomeRowTitlesResponse, ListHomeRowsRequest, ListPluginsRequest, PageRequest, Permission,
-    PluginServiceClient, RefusalReason, RequestState, SettingValue, UpdatePluginSettingsRequest,
-    home_row_title::MovieOrShow, setting_value::Value,
+    PluginServiceClient, RefusalReason, RequestState, SettingValue, UpdatePersonalSettingsRequest,
+    UpdatePluginSettingsRequest, UserServiceClient, home_row_title::MovieOrShow,
+    setting_value::Value,
 };
 use refused::assert_refused;
 use server::{
@@ -77,6 +81,13 @@ fn plugins(server: &TestServer) -> PluginServiceClient<HttpClient> {
     PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
 
+fn text(text: &str) -> SettingValue {
+    SettingValue {
+        value: Some(Value::TextValue(text.to_owned())),
+        ..Default::default()
+    }
+}
+
 fn browse(server: &TestServer) -> BrowseServiceClient<HttpClient> {
     BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
@@ -119,14 +130,26 @@ async fn disable(server: &TestServer) {
     reason = "a test helper fails its test by panicking"
 )]
 async fn set_rows(server: &TestServer, rows: &str) {
-    let value = SettingValue {
-        value: Some(Value::TextValue(rows.to_owned())),
-        ..Default::default()
-    };
     (plugins(server))
         .update_plugin_settings(UpdatePluginSettingsRequest {
             id: PLUGIN.to_owned(),
-            settings: std::iter::once(("home_rows".to_owned(), value)).collect(),
+            settings: std::iter::once(("home_rows".to_owned(), text(rows))).collect(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+/// Saves `handle` as `user`'s `handle` Personal setting for the test Plugin.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn set_handle(user: &SignedIn, handle: &str) {
+    UserServiceClient::new(HttpClient::plaintext(), user.client_config())
+        .update_personal_settings(UpdatePersonalSettingsRequest {
+            plugin_id: PLUGIN.to_owned(),
+            settings: std::iter::once(("handle".to_owned(), text(handle))).collect(),
             ..Default::default()
         })
         .await
@@ -136,6 +159,11 @@ async fn set_rows(server: &TestServer, rows: &str) {
 /// The Home rows home lists now, each as its Plugin, key and heading.
 async fn rows(server: &TestServer) -> Vec<(String, String, String)> {
     rows_from(&browse(server)).await
+}
+
+/// The Home rows home lists the caller `config` signs in as now, as [`rows`] lists them.
+async fn rows_as(config: ClientConfig) -> Vec<(String, String, String)> {
+    rows_from(&BrowseServiceClient::new(HttpClient::plaintext(), config)).await
 }
 
 /// The Home rows home lists `browse`'s caller now, as [`rows`] lists them.
@@ -154,12 +182,17 @@ async fn rows_from(browse: &BrowseServiceClient<HttpClient>) -> Vec<(String, Str
         .collect()
 }
 
-/// Lists the Home rows until they are the rows `keys` name, since a refresh runs in the
+/// Lists the Admin's Home rows until they are the rows `keys` name, since a refresh runs in the
 /// background.
 async fn wait_for_rows(server: &TestServer, keys: &[&str]) {
+    wait_for_rows_as(server.client_config(), keys).await;
+}
+
+/// [`wait_for_rows`], for the caller `config` signs in as.
+async fn wait_for_rows_as(config: ClientConfig, keys: &[&str]) {
     let started = Instant::now();
     loop {
-        let listed = rows(server).await;
+        let listed = rows_as(config.clone()).await;
         if listed
             .iter()
             .map(|(_, key, _)| key.as_str())
@@ -205,6 +238,17 @@ async fn titles_page(
     token: &str,
 ) -> Result<ListHomeRowTitlesResponse, connectrpc::ConnectError> {
     titles_page_from(&browse(server), key, size, token).await
+}
+
+/// [`titles_page`], for the caller `config` signs in as.
+async fn titles_page_as(
+    config: ClientConfig,
+    key: &str,
+    size: i32,
+    token: &str,
+) -> Result<ListHomeRowTitlesResponse, connectrpc::ConnectError> {
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), config);
+    titles_page_from(&browse, key, size, token).await
 }
 
 /// The whole of the row `key` as `browse`'s caller sees it.
@@ -292,6 +336,45 @@ async fn enabling_a_home_row_source_shows_its_rows_with_the_titles_on_the_server
         all_shown(&missing.titles),
         [format!("missing Movie {DUNE}")],
         "the id no title source has is dropped"
+    );
+}
+
+#[tokio::test]
+async fn each_user_sees_their_own_rows_built_from_their_personal_settings() {
+    let server = enabled("").await;
+    let ada = server.user_with_default_permissions("ada").await;
+    let bea = server.user_with_default_permissions("bea").await;
+    set_handle(&ada, "ada").await;
+    set_handle(&bea, "bea").await;
+
+    wait_for_rows_as(
+        ada.client_config(),
+        &["picks", "again", "missing", "for-ada"],
+    )
+    .await;
+    wait_for_rows_as(
+        bea.client_config(),
+        &["picks", "again", "missing", "for-bea"],
+    )
+    .await;
+
+    let headings = |rows: Vec<(String, String, String)>| -> Vec<String> {
+        rows.into_iter().map(|(_, _, heading)| heading).collect()
+    };
+    assert_eq!(
+        headings(rows_as(ada.client_config()).await),
+        ["Picks", "Alien again", "Not on the Server", "For ada"]
+    );
+    assert_eq!(
+        headings(rows_as(bea.client_config()).await),
+        ["Picks", "Alien again", "Not on the Server", "For bea"]
+    );
+    let beas = titles_page_as(bea.client_config(), "for-bea", 10, "").await;
+    let adas = titles_page_as(ada.client_config(), "for-bea", 10, "").await;
+    assert_eq!(beas.unwrap().titles.len(), 1);
+    assert!(
+        adas.unwrap().titles.is_empty(),
+        "Ada can't page Bea's own row"
     );
 }
 

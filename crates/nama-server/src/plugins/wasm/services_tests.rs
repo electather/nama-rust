@@ -102,7 +102,7 @@ fn a_blob_store_is_five_required_rows_that_may_run_long() {
 }
 
 #[test]
-fn a_home_row_source_runs_long_on_a_compile_of_its_own() {
+fn a_home_row_source_runs_long_on_a_compile_of_its_own_and_serves_shared_or_user_rows() {
     let home_row = POINTS
         .iter()
         .find(|point| point.service == services::HOME_ROW)
@@ -111,10 +111,18 @@ fn a_home_row_source_runs_long_on_a_compile_of_its_own() {
     assert!(home_row.runs_long());
     assert!(matches!(
         home_row.methods,
-        [Method {
-            export: "shared_rows",
-            ..
-        }]
+        [
+            Method {
+                export: "shared_rows",
+                optional: true,
+                ..
+            },
+            Method {
+                export: "user_rows",
+                optional: true,
+                ..
+            }
+        ]
     ));
 }
 
