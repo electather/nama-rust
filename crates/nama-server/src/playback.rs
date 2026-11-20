@@ -35,6 +35,7 @@ mod tracks;
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
 pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
+pub(crate) use limits::{NAMED_LIMITS, limit_to_proto};
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
 pub(crate) use running::{
@@ -484,32 +485,6 @@ pub(crate) fn reason_to_proto(reason: &Reason) -> proto::PlaybackReason {
         decided: reason.decided,
         ..Default::default()
     }
-}
-
-/// Each Playback Limit below Original, by the API's name for it.
-pub(crate) const NAMED_LIMITS: [(PlaybackLimit, proto::PlaybackLimit); 3] = [
-    (
-        PlaybackLimit::P1080,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_1080P,
-    ),
-    (
-        PlaybackLimit::P720,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_720P,
-    ),
-    (
-        PlaybackLimit::P480,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_480P,
-    ),
-];
-
-/// `limit` as the API names it, `None` being Original.
-pub(crate) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLimit {
-    (NAMED_LIMITS.into_iter())
-        .find(|(ours, _)| Some(*ours) == limit)
-        .map_or(
-            proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
-            |(_, theirs)| theirs,
-        )
 }
 
 /// `accel` as the API names it.
