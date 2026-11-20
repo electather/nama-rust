@@ -14,7 +14,7 @@ use tracing::warn;
 
 use super::{
     Error, HomeRows, Kind, MAX_TTL, MIN_TTL, Title, personal,
-    store::{Refreshing, from_json, to_json},
+    store::{Refreshing, from_json, stale_after, to_json},
 };
 use crate::{
     db,
@@ -150,7 +150,7 @@ impl HomeRows {
     /// first refresh, and refreshes them no sooner than [`MIN_TTL`] from now.
     async fn put_off_featured(&self, plugin: &PluginId, user: i64) -> Result<(), sqlx::Error> {
         let plugin = plugin.as_str().to_owned();
-        let stale_at = db::now().saturating_add(i64::try_from(MIN_TTL.as_secs()).unwrap_or(0));
+        let stale_at = stale_after(MIN_TTL);
         self.db
             .write(move |tx| {
                 Box::pin(async move {
@@ -182,7 +182,7 @@ impl HomeRows {
     ) -> Result<(), sqlx::Error> {
         let plugin = plugin.as_str().to_owned();
         let suggestions = to_json(&suggestions)?;
-        let stale_at = db::now().saturating_add(i64::try_from(fresh_for.as_secs()).unwrap_or(0));
+        let stale_at = stale_after(fresh_for);
         self.db
             .write(move |tx| {
                 Box::pin(async move {

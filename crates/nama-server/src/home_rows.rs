@@ -27,7 +27,7 @@ mod store;
 pub(crate) use featured::Suggested;
 use store::{
     Refreshing, Scope, add_found, delete_rows, found_movie, found_show, from_json, lock,
-    replace_if_marked, set_stale_at,
+    replace_if_marked, set_stale_at, stale_after,
 };
 
 use crate::{
@@ -568,7 +568,7 @@ impl HomeRows {
         fresh_for: Duration,
     ) -> Result<(), sqlx::Error> {
         let plugin = plugin.as_str().to_owned();
-        let stale_at = db::now().saturating_add(i64::try_from(fresh_for.as_secs()).unwrap_or(0));
+        let stale_at = stale_after(fresh_for);
         self.db
             .write(move |tx| {
                 Box::pin(async move { replace_if_marked(tx, &plugin, user, rows, stale_at).await })
@@ -580,7 +580,7 @@ impl HomeRows {
     /// and refreshes them no sooner than [`MIN_TTL`] from now.
     async fn put_off(&self, plugin: &PluginId, user: Option<i64>) -> Result<(), sqlx::Error> {
         let plugin = plugin.as_str().to_owned();
-        let stale_at = db::now().saturating_add(i64::try_from(MIN_TTL.as_secs()).unwrap_or(0));
+        let stale_at = stale_after(MIN_TTL);
         self.db
             .write(move |tx| {
                 Box::pin(async move {
