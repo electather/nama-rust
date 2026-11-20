@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO watch_states\n                 (user_id, kind, title_id, position_ms, duration_ms, played, updated_at,\n                  played_at)\n             VALUES (?1, ?2, ?3, ?4, ?5,\n                     ?6 OR EXISTS (SELECT 1 FROM watch_states\n                                   WHERE user_id = ?1 AND kind = ?2 AND played\n                                     AND title_id IN (SELECT value FROM json_each(?8))),\n                     ?7,\n                     coalesce((SELECT max(played_at) FROM watch_states\n                               WHERE user_id = ?1 AND kind = ?2\n                                 AND title_id IN (SELECT value FROM json_each(?8))),\n                              CASE WHEN ?6 THEN ?7 END))\n             ON CONFLICT (user_id, kind, title_id) DO UPDATE\n             SET position_ms = excluded.position_ms,\n                 duration_ms = excluded.duration_ms,\n                 played = watch_states.played OR excluded.played,\n                 updated_at = excluded.updated_at,\n                 played_at = coalesce(watch_states.played_at, excluded.played_at)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "87cbfcadd1a1b440392d84399c324b2f03c6e31adeffacc177ca0c8d75027240"
+}
