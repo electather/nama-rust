@@ -9,7 +9,7 @@ use std::{
 
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, Registrar,
-    automation::{Kernel, KernelRefused, StoreKey},
+    automation::{Kernel, KernelRefused},
 };
 
 use super::Scope;
@@ -198,7 +198,7 @@ impl Plugin for Keeping {
 
 /// What `kernel` answers asking for a Store entry: the refusal's words, or `None` if it answered.
 async fn refusal(kernel: &Arc<dyn Kernel>) -> Option<String> {
-    let asked = kernel.store_get(&StoreKey::default()).await;
+    let asked = kernel.call("store_get", Vec::new()).await;
     asked.err().map(|KernelRefused(words)| words)
 }
 

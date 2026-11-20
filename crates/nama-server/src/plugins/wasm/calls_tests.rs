@@ -5,11 +5,7 @@ use std::{
 
 use nama_plugin_api::{
     BoxFuture,
-    automation::{
-        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Requesters,
-        RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Tick, Titles, TitlesAsked,
-        Users, UsersAsked, WatchStates, WatchStatesAsked,
-    },
+    automation::{Kernel, KernelRefused, Tick},
 };
 use nama_plugin_proto::{
     nama::plugin::v1::{EventsObserved, ObservedEvents, Ticked},
@@ -41,140 +37,42 @@ mod test_plugin;
 const SHORT: Duration = Duration::from_millis(500);
 
 /// A Kernel that takes three times [`SHORT`] to store a value, and answers the test Plugin's
-/// other calls in its tick at once.
-struct Slow;
-
-fn refuse<'a, T: Send + 'a>() -> BoxFuture<'a, Result<T, KernelRefused>> {
-    Box::pin(async { Err(KernelRefused("not faked".to_owned())) })
-}
-
-impl Kernel for Slow {
-    fn store_get<'a>(
-        &'a self,
-        _: &'a StoreKey,
-    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>> {
-        Box::pin(async { Ok(StoreValue::default()) })
-    }
-
-    fn store_put<'a>(&'a self, _: &'a StoreEntry) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        Box::pin(async {
-            tokio::time::sleep(SHORT * 3).await;
-            Ok(Stored::default())
-        })
-    }
-
-    fn store_delete<'a>(&'a self, _: &'a StoreKey) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_libraries<'a>(
-        &'a self,
-        _: &'a LibrariesAsked,
-    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
-        Box::pin(async { Ok(Libraries::default()) })
-    }
-
-    fn list_titles<'a>(
-        &'a self,
-        _: &'a TitlesAsked,
-    ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_watch_states<'a>(
-        &'a self,
-        _: &'a WatchStatesAsked,
-    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_users<'a>(&'a self, _: &'a UsersAsked) -> BoxFuture<'a, Result<Users, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_requesters<'a>(
-        &'a self,
-        _: &'a RequestersAsked,
-    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
-        refuse()
-    }
-
-    fn delete_media<'a>(
-        &'a self,
-        _: &'a DeleteAsked,
-    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>> {
-        refuse()
-    }
+/// other calls in its tick at once, each with an empty message.
+fn slow() -> Arc<dyn Kernel> {
+    Arc::new(
+        |function: &str, _request| -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
+            let store_put = function == "store_put";
+            Box::pin(async move {
+                if store_put {
+                    tokio::time::sleep(SHORT * 3).await;
+                }
+                Ok(Vec::new())
+            })
+        },
+    )
 }
 
 /// A Kernel whose `store_put`, the first function the test Plugin's tick calls, says it was
-/// called on `entered` and answers once `release` is notified.
-struct Gate {
-    entered: Arc<Notify>,
-    release: Arc<Notify>,
+/// called on `entered` and answers once `release` is notified. It refuses everything else.
+fn gate(entered: &Arc<Notify>, release: &Arc<Notify>) -> Arc<dyn Kernel> {
+    let (entered, release) = (Arc::clone(entered), Arc::clone(release));
+    Arc::new(
+        move |function: &str, _request| -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
+            let store_put = function == "store_put";
+            let (entered, release) = (Arc::clone(&entered), Arc::clone(&release));
+            Box::pin(async move {
+                if !store_put {
+                    return Err(KernelRefused("not faked".to_owned()));
+                }
+                entered.notify_one();
+                release.notified().await;
+                Ok(Vec::new())
+            })
+        },
+    )
 }
 
-impl Kernel for Gate {
-    fn store_get<'a>(
-        &'a self,
-        _: &'a StoreKey,
-    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>> {
-        refuse()
-    }
-
-    fn store_put<'a>(&'a self, _: &'a StoreEntry) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        Box::pin(async {
-            self.entered.notify_one();
-            self.release.notified().await;
-            Ok(Stored::default())
-        })
-    }
-
-    fn store_delete<'a>(&'a self, _: &'a StoreKey) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_libraries<'a>(
-        &'a self,
-        _: &'a LibrariesAsked,
-    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_titles<'a>(
-        &'a self,
-        _: &'a TitlesAsked,
-    ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_watch_states<'a>(
-        &'a self,
-        _: &'a WatchStatesAsked,
-    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_users<'a>(&'a self, _: &'a UsersAsked) -> BoxFuture<'a, Result<Users, KernelRefused>> {
-        refuse()
-    }
-
-    fn list_requesters<'a>(
-        &'a self,
-        _: &'a RequestersAsked,
-    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
-        refuse()
-    }
-
-    fn delete_media<'a>(
-        &'a self,
-        _: &'a DeleteAsked,
-    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>> {
-        refuse()
-    }
-}
-
-/// Opens a [`Gate`] when dropped, so a test that fails while a call waits in it ends instead of
+/// Opens a [`gate`] when dropped, so a test that fails while a call waits in it ends instead of
 /// hanging: the runtime's shutdown waits for that call's blocking thread.
 struct Release(Arc<Notify>);
 
@@ -224,7 +122,7 @@ fn running_with(
 #[tokio::test(flavor = "multi_thread")]
 async fn a_call_waiting_in_a_kernel_function_past_its_limit_still_succeeds() {
     let data_dir = tempfile::tempdir().unwrap();
-    let running = running("automation", &data_dir, Some(Arc::new(Slow)));
+    let running = running("automation", &data_dir, Some(slow()));
     let tick = Method {
         limit: SHORT,
         ..TICK
@@ -261,17 +159,14 @@ async fn a_tick_logging_in_a_loop_times_out_at_its_limit_and_counts_as_a_crash()
 async fn a_call_another_calls_timeout_interrupts_fails_plainly_and_not_as_a_crash() {
     let data_dir = tempfile::tempdir().unwrap();
     let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
-    let gate = Gate {
-        entered: Arc::clone(&entered),
-        release: Arc::clone(&release),
-    };
+    let gate = gate(&entered, &release);
     let release = Release(release);
     // One compile whose tick waits in the gate and whose Observer loops.
     let running = running_with(
         "automation",
         vec![("observer".to_owned(), "loop".to_owned())],
         &data_dir,
-        Some(Arc::new(gate)),
+        Some(gate),
     );
     let ticking = tokio::spawn({
         let running = running.clone();
@@ -337,7 +232,7 @@ async fn stopping_a_plugins_calls_fails_a_running_one_as_disabled_and_not_as_a_c
 #[tokio::test(flavor = "multi_thread")]
 async fn a_call_after_its_plugins_calls_are_stopped_fails_as_disabled_without_running() {
     let data_dir = tempfile::tempdir().unwrap();
-    let running = running("automation", &data_dir, Some(Arc::new(Slow)));
+    let running = running("automation", &data_dir, Some(slow()));
     running.compiled.calls.stop();
 
     let failed = running

@@ -11,11 +11,7 @@ use std::{
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     Registration, Stop,
-    automation::{
-        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Permission,
-        Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Titles, TitlesAsked,
-        Users, UsersAsked, WatchStates, WatchStatesAsked,
-    },
+    automation::{Kernel, KernelRefused, Permission},
     fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsSchema},
 };
@@ -576,67 +572,13 @@ impl EnabledKernel {
 }
 
 impl Kernel for EnabledKernel {
-    fn store_get<'a>(
-        &'a self,
-        key: &'a StoreKey,
-    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.store_get(key).await })
-    }
-
-    fn store_put<'a>(
-        &'a self,
-        entry: &'a StoreEntry,
-    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.store_put(entry).await })
-    }
-
-    fn store_delete<'a>(
-        &'a self,
-        key: &'a StoreKey,
-    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.store_delete(key).await })
-    }
-
-    fn list_libraries<'a>(
-        &'a self,
-        asked: &'a LibrariesAsked,
-    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.list_libraries(asked).await })
-    }
-
-    fn list_titles<'a>(
-        &'a self,
-        asked: &'a TitlesAsked,
-    ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.list_titles(asked).await })
-    }
-
-    fn list_watch_states<'a>(
-        &'a self,
-        asked: &'a WatchStatesAsked,
-    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.list_watch_states(asked).await })
-    }
-
-    fn list_users<'a>(
-        &'a self,
-        asked: &'a UsersAsked,
-    ) -> BoxFuture<'a, Result<Users, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.list_users(asked).await })
-    }
-
-    fn list_requesters<'a>(
-        &'a self,
-        asked: &'a RequestersAsked,
-    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.list_requesters(asked).await })
-    }
-
-    fn delete_media<'a>(
-        &'a self,
-        asked: &'a DeleteAsked,
-    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>> {
-        Box::pin(async move { self.resolve()?.delete_media(asked).await })
+    fn call(
+        &self,
+        function: &str,
+        request: Vec<u8>,
+    ) -> BoxFuture<'_, Result<Vec<u8>, KernelRefused>> {
+        let function = function.to_owned();
+        Box::pin(async move { self.resolve()?.call(&function, request).await })
     }
 }
 

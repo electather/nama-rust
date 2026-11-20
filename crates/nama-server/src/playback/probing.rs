@@ -30,6 +30,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use super::{
+    downloads,
     sidecars::Sidecars,
     subtitles,
     tracks::{
@@ -40,6 +41,7 @@ use crate::{
     db::Database,
     diagnostics,
     ffmpeg::Ffmpeg,
+    images::ImageStore,
     library::{Contents, Stored},
 };
 
@@ -139,6 +141,8 @@ struct Inner {
     sidecars: Sidecars,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
+    /// Where downloaded subtitles are kept, from which it deletes those of Versions gone.
+    images: ImageStore,
     /// Background passes and whole-file reads, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -156,9 +160,15 @@ struct Inner {
 }
 
 impl Probing {
-    /// Probes with `ffmpeg`'s ffprobe, or not at all without one, and throws away what
-    /// `subtitles` caches for files gone or changed.
-    pub(crate) fn new(db: Arc<Database>, ffmpeg: Arc<Ffmpeg>, subtitles: subtitles::Cache) -> Self {
+    /// Probes with `ffmpeg`'s ffprobe, or not at all without one, throws away what `subtitles`
+    /// caches for files gone or changed, and deletes from `images` the subtitles downloaded for
+    /// Versions gone.
+    pub(crate) fn new(
+        db: Arc<Database>,
+        ffmpeg: Arc<Ffmpeg>,
+        subtitles: subtitles::Cache,
+        images: ImageStore,
+    ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 tracks: Tracks::new(Arc::clone(&db)),
@@ -166,6 +176,7 @@ impl Probing {
                 contents: Contents::new(db),
                 ffmpeg,
                 subtitles,
+                images,
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 running: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
@@ -304,19 +315,23 @@ impl Probing {
     }
 
     /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
-    /// since they were cached, or logs why it couldn't.
+    /// since they were cached, and deletes those downloaded for Versions gone, or logs why it
+    /// couldn't.
     pub(crate) async fn clean_subtitles(&self) {
-        // ponytail: reads every stored file after each scan; clean only the Library scanned once
-        // Libraries get big.
-        let cleaned = match self.inner.contents.every_stored().await {
-            Ok(stored) => self.inner.subtitles.keep_only(&stored).await,
+        // ponytail: reads every stored file, and lists every downloaded subtitle, after each scan;
+        // clean only the Library scanned once Libraries get big.
+        let stored = match self.inner.contents.every_stored().await {
+            Ok(stored) => stored,
             Err(err) => {
                 tracing::error!("could not read which files to keep subtitles for: {err}");
                 return;
             }
         };
-        if let Err(err) = cleaned {
+        if let Err(err) = self.inner.subtitles.keep_only(&stored).await {
             tracing::error!("could not throw away subtitles of files gone or changed: {err}");
+        }
+        if let Err(err) = downloads::keep_only(&self.inner.images, &stored).await {
+            tracing::error!("could not delete the subtitles downloaded for Versions gone: {err}");
         }
     }
 

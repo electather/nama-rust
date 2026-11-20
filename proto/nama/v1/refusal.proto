@@ -298,4 +298,7 @@ enum RefusalReason {
   REFUSAL_REASON_TAKES_ALONG_UNNAMED = 89;
   // `invalid_argument`: a message to a viewer is too long. Params: `maxLength`, in characters.
   REFUSAL_REASON_MESSAGE_TOO_LONG = 90;
+  // `unavailable`: no subtitle source is enabled, or every one asked failed, or the one asked
+  // couldn't download the subtitle or gave a file that isn't one. The message says why.
+  REFUSAL_REASON_NO_SUBTITLE_SOURCE = 91;
 }
