@@ -445,9 +445,9 @@ mod home_rows {
     /// Gives every User `picks`: the Movies Heat, Dune and Alien and the Show Dark, which the
     /// fake TMDB knows; `again`: Alien; and `missing`: Dune and a Movie no title source has. Gives
     /// a User who set a `handle` the row `for-<handle>`: Alien, and suggests for their Featured
-    /// Heat at 1.0, Alien at 0.0 and a Movie no title source has at 1.0. Logs which it was asked for, so a
-    /// test counts its refreshes, and what its Store kept or why the Kernel refused it, so a test
-    /// sees a Plugin that isn't an Automation call the Kernel's functions.
+    /// Heat at 1.0, Alien at 0.0 and a Movie no title source has at 1.0. Logs which it was asked
+    /// for, so a test counts its refreshes, and what its Store kept or why the Kernel refused it,
+    /// so a test sees a Plugin that isn't an Automation call the Kernel's functions.
     struct TestRows;
 
     impl HomeRowSource for TestRows {

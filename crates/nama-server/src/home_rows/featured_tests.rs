@@ -55,6 +55,7 @@ fn weights_are_clamped_unreadable_titles_dropped_and_the_first_20_kept() {
     let mut given: Vec<FeaturedSuggestion> = vec![
         suggestion("1", 1.5),
         suggestion("2", -0.5),
+        suggestion("-0", -0.0),
         suggestion("3", f32::NAN),
         suggestion("", 0.5),
         FeaturedSuggestion {
@@ -71,8 +72,9 @@ fn weights_are_clamped_unreadable_titles_dropped_and_the_first_20_kept() {
 
     let movie = |tmdb: &str| Title(Kind::Movie, format!("tmdb-{tmdb}"));
     assert_eq!(kept[..2], [(movie("1"), 1.0), (movie("2"), 0.0)]);
-    assert_eq!(kept.len(), 2 + 15, "the first 20, of which 3 don't read");
-    assert_eq!(kept.last(), Some(&(movie("19"), 0.5)));
+    assert!(kept[2].1.is_sign_positive(), "-0.0 is kept as 0.0");
+    assert_eq!(kept.len(), 3 + 14, "the first 20, of which 3 don't read");
+    assert_eq!(kept.last(), Some(&(movie("18"), 0.5)));
 }
 
 #[test]
@@ -144,6 +146,33 @@ async fn listing_featured_suggestions_never_waits_on_the_plugin() {
     );
     drop(held);
     assert_eq!(refreshed(&home, ada).await, movies(&[(1, 0.5)]));
+}
+
+#[tokio::test]
+async fn listing_stale_suggestions_asks_the_plugin_again_and_fresh_ones_do_not() {
+    let (_dir, db, home, calls) = recorded(FEATURED).await;
+    let ada = insert_user(&db, "ada").await;
+    set_handle(&db, ada, "1").await;
+    refreshed(&home, ada).await;
+    refreshed(&home, ada).await;
+    assert_eq!(*calls.featured_asked.lock().unwrap(), [handle("1")]);
+
+    db.write(|tx| {
+        Box::pin(async move {
+            sqlx::query("UPDATE featured_suggestions SET stale_at = 0")
+                .execute(&mut **tx)
+                .await
+                .map(drop)
+        })
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(refreshed(&home, ada).await, movies(&[(1, 0.5)]));
+    assert_eq!(
+        *calls.featured_asked.lock().unwrap(),
+        [handle("1"), handle("1")]
+    );
 }
 
 #[tokio::test]

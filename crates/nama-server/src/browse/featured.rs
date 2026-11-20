@@ -90,20 +90,21 @@ impl Browse {
         suggested: &Suggested,
     ) -> Result<Vec<Featured>, Error> {
         let mut featured = Vec::with_capacity(FEATURED_TITLES);
-        for suggestion in heaviest(self.suggestions(user, suggested).await?) {
+        let suggestions = self.suggestions(user, suggested, db::now()).await?;
+        for suggestion in heaviest(suggestions) {
             featured.push(self.with_what_plays(user, suggestion).await?);
         }
         Ok(featured)
     }
 
     /// The Kernel's suggestions for the User `user`, and those of the Plugins' `suggested` some
-    /// Library has, each weighed as of now: a title may be suggested more than once.
+    /// Library has, each weighed as of `now`: a title may be suggested more than once.
     async fn suggestions(
         &self,
         user: i64,
         suggested: &Suggested,
+        now: i64,
     ) -> Result<Vec<Suggestion>, Error> {
-        let now = db::now();
         let mut suggestions: Vec<Suggestion> = (self.all_started(user).await?.into_iter())
             .map(|(started, (changed_at, _))| {
                 let (library, title) = match started {

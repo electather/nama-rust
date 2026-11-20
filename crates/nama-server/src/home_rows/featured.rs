@@ -254,7 +254,8 @@ fn kept_suggestions(given: &FeaturedSuggestions) -> (Vec<Suggestion>, Duration) 
         .filter_map(|suggestion| {
             let id = suggestion.id.as_option()?;
             let title = Title::given(suggestion.kind.as_known()?, &id.namespace, &id.value)?;
-            Some((title, suggestion.weight.clamp(0.0, 1.0)))
+            // `abs`, as -0.0 clamps to itself and would sort below 0.0 by `total_cmp`.
+            Some((title, suggestion.weight.clamp(0.0, 1.0).abs()))
         })
         .collect();
     let fresh_for = if suggestions.is_empty() {
