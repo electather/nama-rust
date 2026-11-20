@@ -6,7 +6,7 @@ use buffa::{EnumValue, MessageFieldView};
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult,
 };
-use nama_plugin_api::PluginId;
+use nama_plugin_api::{PluginId, subtitle_source::SubtitleSource};
 use nama_proto::nama::v1::{
     self as proto, FoundHardware, FoundProgram, GetImageSettingsRequest, GetImageSettingsResponse,
     GetPlaybackSettingsRequest, GetPlaybackSettingsResponse, GetPlaybackStatusRequest,
@@ -69,6 +69,7 @@ impl ServerService for ServerServiceHandler {
             setup_required,
             image_widths: images::WIDTHS.to_vec(),
             exports_diagnostics: self.exports_diagnostics,
+            searches_subtitles: !self.points.providers::<dyn SubtitleSource>().is_empty(),
             ..Default::default()
         })
     }

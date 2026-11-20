@@ -32,8 +32,9 @@ const found = [
   { pluginId: "opensubtitles", id: "3", language: "fr", name: "Alien.1979.FR.SDH", sdh: true },
 ];
 
-/** How the fake Server's subtitle source answers: what it finds, or how it fails. */
+/** The fake Server's subtitle source: whether one is `enabled` (by default it is), what it finds or how it fails. */
 interface Source {
+  enabled?: boolean;
   search?: () => { subtitles: typeof found };
   download?: () => object;
 }
@@ -49,7 +50,9 @@ function server(permissions: Permission[], source: Source = {}) {
     downloaded: [],
   };
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const transport = fakeServer({ signedIn: permissions, libraries }, {}, {}, (router) => {
+  const getServerInfo = () => ({ name: "Living Room", searchesSubtitles: source.enabled ?? true });
+  const state = { signedIn: permissions, libraries, serverService: { getServerInfo } };
+  const transport = fakeServer(state, {}, {}, (router) => {
     router.service(BrowseService, {
       getMovie: () => ({
         movie: {
@@ -118,6 +121,12 @@ async function results() {
 describe("searching for subtitles from the player", () => {
   test("a User without Download subtitles has no search", async () => {
     await openPanel(newUser);
+
+    expect(screen.queryByRole("button", { name: "Search for subtitles" })).toBeNull();
+  });
+
+  test("with no subtitle source enabled, a User with Download subtitles has no search", async () => {
+    await openPanel(mayDownload, { enabled: false });
 
     expect(screen.queryByRole("button", { name: "Search for subtitles" })).toBeNull();
   });
