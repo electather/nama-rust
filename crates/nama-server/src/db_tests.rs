@@ -1,7 +1,3 @@
-use std::path::Path;
-
-use super::MIB;
-
 #[cfg(feature = "testing")]
 #[test]
 fn advance_clock_moves_now_and_now_ms_ahead_by_what_it_adds() {
@@ -86,7 +82,9 @@ fn linux_names_the_magic_numbers_of_risky_filesystems_only() {
 
 #[test]
 fn a_data_directory_under_one_gib_free_warns_naming_its_free_space_threshold_and_path() {
-    use super::warn_if_low_on_space;
+    use std::path::Path;
+
+    use super::{MIB, warn_if_low_on_space};
     use crate::log_capture::CapturedLog;
 
     let log = CapturedLog::start();
@@ -101,7 +99,9 @@ fn a_data_directory_under_one_gib_free_warns_naming_its_free_space_threshold_and
 
 #[test]
 fn a_database_over_half_a_gib_asks_for_twice_its_size_free() {
-    use super::warn_if_low_on_space;
+    use std::path::Path;
+
+    use super::{MIB, warn_if_low_on_space};
     use crate::log_capture::CapturedLog;
 
     let log = CapturedLog::start();
@@ -114,7 +114,9 @@ fn a_database_over_half_a_gib_asks_for_twice_its_size_free() {
 
 #[test]
 fn enough_free_space_logs_nothing() {
-    use super::warn_if_low_on_space;
+    use std::path::Path;
+
+    use super::{MIB, warn_if_low_on_space};
     use crate::log_capture::CapturedLog;
 
     let log = CapturedLog::start();
@@ -125,16 +127,24 @@ fn enough_free_space_logs_nothing() {
 }
 
 #[test]
-fn free_space_that_cant_be_read_warns_of_nothing() {
+fn free_space_that_cant_be_read_is_logged_at_debug_only() {
+    use std::{io, path::Path};
+
+    use tracing::Level;
+
     use super::warn_if_low_on_space;
     use crate::log_capture::CapturedLog;
 
-    let log = CapturedLog::start();
+    let log = CapturedLog::start_at(Level::DEBUG);
     warn_if_low_on_space(
         Path::new("/srv/nama"),
-        Err(std::io::ErrorKind::Unsupported.into()),
+        Err(io::ErrorKind::Unsupported.into()),
         0,
     );
 
-    assert!(!log.finish().contains("WARN"));
+    let logged = log.finish();
+    let lines: Vec<_> = logged.lines().collect();
+    assert_eq!(lines.len(), 1, "{logged}");
+    assert!(lines[0].contains("DEBUG"), "{logged}");
+    assert!(lines[0].contains("free space"), "{logged}");
 }

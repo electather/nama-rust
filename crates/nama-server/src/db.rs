@@ -655,7 +655,7 @@ pub(crate) fn free_bytes(dir: &Path) -> std::io::Result<u64> {
     Ok(stat.f_bavail.saturating_mul(stat.f_frsize))
 }
 
-// ponytail: Windows reports no free space; ask GetDiskFreeSpaceExW once a Server runs there.
+// ponytail: off unix the Server reads no free space; ask GetDiskFreeSpaceExW for Windows.
 #[cfg(not(unix))]
 pub(crate) fn free_bytes(_dir: &Path) -> std::io::Result<u64> {
     Err(std::io::ErrorKind::Unsupported.into())
