@@ -40,8 +40,9 @@ jobs:
         run: |
           if ! error=$(gh run download "$RUN_ID" --pattern "test-reports-$RUN_ATTEMPT-*" \
               --dir "$RUNNER_TEMP/reports" 2>&1); then
-            # This attempt uploaded none: its tests never ran.
-            if grep -q 'no valid artifacts' <<< "$error"; then
+            # This attempt uploaded none: its tests never ran. Older gh says the first, newer the
+            # second, and the runner image picks the version.
+            if grep -qE 'no valid artifacts|no artifact matches any of the names or patterns' <<< "$error"; then
               echo "::notice::CI run $RUN_ID attempt $RUN_ATTEMPT has no test reports; nothing to record."
               exit 0
             fi
