@@ -15,23 +15,40 @@ export const renderAss: Render = async ({ video, subtitle: { url, fontUrls }, re
     video,
     subContent: new TextDecoder().decode(ass),
     fonts: fonts.map((font) => new Uint8Array(font)),
+    // Just the file's fonts and the fallback, never the Device's own (ADR 0033).
+    queryFonts: false,
   });
-  // Its messaging never hears of a worker that won't load or crashes, so `ready` would never settle.
   // oxlint-disable-next-line no-underscore-dangle -- JASSUB's README offers its `_` fields for this
-  renderer._worker.addEventListener("error", failed);
-  const start = async () => {
-    try {
-      await renderer.ready;
-      ready();
-    } catch {
+  const worker = renderer._worker;
+  // A crash can follow a failed start, and either can land after it's disposed of.
+  let finished = false;
+  const fail = () => {
+    if (!finished) {
+      finished = true;
       failed();
     }
   };
-  void start();
+  // Its messaging never hears of a worker that won't load or crashes, so `ready` would never settle.
+  worker.addEventListener("error", fail);
+  const reportReady = async () => {
+    try {
+      await renderer.ready;
+    } catch {
+      fail();
+      return;
+    }
+    if (!finished) {
+      ready();
+    }
+  };
+  void reportReady();
   return {
     dispose: () => {
-      // It rethrows a failed start, which `failed` has already reported.
+      finished = true;
+      // It rethrows a failed start, which `fail` has already reported.
       void Promise.allSettled([renderer.destroy()]);
+      // `destroy` ends the worker only once `ready` settles, which a crashed worker's never does.
+      worker.terminate();
     },
   };
 };

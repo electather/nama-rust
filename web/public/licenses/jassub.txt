@@ -232,6 +232,10 @@ License: BSD-2-clause
 Copyright: 2018 Two Orioles, LLC
   2018 VideoLAN and dav1d authors
 
+# Project: mimalloc
+License: Expat
+Copyright: 2018-2025 Microsoft Corporation, Daan Leijen
+
 # The following section contains the full license text or
 # where permitted a shorter notice for all works contained
 # in JASSUB listed above

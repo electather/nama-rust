@@ -75,7 +75,7 @@ make -f Makefile_licence LIB_LICENSES="brotli freetype fribidi harfbuzz libass"
 cat dist/license/all.tmp build/license_fullnotice > path/to/web/public/licenses/jassub.txt
 ```
 
-`LIB_LICENSES` leaves out expat, which the Makefile still lists but JASSUB no longer bundles. The Makefile's own lint step can fail after `all.tmp` is written, and the `# Project: jassub` section comes out empty, so copy the copyright lines of JASSUB's `LICENSE` into it by hand.
+`LIB_LICENSES` leaves out expat, which the Makefile still lists but JASSUB no longer bundles. The Makefile's own lint step can fail after `all.tmp` is written, and the `# Project: jassub` section comes out empty, so copy the copyright lines of JASSUB's `LICENSE` into it by hand. The Makefile also misses mimalloc, which Emscripten links into `jassub-worker-modern.wasm`, so add its `# Project: mimalloc` section by hand too, from the `LICENSE` in Emscripten's `system/lib/mimalloc`.
 
 ## How the app is put together
 

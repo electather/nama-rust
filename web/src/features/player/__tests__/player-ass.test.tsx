@@ -23,7 +23,7 @@ const libass = vi.hoisted(
 vi.mock("jassub", () => ({
   default: class {
     public readonly ready: Promise<void>;
-    public readonly _worker = new EventTarget();
+    public readonly _worker = Object.assign(new EventTarget(), { terminate: vi.fn<() => void>() });
     public constructor(options: { subContent: string; fonts: Uint8Array[] }) {
       libass.made.push(options);
       // As its worker reports a track libass rejects.
