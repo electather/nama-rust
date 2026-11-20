@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { fireEvent, screen, within } from "@testing-library/react";
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 
 import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
 import { PluginService } from "@/gen/nama/v1/plugin_pb";
@@ -56,6 +56,15 @@ function rowNames() {
     .map((row) => row.querySelector("p")?.textContent);
 }
 
+/** The grip the row called `name` is dragged by. */
+function dragHandle(name: string) {
+  const handle = screen.getByText(name).closest("li")?.querySelector("span[aria-hidden]");
+  if (handle === null || handle === undefined) {
+    throw new Error(`${name} has no drag handle`);
+  }
+  return handle;
+}
+
 test("an Admin reorders Home rows, hides one and Featured, and saves the default Home layout", async () => {
   const saves = openHomeLayout({ rows: [continueWatching, picks, usersRows] });
 
@@ -99,4 +108,23 @@ test("the first row can't move up nor the last down", async () => {
     "disabled",
     true,
   );
+});
+
+test("an Admin drags a Home row to the end", async () => {
+  openHomeLayout({ rows: [continueWatching, picks, usersRows] });
+
+  await screen.findByText("Continue Watching");
+  const items = within(screen.getByRole("list")).getAllByRole("listitem");
+  for (const [index, item] of items.entries()) {
+    vi.spyOn(item, "getBoundingClientRect").mockReturnValue(
+      DOMRect.fromRect({ y: index * 60, height: 60 }),
+    );
+  }
+  const handle = dragHandle("Continue Watching");
+  fireEvent.pointerDown(handle, { pointerId: 1, button: 0 });
+  fireEvent.pointerMove(handle, { pointerId: 1, clientY: 170 });
+  fireEvent.pointerUp(handle, { pointerId: 1 });
+
+  expect(rowNames()).toStrictEqual(["Top picks", "Each User’s own rows", "Continue Watching"]);
+  expect(screen.getByText("Continue Watching moved to place 3 of 3.")).toBeDefined();
 });
