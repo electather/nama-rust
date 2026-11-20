@@ -60,6 +60,7 @@ use nama_proto::nama::v1 as proto;
 use proto::PlaybackReasonKind as Kind;
 
 use crate::{
+    db::detached,
     ffmpeg::{Abilities, Accel, CanDo, Remux, Transcode},
     server_settings::{HardwareChoice, PlaybackLimit, PlaybackValues},
     users::Caller,
@@ -73,8 +74,8 @@ use codecs::{file_audio, is_audio, played_audio_place, played_by, played_tracks}
 use direct_play::direct_play_url;
 use limits::{fitted, limit_in_effect, network, on_local_network, picture, playback_limit};
 use steps::{
-    converting, device_decoding, failed_on_device, fallback, keyframes_unlisted, remux,
-    server_busy, server_ffmpeg, too_busy_to_play, transcode, version_length, version_tracks,
+    converting, device_decoding, failed_on_device, failed_on_server, fallback, keyframes_unlisted,
+    remux, server_busy, server_ffmpeg, too_busy_to_play, transcode, version_length, version_tracks,
 };
 
 /// How a plan plays a Version, the one the Server prefers first.
@@ -363,7 +364,8 @@ pub(crate) enum AskedSubtitle {
 
 /// Plans what `asked` asks on `caller`'s Device, by the Playback settings `settings`, and starts
 /// it in `running` if it plays. It probes the Version first unless its Tracks are current. A Remux
-/// whose keyframes can't be listed is planned again without one. `None` if there is no such
+/// whose keyframes can't be listed, or a plan whose ffmpeg stops before writing anything, is
+/// planned again without its method, until one plays or none is left. `None` if there is no such
 /// Version, and [`StartError::Busy`] if only a Transcode would play it and the Server is running
 /// as many as it may.
 #[expect(
@@ -415,6 +417,7 @@ pub(crate) async fn plan(
         device: decoding,
         can_do: abilities.can_do().await,
         failed,
+        failed_on_server: BTreeSet::new(),
         keyframes_unlisted: false,
         audio,
         running_transcodes: running.running_transcodes(),
@@ -431,19 +434,22 @@ pub(crate) async fn plan(
         hardware_choice: settings.hardware,
         dropped: BTreeSet::new(),
     };
-    match start_built(running, caller, facts.clone(), start_ms).await {
-        Err(StartError::Keyframes(err)) => {
-            tracing::warn!(
-                version,
-                "could not list a Version's keyframes, so planning it without a Remux: {err}"
-            );
-            facts.keyframes_unlisted = true;
-            // Waiting for them may have taken half a minute, so the Transcode limit is checked
-            // again (#827).
-            facts.running_transcodes = running.running_transcodes();
-            start_built(running, caller, facts, start_ms).await
+    loop {
+        match start_built(running, caller, facts.clone(), start_ms).await {
+            Err(StartError::Keyframes(err)) => {
+                tracing::warn!(
+                    version,
+                    "could not list a Version's keyframes, so planning it without a Remux: {err}"
+                );
+                facts.keyframes_unlisted = true;
+            }
+            Err(StartError::FailedOnServer(method)) => {
+                facts.failed_on_server.insert(method);
+            }
+            planned => return planned,
         }
-        planned => planned,
+        // The pass may have waited seconds, so the Transcode limit is checked again (#827).
+        facts.running_transcodes = running.running_transcodes();
     }
 }
 
@@ -461,7 +467,9 @@ async fn start_built(
             None => Ok(Some(Planned::Unplayable(plan))),
         };
     }
-    let started = running.start(caller, plan, start_ms).await?;
+    let (running, caller) = (running.clone(), caller.clone());
+    // A Device giving up mid-wait mustn't leave ffmpeg and its folder with no plan (ADR 0029).
+    let started = detached(async move { running.start(&caller, plan, start_ms).await }).await?;
     Ok(started.map(Planned::Started))
 }
 
@@ -536,6 +544,8 @@ struct Facts {
     can_do: CanDo,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
+    /// The methods whose ffmpeg stopped before writing anything while it was planned just now.
+    failed_on_server: BTreeSet<Method>,
     /// Whether listing the Version's keyframes failed or timed out, now or for its file as it is
     /// (#850), or isn't done yet (#866), which a Remux needs.
     keyframes_unlisted: bool,
@@ -604,7 +614,12 @@ const LASTING_STEPS: [Step; 4] = [
 ];
 
 /// The steps for what rules a method out only for now.
-const NOW_STEPS: [Step; 3] = [failed_on_device, keyframes_unlisted, server_busy];
+const NOW_STEPS: [Step; 4] = [
+    failed_on_device,
+    failed_on_server,
+    keyframes_unlisted,
+    server_busy,
+];
 
 /// The steps for the User's choices, each dropped where it leaves no method and the plan plays
 /// without it.

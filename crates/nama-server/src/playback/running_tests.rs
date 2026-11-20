@@ -10,9 +10,10 @@ use nama_proto::nama::v1::{
     Playback, PlaybackChanged, PlaybackEnded, PlaybackMethod, PlaybackReason, PlaybackReasonKind,
     PlaybackStarted,
 };
+use tokio::task::JoinHandle;
 
 use super::{
-    FallbackRun, Method, RunningPlans, RunningTranscodes, Runs, sweep_leftovers,
+    FallbackRun, Method, RunningPlans, RunningTranscodes, Runs, StartError, sweep_leftovers,
     testing::{FakeRuns, every_two_seconds},
 };
 use crate::{
@@ -93,8 +94,17 @@ fn plan_dir(data: &Path, id: u64) -> PathBuf {
     data.join("transcodes").join(format!("nama-plan-{id}"))
 }
 
-/// Starts a plan by `method` for the Device `device`, whose runs the test stands in for, and
-/// returns its id with those runs.
+/// `starting`'s outcome, on paused time, so the wait for a first file that fake runs never write
+/// ends at once, as it would for a slow but healthy ffmpeg.
+async fn past_the_wait<T>(starting: impl Future<Output = T>) -> T {
+    tokio::time::pause();
+    let started = starting.await;
+    tokio::time::resume();
+    started
+}
+
+/// Starts a plan by `method` for the Device `device`, whose runs the test stands in for and which
+/// write nothing, and returns its id with those runs.
 pub(super) async fn start_faked(
     plans: &RunningPlans,
     method: Method,
@@ -107,10 +117,8 @@ pub(super) async fn start_faked(
         cpu_bound: false,
         fallback: None,
     };
-    let id = (plans.start_hls(playback(device), every_two_seconds(), 0, started, None))
-        .await
-        .unwrap();
-    (id, runs)
+    let starting = plans.start_hls(playback(device), every_two_seconds(), 0, started, None);
+    (past_the_wait(starting).await.unwrap(), runs)
 }
 
 /// Starts a Remux for the Device `device` whose runs the test stands in for, and returns its id.
@@ -119,12 +127,27 @@ pub(super) async fn start_remux(plans: &RunningPlans, device: i64) -> u64 {
 }
 
 /// Starts a Transcode on hardware for the Device 7, as `started`, falling back to software, and
-/// returns its id with its runs on hardware and in software.
+/// returns its id with its runs on hardware and in software, which write nothing.
 pub(super) async fn start_on_hardware(
     plans: &RunningPlans,
     started: Playback,
     software_reasons: Vec<PlaybackReason>,
 ) -> (u64, FakeRuns, FakeRuns) {
+    let (starting, hardware, software) = starting_on_hardware(plans, started, software_reasons);
+    (
+        past_the_wait(starting).await.unwrap().unwrap(),
+        hardware,
+        software,
+    )
+}
+
+/// Starts a Transcode on hardware as [`start_on_hardware`] does, in a task of its own, and returns
+/// the task with the runs.
+fn starting_on_hardware(
+    plans: &RunningPlans,
+    started: Playback,
+    software_reasons: Vec<PlaybackReason>,
+) -> (JoinHandle<Result<u64, StartError>>, FakeRuns, FakeRuns) {
     let (hardware, software) = (FakeRuns::default(), FakeRuns::default());
     let runs = Runs {
         method: Method::Transcode,
@@ -137,10 +160,11 @@ pub(super) async fn start_on_hardware(
         reasons: software_reasons,
         hardware: vaapi(),
     };
-    let id = (plans.start_hls(started, every_two_seconds(), 0, runs, Some(fallback)))
-        .await
-        .unwrap();
-    (id, hardware, software)
+    let plans = plans.clone();
+    let starting = tokio::spawn(async move {
+        (plans.start_hls(started, every_two_seconds(), 0, runs, Some(fallback))).await
+    });
+    (starting, hardware, software)
 }
 
 /// The hardware [`start_on_hardware`] Transcodes on.
@@ -249,6 +273,62 @@ async fn a_transcode_whose_hardware_fails_says_once_it_plays_in_software_and_end
             Some(told.into()),
             "once, and ends as it played"
         );
+    }
+}
+
+#[tokio::test]
+async fn a_plan_whose_ffmpeg_is_still_going_after_the_wait_for_its_first_file_starts() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+
+    let (id, runs) = start_faked(&plans, Method::Transcode, 7).await;
+
+    assert!(plans.ask(id, 7).is_some());
+    assert!(!runs.dropped(0));
+}
+
+#[tokio::test]
+async fn a_transcode_whose_hardware_fails_while_it_starts_is_told_once_as_started_in_software() {
+    let data = tempfile::tempdir().unwrap();
+    let db = database(data.path()).await;
+    let events = event_bus(&db);
+    let plans = plans_with(
+        &db,
+        settings(&db, data.path().join("transcodes")).playback(),
+        &events,
+    );
+    let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
+    let software_reasons =
+        only_reason(PlaybackReasonKind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY);
+    // Once the database is open, whose pool would time out on paused time.
+    tokio::time::pause();
+    let (starting, hardware, software) =
+        starting_on_hardware(&plans, playback(7), software_reasons.clone());
+
+    hardware.until_started(1).await;
+    hardware.fail(0, "Failed to upload the frame to the GPU");
+    software.until_started(1).await;
+    let id = starting.await.unwrap().unwrap();
+    plans.stop_for(id, 7).await;
+
+    let started = Playback {
+        reasons: software_reasons,
+        plan_id: id,
+        ..playback(7)
+    };
+    let told_in_order = [
+        event(PlaybackStarted {
+            playback: started.clone().into(),
+            ..Default::default()
+        }),
+        event(PlaybackEnded {
+            playback: started.into(),
+            ..Default::default()
+        }),
+    ];
+    for told in told_in_order {
+        let next = subscription.next().await.unwrap();
+        assert_eq!(next.message, Some(told.into()), "once, and nothing else");
     }
 }
 

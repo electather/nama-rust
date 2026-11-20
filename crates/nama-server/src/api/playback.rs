@@ -434,7 +434,7 @@ fn plan_failed(err: StartError, version: i64) -> ConnectError {
             .param("folder", &folder)
             .into()
         }
-        err @ (StartError::Keyframes(_) | StartError::Run(_)) => {
+        err @ (StartError::Keyframes(_) | StartError::Run(_) | StartError::FailedOnServer(_)) => {
             tracing::error!(version, "could not start a plan: {err}");
             ConnectError::internal("the Server failed")
         }

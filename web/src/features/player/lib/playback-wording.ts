@@ -15,9 +15,8 @@ import { HardwareAccelerationSchema } from "@/gen/nama/v1/server_pb";
 import { belowOriginal, hardwareNames } from "@/shared/lib/playback-names";
 import { channelsName } from "@/shared/lib/version-facts";
 
-// Playback Reasons, and the names of methods, Playback Limits and hardware their sentences use,
-// are worded here and in `@/shared/lib/playback-names`, so a translation library plugs in there
-// later (#690).
+// Playback Reasons, and the names of methods, Playback Limits and hardware they use, are worded
+// here and in `@/shared/lib/playback-names`, so a translation library plugs in there later (#690).
 
 const methodNames = new Map<PlaybackMethod, string>([
   [PlaybackMethod.DIRECT_PLAY, "Direct Play"],
@@ -102,6 +101,8 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
     "The subtitles chosen carry no palette to draw them with, so a Transcode burns them into the picture.",
   [PlaybackReasonKind.KEYFRAMES_UNLISTED]: () =>
     "The Server couldn’t list where its keyframes fall, which a Remux needs, so it can’t Remux it.",
+  [PlaybackReasonKind.METHOD_FAILED_ON_SERVER]: (param) =>
+    `${param.method()} failed on the Server: its ffmpeg stopped before writing anything.`,
   [PlaybackReasonKind.DEVICE_PLAYS_FEWER_CHANNELS]: (param) =>
     `Its audio is converted to ${param.channels()}, as this Device doesn’t play 5.1.`,
   [PlaybackReasonKind.DEVICE_CHANNELS_UNKNOWN]: (param) =>
