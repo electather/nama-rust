@@ -179,11 +179,7 @@ async fn get_alien(server: &TestServer, library: &Library) -> Movie {
 }
 
 /// Dark, Matched in a new Shows Library searching `title_sources`, as `GetShow` gives it.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn dark(server: &TestServer, title_sources: &[&str]) -> Show {
+async fn dark(server: &TestServer, title_sources: &[&str]) -> (Library, Show) {
     let library = (server.create_library_searching(
         LibraryKind::LIBRARY_KIND_SHOWS,
         &[DARK_S01E01],
@@ -191,6 +187,16 @@ async fn dark(server: &TestServer, title_sources: &[&str]) -> Show {
     ))
     .await;
     server.scan_and_match(&library).await;
+    let show = get_dark(server, &library).await;
+    (library, show)
+}
+
+/// Dark as `GetShow` gives it in `library`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn get_dark(server: &TestServer, library: &Library) -> Show {
     let request = GetShowRequest {
         library_id: library.id,
         show_id: tmdb(DARK).into(),
@@ -206,7 +212,7 @@ async fn a_source_with_an_english_backdrop_gives_movies_and_shows_a_titled_backd
     let token = Some(server.admin_token.as_str());
 
     let (_, movie) = alien(&server, &["tmdb", TITLED]).await;
-    let show = dark(&server, &["tmdb", TITLED]).await;
+    let (_, show) = dark(&server, &["tmdb", TITLED]).await;
 
     for url in [movie.titled_backdrop_url, show.titled_backdrop_url] {
         let url = url.expect("no titled Backdrop");
@@ -226,15 +232,24 @@ async fn a_source_with_an_english_backdrop_gives_movies_and_shows_a_titled_backd
 #[tokio::test]
 async fn once_resized_a_titled_backdrop_is_sent_with_its_thumbhash() {
     let server = server().await;
-    let (library, before) = alien(&server, &["tmdb", TITLED]).await;
-    let url = before.titled_backdrop_url.clone().unwrap();
+    let (movies, movie) = alien(&server, &["tmdb", TITLED]).await;
+    let (shows, show) = dark(&server, &["tmdb", TITLED]).await;
+    // Titled lists the same image for every title, so resizing it once serves both.
+    let url = movie.titled_backdrop_url.clone().unwrap();
+    assert_eq!(show.titled_backdrop_url.as_ref(), Some(&url));
 
     let resized = format!("{url}?width=640");
     fetch(&server, &resized, Some(&server.admin_token)).await;
-    let after = get_alien(&server, &library).await;
+    let movie_after = get_alien(&server, &movies).await;
+    let show_after = get_dark(&server, &shows).await;
 
-    assert_eq!(before.titled_backdrop_thumbhash, None);
-    assert!(after.titled_backdrop_thumbhash.is_some());
+    let before = (
+        movie.titled_backdrop_thumbhash,
+        show.titled_backdrop_thumbhash,
+    );
+    assert_eq!(before, (None, None));
+    assert!(movie_after.titled_backdrop_thumbhash.is_some());
+    assert!(show_after.titled_backdrop_thumbhash.is_some());
 }
 
 #[tokio::test]
@@ -242,7 +257,7 @@ async fn titles_whose_sources_have_no_english_backdrop_send_no_titled_backdrop()
     let server = server().await;
 
     let (_, movie) = alien(&server, &["tmdb"]).await;
-    let show = dark(&server, &["tmdb"]).await;
+    let (_, show) = dark(&server, &["tmdb"]).await;
 
     assert!(movie.backdrop_url.is_some());
     assert_eq!(

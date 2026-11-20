@@ -5,6 +5,7 @@ use nama_plugin_api::{
     contract::ArtworkKind,
     metadata::{ExternalId, ExternalIds, TitleMethod},
 };
+use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
 use super::season;
@@ -402,51 +403,91 @@ fn bb_listing() -> ScriptedSource {
     artwork_only("bb", "aa", &SourcesAsked::default())
 }
 
+/// The Movie `Dark`, Matched in a Movies Library with the sources `[aa, bb]`.
+struct DarkMatched {
+    contents: Contents,
+    library: i64,
+    matcher: Matcher,
+    locks: ScanLocks,
+    _data: TempDir,
+    _media: TempDir,
+}
+
+impl DarkMatched {
+    async fn new(aa: ScriptedSource, bb: ScriptedSource) -> Self {
+        let data = tempfile::tempdir().unwrap();
+        let media = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let library = fixture::movies_library(&db, media.path()).await;
+        Libraries::new(Arc::clone(&db))
+            .set_title_sources(library, vec!["aa".to_owned(), "bb".to_owned()])
+            .await
+            .unwrap();
+        let contents = Contents::new(Arc::clone(&db));
+        let file = Change::Store {
+            path: "/media/Dark.mkv".to_owned(),
+            size: 10,
+            modified_ns: 0,
+            items: vec![Item::Movie {
+                title: "Dark".to_owned(),
+                year: None,
+                hint: None,
+            }],
+        };
+        contents.apply(library, vec![file]).await.unwrap();
+        let plugins = Registry::new();
+        for source in [aa, bb] {
+            plugins.enable(Arc::new(source)).unwrap();
+        }
+        let images = ImageStore::new(data.path(), Arc::clone(&db));
+        let locks = ScanLocks::for_tests();
+        let matcher = Matcher::new(
+            Arc::clone(&db),
+            plugins.extension_points(),
+            Artwork::new(images, plugins.extension_points()),
+            EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
+            locks.clone(),
+        );
+        let dark = Self {
+            contents,
+            library,
+            matcher,
+            locks,
+            _data: data,
+            _media: media,
+        };
+        dark.match_library().await;
+        dark
+    }
+
+    /// Matches the Library as a scan does.
+    async fn match_library(&self) {
+        let scan = self.locks.lock(self.library).await;
+        (self.matcher)
+            .match_library(&scan, &CancellationToken::new())
+            .await
+            .unwrap();
+    }
+
+    /// Each image, as its Plugin and path, that the Match stores.
+    async fn images(&self) -> Vec<(String, String)> {
+        let mut stored = self.contents.images(Some(self.library)).await.unwrap();
+        stored.sort();
+        stored
+    }
+
+    /// The titled Backdrop the Match stores, as its Plugin and path.
+    async fn titled_backdrop(&self) -> Option<(String, String)> {
+        let movie = self.contents.movies(self.library, None).await.unwrap();
+        let backdrop = movie.into_iter().next().unwrap().titled_backdrop;
+        backdrop.map(|image| (image.plugin.to_string(), image.path))
+    }
+}
+
 /// Each image, as its Plugin and path, that matching the Movie `Dark` in a Movies Library with
 /// the sources `[aa, bb]` stores.
 async fn images_matching_dark(aa: ScriptedSource, bb: ScriptedSource) -> Vec<(String, String)> {
-    let data = tempfile::tempdir().unwrap();
-    let media = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let library = fixture::movies_library(&db, media.path()).await;
-    Libraries::new(Arc::clone(&db))
-        .set_title_sources(library, vec!["aa".to_owned(), "bb".to_owned()])
-        .await
-        .unwrap();
-    let contents = Contents::new(Arc::clone(&db));
-    let file = Change::Store {
-        path: "/media/Dark.mkv".to_owned(),
-        size: 10,
-        modified_ns: 0,
-        items: vec![Item::Movie {
-            title: "Dark".to_owned(),
-            year: None,
-            hint: None,
-        }],
-    };
-    contents.apply(library, vec![file]).await.unwrap();
-    let plugins = Registry::new();
-    for source in [aa, bb] {
-        plugins.enable(Arc::new(source)).unwrap();
-    }
-    let images = ImageStore::new(data.path(), Arc::clone(&db));
-    let locks = ScanLocks::for_tests();
-    let matcher = Matcher::new(
-        Arc::clone(&db),
-        plugins.extension_points(),
-        Artwork::new(images, plugins.extension_points()),
-        EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
-        locks.clone(),
-    );
-    let scan = locks.lock(library).await;
-    matcher
-        .match_library(&scan, &CancellationToken::new())
-        .await
-        .unwrap();
-
-    let mut stored = contents.images(Some(library)).await.unwrap();
-    stored.sort();
-    stored
+    DarkMatched::new(aa, bb).await.images().await
 }
 
 fn image(plugin: &str, path: &str) -> (String, String) {
@@ -474,6 +515,23 @@ async fn an_en_poster_of_a_later_source_beats_another_language_of_the_first() {
     let stored = images_matching_dark(german, english).await;
 
     assert_eq!(stored, [image("bb", "/bb-en.jpg")]);
+}
+
+#[tokio::test]
+async fn a_movie_matched_before_titled_backdrops_gets_its_titled_backdrop_on_the_next_scan() {
+    let backdrop = ArtworkKind::ARTWORK_KIND_BACKDROP;
+    let titled = bb_listing().with_artwork(backdrop, "/bb-en.jpg", "en");
+    let dark = DarkMatched::new(aa_with_poster("/aa-poster.jpg"), titled).await;
+    dark.contents.stored_by_older_metadata(dark.library).await;
+    let before = dark.titled_backdrop().await;
+
+    dark.match_library().await;
+
+    assert_eq!(before, None);
+    assert_eq!(
+        dark.titled_backdrop().await,
+        Some(image("bb", "/bb-en.jpg"))
+    );
 }
 
 #[tokio::test]
