@@ -24,8 +24,8 @@ mod exports {
 
     use nama_pdk::{
         Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier, Recipient,
-        RecipientGone,
-        extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
+        RecipientGone, Response,
+        extism_pdk::{self, Error, HttpRequest, Json},
         plugin_fn,
     };
     use serde::{
@@ -42,7 +42,7 @@ mod exports {
 
     /// Posts each notification for the channel to it, if one is set, and sends each one for a
     /// User to the chat their Plugin Connection names.
-    struct Telegram;
+    pub(super) struct Telegram;
 
     impl Notifier for Telegram {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
@@ -69,7 +69,7 @@ mod exports {
 
     /// The channel setting, or `None` if it is empty.
     fn channel() -> Result<Option<String>, Error> {
-        let channel = config::get(CHANNEL)?;
+        let channel = nama_pdk::setting(CHANNEL)?;
         Ok(channel
             .map(|channel| channel.trim().to_owned())
             .filter(|channel| !channel.is_empty()))
@@ -124,24 +124,23 @@ mod exports {
         if !(200..300).contains(&response.status_code()) {
             return Err(refused(&response));
         }
-        response
-            .json::<Answer<T>>()
+        extism_pdk::json::from_slice::<Answer<T>>(response.body())
             .map(|answer| answer.result)
             .map_err(|err| Error::msg(format!("Telegram's answer made no sense: {err}")))
     }
 
     /// The setting `key`, which the Server sets before every call.
     fn setting(key: &str) -> Result<String, Error> {
-        config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
+        nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
     }
 
     /// Why Telegram refused a request, in words an admin understands: a [`Forbidden`] for a 403.
-    fn refused(response: &HttpResponse) -> Error {
+    fn refused(response: &Response) -> Error {
         let status = response.status_code();
         let reason = match status {
             // Telegram answers 404 to a token that isn't even shaped like one.
             401 | 404 => "Telegram refused the bot token".to_owned(),
-            _ => match response.json::<Refusal>() {
+            _ => match extism_pdk::json::from_slice::<Refusal>(response.body()) {
                 Ok(refusal) => format!("Telegram said: {}", refusal.description),
                 Err(_) => format!("Telegram failed with HTTP status {status}"),
             },

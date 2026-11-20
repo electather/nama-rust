@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use nama_pdk::{
     Library, Manifest, Permission, Tick, TitleRef, TitleRequesters, TitleWatchStates,
-    extism_pdk::{Error, config},
+    extism_pdk::Error,
     kernel,
     nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
     services,
@@ -135,8 +135,11 @@ fn tick(tick: &Tick) -> Result<(), Error> {
     }
     let cutoffs = Cutoffs::at(
         tick.now_ms,
-        days(DAYS, config::get(DAYS)?.as_deref())?,
-        days(DAYS_UNWATCHED, config::get(DAYS_UNWATCHED)?.as_deref())?,
+        days(DAYS, nama_pdk::setting(DAYS)?.as_deref())?,
+        days(
+            DAYS_UNWATCHED,
+            nama_pdk::setting(DAYS_UNWATCHED)?.as_deref(),
+        )?,
     );
     let libraries = kernel::libraries()?;
     let mut refused = Vec::new();

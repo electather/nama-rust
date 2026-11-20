@@ -29,6 +29,8 @@ mod log;
 mod notification_text;
 mod recogniser;
 mod subtitle_source;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod testing;
 
 pub use automation::{
     Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
@@ -51,11 +53,38 @@ pub use log::write_log_line;
 /// with [`info!`] and the others, which the Server names its Plugin in, blanks its secrets in and
 /// bounds (ADR 0061).
 ///
+/// It also lacks Extism's `config`, `http` and `HttpResponse`: a Plugin reads a setting with
+/// [`setting`] and sends a request with [`http_request`], which a test can answer (ADR 0065).
+///
 /// ```compile_fail
 /// nama_pdk::extism_pdk::info!("Extism's own log is closed");
 /// ```
+///
+/// ```compile_fail
+/// nama_pdk::extism_pdk::config::get("url");
+/// ```
+///
+/// ```compile_fail
+/// let request = nama_pdk::extism_pdk::HttpRequest::new("http://service.test");
+/// nama_pdk::extism_pdk::http::request(&request, None::<String>);
+/// ```
+///
+/// ```compile_fail
+/// fn answered(_response: nama_pdk::extism_pdk::HttpResponse) {}
+/// ```
 pub mod extism_pdk {
     pub use ::extism_pdk::*;
+
+    #[expect(hidden_glob_reexports, reason = "closing Extism's to a Plugin")]
+    mod config {}
+    #[expect(hidden_glob_reexports, reason = "closing Extism's to a Plugin")]
+    mod http {}
+    #[expect(
+        dead_code,
+        hidden_glob_reexports,
+        reason = "closing Extism's to a Plugin"
+    )]
+    enum HttpResponse {}
 
     // Named, these shadow the glob's macros of the same names.
     #[doc(hidden)]
@@ -80,7 +109,7 @@ macro_rules! __extism_log_is_closed {
 /// What a notification says happened, in the Glossary's words, or `None` for what isn't told.
 pub use notification_text::what_happened;
 
-use ::extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
+use ::extism_pdk::{Error, FromBytesOwned, HttpRequest, ToBytes};
 use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices};
 
 /// The value of the id in `namespace` among a title's `ids`, such as its `tmdb` id, if it has one.
@@ -819,7 +848,7 @@ where
 /// When the config can't be read, or the setting holds something other than ids, which the Kernel
 /// never writes.
 pub fn setting_library_ids(key: &str) -> Result<Vec<i64>, Error> {
-    library_ids(key, &extism_pdk::config::get(key)?.unwrap_or_default())
+    library_ids(key, &setting(key)?.unwrap_or_default())
 }
 
 /// `text`, the setting `key`'s config, as Library ids: each in decimal, joined by `,`.
@@ -834,24 +863,88 @@ fn library_ids(key: &str, text: &str) -> Result<Vec<i64>, Error> {
         .collect()
 }
 
-/// Sends `request` with `body`, as [`extism_pdk::http::request`] does. If the Server can't send
-/// it, such as when nothing answers at its host, the call fails with `unreachable` as its error,
-/// in place of the HTTP client's own words.
+/// The setting `key`, as text, or `None` if it isn't set; what it holds when is in [What the
+/// Kernel gives a Plugin](https://github.com/electather/nama-rust/blob/main/crates/nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin).
+/// Off wasm32 it is the setting the [`testing::Kernel`] holds.
+///
+/// # Errors
+///
+/// When the Server's config can't be read.
+pub fn setting(key: &str) -> Result<Option<String>, Error> {
+    #[cfg(target_arch = "wasm32")]
+    return ::extism_pdk::config::get(key);
+    #[cfg(not(target_arch = "wasm32"))]
+    Ok(testing::setting(key))
+}
+
+/// Sends `request` with `body`. If the Server can't send it, such as when nothing answers at its
+/// host, the call fails with `unreachable` as its error, in place of the HTTP client's own words.
+/// Off wasm32 the [`testing::Kernel`] answers it.
 ///
 /// # Errors
 ///
 /// When `request` or `body` can't be passed to the Server.
-pub fn http_request<T: ToMemory>(
+pub fn http_request<'a, T: ToBytes<'a>>(
     request: &HttpRequest,
     body: Option<T>,
     unreachable: &str,
-) -> Result<HttpResponse, Error> {
-    // The Server ends the call at once when it can't send a request, so the Plugin never sees
-    // that error: the call fails with the one set beforehand.
-    set_error(unreachable);
-    let response = extism_pdk::http::request(request, body);
-    clear_error();
-    response
+) -> Result<Response, Error> {
+    let body = body.map(|body| body.to_bytes()).transpose()?;
+    let body = body.as_ref().map(AsRef::as_ref);
+    #[cfg(target_arch = "wasm32")]
+    {
+        // The Server ends the call at once when it can't send a request, so the Plugin never
+        // sees that error: the call fails with the one set beforehand.
+        set_error(unreachable);
+        let response = ::extism_pdk::http::request(request, body);
+        clear_error();
+        response.map(Response::from)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    testing::http_request(request, body.unwrap_or_default())
+        .map_err(|_unreachable| Error::msg(unreachable.to_owned()))
+}
+
+/// An HTTP response a Plugin was answered: its status and body, as the Server gives no headers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Response {
+    status: u16,
+    body: Vec<u8>,
+}
+
+impl Response {
+    /// A response with `status` and `body`, as a test answers a Plugin's request.
+    #[must_use]
+    pub fn new(status: u16, body: impl Into<Vec<u8>>) -> Self {
+        Self {
+            status,
+            body: body.into(),
+        }
+    }
+
+    /// Its HTTP status code, such as 200.
+    #[must_use]
+    pub fn status_code(&self) -> u16 {
+        self.status
+    }
+
+    /// Its body.
+    #[must_use]
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<::extism_pdk::HttpResponse> for Response {
+    fn from(response: ::extism_pdk::HttpResponse) -> Self {
+        let status = response.status_code();
+        // Copied out and freed, so a large body isn't held twice for the rest of the call.
+        let memory = response.into_memory();
+        let body = memory.to_vec();
+        memory.free();
+        Self { status, body }
+    }
 }
 
 /// The time by the Server's clock, since `SystemTime::now()` panics on wasm32-unknown-unknown.
@@ -896,6 +989,7 @@ pub extern "C" fn _initialize() {
 
 /// Makes `message` the error of the call in progress, as `plugin_fn` does for an `Err`. The trap
 /// that follows a panic keeps it, and the Server reads it as the call's error.
+#[cfg(target_arch = "wasm32")]
 fn set_error(message: &str) {
     let Ok(memory) = extism_pdk::Memory::from_bytes(message) else {
         return;
@@ -911,6 +1005,7 @@ fn set_error(message: &str) {
 }
 
 /// Undoes [`set_error`], so the call in progress succeeds unless it returns an `Err`.
+#[cfg(target_arch = "wasm32")]
 fn clear_error() {
     #[expect(unsafe_code, reason = "Extism has no safe way to clear the error")]
     // SAFETY: Extism reads an error offset of 0 as no error.

@@ -22,8 +22,8 @@ const ACCESS_TOKEN: &str = "access_token";
 )]
 mod exports {
     use nama_pdk::{
-        Buffa, FnResult, Manifest, Notification, Notifier, Recipient,
-        extism_pdk::{self, Error, HttpRequest, HttpResponse, config},
+        Buffa, FnResult, Manifest, Notification, Notifier, Recipient, Response,
+        extism_pdk::{self, Error, HttpRequest},
         nama_plugin_proto::nama::plugin::v1::{
             PersonalSettingsCheck, PersonalSettingsChecked, UserRecipient,
         },
@@ -73,7 +73,7 @@ mod exports {
             return Ok(());
         };
         let topic = super::topic(personal.get(TOPIC).map(String::as_str))?;
-        let server_url = config::get(SERVER_URL)?
+        let server_url = nama_pdk::setting(SERVER_URL)?
             .ok_or_else(|| Error::msg(format!("the setting {SERVER_URL} isn't set")))?;
         let mut request = HttpRequest::new(format!("{}/{topic}", server_url.trim_end_matches('/')))
             .with_method("POST")
@@ -93,9 +93,9 @@ mod exports {
     }
 
     /// Why ntfy refused a message: its status, and its own words if it gave any.
-    fn refused(response: &HttpResponse) -> Error {
+    fn refused(response: &Response) -> Error {
         let status = response.status_code();
-        match response.json::<Refusal>() {
+        match extism_pdk::json::from_slice::<Refusal>(response.body()) {
             Ok(Refusal { error: Some(error) }) => {
                 Error::msg(format!("ntfy failed with HTTP status {status}: {error}"))
             }

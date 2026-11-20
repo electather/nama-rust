@@ -4,8 +4,8 @@
 use std::collections::{HashMap, HashSet};
 
 use nama_pdk::{
-    CheckedSettings, Download, Fulfilled, Request,
-    extism_pdk::{Error, HttpRequest, HttpResponse, Json, config, json},
+    CheckedSettings, Download, Fulfilled, Request, Response,
+    extism_pdk::{Error, HttpRequest, Json, json},
     nama_plugin_proto::nama::plugin::v1::{DownloadStatus, SettingField, SettingKind},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -99,7 +99,7 @@ pub fn fulfilled(
 /// The setting `key`, which the Server sets before every call but a settings check, and for
 /// that one too unless it is a Choice.
 fn setting(key: &str) -> Result<String, Error> {
-    config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
+    nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
 }
 
 /// A quality profile of the service, which a Request is added at.
@@ -193,7 +193,7 @@ impl Servarr {
     /// If the service doesn't answer, refuses, or answers with something other than a `T`.
     pub fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
         let response = self.accepted(self.send("GET", path, None::<()>)?)?;
-        parsed(self.name, &response.body())
+        parsed(self.name, response.body())
     }
 
     /// Sends the service the change `body` to the API path `path` with `method`, ignoring what it
@@ -213,7 +213,7 @@ impl Servarr {
     /// If the service doesn't answer or refuses for another reason.
     pub fn add(&self, path: &str, body: impl Serialize, exists: &str) -> Result<bool, Error> {
         let response = self.send("POST", path, Some(body))?;
-        if already_has(exists, response.status_code(), &response.body()) {
+        if already_has(exists, response.status_code(), response.body()) {
             return Ok(false);
         }
         self.accepted(response).map(|_| true)
@@ -239,7 +239,7 @@ impl Servarr {
         method: &str,
         path: &str,
         body: Option<impl Serialize>,
-    ) -> Result<HttpResponse, Error> {
+    ) -> Result<Response, Error> {
         let url = format!("{}/api/v3/{path}", self.url.trim_end_matches('/'));
         let request = HttpRequest::new(url)
             .with_method(method)
@@ -250,12 +250,12 @@ impl Servarr {
     }
 
     /// `response`, if the service took the request, or else why it refused.
-    fn accepted(&self, response: HttpResponse) -> Result<HttpResponse, Error> {
+    fn accepted(&self, response: Response) -> Result<Response, Error> {
         let status = response.status_code();
         if (200..300).contains(&status) {
             Ok(response)
         } else {
-            Err(refused(self.name, status, &response.body()))
+            Err(refused(self.name, status, response.body()))
         }
     }
 }

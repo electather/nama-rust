@@ -12,7 +12,7 @@ Start from [`plugins/template`](../../plugins/template), a Notifier posting to a
 - [`plugins/discord`](../../plugins/discord): a Notifier reaching each User by their Personal settings, and telling the Kernel when one is gone.
 - [`plugins/webhook`](../../plugins/webhook): a Notifier posting to its channel alone.
 
-What the Kernel gives a running Plugin (its clock, its limits, its settings, its HTTP) is part of the contract and is listed once, in `nama-plugin-proto`'s README under [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). This README walks through writing a Plugin and links there for the rules.
+What the Kernel gives a running Plugin (its clock, its limits, its settings, its HTTP) is part of the contract and is listed once, in `nama-plugin-proto`'s README under [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). This README walks through writing a Plugin and links there for the rules; section 14 shows how a test stands in for the Kernel.
 
 ## 1. A cdylib depending on nama-pdk
 
@@ -112,7 +112,7 @@ A Notifier is handed each notification with its `Recipient`: `Channel`, the chan
 
 ## 5. Settings
 
-The Manifest's `settings` lists what an admin fills in, each a `SettingField` of a `SettingKind`. A Plugin reads a setting with `extism_pdk::config::get(key)`, as text; what it holds when is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). A Libraries setting holds Library ids an admin picked from the Server's list; read it with `nama_pdk::setting_library_ids(key)`, and skip an id the Kernel no longer lists, since a Library may be deleted after the setting is saved.
+The Manifest's `settings` lists what an admin fills in, each a `SettingField` of a `SettingKind`. A Plugin reads a setting with `nama_pdk::setting(key)`, as text; what it holds when is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). A Libraries setting holds Library ids an admin picked from the Server's list; read it with `nama_pdk::setting_library_ids(key)`, and skip an id the Kernel no longer lists, since a Library may be deleted after the setting is saved.
 
 A Plugin with a Choice setting, such as a quality profile, exports `check_settings()`, which the Server calls when an admin tests the settings, saves them with a Choice setting they set, or replaces a Fulfiller's Qualities with a non-empty list; a failing check refuses that save or replace, and a slow one holds it up. It checks them against the outside service and offers each Choice setting's values, built with `nama_pdk::checked_settings`:
 
@@ -176,7 +176,7 @@ impl Automation for Counter {
 nama_pdk::automation!(Counter);
 ```
 
-Off wasm32, as in a Plugin's unit tests, every Kernel function fails, since there is no Kernel to call.
+Off wasm32, as in a Plugin's unit tests, every Kernel function fails, since a test can't script them yet (section 14).
 
 ## 7. Recognising
 
@@ -270,7 +270,7 @@ nama_pdk::blob_store!(Bucket);
 
 ## 9. HTTP
 
-Send requests with `nama_pdk::http_request`, which works like `extism_pdk::http::request` but takes the error the call fails with when nothing answers. Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
+Send requests with `nama_pdk::http_request`, which takes the error the call fails with when nothing answers and answers a `nama_pdk::Response`. `nama_pdk::extism_pdk` has no `config` or `http`, so settings and requests always go through `nama-pdk`, which a test can stand in for (section 14). Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
 
 Plugins are not given HTTP response headers today: a response carries its status and body only. A later stage may add them, so don't build on either.
 
@@ -300,3 +300,32 @@ cargo build --release --target wasm32-unknown-unknown
 ```
 
 Copy `target/wasm32-unknown-unknown/release/nama_plugin_hello.wasm` into `<data_dir>/plugins/`, where `data_dir` is the Server's config setting. The Server reads that folder when it starts and whenever the Plugins are listed; an admin then enables the Plugin on its page under Plugins.
+
+## 14. Testing a Plugin
+
+A Plugin's native unit tests call its Extension Point methods, such as `fulfill`, `deliver` or `put`, the way the Kernel would, through `nama_pdk::testing` (ADR [0065](../../docs/adr/0065-a-plugin-tests-its-conversation-through-nama-pdk.md)). `testing::with(&mut kernel, || ...)` gives the call a `testing::Kernel` holding the Plugin's settings and a handler answering its HTTP requests; afterwards `kernel.sent()` lists the requests it sent, in order, with their bodies. A request the test didn't script panics, so it can't reach the Plugin as an error it might retry or swallow; a handler answering `Err` is a host that can't be reached, and the request fails with the Plugin's own words for that. The Kernel doesn't check the Manifest's allowed hosts, which the Server's own tests cover. `testing` is unstable: the Kernel's functions can't be scripted yet.
+
+```rust
+use nama_pdk::{
+    Response,
+    extism_pdk::{Error, HttpRequest},
+    testing::{Kernel, with},
+};
+
+/// What the Plugin does in a call: ask the service at its `url` setting how it is.
+fn status() -> Result<u16, Error> {
+    let url = nama_pdk::setting("url")?.unwrap_or_default();
+    let request = HttpRequest::new(format!("{url}/status"));
+    let response = nama_pdk::http_request(&request, None::<String>, "the service didn't answer")?;
+    Ok(response.status_code())
+}
+
+let mut kernel = Kernel::new()
+    .setting("url", "http://service.test")
+    .http(|_request, _body| Ok(Response::new(503, "")));
+
+assert_eq!(with(&mut kernel, status).ok(), Some(503));
+assert_eq!(kernel.sent()[0].request.url, "http://service.test/status");
+```
+
+A handler is any closure, so a queue of answers is one that takes the next from a `Vec`, and an in-process fake of the service, such as S3's in [`plugins/s3/src/fake_s3.rs`](../../plugins/s3/src/fake_s3.rs), plugs in as one.

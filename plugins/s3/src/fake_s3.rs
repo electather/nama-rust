@@ -5,10 +5,9 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use hmac::{Hmac, KeyInit as _, Mac as _};
+use nama_pdk::{Response, extism_pdk::HttpRequest};
 use sha2::{Digest as _, Sha256};
 use url::Url;
-
-use super::{Answer, Call};
 
 /// The access key ID the fake knows.
 pub(super) const ACCESS_KEY_ID: &str = "AKIAFAKEFAKEFAKE";
@@ -44,17 +43,21 @@ impl FakeS3 {
         }
     }
 
-    /// S3's answer to `call`.
-    pub(super) fn answer(&mut self, call: Call) -> Answer {
-        let mut answer = self.answer_with_body(call.method, &call.url, call.body);
+    /// S3's answer to `request` with `body`.
+    pub(super) fn answer(&mut self, request: &HttpRequest, body: &[u8]) -> Response {
+        let method = request.method.as_deref().unwrap_or("GET");
+        let Ok(url) = Url::parse(&request.url) else {
+            return error(400, "InvalidURI");
+        };
+        let answered = self.answer_with_body(method, &url, body);
         // S3 answers a HEAD with no body, refusals included.
-        if call.method == "HEAD" {
-            answer.body.clear();
+        if method == "HEAD" {
+            return answer(answered.status_code(), Vec::new());
         }
-        answer
+        answered
     }
 
-    fn answer_with_body(&mut self, method: &str, url: &Url, body: Option<Vec<u8>>) -> Answer {
+    fn answer_with_body(&mut self, method: &str, url: &Url, body: &[u8]) -> Response {
         if let Err(code) = self.verify(method, url) {
             return error(403, code);
         }
@@ -65,7 +68,7 @@ impl FakeS3 {
         match (method, key.is_empty()) {
             ("GET", true) => self.list(url),
             ("PUT", false) => {
-                self.objects.insert(key, body.unwrap_or_default());
+                self.objects.insert(key, body.to_vec());
                 answer(200, Vec::new())
             }
             ("GET", false) => match self.objects.get(&key) {
@@ -148,7 +151,7 @@ impl FakeS3 {
     }
 
     /// A `ListObjectsV2` page, its continuation token the first key of the next page.
-    fn list(&self, url: &Url) -> Answer {
+    fn list(&self, url: &Url) -> Response {
         let param = |name: &str| {
             url.query_pairs()
                 .find(|(key, _)| key == name)
@@ -202,12 +205,12 @@ impl FakeS3 {
     }
 }
 
-fn answer(status: u16, body: Vec<u8>) -> Answer {
-    Answer { status, body }
+fn answer(status: u16, body: Vec<u8>) -> Response {
+    Response::new(status, body)
 }
 
 /// S3's refusal with `code`, in the XML body it gives one.
-fn error(status: u16, code: &str) -> Answer {
+fn error(status: u16, code: &str) -> Response {
     answer(
         status,
         format!(

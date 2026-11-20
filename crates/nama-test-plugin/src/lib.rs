@@ -13,7 +13,7 @@ mod exports {
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Notification,
         Notifier, Recipient, Request,
-        extism_pdk::{self, Error, HttpRequest, config, http},
+        extism_pdk::{self, Error, HttpRequest},
         nama_plugin_proto::nama::plugin::v1::{
             ObservedEvents, PersonalSettingsCheck, PersonalSettingsChecked, SettingField,
             SettingKind, SettingValue, request::MovieOrSeason, setting_value,
@@ -184,7 +184,7 @@ mod exports {
     // a test can see the Server survive that.
     #[plugin_fn]
     pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<()> {
-        match config::get(OBSERVER)?.as_deref() {
+        match nama_pdk::setting(OBSERVER)?.as_deref() {
             Some("clock") => {
                 let since_epoch = nama_pdk::now().duration_since(UNIX_EPOCH)?;
                 nama_pdk::info!("test-plugin's clock reads {}", since_epoch.as_millis());
@@ -202,8 +202,9 @@ mod exports {
                 for event in observed.events {
                     nama_pdk::info!("test-plugin observed {event:?}");
                 }
-                if let Some(url) = config::get("fetch")? {
-                    let response = http::request::<()>(&HttpRequest::new(&url), None)?;
+                if let Some(url) = nama_pdk::setting("fetch")? {
+                    let response =
+                        ::extism_pdk::http::request::<()>(&HttpRequest::new(&url), None)?;
                     nama_pdk::info!("test-plugin fetched {url}: {}", response.status_code());
                 }
                 Ok(())
@@ -226,7 +227,7 @@ mod exports {
 
     impl Fulfiller for TestFulfiller {
         fn fulfill(request: Request) -> Result<Fulfilled, Error> {
-            match config::get(FULFILLER)?.as_deref() {
+            match nama_pdk::setting(FULFILLER)?.as_deref() {
                 Some("error") => Err(Error::msg("the test Plugin's Fulfiller was set to error")),
                 Some("loop") => loop_forever(),
                 #[expect(clippy::panic, reason = "it panics on purpose")]
@@ -276,7 +277,7 @@ mod exports {
                 ),
                 Recipient::Connection(_) => return Ok(()),
             };
-            match config::get(NOTIFIER)?.as_deref() {
+            match nama_pdk::setting(NOTIFIER)?.as_deref() {
                 Some("error") => Err(Error::msg("the test Plugin's Notifier was set to error")),
                 Some("loop") => loop_forever(),
                 #[expect(clippy::panic, reason = "it panics on purpose")]
@@ -291,12 +292,12 @@ mod exports {
     /// Posts `notification`, encoded as protobuf, to its `url` setting's URL, if it has one,
     /// naming `target` in a `Recipient` header if there is one.
     fn post(notification: Notification, target: Option<&str>) -> Result<(), Error> {
-        if let Some(url) = config::get("url")? {
+        if let Some(url) = nama_pdk::setting("url")? {
             let mut request = HttpRequest::new(&url).with_method("POST");
             if let Some(target) = target {
                 request = request.with_header("Recipient", target);
             }
-            http::request(&request, Some(Buffa(notification)))?;
+            ::extism_pdk::http::request(&request, Some(Buffa(notification)))?;
         }
         Ok(())
     }
@@ -306,7 +307,7 @@ mod exports {
     // instead.
     #[plugin_fn]
     pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
-        match config::get(FAIL_WITH)?.as_deref() {
+        match nama_pdk::setting(FAIL_WITH)?.as_deref() {
             Some("loop") => loop_forever(),
             #[expect(clippy::panic, reason = "it panics on purpose")]
             Some("panic") => panic!("the test Plugin's check was set to panic"),
@@ -316,8 +317,8 @@ mod exports {
             }
             Some(error) => Err(Error::msg(error.to_owned()).into()),
             None => {
-                if let Some(url) = config::get("url")? {
-                    http::request::<()>(&HttpRequest::new(&url), None)?;
+                if let Some(url) = nama_pdk::setting("url")? {
+                    ::extism_pdk::http::request::<()>(&HttpRequest::new(&url), None)?;
                 }
                 let profiles = [("1", "HD"), ("2", "Ultra HD")];
                 Ok(Buffa(nama_pdk::checked_settings([("profile", profiles)])))
@@ -417,8 +418,7 @@ mod exports {
 #[cfg(feature = "home-rows")]
 mod home_rows {
     use nama_pdk::{
-        HomeRow, HomeRowSource, HomeRowTitle, HomeRows, TitleId, TitleKind,
-        extism_pdk::{Error, config},
+        HomeRow, HomeRowSource, HomeRowTitle, HomeRows, TitleId, TitleKind, extism_pdk::Error,
     };
 
     /// The setting naming the keys of the rows it gives, comma-separated, all of them when
@@ -432,7 +432,7 @@ mod home_rows {
 
     impl HomeRowSource for TestRows {
         fn shared_rows() -> Result<HomeRows, Error> {
-            let asked = config::get(ROWS)?.unwrap_or_default();
+            let asked = nama_pdk::setting(ROWS)?.unwrap_or_default();
             nama_pdk::info!("test-plugin gives Home rows {asked:?}");
             if asked == "loop" {
                 super::exports::loop_forever();

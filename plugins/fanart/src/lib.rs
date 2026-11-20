@@ -4,8 +4,8 @@
 
 use nama_pdk::{
     Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Image, ImageAnswer, ImageAsked, Manifest,
-    SeasonAsked, TitleKind, TitleSource,
-    extism_pdk::{Error, HttpRequest, HttpResponse, config, json},
+    Response, SeasonAsked, TitleKind, TitleSource,
+    extism_pdk::{Error, HttpRequest, json},
     nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
     services,
 };
@@ -142,7 +142,7 @@ impl TitleSource for Fanart {
             image: Image {
                 // The Server gives a Plugin no response headers, so the type comes from the path.
                 content_type: content_type(&asked.path).to_owned(),
-                bytes: response.body(),
+                bytes: response.body().to_vec(),
                 ..Image::default()
             }
             .into(),
@@ -232,11 +232,11 @@ fn fetched(path: &str) -> Result<Option<Vec<u8>>, Error> {
         setting(API_URL)?.trim_end_matches('/'),
         encoded(&setting(API_KEY)?),
     );
-    if let Some(client_key) = config::get(CLIENT_KEY)?.filter(|key| !key.trim().is_empty()) {
+    if let Some(client_key) = nama_pdk::setting(CLIENT_KEY)?.filter(|key| !key.trim().is_empty()) {
         url = format!("{url}&client_key={}", encoded(client_key.trim()));
     }
     let response = accepted(send(&HttpRequest::new(url))?, "fanart.tv")?;
-    Ok(response.map(|response| response.body()))
+    Ok(response.map(|response| response.body().to_vec()))
 }
 
 /// What the `artwork` and `season_artwork` exports answer when the title can't be looked up.
@@ -330,16 +330,16 @@ fn asset_path(url: &str) -> Option<String> {
 
 /// The setting `key`, which the Server sets before every call.
 fn setting(key: &str) -> Result<String, Error> {
-    config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
+    nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
 }
 
-fn send(request: &HttpRequest) -> Result<HttpResponse, Error> {
+fn send(request: &HttpRequest) -> Result<Response, Error> {
     nama_pdk::http_request(request, None::<String>, "fanart.tv didn't answer")
 }
 
 /// `response` if `service` took the request, `None` for a 404, else an error naming the status
 /// and nothing of the request, which holds the key.
-fn accepted(response: HttpResponse, service: &str) -> Result<Option<HttpResponse>, Error> {
+fn accepted(response: Response, service: &str) -> Result<Option<Response>, Error> {
     match response.status_code() {
         200..300 => Ok(Some(response)),
         404 => Ok(None),
