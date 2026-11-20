@@ -233,7 +233,11 @@ impl Database {
         let (done, result) = oneshot::channel();
         // The writer's task runs it, so its queries would otherwise belong to no caller's trace.
         let caller = tracing::Span::current();
+        // Ends once the writer takes the job, so a trace shows how long the write waited behind
+        // others (#1130).
+        let queued = tracing::info_span!("write queued");
         let job: Job = Box::new(move |conn| {
+            drop(queued);
             Box::pin(
                 async move {
                     // The caller may have stopped waiting; the write still happened.

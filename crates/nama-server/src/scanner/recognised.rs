@@ -112,16 +112,22 @@ impl Failed {
 
 /// Has Contents read `library`'s unparsed files again and forget what Matching left Unmatched
 /// there if the Recognisers it lists that are enabled, in its order, aren't those its last scan
-/// started with, and records them, in one write (ADR 0050). A scan calls it under the Library's
-/// scan lock before it reads what is stored, so the files it marks are read in that scan.
+/// started with, and records them, in one write (ADR 0050); unchanged, it writes nothing. A scan
+/// calls it under the Library's scan lock before it reads what is stored, so the files it marks
+/// are read in that scan.
 pub(super) async fn read_again_if_changed(
     db: &Database,
+    libraries: &Libraries,
     plugins: &ExtensionPoints,
     library: &Library,
 ) -> Result<(), sqlx::Error> {
     let listed = listed(plugins, &library.recognisers);
     let read: Vec<&str> = listed.iter().map(PluginId::as_str).collect();
     let (id, read) = (library.id, read.join(","));
+    // Read first, so a scan with nothing to read again doesn't wait behind other writes (#1130).
+    if !libraries.recognisers_changed(id, &read).await? {
+        return Ok(());
+    }
     db.write(move |tx| {
         Box::pin(async move {
             if Libraries::record_recognisers_read(tx, id, &read).await? {

@@ -304,6 +304,19 @@ impl Libraries {
         self.db.write(move |tx| Box::pin(delete(tx, id))).await
     }
 
+    /// Whether `read`, as [`Self::record_recognisers_read`] takes it, differs from the Recognisers
+    /// the Library `id`'s last scan recorded. False for a Library there isn't.
+    pub(crate) async fn recognisers_changed(&self, id: i64, read: &str) -> sqlx::Result<bool> {
+        let changed = sqlx::query_scalar!(
+            r#"SELECT recognisers_read IS NOT ? AS "changed!: bool" FROM libraries WHERE id = ?"#,
+            read,
+            id,
+        )
+        .fetch_optional(self.db.reader())
+        .await?;
+        Ok(changed.unwrap_or(false))
+    }
+
     /// Records `read`, the ids of the enabled Recognisers the Library `id` lists, in its order and
     /// joined with commas, as those its starting scan reads with, and returns whether they differ
     /// from its last scan's. Part of the scan's write that reads its files again (ADR 0050).
