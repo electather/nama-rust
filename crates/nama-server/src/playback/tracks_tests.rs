@@ -123,6 +123,7 @@ fn ffmpeg_index_counts_only_earlier_tracks_of_the_same_kind() {
         duration_ms: None,
         bitrate: None,
         font_attachments: vec![],
+        chapters: vec![],
         tracks: vec![
             video(),
             audio(),
@@ -174,6 +175,7 @@ fn ffmpeg_index_of_an_embedded_subtitle_ignores_sidecars_after_it_and_a_sidecar_
         duration_ms: None,
         bitrate: None,
         font_attachments: vec![],
+        chapters: vec![],
         tracks: vec![subtitle(None), subtitle(None), sidecar(), sidecar()],
     };
 

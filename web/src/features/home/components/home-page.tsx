@@ -1,22 +1,21 @@
 import { ContinueWatching } from "@/features/home/components/continue-watching";
-import { HomeRows } from "@/features/home/components/home-rows";
-import { Libraries } from "@/features/home/components/libraries";
-import { useServerInfo } from "@/features/home/data/use-server-info";
-import { Page } from "@/shared/components/page";
+import { FeaturedSection } from "@/features/home/components/featured-section";
+import { HomeLayout } from "@/features/home/components/home-layout";
+import { HomeRowSection } from "@/features/home/components/home-row-section";
+import { useHomeRows } from "@/features/home/data/use-home-rows";
 
-/** Home: Continue Watching, the Libraries and the rows Plugins give. */
+/**
+ * Home: Featured, Continue Watching, then the rows Plugins give, each loading on its own. The
+ * top three load at once, in that order; each later row loads as you scroll near it.
+ */
 export function HomePage() {
-  const server = useServerInfo();
+  const rows = useHomeRows();
   return (
-    <Page heading={server.name}>
+    <HomeLayout hero={<FeaturedSection />}>
       <ContinueWatching />
-      <section aria-labelledby="libraries" className="mt-10">
-        <h2 id="libraries" className="font-medium">
-          Libraries
-        </h2>
-        <Libraries />
-      </section>
-      <HomeRows />
-    </Page>
+      {rows.map((row, index) => (
+        <HomeRowSection key={`${row.pluginId}/${row.key}`} row={row} eager={index === 0} />
+      ))}
+    </HomeLayout>
   );
 }

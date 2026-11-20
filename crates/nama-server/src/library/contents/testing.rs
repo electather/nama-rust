@@ -155,7 +155,8 @@ impl Contents {
                         "UPDATE item_matches
                          SET metadata_version = 0, still = NULL, genres = NULL,
                              content_rating = NULL, show_poster = NULL, show_poster_plugin = NULL,
-                             show_overview = NULL, show_first_air_date = NULL
+                             show_overview = NULL, show_first_air_date = NULL,
+                             titled_backdrop = NULL, titled_backdrop_plugin = NULL
                          WHERE item_id IN (SELECT library_items.id FROM library_items
                                            JOIN library_files
                                              ON library_files.id = library_items.file_id

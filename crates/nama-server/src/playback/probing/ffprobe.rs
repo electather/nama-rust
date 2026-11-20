@@ -8,7 +8,7 @@ use serde::Deserialize;
 use super::ProbeError;
 use crate::{
     ffmpeg::Ffmpeg,
-    playback::tracks::{BaseLayer, Hdr, ListedKeyframes, Probe, Track, TrackKind},
+    playback::tracks::{BaseLayer, Chapter, Hdr, ListedKeyframes, Probe, Track, TrackKind},
 };
 
 /// How long ffprobe may take over one file, such as one on a network share that stopped answering.
@@ -33,11 +33,17 @@ pub(super) struct Starts {
     pub(super) video_ms: Option<i64>,
 }
 
-/// The facts of the file at `path`, its video, audio and subtitle Tracks and the fonts it carries,
-/// as ffprobe reads them, and when it starts. Reads the whole file when its format doesn't say how
-/// long it is, or says so only from a placeholder header.
+/// The facts of the file at `path`, its video, audio and subtitle Tracks, the fonts it carries
+/// and its Chapters, as ffprobe reads them, and when it starts. Reads the whole file when its
+/// format doesn't say how long it is, or says so only from a placeholder header.
 pub(super) async fn probe(ffmpeg: &Ffmpeg, path: &str) -> Result<(Probe, Starts), ProbeError> {
-    let args = ["-print_format", "json", "-show_format", "-show_streams"];
+    let args = [
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        "-show_chapters",
+    ];
     let output = run(ffmpeg, &args, path, PROBE_TIMEOUT).await?;
     let (mut probe, starts) = parse_probe(&output)?;
     if probe.duration_ms.is_none() {
@@ -167,12 +173,22 @@ fn millis(seconds: &str) -> Option<i64> {
     i64::try_from(duration.as_millis()).ok()
 }
 
-/// What `ffprobe -print_format json -show_format -show_streams` printed.
+/// What `ffprobe -print_format json -show_format -show_streams -show_chapters` printed.
 #[derive(Deserialize)]
 struct ProbeOutput {
     format: ProbedFormat,
     #[serde(default)]
     streams: Vec<ProbedStream>,
+    #[serde(default)]
+    chapters: Vec<ProbedChapter>,
+}
+
+#[derive(Deserialize)]
+struct ProbedChapter {
+    /// In seconds, such as `"601.750000"`.
+    start_time: Option<String>,
+    #[serde(default)]
+    tags: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -262,6 +278,15 @@ fn parse_probe(json: &[u8]) -> Result<(Probe, Starts), serde_json::Error> {
         bitrate: format.bit_rate.and_then(|bitrate| bitrate.parse().ok()),
         tracks: output.streams.into_iter().filter_map(track).collect(),
         font_attachments,
+        chapters: (output.chapters.into_iter())
+            .map(|mut chapter| Chapter {
+                // Counted from the file's start, as keyframes are; one listed before it begins there.
+                start_ms: (chapter.start_time.as_deref())
+                    .and_then(millis)
+                    .map_or(0, |ms| (ms - starts.file_ms).max(0)),
+                title: chapter.tags.remove("title").unwrap_or_default(),
+            })
+            .collect(),
     };
     Ok((probe, starts))
 }

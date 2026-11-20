@@ -433,6 +433,7 @@ async fn a_version_read_by_an_older_probe_gets_its_keyframes_from_its_cues_when_
         bitrate: None,
         tracks: vec![],
         font_attachments: vec![],
+        chapters: vec![],
     };
     media.tracks.store(file, tracks_only).await.unwrap();
     media.tracks.read_by_older_probe(file.id).await;

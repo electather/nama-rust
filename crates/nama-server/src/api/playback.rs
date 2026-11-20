@@ -661,6 +661,14 @@ fn planned_to_proto(planned: Planned) -> PlanPlaybackResponse {
                 ..Default::default()
             })
             .collect(),
+        chapters: (plan.chapters.into_iter())
+            .map(|chapter| proto::Chapter {
+                // Probing never stores one before the file's start.
+                start_ms: u64::try_from(chapter.start_ms).unwrap_or_default(),
+                title: chapter.title,
+                ..Default::default()
+            })
+            .collect(),
         ..Default::default()
     };
     PlanPlaybackResponse {

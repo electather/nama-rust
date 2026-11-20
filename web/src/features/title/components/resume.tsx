@@ -1,8 +1,8 @@
 import { useContinueWatchingEntries } from "@/features/title/data/use-continue-watching-entries";
 import type { ContinueWatchingEntry } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
-import { PlayOrResume } from "@/shared/components/watch-state/play-or-resume";
-import { episodeName, metadataLine, timeLeft } from "@/shared/lib/title-facts";
+import { PlayButton } from "@/shared/components/watch-state/play-button";
+import { episodeName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
 /** Resume or start the Show's Episode in your Continue Watching. Nothing without one. */
@@ -26,14 +26,11 @@ export function Resume({ libraryId, showId }: { libraryId: bigint; showId: Exter
   } as const;
   return (
     <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
-      <PlayOrResume
-        link={link}
-        state={watchState}
-        detail={metadataLine(
-          episodeName(seasonNumber, episodeNumber, "short"),
-          timeLeft(watchState),
-        )}
-      />
+      <PlayButton link={link} state={watchState} />
+      {/* Which Episode it plays, as the pill can't say. */}
+      <span className="text-sm text-muted-foreground">
+        {episodeName(seasonNumber, episodeNumber, "short")}
+      </span>
     </div>
   );
 }

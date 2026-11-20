@@ -2,7 +2,11 @@ use std::{fs, time::Duration};
 
 use super::tests::Fixture;
 #[cfg(unix)]
-use super::tests::{counting_ffprobe, fake_ffprobe, probe_runs};
+use super::tests::{
+    chapters_read, counting_ffprobe, fake_ffprobe, ffprobe_reading_chapters, probe_runs,
+};
+#[cfg(unix)]
+use crate::playback::tracks::Probe;
 use crate::playback::tracks::{PROBE_ATTEMPTS, PROBE_VERSION, PassingReason, ProbeFailure};
 
 // The fake ffprobe is a shell script.
@@ -36,6 +40,32 @@ async fn an_unchanged_file_is_probed_again_only_once_the_probe_version_is_bumped
         2,
         "probed again at the current version"
     );
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_version_read_by_the_probe_before_chapters_gets_them_when_probed_again() {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(ffprobe_reading_chapters(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write(alien, 10).await;
+    let file = media.stored(alien).await;
+    let without_chapters = Probe {
+        container: "matroska,webm".to_owned(),
+        duration_ms: Some(3_600_000),
+        bitrate: None,
+        tracks: vec![],
+        font_attachments: vec![],
+        chapters: vec![],
+    };
+    media.tracks.store(file, without_chapters).await.unwrap();
+    media.tracks.read_by_older_probe(file.id).await;
+
+    media.probe_changed().await;
+
+    let stored = media.probe(alien).await.map(|probe| probe.chapters);
+    assert_eq!(stored, Some(chapters_read()));
 }
 
 // The fake ffprobe is a shell script.

@@ -10,7 +10,7 @@ export function PlayedMark({ state }: { state: WatchState | undefined }) {
   return (
     <span className="absolute inset-e-2 top-2 inline-flex size-7 items-center justify-center rounded-full bg-scrim text-primary">
       <Check aria-hidden className="size-4" strokeWidth={3} />
-      <span className="sr-only">Played</span>
+      <span className="sr-only">Watched</span>
     </span>
   );
 }

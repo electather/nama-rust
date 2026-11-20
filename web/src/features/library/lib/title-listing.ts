@@ -8,7 +8,7 @@ export const sorts = { title: "Title", added: "Recently Added", released: "Relea
 export const watchedStates = {
   "not-started": "Not started",
   started: "Started",
-  played: "Played",
+  played: "Watched",
 } as const;
 
 /** What a Library's grid is sorted by. */

@@ -1,25 +1,20 @@
 import type { Transport } from "@connectrpc/connect";
-import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
+import { pagedQuery, usePaged } from "@/shared/hooks/use-paged";
 
-/** Home's one page of Continue Watching: whole rows at one, two and three columns. */
-const continueWatchingRow = { page: { size: 6 } };
+/** A page of Continue Watching: a little over a wide screen's shelf of cards. */
+const continueWatchingPage = { page: { size: 8 } };
 
-/** Home's Continue Watching, for the route's loader to load before it shows. */
+/** Home's Continue Watching, for the route's loader to start before Home shows. */
 export function continueWatchingQuery(transport: Transport) {
   return {
-    ...createQueryOptions(BrowseService.method.listContinueWatching, continueWatchingRow, {
-      transport,
-    }),
+    ...pagedQuery(BrowseService.method.listContinueWatching, continueWatchingPage, transport),
     staleTime: "static" as const,
   };
 }
 
-/** Home's Continue Watching entries, most recent first. */
+/** Your Continue Watching, most recent first, page by page as its shelf scrolls. */
 export function useContinueWatching() {
-  return useSuspenseQuery(BrowseService.method.listContinueWatching, continueWatchingRow, {
-    staleTime: loaderStaleTime,
-  }).data.entries;
+  return usePaged(BrowseService.method.listContinueWatching, continueWatchingPage);
 }

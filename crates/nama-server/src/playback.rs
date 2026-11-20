@@ -36,6 +36,7 @@ mod tracks;
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
 pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
+pub(crate) use limits::{NAMED_LIMITS, limit_to_proto};
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
 pub(crate) use running::{
@@ -53,7 +54,7 @@ pub(crate) use track_preferences::{
     Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,
     is_language,
 };
-pub(crate) use tracks::{Probe, Track, TrackKind, Tracks, track_to_proto};
+pub(crate) use tracks::{Chapter, Probe, Track, TrackKind, Tracks, track_to_proto};
 
 use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32};
 
@@ -142,6 +143,8 @@ pub(crate) struct Plan {
     /// one in `burn_in`, or else a text one the Server chose for the Device to show.
     pub(crate) starting_subtitle: Option<usize>,
     pub(crate) offers: Offers,
+    /// The Version's Chapters, or none when it has fewer than two, which the player has no use for.
+    pub(crate) chapters: Vec<Chapter>,
 }
 
 impl Plan {
@@ -496,32 +499,6 @@ pub(crate) fn reason_to_proto(reason: &Reason) -> proto::PlaybackReason {
     }
 }
 
-/// Each Playback Limit below Original, by the API's name for it.
-pub(crate) const NAMED_LIMITS: [(PlaybackLimit, proto::PlaybackLimit); 3] = [
-    (
-        PlaybackLimit::P1080,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_1080P,
-    ),
-    (
-        PlaybackLimit::P720,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_720P,
-    ),
-    (
-        PlaybackLimit::P480,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_480P,
-    ),
-];
-
-/// `limit` as the API names it, `None` being Original.
-pub(crate) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLimit {
-    (NAMED_LIMITS.into_iter())
-        .find(|(ours, _)| Some(*ours) == limit)
-        .map_or(
-            proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
-            |(_, theirs)| theirs,
-        )
-}
-
 /// `accel` as the API names it.
 pub(crate) const fn accel_to_proto(accel: Accel) -> proto::HardwareAcceleration {
     match accel {
@@ -710,6 +687,10 @@ fn build(facts: &mut Facts) -> Plan {
         burn_in: burned_in,
         starting_subtitle: burned_in.or(facts.shown_subtitle),
         offers: offers(facts, &lasting),
+        chapters: (facts.probe.as_ref())
+            .map(|probe| probe.chapters.clone())
+            .filter(|chapters| chapters.len() > 1)
+            .unwrap_or_default(),
     }
 }
 

@@ -590,6 +590,7 @@ impl Metadata {
             runtime_minutes: movie.runtime_minutes,
             poster,
             backdrop,
+            titled_backdrop: None,
             logo: None,
             still: None,
             genres: movie.genres,

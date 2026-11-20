@@ -50,6 +50,7 @@ impl Media {
             bitrate: None,
             tracks,
             font_attachments: vec![],
+            chapters: vec![],
         };
         Tracks::new(Arc::clone(&self.db))
             .store(file, probe)

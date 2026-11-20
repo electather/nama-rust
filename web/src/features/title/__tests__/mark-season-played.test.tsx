@@ -50,14 +50,14 @@ test("marking a Season played marks each of its Episodes played", async () => {
     },
   );
   openApp("/libraries/2/shows/tmdb-95396", transport);
-  const marks = await screen.findAllByRole("button", { name: /^Played: Episode/u });
+  const marks = await screen.findAllByRole("button", { name: /^Watched: Episode/u });
   expect(marks.map((mark) => mark.getAttribute("aria-pressed"))).toStrictEqual(["false", "false"]);
 
   fireEvent.click(screen.getByRole("button", { name: "More for this Show" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Mark Season 1 played" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Mark Season 1 as watched" }));
 
   await waitFor(() => {
-    const now = screen.getAllByRole("button", { name: /^Played: Episode/u });
+    const now = screen.getAllByRole("button", { name: /^Watched: Episode/u });
     expect(now.map((mark) => mark.getAttribute("aria-pressed"))).toStrictEqual(["true", "true"]);
   });
   expect(marked).toBe("season");

@@ -64,9 +64,9 @@ test("reopening a Movie resumes where it stopped", async () => {
 
   // Leaving reports where it stopped, and the Movie's page shows how far in it is.
   fireEvent.click(screen.getByRole("link", { name: "Back" }));
-  await expect(screen.findByRole("progressbar", { name: "Watched" })).resolves.toBeDefined();
+  const resume = await screen.findByRole("link", { name: /^Resume/u });
   expect(reports.at(-1)?.positionMs).toBe(600_000n);
-  fireEvent.click(screen.getByRole("link", { name: "Resume" }));
+  fireEvent.click(resume);
 
   const resumed = await loadedVideo();
   expect(resumed.currentTime).toBe(600);

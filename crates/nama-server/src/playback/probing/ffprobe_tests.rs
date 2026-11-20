@@ -98,6 +98,7 @@ fn ffprobe_output_reads_as_tracks_without_cover_art_and_its_attachment_as_a_font
                 },
             ],
             font_attachments: vec![0],
+            chapters: vec![],
         }
     );
 }
