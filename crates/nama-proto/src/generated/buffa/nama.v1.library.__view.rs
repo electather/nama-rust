@@ -62,6 +62,12 @@ pub struct LibraryView<'a> {
     ///
     /// Field 10: `empty_folders`
     pub empty_folders: ::buffa::RepeatedView<'a, &'a str>,
+    /// Whether the Server makes Preview frames for the Library's Versions, in the background after
+    /// probing each, one at a time and only while nothing plays. Turning it off makes no more, and
+    /// keeps those made.
+    ///
+    /// Field 11: `preview_frames`
+    pub preview_frames: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
@@ -137,6 +143,13 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.preview_frames = ::buffa::types::decode_bool(&mut cur)?;
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -214,6 +227,7 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
             title_sources: self.title_sources.iter().map(|s| s.to_string()).collect(),
             recogniser_ids: self.recogniser_ids.iter().map(|s| s.to_string()).collect(),
             empty_folders: self.empty_folders.iter().map(|s| s.to_string()).collect(),
+            preview_frames: self.preview_frames,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -258,6 +272,9 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         for v in &self.empty_folders {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.preview_frames {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -301,6 +318,9 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         }
         for v in &self.empty_folders {
             ::buffa::types::put_string_field(10u32, v, buf);
+        }
+        if self.preview_frames {
+            ::buffa::types::put_bool_field(11u32, self.preview_frames, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -356,6 +376,9 @@ impl<'__a> ::serde::Serialize for LibraryView<'__a> {
         }
         if !self.empty_folders.is_empty() {
             __map.serialize_entry("emptyFolders", &*self.empty_folders)?;
+        }
+        if self.preview_frames {
+            __map.serialize_entry("previewFrames", &self.preview_frames)?;
         }
         __map.end()
     }
@@ -534,6 +557,15 @@ impl LibraryOwnedView {
     pub fn empty_folders(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().empty_folders
     }
+    /// Whether the Server makes Preview frames for the Library's Versions, in the background after
+    /// probing each, one at a time and only while nothing plays. Turning it off makes no more, and
+    /// keeps those made.
+    ///
+    /// Field 11: `preview_frames`
+    #[must_use]
+    pub fn preview_frames(&self) -> bool {
+        self.0.reborrow().preview_frames
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<LibraryView<'static>>>
 for LibraryOwnedView {
@@ -589,6 +621,10 @@ pub struct CreateLibraryRequestView<'a> {
     ///
     /// Field 5: `recogniser_ids`
     pub recogniser_ids: ::buffa::RepeatedView<'a, &'a str>,
+    /// The Library's `preview_frames`. Unset turns them on.
+    ///
+    /// Field 6: `preview_frames`
+    pub preview_frames: ::core::option::Option<bool>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for CreateLibraryRequestView<'a> {
@@ -636,6 +672,13 @@ impl<'a> ::buffa::MessageView<'a> for CreateLibraryRequestView<'a> {
                 view.kind = ::buffa::EnumValue::from(
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.preview_frames = Some(::buffa::types::decode_bool(&mut cur)?);
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -703,6 +746,7 @@ impl<'a> ::buffa::MessageView<'a> for CreateLibraryRequestView<'a> {
             folders: self.folders.iter().map(|s| s.to_string()).collect(),
             title_sources: self.title_sources.iter().map(|s| s.to_string()).collect(),
             recogniser_ids: self.recogniser_ids.iter().map(|s| s.to_string()).collect(),
+            preview_frames: self.preview_frames,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -732,6 +776,9 @@ impl<'a> ::buffa::ViewEncode<'a> for CreateLibraryRequestView<'a> {
         for v in &self.recogniser_ids {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.preview_frames.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -760,6 +807,9 @@ impl<'a> ::buffa::ViewEncode<'a> for CreateLibraryRequestView<'a> {
         }
         for v in &self.recogniser_ids {
             ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if let Some(v) = self.preview_frames {
+            ::buffa::types::put_bool_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -796,6 +846,9 @@ impl<'__a> ::serde::Serialize for CreateLibraryRequestView<'__a> {
         }
         if !self.recogniser_ids.is_empty() {
             __map.serialize_entry("recogniserIds", &*self.recogniser_ids)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.preview_frames {
+            __map.serialize_entry("previewFrames", &__v)?;
         }
         __map.end()
     }
@@ -928,6 +981,13 @@ impl CreateLibraryRequestOwnedView {
     #[must_use]
     pub fn recogniser_ids(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().recogniser_ids
+    }
+    /// The Library's `preview_frames`. Unset turns them on.
+    ///
+    /// Field 6: `preview_frames`
+    #[must_use]
+    pub fn preview_frames(&self) -> ::core::option::Option<bool> {
+        self.0.reborrow().preview_frames
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<CreateLibraryRequestView<'static>>>
@@ -2332,6 +2392,10 @@ pub struct UpdateLibraryRequestView<'a> {
     pub recogniser_order: ::buffa::MessageFieldView<
         super::super::__buffa::view::RecogniserOrderView<'a>,
     >,
+    /// The new `preview_frames`. Unset keeps the Library's.
+    ///
+    /// Field 6: `preview_frames`
+    pub preview_frames: ::core::option::Option<bool>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UpdateLibraryRequestView<'a> {
@@ -2399,6 +2463,13 @@ impl<'a> ::buffa::MessageView<'a> for UpdateLibraryRequestView<'a> {
                     }
                 }
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.preview_frames = Some(::buffa::types::decode_bool(&mut cur)?);
+            }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2462,6 +2533,7 @@ impl<'a> ::buffa::MessageView<'a> for UpdateLibraryRequestView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            preview_frames: self.preview_frames,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2493,6 +2565,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UpdateLibraryRequestView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.preview_frames.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2523,6 +2598,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UpdateLibraryRequestView<'a> {
                 buf,
             );
             self.recogniser_order.write_to(__cache, buf);
+        }
+        if let Some(v) = self.preview_frames {
+            ::buffa::types::put_bool_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2562,6 +2640,9 @@ impl<'__a> ::serde::Serialize for UpdateLibraryRequestView<'__a> {
             {
                 __map.serialize_entry("recogniserOrder", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.preview_frames {
+            __map.serialize_entry("previewFrames", &__v)?;
         }
         __map.end()
     }
@@ -2699,6 +2780,13 @@ impl UpdateLibraryRequestOwnedView {
         super::super::__buffa::view::RecogniserOrderView<'_>,
     > {
         &self.0.reborrow().recogniser_order
+    }
+    /// The new `preview_frames`. Unset keeps the Library's.
+    ///
+    /// Field 6: `preview_frames`
+    #[must_use]
+    pub fn preview_frames(&self) -> ::core::option::Option<bool> {
+        self.0.reborrow().preview_frames
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UpdateLibraryRequestView<'static>>>

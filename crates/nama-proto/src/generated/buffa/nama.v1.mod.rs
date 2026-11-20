@@ -271,6 +271,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
         reg.register_json_any(super::__CHAPTER_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_FRAMES_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_SUBTITLE_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_REASON_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_REQUEST_JSON_ANY);
@@ -1228,6 +1229,10 @@ pub use self::__buffa::view::PlaybackPlanOwnedView;
 pub use self::__buffa::view::ChapterView;
 #[doc(inline)]
 pub use self::__buffa::view::ChapterOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewFramesView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewFramesOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackSubtitleView;
 #[doc(inline)]

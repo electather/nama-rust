@@ -4,11 +4,12 @@
 //! written, and it keeps the rules a Library lives by: a folder belongs to at most one Library,
 //! and a Library's kind is fixed when it is created.
 
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
+use super::folders::{check_folders, ensure_folders_free};
 use crate::{db::Database, users::name_key};
 
 /// The kind of media a Library holds.
@@ -40,9 +41,12 @@ pub(crate) struct Library {
     /// The ids of the Plugins whose Recognisers it asks, first asked first; none asks only the
     /// Kernel's own Matching (ADR 0050).
     pub(crate) recognisers: Vec<String>,
+    /// Whether Preview frames are made for its Versions.
+    pub(crate) preview_frames: bool,
 }
 
-/// The orders a Library asks its Plugins in, as a create or an update gives them.
+/// The orders a Library asks its Plugins in, and whether it makes Preview frames, as a create or
+/// an update gives them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Order {
     /// Title source namespaces, first asked first; empty keeps the stored order. A new Library's
@@ -51,6 +55,8 @@ pub(crate) struct Order {
     /// Recogniser Plugin ids, first asked first; `None` keeps the stored order, or none for a
     /// new Library.
     pub(crate) recognisers: Option<Vec<String>>,
+    /// `None` keeps the stored setting, or makes them for a new Library.
+    pub(crate) preview_frames: Option<bool>,
 }
 
 /// Why a change to the Libraries was refused or failed.
@@ -146,7 +152,7 @@ impl Libraries {
     ) -> Result<Library, Error> {
         let order = Order {
             title_sources: default_title_sources(),
-            recognisers: None,
+            ..Order::default()
         };
         (self.create_in_order(name, kind, folders, order)).await
     }
@@ -176,7 +182,8 @@ impl Libraries {
     pub(crate) async fn list(&self) -> Result<Vec<Library>, Error> {
         let mut tx = self.db.reader().begin().await?;
         let rows = sqlx::query!(
-            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers
+            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers,
+                      preview_frames AS "preview_frames: bool"
                FROM libraries ORDER BY id"#
         )
         .fetch_all(&mut *tx)
@@ -217,6 +224,7 @@ impl Libraries {
                 kind: row.kind,
                 title_sources: split_sources(&row.title_sources),
                 recognisers: split_recognisers(&row.recognisers),
+                preview_frames: row.preview_frames,
             })
             .collect())
     }
@@ -224,8 +232,9 @@ impl Libraries {
     pub(crate) async fn get(&self, id: i64) -> Result<Library, Error> {
         let mut tx = self.db.reader().begin().await?;
         let row = sqlx::query!(
-            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers FROM libraries
-               WHERE id = ?"#,
+            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers,
+                      preview_frames AS "preview_frames: bool"
+               FROM libraries WHERE id = ?"#,
             id
         )
         .fetch_optional(&mut *tx)
@@ -254,6 +263,7 @@ impl Libraries {
             empty_folders,
             title_sources: split_sources(&row.title_sources),
             recognisers: split_recognisers(&row.recognisers),
+            preview_frames: row.preview_frames,
         })
     }
 
@@ -375,13 +385,17 @@ async fn create(
     let Order {
         title_sources,
         recognisers,
+        preview_frames,
     } = order;
+    let preview_frames = preview_frames.unwrap_or(true);
     ensure_name_free(conn, &name).await?;
     ensure_folders_free(conn, &folders, None).await?;
     let id = sqlx::query_scalar!(
-        r#"INSERT INTO libraries (name, kind) VALUES (?, ?) RETURNING id AS "id!""#,
+        r#"INSERT INTO libraries (name, kind, preview_frames) VALUES (?, ?, ?)
+           RETURNING id AS "id!""#,
         name,
         kind,
+        preview_frames,
     )
     .fetch_one(&mut *conn)
     .await?;
@@ -400,6 +414,7 @@ async fn create(
         empty_folders: Vec::new(),
         title_sources,
         recognisers,
+        preview_frames,
     })
 }
 
@@ -415,6 +430,7 @@ async fn update(
     let Order {
         title_sources,
         recognisers,
+        preview_frames,
     } = order;
     let current = sqlx::query_scalar!("SELECT name FROM libraries WHERE id = ?", id)
         .fetch_optional(&mut *conn)
@@ -426,9 +442,11 @@ async fn update(
         ensure_name_free(conn, &name).await?;
     }
     let row = sqlx::query!(
-        r#"UPDATE libraries SET name = ? WHERE id = ?
-           RETURNING kind AS "kind: Kind", title_sources, recognisers"#,
+        r#"UPDATE libraries SET name = ?, preview_frames = coalesce(?, preview_frames) WHERE id = ?
+           RETURNING kind AS "kind: Kind", title_sources, recognisers,
+                     preview_frames AS "preview_frames: bool""#,
         name,
+        preview_frames,
         id,
     )
     .fetch_one(&mut *conn)
@@ -482,6 +500,7 @@ async fn update(
         empty_folders,
         title_sources,
         recognisers,
+        preview_frames: row.preview_frames,
     })
 }
 
@@ -670,61 +689,6 @@ fn check_name(name: &str) -> Result<String, Error> {
     Ok(name.to_owned())
 }
 
-// Canonical paths make two spellings of one folder (a trailing slash, a symlink) the same folder.
-async fn check_folders(folders: Vec<String>) -> Result<Vec<String>, Error> {
-    if folders.is_empty() {
-        return Err(Error::FoldersEmpty);
-    }
-    let mut canonical = Vec::with_capacity(folders.len());
-    for (index, folder) in folders.into_iter().enumerate() {
-        match check_folder(&folder, &canonical).await {
-            Ok(path) => canonical.push(path),
-            Err(problem) => {
-                return Err(Error::Folder {
-                    index,
-                    folder,
-                    problem,
-                });
-            }
-        }
-    }
-    Ok(canonical)
-}
-
-/// `folder`'s canonical path, if it can be a Library's and isn't in `earlier` yet.
-async fn check_folder(folder: &str, earlier: &[String]) -> Result<String, FolderProblem> {
-    if !Path::new(folder).is_absolute() {
-        return Err(FolderProblem::NotAbsolute);
-    }
-    let path = tokio::fs::canonicalize(folder)
-        .await
-        .map_err(FolderProblem::NotFound)?;
-    ensure_readable_dir(&path)
-        .await
-        .map_err(FolderProblem::NotReadable)?;
-    let path = path
-        .into_os_string()
-        .into_string()
-        .map_err(|path| FolderProblem::NotUtf8(Path::new(&path).display().to_string()))?;
-    if earlier.contains(&path) {
-        return Err(FolderProblem::Repeated);
-    }
-    Ok(path)
-}
-
-/// Fails unless `path` is a directory the Server can list and open the files in.
-async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
-    // Listing fails for anything that isn't a directory, and for a directory without read
-    // permission.
-    tokio::fs::read_dir(path).await?.next_entry().await?;
-    // Opening what's inside also needs search (execute) permission, which reaching `.` through
-    // the directory checks. Windows has no separate permission for this, and its verbatim
-    // `\\?\` paths don't resolve `.`, so the check is Unix-only.
-    #[cfg(unix)]
-    tokio::fs::metadata(path.join(".")).await?;
-    Ok(())
-}
-
 /// Fails if a Library already has `name`, by the key a User's name is unique under. Folded in
 /// Rust, as SQLite's `lower()` and `NOCASE` fold only ASCII.
 async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(), Error> {
@@ -736,45 +700,6 @@ async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(),
         Some(library) => Err(Error::NameTaken { library }),
         None => Ok(()),
     }
-}
-
-/// Fails if one of `folders` is, is inside, or holds a folder of a Library other than `except`.
-async fn ensure_folders_free(
-    conn: &mut SqliteConnection,
-    folders: &[String],
-    except: Option<i64>,
-) -> Result<(), Error> {
-    let others = sqlx::query!(
-        "SELECT library_folders.path, libraries.name FROM library_folders
-         JOIN libraries ON libraries.id = library_folders.library_id
-         WHERE library_folders.library_id IS NOT ?",
-        except,
-    )
-    .fetch_all(&mut *conn)
-    .await?;
-    for folder in folders {
-        // First, as a path `starts_with` itself and the overlap check would take this for one.
-        if let Some(other) = others.iter().find(|other| other.path == *folder) {
-            return Err(Error::FolderTaken {
-                folder: folder.clone(),
-                library: other.name.clone(),
-            });
-        }
-        // By components, not as strings, so `/media/movies2` isn't inside `/media/movies`.
-        let path = Path::new(folder);
-        for other in &others {
-            let inside = path.starts_with(&other.path);
-            if inside || Path::new(&other.path).starts_with(path) {
-                return Err(Error::FolderOverlaps {
-                    folder: folder.clone(),
-                    library: other.name.clone(),
-                    library_folder: other.path.clone(),
-                    inside,
-                });
-            }
-        }
-    }
-    Ok(())
 }
 
 async fn insert_folders(

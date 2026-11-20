@@ -1,4 +1,4 @@
-//! What an Admin sees of the plans playing now, and stopping any of them.
+//! What an Admin sees of the plans playing now, whether any is, and stopping any of them.
 
 use std::sync::Arc;
 
@@ -74,6 +74,11 @@ impl RunningPlans {
         };
         self.stop_telling(&plan, Some(admin_stop)).await;
         Ok(())
+    }
+
+    /// Whether any plan is playing, a Direct Play included.
+    pub(crate) fn any_playing(&self) -> bool {
+        !lock(&self.inner.plans).is_empty()
     }
 
     /// Every plan playing now, oldest first, with its title from the Library.

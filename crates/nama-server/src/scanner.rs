@@ -392,7 +392,7 @@ impl Scanner {
         if let Some(probing) = &self.inner.probing {
             // Before `ScanFinished`, so a client that waited for the scan isn't served a gone or
             // changed file's subtitles.
-            probing.clean_subtitles().await;
+            probing.clean_leftovers().await;
         }
         self.inner.events.publish(vec![event(ScanFinished {
             library_id: id,

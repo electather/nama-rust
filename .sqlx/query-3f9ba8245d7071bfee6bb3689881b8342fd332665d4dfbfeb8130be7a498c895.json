@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO libraries (name, kind) VALUES (?, ?) RETURNING id AS \"id!\"",
+  "query": "INSERT INTO libraries (name, kind, preview_frames) VALUES (?, ?, ?)\n           RETURNING id AS \"id!\"",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 3
     },
     "nullable": [
       false
     ]
   },
-  "hash": "9c9091e44248826c863433aaf394c5c259febe0f9c95a36fa63b7e9acfb09b9e"
+  "hash": "3f9ba8245d7071bfee6bb3689881b8342fd332665d4dfbfeb8130be7a498c895"
 }

@@ -35,6 +35,7 @@ fn sources(namespaces: &[&str]) -> Order {
     Order {
         title_sources: order(namespaces),
         recognisers: None,
+        preview_frames: None,
     }
 }
 
@@ -43,6 +44,7 @@ fn recognisers(ids: &[&str]) -> Order {
     Order {
         title_sources: Vec::new(),
         recognisers: Some(order(ids)),
+        preview_frames: None,
     }
 }
 

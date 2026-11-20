@@ -4,7 +4,7 @@ use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
 
 use super::{
     Abilities, Accel, CanDo, FRENCH_SRT, Ffmpeg, FoundProgram, Gpu, Hardware, PERSIAN_SRT,
-    VideoConversion, fake, fake::script, find_gpus, video_args,
+    VideoConversion, fake, fake::script, find_gpus, test_media, video_args,
 };
 use crate::config::Config;
 
@@ -653,4 +653,65 @@ async fn a_utf8_sidecar_with_or_without_a_bom_is_read_with_no_charset() {
 
     assert!(!plain.contains("-sub_charenc"), "{plain}");
     assert!(!with_bom.contains("-sub_charenc"), "{with_bom}");
+}
+
+/// The stills [`Ffmpeg::keyframe_stills`] makes 320 wide, one every 10 s, of the video the system
+/// ffmpeg writes from the lavfi source `picture` with a keyframe every `keyframe_every` frames.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn keyframe_stills_of(picture: &str, keyframe_every: &str) -> Vec<image::DynamicImage> {
+    let ffmpeg = find_on(&std::env::var_os("PATH").unwrap());
+    assert!(
+        ffmpeg.can_probe(),
+        "this test needs ffmpeg and ffprobe on PATH"
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let video = dir.path().join("Alien.mkv");
+    test_media::write_test_media(&video, |writer| {
+        writer
+            .args(["-f", "lavfi", "-i", picture, "-c:v", "libx264", "-g"])
+            .args([keyframe_every, "-sc_threshold", "0", "-f", "matroska"])
+    })
+    .unwrap();
+    let stills = dir.path().join("stills");
+    fs::create_dir(&stills).unwrap();
+
+    let made = ffmpeg.keyframe_stills(video.to_str().unwrap(), 10, 320, &stills);
+    made.await.unwrap();
+
+    let written = fs::read_dir(&stills).unwrap().count();
+    (1..=written)
+        .map(|n| image::open(stills.join(format!("{n}.jpg"))).unwrap())
+        .collect()
+}
+
+#[tokio::test]
+async fn a_keyframe_still_of_an_anamorphic_video_is_as_tall_as_it_shows() {
+    // 720×480 stored, shown 16:9, as a widescreen NTSC DVD is.
+    let dvd = "testsrc2=size=720x480:rate=24:duration=12,setsar=32/27";
+
+    let stills = keyframe_stills_of(dvd, "24").await;
+
+    let sizes: Vec<_> = stills
+        .iter()
+        .map(|still| (still.width(), still.height()))
+        .collect();
+    assert_eq!(sizes, [(320, 180); 2]);
+}
+
+#[tokio::test]
+async fn each_keyframe_still_is_of_the_last_keyframe_at_or_before_its_time() {
+    // Frame `n` of a frame a second is `16 + 8n` bright, with a keyframe every 4 s.
+    let counting = "color=black:size=64x48:rate=1:duration=25,geq=lum=16+N*8:cb=128:cr=128";
+
+    let stills = keyframe_stills_of(counting, "4").await;
+
+    // A JPEG stretches the video's 16 to 235 to 0 to 255.
+    let seconds: Vec<u32> = (stills.iter())
+        .map(|still| u32::from(still.to_luma8().get_pixel(160, 90).0[0]))
+        .map(|luma| (luma * 219 + 255 * 4) / (255 * 8))
+        .collect();
+    assert_eq!(seconds, [0, 8, 20]);
 }

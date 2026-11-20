@@ -28,7 +28,10 @@ use crate::{
         Artwork, Contents, CustomImages, Libraries, LocalImages, TitleKind, TitleSources,
         artwork_router, custom_images_router, local_images_router,
     },
-    playback::{Probing, RunningPlans, SubtitleDownloads, TrackPreferences, running_router},
+    playback::{
+        PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
+        preview_frames_router, running_router,
+    },
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
@@ -95,6 +98,7 @@ pub(crate) fn router(
     settings: server_settings::Settings,
     running: RunningPlans,
     abilities: Abilities,
+    preview_frames: PreviewFrames,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
@@ -111,7 +115,8 @@ pub(crate) fn router(
         Arc::clone(&ffmpeg),
         probing.clone(),
     )
-    .merge(running_router(running.clone()));
+    .merge(running_router(running.clone()))
+    .merge(preview_frames_router(preview_frames.clone()));
     let images = ImageSources {
         custom_images: custom_images.clone(),
         local_images: local_images.clone(),
@@ -165,6 +170,7 @@ pub(crate) fn router(
             settings: playback,
             preferences: TrackPreferences::new(Arc::clone(&db)),
             downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
+            preview_frames,
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(RequestServiceHandler {

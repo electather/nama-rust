@@ -271,6 +271,18 @@ pub struct Library {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub empty_folders: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Whether the Server makes Preview frames for the Library's Versions, in the background after
+    /// probing each, one at a time and only while nothing plays. Turning it off makes no more, and
+    /// keeps those made.
+    ///
+    /// Field 11: `preview_frames`
+    #[serde(
+        rename = "previewFrames",
+        alias = "preview_frames",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub preview_frames: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -288,6 +300,7 @@ impl ::core::fmt::Debug for Library {
             .field("title_sources", &self.title_sources)
             .field("recogniser_ids", &self.recogniser_ids)
             .field("empty_folders", &self.empty_folders)
+            .field("preview_frames", &self.preview_frames)
             .finish()
     }
 }
@@ -373,6 +386,9 @@ impl ::buffa::Message for Library {
         for v in &self.empty_folders {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.preview_frames {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -415,6 +431,9 @@ impl ::buffa::Message for Library {
         }
         for v in &self.empty_folders {
             ::buffa::types::put_string_field(10u32, v, buf);
+        }
+        if self.preview_frames {
+            ::buffa::types::put_bool_field(11u32, self.preview_frames, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -525,6 +544,13 @@ impl ::buffa::Message for Library {
                 )?;
                 self.empty_folders.push(__elem);
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.preview_frames = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -543,6 +569,7 @@ impl ::buffa::Message for Library {
         self.title_sources.clear();
         self.recogniser_ids.clear();
         self.empty_folders.clear();
+        self.preview_frames = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -628,6 +655,15 @@ pub struct CreateLibraryRequest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub recogniser_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The Library's `preview_frames`. Unset turns them on.
+    ///
+    /// Field 6: `preview_frames`
+    #[serde(
+        rename = "previewFrames",
+        alias = "preview_frames",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub preview_frames: ::core::option::Option<bool>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -640,6 +676,7 @@ impl ::core::fmt::Debug for CreateLibraryRequest {
             .field("folders", &self.folders)
             .field("title_sources", &self.title_sources)
             .field("recogniser_ids", &self.recogniser_ids)
+            .field("preview_frames", &self.preview_frames)
             .finish()
     }
 }
@@ -649,6 +686,15 @@ impl CreateLibraryRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.CreateLibraryRequest";
+}
+impl CreateLibraryRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preview_frames`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preview_frames(mut self, value: bool) -> Self {
+        self.preview_frames = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(CreateLibraryRequest);
 impl ::buffa::MessageName for CreateLibraryRequest {
@@ -688,6 +734,9 @@ impl ::buffa::Message for CreateLibraryRequest {
         for v in &self.recogniser_ids {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.preview_frames.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -715,6 +764,9 @@ impl ::buffa::Message for CreateLibraryRequest {
         }
         for v in &self.recogniser_ids {
             ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if let Some(v) = self.preview_frames {
+            ::buffa::types::put_bool_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -776,6 +828,15 @@ impl ::buffa::Message for CreateLibraryRequest {
                 )?;
                 self.recogniser_ids.push(__elem);
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.preview_frames = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -789,6 +850,7 @@ impl ::buffa::Message for CreateLibraryRequest {
         self.folders.clear();
         self.title_sources.clear();
         self.recogniser_ids.clear();
+        self.preview_frames = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1521,6 +1583,15 @@ pub struct UpdateLibraryRequest {
         RecogniserOrder,
         ::buffa::Inline<RecogniserOrder>,
     >,
+    /// The new `preview_frames`. Unset keeps the Library's.
+    ///
+    /// Field 6: `preview_frames`
+    #[serde(
+        rename = "previewFrames",
+        alias = "preview_frames",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub preview_frames: ::core::option::Option<bool>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1533,6 +1604,7 @@ impl ::core::fmt::Debug for UpdateLibraryRequest {
             .field("folders", &self.folders)
             .field("title_sources", &self.title_sources)
             .field("recogniser_order", &self.recogniser_order)
+            .field("preview_frames", &self.preview_frames)
             .finish()
     }
 }
@@ -1542,6 +1614,15 @@ impl UpdateLibraryRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.UpdateLibraryRequest";
+}
+impl UpdateLibraryRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preview_frames`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preview_frames(mut self, value: bool) -> Self {
+        self.preview_frames = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(UpdateLibraryRequest);
 impl ::buffa::MessageName for UpdateLibraryRequest {
@@ -1583,6 +1664,9 @@ impl ::buffa::Message for UpdateLibraryRequest {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.preview_frames.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1612,6 +1696,9 @@ impl ::buffa::Message for UpdateLibraryRequest {
                 buf,
             );
             self.recogniser_order.write_to(__cache, buf);
+        }
+        if let Some(v) = self.preview_frames {
+            ::buffa::types::put_bool_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1673,6 +1760,15 @@ impl ::buffa::Message for UpdateLibraryRequest {
                     ctx,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.preview_frames = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1686,6 +1782,7 @@ impl ::buffa::Message for UpdateLibraryRequest {
         self.folders.clear();
         self.title_sources.clear();
         self.recogniser_order = ::buffa::MessageField::none();
+        self.preview_frames = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

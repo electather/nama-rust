@@ -83,8 +83,8 @@ wasmtime = { version = "49.0.7", default-features = false }
 [target.'cfg(unix)'.dependencies]
 # Only `access`, which sees a read-only mount as well as a folder's mode, `statvfs`, for the
 # free space of a full segment folder or the data directory, and `statfs`, for the data
-# directory's filesystem.
-rustix = { version = "1", features = ["fs"] }
+# directory's filesystem; and `setpriority`, for ffmpeg making Preview frames.
+rustix = { version = "1", features = ["fs", "process"] }
 
 [dev-dependencies]
 connectrpc = { version = "0.9.1", features = ["client"] }

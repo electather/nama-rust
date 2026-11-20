@@ -13,7 +13,7 @@ use std::{
 use super::{ASS, Error, Subtitles, WEBVTT, ass, cached, cached_name, font_name};
 use crate::{
     diagnostics,
-    ffmpeg::{Ffmpeg, SubtitleError},
+    ffmpeg::{Ffmpeg, ReadOutError},
     images::write_atomically,
     library::Stored,
     playback::{probing::readable, tracks::Probe},
@@ -253,18 +253,18 @@ impl TextPass {
 }
 
 /// Whether reading the file at `path` again would fail as it just did with `err`.
-async fn fails_again(err: &SubtitleError, path: &str) -> bool {
+async fn fails_again(err: &ReadOutError, path: &str) -> bool {
     match err {
         // ffmpeg never reached the file.
-        SubtitleError::Unavailable | SubtitleError::Run(_) => false,
-        SubtitleError::Failed(why) if CACHE_UNWRITABLE.iter().any(|error| why.contains(error)) => {
+        ReadOutError::Unavailable | ReadOutError::Run(_) => false,
+        ReadOutError::Failed(why) if CACHE_UNWRITABLE.iter().any(|error| why.contains(error)) => {
             false
         }
         // ffmpeg fails fast on a file it can't open, as on a share that dropped, which may read
         // fine once it's back.
-        SubtitleError::Failed(_) => readable(path).await,
+        ReadOutError::Failed(_) => readable(path).await,
         // Each try reads the whole file for up to an hour, as #850 says of keyframe listings.
-        SubtitleError::TimedOut(_) => true,
+        ReadOutError::TimedOut(_) => true,
     }
 }
 

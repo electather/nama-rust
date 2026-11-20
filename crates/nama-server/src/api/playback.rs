@@ -23,11 +23,11 @@ use crate::{
     ffmpeg::Abilities,
     playback::{
         self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, DownloadError, Method,
-        NAMED_LIMITS, PickedLimit, Planned, Preferred, Probing, ProbingError, RunningPlans,
-        StartError, StartedPlan, SubtitleAppearance, SubtitleDownloads, SubtitlePreference,
-        TrackKind, TrackPreferenceError, TrackPreferences, is_autoplay_on, is_language,
-        limit_to_proto, method_to_proto, reason_to_proto, set_autoplay, set_subtitle_background,
-        set_subtitle_size, subtitle_appearance_of, track_to_proto,
+        NAMED_LIMITS, PickedLimit, Planned, Preferred, PreviewFrames, Probing, ProbingError,
+        RunningPlans, StartError, StartedPlan, SubtitleAppearance, SubtitleDownloads,
+        SubtitlePreference, TrackKind, TrackPreferenceError, TrackPreferences, is_autoplay_on,
+        is_language, limit_to_proto, method_to_proto, reason_to_proto, set_autoplay,
+        set_subtitle_background, set_subtitle_size, subtitle_appearance_of, track_to_proto,
     },
     server_settings::{PlaybackLimit, PlaybackSettings},
 };
@@ -42,6 +42,7 @@ pub(super) struct PlaybackServiceHandler {
     pub(super) settings: PlaybackSettings,
     pub(super) preferences: TrackPreferences,
     pub(super) downloads: SubtitleDownloads,
+    pub(super) preview_frames: PreviewFrames,
     pub(super) db: Arc<Database>,
 }
 
@@ -109,7 +110,13 @@ impl PlaybackService for PlaybackServiceHandler {
         .await
         .map_err(|err| plan_failed(err, request.version_id))?
         .ok_or_else(version_not_found)?;
-        Response::ok(planned_to_proto(plan))
+        let preview_frames =
+            (self.preview_frames.of(request.version_id).await).map_err(database_failed)?;
+        let mut response = planned_to_proto(plan);
+        if let Some(shown) = response.plan.as_option_mut() {
+            shown.preview_frames = preview_frames.into();
+        }
+        Response::ok(response)
     }
 
     async fn stop_playback(

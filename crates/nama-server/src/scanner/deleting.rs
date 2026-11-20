@@ -237,7 +237,7 @@ impl Scanner {
             }
         };
         if let Some(probing) = &self.inner.probing {
-            probing.clean_subtitles().await;
+            probing.clean_leftovers().await;
         }
         self.inner.events.publish(events);
         self.inner.artwork.drop_unused(&self.inner.contents).await;

@@ -127,6 +127,10 @@ message Library {
   // in `remove_missing_in`. A folder that never had files isn't listed. Empty in `ListLibraries`
   // for a caller without `PERMISSION_MANAGE_LIBRARIES`.
   repeated string empty_folders = 10;
+  // Whether the Server makes Preview frames for the Library's Versions, in the background after
+  // probing each, one at a time and only while nothing plays. Turning it off makes no more, and
+  // keeps those made.
+  bool preview_frames = 11;
 }
 
 message CreateLibraryRequest {
@@ -142,6 +146,8 @@ message CreateLibraryRequest {
   // The Library's `recogniser_ids`, each the id of a Plugin with `EXTENSION_POINT_RECOGNISER`,
   // named once. Empty names none.
   repeated string recogniser_ids = 5;
+  // The Library's `preview_frames`. Unset turns them on.
+  optional bool preview_frames = 6;
 }
 
 message CreateLibraryResponse {
@@ -177,6 +183,8 @@ message UpdateLibraryRequest {
   // The new `recogniser_ids`, under the same rules as `CreateLibraryRequest.recogniser_ids`.
   // Unset keeps the Library's; set with no ids clears them.
   RecogniserOrder recogniser_order = 5;
+  // The new `preview_frames`. Unset keeps the Library's.
+  optional bool preview_frames = 6;
 }
 
 // A Library's `recogniser_ids` as an update sets them, so an empty list can be told from none.
