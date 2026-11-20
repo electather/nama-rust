@@ -419,7 +419,7 @@ fn ranked<'a>(
     of_kind
 }
 
-/// Whether an image's `lang` is the `language` asked for.
+/// Whether an image's `lang` is the `language` asked for, ignoring ASCII case.
 fn same_language(lang: &str, language: &str) -> bool {
     lang.eq_ignore_ascii_case(language)
 }
