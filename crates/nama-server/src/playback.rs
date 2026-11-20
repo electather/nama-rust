@@ -71,7 +71,7 @@ use probing::ProbeError;
 use choices::{audio_asked, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles};
 use codecs::{played_audio_place, played_by, played_tracks};
 use direct_play::direct_play_url;
-use lasting::offers;
+use lasting::{offers, playable_versions};
 use limits::{limit_in_effect, network, on_local_network, playback_limit};
 use steps::{
     converting, device_decoding, failed_on_device, failed_on_server, fallback, keyframes_unlisted,
@@ -219,7 +219,11 @@ pub(crate) struct StartedPlan {
 pub(crate) enum Planned {
     Started(StartedPlan),
     /// A plan that can't be played, which nothing keeps.
-    Unplayable(Plan),
+    Unplayable {
+        plan: Plan,
+        /// The other Versions of its title that would play, as [`playable_versions`] lists them.
+        playable_versions: Vec<i64>,
+    },
 }
 
 /// How a plan plays a Version, with what its method converts, for a Remux or a Transcode the
@@ -435,7 +439,7 @@ pub(crate) async fn plan(
         dropped: BTreeSet::new(),
     };
     loop {
-        match start_built(running, caller, facts.clone(), start_ms).await {
+        match start_built(probing, running, caller, facts.clone(), start_ms).await {
             Err(StartError::Keyframes(err)) => {
                 tracing::warn!(
                     version,
@@ -453,8 +457,10 @@ pub(crate) async fn plan(
     }
 }
 
-/// Builds the plan for `facts` and starts it in `running` if it plays, as [`plan`] says.
+/// Builds the plan for `facts` and starts it in `running` if it plays, as [`plan`] says, or else
+/// lists the other Versions that would play.
 async fn start_built(
+    probing: &Probing,
     running: &RunningPlans,
     caller: &Caller,
     mut facts: Facts,
@@ -462,10 +468,14 @@ async fn start_built(
 ) -> Result<Option<Planned>, StartError> {
     let plan = build(&mut facts);
     if plan.playing.is_none() {
-        return match too_busy_to_play(facts) {
-            Some(max) => Err(StartError::Busy(max)),
-            None => Ok(Some(Planned::Unplayable(plan))),
-        };
+        if let Some(max) = too_busy_to_play(facts.clone()) {
+            return Err(StartError::Busy(max));
+        }
+        let playable_versions = playable_versions(probing, &facts).await?;
+        return Ok(Some(Planned::Unplayable {
+            plan,
+            playable_versions,
+        }));
     }
     let (running, caller) = (running.clone(), caller.clone());
     // A Device giving up mid-wait mustn't leave ffmpeg and its folder with no plan (ADR 0029).

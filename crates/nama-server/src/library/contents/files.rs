@@ -107,6 +107,35 @@ impl Contents {
             .await
     }
 
+    /// The other Versions, by path, in the Library of the Version `version`, of any Movie or
+    /// Episode it is Matched to: each holds an Item of the same kind Matched to one of its ids.
+    pub(crate) async fn other_versions(&self, version: i64) -> Result<Vec<Stored>, sqlx::Error> {
+        sqlx::query_as!(
+            Stored,
+            r#"SELECT others.id AS "id!", others.size, others.modified_ns, others.parser_version
+               FROM library_files AS own
+               JOIN library_files AS others ON others.library_id = own.library_id
+                                           AND others.id <> own.id
+               WHERE own.id = ?
+                 AND EXISTS (
+                     SELECT 1 FROM library_items AS own_item
+                     JOIN item_matches AS own_match ON own_match.item_id = own_item.id
+                     JOIN item_match_ids AS own_id ON own_id.item_id = own_item.id
+                     JOIN item_match_ids AS other_id
+                         ON (other_id.scope, other_id.namespace, other_id.value)
+                            = (own_id.scope, own_id.namespace, own_id.value)
+                     JOIN library_items AS other_item ON other_item.id = other_id.item_id
+                     JOIN item_matches AS other_match ON other_match.item_id = other_item.id
+                     WHERE own_item.file_id = own.id AND other_item.file_id = others.id
+                       AND own_id.scope = 'title' AND other_item.kind = own_item.kind
+                       AND own_match.state = 'matched' AND other_match.state = 'matched')
+               ORDER BY others.path"#,
+            version
+        )
+        .fetch_all(self.db.reader())
+        .await
+    }
+
     /// Files whose names don't follow the naming conventions, so they hold no Items, by path.
     pub(crate) async fn unparsed(&self, library: i64) -> Result<Vec<String>, sqlx::Error> {
         sqlx::query_scalar!(

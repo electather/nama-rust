@@ -109,10 +109,7 @@ impl PlaybackService for PlaybackServiceHandler {
         .await
         .map_err(|err| plan_failed(err, request.version_id))?
         .ok_or_else(version_not_found)?;
-        Response::ok(PlanPlaybackResponse {
-            plan: plan_to_proto(plan).into(),
-            ..Default::default()
-        })
+        Response::ok(planned_to_proto(plan))
     }
 
     async fn stop_playback(
@@ -627,16 +624,19 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
     }
 }
 
-fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
-    let (id, url, plan) = match planned {
-        Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan),
+fn planned_to_proto(planned: Planned) -> PlanPlaybackResponse {
+    let (id, url, plan, playable_versions) = match planned {
+        Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan, vec![]),
         // The API's plan id 0 is no plan.
-        Planned::Unplayable(plan) => (0, String::new(), plan),
+        Planned::Unplayable {
+            plan,
+            playable_versions,
+        } => (0, String::new(), plan, playable_versions),
     };
     // A place past `u32::MAX` is in no file ffprobe reads.
     let place = |place: usize| u32::try_from(place).ok();
     let places = |places: Vec<usize>| places.into_iter().filter_map(place).collect();
-    proto::PlaybackPlan {
+    let plan = proto::PlaybackPlan {
         id,
         method: method_to_proto(plan.method()).into(),
         url,
@@ -661,6 +661,11 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
                 ..Default::default()
             })
             .collect(),
+        ..Default::default()
+    };
+    PlanPlaybackResponse {
+        plan: plan.into(),
+        playable_versions,
         ..Default::default()
     }
 }

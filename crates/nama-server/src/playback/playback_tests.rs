@@ -416,7 +416,9 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
     .unwrap();
 
     let tracks = match planned {
-        Some(Planned::Started(StartedPlan { plan, .. }) | Planned::Unplayable(plan)) => plan.tracks,
+        Some(Planned::Started(StartedPlan { plan, .. }) | Planned::Unplayable { plan, .. }) => {
+            plan.tracks
+        }
         None => vec![],
     };
     let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();

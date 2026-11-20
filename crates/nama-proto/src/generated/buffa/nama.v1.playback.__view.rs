@@ -8587,6 +8587,13 @@ pub struct PlanPlaybackResponseView<'a> {
     pub plan: ::buffa::MessageFieldView<
         super::super::__buffa::view::PlaybackPlanView<'a>,
     >,
+    /// When `plan` can't be played, the other Versions of its title, in its Library, that would play
+    /// on this Device, by id, best first: Direct Play, then Remux, then Transcode. Only what lasts
+    /// counts, not a busy Server or a method that just failed on the Device, and a Version not
+    /// probed yet isn't listed. Empty when `plan` plays.
+    ///
+    /// Field 2: `playable_versions`
+    pub playable_versions: ::buffa::RepeatedView<'a, i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlanPlaybackResponseView<'a> {
@@ -8640,6 +8647,25 @@ impl<'a> ::buffa::MessageView<'a> for PlanPlaybackResponseView<'a> {
                     }
                 }
             }
+            2u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_int64(
+                        payload,
+                        view.playable_versions.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.playable_versions.push(::buffa::types::decode_int64(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -8677,6 +8703,7 @@ impl<'a> ::buffa::MessageView<'a> for PlanPlaybackResponseView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            playable_versions: self.playable_versions.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -8696,6 +8723,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PlanPlaybackResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.playable_versions.is_empty() {
+            let payload: u64 = self
+                .playable_versions
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8714,6 +8749,17 @@ impl<'a> ::buffa::ViewEncode<'a> for PlanPlaybackResponseView<'a> {
                 buf,
             );
             self.plan.write_to(__cache, buf);
+        }
+        if !self.playable_versions.is_empty() {
+            let payload: u64 = self
+                .playable_versions
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(2u32, payload, buf);
+            for &v in &self.playable_versions {
+                ::buffa::types::encode_int64(v, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8740,6 +8786,13 @@ impl<'__a> ::serde::Serialize for PlanPlaybackResponseView<'__a> {
             if let ::core::option::Option::Some(__v) = self.plan.as_option() {
                 __map.serialize_entry("plan", __v)?;
             }
+        }
+        if !self.playable_versions.is_empty() {
+            __map
+                .serialize_entry(
+                    "playableVersions",
+                    &::buffa::json_helpers::RepeatedJson(&self.playable_versions),
+                )?;
         }
         __map.end()
     }
@@ -8842,6 +8895,16 @@ impl PlanPlaybackResponseOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::PlaybackPlanView<'_>> {
         &self.0.reborrow().plan
+    }
+    /// When `plan` can't be played, the other Versions of its title, in its Library, that would play
+    /// on this Device, by id, best first: Direct Play, then Remux, then Transcode. Only what lasts
+    /// counts, not a busy Server or a method that just failed on the Device, and a Version not
+    /// probed yet isn't listed. Empty when `plan` plays.
+    ///
+    /// Field 2: `playable_versions`
+    #[must_use]
+    pub fn playable_versions(&self) -> &::buffa::RepeatedView<'_, i64> {
+        &self.0.reborrow().playable_versions
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlanPlaybackResponseView<'static>>>
