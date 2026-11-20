@@ -33,6 +33,7 @@ mod sign_in;
 mod sign_in_codes;
 
 pub use codes::SetupCode;
+use codes::new_token;
 pub(crate) use codes::random_secret;
 pub(crate) use invites::Invite;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
@@ -59,9 +60,6 @@ pub(crate) use sign_in_codes::{Delivery, Error as SignInCodeError};
 
 /// How many characters a User's or Device's name may have, once trimmed.
 pub(crate) const NAME_LENGTH: RangeInclusive<usize> = 1..=64;
-
-/// What every session token starts with, so a leaked one is easy to recognise.
-const TOKEN_PREFIX: &str = "nama_";
 
 /// How long, in seconds, a Device may go unused before it expires and its session stops working:
 /// 90 days.
@@ -584,10 +582,6 @@ impl Users {
             .await?;
         Ok(())
     }
-}
-
-fn new_token() -> Result<String, getrandom::Error> {
-    Ok(format!("{TOKEN_PREFIX}{}", random_secret()?))
 }
 
 /// What the database keeps of a session token.
