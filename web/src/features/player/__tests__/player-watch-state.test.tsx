@@ -49,9 +49,9 @@ function server(failures = 0) {
 }
 
 /** Finds the player's `<video>` once its file's length is known, as the browser would load it. */
-async function loadedVideo() {
-  const video = await screen.findByLabelText<HTMLVideoElement>("Alien");
-  Object.defineProperty(video, "duration", { value: DURATION_S });
+async function loadedVideo(title = "Alien", durationS = DURATION_S) {
+  const video = await screen.findByLabelText<HTMLVideoElement>(title);
+  Object.defineProperty(video, "duration", { value: durationS });
   fireEvent(video, new Event("loadedmetadata"));
   return video;
 }
@@ -158,9 +158,7 @@ function episodeServer() {
 test("reports while an Episode plays refetch no browsing, and leaving shows it played", async () => {
   const { transport, reports, asked } = episodeServer();
   const router = openApp("/libraries/2/shows/tmdb-70523/seasons/1/episodes/3/play", transport);
-  const video = await screen.findByLabelText<HTMLVideoElement>("Past and Present");
-  Object.defineProperty(video, "duration", { value: 3000 });
-  fireEvent(video, new Event("loadedmetadata"));
+  const video = await loadedVideo("Past and Present", 3000);
   await waitFor(() => {
     expect(router.state.status).toBe("idle");
   });
