@@ -12,11 +12,11 @@ import { isStarted } from "@/shared/lib/watch-progress";
 const backdropSizes = "(max-width: 933px) 280px, (max-width: 1466px) 30vw, 440px";
 
 /**
- * A Continue Watching card: its Backdrop, opening where it plays, with its title, how far in you
- * are and what's left over the art, and its menu to mark it watched or remove it.
+ * A Continue Watching card: its art, opening where it plays, with its title (unless the art carries
+ * it), how far in you are and what's left over the art, and its menu to mark it watched or remove it.
  */
 export function ContinueWatchingCard({ card, actions }: { card: Card; actions: CardActions }) {
-  const { url, thumbhash, title, logoUrl, detail, shownDetail, watchState } = card.backdrop;
+  const { url, thumbhash, title, logoUrl, titled, detail, shownDetail, watchState } = card.backdrop;
   const verb = isStarted(watchState) ? "Resume" : "Play";
   return (
     <div className={`relative isolate aspect-4/3 overflow-hidden bg-muted ${backdropTile.radius}`}>
@@ -38,6 +38,7 @@ export function ContinueWatchingCard({ card, actions }: { card: Card; actions: C
         <ContinueWatchingCaption
           title={title}
           logoUrl={logoUrl}
+          titled={titled}
           detail={shownDetail}
           state={watchState}
         />

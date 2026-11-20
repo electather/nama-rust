@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT others.id AS \"id!\", others.size, others.modified_ns, others.parser_version\n               FROM library_files AS own\n               JOIN library_files AS others ON others.library_id = own.library_id\n                                           AND others.id <> own.id\n               WHERE own.id = ?\n                 AND EXISTS (\n                     SELECT 1 FROM library_items AS own_item\n                     JOIN item_matches AS own_match ON own_match.item_id = own_item.id\n                     JOIN item_match_ids AS own_id ON own_id.item_id = own_item.id\n                     JOIN item_match_ids AS other_id\n                         ON (other_id.scope, other_id.namespace, other_id.value)\n                            = (own_id.scope, own_id.namespace, own_id.value)\n                     JOIN library_items AS other_item ON other_item.id = other_id.item_id\n                     JOIN item_matches AS other_match ON other_match.item_id = other_item.id\n                     WHERE own_item.file_id = own.id AND other_item.file_id = others.id\n                       AND own_id.scope = 'title' AND other_item.kind = own_item.kind\n                       AND own_match.state = 'matched' AND other_match.state = 'matched')\n               ORDER BY others.path",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "parser_version",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "parser_version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ac918d9c7b1b1c5b5280f42ad6f7930e962ba31dda80d500e9c44258aedfc68f"
+}
