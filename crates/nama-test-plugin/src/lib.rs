@@ -70,7 +70,7 @@ mod exports {
                     behaviour_setting(
                         OBSERVER,
                         "log",
-                        "when told about Events: log, clock, hoard, loop or panic",
+                        "when told about Events: log, clock, hoard, loop, panic or garble",
                     ),
                     behaviour_setting(
                         FULFILLER,
@@ -181,23 +181,24 @@ mod exports {
     // Logs each Event it is told about, so a test can see them arrive, then requests its `fetch`
     // setting's URL, if it has one, and logs the response's status. Its `observer` setting can
     // make it log the time by `nama_pdk::now` instead, or hoard 256 MiB, loop forever or panic, so
-    // a test can see the Server survive that.
+    // a test can see the Server survive that. Set to `garble`, it answers with bytes that don't
+    // decode, so a test can see that logged as a failure (#1117).
     #[plugin_fn]
-    pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<()> {
+    pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<Vec<u8>> {
         match nama_pdk::setting(OBSERVER)?.as_deref() {
             Some("clock") => {
                 let since_epoch = nama_pdk::now().duration_since(UNIX_EPOCH)?;
                 nama_pdk::info!("test-plugin's clock reads {}", since_epoch.as_millis());
-                Ok(())
             }
             Some("hoard") => {
                 std::hint::black_box(vec![1_u8; 256 << 20]);
                 nama_pdk::info!("test-plugin hoarded");
-                Ok(())
             }
             Some("loop") => loop_forever(),
             #[expect(clippy::panic, reason = "it panics on purpose")]
             Some("panic") => panic!("the test Plugin's Observer was set to panic"),
+            // A field's tag with its value cut off, which no message decodes.
+            Some("garble") => return Ok(vec![0x08]),
             _ => {
                 for event in observed.events {
                     nama_pdk::info!("test-plugin observed {event:?}");
@@ -207,9 +208,10 @@ mod exports {
                         ::extism_pdk::http::request::<()>(&HttpRequest::new(&url), None)?;
                     nama_pdk::info!("test-plugin fetched {url}: {}", response.status_code());
                 }
-                Ok(())
             }
         }
+        // An empty `EventsObserved`.
+        Ok(Vec::new())
     }
 
     /// Loops, logging each turn, so a test sees `nama.log` leave the call's clock running.
