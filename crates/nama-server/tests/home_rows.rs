@@ -700,6 +700,9 @@ async fn a_version_giving_only_shared_rows_shows_them_and_no_users_rows_of_the_o
 
     let server = restarted_as(server, "home-rows-shared-only").await;
 
+    // Before any listing, which deletes the old version's rows.
+    let beas = titles_page_as(server.client_config_as(&bea.token), "for-bea", 10, "").await;
+    assert!(beas.unwrap().titles.is_empty(), "the old version's row");
     assert_eq!(
         keys_as(server.client_config_as(&ada.token)).await,
         ["picks"]
@@ -708,8 +711,6 @@ async fn a_version_giving_only_shared_rows_shows_them_and_no_users_rows_of_the_o
         keys_as(server.client_config_as(&bea.token)).await,
         ["picks"]
     );
-    let beas = titles_page_as(server.client_config_as(&bea.token), "for-bea", 10, "").await;
-    assert!(beas.unwrap().titles.is_empty(), "the old version's row");
 }
 
 #[tokio::test]
@@ -723,11 +724,12 @@ async fn a_version_giving_only_users_rows_shows_theirs_and_no_shared_rows_of_the
     let cy = server.user_with_default_permissions("cy").await;
     set_handle(&cy, "cy").await;
 
+    // Before any listing, which deletes the old version's rows.
+    let picks = titles_page_as(server.client_config_as(&ada.token), "picks", 10, "").await;
+    assert!(picks.unwrap().titles.is_empty(), "the old version's row");
     assert_eq!(
         keys_as(server.client_config_as(&ada.token)).await,
         ["for-ada"]
     );
-    let picks = titles_page_as(server.client_config_as(&ada.token), "picks", 10, "").await;
-    assert!(picks.unwrap().titles.is_empty(), "the old version's row");
     wait_for_rows_as(cy.client_config(), &["for-cy"]).await;
 }
