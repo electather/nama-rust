@@ -31,9 +31,10 @@ pub(crate) use country_tags::country_tag;
 pub(crate) use custom_images::{
     CustomImages, Role, Slot, Urls as CustomImageUrls, router as custom_images_router,
 };
+pub(crate) use folders::FolderProblem;
 pub(crate) use libraries::{
-    Error as LibraryError, FolderProblem, Kind as LibraryKind, Libraries, Library, Order,
-    check_known, default_title_sources,
+    Error as LibraryError, Kind as LibraryKind, Libraries, Library, Order, check_known,
+    default_title_sources,
 };
 pub(crate) use local_images::{
     FoundImages, LocalImageUrls, LocalImages, router as local_images_router,

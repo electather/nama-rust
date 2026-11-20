@@ -160,6 +160,9 @@ struct Inner {
     claimed: Claims<Probed>,
     /// The Versions whose keyframes are being listed, as `claimed` is for probing.
     listing: Claims<Listed>,
+    /// Notified when a background pass has caught up, for Segments. Not `passed`: `notify_one`
+    /// wakes only one waiter, so each follower of a pass needs its own.
+    passed_for_segments: Arc<Notify>,
 }
 
 impl Probing {
@@ -187,6 +190,7 @@ impl Probing {
                 claimed: Claims::default(),
                 listing: Claims::default(),
                 passed: Notify::new(),
+                passed_for_segments: Arc::default(),
             }),
         }
     }
@@ -322,6 +326,7 @@ impl Probing {
                 match probing.inner.cancel.run_until_cancelled(pass).await {
                     Some(Ok(probed)) => {
                         probing.inner.passed.notify_one();
+                        probing.inner.passed_for_segments.notify_one();
                         finished(probed);
                     }
                     Some(Err(err)) => {
@@ -332,6 +337,11 @@ impl Probing {
             }
             .instrument(pass_span),
         );
+    }
+
+    /// What's notified each time a background pass has caught up with a Library.
+    pub(crate) fn passed(&self) -> Arc<Notify> {
+        Arc::clone(&self.inner.passed_for_segments)
     }
 
     /// The subtitle cache, from which it throws away what's cached for files gone or changed.

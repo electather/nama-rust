@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version_id AS \"version_id!\" FROM version_probes\n               WHERE duration_ms IS NOT NULL\n                 AND (segments_due_ms IS NULL OR segments_due_ms <= ?)\n                 AND (SELECT COUNT(*) FROM segments\n                      WHERE segments.version_id = version_probes.version_id) < ?\n               ORDER BY version_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "version_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "51c6af4eea67fa234f573255e695c5e60bad551401785fe84e442088183c14a6"
+}

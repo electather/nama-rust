@@ -382,7 +382,8 @@ fn finding_failed(err: LibraryError) -> Error {
         | LibraryError::TitleSources { .. }
         | LibraryError::TitleSourceUnknown { .. }
         | LibraryError::NoTitleSourceSearches
-        | LibraryError::RecognisersInvalid { .. } => {
+        | LibraryError::RecognisersInvalid { .. }
+        | LibraryError::SegmentSourcesInvalid { .. } => {
             unreachable!("finding a Library refused a change: {err}")
         }
     }

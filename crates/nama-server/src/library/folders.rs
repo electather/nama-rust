@@ -1,10 +1,28 @@
-//! Checking a Library's folders: each a readable directory, named once, and no other Library's.
+//! A Library's folders: checking the ones a create or an update names, and storing them.
 
 use std::path::Path;
 
 use sqlx::SqliteConnection;
 
-use super::libraries::{Error, FolderProblem};
+use super::libraries::Error;
+
+/// Why a folder can't be one of a Library's.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum FolderProblem {
+    #[error("is not an absolute path")]
+    NotAbsolute,
+    // In `NotFound` and `NotReadable`, the operating system's text stays in the message and never
+    // goes in a Refusal's params: it can't be translated.
+    #[error("can't be found: {0}")]
+    NotFound(std::io::Error),
+    #[error("is not a directory the Server can read: {0}")]
+    NotReadable(std::io::Error),
+    /// The path it resolves to, shown lossily.
+    #[error("resolves to {0}, which is not valid UTF-8")]
+    NotUtf8(String),
+    #[error("is named more than once")]
+    Repeated,
+}
 
 // Canonical paths make two spellings of one folder (a trailing slash, a symlink) the same folder.
 pub(super) async fn check_folders(folders: Vec<String>) -> Result<Vec<String>, Error> {
@@ -96,6 +114,24 @@ pub(super) async fn ensure_folders_free(
                 });
             }
         }
+    }
+    Ok(())
+}
+
+pub(super) async fn insert_folders(
+    conn: &mut SqliteConnection,
+    id: i64,
+    folders: &[String],
+) -> Result<(), sqlx::Error> {
+    for (position, folder) in (0_i64..).zip(folders) {
+        sqlx::query!(
+            "INSERT INTO library_folders (path, library_id, position) VALUES (?, ?, ?)",
+            folder,
+            id,
+            position,
+        )
+        .execute(&mut *conn)
+        .await?;
     }
     Ok(())
 }

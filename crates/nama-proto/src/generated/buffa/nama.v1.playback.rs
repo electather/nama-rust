@@ -1708,6 +1708,171 @@ impl ::buffa::Enumeration for PlaybackMethod {
         ]
     }
 }
+/// What a Segment is.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum SegmentKind {
+    SEGMENT_KIND_UNSPECIFIED = 0i32,
+    /// The opening titles: the player offers to skip to its end.
+    SEGMENT_KIND_INTRO = 1i32,
+    /// What happened in earlier Episodes: the player offers to skip to its end.
+    SEGMENT_KIND_RECAP = 2i32,
+    /// The closing credits: the player starts counting down to the next Episode at its start.
+    SEGMENT_KIND_CREDITS = 3i32,
+}
+impl SegmentKind {
+    ///Idiomatic alias for [`Self::SEGMENT_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::SEGMENT_KIND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::SEGMENT_KIND_INTRO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Intro: Self = Self::SEGMENT_KIND_INTRO;
+    ///Idiomatic alias for [`Self::SEGMENT_KIND_RECAP`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Recap: Self = Self::SEGMENT_KIND_RECAP;
+    ///Idiomatic alias for [`Self::SEGMENT_KIND_CREDITS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Credits: Self = Self::SEGMENT_KIND_CREDITS;
+}
+impl ::core::default::Default for SegmentKind {
+    fn default() -> Self {
+        Self::SEGMENT_KIND_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for SegmentKind {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for SegmentKind {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = SegmentKind;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(SegmentKind)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<SegmentKind, E> {
+                <SegmentKind as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<SegmentKind, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <SegmentKind as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<SegmentKind, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <SegmentKind as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<SegmentKind, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for SegmentKind {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for SegmentKind {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::SEGMENT_KIND_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::SEGMENT_KIND_INTRO),
+            2i32 => ::core::option::Option::Some(Self::SEGMENT_KIND_RECAP),
+            3i32 => ::core::option::Option::Some(Self::SEGMENT_KIND_CREDITS),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::SEGMENT_KIND_UNSPECIFIED => "SEGMENT_KIND_UNSPECIFIED",
+            Self::SEGMENT_KIND_INTRO => "SEGMENT_KIND_INTRO",
+            Self::SEGMENT_KIND_RECAP => "SEGMENT_KIND_RECAP",
+            Self::SEGMENT_KIND_CREDITS => "SEGMENT_KIND_CREDITS",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "SEGMENT_KIND_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::SEGMENT_KIND_UNSPECIFIED)
+            }
+            "SEGMENT_KIND_INTRO" => {
+                ::core::option::Option::Some(Self::SEGMENT_KIND_INTRO)
+            }
+            "SEGMENT_KIND_RECAP" => {
+                ::core::option::Option::Some(Self::SEGMENT_KIND_RECAP)
+            }
+            "SEGMENT_KIND_CREDITS" => {
+                ::core::option::Option::Some(Self::SEGMENT_KIND_CREDITS)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::SEGMENT_KIND_UNSPECIFIED,
+            Self::SEGMENT_KIND_INTRO,
+            Self::SEGMENT_KIND_RECAP,
+            Self::SEGMENT_KIND_CREDITS,
+        ]
+    }
+}
 /// The kinds of fact that shape a Playback Plan. A kind, its params and the methods it rules out
 /// are API contract: one is never renamed or reused. A param that names a schema enum carries
 /// that value's name (`PLAYBACK_LIMIT_1080P`), and a number is a plain decimal.
@@ -7445,6 +7610,16 @@ pub struct PlaybackPlan {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub chapters: ::buffa::alloc::vec::Vec<Chapter>,
+    /// The Version's Segments, at most one of each kind, earliest first. Empty until the Server has
+    /// found any, in the background after it probes the Version.
+    ///
+    /// Field 17: `segments`
+    #[serde(
+        rename = "segments",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub segments: ::buffa::alloc::vec::Vec<Segment>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7467,6 +7642,7 @@ impl ::core::fmt::Debug for PlaybackPlan {
             .field("starting_subtitle", &self.starting_subtitle)
             .field("preview_frames", &self.preview_frames)
             .field("chapters", &self.chapters)
+            .field("segments", &self.segments)
             .finish()
     }
 }
@@ -7611,6 +7787,14 @@ impl ::buffa::Message for PlaybackPlan {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.segments {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7720,6 +7904,14 @@ impl ::buffa::Message for PlaybackPlan {
                 buf,
             );
             self.preview_frames.write_to(__cache, buf);
+        }
+        for v in &self.segments {
+            ::buffa::types::put_len_delimited_header(
+                17u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7970,6 +8162,18 @@ impl ::buffa::Message for PlaybackPlan {
                     ctx,
                 )?;
             }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.segments.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7993,6 +8197,7 @@ impl ::buffa::Message for PlaybackPlan {
         self.starting_subtitle = ::core::option::Option::None;
         self.chapters.clear();
         self.preview_frames = ::buffa::MessageField::none();
+        self.segments.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -8023,6 +8228,200 @@ pub const __PLAYBACK_PLAN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     type_url: "type.googleapis.com/nama.v1.PlaybackPlan",
     to_json: ::buffa::type_registry::any_to_json::<PlaybackPlan>,
     from_json: ::buffa::type_registry::any_from_json::<PlaybackPlan>,
+    is_wkt: false,
+};
+/// A stretch of the Version a plan plays that the player acts on.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Segment {
+    /// Field 1: `kind`
+    #[serde(
+        rename = "kind",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub kind: ::buffa::EnumValue<SegmentKind>,
+    /// When it starts, in milliseconds from the Version's start.
+    ///
+    /// Field 2: `start_ms`
+    #[serde(
+        rename = "startMs",
+        alias = "start_ms",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub start_ms: u64,
+    /// When it ends, in milliseconds from the Version's start; unset runs to the end.
+    ///
+    /// Field 3: `end_ms`
+    #[serde(
+        rename = "endMs",
+        alias = "end_ms",
+        with = "::buffa::json_helpers::opt_uint64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub end_ms: ::core::option::Option<u64>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Segment {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Segment")
+            .field("kind", &self.kind)
+            .field("start_ms", &self.start_ms)
+            .field("end_ms", &self.end_ms)
+            .finish()
+    }
+}
+impl Segment {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.Segment";
+}
+impl Segment {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::end_ms`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_end_ms(mut self, value: u64) -> Self {
+        self.end_ms = Some(value);
+        self
+    }
+}
+::buffa::impl_default_instance!(Segment);
+impl ::buffa::MessageName for Segment {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "Segment";
+    const FULL_NAME: &'static str = "nama.v1.Segment";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.Segment";
+}
+impl ::buffa::Message for Segment {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.start_ms != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.start_ms) as u64;
+        }
+        if let Some(v) = self.end_ms {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if self.start_ms != 0u64 {
+            ::buffa::types::put_uint64_field(2u32, self.start_ms, buf);
+        }
+        if let Some(v) = self.end_ms {
+            ::buffa::types::put_uint64_field(3u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.start_ms = ::buffa::types::decode_uint64(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.end_ms = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint64(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.kind = ::buffa::EnumValue::from(0);
+        self.start_ms = 0u64;
+        self.end_ms = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Segment {
+    const PROTO_FQN: &'static str = "nama.v1.Segment";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Segment {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __SEGMENT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.Segment",
+    to_json: ::buffa::type_registry::any_to_json::<Segment>,
+    from_json: ::buffa::type_registry::any_from_json::<Segment>,
     is_wkt: false,
 };
 /// A Chapter of the Version a plan plays.

@@ -1,7 +1,7 @@
 //! Tracks: what ffprobe found inside each Version, the facts of its whole file, its video, audio
 //! and subtitle Tracks, the fonts it carries and its Chapters.
 //!
-//! [`Tracks`] owns `version_probes`, `tracks`, `chapters` and `probe_failures` (see the area's `AGENTS.md`).
+//! It owns `version_probes`, `tracks`, `chapters`, `probe_failures` and `segments` (`AGENTS.md`).
 //! Their rows are keyed by Version id and go when the file goes; which files there are is for
 //! [`crate::library::Contents`] to say.
 
@@ -13,6 +13,10 @@ use std::{
 
 use nama_proto::nama::v1 as proto;
 use sqlx::SqliteConnection;
+
+mod segments;
+
+pub(crate) use segments::{Segment, SegmentKind, Segments, segments_of};
 
 use super::sidecars::Sidecar;
 use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::Stored};
@@ -792,5 +796,5 @@ pub(super) fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto:
 }
 
 #[cfg(test)]
-#[path = "tracks_tests.rs"]
+#[path = "tracks/tracks_tests.rs"]
 mod tests;

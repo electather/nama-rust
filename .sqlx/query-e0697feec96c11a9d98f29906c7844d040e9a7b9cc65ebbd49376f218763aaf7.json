@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT kind AS \"kind: SegmentKind\", start_ms, end_ms FROM segments\n           WHERE version_id = ? ORDER BY start_ms",
+  "describe": {
+    "columns": [
+      {
+        "name": "kind: SegmentKind",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "segments",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "start_ms",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "segments",
+            "name": "start_ms"
+          }
+        }
+      },
+      {
+        "name": "end_ms",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "segments",
+            "name": "end_ms"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "e0697feec96c11a9d98f29906c7844d040e9a7b9cc65ebbd49376f218763aaf7"
+}

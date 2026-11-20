@@ -1,22 +1,11 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name, kind AS \"kind: Kind\", title_sources, recognisers,\n                      preview_frames AS \"preview_frames: bool\"\n               FROM libraries ORDER BY id",
+  "query": "SELECT name, kind AS \"kind: Kind\", title_sources, recognisers, segment_sources,\n                      preview_frames AS \"preview_frames: bool\"\n               FROM libraries WHERE id = ?",
   "describe": {
     "columns": [
       {
-        "name": "id!",
-        "ordinal": 0,
-        "type_info": "Integer",
-        "origin": {
-          "Table": {
-            "table": "libraries",
-            "name": "id"
-          }
-        }
-      },
-      {
         "name": "name",
-        "ordinal": 1,
+        "ordinal": 0,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +16,7 @@
       },
       {
         "name": "kind: Kind",
-        "ordinal": 2,
+        "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -38,7 +27,7 @@
       },
       {
         "name": "title_sources",
-        "ordinal": 3,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,12 +38,23 @@
       },
       {
         "name": "recognisers",
-        "ordinal": 4,
+        "ordinal": 3,
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "libraries",
             "name": "recognisers"
+          }
+        }
+      },
+      {
+        "name": "segment_sources",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "segment_sources"
           }
         }
       },
@@ -71,7 +71,7 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       false,
@@ -82,5 +82,5 @@
       false
     ]
   },
-  "hash": "575335e8239fcaab7b8e0f5b765de41140bf1ec0f4f836855da9aa7a573af3d4"
+  "hash": "4375924d1f8eb3671972c7a5e2d1552626e3e088fbd2eff03a832389a3a76388"
 }

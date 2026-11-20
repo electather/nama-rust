@@ -43,7 +43,7 @@ use crate::{
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos},
     library::{Contents, CustomImages, LocalImages},
-    playback::{PreviewFrames, Probing, RunningPlans, SubtitleCache},
+    playback::{PreviewFrames, Probing, RunningPlans, Segments, SubtitleCache},
     plugin_settings::PluginSettings,
     plugins::{ExtensionPoints, PluginBlobs},
     requests::Requests,
@@ -111,6 +111,7 @@ pub fn serve(
         subtitles,
         images.clone(),
     );
+    let segments = Segments::new(Arc::clone(&db), points.clone());
     let contents = Contents::new(Arc::clone(&db));
     let running = RunningPlans::new(
         settings.playback(),
@@ -179,6 +180,8 @@ pub fn serve(
         if watch_folders {
             scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
         }
+        // After each probe pass, and hourly for a Version due again (ADR 0075).
+        segments.start(probing.passed(), Duration::from_hours(1));
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
@@ -200,6 +203,8 @@ pub fn serve(
         // The Scanner first, so a scan finishing now can't start a pass once Probing has stopped.
         scanner.shutdown().await;
         probing.shutdown().await;
+        // Before the Plugin settings, as it asks Segment sources.
+        segments.shutdown().await;
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         home_rows.shutdown().await;

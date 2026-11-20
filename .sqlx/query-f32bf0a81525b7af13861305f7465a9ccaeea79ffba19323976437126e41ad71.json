@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT duration_ms, probe_version, size, modified_ns FROM version_probes\n             WHERE version_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "duration_ms",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "probe_version",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "probe_version"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "modified_ns"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f32bf0a81525b7af13861305f7465a9ccaeea79ffba19323976437126e41ad71"
+}

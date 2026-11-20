@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/plugin/v1/request.proto";
+import "nama/plugin/v1/title_source.proto";
+
+// The Extension Point for a Segment source, which says where a Version's Intro, Recap and Credits
+// are, such as from an outside service like TheIntroDB (ADR 0075). An Installed Plugin serves it
+// through the WASM export each rpc names, taking and returning its messages encoded as protobuf.
+//
+// The Kernel asks in the background after a Version is probed, never while it plays, and only for
+// the kinds its Chapter names and earlier sources in the Library's order left unknown. It asks a
+// Version still missing a kind again at most every 30 days, and one a source failed for sooner.
+// The outside service's rate limits are the Plugin's to keep: the Kernel doesn't count calls.
+service SegmentSourceService {
+  // The `segment_search` export: where one Version's Segments are.
+  rpc Search(SegmentSearch) returns (SegmentResults);
+}
+
+// What the `segment_search` export asks about: a Version of a Movie or of an Episode.
+message SegmentSearch {
+  // Movie, or Show for an Episode.
+  TitleKind kind = 1;
+  // The Movie's or Show's External IDs, at most one per namespace.
+  repeated TitleId ids = 2;
+  // For an Episode, its Season's number. Season 0 holds specials.
+  optional uint32 season = 3;
+  // For an Episode, its number within the Season.
+  optional uint32 episode = 4;
+  // How long the Version runs, in milliseconds, so a source can pick the cut closest to it.
+  uint64 duration_ms = 5;
+}
+
+// What the `segment_search` export returns. Empty means the source doesn't know.
+message SegmentResults {
+  // The Segments found, at most one of each kind: the Kernel ignores a second.
+  repeated SegmentResult segments = 1;
+}
+
+// One stretch of the Version the player acts on.
+message SegmentResult {
+  SegmentKind kind = 1;
+  // When it starts, in milliseconds from the Version's start.
+  uint64 start_ms = 2;
+  // When it ends, in milliseconds from the Version's start; unset runs to the end, as Credits
+  // often do. The Kernel drops a Segment that ends before it starts or starts past the Version's
+  // end, and cuts an end past it back to it.
+  optional uint64 end_ms = 3;
+}
+
+// What a Segment is.
+enum SegmentKind {
+  SEGMENT_KIND_UNSPECIFIED = 0;
+  // The opening titles, which the player offers to skip.
+  SEGMENT_KIND_INTRO = 1;
+  // What happened in earlier Episodes, which the player offers to skip.
+  SEGMENT_KIND_RECAP = 2;
+  // The closing credits, where the player starts counting down to the next Episode.
+  SEGMENT_KIND_CREDITS = 3;
+}

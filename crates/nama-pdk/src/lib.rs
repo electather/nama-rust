@@ -28,6 +28,7 @@ mod home_row;
 mod log;
 mod notification_text;
 mod recogniser;
+mod segment_source;
 mod subtitle_source;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod testing;
@@ -44,6 +45,9 @@ pub use home_row::{
 pub use recogniser::{
     FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
     TitleRecognised, TitleToRecognise,
+};
+pub use segment_source::{
+    SegmentKind, SegmentResult, SegmentResults, SegmentSearch, SegmentSource,
 };
 pub use subtitle_source::{
     SubtitleDownload, SubtitleFile, SubtitleResult, SubtitleResults, SubtitleSearch, SubtitleSource,

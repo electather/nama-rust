@@ -64,6 +64,8 @@ pub mod services {
     /// A subtitle source, which searches an outside service for a Version's subtitles and
     /// downloads one a User picks (ADR 0067).
     pub const SUBTITLE_SOURCE: &str = "nama.plugin.v1.SubtitleSourceService";
+    /// A Segment source, which says where a Version's Intro, Recap and Credits are (ADR 0075).
+    pub const SEGMENT_SOURCE: &str = "nama.plugin.v1.SegmentSourceService";
 }
 
 /// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
@@ -80,6 +82,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::BLOB_STORE, "1.0.0"),
     (services::HOME_ROW, "1.4.0"),
     (services::SUBTITLE_SOURCE, "1.0.0"),
+    (services::SEGMENT_SOURCE, "1.0.0"),
 ];
 
 /// The largest object a blob store holds, in bytes: the Kernel never puts a larger one, and a

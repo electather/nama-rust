@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE libraries SET segment_sources = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "da6e874ac68b079ea5c3d228311289e663c2012fb392029feda83a8e3dc4d61b"
+}

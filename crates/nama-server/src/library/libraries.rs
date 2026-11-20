@@ -9,7 +9,7 @@ use std::{collections::HashMap, sync::Arc};
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
-use super::folders::{check_folders, ensure_folders_free};
+use super::folders::{FolderProblem, check_folders, ensure_folders_free, insert_folders};
 use crate::{db::Database, users::name_key};
 
 /// The kind of media a Library holds.
@@ -41,6 +41,9 @@ pub(crate) struct Library {
     /// The ids of the Plugins whose Recognisers it asks, first asked first; none asks only the
     /// Kernel's own Matching (ADR 0050).
     pub(crate) recognisers: Vec<String>,
+    /// The ids of the Plugins whose Segment sources it asks, first asked first, after the Kernel
+    /// reads its Versions' Chapter names (ADR 0075).
+    pub(crate) segment_sources: Vec<String>,
     /// Whether Preview frames are made for its Versions.
     pub(crate) preview_frames: bool,
 }
@@ -55,6 +58,9 @@ pub(crate) struct Order {
     /// Recogniser Plugin ids, first asked first; `None` keeps the stored order, or none for a
     /// new Library.
     pub(crate) recognisers: Option<Vec<String>>,
+    /// Segment source Plugin ids, first asked first; `None` keeps the stored order, or none for a
+    /// new Library.
+    pub(crate) segment_sources: Option<Vec<String>>,
     /// `None` keeps the stored setting, or makes them for a new Library.
     pub(crate) preview_frames: Option<bool>,
 }
@@ -109,26 +115,12 @@ pub(crate) enum Error {
     /// the Recogniser point (ADR 0050).
     #[error("{plugin:?} is no Recogniser's Plugin, or is named twice")]
     RecognisersInvalid { plugin: String },
+    /// The Segment sources name `plugin` twice, or it has a comma or is no Plugin whose Manifest
+    /// names the Segment source point (ADR 0075).
+    #[error("{plugin:?} is no Segment source's Plugin, or is named twice")]
+    SegmentSourcesInvalid { plugin: String },
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
-}
-
-/// Why a folder can't be one of a Library's.
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum FolderProblem {
-    #[error("is not an absolute path")]
-    NotAbsolute,
-    // In `NotFound` and `NotReadable`, the operating system's text stays in the message and never
-    // goes in a Refusal's params: it can't be translated.
-    #[error("can't be found: {0}")]
-    NotFound(std::io::Error),
-    #[error("is not a directory the Server can read: {0}")]
-    NotReadable(std::io::Error),
-    /// The path it resolves to, shown lossily.
-    #[error("resolves to {0}, which is not valid UTF-8")]
-    NotUtf8(String),
-    #[error("is named more than once")]
-    Repeated,
 }
 
 /// The Server's Libraries, kept in its database.
@@ -183,7 +175,7 @@ impl Libraries {
         let mut tx = self.db.reader().begin().await?;
         let rows = sqlx::query!(
             r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers,
-                      preview_frames AS "preview_frames: bool"
+                      segment_sources, preview_frames AS "preview_frames: bool"
                FROM libraries ORDER BY id"#
         )
         .fetch_all(&mut *tx)
@@ -223,7 +215,8 @@ impl Libraries {
                 name: row.name,
                 kind: row.kind,
                 title_sources: split_sources(&row.title_sources),
-                recognisers: split_recognisers(&row.recognisers),
+                recognisers: split_ids(&row.recognisers),
+                segment_sources: split_ids(&row.segment_sources),
                 preview_frames: row.preview_frames,
             })
             .collect())
@@ -232,7 +225,7 @@ impl Libraries {
     pub(crate) async fn get(&self, id: i64) -> Result<Library, Error> {
         let mut tx = self.db.reader().begin().await?;
         let row = sqlx::query!(
-            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers,
+            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers, segment_sources,
                       preview_frames AS "preview_frames: bool"
                FROM libraries WHERE id = ?"#,
             id
@@ -262,7 +255,8 @@ impl Libraries {
             read_only,
             empty_folders,
             title_sources: split_sources(&row.title_sources),
-            recognisers: split_recognisers(&row.recognisers),
+            recognisers: split_ids(&row.recognisers),
+            segment_sources: split_ids(&row.segment_sources),
             preview_frames: row.preview_frames,
         })
     }
@@ -298,6 +292,19 @@ impl Libraries {
         let order = order.join(",");
         self.db
             .write(move |tx| Box::pin(set_recognisers(tx, id, order)))
+            .await
+    }
+
+    /// Sets the order of the Library `id`'s Segment sources, by Plugin id.
+    #[cfg(test)]
+    pub(crate) async fn set_segment_sources(
+        &self,
+        id: i64,
+        order: Vec<String>,
+    ) -> Result<(), Error> {
+        let order = order.join(",");
+        self.db
+            .write(move |tx| Box::pin(set_segment_sources(tx, id, order)))
             .await
     }
 
@@ -385,6 +392,7 @@ async fn create(
     let Order {
         title_sources,
         recognisers,
+        segment_sources,
         preview_frames,
     } = order;
     let preview_frames = preview_frames.unwrap_or(true);
@@ -405,6 +413,10 @@ async fn create(
     if !recognisers.is_empty() {
         set_recognisers(conn, id, recognisers.join(",")).await?;
     }
+    let segment_sources = segment_sources.unwrap_or_default();
+    if !segment_sources.is_empty() {
+        set_segment_sources(conn, id, segment_sources.join(",")).await?;
+    }
     Ok(Library {
         id,
         name,
@@ -414,6 +426,7 @@ async fn create(
         empty_folders: Vec::new(),
         title_sources,
         recognisers,
+        segment_sources,
         preview_frames,
     })
 }
@@ -430,6 +443,7 @@ async fn update(
     let Order {
         title_sources,
         recognisers,
+        segment_sources,
         preview_frames,
     } = order;
     let current = sqlx::query_scalar!("SELECT name FROM libraries WHERE id = ?", id)
@@ -443,7 +457,7 @@ async fn update(
     }
     let row = sqlx::query!(
         r#"UPDATE libraries SET name = ?, preview_frames = coalesce(?, preview_frames) WHERE id = ?
-           RETURNING kind AS "kind: Kind", title_sources, recognisers,
+           RETURNING kind AS "kind: Kind", title_sources, recognisers, segment_sources,
                      preview_frames AS "preview_frames: bool""#,
         name,
         preview_frames,
@@ -451,7 +465,49 @@ async fn update(
     )
     .fetch_one(&mut *conn)
     .await?;
-    ensure_folders_free(conn, &folders, Some(id)).await?;
+    let (read_only, empty_folders) = replace_folders(conn, id, &folders).await?;
+    let title_sources = if title_sources.is_empty() {
+        split_sources(&row.title_sources)
+    } else {
+        set_title_sources(conn, id, title_sources.join(",")).await?;
+        title_sources
+    };
+    let recognisers = match recognisers {
+        Some(recognisers) => {
+            set_recognisers(conn, id, recognisers.join(",")).await?;
+            recognisers
+        }
+        None => split_ids(&row.recognisers),
+    };
+    let segment_sources = match segment_sources {
+        Some(segment_sources) => {
+            set_segment_sources(conn, id, segment_sources.join(",")).await?;
+            segment_sources
+        }
+        None => split_ids(&row.segment_sources),
+    };
+    Ok(Library {
+        id,
+        name,
+        kind: row.kind,
+        folders,
+        read_only,
+        empty_folders,
+        title_sources,
+        recognisers,
+        segment_sources,
+        preview_frames: row.preview_frames,
+    })
+}
+
+/// Replaces the Library `id`'s folders with `folders`, and returns which it keeps read-only and
+/// which it keeps empty.
+async fn replace_folders(
+    conn: &mut SqliteConnection,
+    id: i64,
+    folders: &[String],
+) -> Result<(Vec<String>, Vec<String>), Error> {
+    ensure_folders_free(conn, folders, Some(id)).await?;
     // A folder it keeps stays read-only, or empty, until a scan says otherwise; a new one holds
     // nothing to delete or keep until a scan, which checks it.
     let kept = sqlx::query!(
@@ -464,7 +520,7 @@ async fn update(
     sqlx::query!("DELETE FROM library_folders WHERE library_id = ?", id)
         .execute(&mut *conn)
         .await?;
-    insert_folders(conn, id, &folders).await?;
+    insert_folders(conn, id, folders).await?;
     let kept_where = |flag: fn(&_) -> bool| -> Vec<String> {
         (kept
             .iter()
@@ -478,30 +534,7 @@ async fn update(
     );
     set_read_only(conn, id, read_only.clone()).await?;
     set_empty_folders(conn, id, empty_folders.clone()).await?;
-    let title_sources = if title_sources.is_empty() {
-        split_sources(&row.title_sources)
-    } else {
-        set_title_sources(conn, id, title_sources.join(",")).await?;
-        title_sources
-    };
-    let recognisers = match recognisers {
-        Some(recognisers) => {
-            set_recognisers(conn, id, recognisers.join(",")).await?;
-            recognisers
-        }
-        None => split_recognisers(&row.recognisers),
-    };
-    Ok(Library {
-        id,
-        name,
-        kind: row.kind,
-        folders,
-        read_only,
-        empty_folders,
-        title_sources,
-        recognisers,
-        preview_frames: row.preview_frames,
-    })
+    Ok((read_only, empty_folders))
 }
 
 /// Deletes the Library `id`. Its folders go with it (`ON DELETE CASCADE`).
@@ -607,6 +640,25 @@ async fn set_recognisers(conn: &mut SqliteConnection, id: i64, order: String) ->
     Ok(())
 }
 
+/// `order` must be Plugin ids joined with commas, none if empty.
+async fn set_segment_sources(
+    conn: &mut SqliteConnection,
+    id: i64,
+    order: String,
+) -> Result<(), Error> {
+    let updated = sqlx::query!(
+        "UPDATE libraries SET segment_sources = ? WHERE id = ?",
+        order,
+        id
+    )
+    .execute(&mut *conn)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(Error::NotFound(id));
+    }
+    Ok(())
+}
+
 /// Fails unless `order` is one or more namespaces by `ExternalId`'s rule, each named once, as a
 /// stored order needs.
 fn check_title_sources(order: &[String]) -> Result<(), Error> {
@@ -673,9 +725,9 @@ fn split_sources(stored: &str) -> Vec<String> {
     stored.split(',').map(str::to_owned).collect()
 }
 
-/// The stored, comma-separated `recognisers`, as a list; empty names none. A Plugin id has no
-/// comma.
-fn split_recognisers(stored: &str) -> Vec<String> {
+/// The stored, comma-separated `recognisers` or `segment_sources`, as a list; empty names none. A
+/// Plugin id has no comma.
+fn split_ids(stored: &str) -> Vec<String> {
     (stored.split(',').filter(|id| !id.is_empty()))
         .map(str::to_owned)
         .collect()
@@ -700,24 +752,6 @@ async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(),
         Some(library) => Err(Error::NameTaken { library }),
         None => Ok(()),
     }
-}
-
-async fn insert_folders(
-    conn: &mut SqliteConnection,
-    id: i64,
-    folders: &[String],
-) -> Result<(), sqlx::Error> {
-    for (position, folder) in (0_i64..).zip(folders) {
-        sqlx::query!(
-            "INSERT INTO library_folders (path, library_id, position) VALUES (?, ?, ?)",
-            folder,
-            id,
-            position,
-        )
-        .execute(&mut *conn)
-        .await?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]

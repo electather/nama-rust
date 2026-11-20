@@ -1,22 +1,11 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT name, kind AS \"kind: Kind\", title_sources, recognisers,\n                      preview_frames AS \"preview_frames: bool\"\n               FROM libraries WHERE id = ?",
+  "query": "UPDATE libraries SET name = ?, preview_frames = coalesce(?, preview_frames) WHERE id = ?\n           RETURNING kind AS \"kind: Kind\", title_sources, recognisers, segment_sources,\n                     preview_frames AS \"preview_frames: bool\"",
   "describe": {
     "columns": [
       {
-        "name": "name",
-        "ordinal": 0,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "libraries",
-            "name": "name"
-          }
-        }
-      },
-      {
         "name": "kind: Kind",
-        "ordinal": 1,
+        "ordinal": 0,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +16,7 @@
       },
       {
         "name": "title_sources",
-        "ordinal": 2,
+        "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -38,12 +27,23 @@
       },
       {
         "name": "recognisers",
-        "ordinal": 3,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "libraries",
             "name": "recognisers"
+          }
+        }
+      },
+      {
+        "name": "segment_sources",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "segment_sources"
           }
         }
       },
@@ -60,7 +60,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 3
     },
     "nullable": [
       false,
@@ -70,5 +70,5 @@
       false
     ]
   },
-  "hash": "386c09a43da9c9d3f87336317d09a46017312da8411a3d2412e987ed9bc58576"
+  "hash": "96dfca44a17a3fcd0f1b1e5d622ccd98c9e593b5d12a0be7e3a4b801b90bb679"
 }

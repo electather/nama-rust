@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT kind AS \"kind: SegmentKind\" FROM segments WHERE version_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "kind: SegmentKind",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "segments",
+            "name": "kind"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c7617d5dc3d8650e9f0c1785e436fda224cf9690f975e684d6a2fd5d214bb0a9"
+}

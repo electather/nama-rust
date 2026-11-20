@@ -47,6 +47,7 @@ mod listing;
 mod load;
 mod plugin_log;
 mod recogniser;
+mod segment_source;
 mod services;
 mod subtitle_source;
 mod title_source;

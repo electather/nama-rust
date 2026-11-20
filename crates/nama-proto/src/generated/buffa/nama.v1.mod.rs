@@ -270,6 +270,7 @@ pub mod __buffa {
         reg.register_json_any(super::__DEVICE_DECODING_JSON_ANY);
         reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
+        reg.register_json_any(super::__SEGMENT_JSON_ANY);
         reg.register_json_any(super::__CHAPTER_JSON_ANY);
         reg.register_json_any(super::__PREVIEW_FRAMES_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_SUBTITLE_JSON_ANY);
@@ -313,6 +314,7 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UPDATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__RECOGNISER_ORDER_JSON_ANY);
+        reg.register_json_any(super::__SEGMENT_SOURCE_ORDER_JSON_ANY);
         reg.register_json_any(super::__UPDATE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
@@ -1226,6 +1228,10 @@ pub use self::__buffa::view::PlaybackPlanView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackPlanOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::SegmentView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ChapterView;
 #[doc(inline)]
 pub use self::__buffa::view::ChapterOwnedView;
@@ -1397,6 +1403,10 @@ pub use self::__buffa::view::UpdateLibraryRequestOwnedView;
 pub use self::__buffa::view::RecogniserOrderView;
 #[doc(inline)]
 pub use self::__buffa::view::RecogniserOrderOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentSourceOrderView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentSourceOrderOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UpdateLibraryResponseView;
 #[doc(inline)]

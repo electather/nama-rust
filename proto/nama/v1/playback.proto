@@ -468,6 +468,29 @@ message PlaybackPlan {
   // The Version's Chapters, in the order its file lists them. Empty when it has fewer than two, so
   // the player keeps a plain seek bar.
   repeated Chapter chapters = 15;
+  // The Version's Segments, at most one of each kind, earliest first. Empty until the Server has
+  // found any, in the background after it probes the Version.
+  repeated Segment segments = 17;
+}
+
+// A stretch of the Version a plan plays that the player acts on.
+message Segment {
+  SegmentKind kind = 1;
+  // When it starts, in milliseconds from the Version's start.
+  uint64 start_ms = 2;
+  // When it ends, in milliseconds from the Version's start; unset runs to the end.
+  optional uint64 end_ms = 3;
+}
+
+// What a Segment is.
+enum SegmentKind {
+  SEGMENT_KIND_UNSPECIFIED = 0;
+  // The opening titles: the player offers to skip to its end.
+  SEGMENT_KIND_INTRO = 1;
+  // What happened in earlier Episodes: the player offers to skip to its end.
+  SEGMENT_KIND_RECAP = 2;
+  // The closing credits: the player starts counting down to the next Episode at its start.
+  SEGMENT_KIND_CREDITS = 3;
 }
 
 // A Chapter of the Version a plan plays.
