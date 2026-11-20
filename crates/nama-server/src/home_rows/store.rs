@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use nama_plugin_api::{PluginId, home_row::HomeRowMethod, metadata::ExternalId};
@@ -10,7 +11,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 
 use super::{Kind, OnServer, Row, Title};
-use crate::library::{FoundMovie, FoundShow, LibraryMovie, LibraryShow};
+use crate::{
+    db,
+    library::{FoundMovie, FoundShow, LibraryMovie, LibraryShow},
+};
 
 /// What a row stores as JSON, `json`, or none if it doesn't read.
 pub(super) fn from_json<T: for<'de> Deserialize<'de>>(json: &str) -> Vec<T> {
@@ -53,6 +57,11 @@ pub(super) async fn set_stale_at(
     .execute(conn)
     .await?;
     Ok(())
+}
+
+/// When something fresh for `fresh_for` from now goes stale, in seconds since the Unix epoch.
+pub(super) fn stale_after(fresh_for: Duration) -> i64 {
+    db::now().saturating_add(i64::try_from(fresh_for.as_secs()).unwrap_or(0))
 }
 
 /// Deletes, with when they were refreshed, each Plugin's rows that `gone` names by the method

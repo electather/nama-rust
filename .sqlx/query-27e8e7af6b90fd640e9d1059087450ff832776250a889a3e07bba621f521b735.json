@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE featured_suggestions SET suggestions = ?, stale_at = ?\n                         WHERE plugin_id = ? AND user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "27e8e7af6b90fd640e9d1059087450ff832776250a889a3e07bba621f521b735"
+}

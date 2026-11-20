@@ -7,7 +7,8 @@ use std::{
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     contract::{
-        HomeRow, HomeRowTitle, HomeRows, SharedRowsAsked, TitleId, TitleKind, UserRowsAsked,
+        FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows, SharedRowsAsked,
+        TitleId, TitleKind, UserFeaturedAsked, UserRowsAsked,
     },
     home_row::{HomeRowMethod, HomeRowSource},
     metadata::ExternalId,
@@ -156,11 +157,14 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
 
 /// What a [`Recorded`] source was asked, and a hold on its answers to Users.
 #[derive(Default)]
-struct Calls {
+pub(super) struct Calls {
     /// In order: `None` for the shared rows, or the Personal settings a User's call carried.
     asked: Mutex<Vec<Option<BTreeMap<String, String>>>>,
-    /// Its `user_rows` answers only once it holds this, so a test keeps a call in flight.
-    user_rows_held: tokio::sync::Mutex<()>,
+    /// In order, the Personal settings each `user_featured` call carried.
+    pub(super) featured_asked: Mutex<Vec<BTreeMap<String, String>>>,
+    /// Its `user_rows` and `user_featured` answer only once it holds this, so a test keeps a
+    /// call in flight.
+    pub(super) users_held: tokio::sync::Mutex<()>,
 }
 
 impl Calls {
@@ -170,7 +174,8 @@ impl Calls {
 }
 
 /// A Built-in Home row source, `rows`, that records what it is asked, and gives the row `shared`
-/// to every User and the row `theirs` to each, of those `gives` names.
+/// to every User, the row `theirs` to each, and suggests to each User who set a `handle` the
+/// Movie of that TMDB id at 0.5, of those `gives` names.
 struct Recorded {
     calls: Arc<Calls>,
     gives: &'static [HomeRowMethod],
@@ -211,8 +216,31 @@ impl HomeRowSource for Recorded {
         let settings = asked.personal_settings.clone().into_iter().collect();
         self.calls.asked.lock().unwrap().push(Some(settings));
         Box::pin(async {
-            let _held = self.calls.user_rows_held.lock().await;
+            let _held = self.calls.users_held.lock().await;
             Ok(given(vec![row("theirs", 3600, vec![movie("2")])]))
+        })
+    }
+
+    fn user_featured<'a>(
+        &'a self,
+        asked: &'a UserFeaturedAsked,
+    ) -> BoxFuture<'a, Result<FeaturedSuggestions, PluginError>> {
+        let settings = asked.personal_settings.clone().into_iter().collect();
+        self.calls.featured_asked.lock().unwrap().push(settings);
+        let handle = asked.personal_settings.get("handle").cloned();
+        Box::pin(async move {
+            let _held = self.calls.users_held.lock().await;
+            let suggestion = |tmdb: String| FeaturedSuggestion {
+                kind: TitleKind::TITLE_KIND_MOVIE.into(),
+                id: movie(&tmdb).id,
+                weight: 0.5,
+                ..FeaturedSuggestion::default()
+            };
+            Ok(FeaturedSuggestions {
+                suggestions: handle.into_iter().map(suggestion).collect(),
+                ttl_seconds: 3600,
+                ..FeaturedSuggestions::default()
+            })
         })
     }
 
@@ -221,11 +249,13 @@ impl HomeRowSource for Recorded {
     }
 }
 
-const SHARED: &[HomeRowMethod] = &[HomeRowMethod::Shared];
+pub(super) const SHARED: &[HomeRowMethod] = &[HomeRowMethod::Shared];
 const BOTH: &[HomeRowMethod] = &[HomeRowMethod::Shared, HomeRowMethod::User];
 
 /// Home rows over a fresh database, with [`Recorded`] enabled, giving the rows `gives` names.
-async fn recorded(gives: &'static [HomeRowMethod]) -> (TempDir, Arc<Database>, Kept, Arc<Calls>) {
+pub(super) async fn recorded(
+    gives: &'static [HomeRowMethod],
+) -> (TempDir, Arc<Database>, Kept, Arc<Calls>) {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
     let (home, calls) = started(&db, gives);
@@ -234,7 +264,7 @@ async fn recorded(gives: &'static [HomeRowMethod]) -> (TempDir, Arc<Database>, K
 
 /// Home rows over `db`, with [`Recorded`] enabled, giving the rows `gives` names, as a Server
 /// starts with that version of it.
-fn started(db: &Arc<Database>, gives: &'static [HomeRowMethod]) -> (Kept, Arc<Calls>) {
+pub(super) fn started(db: &Arc<Database>, gives: &'static [HomeRowMethod]) -> (Kept, Arc<Calls>) {
     let calls = Arc::new(Calls::default());
     let plugins = Registry::new();
     let source = Recorded {
@@ -248,7 +278,7 @@ fn started(db: &Arc<Database>, gives: &'static [HomeRowMethod]) -> (Kept, Arc<Ca
     (Kept::new(Arc::clone(db), points, requests), calls)
 }
 
-async fn insert_user(db: &Database, name: &str) -> i64 {
+pub(super) async fn insert_user(db: &Database, name: &str) -> i64 {
     let name = name.to_owned();
     db.write(move |tx| {
         Box::pin(async move {
@@ -267,7 +297,7 @@ async fn insert_user(db: &Database, name: &str) -> i64 {
     .unwrap()
 }
 
-async fn set_handle(db: &Database, user: i64, handle: &str) {
+pub(super) async fn set_handle(db: &Database, user: i64, handle: &str) {
     let rows = PluginId::from_static("rows");
     let values = vec![("handle".to_owned(), handle.to_owned(), false)];
     replace_personal_settings(db, user, &rows, values)
@@ -276,7 +306,7 @@ async fn set_handle(db: &Database, user: i64, handle: &str) {
 }
 
 /// The Personal settings of a User who set `handle`.
-fn handle(handle: &str) -> BTreeMap<String, String> {
+pub(super) fn handle(handle: &str) -> BTreeMap<String, String> {
     [("handle".to_owned(), handle.to_owned())].into()
 }
 
@@ -467,7 +497,7 @@ async fn rows_asked_before_a_user_changed_their_personal_settings_are_not_kept()
     let (_dir, db, home, calls) = recorded(BOTH).await;
     let ada = insert_user(&db, "ada").await;
     set_handle(&db, ada, "ada").await;
-    let held = calls.user_rows_held.lock().await;
+    let held = calls.users_held.lock().await;
     home.list(&reader(ada)).await.unwrap();
     let started = Instant::now();
     while !calls.asked().contains(&Some(handle("ada"))) {

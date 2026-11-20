@@ -72,7 +72,7 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 | `AUTOMATION` | `Automation`, `automation!` | `tick` | |
 | `RECOGNISER` | `Recogniser`, `recogniser!` | | `recognise_title`, `recognise_file` |
 | `BLOB_STORE` | `BlobStore`, `blob_store!` | `put`, `get`, `delete`, `list`, `exists` | |
-| `HOME_ROW` | `HomeRowSource`, `home_row_source!` | | `shared_rows`, `user_rows` |
+| `HOME_ROW` | `HomeRowSource`, `home_row_source!` | | `shared_rows`, `user_rows`, `user_featured` |
 | `SUBTITLE_SOURCE` | `SubtitleSource`, `subtitle_source!` | `search`, `download` | |
 
 A trait's optional methods have defaults, and its macro exports them all, except `title_source!`, `recogniser!` and `home_row_source!`, which export only the methods they list, since the Server asks nothing of a title source, Recogniser or Home row source that lacks the export:

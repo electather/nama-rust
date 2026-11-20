@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id, suggestions, stale_at FROM featured_suggestions WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "featured_suggestions",
+            "name": "plugin_id"
+          }
+        }
+      },
+      {
+        "name": "suggestions",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "featured_suggestions",
+            "name": "suggestions"
+          }
+        }
+      },
+      {
+        "name": "stale_at",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "featured_suggestions",
+            "name": "stale_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5340bf70f325adbc96d4ac89c7d5ec584165c9b5ef84920c59ac8d9bcf110bf5"
+}

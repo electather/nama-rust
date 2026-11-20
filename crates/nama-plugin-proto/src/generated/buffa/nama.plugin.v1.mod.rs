@@ -169,6 +169,9 @@ pub mod __buffa {
         reg.register_json_any(super::__UNFOLLOWED_JSON_ANY);
         reg.register_json_any(super::__SHARED_ROWS_ASKED_JSON_ANY);
         reg.register_json_any(super::__USER_ROWS_ASKED_JSON_ANY);
+        reg.register_json_any(super::__USER_FEATURED_ASKED_JSON_ANY);
+        reg.register_json_any(super::__FEATURED_SUGGESTIONS_JSON_ANY);
+        reg.register_json_any(super::__FEATURED_SUGGESTION_JSON_ANY);
         reg.register_json_any(super::__HOME_ROWS_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
@@ -612,6 +615,18 @@ pub use self::__buffa::view::SharedRowsAskedOwnedView;
 pub use self::__buffa::view::UserRowsAskedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserRowsAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserFeaturedAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserFeaturedAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FeaturedSuggestionsView;
+#[doc(inline)]
+pub use self::__buffa::view::FeaturedSuggestionsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FeaturedSuggestionView;
+#[doc(inline)]
+pub use self::__buffa::view::FeaturedSuggestionOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowsView;
 #[doc(inline)]

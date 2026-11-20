@@ -433,8 +433,8 @@ mod exports {
 #[cfg(feature = "home-rows")]
 mod home_rows {
     use nama_pdk::{
-        HomeRow, HomeRowSource, HomeRowTitle, HomeRows, TitleId, TitleKind, UserRowsAsked,
-        extism_pdk::Error,
+        FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowSource, HomeRowTitle, HomeRows,
+        TitleId, TitleKind, UserFeaturedAsked, UserRowsAsked, extism_pdk::Error,
     };
 
     /// The setting naming the keys of the rows it gives, comma-separated, all of them when
@@ -444,9 +444,10 @@ mod home_rows {
 
     /// Gives every User `picks`: the Movies Heat, Dune and Alien and the Show Dark, which the
     /// fake TMDB knows; `again`: Alien; and `missing`: Dune and a Movie no title source has. Gives
-    /// a User who set a `handle` the row `for-<handle>`: Alien. Logs which it was asked for, so a
-    /// test counts its refreshes, and what its Store kept or why the Kernel refused it, so a test
-    /// sees a Plugin that isn't an Automation call the Kernel's functions.
+    /// a User who set a `handle` the row `for-<handle>`: Alien, and suggests for their Featured
+    /// Heat at 1.0, Alien at 0.0 and a Movie no title source has at 1.0. Logs which it was asked
+    /// for, so a test counts its refreshes, and what its Store kept or why the Kernel refused it,
+    /// so a test sees a Plugin that isn't an Automation call the Kernel's functions.
     struct TestRows;
 
     impl HomeRowSource for TestRows {
@@ -499,6 +500,25 @@ mod home_rows {
                 ..HomeRows::default()
             })
         }
+
+        fn user_featured(asked: UserFeaturedAsked) -> Result<FeaturedSuggestions, Error> {
+            if !asked.personal_settings.contains_key(super::exports::HANDLE) {
+                return Ok(FeaturedSuggestions::default());
+            }
+            let suggestion = |(tmdb, weight): (i64, f32)| FeaturedSuggestion {
+                kind: MOVIE.into(),
+                id: tmdb_id(tmdb).into(),
+                weight,
+                ..FeaturedSuggestion::default()
+            };
+            Ok(FeaturedSuggestions {
+                suggestions: [(949, 1.0), (348, 0.0), (900_001, 1.0)]
+                    .map(suggestion)
+                    .into(),
+                ttl_seconds: 60 * 60,
+                ..FeaturedSuggestions::default()
+            })
+        }
     }
 
     /// Keeps the text "rows" in the Plugin's Store and reads back what the Store then keeps.
@@ -516,12 +536,7 @@ mod home_rows {
     fn row(key: &str, heading: &str, titles: &[(TitleKind, i64)]) -> HomeRow {
         let title = |&(kind, tmdb): &(TitleKind, i64)| HomeRowTitle {
             kind: kind.into(),
-            id: TitleId {
-                namespace: "tmdb".to_owned(),
-                value: tmdb.to_string(),
-                ..TitleId::default()
-            }
-            .into(),
+            id: tmdb_id(tmdb).into(),
             ..HomeRowTitle::default()
         };
         HomeRow {
@@ -533,8 +548,16 @@ mod home_rows {
         }
     }
 
+    fn tmdb_id(tmdb: i64) -> TitleId {
+        TitleId {
+            namespace: "tmdb".to_owned(),
+            value: tmdb.to_string(),
+            ..TitleId::default()
+        }
+    }
+
     #[cfg(not(any(feature = "home-rows-shared-only", feature = "home-rows-user-only")))]
-    nama_pdk::home_row_source!(TestRows, [shared_rows, user_rows]);
+    nama_pdk::home_row_source!(TestRows, [shared_rows, user_rows, user_featured]);
     #[cfg(feature = "home-rows-shared-only")]
     nama_pdk::home_row_source!(TestRows, [shared_rows]);
     #[cfg(feature = "home-rows-user-only")]

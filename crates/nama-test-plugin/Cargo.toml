@@ -32,10 +32,11 @@ looping-tick = ["automation"]
 recogniser = []
 # Builds the Plugin naming the Home row Extension Point and requesting the Store Permission; its
 # `shared_rows` gives fixed rows, those its `home_rows` setting picks, after keeping a value in its
-# Store and reading it back, and its `user_rows` a row named for the User's `handle`.
+# Store and reading it back, its `user_rows` a row named for the User's `handle`, and its
+# `user_featured` fixed suggestions for a User who set one.
 home-rows = []
 # Builds the Plugin as `home-rows` does, exporting only `shared_rows`, or only `user_rows`, as a
-# new version of it that stopped giving the other.
+# new version of it that stopped giving the others.
 home-rows-shared-only = ["home-rows"]
 home-rows-user-only = ["home-rows"]
 # Builds the Plugin naming the subtitle source Extension Point; it finds and downloads nothing.

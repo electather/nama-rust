@@ -320,7 +320,9 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListFeaturedRequest>,
     ) -> ServiceResult<ListFeaturedResponse> {
         let user = caller(&ctx)?.user.id;
-        let featured = self.browse.featured(user).await;
+        let suggested = self.home_rows.featured(user).await;
+        let suggested = suggested.map_err(home_rows_refused)?;
+        let featured = self.browse.featured(user, &suggested).await;
         let featured = featured.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await?;
         Response::ok(ListFeaturedResponse {

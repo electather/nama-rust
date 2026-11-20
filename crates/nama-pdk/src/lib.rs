@@ -37,7 +37,10 @@ pub use automation::{
     TitleRequesters, TitleWatchStates, Titles, User, WatchState, WatchlistTitle, kernel,
 };
 pub use blob_store::{BLOB_MAX_BYTES, BlobPage, BlobStore};
-pub use home_row::{HomeRow, HomeRowSource, HomeRowTitle, HomeRows, UserRowsAsked};
+pub use home_row::{
+    FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowSource, HomeRowTitle, HomeRows,
+    UserFeaturedAsked, UserRowsAsked,
+};
 pub use recogniser::{
     FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
     TitleRecognised, TitleToRecognise,

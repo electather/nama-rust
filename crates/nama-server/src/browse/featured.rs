@@ -12,6 +12,7 @@ use super::{
 };
 use crate::{
     db,
+    home_rows::Suggested,
     library::{LibraryEpisode, LibraryMovie, WatchState},
 };
 
@@ -80,21 +81,31 @@ struct Suggestion {
 
 impl Browse {
     /// The User `user`'s Featured, heaviest first, those of equal weight the most recently added
-    /// first: their Continue Watching entries and the titles added in the last 14 days, each
-    /// once, at the heavier of its weights and in the Library that suggestion came from.
-    pub(crate) async fn featured(&self, user: i64) -> Result<Vec<Featured>, Error> {
+    /// first: their Continue Watching entries, the titles added in the last 14 days and those of
+    /// `suggested` some Library has, each once, at the heaviest of its weights and in the Library
+    /// that suggestion came from.
+    pub(crate) async fn featured(
+        &self,
+        user: i64,
+        suggested: &Suggested,
+    ) -> Result<Vec<Featured>, Error> {
         let mut featured = Vec::with_capacity(FEATURED_TITLES);
-        for suggestion in heaviest(self.suggestions(user).await?) {
+        let suggestions = self.suggestions(user, suggested, db::now()).await?;
+        for suggestion in heaviest(suggestions) {
             featured.push(self.with_what_plays(user, suggestion).await?);
         }
         Ok(featured)
     }
 
-    /// The Kernel's suggestions for the User `user`, each weighed as of now: a title may be
-    /// suggested more than once.
-    async fn suggestions(&self, user: i64) -> Result<Vec<Suggestion>, Error> {
-        let now = db::now();
-        let mut suggested: Vec<Suggestion> = (self.all_started(user).await?.into_iter())
+    /// The Kernel's suggestions for the User `user`, and those of the Plugins' `suggested` some
+    /// Library has, each weighed as of `now`: a title may be suggested more than once.
+    async fn suggestions(
+        &self,
+        user: i64,
+        suggested: &Suggested,
+        now: i64,
+    ) -> Result<Vec<Suggestion>, Error> {
+        let mut suggestions: Vec<Suggestion> = (self.all_started(user).await?.into_iter())
             .map(|(started, (changed_at, _))| {
                 let (library, title) = match started {
                     Started::Movie { library, movie, .. } => (library, Title::Movie(movie)),
@@ -114,17 +125,17 @@ impl Browse {
                 Titles::Movies(movies) => movies.into_iter().map(Title::Movie).collect(),
                 Titles::Shows(shows) => shows.into_iter().map(Title::Show).collect(),
             };
-            let added = (titles.into_iter())
-                .filter(|title| now - title.added_at() < i64::from(NEW_FOR))
-                .map(|title| Suggestion {
+            let weighed = titles.into_iter().filter_map(|title| {
+                let weight = weight(&title, now, suggested)?;
+                Some(Suggestion {
                     library: library.id,
-                    weight: ADDED_WEIGHT
-                        * (1.0 - seconds(now - title.added_at()) / f64::from(NEW_FOR)),
                     title,
-                });
-            suggested.extend(added);
+                    weight,
+                })
+            });
+            suggestions.extend(weighed);
         }
-        Ok(suggested)
+        Ok(suggestions)
     }
 
     /// `suggestion` with the User `user`'s Watch State of its Movie, or its Show's Episode that
@@ -183,6 +194,16 @@ fn heaviest(mut suggested: Vec<Suggestion>) -> Vec<Suggestion> {
     });
     suggested.truncate(FEATURED_TITLES);
     suggested
+}
+
+/// The heavier of `title`'s weight as added, if it was in the last [`NEW_FOR`] as of `now`, and
+/// its heaviest in `suggested`; `None` if it is neither.
+fn weight(title: &Title, now: i64, suggested: &Suggested) -> Option<f64> {
+    let age = now - title.added_at();
+    let added = (age < i64::from(NEW_FOR))
+        .then(|| ADDED_WEIGHT * (1.0 - seconds(age) / f64::from(NEW_FOR)));
+    let by_plugins = title.ids().filter_map(|id| suggested.get(&id).copied());
+    added.into_iter().chain(by_plugins).max_by(f64::total_cmp)
 }
 
 /// What is left of a weight after `age` seconds: half for each [`HALF_LIFE`].
