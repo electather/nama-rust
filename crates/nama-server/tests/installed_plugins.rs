@@ -527,9 +527,13 @@ async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server
     log.wait_for(&["test-plugin is looping"], 1).await;
     // Served while its call loops, which the timeout stops only after 5 seconds.
     assert!(started.listed("test-plugin").await.is_some());
-    assert_eq!(log.count(&["test-plugin", "observer crashed: timeout"]), 0);
-    log.wait_for(&["test-plugin", "observer crashed: timeout"], 1)
-        .await;
+    let timed_out = [
+        "observer failed",
+        "test-plugin",
+        "it crashed: it didn't answer within 5s",
+    ];
+    assert_eq!(log.count(&timed_out), 0);
+    log.wait_for(&timed_out, 1).await;
 
     assert!(started.listed("test-plugin").await.is_some());
     started.scan(library).await;
@@ -544,8 +548,9 @@ async fn an_observer_that_runs_past_the_memory_cap_crashes_and_the_server_carrie
     started.scan(library).await;
     log.wait_for(
         &[
+            "observer failed",
             "test-plugin",
-            "observer crashed: it used more than 128 MiB of memory",
+            "it crashed: it used more than 128 MiB of memory",
         ],
         1,
     )

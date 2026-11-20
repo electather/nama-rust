@@ -14,7 +14,10 @@ use super::{
     Method, POLL_EVERY, REMUX_WAIT_AHEAD_MS, RUN_AHEAD_MS,
     timeline::{SEGMENT_MS, Timeline, keyframe_number},
 };
-use crate::ffmpeg::{Keyframe, hls_init, hls_init_from};
+use crate::{
+    db,
+    ffmpeg::{Keyframe, hls_init, hls_init_from},
+};
 
 /// How ffmpeg's stderr says a write failed with ENOSPC. ffmpeg, not the Server, writes a plan's
 /// files, so its words are all the Server sees of it.
@@ -295,6 +298,8 @@ impl Running {
     async fn read_keyframe(&self, n: usize) -> io::Result<Option<Vec<u8>>> {
         match tokio::fs::read(self.keyframe_path(n)).await {
             Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+            // Windows refuses to open a file deleted while another request still reads it.
+            Err(err) if cfg!(windows) && err.kind() == io::ErrorKind::PermissionDenied => Ok(None),
             read => read.map(Some),
         }
     }
@@ -475,8 +480,8 @@ impl Running {
     /// tmpfs holding the files kept behind playback.
     fn warn_disk_full(&self) {
         let folder = self.dir.parent().unwrap_or(&self.dir);
-        let free = free_bytes(folder).map_or_else(
-            || "an unknown amount".to_owned(),
+        let free = db::free_bytes(folder).map_or_else(
+            |_| "an unknown amount".to_owned(),
             |bytes| format!("{} MiB", bytes / (1024 * 1024)),
         );
         let kept_behind_minutes = self.keep_behind_ms.load(Ordering::Relaxed) / 60_000;
@@ -534,18 +539,6 @@ impl Running {
             .fetch_max(written_to, Ordering::Relaxed)
             .max(written_to)
     }
-}
-
-#[cfg(unix)]
-fn free_bytes(folder: &Path) -> Option<u64> {
-    let stat = rustix::fs::statvfs(folder).ok()?;
-    Some(stat.f_bavail.saturating_mul(stat.f_frsize))
-}
-
-// ponytail: a Windows Server's warning gives no free space; ask GetDiskFreeSpaceExW once one runs.
-#[cfg(not(unix))]
-const fn free_bytes(_folder: &Path) -> Option<u64> {
-    None
 }
 
 #[cfg(test)]

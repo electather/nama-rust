@@ -26,6 +26,7 @@ mod probing;
 mod running;
 mod sidecars;
 mod steps;
+mod stored_tracks;
 mod subtitle_appearance;
 mod subtitles;
 mod track_preferences;
@@ -41,6 +42,7 @@ pub(crate) use running::{
     router as running_router, sweep_leftovers,
 };
 pub(crate) use sidecars::{Sidecar, Sidecars, VersionSidecars, is_sidecar};
+pub(crate) use stored_tracks::StoredTracks;
 pub(crate) use subtitle_appearance::{
     SubtitleAppearance, of as subtitle_appearance_of, set_background as set_subtitle_background,
     set_size as set_subtitle_size,

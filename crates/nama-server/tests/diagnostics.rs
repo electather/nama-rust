@@ -134,6 +134,10 @@ async fn a_call_is_one_trace_of_its_sql_and_plugin_calls_continuing_its_tracepar
         children.contains(&"plugin Authenticator"),
         "no Plugin call span in {children:?}"
     );
+    assert!(
+        children.contains(&"write queued"),
+        "no span for the write's wait in {children:?}"
+    );
     // The span naming a Built-in on stdout would repeat the Plugin call span.
     assert!(spans.iter().all(|span| span.name != "plugin"), "{spans:#?}");
     for span in &spans {

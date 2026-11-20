@@ -161,8 +161,12 @@ A setting a Plugin's Manifest declares for each User to set for themself, such a
 _Avoid_: user setting (confused with Settings preferences)
 
 **Automation lane**:
-Where a Plugin asks the Kernel rather than the Kernel asking it: the Kernel sends it Event batches and its Tick, and during those calls it calls the Kernel's few functions, each gated by a Plugin Permission the Admin granted, such as reading Watch State or deleting a title's media (ADR 0048).
-_Avoid_: automation API, scripting, host functions
+Where a Plugin acts on the Server on its own account rather than answering the Kernel: the Kernel sends it Event batches and its Tick, and it acts through Kernel functions (ADR 0048).
+_Avoid_: automation API, scripting
+
+**Kernel function**:
+One of the few things any Plugin may ask the Kernel for during any of its calls, each gated by a Plugin Permission the Admin granted, such as reading Watch State or deleting a title's media (ADR 0071).
+_Avoid_: host function, automation API
 
 **Tick**:
 The Kernel's call to an Automation Plugin on the schedule its Manifest sets, at most once a minute, carrying the Kernel's clock.
@@ -173,7 +177,7 @@ One thing a Plugin may ask the Kernel for, such as reading Watch State or deleti
 _Avoid_: scope, capability, Permission (alone, which is a User's)
 
 **Plugin Store**:
-The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through the Automation lane.
+The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through Kernel functions.
 _Avoid_: plugin database, KV, cache, plugin state
 
 **Plugin Log**:
@@ -210,7 +214,7 @@ One installment of a Show, numbered within a Season.
 _Avoid_: chapter, part
 
 **Version**:
-One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0062).
+One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0069).
 _Avoid_: copy, edition, file
 
 **Taken along**:
@@ -332,11 +336,11 @@ What a User wants the audio to start as when they play something: a language, an
 _Avoid_: default audio, remembered audio, audio choice (a pick in one playback)
 
 **Subtitle Appearance**:
-How a User's text subtitles look on every Device: one of four sizes, Small, Default, Large or Largest, and an outline or a box behind them. A styled ASS Track the Device draws, and a burned-in one, keep their own look (ADR 0068).
+How a User's text subtitles look on every Device: one of four sizes, Small, Default, Large or Largest, and an outline or a box behind them. A styled ASS Track the Device draws, and a burned-in one, keep their own look (ADR 0070).
 _Avoid_: subtitle style, caption style, subtitle settings
 
 **Subtitle Offset**:
-How far a User shifts one subtitle Track's timing to match the audio, kept for that Track of that Version. It doesn't apply to Burn-in (ADR 0068).
+How far a User shifts one subtitle Track's timing to match the audio, kept for that Track of that Version. It doesn't apply to Burn-in (ADR 0070).
 _Avoid_: subtitle delay, subtitle sync, subtitle timing
 
 **GPU**:

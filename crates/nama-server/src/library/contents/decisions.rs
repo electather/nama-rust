@@ -38,7 +38,7 @@ pub(crate) struct Unmatched {
 }
 
 /// Where an Unmatched Item sits in either order [`Contents::unmatched`] lists in: when a scan
-/// found it, and its file's path, which is empty when listing by when found (ADR 0062).
+/// found it, and its file's path, which is empty when listing by when found (ADR 0069).
 pub(crate) type UnmatchedPlace = (i64, String);
 
 /// Hands `$query!` the SQL for the Items of the Library `?1` that need a Match, one row each in
@@ -90,7 +90,7 @@ struct UnmatchedRow {
 impl UnmatchedRow {
     /// Where the row sits in the list, as its page token carries it: the path only when listing
     /// `by_found` doesn't, since a token is readable and a User who may not see paths pages by when
-    /// found (ADR 0062).
+    /// found (ADR 0069).
     fn place(&self, by_found: bool) -> (UnmatchedPlace, i64) {
         let path = if by_found {
             String::new()
