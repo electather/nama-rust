@@ -32,6 +32,8 @@ use crate::{
 
 /// How long a Version still missing a kind waits to be asked about again, as crowdsourced
 /// services fill in over time (ADR 0075).
+// shortcut: a source an Admin lists later, or a Version Matched later, waits out the rest of these
+// 30 days too; record which sources each ask reached if Admins expect it sooner.
 const ASK_AGAIN_AFTER: Duration = Duration::from_hours(30 * 24);
 
 /// How long a Version a Segment source failed for waits to be asked about again, so a service
@@ -173,7 +175,7 @@ impl Segments {
     /// The probed Versions of a known length that lack a kind of Segment and are due to be asked
     /// about: never since they were probed, or not for [`ASK_AGAIN_AFTER`], or
     /// [`ASK_AGAIN_AFTER_FAILING`] if a source failed.
-    pub(crate) async fn due(&self) -> sqlx::Result<Vec<i64>> {
+    async fn due(&self) -> sqlx::Result<Vec<i64>> {
         let kinds = i64::try_from(SegmentKind::ALL.len()).unwrap_or(i64::MAX);
         let now = db::now_ms();
         sqlx::query_scalar!(
@@ -193,7 +195,7 @@ impl Segments {
     /// Finds the Segments of the kinds the Version `version` lacks, from its Chapter names, then
     /// from the Segment sources its Library lists, in order, keeping the first found of each kind,
     /// and records when to ask about it again. Does nothing for a Version gone or not probed.
-    pub(crate) async fn ask(&self, version: i64) -> sqlx::Result<()> {
+    async fn ask(&self, version: i64) -> sqlx::Result<()> {
         let Some((duration_ms, chapters)) = self.probed(version).await? else {
             return Ok(());
         };

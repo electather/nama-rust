@@ -1,7 +1,7 @@
 //! Tracks: what ffprobe found inside each Version, the facts of its whole file, its video, audio
 //! and subtitle Tracks, the fonts it carries and its Chapters.
 //!
-//! [`Tracks`] owns `version_probes`, `tracks`, `chapters` and `probe_failures`, and [`Segments`] `segments` (see the area's `AGENTS.md`).
+//! It owns `version_probes`, `tracks`, `chapters`, `probe_failures` and `segments` (`AGENTS.md`).
 //! Their rows are keyed by Version id and go when the file goes; which files there are is for
 //! [`crate::library::Contents`] to say.
 

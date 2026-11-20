@@ -99,6 +99,7 @@ struct Fixture {
     db: Arc<Database>,
     version: i64,
     asked: Asked,
+    plugins: Registry,
     _dirs: (TempDir, TempDir),
 }
 
@@ -107,22 +108,7 @@ impl Fixture {
         let (data, media) = (TempDir::new().unwrap(), TempDir::new().unwrap());
         let db = Arc::new(Database::open(data.path()).await.unwrap());
         let alien = MatchedMovie::new(&db, media.path(), tmdb_movie(348, "Alien")).await;
-        let (_, file) = (Contents::new(Arc::clone(&db)).version_file(alien.version))
-            .await
-            .unwrap()
-            .unwrap();
-        let probe = Probe {
-            container: "matroska,webm".to_owned(),
-            duration_ms: Some(DURATION_MS),
-            bitrate: None,
-            tracks: vec![],
-            font_attachments: vec![],
-            chapters,
-        };
-        Tracks::new(Arc::clone(&db))
-            .store(file, probe)
-            .await
-            .unwrap();
+        probe(&db, alien.version, chapters).await;
         let listed = listed.iter().map(|&id| id.to_owned()).collect();
         (Libraries::new(Arc::clone(&db)).set_segment_sources(alien.library, listed))
             .await
@@ -138,6 +124,7 @@ impl Fixture {
         }
         Self {
             segments: Segments::new(Arc::clone(&db), plugins.extension_points()),
+            plugins,
             db,
             version: alien.version,
             asked,
@@ -161,6 +148,27 @@ impl Fixture {
     }
 }
 
+/// Stores a probe of the Version `version` as [`DURATION_MS`] long with `chapters`, as Probing
+/// does each time it probes the file.
+async fn probe(db: &Arc<Database>, version: i64, chapters: Vec<Chapter>) {
+    let (_, file) = (Contents::new(Arc::clone(db)).version_file(version))
+        .await
+        .unwrap()
+        .unwrap();
+    let probe = Probe {
+        container: "matroska,webm".to_owned(),
+        duration_ms: Some(DURATION_MS),
+        bitrate: None,
+        tracks: vec![],
+        font_attachments: vec![],
+        chapters,
+    };
+    Tracks::new(Arc::clone(db))
+        .store(file, probe)
+        .await
+        .unwrap();
+}
+
 fn fake(id: &'static str, answer: Option<Vec<SegmentResult>>) -> Fake {
     Fake {
         id,
@@ -171,20 +179,28 @@ fn fake(id: &'static str, answer: Option<Vec<SegmentResult>>) -> Fake {
 
 #[tokio::test]
 async fn chapters_named_opening_and_ending_give_an_intro_and_credits_without_asking() {
+    // "Previously on" names the Recap, so no kind is left for the listed source.
     let chapters = vec![
-        chapter(0, "Opening"),
+        chapter(0, "Previously on"),
+        chapter(30_000, "Opening"),
         chapter(90_000, ""),
         chapter(3_500_000, "Ending"),
     ];
     let everything = vec![result(SEGMENT_KIND_INTRO, 1, Some(2))];
-    let fx = Fixture::new(chapters, &[], vec![fake("source", Some(everything))]).await;
+    let fx = Fixture::new(
+        chapters,
+        &["source"],
+        vec![fake("source", Some(everything))],
+    )
+    .await;
 
     fx.ask().await;
 
     assert_eq!(
         fx.stored().await,
         [
-            segment(SegmentKind::Intro, 0, Some(90_000)),
+            segment(SegmentKind::Recap, 0, Some(30_000)),
+            segment(SegmentKind::Intro, 30_000, Some(90_000)),
             segment(SegmentKind::Credits, 3_500_000, None),
         ]
     );
@@ -202,12 +218,14 @@ async fn kinds_the_chapters_left_come_from_the_first_listed_source_that_answers(
     ];
     let fakes = vec![
         fake("unlisted", Some(second.clone())),
+        fake("disabled", Some(second.clone())),
         fake("first", Some(first)),
         fake("second", Some(second)),
         fake("third", Some(vec![])),
     ];
-    // `disabled` names a Plugin that isn't enabled.
-    let fx = Fixture::new(chapters, &["disabled", "first", "second", "third"], fakes).await;
+    let listed = ["gone", "disabled", "first", "second", "third"];
+    let fx = Fixture::new(chapters, &listed, fakes).await;
+    assert!(fx.plugins.disable_now(&PluginId::from_static("disabled")));
 
     fx.ask().await;
 
@@ -259,4 +277,21 @@ async fn a_version_a_source_failed_for_is_due_again_within_hours_not_days() {
     .unwrap();
     let wait_ms = due_ms - db::now_ms();
     assert!((0..=3_600_000).contains(&wait_ms), "{wait_ms}");
+}
+
+#[tokio::test]
+async fn a_versions_segments_go_when_it_is_probed_again_and_it_is_asked_again() {
+    let fx = Fixture::new(
+        vec![chapter(0, "Opening"), chapter(60_000, "")],
+        &[],
+        vec![],
+    )
+    .await;
+    fx.ask().await;
+    assert_eq!(fx.segments.due().await.unwrap(), Vec::<i64>::new());
+
+    probe(&fx.db, fx.version, vec![]).await;
+
+    assert_eq!(fx.stored().await, []);
+    assert_eq!(fx.segments.due().await.unwrap(), [fx.version]);
 }

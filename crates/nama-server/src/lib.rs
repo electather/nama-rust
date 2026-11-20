@@ -172,9 +172,9 @@ pub fn serve(
         if watch_folders {
             scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
         }
-        // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         // After each probe pass, and hourly for a Version due again (ADR 0075).
         segments.start(probing.passed(), Duration::from_hours(1));
+        // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
         let served = axum::serve(

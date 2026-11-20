@@ -7,9 +7,10 @@ ALTER TABLE libraries ADD COLUMN segment_sources TEXT NOT NULL DEFAULT '';
 ALTER TABLE version_probes ADD COLUMN segments_due_ms INTEGER;
 
 -- A Version's Segments, at most one of each kind. Keyed on the Version, not the title, since their
--- times fit one file (ADR 0074).
+-- times fit one file (ADR 0074), and on the probe they were found after, as `chapters` are, so they
+-- go with the Version and when its file changes and is probed again.
 CREATE TABLE segments (
-    version_id INTEGER NOT NULL REFERENCES library_files (id) ON DELETE CASCADE,
+    version_id INTEGER NOT NULL REFERENCES version_probes (version_id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK (kind IN ('intro', 'recap', 'credits')),
     -- From the file's start, as Chapters are.
     start_ms INTEGER NOT NULL,

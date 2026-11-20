@@ -262,19 +262,19 @@ mod plans {
     /// as 3800 s long, both without Chapters, so [`Scripted`] notes which it's asked about.
     fn ffprobe(bin: &Path) -> Ffmpeg {
         let ffprobe = r#"#!/bin/sh
-    case "$*" in
-      *720p*) duration=3600; chapters='[{"start_time": "0.000000", "tags": {"title": "Opening"}},
-                                        {"start_time": "60.000000"}]' ;;
-      *1080p*) duration=3700; chapters='[]' ;;
-      *) duration=3800; chapters='[]' ;;
-    esac
-    cat <<EOF
-    {"streams": [{"codec_name": "h264", "codec_type": "video"},
-                 {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
-     "format": {"format_name": "matroska,webm", "duration": "$duration.000000"},
-     "chapters": $chapters}
-    EOF
-    "#;
+case "$*" in
+  *720p*) duration=3600; chapters='[{"start_time": "0.000000", "tags": {"title": "Opening"}},
+                                    {"start_time": "60.000000"}]' ;;
+  *1080p*) duration=3700; chapters='[]' ;;
+  *) duration=3800; chapters='[]' ;;
+esac
+cat <<EOF
+{"streams": [{"codec_name": "h264", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
+ "format": {"format_name": "matroska,webm", "duration": "$duration.000000"},
+ "chapters": $chapters}
+EOF
+"#;
         Ffmpeg {
             ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
             ..Ffmpeg::default()
