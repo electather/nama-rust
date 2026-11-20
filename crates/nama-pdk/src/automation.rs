@@ -4,7 +4,7 @@
 use extism_pdk::Error;
 pub use nama_plugin_proto::nama::plugin::v1::{
     Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind, TitleRequesters,
-    TitleWatchStates, Titles, User, WatchState,
+    TitleWatchStates, Titles, User, WatchState, WatchlistTitle,
 };
 
 /// An Automation Plugin: the Kernel calls [`Automation::tick`] every `tick_every_seconds` its
@@ -71,7 +71,7 @@ pub mod kernel {
         DeleteAsked, DeleteStarted, KernelAnswer, Libraries, LibrariesAsked, Library, Requesters,
         RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
         TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
-        WatchStates, WatchStatesAsked, kernel_answer,
+        WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -171,15 +171,19 @@ pub mod kernel {
         call::<Titles>("list_titles", &asked)
     }
 
-    /// Each of `titles` with every User's Watch State of it. Needs
-    /// `PERMISSION_READ_WATCH_STATES`.
+    /// Each of `titles` with every User's Watch State of it, or with `Some(user)` only that
+    /// User's. Needs `PERMISSION_READ_WATCH_STATES`.
     ///
     /// # Errors
     ///
     /// When the Kernel refused or couldn't be called.
-    pub fn watch_states(titles: &[TitleRef]) -> Result<Vec<TitleWatchStates>, Error> {
+    pub fn watch_states(
+        titles: &[TitleRef],
+        user: Option<i64>,
+    ) -> Result<Vec<TitleWatchStates>, Error> {
         let asked = WatchStatesAsked {
             titles: titles.to_vec(),
+            user_id: user,
             ..WatchStatesAsked::default()
         };
         Ok(call::<WatchStates>("list_watch_states", &asked)?.titles)
@@ -209,6 +213,20 @@ pub mod kernel {
             ..RequestersAsked::default()
         };
         Ok(call::<Requesters>("list_requesters", &asked)?.titles)
+    }
+
+    /// The User `user_id`'s Watchlist, the title added first first, each by the id it was added
+    /// under, whether or not a Library has it. Needs `PERMISSION_READ_WATCHLISTS`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused or couldn't be called.
+    pub fn watchlist(user_id: i64) -> Result<Vec<WatchlistTitle>, Error> {
+        let asked = WatchlistAsked {
+            user_id,
+            ..WatchlistAsked::default()
+        };
+        Ok(call::<Watchlist>("list_watchlist", &asked)?.titles)
     }
 
     /// Deletes the media files of `title`, as an Admin's delete does. It returns once the Kernel
@@ -263,6 +281,7 @@ pub mod kernel {
             safe fn list_watch_states(request: u64) -> u64;
             safe fn list_users(request: u64) -> u64;
             safe fn list_requesters(request: u64) -> u64;
+            safe fn list_watchlist(request: u64) -> u64;
             safe fn delete_media(request: u64) -> u64;
         }
 
@@ -275,6 +294,7 @@ pub mod kernel {
             "list_watch_states" => list_watch_states,
             "list_users" => list_users,
             "list_requesters" => list_requesters,
+            "list_watchlist" => list_watchlist,
             "delete_media" => delete_media,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };

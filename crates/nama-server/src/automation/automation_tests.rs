@@ -12,7 +12,9 @@ use nama_plugin_api::{
         DeleteAsked, DeleteStarted, Libraries as ListedLibraries, LibrariesAsked, LibraryKind,
         Permission, Requesters, RequestersAsked, StoreKey, StoreValue, Titles, TitlesAsked,
         Users as ListedUsers, UsersAsked, WatchStates as ListedWatchStates, WatchStatesAsked,
+        Watchlist, WatchlistAsked,
     },
+    contract,
     metadata::ExternalId,
     settings::{SettingValue, Settings},
 };
@@ -24,8 +26,8 @@ use nama_plugin_tmdb::{
 use super::{
     FUNCTIONS, permission_name,
     testing::{
-        ALIEN_TMDB_ID, LIES_TMDB_ID, SECRETS_TMDB_ID, UNREADABLE, ask, delete, episode_ref, kernel,
-        movie_ref, movies, titles_asked, two_episodes_in_one_file,
+        ALIEN_TMDB_ID, DARK_TMDB_ID, LIES_TMDB_ID, SECRETS_TMDB_ID, UNREADABLE, ask, delete,
+        episode_ref, kernel, movie_ref, movies, titles_asked, two_episodes_in_one_file,
         two_episodes_in_one_file_also_known_as, users,
     },
 };
@@ -33,13 +35,14 @@ use crate::{
     db::{self, Database},
     events::EventBus,
     library::{
-        Contents, Libraries, MovieOrEpisode, Progress, WatchStates,
+        Contents, Libraries, Metadata, MovieOrEpisode, Progress, TitleKind, WatchStates,
         fixture::{self, MatchedMovie, tmdb_movie},
     },
     plugins::{ExtensionPoints, KERNEL_IMPORTS, Registry},
     requests::Requests,
     server_settings::ServerUrl,
     users::{Permissions, User, Users},
+    watchlist,
 };
 
 #[tokio::test]
@@ -129,6 +132,43 @@ async fn list_titles_gives_each_movie_with_the_id_its_watch_state_uses() {
     assert_eq!(title.title, "Alien");
     assert_eq!(title.show_title, None);
     assert_eq!(*title.title_ref, movie_ref(alien.library, ALIEN_TMDB_ID));
+}
+
+#[tokio::test]
+async fn list_titles_gives_genres_content_rating_and_an_episodes_show_id() {
+    let data = tempfile::tempdir().unwrap();
+    let movies = tempfile::tempdir().unwrap();
+    let shows = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let horror = Metadata {
+        genres: vec!["Horror".to_owned(), "Science Fiction".to_owned()],
+        content_rating: Some("R".to_owned()),
+        ..tmdb_movie(ALIEN_TMDB_ID, "Alien")
+    };
+    let alien = MatchedMovie::new(&db, movies.path(), horror).await;
+    let (dark, _path) = two_episodes_in_one_file(&db, shows.path()).await;
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
+
+    let mut listed = Vec::new();
+    for library in [alien.library, dark] {
+        let page = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 0, "")).await;
+        listed.extend(page.unwrap().titles.into_iter().map(|title| {
+            let show = title.show_id.as_option().map(|id| id.value.clone());
+            (title.genres, title.content_rating, show)
+        }));
+    }
+
+    let dark_episode = (
+        vec!["Drama".to_owned()],
+        Some("TV-MA".to_owned()),
+        Some(DARK_TMDB_ID.to_string()),
+    );
+    let alien_movie = (
+        vec!["Horror".to_owned(), "Science Fiction".to_owned()],
+        Some("R".to_owned()),
+        None,
+    );
+    assert_eq!(listed, [alien_movie, dark_episode.clone(), dark_episode]);
 }
 
 #[tokio::test]
@@ -285,6 +325,31 @@ async fn list_watch_states_gives_each_users_watch_state_of_each_title() {
     assert_eq!(states, [(ada, false, 500, 1000), (bo, true, 0, 0)]);
     assert!(watched.states.iter().all(|state| state.updated_at_ms > 0));
     assert_eq!(unwatched.states, []);
+}
+
+#[tokio::test]
+async fn list_watch_states_for_one_user_gives_no_other_users_watch_state() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
+    let alien = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
+    let watch_states = WatchStates::new(Arc::clone(&db));
+    for user in [ada, bo] {
+        watch_states
+            .mark(user, vec![alien.clone()], true)
+            .await
+            .unwrap();
+    }
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCH_STATES);
+
+    let asked = WatchStatesAsked {
+        titles: vec![movie_ref(1, ALIEN_TMDB_ID)],
+        user_id: Some(bo),
+        ..WatchStatesAsked::default()
+    };
+    let listed = ask(&kernel, "list_watch_states", &asked).await.unwrap();
+
+    assert_eq!(users_played(&listed), [(bo, true)]);
 }
 
 /// The Users and what they did of each Watch State `listed` gives of its one title.
@@ -555,7 +620,7 @@ async fn list_requesters_gives_who_requested_each_movie_and_episode() {
     let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
     requests.create(&asker(ada), &alien, None).await.unwrap();
     requests.create(&asker(bo), &alien, None).await.unwrap();
-    let dark = ExternalId::tmdb(70_523);
+    let dark = ExternalId::tmdb(DARK_TMDB_ID);
     requests.follow(&asker(bo), &dark, None).await.unwrap();
     let movies = movies(&db, movie_folder.path(), &[ALIEN_TMDB_ID, 1]).await;
     let (shows, _path) = two_episodes_in_one_file(&db, show_folder.path()).await;
@@ -615,4 +680,42 @@ async fn list_requesters_gives_a_title_whose_only_requester_was_deleted_as_reque
         .unwrap();
 
     assert_eq!(requested(&listed), [(true, vec![])]);
+}
+
+#[tokio::test]
+async fn list_watchlist_gives_the_users_watchlist_in_the_order_it_was_added() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
+    let (dark, alien) = (
+        ExternalId::tmdb(DARK_TMDB_ID),
+        ExternalId::tmdb(ALIEN_TMDB_ID),
+    );
+    watchlist::add(&db, ada, TitleKind::Show, &dark)
+        .await
+        .unwrap();
+    watchlist::add(&db, ada, TitleKind::Movie, &alien)
+        .await
+        .unwrap();
+    watchlist::add(&db, bo, TitleKind::Movie, &ExternalId::tmdb(1))
+        .await
+        .unwrap();
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCHLISTS);
+
+    let asked = WatchlistAsked {
+        user_id: ada,
+        ..WatchlistAsked::default()
+    };
+    let listed: Watchlist = ask(&kernel, "list_watchlist", &asked).await.unwrap();
+
+    let listed: Vec<_> = (listed.titles.iter())
+        .map(|title| (title.kind, title.id.value.clone()))
+        .collect();
+    let show = contract::TitleKind::TITLE_KIND_SHOW.into();
+    let movie = contract::TitleKind::TITLE_KIND_MOVIE.into();
+    let expected = [
+        (show, DARK_TMDB_ID.to_string()),
+        (movie, ALIEN_TMDB_ID.to_string()),
+    ];
+    assert_eq!(listed, expected);
 }

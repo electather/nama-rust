@@ -78,6 +78,30 @@ pub(crate) async fn has(
     .await
 }
 
+/// The User `user`'s Watchlist, the title added first first, each by the id it was added under.
+/// A row whose kind or id doesn't parse is skipped.
+pub(crate) async fn list(
+    db: &Database,
+    user: i64,
+) -> Result<Vec<(TitleKind, ExternalId)>, sqlx::Error> {
+    let rows = sqlx::query!(
+        "SELECT kind, title_id FROM watchlist WHERE user_id = ? ORDER BY rowid",
+        user
+    )
+    .fetch_all(db.reader())
+    .await?;
+    Ok((rows.into_iter())
+        .filter_map(|row| {
+            let kind = match row.kind.as_str() {
+                "movie" => TitleKind::Movie,
+                "show" => TitleKind::Show,
+                _ => return None,
+            };
+            Some((kind, row.title_id.parse().ok()?))
+        })
+        .collect())
+}
+
 /// `kind` as `watchlist` stores it.
 const fn stored(kind: TitleKind) -> &'static str {
     match kind {

@@ -15,7 +15,7 @@ pub use nama_plugin_proto::nama::plugin::v1::{
     DeleteAsked, DeleteStarted, Libraries, LibrariesAsked, Library, LibraryKind, Permission,
     Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Tick, Title, TitleRef,
     TitleRefKind, TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
-    WatchState, WatchStates, WatchStatesAsked,
+    WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
 };
 
 use crate::{BoxFuture, PluginError};

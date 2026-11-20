@@ -34,7 +34,7 @@ pub mod testing;
 
 pub use automation::{
     Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
-    TitleRequesters, TitleWatchStates, Titles, User, WatchState, kernel,
+    TitleRequesters, TitleWatchStates, Titles, User, WatchState, WatchlistTitle, kernel,
 };
 pub use blob_store::{BLOB_MAX_BYTES, BlobPage, BlobStore};
 pub use home_row::{HomeRow, HomeRowSource, HomeRowTitle, HomeRows, UserRowsAsked};

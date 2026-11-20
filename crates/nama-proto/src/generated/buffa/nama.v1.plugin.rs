@@ -350,6 +350,8 @@ pub enum PluginPermission {
     PLUGIN_PERMISSION_READ_USERS = 5i32,
     /// See which Users asked for each Movie and Episode, and nothing else about their Requests.
     PLUGIN_PERMISSION_READ_REQUESTS = 6i32,
+    /// See what every User put on their Watchlist.
+    PLUGIN_PERMISSION_READ_WATCHLISTS = 7i32,
 }
 impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -373,6 +375,9 @@ impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_READ_REQUESTS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ReadRequests: Self = Self::PLUGIN_PERMISSION_READ_REQUESTS;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_READ_WATCHLISTS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ReadWatchlists: Self = Self::PLUGIN_PERMISSION_READ_WATCHLISTS;
 }
 impl ::core::default::Default for PluginPermission {
     fn default() -> Self {
@@ -479,6 +484,7 @@ impl ::buffa::Enumeration for PluginPermission {
             4i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_DELETE_MEDIA),
             5i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_USERS),
             6i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_REQUESTS),
+            7i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_WATCHLISTS),
             _ => ::core::option::Option::None,
         }
     }
@@ -496,6 +502,9 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_DELETE_MEDIA => "PLUGIN_PERMISSION_DELETE_MEDIA",
             Self::PLUGIN_PERMISSION_READ_USERS => "PLUGIN_PERMISSION_READ_USERS",
             Self::PLUGIN_PERMISSION_READ_REQUESTS => "PLUGIN_PERMISSION_READ_REQUESTS",
+            Self::PLUGIN_PERMISSION_READ_WATCHLISTS => {
+                "PLUGIN_PERMISSION_READ_WATCHLISTS"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -521,6 +530,9 @@ impl ::buffa::Enumeration for PluginPermission {
             "PLUGIN_PERMISSION_READ_REQUESTS" => {
                 ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_REQUESTS)
             }
+            "PLUGIN_PERMISSION_READ_WATCHLISTS" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_WATCHLISTS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -533,6 +545,7 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_DELETE_MEDIA,
             Self::PLUGIN_PERMISSION_READ_USERS,
             Self::PLUGIN_PERMISSION_READ_REQUESTS,
+            Self::PLUGIN_PERMISSION_READ_WATCHLISTS,
         ]
     }
 }

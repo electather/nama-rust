@@ -764,7 +764,7 @@ fn listed_ids(ids: Option<&[ExternalId]>) -> Option<String> {
 
 /// The genres in the `genres` column's JSON, `json`: none where it's NULL, as for a Match stored
 /// before Matches had them.
-fn genres(json: Option<&str>) -> Result<Vec<String>, sqlx::Error> {
+pub(super) fn genres(json: Option<&str>) -> Result<Vec<String>, sqlx::Error> {
     json.map_or(Ok(Vec::new()), |json| {
         serde_json::from_str(json).map_err(|err| sqlx::Error::Decode(err.into()))
     })

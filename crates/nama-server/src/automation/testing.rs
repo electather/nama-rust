@@ -118,9 +118,11 @@ pub(super) fn episode_ref(library: i64, tmdb: i64) -> TitleRef {
 
 pub(super) const SECRETS_TMDB_ID: i64 = 1_001;
 pub(super) const LIES_TMDB_ID: i64 = 1_002;
+pub(super) const DARK_TMDB_ID: i64 = 70_523;
 
 /// A Shows Library on `folder` holding one file, `Dark - S01E01-E02.mkv`, Matched to both
-/// Episodes, Secrets and Lies. Gives the Library's id and the file's path.
+/// Episodes, Secrets and Lies, of the Show [`DARK_TMDB_ID`], a TV-MA Drama. Gives the Library's
+/// id and the file's path.
 pub(super) async fn two_episodes_in_one_file(db: &Arc<Database>, folder: &Path) -> (i64, String) {
     two_episodes_in_one_file_also_known_as(db, folder, |_tmdb| None).await
 }
@@ -166,8 +168,10 @@ pub(super) async fn two_episodes_in_one_file_also_known_as(
         }
         Decided::Matched(Box::new(Metadata {
             ids,
-            show_ids: ExternalIds::from_iter([ExternalId::tmdb(70_523)]),
+            show_ids: ExternalIds::from_iter([ExternalId::tmdb(DARK_TMDB_ID)]),
             show_title: Some("Dark".to_owned()),
+            genres: vec!["Drama".to_owned()],
+            content_rating: Some("TV-MA".to_owned()),
             ..tmdb_movie(tmdb, title)
         }))
     };

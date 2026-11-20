@@ -3271,6 +3271,19 @@ pub struct TitleView<'a> {
     ///
     /// Field 6: `added_at_ms`
     pub added_at_ms: i64,
+    /// The Movie's genres, or the Episode's Show's, by name in the title source's language.
+    ///
+    /// Field 7: `genres`
+    pub genres: ::buffa::RepeatedView<'a, &'a str>,
+    /// The Movie's Content Rating, or the Episode's Show's, such as `PG-13` or `TV-MA`. Unset if
+    /// the title source gave none.
+    ///
+    /// Field 8: `content_rating`
+    pub content_rating: ::core::option::Option<&'a str>,
+    /// The id of the Episode's Show, picked as `title_ref.id` is. Unset for a Movie.
+    ///
+    /// Field 9: `show_id`
+    pub show_id: ::buffa::MessageFieldView<super::super::__buffa::view::TitleIdView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
@@ -3359,6 +3372,45 @@ impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
                 )?;
                 view.added_at_ms = ::buffa::types::decode_int64(&mut cur)?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.content_rating = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.show_id.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.show_id = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.genres.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3395,6 +3447,17 @@ impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
             season_number: self.season_number,
             episode_number: self.episode_number,
             added_at_ms: self.added_at_ms,
+            genres: self.genres.iter().map(|s| s.to_string()).collect(),
+            content_rating: self.content_rating.map(|s| s.to_string()),
+            show_id: match self.show_id.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::TitleId,
+                        ::buffa::Inline<super::super::TitleId>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3429,6 +3492,20 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleView<'a> {
         if self.added_at_ms != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.added_at_ms) as u64;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3462,6 +3539,20 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleView<'a> {
         }
         if self.added_at_ms != 0i64 {
             ::buffa::types::put_int64_field(6u32, self.added_at_ms, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(7u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(8u32, v, buf);
+        }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3515,6 +3606,17 @@ impl<'__a> ::serde::Serialize for TitleView<'__a> {
                     "addedAtMs",
                     &::buffa::json_helpers::ProtoJson(&self.added_at_ms),
                 )?;
+        }
+        if !self.genres.is_empty() {
+            __map.serialize_entry("genres", &*self.genres)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.content_rating {
+            __map.serialize_entry("contentRating", __v)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.show_id.as_option() {
+                __map.serialize_entry("showId", __v)?;
+            }
         }
         __map.end()
     }
@@ -3646,6 +3748,30 @@ impl TitleOwnedView {
     #[must_use]
     pub fn added_at_ms(&self) -> i64 {
         self.0.reborrow().added_at_ms
+    }
+    /// The Movie's genres, or the Episode's Show's, by name in the title source's language.
+    ///
+    /// Field 7: `genres`
+    #[must_use]
+    pub fn genres(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().genres
+    }
+    /// The Movie's Content Rating, or the Episode's Show's, such as `PG-13` or `TV-MA`. Unset if
+    /// the title source gave none.
+    ///
+    /// Field 8: `content_rating`
+    #[must_use]
+    pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().content_rating
+    }
+    /// The id of the Episode's Show, picked as `title_ref.id` is. Unset for a Movie.
+    ///
+    /// Field 9: `show_id`
+    #[must_use]
+    pub fn show_id(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().show_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TitleView<'static>>> for TitleOwnedView {
@@ -4024,6 +4150,10 @@ impl ::serde::Serialize for TitleRefOwnedView {
 pub struct WatchStatesAskedView<'a> {
     /// Field 1: `titles`
     pub titles: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleRefView<'a>>,
+    /// Asks for this User's Watch States only. Unset, it asks for every User's.
+    ///
+    /// Field 2: `user_id`
+    pub user_id: ::core::option::Option<i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for WatchStatesAskedView<'a> {
@@ -4056,6 +4186,13 @@ impl<'a> ::buffa::MessageView<'a> for WatchStatesAskedView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -4101,6 +4238,7 @@ impl<'a> ::buffa::MessageView<'a> for WatchStatesAskedView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            user_id: self.user_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4120,6 +4258,9 @@ impl<'a> ::buffa::ViewEncode<'a> for WatchStatesAskedView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.user_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4138,6 +4279,9 @@ impl<'a> ::buffa::ViewEncode<'a> for WatchStatesAskedView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if let Some(v) = self.user_id {
+            ::buffa::types::put_int64_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4162,6 +4306,9 @@ impl<'__a> ::serde::Serialize for WatchStatesAskedView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !self.titles.is_empty() {
             __map.serialize_entry("titles", &*self.titles)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.user_id {
+            __map.serialize_entry("userId", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         __map.end()
     }
@@ -4263,6 +4410,13 @@ impl WatchStatesAskedOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleRefView<'_>> {
         &self.0.reborrow().titles
     }
+    /// Asks for this User's Watch States only. Unset, it asks for every User's.
+    ///
+    /// Field 2: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().user_id
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<WatchStatesAskedView<'static>>>
 for WatchStatesAskedOwnedView {
@@ -4294,7 +4448,8 @@ impl ::serde::Serialize for WatchStatesAskedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `list_watch_states` answers: each title asked for with every User's Watch State of it.
+/// What `list_watch_states` answers: each title asked for with every User's Watch State of it, or
+/// only the User's that `WatchStatesAsked.user_id` names.
 #[derive(Clone, Debug, Default)]
 pub struct WatchStatesView<'a> {
     /// Field 1: `titles`
@@ -7578,6 +7733,856 @@ impl ::buffa::HasMessageView for super::super::DeleteStarted {
     type ViewHandle = DeleteStartedOwnedView;
 }
 impl ::serde::Serialize for DeleteStartedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What `list_watchlist` takes.
+#[derive(Clone, Debug, Default)]
+pub struct WatchlistAskedView<'a> {
+    /// Field 1: `user_id`
+    pub user_id: i64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for WatchlistAskedView<'a> {
+    type Owned = super::super::WatchlistAsked;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::WatchlistAsked, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::WatchlistAsked, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::WatchlistAsked {
+            user_id: self.user_id,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for WatchlistAskedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for WatchlistAskedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.user_id) {
+            __map
+                .serialize_entry(
+                    "userId",
+                    &::buffa::json_helpers::ProtoJson(&self.user_id),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for WatchlistAskedView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "WatchlistAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.WatchlistAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.WatchlistAsked";
+}
+::buffa::impl_default_view_instance!(WatchlistAskedView);
+::buffa::impl_view_reborrow!(WatchlistAskedView);
+/** Self-contained, `'static` owned view of a `WatchlistAsked` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`WatchlistAskedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`WatchlistAskedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct WatchlistAskedOwnedView(::buffa::OwnedView<WatchlistAskedView<'static>>);
+impl WatchlistAskedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistAskedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistAskedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::WatchlistAsked,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistAskedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`WatchlistAskedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &WatchlistAskedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::WatchlistAsked {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> i64 {
+        self.0.reborrow().user_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<WatchlistAskedView<'static>>>
+for WatchlistAskedOwnedView {
+    fn from(inner: ::buffa::OwnedView<WatchlistAskedView<'static>>) -> Self {
+        WatchlistAskedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<WatchlistAskedOwnedView>
+for ::buffa::OwnedView<WatchlistAskedView<'static>> {
+    fn from(wrapper: WatchlistAskedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<WatchlistAskedView<'static>>>
+for WatchlistAskedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<WatchlistAskedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::WatchlistAsked {
+    type View<'a> = WatchlistAskedView<'a>;
+    type ViewHandle = WatchlistAskedOwnedView;
+}
+impl ::serde::Serialize for WatchlistAskedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What `list_watchlist` answers: the User's Watchlist, the title added first first. Empty for a
+/// User with none, or no such User.
+#[derive(Clone, Debug, Default)]
+pub struct WatchlistView<'a> {
+    /// Field 1: `titles`
+    pub titles: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::WatchlistTitleView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for WatchlistView<'a> {
+    type Owned = super::super::Watchlist;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::WatchlistTitleView,
+                    >(),
+                )?;
+                view.titles
+                    .push(
+                        <super::super::__buffa::view::WatchlistTitleView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::Watchlist, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::Watchlist, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::Watchlist {
+            titles: self
+                .titles
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for WatchlistView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.titles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.titles {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for WatchlistView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.titles.is_empty() {
+            __map.serialize_entry("titles", &*self.titles)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for WatchlistView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Watchlist";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Watchlist";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Watchlist";
+}
+::buffa::impl_default_view_instance!(WatchlistView);
+::buffa::impl_view_reborrow!(WatchlistView);
+/** Self-contained, `'static` owned view of a `Watchlist` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`WatchlistView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`WatchlistView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct WatchlistOwnedView(::buffa::OwnedView<WatchlistView<'static>>);
+impl WatchlistOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::Watchlist,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`WatchlistView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &WatchlistView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::Watchlist {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `titles`
+    #[must_use]
+    pub fn titles(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::WatchlistTitleView<'_>,
+    > {
+        &self.0.reborrow().titles
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<WatchlistView<'static>>>
+for WatchlistOwnedView {
+    fn from(inner: ::buffa::OwnedView<WatchlistView<'static>>) -> Self {
+        WatchlistOwnedView(inner)
+    }
+}
+impl ::core::convert::From<WatchlistOwnedView>
+for ::buffa::OwnedView<WatchlistView<'static>> {
+    fn from(wrapper: WatchlistOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<WatchlistView<'static>>>
+for WatchlistOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<WatchlistView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::Watchlist {
+    type View<'a> = WatchlistView<'a>;
+    type ViewHandle = WatchlistOwnedView;
+}
+impl ::serde::Serialize for WatchlistOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A title on a Watchlist, by the id it was added under, whether or not a Library has it.
+#[derive(Clone, Debug, Default)]
+pub struct WatchlistTitleView<'a> {
+    /// Field 1: `kind`
+    pub kind: ::buffa::EnumValue<super::super::TitleKind>,
+    /// Field 2: `id`
+    pub id: ::buffa::MessageFieldView<super::super::__buffa::view::TitleIdView<'a>>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for WatchlistTitleView<'a> {
+    type Owned = super::super::WatchlistTitle;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.kind = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.id.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.id = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::WatchlistTitle, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::WatchlistTitle, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::WatchlistTitle {
+            kind: self.kind,
+            id: match self.id.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::TitleId,
+                        ::buffa::Inline<super::super::TitleId>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for WatchlistTitleView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for WatchlistTitleView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.kind) {
+            __map.serialize_entry("kind", &self.kind)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.id.as_option() {
+                __map.serialize_entry("id", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for WatchlistTitleView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "WatchlistTitle";
+    const FULL_NAME: &'static str = "nama.plugin.v1.WatchlistTitle";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.WatchlistTitle";
+}
+::buffa::impl_default_view_instance!(WatchlistTitleView);
+::buffa::impl_view_reborrow!(WatchlistTitleView);
+/** Self-contained, `'static` owned view of a `WatchlistTitle` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`WatchlistTitleView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`WatchlistTitleView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct WatchlistTitleOwnedView(::buffa::OwnedView<WatchlistTitleView<'static>>);
+impl WatchlistTitleOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistTitleOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistTitleOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::WatchlistTitle,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            WatchlistTitleOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`WatchlistTitleView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &WatchlistTitleView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::WatchlistTitle {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `kind`
+    #[must_use]
+    pub fn kind(&self) -> ::buffa::EnumValue<super::super::TitleKind> {
+        self.0.reborrow().kind
+    }
+    /// Field 2: `id`
+    #[must_use]
+    pub fn id(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<WatchlistTitleView<'static>>>
+for WatchlistTitleOwnedView {
+    fn from(inner: ::buffa::OwnedView<WatchlistTitleView<'static>>) -> Self {
+        WatchlistTitleOwnedView(inner)
+    }
+}
+impl ::core::convert::From<WatchlistTitleOwnedView>
+for ::buffa::OwnedView<WatchlistTitleView<'static>> {
+    fn from(wrapper: WatchlistTitleOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<WatchlistTitleView<'static>>>
+for WatchlistTitleOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<WatchlistTitleView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::WatchlistTitle {
+    type View<'a> = WatchlistTitleView<'a>;
+    type ViewHandle = WatchlistTitleOwnedView;
+}
+impl ::serde::Serialize for WatchlistTitleOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

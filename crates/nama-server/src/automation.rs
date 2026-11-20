@@ -18,8 +18,10 @@ use nama_plugin_api::{
         DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Library,
         LibraryKind, Permission, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue,
         Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates, Titles,
-        TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
+        TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist,
+        WatchlistAsked, WatchlistTitle,
     },
+    contract,
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
 };
@@ -27,11 +29,11 @@ use tracing::error;
 
 use crate::{
     db::Database,
-    library::{self, Contents, ItemKind, LibraryError, TitleTarget, WatchStateKind},
+    library::{self, Contents, ItemKind, LibraryError, TitleKind, TitleTarget, WatchStateKind},
     plugins::ExtensionPoints,
     requests,
     scanner::{self, Scanner, ToDelete},
-    users,
+    users, watchlist,
 };
 
 /// The most titles one page of `list_titles` holds.
@@ -133,6 +135,11 @@ const FUNCTIONS: &[Function] = &[
         answer: |caller, request| typed(caller, request, Caller::list_requesters),
     },
     Function {
+        name: "list_watchlist",
+        needs: Permission::PERMISSION_READ_WATCHLISTS,
+        answer: |caller, request| typed(caller, request, Caller::list_watchlist),
+    },
+    Function {
         name: "delete_media",
         needs: Permission::PERMISSION_DELETE_MEDIA,
         answer: |caller, request| typed(caller, request, Caller::delete_media),
@@ -168,6 +175,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_DELETE_MEDIA => "Delete media",
         Permission::PERMISSION_READ_USERS => "Read Users",
         Permission::PERMISSION_READ_REQUESTS => "Read Requests",
+        Permission::PERMISSION_READ_WATCHLISTS => "Read Watchlists",
     }
 }
 
@@ -295,6 +303,9 @@ impl Caller {
                 season_number: listed.season.and_then(|season| u32::try_from(season).ok()),
                 episode_number: (listed.episode).and_then(|number| u32::try_from(number).ok()),
                 added_at_ms: listed.added_at.saturating_mul(1000),
+                genres: listed.genres,
+                content_rating: listed.content_rating,
+                show_id: listed.show_id.as_ref().map(title_id).into(),
                 ..Title::default()
             })
             .collect();
@@ -456,7 +467,7 @@ impl Caller {
     ) -> Result<WatchStates, KernelRefused> {
         let titles = self.every_id(&asked.titles).await?;
         let states = (library::WatchStates::new(Arc::clone(&self.automation.db)))
-            .of_titles(None, &titles)
+            .of_titles(asked.user_id, &titles)
             .await
             .map_err(|err| self.database_refused("reading the Watch States", &err))?;
         Ok(WatchStates {
@@ -509,6 +520,26 @@ impl Caller {
         })
     }
 
+    async fn list_watchlist(self, asked: WatchlistAsked) -> Result<Watchlist, KernelRefused> {
+        let listed = watchlist::list(&self.automation.db, asked.user_id)
+            .await
+            .map_err(|err| self.database_refused("reading the Watchlist", &err))?;
+        Ok(Watchlist {
+            titles: (listed.into_iter())
+                .map(|(kind, id)| WatchlistTitle {
+                    kind: match kind {
+                        TitleKind::Movie => contract::TitleKind::TITLE_KIND_MOVIE,
+                        TitleKind::Show => contract::TitleKind::TITLE_KIND_SHOW,
+                    }
+                    .into(),
+                    id: MessageField::some(title_id(&id)),
+                    ..WatchlistTitle::default()
+                })
+                .collect(),
+            ..Watchlist::default()
+        })
+    }
+
     async fn delete_media(self, asked: DeleteAsked) -> Result<DeleteStarted, KernelRefused> {
         let title = (asked.title_ref.as_option())
             .ok_or_else(|| KernelRefused("the title to delete is missing".to_owned()))?;
@@ -549,12 +580,17 @@ fn title_ref(library: i64, kind: TitleRefKind, id: &ExternalId) -> TitleRef {
     TitleRef {
         library_id: library,
         kind: kind.into(),
-        id: MessageField::some(TitleId {
-            namespace: id.namespace().to_owned(),
-            value: id.value().to_owned(),
-            ..TitleId::default()
-        }),
+        id: MessageField::some(title_id(id)),
         ..TitleRef::default()
+    }
+}
+
+/// `id` as a Plugin reads a title's id.
+fn title_id(id: &ExternalId) -> TitleId {
+    TitleId {
+        namespace: id.namespace().to_owned(),
+        value: id.value().to_owned(),
+        ..TitleId::default()
     }
 }
 

@@ -540,6 +540,7 @@ fn permission_to_proto(permission: Permission) -> proto::PluginPermission {
         Permission::PERMISSION_DELETE_MEDIA => Public::PLUGIN_PERMISSION_DELETE_MEDIA,
         Permission::PERMISSION_READ_USERS => Public::PLUGIN_PERMISSION_READ_USERS,
         Permission::PERMISSION_READ_REQUESTS => Public::PLUGIN_PERMISSION_READ_REQUESTS,
+        Permission::PERMISSION_READ_WATCHLISTS => Public::PLUGIN_PERMISSION_READ_WATCHLISTS,
     }
 }
 
@@ -557,6 +558,9 @@ fn permission_from_proto(
         Some(Public::PLUGIN_PERMISSION_DELETE_MEDIA) => Ok(Permission::PERMISSION_DELETE_MEDIA),
         Some(Public::PLUGIN_PERMISSION_READ_USERS) => Ok(Permission::PERMISSION_READ_USERS),
         Some(Public::PLUGIN_PERMISSION_READ_REQUESTS) => Ok(Permission::PERMISSION_READ_REQUESTS),
+        Some(Public::PLUGIN_PERMISSION_READ_WATCHLISTS) => {
+            Ok(Permission::PERMISSION_READ_WATCHLISTS)
+        }
         Some(Public::PLUGIN_PERMISSION_UNSPECIFIED) | None => Err(super::unknown_enum_value(
             GRANTED_PERMISSIONS,
             "each granted Plugin Permission must be one this Server knows",
