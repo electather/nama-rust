@@ -21,10 +21,11 @@ use connectrpc::{ErrorCode, client::HttpClient};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, DisablePluginRequest, EnablePluginRequest, HomeRowTitle, LibraryKind,
-    ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest, ListPluginsRequest,
-    PageRequest, Permission, PluginServiceClient, RefusalReason, RequestState, SettingValue,
-    UpdatePluginSettingsRequest, home_row_title::MovieOrShow, setting_value::Value,
+    BrowseServiceClient, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
+    ExtensionPointFailure, GetPluginRequest, HomeRowTitle, LibraryKind, ListHomeRowTitlesRequest,
+    ListHomeRowTitlesResponse, ListHomeRowsRequest, ListPluginsRequest, PageRequest, Permission,
+    PluginServiceClient, RefusalReason, RequestState, SettingValue, UpdatePluginSettingsRequest,
+    home_row_title::MovieOrShow, setting_value::Value,
 };
 use refused::assert_refused;
 use server::{
@@ -98,6 +99,20 @@ async fn enable(server: &TestServer) {
         .unwrap();
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn disable(server: &TestServer) {
+    (plugins(server))
+        .disable_plugin(DisablePluginRequest {
+            id: PLUGIN.to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
 /// Saves `rows` as the test Plugin's `home_rows` setting, the keys of the rows it gives.
 #[expect(
     clippy::unwrap_used,
@@ -156,6 +171,29 @@ async fn wait_for_rows(server: &TestServer, keys: &[&str]) {
             started.elapsed() < WAIT,
             "home lists {listed:?}, not {keys:?}"
         );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+/// The test Plugin's failures the Plugins page shows, once there is one, since a refresh runs in
+/// the background.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn wait_for_failures(server: &TestServer) -> Vec<ExtensionPointFailure> {
+    let asked = GetPluginRequest {
+        id: PLUGIN.to_owned(),
+        ..Default::default()
+    };
+    let started = Instant::now();
+    loop {
+        let got = plugins(server).get_plugin(asked.clone()).await.unwrap();
+        let failures = got.into_owned().plugin.into_option().unwrap().failures;
+        if !failures.is_empty() {
+            return failures;
+        }
+        assert!(started.elapsed() < WAIT, "no failure shown on {PLUGIN}");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
@@ -288,13 +326,7 @@ async fn disabling_the_plugin_removes_its_rows() {
     let server = enabled("").await;
     wait_for_rows(&server, &["picks", "again", "missing"]).await;
 
-    (plugins(&server))
-        .disable_plugin(DisablePluginRequest {
-            id: PLUGIN.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    disable(&server).await;
 
     assert_eq!(rows(&server).await, []);
     let picks = titles_page(&server, "picks", 0, "").await.unwrap();
@@ -329,6 +361,8 @@ async fn home_lists_the_stored_rows_without_waiting_for_a_refresh() {
         "home waited on the Plugin"
     );
     assert_eq!(listed.len(), 3, "the rows stored before: {listed:?}");
+    // Interrupts the looping refresh, which the runtime's drop would wait out to its time limit.
+    disable(&server).await;
 }
 
 #[tokio::test]
@@ -374,6 +408,37 @@ async fn a_failed_refresh_is_not_tried_again_for_15_minutes() {
         "home within 15 minutes of the failure refreshed it"
     );
     log.wait_for(&asked, 2).await;
+}
+
+#[tokio::test]
+async fn a_failed_refresh_keeps_the_rows_and_shows_under_the_home_row_point() {
+    let server = enabled("").await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
+
+    set_rows(&server, "then-fail").await;
+    let failures = wait_for_failures(&server).await;
+
+    let [failure] = failures.as_slice() else {
+        panic!("{failures:?}");
+    };
+    assert_eq!(failure.point, ExtensionPoint::EXTENSION_POINT_HOME_ROW);
+    assert!(
+        failure
+            .last_error
+            .contains("test-plugin was set to then-fail"),
+        "{}",
+        failure.last_error
+    );
+    let listed: Vec<_> = rows(&server)
+        .await
+        .into_iter()
+        .map(|(_, key, _)| key)
+        .collect();
+    assert_eq!(
+        listed,
+        ["picks", "again", "missing"],
+        "the rows stored before"
+    );
 }
 
 #[tokio::test]
