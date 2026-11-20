@@ -422,7 +422,8 @@ mod home_rows {
     };
 
     /// The setting naming the keys of the rows it gives, comma-separated, all of them when
-    /// empty, `loop` to loop until the Server interrupts it, or `fail` to fail.
+    /// empty, `loop` to loop until the Server interrupts it, or a value ending in `fail` to fail,
+    /// saying the value, so two tests counting the log lines fail apart.
     pub(super) const ROWS: &str = "home_rows";
 
     /// Gives every User `picks`: the Movies Heat, Dune and Alien and the Show Dark, which the
@@ -438,8 +439,8 @@ mod home_rows {
             if asked == "loop" {
                 super::exports::loop_forever();
             }
-            if asked == "fail" {
-                return Err(Error::msg("test-plugin was set to fail"));
+            if asked.ends_with("fail") {
+                return Err(Error::msg(format!("test-plugin was set to {asked}")));
             }
             let rows = [
                 row(

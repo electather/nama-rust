@@ -96,6 +96,24 @@ fn a_blob_store_is_five_required_rows_that_may_run_long_and_fail_to_the_caller()
 }
 
 #[test]
+fn a_home_row_source_runs_long_on_a_compile_of_its_own_and_fails_to_the_caller() {
+    let home_row = POINTS
+        .iter()
+        .find(|point| point.service == services::HOME_ROW)
+        .unwrap();
+
+    assert!(home_row.runs_long());
+    assert!(matches!(
+        home_row.methods,
+        [Method {
+            export: "shared_rows",
+            failure: Failure::Provider,
+            ..
+        }]
+    ));
+}
+
+#[test]
 fn every_contract_service_has_adapter_rows_and_every_row_a_contract_service() {
     for (service, _) in SERVICES {
         let point = POINTS.iter().find(|point| point.service == *service);
