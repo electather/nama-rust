@@ -80,13 +80,15 @@ async fn the_app_s_manifest_is_served_as_such() {
 async fn the_app_ships_the_ass_renderer_s_notices() {
     let server = TestServer::builder().start().await;
 
-    let (status, _, notices) = http1_get(server.addr, "/licenses/jassub.txt").await;
+    let (jassub_status, _, jassub_notices) = http1_get(server.addr, "/licenses/jassub.txt").await;
     let (font_status, _, font_notice) =
         http1_get(server.addr, "/licenses/liberation-sans.txt").await;
+    let jassub_notices = String::from_utf8(jassub_notices).unwrap();
     let font_notice = String::from_utf8(font_notice).unwrap();
 
-    assert_eq!(status, 200);
-    assert!(String::from_utf8(notices).unwrap().contains("FreeType"));
+    // An unknown path answers `index.html` with 200, so the text is what shows the file shipped.
+    assert_eq!(jassub_status, 200);
+    assert!(jassub_notices.contains("FreeType"));
     assert_eq!(font_status, 200);
     assert!(font_notice.contains("Reserved Font Name Liberation"));
     assert!(font_notice.contains("SIL OPEN FONT LICENSE Version 1.1"));
