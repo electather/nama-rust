@@ -165,16 +165,20 @@ A setting a Plugin's Manifest declares for each User to set for themself, such a
 _Avoid_: user setting (confused with Settings preferences)
 
 **Automation lane**:
-Where a Plugin acts on the Server on its own account rather than answering the Kernel: the Kernel sends it Event batches and its Tick, and it acts through Kernel functions (ADR 0048).
+Where a Plugin acts on the Server on its own account rather than answering the Kernel: the Kernel sends it Event batches and runs its Jobs, and it acts through Kernel functions (ADR 0048).
 _Avoid_: automation API, scripting
 
 **Kernel function**:
 One of the few things any Plugin may ask the Kernel for during any of its calls, each gated by a Plugin Permission the Admin granted, such as reading Watch State or deleting a title's media (ADR 0071).
 _Avoid_: host function, automation API
 
-**Tick**:
-The Kernel's call to an Automation Plugin on the schedule its Manifest sets, at most once a minute, carrying the Kernel's clock.
-_Avoid_: cron, timer, heartbeat, job
+**Job**:
+A named piece of work a Plugin's Manifest declares, which the Kernel runs on the Job's schedule, a cron expression in the Server's time zone, or only when an Admin asks if it has none. The Kernel declares none of its own: the Server's own upkeep is a Built-in Plugin's Jobs. An Admin sees every Job, who declared it and its last and next Job Run, and can start one now, turn it off or give it a schedule of their own in place of its default.
+_Avoid_: task, scheduled task, cron, Tick, maintenance
+
+**Job Run**:
+One time the Kernel runs a Job: when it started and ended, what started it, and how it ended: succeeded, failed, timed out, or interrupted by the Server stopping or the Plugin being disabled. Only one runs at a time for each Job; a firing due while one runs is dropped.
+_Avoid_: execution, invocation, Tick
 
 **Plugin Permission**:
 One thing a Plugin may ask the Kernel for, such as reading Watch State or deleting media. Its Manifest requests some, and an Admin grants some or all of them when enabling it; the grants survive restarts. Not a User's Permission: it says what the Plugin itself may do, whoever it acts for (ADR 0049).
@@ -190,6 +194,10 @@ _Avoid_: plugin output, plugin console
 
 **Cleanup**:
 An Automation that deletes a Requested title once each of its Requesters has watched it and a set number of days have passed, or hasn't watched it within a longer set number of days. A title nobody Requested is kept.
+
+**Upkeep**:
+The Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again: Home rows of Users who stopped opening home, expired sign-ins and Invites, and what a removed Plugin left behind. Each threshold is one of its settings.
+_Avoid_: maintenance, housekeeping, garbage collection
 
 ## Media
 
