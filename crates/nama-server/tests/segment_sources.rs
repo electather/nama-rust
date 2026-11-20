@@ -221,14 +221,17 @@ async fn list_plugins_says_which_plugins_are_segment_sources() {
         .unwrap()
         .into_owned();
 
-    let sources: Vec<&str> = (listed.summaries.iter())
-        .filter(|plugin| {
-            (plugin.extension_points.iter())
-                .any(|point| *point == ExtensionPoint::EXTENSION_POINT_SEGMENT_SOURCE)
-        })
-        .map(|plugin| plugin.id.as_str())
-        .collect();
-    assert_eq!(sources, [SOURCE, "theintrodb"]);
+    let is_source = |id: &str| {
+        let plugin = (listed.summaries.iter())
+            .find(|plugin| plugin.id == id)
+            .unwrap_or_else(|| panic!("{id} isn't listed"));
+        (plugin.extension_points.iter())
+            .any(|point| *point == ExtensionPoint::EXTENSION_POINT_SEGMENT_SOURCE)
+    };
+    // Bundled Plugins are listed too, so a whole list would need an edit for each new one
+    // (plugins/AGENTS.md).
+    assert!(is_source(SOURCE));
+    assert!(!is_source("tvdb"));
 }
 
 /// Playback Plans sending what was found, with a fake ffprobe, a shell script.

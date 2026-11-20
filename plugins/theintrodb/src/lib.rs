@@ -69,6 +69,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Serves Intros, Recaps and Credits from TheIntroDB.
 struct TheIntroDb;
 
 impl SegmentSource for TheIntroDb {
@@ -143,7 +144,7 @@ fn pace(limit: usize) -> Result<(), Error> {
     sent.retain(|&at| now.saturating_sub(at) < WINDOW_MS);
     if sent.len() >= limit {
         return Err(Error::msg(format!(
-            "kept under TheIntroDB's limit of {limit} requests every {} seconds",
+            "not sent, to keep under TheIntroDB's limit of {limit} requests every {} seconds",
             WINDOW_MS / 1000
         )));
     }
@@ -192,7 +193,7 @@ fn answered(response: &Response) -> Result<Media, Error> {
 }
 
 /// The earliest stretch of each kind in `media`, leaving out those ending at 0, and Credits
-/// starting at 0, which TheIntroDB answers for "no segment".
+/// starting at 0 or unset, which TheIntroDB answers for "no segment".
 fn segments(media: Media) -> Vec<SegmentResult> {
     [
         (SegmentKind::SEGMENT_KIND_INTRO, media.intro),
@@ -204,7 +205,8 @@ fn segments(media: Media) -> Vec<SegmentResult> {
         let stretch = (stretches.into_iter())
             .filter(|stretch| {
                 stretch.end_ms != Some(0)
-                    && (kind != SegmentKind::SEGMENT_KIND_CREDITS || stretch.start_ms != Some(0))
+                    && (kind != SegmentKind::SEGMENT_KIND_CREDITS
+                        || stretch.start_ms.is_some_and(|start| start != 0))
             })
             .min_by_key(|stretch| stretch.start_ms.unwrap_or_default())?;
         Some(SegmentResult {

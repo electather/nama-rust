@@ -163,10 +163,11 @@ fn a_rate_limited_request_fails_so_the_kernel_asks_again() {
 }
 
 #[test]
-fn of_several_stretches_of_a_kind_the_earliest_is_kept_and_no_segment_is_left_out() {
+fn of_several_stretches_of_a_kind_the_earliest_is_kept_and_no_segment_answers_are_dropped() {
     let body =
         br#"{"intro":[{"start_ms":120000,"end_ms":150000},{"start_ms":30000,"end_ms":90000}],
-        "recap":[{"start_ms":null,"end_ms":0}],"credits":[{"start_ms":0,"end_ms":null}],
+        "recap":[{"start_ms":null,"end_ms":0}],
+        "credits":[{"start_ms":0,"end_ms":null},{"start_ms":null,"end_ms":null}],
         "preview":[{"start_ms":1680000,"end_ms":1740000}]}"#;
     let mut kernel = answering(200, body);
 
@@ -182,8 +183,13 @@ fn of_several_stretches_of_a_kind_the_earliest_is_kept_and_no_segment_is_left_ou
 fn an_episode_tvdb_doesnt_have_has_no_segments() {
     let body = br#"{"error":"Season 99 Episode 99 does not exist on TVDB for this show"}"#;
     let mut kernel = answering(400, body);
+    let no_such_episode = SegmentSearch {
+        season: Some(99),
+        episode: Some(99),
+        ..breaking_bad_pilot()
+    };
 
-    let results = search(&mut kernel, breaking_bad_pilot()).unwrap();
+    let results = search(&mut kernel, no_such_episode).unwrap();
 
     assert_eq!(found(&results), []);
 }
@@ -223,7 +229,7 @@ fn a_title_with_no_id_theintrodb_takes_or_an_episode_without_numbers_is_not_aske
 }
 
 #[test]
-fn without_an_api_key_a_granted_store_keeps_requests_to_30_every_10_seconds() {
+fn without_an_api_key_a_granted_store_refuses_a_31st_request_within_10_seconds() {
     let mut kernel = answering(404, b"{}").store();
 
     let answered: Vec<_> = (0..31)
