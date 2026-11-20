@@ -333,9 +333,9 @@ impl RunningPlans {
         let timeline = Timeline::new(listed.keyframes_ms, duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let file_start_ms = listed.file_start_ms;
-        let start = move |dir: &Path, from| {
+        let start = move |dir: &Path, from, stop| {
             let command = ffmpeg.remux(&path, &remux, dir, from, file_start_ms)?;
-            command.spawn().map(process::run)
+            command.spawn().map(|child| process::run(child, stop))
         };
         let runs = Runs {
             method: Method::Remux,
@@ -389,12 +389,13 @@ impl RunningPlans {
         let start = move |attempt: Transcode| -> Box<Start> {
             let (ffmpeg, subtitles) = (Arc::clone(&ffmpeg), subtitles.clone());
             let (path, cuts) = (path.clone(), cuts.clone());
-            Box::new(move |dir: &Path, from: Keyframe| {
+            Box::new(move |dir: &Path, from: Keyframe, stop| {
                 let cuts = cuts.get(from.n..).unwrap_or_default();
                 let from = FromCut { n: from.n, cuts };
                 // Asked each run, so a seek once the cache is filled skips reading the whole file.
                 let attempt = burning_in_from(&subtitles, file, &attempt);
-                (ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()).map(process::run)
+                let child = ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()?;
+                Ok(process::run(child, stop))
             })
         };
         // A plan has a fallback only when it Transcodes on hardware.

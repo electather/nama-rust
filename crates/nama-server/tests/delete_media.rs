@@ -1169,7 +1169,7 @@ async fn deleting_a_version_being_transcoded_ends_its_plan_which_the_preview_cou
     assert_eq!(told.playback.version_id, alien);
     let token = Some(fx.server.admin_token.as_str());
     assert_eq!(fetch(&fx.server, &plan.url, token).await.status, 404);
-    assert!(stops(&pid).await, "ffmpeg {pid} still runs");
+    assert!(gone(&pid), "ffmpeg {pid} still runs");
 }
 
 /// The process id the fake ffmpeg in `bin` writes once it runs, waiting up to 10 seconds for it.
@@ -1187,22 +1187,16 @@ async fn running_ffmpeg(bin: &Path) -> String {
     panic!("ffmpeg didn't start");
 }
 
-/// Whether the process `pid` ends, reaped or not, within 10 seconds.
+/// Whether the process `pid` has exited and been reaped, as the Server waits for its ffmpeg to be
+/// before deleting the file it reads.
 #[cfg(unix)]
 #[expect(clippy::unwrap_used, reason = "ps failing to run fails the test")]
-async fn stops(pid: &str) -> bool {
-    for _ in 0..100 {
-        let ps = std::process::Command::new("ps")
-            .args(["-o", "stat=", "-p", pid])
-            .output()
-            .unwrap();
-        let state = String::from_utf8_lossy(&ps.stdout);
-        if state.trim().is_empty() || state.trim_start().starts_with('Z') {
-            return true;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-    false
+fn gone(pid: &str) -> bool {
+    let ps = std::process::Command::new("ps")
+        .args(["-o", "stat=", "-p", pid])
+        .output()
+        .unwrap();
+    ps.stdout.trim_ascii().is_empty()
 }
 
 /// Bigger than the sockets between a Server and its client buffer, so serving it whole waits on

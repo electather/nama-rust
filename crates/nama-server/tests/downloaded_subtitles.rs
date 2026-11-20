@@ -170,7 +170,8 @@ impl Watching {
         let file = fx.folder.join(ALIEN_1080P);
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         write_1080p_h264(&file).unwrap();
-        fx.scan_and_match().await;
+        // Not just Matching: Windows refuses to delete Alien while ffprobe still reads it.
+        fx.server.scan_and_probe(&fx.media).await;
         let version = fx.version_ids(ALIEN).await[0];
         Self {
             fx,
@@ -378,17 +379,20 @@ async fn deleting_a_version_deletes_its_downloaded_subtitles() {
     watching.download_first().await;
     assert!(watching.stored().is_dir());
 
-    LibraryServiceClient::new(HttpClient::plaintext(), watching.fx.server.client_config())
-        .delete_media(DeleteMediaRequest {
-            target: MediaToDelete {
-                target: Some(media_to_delete::Target::VersionId(watching.version)),
+    let deleted =
+        LibraryServiceClient::new(HttpClient::plaintext(), watching.fx.server.client_config())
+            .delete_media(DeleteMediaRequest {
+                target: MediaToDelete {
+                    target: Some(media_to_delete::Target::VersionId(watching.version)),
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+            })
+            .await
+            .unwrap()
+            .into_owned();
 
+    assert!(deleted.not_deleted.is_empty(), "{deleted:?}");
     assert!(!watching.stored().exists());
 }

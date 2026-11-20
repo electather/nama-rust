@@ -11,6 +11,7 @@ use std::{
 };
 
 use tokio::sync::{oneshot, watch};
+use tokio_util::sync::CancellationToken;
 
 use super::{
     lock,
@@ -57,10 +58,10 @@ impl Drop for MarksDropped {
 }
 
 impl FakeRuns {
-    /// What starts these runs: each runs until the test ends it or it's dropped.
+    /// What starts these runs: each runs until the test ends it, it's stopped or it's dropped.
     pub(super) fn start(&self) -> Box<Start> {
         let shared = Arc::clone(&self.shared);
-        Box::new(move |_: &Path, from: Keyframe| {
+        Box::new(move |_: &Path, from: Keyframe, stop: CancellationToken| {
             shared.seen.send_modify(|seen| seen.from.push(from.n));
             if shared.fail_next.swap(false, Ordering::Relaxed) {
                 return Err(std::io::Error::other("too many open files"));
@@ -79,10 +80,10 @@ impl FakeRuns {
             };
             Ok(Box::pin(async move {
                 let _marks = marks;
-                match ended.await {
-                    Ok(outcome) => outcome,
-                    // Its end is gone untold, so it runs until it's dropped.
-                    Err(_) => std::future::pending().await,
+                tokio::select! {
+                    // An end gone untold doesn't match, so it runs until it's stopped or dropped.
+                    Ok(outcome) = ended => outcome,
+                    () = stop.cancelled() => Outcome::Stopped,
                 }
             }))
         })

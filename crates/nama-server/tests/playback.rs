@@ -89,14 +89,16 @@ impl Fixture {
         fx
     }
 
-    /// Fetches Alien's subtitles, so the Server caches them.
+    /// Fetches Alien's subtitles, so the Server caches them, then stops the plan reading Alien.
     async fn cache_subtitles(&self) {
         let version = *self.version_ids(ALIEN).await.first().unwrap();
+        let plan = self.plan(version).await.unwrap();
         let token = Some(self.server.admin_token.as_str());
-        for subtitle in self.plan(version).await.unwrap().subtitles {
+        for subtitle in plan.subtitles {
             assert_eq!(fetch(&self.server, &subtitle.url, token).await.status, 200);
         }
         assert_ne!(self.cached_subtitles(), Vec::<PathBuf>::new());
+        self.stop(plan.id).await;
     }
 
     /// What the Server's subtitle cache holds a folder for, as the Versions it caches.
@@ -1540,7 +1542,6 @@ async fn a_removed_versions_cached_subtitles_are_removed() {
     fx.cache_subtitles().await;
 
     fx.remove_file(ALIEN_1080P);
-
     fx.scan_and_probe().await;
 
     assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
@@ -1551,8 +1552,7 @@ async fn a_deleted_librarys_cached_subtitles_are_removed() {
     let fx = Fixture::subtitled_alien().await;
     fx.cache_subtitles().await;
 
-    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
-    libraries
+    LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
         .delete_library(DeleteLibraryRequest {
             id: fx.library,
             ..Default::default()

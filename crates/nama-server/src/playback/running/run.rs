@@ -9,6 +9,7 @@ use std::{
 
 use futures_util::future::BoxFuture;
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 use super::{
     Method, POLL_EVERY, REMUX_WAIT_AHEAD_MS, RUN_AHEAD_MS,
@@ -26,8 +27,9 @@ const DISK_FULL: &str = "No space left on device";
 /// Starts a run writing a plan's files, from a keyframe on, to the folder it's given: one file
 /// per keyframe of the file, listed or not, which the playlist named by [`hls_playlist`] lists,
 /// and an init file named by [`hls_init`]. The plan joins them into one per listed keyframe, named
-/// by its number such as `3.m4s`.
-pub(super) type Start = dyn Fn(&Path, Keyframe) -> io::Result<Run> + Send + Sync;
+/// by its number such as `3.m4s`. The run stops, and ends once it has, when the token it's given is
+/// cancelled.
+pub(super) type Start = dyn Fn(&Path, Keyframe, CancellationToken) -> io::Result<Run> + Send + Sync;
 
 /// A run writing a plan's files, which ends with how it went, and stops when dropped.
 pub(super) type Run = BoxFuture<'static, Outcome>;
@@ -41,6 +43,8 @@ pub(super) enum Outcome {
     Failed { status: String, stderr: String },
     /// It couldn't be waited for.
     Unwaited(io::Error),
+    /// It was stopped before it ended.
+    Stopped,
 }
 
 /// What starts a plan's runs, and how they convert.
@@ -83,9 +87,12 @@ pub(super) struct Running {
     /// The time kept behind playback as last told, which a warning that the segment folder is
     /// full names.
     keep_behind_ms: AtomicI64,
-    /// The run writing its files, and its task, which stops the run when aborted.
-    ffmpeg: tokio::sync::Mutex<Option<(Arc<FfmpegRun>, JoinHandle<()>)>>,
+    /// The run writing its files.
+    ffmpeg: tokio::sync::Mutex<Option<CurrentRun>>,
 }
+
+/// A plan's current run, and its task, until [`FfmpegRun::stop`] waits for it.
+type CurrentRun = (Arc<FfmpegRun>, Option<JoinHandle<()>>);
 
 /// One run, from one keyframe on.
 struct FfmpegRun {
@@ -96,9 +103,24 @@ struct FfmpegRun {
     written_to: AtomicUsize,
     /// Whether the run has stopped, so a file not written yet never will be by it.
     stopped: AtomicBool,
+    /// Cancelled to stop it.
+    stop: CancellationToken,
     /// How far its files were joined into listed keyframes' files. Locked while joining, which
     /// `watch` and a tick may both do.
     joined: tokio::sync::Mutex<Joined>,
+}
+
+impl FfmpegRun {
+    /// Stops it, and returns once ffmpeg has exited and `task`, watching it, has noted what it
+    /// wrote and marked it stopped. `task` is taken, so a run stopped already isn't waited for
+    /// again.
+    async fn stop(&self, task: &mut Option<JoinHandle<()>>) {
+        self.stop.cancel();
+        if let Some(task) = task.take() {
+            // A panic in it was reported as it happened.
+            let _: Result<(), _> = task.await;
+        }
+    }
 }
 
 /// How far a run's files were joined into listed keyframes' files.
@@ -175,11 +197,8 @@ impl Running {
         // Under the lock a restart takes, so none starts ffmpeg after this.
         let mut ffmpeg = self.ffmpeg.lock().await;
         self.closed.store(true, Ordering::Release);
-        if let Some((run, task)) = ffmpeg.take() {
-            task.abort();
-            // Awaited so the run is dropped, which stops it, before its folder is deleted.
-            let _: Result<(), _> = task.await;
-            run.stopped.store(true, Ordering::Release);
+        if let Some((run, mut task)) = ffmpeg.take() {
+            run.stop(&mut task).await;
         }
         drop(ffmpeg);
         if let Err(err) = tokio::fs::remove_dir_all(&self.dir).await {
@@ -200,9 +219,9 @@ impl Running {
     pub(super) async fn delete_unkept(&self, keep_behind_ms: i64) -> io::Result<()> {
         self.keep_behind_ms.store(keep_behind_ms, Ordering::Relaxed);
         // Under the lock a restart takes, so the current run is the one whose init is kept.
-        let ffmpeg = self.ffmpeg.lock().await;
+        let mut ffmpeg = self.ffmpeg.lock().await;
         // `stop` takes the run under it, so a stopped plan has none.
-        let Some((run, task)) = ffmpeg.as_ref() else {
+        let Some((run, task)) = ffmpeg.as_mut() else {
             return Ok(());
         };
         let running = !run.stopped.load(Ordering::Acquire);
@@ -259,9 +278,7 @@ impl Running {
                     Ok(false)
                 ))
         {
-            task.abort();
-            self.note_written(run).await;
-            run.stopped.store(true, Ordering::Release);
+            run.stop(task).await;
         }
         Ok(())
     }
@@ -370,7 +387,7 @@ impl Running {
         if tokio::fs::try_exists(self.keyframe_path(n)).await? {
             return Ok(true);
         }
-        if let Some((run, task)) = &*ffmpeg {
+        if let Some((run, task)) = ffmpeg.as_mut() {
             let stopped = run.stopped.load(Ordering::Acquire);
             let written_to = run.written_to.load(Ordering::Relaxed);
             if stopped && run.from == n && written_to == n {
@@ -389,41 +406,43 @@ impl Running {
             if apart > self.wait_ahead_ms().unsigned_abs() {
                 return Ok(false);
             }
-            task.abort();
-            // An aborted `watch` never notes what it wrote last or marks it stopped, and the
-            // restart below may fail, leaving it for `init`.
-            self.note_written(run).await;
-            run.stopped.store(true, Ordering::Release);
+            // Marked stopped even if the restart below fails, which leaves it for `init`.
+            run.stop(task).await;
         }
         *ffmpeg = Some(self.run_from(n)?);
         Ok(true)
     }
 
     /// Starts a run writing this plan's files from keyframe `n` on.
-    fn run_from(self: &Arc<Self>, n: usize) -> io::Result<(Arc<FfmpegRun>, JoinHandle<()>)> {
+    fn run_from(self: &Arc<Self>, n: usize) -> io::Result<CurrentRun> {
         let start = match &self.fallback {
             Some(fallback) if self.fell_back() => &fallback.start,
             _ => &self.start,
         };
-        let ffmpeg = start(&self.dir, self.timeline.keyframe(n))?;
+        let stop = CancellationToken::new();
+        let ffmpeg = start(&self.dir, self.timeline.keyframe(n), stop.clone())?;
         let run = Arc::new(FfmpegRun {
             from: n,
             written_to: AtomicUsize::new(n),
             stopped: AtomicBool::new(false),
+            stop,
             joined: tokio::sync::Mutex::default(),
         });
         let task = tokio::spawn(Arc::clone(self).watch(ffmpeg, Arc::clone(&run)));
-        Ok((run, task))
+        Ok((run, Some(task)))
     }
 
     /// Waits for `ffmpeg`, doing the run `run`, to end, or stops it once it has written far
     /// enough ahead, then logs why if it failed and marks it stopped.
-    async fn watch(self: Arc<Self>, ffmpeg: Run, run: Arc<FfmpegRun>) {
-        let worth_falling_back = tokio::select! {
-            outcome = ffmpeg => self.log_failure(outcome),
-            // Dropping the run stops it.
-            () = self.written_far_ahead(&run) => false,
+    async fn watch(self: Arc<Self>, mut ffmpeg: Run, run: Arc<FfmpegRun>) {
+        let outcome = tokio::select! {
+            outcome = &mut ffmpeg => outcome,
+            () = self.written_far_ahead(&run) => {
+                run.stop.cancel();
+                ffmpeg.await
+            }
         };
+        let worth_falling_back = self.log_failure(outcome);
         // What it wrote since last looked, for its fallback, `will_write` and `init`, which reads
         // it once marked stopped, so before.
         self.note_written(&run).await;
@@ -439,8 +458,8 @@ impl Running {
         let Some(fallback) = &self.fallback else {
             return;
         };
-        // Before waiting for the lock, so a seek that restarts ffmpeg meanwhile, aborting this
-        // task, restarts it in software.
+        // Before waiting for the lock, so a seek that restarts ffmpeg meanwhile, stopping this
+        // run, restarts it in software.
         if self.fell_back.swap(true, Ordering::AcqRel) {
             return;
         }
@@ -450,7 +469,11 @@ impl Running {
         );
         (fallback.on_fall_back)();
         // Under the lock a restart takes, so it doesn't race a seek's.
-        let mut ffmpeg = self.ffmpeg.lock().await;
+        let mut ffmpeg = tokio::select! {
+            ffmpeg = self.ffmpeg.lock() => ffmpeg,
+            // Whoever stopped it holds the lock, waiting for this task, and starts what runs next.
+            () = run.stop.cancelled() => return,
+        };
         let current = (ffmpeg.as_ref()).is_some_and(|(current, _)| Arc::ptr_eq(current, run));
         if !current || self.closed.load(Ordering::Acquire) {
             return;
@@ -470,7 +493,7 @@ impl Running {
     /// might get past.
     fn log_failure(&self, outcome: Outcome) -> bool {
         match outcome {
-            Outcome::Finished => false,
+            Outcome::Finished | Outcome::Stopped => false,
             Outcome::Failed { status, stderr } => {
                 tracing::warn!(
                     plan = self.id,
