@@ -59,6 +59,8 @@ mod calls_tests;
 #[path = "wasm/fulfiller_tests.rs"]
 mod fulfiller_tests;
 
+#[cfg(test)]
+pub(crate) use automation::KERNEL_IMPORTS;
 pub(crate) use listing::read;
 use load::{
     CALL_TIMEOUT, Compiled, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel,
