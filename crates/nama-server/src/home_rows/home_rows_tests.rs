@@ -337,6 +337,20 @@ async fn a_version_no_longer_giving_users_rows_deletes_every_users_rows_and_thei
 }
 
 #[tokio::test]
+async fn a_version_no_longer_giving_users_rows_deletes_them_as_a_user_without_any_lists_home() {
+    let (_dir, db, old_version, _) = recorded(BOTH).await;
+    let ada = insert_user(&db, "ada").await;
+    let cy = insert_user(&db, "cy").await;
+    open_home(&old_version, ada).await;
+    let (new_version, _) = started(&db, SHARED);
+
+    open_home(&new_version, cy).await;
+
+    assert_eq!(stored_keys(&new_version, ada).await, ["shared"]);
+    assert_eq!(refreshes_marked(&db).await, [None]);
+}
+
+#[tokio::test]
 async fn a_version_no_longer_giving_shared_rows_deletes_them_and_their_refresh() {
     let (_dir, db, old_version, _) = recorded(BOTH).await;
     let ada = insert_user(&db, "ada").await;

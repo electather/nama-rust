@@ -152,7 +152,7 @@ impl HomeRows {
         let stored = self.stored(reader.id).await?;
         let serving = self.points.providers::<dyn HomeRowSource>();
         self.refresh_stale(&serving, reader.id).await?;
-        let gone = self.no_longer_given(&stored, &serving).await;
+        let gone = self.no_longer_given(&stored).await;
         // ponytail: deleted on the next listing rather than as the Plugin is disabled or comes up
         // as a new version, which also catches a crash's disable; until then they're only
         // hidden. Delete them from `PluginSettings::disable` if a disabled Plugin's stored rows
@@ -257,7 +257,7 @@ impl HomeRows {
     /// nothing if it isn't an enabled Home row source giving those rows, or they're already being
     /// refreshed.
     async fn refresh(&self, plugin: &PluginId, user: Option<i64>) {
-        if !self.gives(plugin, user).await {
+        if !self.gives(plugin, method_giving(user)).await {
             return;
         }
         let Some(refreshing) = Refreshing::start(&self.refreshing, (plugin.clone(), user)) else {
@@ -272,30 +272,26 @@ impl HomeRows {
         });
     }
 
-    /// Whether the Plugin `plugin` is an enabled Home row source giving rows for `user`, or
-    /// shared rows for `None`.
-    async fn gives(&self, plugin: &PluginId, user: Option<i64>) -> bool {
-        let method = method_giving(user);
+    /// Whether the Plugin `plugin` is an enabled Home row source giving rows by `method`.
+    async fn gives(&self, plugin: &PluginId, method: HomeRowMethod) -> bool {
         let gives =
             (self.points).read_provider(plugin, |source: &dyn HomeRowSource| source.gives(method));
         gives.await.unwrap_or(false)
     }
 
-    /// The rows of `stored`'s Plugins that they no longer give, by the method that gave them: both
-    /// of a Plugin not in `serving`, else each its version leaves out (ADR 0058).
-    async fn no_longer_given(
-        &self,
-        stored: &[(Scope, Row)],
-        serving: &BTreeSet<PluginId>,
-    ) -> HashSet<(PluginId, HomeRowMethod)> {
-        let scopes: HashSet<&Scope> = stored.iter().map(|(scope, _)| scope).collect();
+    /// Each method `stored`'s Plugins no longer give rows by, as one is disabled or its version
+    /// stopped serving that export.
+    async fn no_longer_given(&self, stored: &[(Scope, Row)]) -> HashSet<(PluginId, HomeRowMethod)> {
+        let plugins: BTreeSet<&PluginId> = stored.iter().map(|((plugin, _), _)| plugin).collect();
+        // Both methods, even one `stored` has no rows by, so a version that stopped giving Users'
+        // rows deletes every User's on whichever User lists home first.
+        let asked = (plugins.into_iter()).flat_map(|plugin| {
+            [HomeRowMethod::Shared, HomeRowMethod::User].map(|method| (plugin, method))
+        });
         let mut gone = HashSet::new();
-        for (plugin, user) in scopes {
-            if !serving.contains(plugin) {
-                gone.insert((plugin.clone(), HomeRowMethod::Shared));
-                gone.insert((plugin.clone(), HomeRowMethod::User));
-            } else if !self.gives(plugin, *user).await {
-                gone.insert((plugin.clone(), method_giving(*user)));
+        for (plugin, method) in asked {
+            if !self.gives(plugin, method).await {
+                gone.insert((plugin.clone(), method));
             }
         }
         gone
@@ -549,7 +545,7 @@ impl HomeRows {
         .fetch_all(self.db.reader())
         .await?;
         for row in rows {
-            if self.gives(plugin, row.user_id).await {
+            if self.gives(plugin, method_giving(row.user_id)).await {
                 return Ok(Row {
                     titles: from_json(&row.titles),
                     missing: from_json(&row.missing),
