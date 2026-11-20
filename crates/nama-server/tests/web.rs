@@ -83,11 +83,11 @@ async fn the_app_ships_the_ass_renderer_s_notices() {
     let (status, _, notices) = http1_get(server.addr, "/licenses/jassub.txt").await;
     let (font_status, _, font_notice) =
         http1_get(server.addr, "/licenses/liberation-sans.txt").await;
+    let font_notice = String::from_utf8(font_notice).unwrap();
 
     assert_eq!(status, 200);
     assert!(String::from_utf8(notices).unwrap().contains("FreeType"));
     assert_eq!(font_status, 200);
-    let font_notice = String::from_utf8(font_notice).unwrap();
     assert!(font_notice.contains("Reserved Font Name Liberation"));
     assert!(font_notice.contains("SIL OPEN FONT LICENSE Version 1.1"));
 }
