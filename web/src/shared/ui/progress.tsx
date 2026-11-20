@@ -23,17 +23,24 @@ function Progress({ className, ...props }: ProgressPrimitive.Root.Props) {
 /**
  * A state pill filled to its `value` behind its `label` and its icon, the `children`, such as a
  * Request downloading. The fill is Ink at 25%, a quieter step than a bar's Near-white, so the
- * label reads over it.
+ * label reads over it. `large` beside a title's Play, as tall as it.
  */
 function ProgressPill({
   label,
+  large = false,
   children,
   ...props
-}: ProgressPrimitive.Root.Props & { label: string }) {
+}: ProgressPrimitive.Root.Props & { label: string; large?: boolean }) {
   return (
     <ProgressPrimitive.Root
       data-slot="progress-pill"
-      className="relative isolate inline-flex shrink-0 items-center gap-1.5 overflow-hidden rounded-full border px-2.5 py-0.5 text-sm"
+      className={cn(
+        "relative isolate inline-flex shrink-0 items-center overflow-hidden rounded-full",
+        // Beside a title's Play, as tall as it, and filled, as a hairline would be lost over art.
+        large
+          ? "h-11 gap-2 bg-secondary ps-4.5 pe-5.5 text-base font-medium"
+          : "gap-1.5 border px-2.5 py-0.5 text-sm",
+      )}
       {...props}
     >
       {/* Sized, as Base UI's indicator inherits its height. */}

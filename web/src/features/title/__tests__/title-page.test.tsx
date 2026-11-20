@@ -49,8 +49,8 @@ test("a Movie's page shows its Title Logo with its genres, year, runtime and Con
   expect(within(heading).getByRole("img").getAttribute("src")).toBe(
     "/media/artwork/tmdb/%2Fparasite-logo.png",
   );
-  expect(screen.getByText("Movie · Thriller · Drama · 2019 · 2h 13m")).toBeDefined();
-  expect(screen.getByText("R")).toBeDefined();
+  expect(screen.getByText("Movie · Thriller · Drama")).toBeDefined();
+  expect(screen.getByText("2019 · 2h 13m").closest("p")?.textContent).toBe("2019 · 2h 13mR");
 });
 
 test("a title without a Title Logo shows its title as text", async () => {
@@ -157,14 +157,16 @@ function episodeEntry(
   } as const;
 }
 
-test("a Show's page shows its own overview and first air year, and no button unstarted", async () => {
+test("a Show's page shows its own overview and first air year, and no Play without Episodes", async () => {
   openDark();
 
   await expect(
     screen.findByText("A missing child sets four families on a hunt."),
   ).resolves.toBeDefined();
-  expect(screen.getByText("Show · Drama · 2017")).toBeDefined();
-  expect(screen.queryByRole("link", { name: /^Resume/u })).toBeNull();
+  expect(screen.getByText("Show · Drama")).toBeDefined();
+  // In its facts, and as Released in its Details.
+  expect(screen.getAllByText("2017")).toHaveLength(2);
+  expect(screen.queryByRole("link", { name: /^(?:Resume|Play)/u })).toBeNull();
 });
 
 test("a Show's page resumes its most recently started Episode in Continue Watching", async () => {
@@ -177,11 +179,12 @@ test("a Show's page resumes its most recently started Episode in Continue Watchi
     episodeEntry(dark, 2n, 4),
   );
 
-  const resume = await screen.findByRole("link", { name: "Resume, 33m left" });
+  const resume = await screen.findByRole("link", {
+    name: "Resume Season 2, Episode 3, 33m left",
+  });
   expect(resume.getAttribute("href")).toBe(
     "/libraries/2/shows/tmdb-70523/seasons/2/episodes/3/play",
   );
-  expect(screen.getByText("S2, E3")).toBeDefined();
 });
 
 test("an overview longer than two lines opens with More, and closes with Less", async () => {

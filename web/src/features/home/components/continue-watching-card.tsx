@@ -1,15 +1,10 @@
-import { Link } from "@tanstack/react-router";
-
 import { CardMenu } from "@/features/home/components/card-menu";
 import { ContinueWatchingCaption } from "@/features/home/components/continue-watching-caption";
-import { TileArt } from "@/features/home/components/tile-art";
 import type { CardActions } from "@/features/home/lib/card-actions";
 import type { Card } from "@/features/home/lib/continue-watching-cards";
-import { backdropTile } from "@/features/home/lib/shelf-tiles";
+import { BackdropCard } from "@/shared/components/backdrop-card/backdrop-card";
+import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
 import { isStarted } from "@/shared/lib/watch-progress";
-
-/** The `sizes` of a Continue Watching card's Backdrop, as `backdropTile` sizes it. */
-const backdropSizes = "(max-width: 933px) 280px, (max-width: 1466px) 30vw, 440px";
 
 /**
  * A Continue Watching card: its art, opening where it plays, with its title (unless the art carries
@@ -19,22 +14,11 @@ export function ContinueWatchingCard({ card, actions }: { card: Card; actions: C
   const { url, thumbhash, title, logoUrl, titled, detail, shownDetail, watchState } = card.backdrop;
   const verb = isStarted(watchState) ? "Resume" : "Play";
   return (
-    <div className={`relative isolate aspect-4/3 overflow-hidden bg-muted ${backdropTile.radius}`}>
-      <TileArt
-        url={url}
-        thumbhash={thumbhash}
-        look={{ sizes: backdropSizes, radius: backdropTile.radius }}
-      />
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-linear-to-t from-scrim via-scrim/45 via-36% to-transparent to-60%"
-      />
-      <Link
-        {...card.link}
-        aria-label={[`${verb} ${title}`, detail].filter(Boolean).join(", ")}
-        className={`absolute inset-0 outline-none focus-visible:outline-2 focus-visible:-outline-offset-3 focus-visible:outline-ring ${backdropTile.radius}`}
-      />
-      <div className="pointer-events-none absolute inset-x-1 bottom-1 flex items-end gap-2 ps-2.5">
+    <BackdropCard
+      art={{ url, thumbhash, sizes: backdropTileSizes }}
+      link={card.link}
+      label={[`${verb} ${title}`, detail].filter(Boolean).join(", ")}
+      caption={
         <ContinueWatchingCaption
           title={title}
           logoUrl={logoUrl}
@@ -42,8 +26,8 @@ export function ContinueWatchingCard({ card, actions }: { card: Card; actions: C
           detail={shownDetail}
           state={watchState}
         />
-        <CardMenu title={title} actions={actions} />
-      </div>
-    </div>
+      }
+      menu={<CardMenu title={title} actions={actions} />}
+    />
   );
 }

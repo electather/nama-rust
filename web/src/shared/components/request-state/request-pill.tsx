@@ -6,18 +6,20 @@ import { StateLabel } from "@/shared/components/state-label";
 
 /**
  * Where a Request stands, as a title shows it: filled to how far its downloads have got while
- * Processing with any, and red once Declined, or Failed, saying why.
+ * Processing with any, and red once Declined, or Failed, saying why. `large` beside a title's Play.
  */
 export function RequestPill({
   request: { state, downloads, failureReason },
+  large = false,
 }: {
   request: Request;
+  large?: boolean;
 }) {
   if (state === RequestState.PROCESSING && downloads.length > 0) {
-    return <DownloadingPill downloads={downloads} />;
+    return <DownloadingPill downloads={downloads} large={large} />;
   }
   if (state === RequestState.FAILED) {
-    return <FailedPill reason={failureReason} />;
+    return <FailedPill reason={failureReason} large={large} />;
   }
-  return <StateLabel {...shownOnTitle(state)} />;
+  return <StateLabel {...shownOnTitle(state)} large={large} />;
 }

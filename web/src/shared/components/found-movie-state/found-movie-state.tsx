@@ -6,8 +6,8 @@ import { canAsk } from "@/shared/lib/can-ask";
 
 /**
  * Where a Movie found in the title source is on its way to the Server: in a Library, linking
- * there, or its Request's status. Request, which `primary` makes the screen's primary action,
- * while the signed-in User `you` can ask for it. The caller lays them out.
+ * there, or its Request's status. Request, which `primary` makes the screen's primary action, its
+ * status as large, while the signed-in User `you` can ask for it. The caller lays them out.
  */
 export function FoundMovieState({
   movie,
@@ -24,7 +24,7 @@ export function FoundMovieState({
   const { request } = movie;
   return (
     <>
-      {request && <RequestStateAndQuality request={request} what={movie.title} />}
+      {request && <RequestStateAndQuality request={request} what={movie.title} large={primary} />}
       {canAsk(request, you) && <RequestButton movie={movie} primary={primary} />}
     </>
   );

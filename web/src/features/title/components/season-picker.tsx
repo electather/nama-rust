@@ -19,7 +19,7 @@ export function SeasonPicker({ show, you }: { show: FoundShow; you: bigint | und
   const pickable = (season: FoundSeason) => !season.inLibrary && canAsk(season.request, you);
   const wholePickable = !isRequester(show.followedShow, you);
   return (
-    <form ref={formRef} className="mt-10 max-w-xl">
+    <form ref={formRef} className="max-w-xl">
       <SeasonFieldset
         show={show}
         wholePickable={wholePickable}

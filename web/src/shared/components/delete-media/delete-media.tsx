@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type Ref, useState } from "react";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
@@ -8,22 +8,23 @@ import { WhatGoes } from "@/shared/components/delete-media/what-goes";
 import { useDeleteMedia } from "@/shared/hooks/use-delete-media";
 import { type Deletable, EVERY_VERSION, type Outcome } from "@/shared/lib/deletable";
 import { formText, refusal, refusalOf } from "@/shared/lib/forms";
+import type { Opener } from "@/shared/lib/opener";
 
 /**
  * Deletes a title's every Version, or one of them, once confirmed with the files that go, the
  * space they free and the other Episodes those files hold. A file that couldn't be deleted is
- * listed afterwards, with why.
+ * listed afterwards, with why. Only `ref` opens it, from a menu's item, since a title's page keeps
+ * Delete in its "…" menu.
  */
 export function DeleteMedia({
   action = "Delete",
-  name = action,
+  ref,
   onDeletedEveryVersion,
   ...deletable
 }: Deletable & {
-  /** What the button says, such as "Delete Show" where "Delete" alone wouldn't say what goes. */
+  ref: Ref<Opener>;
+  /** What the confirm button says, such as "Delete Show" where "Delete" alone wouldn't say what goes. */
   action?: string;
-  /** The button's accessible name, where `action` alone doesn't say what goes, such as "Delete Alien". */
-  name?: string;
   /**
    * Called once every Version went, so the page can leave what's gone, with the names of the
    * Fulfillers that couldn't be told, which the page then reports.
@@ -35,8 +36,10 @@ export function DeleteMedia({
   return (
     <>
       <ConfirmDialog
+        ref={ref}
+        trigger={false}
         action={action}
-        name={name}
+        name={action}
         title={`Delete ${deletable.title}?`}
         description="Its files are deleted from the Server for good. This can’t be undone."
         onConfirm={async (typed) => {

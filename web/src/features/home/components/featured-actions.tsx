@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { Info } from "lucide-react";
 
-import { WatchlistButton } from "@/features/home/components/watchlist-button";
 import type { Panel } from "@/features/home/lib/featured-panels";
 import { PlayButton } from "@/shared/components/watch-state/play-button";
+import { WatchlistButton } from "@/shared/components/watchlist-button";
 import { buttonVariants } from "@/shared/ui/button";
 
 /** An open panel's Play or Resume, or More info with nothing to play, and its Watchlist button. */

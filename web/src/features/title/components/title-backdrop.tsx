@@ -21,6 +21,8 @@ export function TitleBackdrop({
         srcSet={srcSet}
         sizes="100vw"
         alt=""
+        // The page's largest image, so it loads first.
+        fetchPriority="high"
         className="absolute inset-0 -z-10 size-full object-cover"
       />
     </>

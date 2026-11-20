@@ -1,9 +1,9 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, type ListEpisodesResponseSchema } from "@/gen/nama/v1/browse_pb";
 import {
   LibraryKind,
   type LibraryService,
@@ -12,9 +12,17 @@ import {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { layOutShelves } from "@/test-layout";
+import { openMenu, pickFromMenu } from "@/test-menu";
 import { refused } from "@/test-refusal";
 
-afterEach(cleanup);
+// A Show's row of Episodes is virtual, so it needs a layout to show its cards.
+beforeEach(layOutShelves);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 const deletesMedia = [...newUser, Permission.DELETE_MEDIA];
 
@@ -30,6 +38,13 @@ const secrets = {
   title: "Secrets",
   versions: [TWO_EPISODES, SECRETS_ONLY],
 };
+const past = {
+  id: { namespace: "tmdb", value: "1500000" },
+  seasonNumber: 2,
+  episodeNumber: 1,
+  title: "Beginnings and Endings",
+  versions: [{ id: 5n }],
+};
 const lies = {
   id: { namespace: "tmdb", value: "1388539" },
   seasonNumber: 1,
@@ -37,6 +52,12 @@ const lies = {
   title: "Lies",
   versions: [TWO_EPISODES],
 };
+
+/** A `ListEpisodes` answering `seasonOne()` for Season 1, and Season 2's one Episode for any other. */
+function bySeason(seasonOne: () => MessageInitShape<typeof ListEpisodesResponseSchema>) {
+  return ({ seasonNumber }: { seasonNumber: number }) =>
+    seasonNumber === 1 ? seasonOne() : { episodes: [past] };
+}
 
 /**
  * Dark's page in a Shows Library, for a User with `permissions`, deleting through `library` and
@@ -73,7 +94,7 @@ function openDark(
           show: { id: darkId, title: "Dark" },
           seasons: [{ number: 1 }, { number: 2 }],
         }),
-        listEpisodes: () => ({ episodes: [secrets, lies] }),
+        listEpisodes: bySeason(() => ({ episodes: [secrets, lies] })),
         listShows: () => ({ shows: [] }),
         listGenres: () => ({}),
         ...browse,
@@ -84,17 +105,29 @@ function openDark(
   return events;
 }
 
-test("only a User with Delete media sees Delete on a Show, its Season and its Episodes", async () => {
+/** The names of the items of the menu of the "…" named `name`, which it then closes. */
+async function menuItems(name: string) {
+  await openMenu(name);
+  const found = await screen.findAllByRole("menuitem");
+  const items = found.map((item) => item.textContent);
+  fireEvent.keyDown(screen.getAllByRole("menuitem")[0] ?? document.body, { key: "Escape" });
+  await waitFor(() => {
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+  return items;
+}
+
+test("only a User with Delete media sees Delete on a Show and its Episodes", async () => {
   openDark(newUser);
   await screen.findByText(/Lies/u);
-  expect(screen.queryByRole("button", { name: /^Delete/u })).toBeNull();
+  await expect(menuItems("More actions")).resolves.not.toContain("Delete Show");
+  await expect(menuItems("More for Lies")).resolves.toStrictEqual(["Mark as watched"]);
   cleanup();
 
   openDark(deletesMedia);
 
-  await expect(screen.findByRole("button", { name: "Delete Show" })).resolves.toBeDefined();
-  expect(screen.getByRole("button", { name: "Delete Season 1" })).toBeDefined();
-  expect(screen.getByRole("button", { name: "Delete Lies" })).toBeDefined();
+  await expect(menuItems("More actions")).resolves.toContain("Delete Show");
+  await expect(menuItems("More for Lies")).resolves.toStrictEqual(["Mark as watched", "Delete"]);
 });
 
 /** A `DeleteMedia` that records what it deletes in `deleted`. */
@@ -107,9 +140,12 @@ function recording(deleted: Target[]): Partial<ServiceImpl<typeof LibraryService
   };
 }
 
-/** Opens the dialog of the Delete button named `name`, which asks about deleting `title`. */
-async function openDialog(name: string, title: string) {
-  fireEvent.click(await screen.findByRole("button", { name }));
+/**
+ * Opens the dialog of the item `item` of the menu of the "…" named `menu`, which asks about
+ * deleting `title`.
+ */
+async function openDialog(menu: string, item: string, title: string) {
+  await pickFromMenu(menu, item);
   return screen.findByRole("alertdialog", { name: `Delete ${title}?` });
 }
 
@@ -123,7 +159,7 @@ test("deleting an Episode in a two-Episode file names the other Episode before c
       return {};
     },
   });
-  const dialog = await openDialog("Delete Lies", "Lies");
+  const dialog = await openDialog("More for Lies", "Delete", "Lies");
 
   await expect(within(dialog).findByText("Season 1, Episode 1: Secrets")).resolves.toBeDefined();
   expect(within(dialog).getByText("Dark - S01E01-E02.mkv")).toBeDefined();
@@ -152,7 +188,7 @@ test("a delete refused for an Episode it now takes along says so and loads what 
       });
     },
   });
-  const dialog = await openDialog("Delete Lies", "Lies");
+  const dialog = await openDialog("More for Lies", "Delete", "Lies");
   await within(dialog).findByText("Dark - S01E01-E02.mkv");
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
@@ -176,7 +212,7 @@ test("the confirmation names the open Requests deleting cancels", async () => {
     }),
   });
 
-  const dialog = await openDialog("Delete Lies", "Lies");
+  const dialog = await openDialog("More for Lies", "Delete", "Lies");
 
   await expect(within(dialog).findByText(/cancels this open Request/u)).resolves.toBeDefined();
   expect(within(dialog).getByText("Dark, Season 1")).toBeDefined();
@@ -185,7 +221,7 @@ test("the confirmation names the open Requests deleting cancels", async () => {
 test("deleting one Version of an Episode with two names only it", async () => {
   const deleted: Target[] = [];
   openDark(deletesMedia, recording(deleted));
-  const dialog = await openDialog("Delete Secrets", "Secrets");
+  const dialog = await openDialog("More for Secrets", "Delete", "Secrets");
 
   fireEvent.change(within(dialog).getByLabelText("What to delete"), { target: { value: "4" } });
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
@@ -197,23 +233,15 @@ test("deleting one Version of an Episode with two names only it", async () => {
   });
 });
 
-test("delete Season names the Season, and Delete Show the Show", async () => {
+test("delete Show names the Show", async () => {
   const deleted: Target[] = [];
   openDark(deletesMedia, recording(deleted));
 
-  const season = await openDialog("Delete Season 1", "Dark Season 1");
-  fireEvent.click(within(season).getByRole("button", { name: "Delete Season 1" }));
-  await waitFor(() => {
-    expect(deleted).toHaveLength(1);
-  });
-  const show = await openDialog("Delete Show", "Dark");
+  const show = await openDialog("More actions", "Delete Show", "Dark");
   fireEvent.click(within(show).getByRole("button", { name: "Delete Show" }));
 
   await waitFor(() => {
-    expect(deleted).toMatchObject([
-      { case: "season", value: { libraryId: 2n, showId: darkId, seasonNumber: 1 } },
-      { case: "show", value: { libraryId: 2n, showId: darkId } },
-    ]);
+    expect(deleted).toMatchObject([{ case: "show", value: { libraryId: 2n, showId: darkId } }]);
   });
 });
 
@@ -224,7 +252,7 @@ function removeAnItem(events: ReturnType<typeof eventFeed>) {
 
 test("an open Show page drops a deleted Episode when its Item is removed", async () => {
   const season = [secrets, lies];
-  const events = openDark(newUser, {}, { listEpisodes: () => ({ episodes: season }) });
+  const events = openDark(newUser, {}, { listEpisodes: bySeason(() => ({ episodes: season })) });
   await screen.findByText(/Lies/u);
 
   season.pop();
@@ -246,15 +274,16 @@ function until<T>(gone: { now: boolean }, answer: T) {
   };
 }
 
-test("an open Show page drops a Season deleted elsewhere, linking to the one left", async () => {
+test("an open Show page drops a Season deleted elsewhere, keeping the one left", async () => {
   const gone = { now: false };
   const seasons = [{ number: 1 }, { number: 2 }];
+  const seasonOne = until(gone, { episodes: [secrets, lies] });
   const events = openDark(
     newUser,
     {},
     {
       getShow: () => ({ show: { id: darkId, title: "Dark" }, seasons }),
-      listEpisodes: until(gone, { episodes: [secrets, lies] }),
+      listEpisodes: bySeason(seasonOne),
     },
   );
   await screen.findByText(/Lies/u);
@@ -263,9 +292,11 @@ test("an open Show page drops a Season deleted elsewhere, linking to the one lef
   seasons.shift();
   removeAnItem(events);
 
-  await expect(screen.findByText("Season 1 is no longer in this Library.")).resolves.toBeDefined();
-  expect(screen.queryByText(/Lies/u)).toBeNull();
-  expect(screen.getByRole("link", { name: "Season 2" })).toBeDefined();
+  await waitFor(() => {
+    expect(screen.queryByText(/Lies/u)).toBeNull();
+  });
+  expect(screen.getByText(/Beginnings and Endings/u)).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Season 2" })).toBeDefined();
 });
 
 test("an open Show page says so once the Show was deleted elsewhere", async () => {
@@ -287,7 +318,7 @@ const sonarrNotTold: Partial<ServiceImpl<typeof LibraryService>> = {
 
 test("deleting an Episode when Sonarr couldn't be told says so on the Show", async () => {
   openDark(deletesMedia, sonarrNotTold);
-  const dialog = await openDialog("Delete Lies", "Lies");
+  const dialog = await openDialog("More for Lies", "Delete", "Lies");
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
@@ -296,23 +327,9 @@ test("deleting an Episode when Sonarr couldn't be told says so on the Show", asy
   ).resolves.toBeDefined();
 });
 
-test("deleting a Season when Sonarr couldn't be told says so on the Season shown next", async () => {
-  openDark(deletesMedia, sonarrNotTold);
-  const dialog = await openDialog("Delete Season 1", "Dark Season 1");
-
-  fireEvent.click(within(dialog).getByRole("button", { name: "Delete Season 1" }));
-
-  await expect(
-    screen.findByText(
-      "Sonarr couldn’t be told about the delete, so it may download Dark Season 1 again.",
-    ),
-  ).resolves.toBeDefined();
-  expect(screen.getByRole("button", { name: "Delete Season 2" })).toBeDefined();
-});
-
 test("deleting a whole Show when Sonarr couldn't be told says so on its Library", async () => {
   openDark(deletesMedia, sonarrNotTold);
-  const dialog = await openDialog("Delete Show", "Dark");
+  const dialog = await openDialog("More actions", "Delete Show", "Dark");
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete Show" }));
 
