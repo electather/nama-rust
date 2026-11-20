@@ -79,3 +79,72 @@ fn linux_names_the_magic_numbers_of_risky_filesystems_only() {
         assert_eq!(linux_filesystem_name(magic), name, "{magic:#x}");
     }
 }
+
+#[test]
+fn a_data_directory_under_one_gib_free_warns_naming_its_free_space_threshold_and_path() {
+    use std::path::Path;
+
+    use super::{MIB, warn_if_low_on_space};
+    use crate::log_capture::CapturedLog;
+
+    let log = CapturedLog::start();
+    warn_if_low_on_space(Path::new("/srv/nama"), Ok(512 * MIB), 100 * MIB);
+
+    let logged = log.finish();
+    assert!(logged.contains("WARN"), "{logged}");
+    for named in ["/srv/nama", "512 MiB free", "1024 MiB"] {
+        assert!(logged.contains(named), "{named} in {logged}");
+    }
+}
+
+#[test]
+fn a_database_over_half_a_gib_asks_for_twice_its_size_free() {
+    use std::path::Path;
+
+    use super::{MIB, warn_if_low_on_space};
+    use crate::log_capture::CapturedLog;
+
+    let log = CapturedLog::start();
+    warn_if_low_on_space(Path::new("/srv/nama"), Ok(1200 * MIB), 800 * MIB);
+
+    let logged = log.finish();
+    assert!(logged.contains("1200 MiB free"), "{logged}");
+    assert!(logged.contains("1600 MiB"), "{logged}");
+}
+
+#[test]
+fn enough_free_space_logs_nothing() {
+    use std::path::Path;
+
+    use super::{MIB, warn_if_low_on_space};
+    use crate::log_capture::CapturedLog;
+
+    let log = CapturedLog::start();
+    warn_if_low_on_space(Path::new("/srv/nama"), Ok(1024 * MIB), 100 * MIB);
+    warn_if_low_on_space(Path::new("/srv/nama"), Ok(2000 * MIB), 1000 * MIB);
+
+    assert_eq!(log.finish(), "");
+}
+
+#[test]
+fn free_space_that_cant_be_read_is_logged_at_debug_only() {
+    use std::{io, path::Path};
+
+    use tracing::Level;
+
+    use super::warn_if_low_on_space;
+    use crate::log_capture::CapturedLog;
+
+    let log = CapturedLog::start_at(Level::DEBUG);
+    warn_if_low_on_space(
+        Path::new("/srv/nama"),
+        Err(io::ErrorKind::Unsupported.into()),
+        0,
+    );
+
+    let logged = log.finish();
+    let lines: Vec<_> = logged.lines().collect();
+    assert_eq!(lines.len(), 1, "{logged}");
+    assert!(lines[0].contains("DEBUG"), "{logged}");
+    assert!(lines[0].contains("free space"), "{logged}");
+}
