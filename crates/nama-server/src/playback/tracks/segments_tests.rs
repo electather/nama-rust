@@ -11,11 +11,11 @@ use nama_plugin_api::{
 };
 use tempfile::TempDir;
 
-use super::{Segment, SegmentKind, Segments, segments_of};
+use super::{Segment, SegmentKind, Segments, keep, segments_of};
 use crate::{
     db::{self, Database},
     library::{
-        Contents, Libraries,
+        Contents, Libraries, Stored,
         fixture::{MatchedMovie, tmdb_movie},
     },
     playback::{Chapter, Probe, Tracks},
@@ -151,10 +151,19 @@ impl Fixture {
 /// Stores a probe of the Version `version` as [`DURATION_MS`] long with `chapters`, as Probing
 /// does each time it probes the file.
 async fn probe(db: &Arc<Database>, version: i64, chapters: Vec<Chapter>) {
+    probe_file(db, stored_file(db, version).await, chapters).await;
+}
+
+async fn stored_file(db: &Arc<Database>, version: i64) -> Stored {
     let (_, file) = (Contents::new(Arc::clone(db)).version_file(version))
         .await
         .unwrap()
         .unwrap();
+    file
+}
+
+/// Stores a probe of `file` as [`DURATION_MS`] long with `chapters`.
+async fn probe_file(db: &Arc<Database>, file: Stored, chapters: Vec<Chapter>) {
     let probe = Probe {
         container: "matroska,webm".to_owned(),
         duration_ms: Some(DURATION_MS),
@@ -291,6 +300,32 @@ async fn a_versions_segments_go_when_it_is_probed_again_and_it_is_asked_again() 
     assert_eq!(fx.segments.due().await.unwrap(), Vec::<i64>::new());
 
     probe(&fx.db, fx.version, vec![]).await;
+
+    assert_eq!(fx.stored().await, []);
+    assert_eq!(fx.segments.due().await.unwrap(), [fx.version]);
+}
+
+#[tokio::test]
+async fn segments_found_before_the_file_changed_and_was_probed_again_are_not_kept() {
+    let fx = Fixture::new(
+        vec![chapter(0, "Opening"), chapter(60_000, "")],
+        &[],
+        vec![],
+    )
+    .await;
+    let stamp = fx.segments.probed(fx.version).await.unwrap().unwrap().stamp;
+    let file = stored_file(&fx.db, fx.version).await;
+
+    let grown = Stored {
+        size: file.size + 1,
+        ..file
+    };
+    probe_file(&fx.db, grown, vec![]).await;
+    let (version, intro) = (fx.version, segment(SegmentKind::Intro, 0, Some(60_000)));
+    (fx.db)
+        .write(move |tx| Box::pin(keep(tx, version, stamp, vec![(intro, None)], i64::MAX)))
+        .await
+        .unwrap();
 
     assert_eq!(fx.stored().await, []);
     assert_eq!(fx.segments.due().await.unwrap(), [fx.version]);

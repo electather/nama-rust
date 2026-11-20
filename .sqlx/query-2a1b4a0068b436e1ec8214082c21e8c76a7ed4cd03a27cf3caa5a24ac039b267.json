@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE version_probes SET segments_due_ms = ?\n         WHERE version_id = ? AND probe_version = ? AND size = ? AND modified_ns = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "2a1b4a0068b436e1ec8214082c21e8c76a7ed4cd03a27cf3caa5a24ac039b267"
+}

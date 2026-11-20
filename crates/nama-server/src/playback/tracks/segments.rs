@@ -32,7 +32,7 @@ use crate::{
 
 /// How long a Version still missing a kind waits to be asked about again, as crowdsourced
 /// services fill in over time (ADR 0075).
-// shortcut: a source an Admin lists later, or a Version Matched later, waits out the rest of these
+// ponytail: a source an Admin lists later, or a Version Matched later, waits out the rest of these
 // 30 days too; record which sources each ask reached if Admins expect it sooner.
 const ASK_AGAIN_AFTER: Duration = Duration::from_hours(30 * 24);
 
@@ -196,7 +196,12 @@ impl Segments {
     /// from the Segment sources its Library lists, in order, keeping the first found of each kind,
     /// and records when to ask about it again. Does nothing for a Version gone or not probed.
     async fn ask(&self, version: i64) -> sqlx::Result<()> {
-        let Some((duration_ms, chapters)) = self.probed(version).await? else {
+        let Some(Probed {
+            duration_ms,
+            chapters,
+            stamp,
+        }) = self.probed(version).await?
+        else {
             return Ok(());
         };
         let stored = self.kinds_stored(version).await?;
@@ -221,23 +226,31 @@ impl Segments {
             db::now_ms().saturating_add(i64::try_from(wait.as_millis()).unwrap_or(i64::MAX));
         let Found { segments, .. } = found;
         let kept = (self.inner.db)
-            .write(move |tx| Box::pin(keep(tx, version, segments, due_ms)))
+            .write(move |tx| Box::pin(keep(tx, version, stamp, segments, due_ms)))
             .await;
         ignore_removed(kept)
     }
 
-    /// The Version `version`'s length and its Chapters, if it's probed and its length is known.
-    async fn probed(&self, version: i64) -> sqlx::Result<Option<(i64, Vec<Chapter>)>> {
+    /// The Version `version`'s probe, if it's probed and its length is known.
+    async fn probed(&self, version: i64) -> sqlx::Result<Option<Probed>> {
         let reader = self.inner.db.reader();
-        let duration = sqlx::query_scalar!(
-            "SELECT duration_ms FROM version_probes WHERE version_id = ?",
+        let row = sqlx::query!(
+            "SELECT duration_ms, probe_version, size, modified_ns FROM version_probes
+             WHERE version_id = ?",
             version
         )
         .fetch_optional(reader)
-        .await?
-        .flatten();
-        let Some(duration_ms) = duration else {
+        .await?;
+        let Some(row) = row else {
             return Ok(None);
+        };
+        let Some(duration_ms) = row.duration_ms else {
+            return Ok(None);
+        };
+        let stamp = ProbeStamp {
+            probe_version: row.probe_version,
+            size: row.size,
+            modified_ns: row.modified_ns,
         };
         let chapters = sqlx::query_as!(
             Chapter,
@@ -246,7 +259,11 @@ impl Segments {
         )
         .fetch_all(reader)
         .await?;
-        Ok(Some((duration_ms, chapters)))
+        Ok(Some(Probed {
+            duration_ms,
+            chapters,
+            stamp,
+        }))
     }
 
     async fn kinds_stored(&self, version: i64) -> sqlx::Result<Vec<SegmentKind>> {
@@ -341,6 +358,22 @@ pub(crate) async fn segments_of(db: &Database, version: i64) -> sqlx::Result<Vec
     .await
 }
 
+/// What [`Segments::ask`] reads of a Version's probe.
+struct Probed {
+    duration_ms: i64,
+    chapters: Vec<Chapter>,
+    stamp: ProbeStamp,
+}
+
+/// Which probe of a Version Segments were found after. The same file probed by the same code reads
+/// the same, so Segments found after one probe fit another with the same stamp.
+#[derive(Debug, Clone, Copy)]
+struct ProbeStamp {
+    probe_version: i64,
+    size: i64,
+    modified_ns: i64,
+}
+
 /// The Segments found for one Version, of the kinds it lacked.
 struct Found {
     duration_ms: i64,
@@ -414,13 +447,29 @@ fn from_result(result: &contract::SegmentResult) -> Option<Segment> {
 }
 
 /// Keeps `segments` for the Version `version`, leaving any of a kind it has, and has it asked
-/// about again at `due_ms`.
+/// about again at `due_ms`, unless it's been probed again since its probe `stamp`.
 async fn keep(
     conn: &mut SqliteConnection,
     version: i64,
+    stamp: ProbeStamp,
     segments: Vec<(Segment, Option<PluginId>)>,
     due_ms: i64,
 ) -> sqlx::Result<()> {
+    // Its file may have changed while the sources were asked; the new probe is due by itself.
+    let same_probe = sqlx::query!(
+        "UPDATE version_probes SET segments_due_ms = ?
+         WHERE version_id = ? AND probe_version = ? AND size = ? AND modified_ns = ?",
+        due_ms,
+        version,
+        stamp.probe_version,
+        stamp.size,
+        stamp.modified_ns,
+    )
+    .execute(&mut *conn)
+    .await?;
+    if same_probe.rows_affected() == 0 {
+        return Ok(());
+    }
     for (segment, source) in segments {
         let source = source.as_ref().map(PluginId::as_str);
         sqlx::query!(
@@ -435,13 +484,6 @@ async fn keep(
         .execute(&mut *conn)
         .await?;
     }
-    sqlx::query!(
-        "UPDATE version_probes SET segments_due_ms = ? WHERE version_id = ?",
-        due_ms,
-        version
-    )
-    .execute(&mut *conn)
-    .await?;
     Ok(())
 }
 

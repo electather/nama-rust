@@ -92,7 +92,7 @@ impl Scanner {
 
     /// Refuses `order`, given in place of a Library's `stored` title sources, if its title sources
     /// fail [`check_known`] against every Plugin's, or its Recognisers or Segment sources fail
-    /// [`Self::check_plugins`]. What `order` leaves out keeps the stored order, so isn't judged.
+    /// [`Self::first_unfit`]. What `order` leaves out keeps the stored order, so isn't judged.
     async fn check_order(&self, order: &Order, stored: &[String]) -> Result<(), LibraryError> {
         if !order.title_sources.is_empty() {
             let known = self.inner.plugin_settings.title_sources();
