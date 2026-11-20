@@ -43,9 +43,8 @@ mod exports {
 
 const SETUP: &str = "\
 1. Sign in to [TVDB](https://thetvdb.com/), or sign up there for free.
-2. Get an API key from your [API keys page](https://thetvdb.com/dashboard/account/apikey).
-3. Paste it into the API key setting below.
-4. If TVDB says your key needs a subscriber PIN, enter your PIN too.
+2. Get an API key from your [API keys page](https://thetvdb.com/dashboard/account/apikey) and paste it into the API key setting below.
+3. If TVDB says your key needs a subscriber PIN, enter it in the Subscriber PIN setting.
 ";
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
