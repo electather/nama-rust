@@ -82,7 +82,7 @@ impl Scanner {
             scanner.inner.custom_images.delete_library(id).await;
             scanner.inner.local_images.delete_library(id).await;
             if let Some(probing) = &scanner.inner.probing {
-                probing.clean_subtitles().await;
+                probing.clean_leftovers().await;
             }
             scanner.rewatch().await;
             Ok(())

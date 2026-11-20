@@ -44,7 +44,7 @@ use super::{
     tracks::{PROBE_VERSION, Probe, Track, TrackKind},
 };
 use crate::{
-    ffmpeg::{Ffmpeg, SubtitleError, TextSubtitle},
+    ffmpeg::{Ffmpeg, ReadOutError, TextSubtitle},
     images::write_atomically,
     library::{Contents, Stored},
 };
@@ -215,7 +215,7 @@ enum Error {
     #[error("subtitle cache error: {0}")]
     Io(#[from] io::Error),
     #[error(transparent)]
-    Read(#[from] SubtitleError),
+    Read(#[from] ReadOutError),
     /// Kept from an earlier text pass, which isn't tried again until the file changes.
     #[error("reading the subtitles out failed before, and the file hasn't changed since: {0}")]
     FailedBefore(String),

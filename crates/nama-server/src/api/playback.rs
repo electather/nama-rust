@@ -23,11 +23,12 @@ use crate::{
     ffmpeg::Abilities,
     playback::{
         self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, DownloadError, Method,
-        NAMED_LIMITS, PickedLimit, Planned, Preferred, Probing, ProbingError, RunningPlans,
-        Segment, SegmentKind, StartError, StartedPlan, SubtitleAppearance, SubtitleDownloads,
-        SubtitlePreference, TrackKind, TrackPreferenceError, TrackPreferences, is_autoplay_on,
-        is_language, limit_to_proto, method_to_proto, reason_to_proto, segments_of, set_autoplay,
-        set_subtitle_background, set_subtitle_size, subtitle_appearance_of, track_to_proto,
+        NAMED_LIMITS, PickedLimit, Planned, Preferred, PreviewFrames, Probing, ProbingError,
+        RunningPlans, Segment, SegmentKind, StartError, StartedPlan, SubtitleAppearance,
+        SubtitleDownloads, SubtitlePreference, TrackKind, TrackPreferenceError, TrackPreferences,
+        is_autoplay_on, is_language, limit_to_proto, method_to_proto, reason_to_proto, segments_of,
+        set_autoplay, set_subtitle_background, set_subtitle_size, subtitle_appearance_of,
+        track_to_proto,
     },
     server_settings::{PlaybackLimit, PlaybackSettings},
 };
@@ -42,6 +43,7 @@ pub(super) struct PlaybackServiceHandler {
     pub(super) settings: PlaybackSettings,
     pub(super) preferences: TrackPreferences,
     pub(super) downloads: SubtitleDownloads,
+    pub(super) preview_frames: PreviewFrames,
     pub(super) db: Arc<Database>,
 }
 
@@ -111,7 +113,13 @@ impl PlaybackService for PlaybackServiceHandler {
         .ok_or_else(version_not_found)?;
         let segments =
             (segments_of(&self.db, request.version_id).await).map_err(database_failed)?;
-        Response::ok(planned_to_proto(plan, segments))
+        let preview_frames =
+            (self.preview_frames.of(request.version_id).await).map_err(database_failed)?;
+        let mut response = planned_to_proto(plan, segments);
+        if let Some(shown) = response.plan.as_option_mut() {
+            shown.preview_frames = preview_frames.into();
+        }
+        Response::ok(response)
     }
 
     async fn stop_playback(

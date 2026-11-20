@@ -271,12 +271,24 @@ pub struct Library {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub empty_folders: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Whether the Server makes Preview frames for the Library's Versions, in the background after
+    /// probing each, one at a time and only while nothing plays. Turning it off makes no more, and
+    /// keeps those made.
+    ///
+    /// Field 11: `preview_frames`
+    #[serde(
+        rename = "previewFrames",
+        alias = "preview_frames",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub preview_frames: bool,
     /// The ids of the Plugins whose Segment sources the Library asks where its Versions' Intro,
     /// Recap and Credits are, in order, after the Server has read their Chapter names: for each
     /// kind, the first that answers wins (ADR 0075). None unless an Admin set it. `ListPlugins`
     /// lists the Plugins with `EXTENSION_POINT_SEGMENT_SOURCE` that may be named.
     ///
-    /// Field 11: `segment_source_ids`
+    /// Field 12: `segment_source_ids`
     #[serde(
         rename = "segmentSourceIds",
         alias = "segment_source_ids",
@@ -301,6 +313,7 @@ impl ::core::fmt::Debug for Library {
             .field("title_sources", &self.title_sources)
             .field("recogniser_ids", &self.recogniser_ids)
             .field("empty_folders", &self.empty_folders)
+            .field("preview_frames", &self.preview_frames)
             .field("segment_source_ids", &self.segment_source_ids)
             .finish()
     }
@@ -387,6 +400,9 @@ impl ::buffa::Message for Library {
         for v in &self.empty_folders {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.preview_frames {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         for v in &self.segment_source_ids {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
@@ -433,8 +449,11 @@ impl ::buffa::Message for Library {
         for v in &self.empty_folders {
             ::buffa::types::put_string_field(10u32, v, buf);
         }
+        if self.preview_frames {
+            ::buffa::types::put_bool_field(11u32, self.preview_frames, buf);
+        }
         for v in &self.segment_source_ids {
-            ::buffa::types::put_string_field(11u32, v, buf);
+            ::buffa::types::put_string_field(12u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -548,6 +567,13 @@ impl ::buffa::Message for Library {
             11u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.preview_frames = ::buffa::types::decode_bool(buf)?;
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 let __elem = ::buffa::types::decode_string(buf)?;
@@ -574,6 +600,7 @@ impl ::buffa::Message for Library {
         self.title_sources.clear();
         self.recogniser_ids.clear();
         self.empty_folders.clear();
+        self.preview_frames = false;
         self.segment_source_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
@@ -660,10 +687,19 @@ pub struct CreateLibraryRequest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub recogniser_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The Library's `preview_frames`. Unset turns them on.
+    ///
+    /// Field 6: `preview_frames`
+    #[serde(
+        rename = "previewFrames",
+        alias = "preview_frames",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub preview_frames: ::core::option::Option<bool>,
     /// The Library's `segment_source_ids`, each the id of a Plugin with
     /// `EXTENSION_POINT_SEGMENT_SOURCE`, named once. Empty names none.
     ///
-    /// Field 6: `segment_source_ids`
+    /// Field 7: `segment_source_ids`
     #[serde(
         rename = "segmentSourceIds",
         alias = "segment_source_ids",
@@ -683,6 +719,7 @@ impl ::core::fmt::Debug for CreateLibraryRequest {
             .field("folders", &self.folders)
             .field("title_sources", &self.title_sources)
             .field("recogniser_ids", &self.recogniser_ids)
+            .field("preview_frames", &self.preview_frames)
             .field("segment_source_ids", &self.segment_source_ids)
             .finish()
     }
@@ -693,6 +730,15 @@ impl CreateLibraryRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.CreateLibraryRequest";
+}
+impl CreateLibraryRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preview_frames`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preview_frames(mut self, value: bool) -> Self {
+        self.preview_frames = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(CreateLibraryRequest);
 impl ::buffa::MessageName for CreateLibraryRequest {
@@ -732,6 +778,9 @@ impl ::buffa::Message for CreateLibraryRequest {
         for v in &self.recogniser_ids {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.preview_frames.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         for v in &self.segment_source_ids {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
@@ -763,8 +812,11 @@ impl ::buffa::Message for CreateLibraryRequest {
         for v in &self.recogniser_ids {
             ::buffa::types::put_string_field(5u32, v, buf);
         }
+        if let Some(v) = self.preview_frames {
+            ::buffa::types::put_bool_field(6u32, v, buf);
+        }
         for v in &self.segment_source_ids {
-            ::buffa::types::put_string_field(6u32, v, buf);
+            ::buffa::types::put_string_field(7u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -829,6 +881,15 @@ impl ::buffa::Message for CreateLibraryRequest {
             6u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.preview_frames = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 let __elem = ::buffa::types::decode_string(buf)?;
@@ -850,6 +911,7 @@ impl ::buffa::Message for CreateLibraryRequest {
         self.folders.clear();
         self.title_sources.clear();
         self.recogniser_ids.clear();
+        self.preview_frames = ::core::option::Option::None;
         self.segment_source_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
@@ -1583,11 +1645,20 @@ pub struct UpdateLibraryRequest {
         RecogniserOrder,
         ::buffa::Inline<RecogniserOrder>,
     >,
+    /// The new `preview_frames`. Unset keeps the Library's.
+    ///
+    /// Field 6: `preview_frames`
+    #[serde(
+        rename = "previewFrames",
+        alias = "preview_frames",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub preview_frames: ::core::option::Option<bool>,
     /// The new `segment_source_ids`, under the same rules as
     /// `CreateLibraryRequest.segment_source_ids`. Unset keeps the Library's; set with no ids clears
     /// them.
     ///
-    /// Field 6: `segment_source_order`
+    /// Field 7: `segment_source_order`
     #[serde(
         rename = "segmentSourceOrder",
         alias = "segment_source_order",
@@ -1609,6 +1680,7 @@ impl ::core::fmt::Debug for UpdateLibraryRequest {
             .field("folders", &self.folders)
             .field("title_sources", &self.title_sources)
             .field("recogniser_order", &self.recogniser_order)
+            .field("preview_frames", &self.preview_frames)
             .field("segment_source_order", &self.segment_source_order)
             .finish()
     }
@@ -1619,6 +1691,15 @@ impl UpdateLibraryRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.UpdateLibraryRequest";
+}
+impl UpdateLibraryRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preview_frames`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preview_frames(mut self, value: bool) -> Self {
+        self.preview_frames = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(UpdateLibraryRequest);
 impl ::buffa::MessageName for UpdateLibraryRequest {
@@ -1660,6 +1741,9 @@ impl ::buffa::Message for UpdateLibraryRequest {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.preview_frames.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         if self.segment_source_order.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.segment_source_order.compute_size(__cache);
@@ -1698,9 +1782,12 @@ impl ::buffa::Message for UpdateLibraryRequest {
             );
             self.recogniser_order.write_to(__cache, buf);
         }
+        if let Some(v) = self.preview_frames {
+            ::buffa::types::put_bool_field(6u32, v, buf);
+        }
         if self.segment_source_order.is_set() {
             ::buffa::types::put_len_delimited_header(
-                6u32,
+                7u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -1769,6 +1856,15 @@ impl ::buffa::Message for UpdateLibraryRequest {
             6u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.preview_frames = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 ::buffa::Message::merge_length_delimited(
@@ -1790,6 +1886,7 @@ impl ::buffa::Message for UpdateLibraryRequest {
         self.folders.clear();
         self.title_sources.clear();
         self.recogniser_order = ::buffa::MessageField::none();
+        self.preview_frames = ::core::option::Option::None;
         self.segment_source_order = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }

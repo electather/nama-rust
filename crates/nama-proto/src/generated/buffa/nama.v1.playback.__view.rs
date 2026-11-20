@@ -9023,6 +9023,14 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 14: `starting_subtitle`
     pub starting_subtitle: ::core::option::Option<u32>,
+    /// The Version's Preview frames, for the seek bar to show the frame at a time. Unset until the
+    /// Server has made them of its file as it is now, in the background after probing it, which it
+    /// doesn't while its Library has `preview_frames` off.
+    ///
+    /// Field 16: `preview_frames`
+    pub preview_frames: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PreviewFramesView<'a>,
+    >,
     /// The Version's Chapters, in the order its file lists them. Empty when it has fewer than two, so
     /// the player keeps a plain seek bar.
     ///
@@ -9034,7 +9042,7 @@ pub struct PlaybackPlanView<'a> {
     /// The Version's Segments, at most one of each kind, earliest first. Empty until the Server has
     /// found any, in the background after it probes the Version.
     ///
-    /// Field 16: `segments`
+    /// Field 17: `segments`
     pub segments: ::buffa::RepeatedView<
         'a,
         super::super::__buffa::view::SegmentView<'a>,
@@ -9123,6 +9131,27 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.starting_subtitle = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.preview_frames.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.preview_frames = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PreviewFramesView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -9268,7 +9297,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                         )?,
                     );
             }
-            16u32 => {
+            17u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
@@ -9333,6 +9362,15 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
             burn_in_tracks: self.burn_in_tracks.to_vec(),
             playback_limits: self.playback_limits.to_vec(),
             starting_subtitle: self.starting_subtitle,
+            preview_frames: match self.preview_frames.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PreviewFrames,
+                        ::buffa::Inline<super::super::PreviewFrames>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             chapters: self
                 .chapters
                 .iter()
@@ -9435,6 +9473,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.preview_frames.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.preview_frames.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
         for v in &self.segments {
@@ -9548,9 +9594,17 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.segments {
+        if self.preview_frames.is_set() {
             ::buffa::types::put_len_delimited_header(
                 16u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.preview_frames.write_to(__cache, buf);
+        }
+        for v in &self.segments {
+            ::buffa::types::put_len_delimited_header(
+                17u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -9636,6 +9690,11 @@ impl<'__a> ::serde::Serialize for PlaybackPlanView<'__a> {
                     "startingSubtitle",
                     &::buffa::json_helpers::ProtoJson(&__v),
                 )?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.preview_frames.as_option() {
+                __map.serialize_entry("previewFrames", __v)?;
+            }
         }
         if !self.chapters.is_empty() {
             __map.serialize_entry("chapters", &*self.chapters)?;
@@ -9861,6 +9920,17 @@ impl PlaybackPlanOwnedView {
     pub fn starting_subtitle(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().starting_subtitle
     }
+    /// The Version's Preview frames, for the seek bar to show the frame at a time. Unset until the
+    /// Server has made them of its file as it is now, in the background after probing it, which it
+    /// doesn't while its Library has `preview_frames` off.
+    ///
+    /// Field 16: `preview_frames`
+    #[must_use]
+    pub fn preview_frames(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::PreviewFramesView<'_>> {
+        &self.0.reborrow().preview_frames
+    }
     /// The Version's Chapters, in the order its file lists them. Empty when it has fewer than two, so
     /// the player keeps a plain seek bar.
     ///
@@ -9874,7 +9944,7 @@ impl PlaybackPlanOwnedView {
     /// The Version's Segments, at most one of each kind, earliest first. Empty until the Server has
     /// found any, in the background after it probes the Version.
     ///
-    /// Field 16: `segments`
+    /// Field 17: `segments`
     #[must_use]
     pub fn segments(
         &self,
@@ -10497,6 +10567,404 @@ impl ::buffa::HasMessageView for super::super::Chapter {
     type ViewHandle = ChapterOwnedView;
 }
 impl ::serde::Serialize for ChapterOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// Where a Version's Preview frames are and how they're laid out: each sheet, fetched at
+/// `/media/versions/<id>/preview-frames/<n>.jpg` with `n` counting from 0, holds `columns` by `rows`
+/// frames, left to right then top to bottom, the last sheet as many as are left. Frame `i` shows the
+/// Version at `i * interval_ms`, from its keyframes, so up to a few seconds early.
+#[derive(Clone, Debug, Default)]
+pub struct PreviewFramesView<'a> {
+    /// Field 1: `interval_ms`
+    pub interval_ms: u32,
+    /// Of one frame, in pixels.
+    ///
+    /// Field 2: `width`
+    pub width: u32,
+    /// Field 3: `height`
+    pub height: u32,
+    /// Field 4: `columns`
+    pub columns: u32,
+    /// Field 5: `rows`
+    pub rows: u32,
+    /// How many frames there are in all.
+    ///
+    /// Field 6: `count`
+    pub count: u32,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PreviewFramesView<'a> {
+    type Owned = super::super::PreviewFrames;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.interval_ms = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.width = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.height = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.columns = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.rows = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.count = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::PreviewFrames, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::PreviewFrames, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PreviewFrames {
+            interval_ms: self.interval_ms,
+            width: self.width,
+            height: self.height,
+            columns: self.columns,
+            rows: self.rows,
+            count: self.count,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PreviewFramesView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.interval_ms != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.interval_ms) as u64;
+        }
+        if self.width != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.width) as u64;
+        }
+        if self.height != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.height) as u64;
+        }
+        if self.columns != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.columns) as u64;
+        }
+        if self.rows != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.rows) as u64;
+        }
+        if self.count != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.count) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.interval_ms != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.interval_ms, buf);
+        }
+        if self.width != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.width, buf);
+        }
+        if self.height != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.height, buf);
+        }
+        if self.columns != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.columns, buf);
+        }
+        if self.rows != 0u32 {
+            ::buffa::types::put_uint32_field(5u32, self.rows, buf);
+        }
+        if self.count != 0u32 {
+            ::buffa::types::put_uint32_field(6u32, self.count, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PreviewFramesView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.interval_ms) {
+            __map
+                .serialize_entry(
+                    "intervalMs",
+                    &::buffa::json_helpers::ProtoJson(&self.interval_ms),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.width) {
+            __map
+                .serialize_entry(
+                    "width",
+                    &::buffa::json_helpers::ProtoJson(&self.width),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.height) {
+            __map
+                .serialize_entry(
+                    "height",
+                    &::buffa::json_helpers::ProtoJson(&self.height),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.columns) {
+            __map
+                .serialize_entry(
+                    "columns",
+                    &::buffa::json_helpers::ProtoJson(&self.columns),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.rows) {
+            __map
+                .serialize_entry("rows", &::buffa::json_helpers::ProtoJson(&self.rows))?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.count) {
+            __map
+                .serialize_entry(
+                    "count",
+                    &::buffa::json_helpers::ProtoJson(&self.count),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PreviewFramesView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PreviewFrames";
+    const FULL_NAME: &'static str = "nama.v1.PreviewFrames";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewFrames";
+}
+::buffa::impl_default_view_instance!(PreviewFramesView);
+::buffa::impl_view_reborrow!(PreviewFramesView);
+/** Self-contained, `'static` owned view of a `PreviewFrames` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PreviewFramesView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PreviewFramesView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PreviewFramesOwnedView(::buffa::OwnedView<PreviewFramesView<'static>>);
+impl PreviewFramesOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewFramesOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewFramesOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PreviewFrames,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewFramesOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PreviewFramesView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PreviewFramesView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PreviewFrames {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `interval_ms`
+    #[must_use]
+    pub fn interval_ms(&self) -> u32 {
+        self.0.reborrow().interval_ms
+    }
+    /// Of one frame, in pixels.
+    ///
+    /// Field 2: `width`
+    #[must_use]
+    pub fn width(&self) -> u32 {
+        self.0.reborrow().width
+    }
+    /// Field 3: `height`
+    #[must_use]
+    pub fn height(&self) -> u32 {
+        self.0.reborrow().height
+    }
+    /// Field 4: `columns`
+    #[must_use]
+    pub fn columns(&self) -> u32 {
+        self.0.reborrow().columns
+    }
+    /// Field 5: `rows`
+    #[must_use]
+    pub fn rows(&self) -> u32 {
+        self.0.reborrow().rows
+    }
+    /// How many frames there are in all.
+    ///
+    /// Field 6: `count`
+    #[must_use]
+    pub fn count(&self) -> u32 {
+        self.0.reborrow().count
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PreviewFramesView<'static>>>
+for PreviewFramesOwnedView {
+    fn from(inner: ::buffa::OwnedView<PreviewFramesView<'static>>) -> Self {
+        PreviewFramesOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PreviewFramesOwnedView>
+for ::buffa::OwnedView<PreviewFramesView<'static>> {
+    fn from(wrapper: PreviewFramesOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PreviewFramesView<'static>>>
+for PreviewFramesOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PreviewFramesView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PreviewFrames {
+    type View<'a> = PreviewFramesView<'a>;
+    type ViewHandle = PreviewFramesOwnedView;
+}
+impl ::serde::Serialize for PreviewFramesOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE libraries SET name = ? WHERE id = ?\n           RETURNING kind AS \"kind: Kind\", title_sources, recognisers, segment_sources",
+  "query": "UPDATE libraries SET name = ?, preview_frames = coalesce(?, preview_frames) WHERE id = ?\n           RETURNING kind AS \"kind: Kind\", title_sources, recognisers, segment_sources,\n                     preview_frames AS \"preview_frames: bool\"",
   "describe": {
     "columns": [
       {
@@ -46,17 +46,29 @@
             "name": "segment_sources"
           }
         }
+      },
+      {
+        "name": "preview_frames: bool",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "preview_frames"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 3
     },
     "nullable": [
+      false,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "1ce40ee3d40a4f0a0a646b8a9894875e39c217189220d8d22780b2c35d678f0d"
+  "hash": "96dfca44a17a3fcd0f1b1e5d622ccd98c9e593b5d12a0be7e3a4b801b90bb679"
 }

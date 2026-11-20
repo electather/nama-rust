@@ -44,9 +44,12 @@ pub(crate) struct Library {
     /// The ids of the Plugins whose Segment sources it asks, first asked first, after the Kernel
     /// reads its Versions' Chapter names (ADR 0075).
     pub(crate) segment_sources: Vec<String>,
+    /// Whether Preview frames are made for its Versions.
+    pub(crate) preview_frames: bool,
 }
 
-/// The orders a Library asks its Plugins in, as a create or an update gives them.
+/// The orders a Library asks its Plugins in, and whether it makes Preview frames, as a create or
+/// an update gives them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Order {
     /// Title source namespaces, first asked first; empty keeps the stored order. A new Library's
@@ -58,6 +61,8 @@ pub(crate) struct Order {
     /// Segment source Plugin ids, first asked first; `None` keeps the stored order, or none for a
     /// new Library.
     pub(crate) segment_sources: Option<Vec<String>>,
+    /// `None` keeps the stored setting, or makes them for a new Library.
+    pub(crate) preview_frames: Option<bool>,
 }
 
 /// Why a change to the Libraries was refused or failed.
@@ -139,8 +144,7 @@ impl Libraries {
     ) -> Result<Library, Error> {
         let order = Order {
             title_sources: default_title_sources(),
-            recognisers: None,
-            segment_sources: None,
+            ..Order::default()
         };
         (self.create_in_order(name, kind, folders, order)).await
     }
@@ -171,7 +175,7 @@ impl Libraries {
         let mut tx = self.db.reader().begin().await?;
         let rows = sqlx::query!(
             r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers,
-                      segment_sources
+                      segment_sources, preview_frames AS "preview_frames: bool"
                FROM libraries ORDER BY id"#
         )
         .fetch_all(&mut *tx)
@@ -213,6 +217,7 @@ impl Libraries {
                 title_sources: split_sources(&row.title_sources),
                 recognisers: split_ids(&row.recognisers),
                 segment_sources: split_ids(&row.segment_sources),
+                preview_frames: row.preview_frames,
             })
             .collect())
     }
@@ -220,7 +225,8 @@ impl Libraries {
     pub(crate) async fn get(&self, id: i64) -> Result<Library, Error> {
         let mut tx = self.db.reader().begin().await?;
         let row = sqlx::query!(
-            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers, segment_sources
+            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers, segment_sources,
+                      preview_frames AS "preview_frames: bool"
                FROM libraries WHERE id = ?"#,
             id
         )
@@ -251,6 +257,7 @@ impl Libraries {
             title_sources: split_sources(&row.title_sources),
             recognisers: split_ids(&row.recognisers),
             segment_sources: split_ids(&row.segment_sources),
+            preview_frames: row.preview_frames,
         })
     }
 
@@ -386,13 +393,17 @@ async fn create(
         title_sources,
         recognisers,
         segment_sources,
+        preview_frames,
     } = order;
+    let preview_frames = preview_frames.unwrap_or(true);
     ensure_name_free(conn, &name).await?;
     ensure_folders_free(conn, &folders, None).await?;
     let id = sqlx::query_scalar!(
-        r#"INSERT INTO libraries (name, kind) VALUES (?, ?) RETURNING id AS "id!""#,
+        r#"INSERT INTO libraries (name, kind, preview_frames) VALUES (?, ?, ?)
+           RETURNING id AS "id!""#,
         name,
         kind,
+        preview_frames,
     )
     .fetch_one(&mut *conn)
     .await?;
@@ -416,6 +427,7 @@ async fn create(
         title_sources,
         recognisers,
         segment_sources,
+        preview_frames,
     })
 }
 
@@ -432,6 +444,7 @@ async fn update(
         title_sources,
         recognisers,
         segment_sources,
+        preview_frames,
     } = order;
     let current = sqlx::query_scalar!("SELECT name FROM libraries WHERE id = ?", id)
         .fetch_optional(&mut *conn)
@@ -443,40 +456,16 @@ async fn update(
         ensure_name_free(conn, &name).await?;
     }
     let row = sqlx::query!(
-        r#"UPDATE libraries SET name = ? WHERE id = ?
-           RETURNING kind AS "kind: Kind", title_sources, recognisers, segment_sources"#,
+        r#"UPDATE libraries SET name = ?, preview_frames = coalesce(?, preview_frames) WHERE id = ?
+           RETURNING kind AS "kind: Kind", title_sources, recognisers, segment_sources,
+                     preview_frames AS "preview_frames: bool""#,
         name,
+        preview_frames,
         id,
     )
     .fetch_one(&mut *conn)
     .await?;
-    ensure_folders_free(conn, &folders, Some(id)).await?;
-    // A folder it keeps stays read-only, or empty, until a scan says otherwise; a new one holds
-    // nothing to delete or keep until a scan, which checks it.
-    let kept = sqlx::query!(
-        r#"SELECT path, read_only AS "read_only: bool", looks_empty AS "looks_empty: bool"
-           FROM library_folders WHERE library_id = ? AND (read_only = 1 OR looks_empty = 1)"#,
-        id
-    )
-    .fetch_all(&mut *conn)
-    .await?;
-    sqlx::query!("DELETE FROM library_folders WHERE library_id = ?", id)
-        .execute(&mut *conn)
-        .await?;
-    insert_folders(conn, id, &folders).await?;
-    let kept_where = |flag: fn(&_) -> bool| -> Vec<String> {
-        (kept
-            .iter()
-            .filter(|folder| flag(folder) && folders.contains(&folder.path)))
-        .map(|folder| folder.path.clone())
-        .collect()
-    };
-    let (read_only, empty_folders) = (
-        kept_where(|folder| folder.read_only),
-        kept_where(|folder| folder.looks_empty),
-    );
-    set_read_only(conn, id, read_only.clone()).await?;
-    set_empty_folders(conn, id, empty_folders.clone()).await?;
+    let (read_only, empty_folders) = replace_folders(conn, id, &folders).await?;
     let title_sources = if title_sources.is_empty() {
         split_sources(&row.title_sources)
     } else {
@@ -507,7 +496,45 @@ async fn update(
         title_sources,
         recognisers,
         segment_sources,
+        preview_frames: row.preview_frames,
     })
+}
+
+/// Replaces the Library `id`'s folders with `folders`, and returns which it keeps read-only and
+/// which it keeps empty.
+async fn replace_folders(
+    conn: &mut SqliteConnection,
+    id: i64,
+    folders: &[String],
+) -> Result<(Vec<String>, Vec<String>), Error> {
+    ensure_folders_free(conn, folders, Some(id)).await?;
+    // A folder it keeps stays read-only, or empty, until a scan says otherwise; a new one holds
+    // nothing to delete or keep until a scan, which checks it.
+    let kept = sqlx::query!(
+        r#"SELECT path, read_only AS "read_only: bool", looks_empty AS "looks_empty: bool"
+           FROM library_folders WHERE library_id = ? AND (read_only = 1 OR looks_empty = 1)"#,
+        id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    sqlx::query!("DELETE FROM library_folders WHERE library_id = ?", id)
+        .execute(&mut *conn)
+        .await?;
+    insert_folders(conn, id, folders).await?;
+    let kept_where = |flag: fn(&_) -> bool| -> Vec<String> {
+        (kept
+            .iter()
+            .filter(|folder| flag(folder) && folders.contains(&folder.path)))
+        .map(|folder| folder.path.clone())
+        .collect()
+    };
+    let (read_only, empty_folders) = (
+        kept_where(|folder| folder.read_only),
+        kept_where(|folder| folder.looks_empty),
+    );
+    set_read_only(conn, id, read_only.clone()).await?;
+    set_empty_folders(conn, id, empty_folders.clone()).await?;
+    Ok((read_only, empty_folders))
 }
 
 /// Deletes the Library `id`. Its folders go with it (`ON DELETE CASCADE`).

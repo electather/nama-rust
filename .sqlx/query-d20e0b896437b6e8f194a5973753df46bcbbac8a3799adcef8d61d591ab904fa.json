@@ -1,11 +1,22 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT name, kind AS \"kind: Kind\", title_sources, recognisers, segment_sources\n               FROM libraries WHERE id = ?",
+  "query": "SELECT id AS \"id!\", name, kind AS \"kind: Kind\", title_sources, recognisers,\n                      segment_sources, preview_frames AS \"preview_frames: bool\"\n               FROM libraries ORDER BY id",
   "describe": {
     "columns": [
       {
-        "name": "name",
+        "name": "id!",
         "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -16,7 +27,7 @@
       },
       {
         "name": "kind: Kind",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "title_sources",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "recognisers",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "segment_sources",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -57,12 +68,25 @@
             "name": "segment_sources"
           }
         }
+      },
+      {
+        "name": "preview_frames: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "preview_frames"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
+      false,
+      false,
       false,
       false,
       false,
@@ -70,5 +94,5 @@
       false
     ]
   },
-  "hash": "28a725b94fba81f66d2a19c630e2cbc692b58655e034376b6ea7cdab813728c3"
+  "hash": "d20e0b896437b6e8f194a5973753df46bcbbac8a3799adcef8d61d591ab904fa"
 }

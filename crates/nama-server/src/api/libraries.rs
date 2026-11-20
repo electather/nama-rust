@@ -106,6 +106,7 @@ impl LibraryService for LibraryServiceHandler {
             title_sources: request.title_sources,
             recognisers: Some(request.recogniser_ids),
             segment_sources: Some(request.segment_source_ids),
+            preview_frames: request.preview_frames,
         };
         let library = (self.scanner)
             .create_library(request.name, kind, request.folders, order)
@@ -173,6 +174,7 @@ impl LibraryService for LibraryServiceHandler {
             title_sources: request.title_sources,
             recognisers: (request.recogniser_order.into_option()).map(|order| order.ids),
             segment_sources: (request.segment_source_order.into_option()).map(|order| order.ids),
+            preview_frames: request.preview_frames,
         };
         let library = (self.scanner)
             .update_library(request.id, request.name, request.folders, order)
@@ -501,6 +503,7 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         recogniser_ids: library.recognisers,
         segment_source_ids: library.segment_sources,
         empty_folders: library.empty_folders,
+        preview_frames: library.preview_frames,
         ..Default::default()
     }
 }

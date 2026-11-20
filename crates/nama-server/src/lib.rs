@@ -43,8 +43,7 @@ use crate::{
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos},
     library::{Contents, CustomImages, LocalImages},
-    playback::Probing,
-    playback::{RunningPlans, Segments, SubtitleCache},
+    playback::{PreviewFrames, Probing, RunningPlans, Segments, SubtitleCache},
     plugin_settings::PluginSettings,
     plugins::{ExtensionPoints, PluginBlobs},
     requests::Requests,
@@ -121,6 +120,13 @@ pub fn serve(
         probing.clone(),
         events.clone(),
     );
+    let preview_frames = PreviewFrames::new(
+        Arc::clone(&db),
+        images.clone(),
+        Arc::clone(&ffmpeg),
+        running.clone(),
+        probing.clone(),
+    );
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let home_rows = HomeRows::new(Arc::clone(&db), points.clone(), requests.clone());
     let artwork = Artwork::new(images.clone(), points.clone());
@@ -156,6 +162,7 @@ pub fn serve(
         settings,
         running.clone(),
         abilities.clone(),
+        preview_frames.clone(),
         setup_code,
         ffmpeg,
     );
@@ -167,6 +174,7 @@ pub fn serve(
         load_settings.await;
         fill_sort_titles(&contents).await;
         scanner.start_all().await;
+        preview_frames.start();
         // Quiet long enough that a file being copied in is scanned once it's whole; every six hours
         // for the folders whose changes the OS doesn't report, such as network shares.
         if watch_folders {
@@ -188,6 +196,8 @@ pub fn serve(
             events.close();
         })
         .await;
+        // First, so its ffmpeg doesn't start on a Version as the plans stop.
+        preview_frames.shutdown().await;
         running.shutdown().await;
         abilities.shutdown().await;
         // The Scanner first, so a scan finishing now can't start a pass once Probing has stopped.

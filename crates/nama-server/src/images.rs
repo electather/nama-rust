@@ -69,9 +69,13 @@ pub(crate) const PLUGIN_LOGOS_DIR: &str = "plugin-logos";
 /// `subtitles`, where the local-disk store would find the subtitle cache's files.
 pub(crate) const DOWNLOADED_SUBTITLES_DIR: &str = "downloaded-subtitles";
 
+/// Where Preview frames are kept, one folder per Version (ADR 0076).
+pub(crate) const PREVIEW_FRAMES_DIR: &str = "preview-frames";
+
 /// The first part of every original's key: what a switch to another store copies. Offered
-/// artwork is among them, since it is served from the store too, and so are downloaded subtitles,
-/// which aren't images but are the Kernel's stored files all the same (ADR 0067).
+/// artwork is among them, since it is served from the store too, and so are downloaded subtitles
+/// and Preview frames, which aren't images but are the Kernel's stored files all the same
+/// (ADR 0067).
 pub(crate) const ORIGINAL_DIRS: &[&str] = &[
     KEPT_ARTWORK_DIR,
     OFFERED_ARTWORK_DIR,
@@ -79,6 +83,7 @@ pub(crate) const ORIGINAL_DIRS: &[&str] = &[
     LOCAL_IMAGES_DIR,
     PLUGIN_LOGOS_DIR,
     DOWNLOADED_SUBTITLES_DIR,
+    PREVIEW_FRAMES_DIR,
 ];
 
 /// The folder in the data directory resized copies are kept in (`AGENTS.md`).

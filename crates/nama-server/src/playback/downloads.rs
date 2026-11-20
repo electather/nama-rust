@@ -4,7 +4,7 @@
 //! A download plays as a sidecar does, from a file on local disk ([`ImageStore::write_on_disk`]),
 //! and [`Sidecars`] lists it after the Version's sidecars.
 
-use std::{collections::HashSet, io, sync::Arc};
+use std::{io, sync::Arc};
 
 use futures_util::future::join_all;
 use nama_plugin_api::{
@@ -22,7 +22,7 @@ use super::{
 use crate::{
     db::{self, Database},
     images::{DOWNLOADED_SUBTITLES_DIR as DIR, ImageStore, MAX_BYTES, version_of},
-    library::{Contents, ItemKind, Stored},
+    library::{Contents, ItemKind},
     plugins::{Answer, ExtensionPoints},
 };
 
@@ -210,26 +210,4 @@ impl SubtitleDownloads {
             .result
             .map_err(|failure| Error::NoSource(failure.message))
     }
-}
-
-/// Deletes from `images` the downloaded subtitles of every Version but `stored`'s, going on past a
-/// Version's it can't delete, which it logs.
-///
-/// # Errors
-///
-/// If the store can't be listed.
-pub(super) async fn keep_only(images: &ImageStore, stored: &[Stored]) -> io::Result<()> {
-    let current: HashSet<String> = stored.iter().map(|file| file.id.to_string()).collect();
-    let kept: HashSet<String> = (images.list(DIR).await?.into_iter())
-        .filter_map(|key| key.get(1).cloned())
-        .collect();
-    for gone in kept.difference(&current) {
-        if let Err(err) = images.delete_dir_on_disk(&[DIR, gone]).await {
-            tracing::error!(
-                version = gone,
-                "could not delete a gone Version's subtitles: {err}"
-            );
-        }
-    }
-    Ok(())
 }
