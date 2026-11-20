@@ -24,10 +24,10 @@ use crate::{
     playback::{
         self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, DownloadError, Method,
         NAMED_LIMITS, PickedLimit, Planned, Preferred, Probing, ProbingError, RunningPlans,
-        StartError, StartedPlan, SubtitleAppearance, SubtitleDownloads, SubtitlePreference,
-        TrackKind, TrackPreferenceError, TrackPreferences, is_autoplay_on, is_language,
-        limit_to_proto, method_to_proto, reason_to_proto, set_autoplay, set_subtitle_background,
-        set_subtitle_size, subtitle_appearance_of, track_to_proto,
+        Segment, SegmentKind, StartError, StartedPlan, SubtitleAppearance, SubtitleDownloads,
+        SubtitlePreference, TrackKind, TrackPreferenceError, TrackPreferences, is_autoplay_on,
+        is_language, limit_to_proto, method_to_proto, reason_to_proto, segments_of, set_autoplay,
+        set_subtitle_background, set_subtitle_size, subtitle_appearance_of, track_to_proto,
     },
     server_settings::{PlaybackLimit, PlaybackSettings},
 };
@@ -109,8 +109,10 @@ impl PlaybackService for PlaybackServiceHandler {
         .await
         .map_err(|err| plan_failed(err, request.version_id))?
         .ok_or_else(version_not_found)?;
+        let segments =
+            (segments_of(&self.db, request.version_id).await).map_err(database_failed)?;
         Response::ok(PlanPlaybackResponse {
-            plan: plan_to_proto(plan).into(),
+            plan: plan_to_proto(plan, segments).into(),
             ..Default::default()
         })
     }
@@ -627,7 +629,7 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
     }
 }
 
-fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
+fn plan_to_proto(planned: Planned, segments: Vec<Segment>) -> proto::PlaybackPlan {
     let (id, url, plan) = match planned {
         Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan),
         // The API's plan id 0 is no plan.
@@ -669,6 +671,23 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
                 ..Default::default()
             })
             .collect(),
+        segments: segments.into_iter().map(segment_to_proto).collect(),
+        ..Default::default()
+    }
+}
+
+fn segment_to_proto(segment: Segment) -> proto::Segment {
+    // Segments are stored only from a Version's start on.
+    let ms = |ms: i64| u64::try_from(ms).unwrap_or_default();
+    proto::Segment {
+        kind: match segment.kind {
+            SegmentKind::Intro => proto::SegmentKind::SEGMENT_KIND_INTRO,
+            SegmentKind::Recap => proto::SegmentKind::SEGMENT_KIND_RECAP,
+            SegmentKind::Credits => proto::SegmentKind::SEGMENT_KIND_CREDITS,
+        }
+        .into(),
+        start_ms: ms(segment.start_ms),
+        end_ms: segment.end_ms.map(ms),
         ..Default::default()
     }
 }

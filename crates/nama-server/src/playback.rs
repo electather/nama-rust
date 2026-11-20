@@ -53,7 +53,10 @@ pub(crate) use track_preferences::{
     Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,
     is_language,
 };
-pub(crate) use tracks::{Chapter, Probe, Track, TrackKind, Tracks, track_to_proto};
+pub(crate) use tracks::{
+    Chapter, Probe, Segment, SegmentKind, Segments, Track, TrackKind, Tracks, segments_of,
+    track_to_proto,
+};
 
 use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32};
 

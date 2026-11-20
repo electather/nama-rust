@@ -105,11 +105,12 @@ impl LibraryService for LibraryServiceHandler {
         let order = Order {
             title_sources: request.title_sources,
             recognisers: Some(request.recogniser_ids),
+            segment_sources: Some(request.segment_source_ids),
         };
         let library = (self.scanner)
             .create_library(request.name, kind, request.folders, order)
             .await
-            .map_err(changing_failed("recogniser_ids"))?;
+            .map_err(changing_failed(["recogniser_ids", "segment_source_ids"]))?;
         let backdrops = self.backdrops().await?;
         Response::ok(CreateLibraryResponse {
             library: library_to_proto(library, &backdrops).into(),
@@ -171,11 +172,15 @@ impl LibraryService for LibraryServiceHandler {
         let order = Order {
             title_sources: request.title_sources,
             recognisers: (request.recogniser_order.into_option()).map(|order| order.ids),
+            segment_sources: (request.segment_source_order.into_option()).map(|order| order.ids),
         };
         let library = (self.scanner)
             .update_library(request.id, request.name, request.folders, order)
             .await
-            .map_err(changing_failed("recogniser_order"))?;
+            .map_err(changing_failed([
+                "recogniser_order",
+                "segment_source_order",
+            ]))?;
         let backdrops = self.backdrops().await?;
         Response::ok(UpdateLibraryResponse {
             library: library_to_proto(library, &backdrops).into(),
@@ -494,6 +499,7 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         custom_backdrop,
         title_sources: library.title_sources,
         recogniser_ids: library.recognisers,
+        segment_source_ids: library.segment_sources,
         empty_folders: library.empty_folders,
         ..Default::default()
     }
@@ -573,24 +579,41 @@ impl From<LibraryError> for ConnectError {
             LibraryError::NoTitleSourceSearches => {
                 refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message).field("title_sources")
             }
-            // Its field is the request's, which `changing_failed` names.
+            // Their fields are the request's, which `changing_failed` names.
             LibraryError::RecognisersInvalid { plugin } => recognisers_invalid(message, &plugin),
+            LibraryError::SegmentSourcesInvalid { plugin } => {
+                segment_sources_invalid(message, &plugin)
+            }
             LibraryError::Database(err) => return database_failed(err),
         };
         refused.into()
     }
 }
 
-/// What a Library change failing tells the client, as [`From`] does, naming `recognisers_field`,
-/// the request field its Recogniser order came in, for a refused one.
-fn changing_failed(recognisers_field: &'static str) -> impl Fn(LibraryError) -> ConnectError {
+/// What a Library change failing tells the client, as [`From`] does, naming `fields`, the request
+/// fields its Recogniser and Segment source orders came in, for a refused one.
+fn changing_failed(fields: [&'static str; 2]) -> impl Fn(LibraryError) -> ConnectError {
     move |err| {
-        let LibraryError::RecognisersInvalid { plugin } = &err else {
-            return err.into();
-        };
-        let refused = recognisers_invalid(err.to_string(), plugin);
-        refused.field(recognisers_field).into()
+        let [recognisers_field, segment_sources_field] = fields;
+        if let LibraryError::RecognisersInvalid { plugin } = &err {
+            let refused = recognisers_invalid(err.to_string(), plugin);
+            return refused.field(recognisers_field).into();
+        }
+        if let LibraryError::SegmentSourcesInvalid { plugin } = &err {
+            let refused = segment_sources_invalid(err.to_string(), plugin);
+            return refused.field(segment_sources_field).into();
+        }
+        err.into()
     }
+}
+
+/// Refuses a Segment source order for naming `plugin`, leaving the field to the caller.
+fn segment_sources_invalid(message: String, plugin: &str) -> Refused {
+    refuse(
+        RefusalReason::REFUSAL_REASON_SEGMENT_SOURCES_INVALID,
+        message,
+    )
+    .param("pluginId", &plugin)
 }
 
 /// Refuses a Recogniser order for naming `plugin`, leaving the field to the caller.

@@ -24,6 +24,7 @@ pub mod metadata;
 pub mod notifier;
 pub mod points;
 pub mod recogniser;
+pub mod segment_source;
 pub mod settings;
 pub mod subtitle_source;
 

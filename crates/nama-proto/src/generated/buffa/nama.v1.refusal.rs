@@ -269,6 +269,10 @@ pub enum RefusalReason {
     /// `unavailable`: no subtitle source is enabled, or every one asked failed, or the one asked
     /// couldn't download the subtitle or gave a file that isn't one. The message says why.
     REFUSAL_REASON_NO_SUBTITLE_SOURCE = 91i32,
+    /// `invalid_argument`: a Library's Segment sources name an id of no Plugin with
+    /// `EXTENSION_POINT_SEGMENT_SOURCE`, or name one twice. `field` is `segment_source_ids` or
+    /// `segment_source_order`. Params: `pluginId`.
+    REFUSAL_REASON_SEGMENT_SOURCES_INVALID = 92i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -538,6 +542,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NoSubtitleSource: Self = Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SEGMENT_SOURCES_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SegmentSourcesInvalid: Self = Self::REFUSAL_REASON_SEGMENT_SOURCES_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -830,6 +837,11 @@ impl ::buffa::Enumeration for RefusalReason {
             91i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE)
             }
+            92i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_SEGMENT_SOURCES_INVALID,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1010,6 +1022,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_MESSAGE_TOO_LONG => "REFUSAL_REASON_MESSAGE_TOO_LONG",
             Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE => {
                 "REFUSAL_REASON_NO_SUBTITLE_SOURCE"
+            }
+            Self::REFUSAL_REASON_SEGMENT_SOURCES_INVALID => {
+                "REFUSAL_REASON_SEGMENT_SOURCES_INVALID"
             }
         }
     }
@@ -1306,6 +1321,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_NO_SUBTITLE_SOURCE" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE)
             }
+            "REFUSAL_REASON_SEGMENT_SOURCES_INVALID" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_SEGMENT_SOURCES_INVALID,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1400,6 +1420,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TAKES_ALONG_UNNAMED,
             Self::REFUSAL_REASON_MESSAGE_TOO_LONG,
             Self::REFUSAL_REASON_NO_SUBTITLE_SOURCE,
+            Self::REFUSAL_REASON_SEGMENT_SOURCES_INVALID,
         ]
     }
 }

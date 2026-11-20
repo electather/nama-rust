@@ -1,22 +1,11 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT name, kind AS \"kind: Kind\", title_sources, recognisers FROM libraries\n               WHERE id = ?",
+  "query": "UPDATE libraries SET name = ? WHERE id = ?\n           RETURNING kind AS \"kind: Kind\", title_sources, recognisers, segment_sources",
   "describe": {
     "columns": [
       {
-        "name": "name",
-        "ordinal": 0,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "libraries",
-            "name": "name"
-          }
-        }
-      },
-      {
         "name": "kind: Kind",
-        "ordinal": 1,
+        "ordinal": 0,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +16,7 @@
       },
       {
         "name": "title_sources",
-        "ordinal": 2,
+        "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -38,7 +27,7 @@
       },
       {
         "name": "recognisers",
-        "ordinal": 3,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -46,10 +35,21 @@
             "name": "recognisers"
           }
         }
+      },
+      {
+        "name": "segment_sources",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "segment_sources"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "507df83b221f03033646b7786447a3f2ce91a8c098469f5314c65bbb7aa1847b"
+  "hash": "1ce40ee3d40a4f0a0a646b8a9894875e39c217189220d8d22780b2c35d678f0d"
 }

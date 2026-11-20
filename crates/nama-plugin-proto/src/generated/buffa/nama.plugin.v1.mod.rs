@@ -11,6 +11,7 @@ include!("nama.plugin.v1.home_row.rs");
 include!("nama.plugin.v1.manifest.rs");
 include!("nama.plugin.v1.notifier.rs");
 include!("nama.plugin.v1.recogniser.rs");
+include!("nama.plugin.v1.segment_source.rs");
 include!("nama.plugin.v1.subtitle_source.rs");
 #[allow(
     non_camel_case_types,
@@ -40,6 +41,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.manifest.__view.rs");
         include!("nama.plugin.v1.notifier.__view.rs");
         include!("nama.plugin.v1.recogniser.__view.rs");
+        include!("nama.plugin.v1.segment_source.__view.rs");
         include!("nama.plugin.v1.subtitle_source.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
@@ -196,6 +198,9 @@ pub mod __buffa {
         reg.register_json_any(super::__FILE_RECOGNISED_JSON_ANY);
         reg.register_json_any(super::__RECOGNISED_MOVIE_JSON_ANY);
         reg.register_json_any(super::__RECOGNISED_EPISODES_JSON_ANY);
+        reg.register_json_any(super::__SEGMENT_SEARCH_JSON_ANY);
+        reg.register_json_any(super::__SEGMENT_RESULTS_JSON_ANY);
+        reg.register_json_any(super::__SEGMENT_RESULT_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_SEARCH_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_RESULTS_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_RESULT_JSON_ANY);
@@ -723,6 +728,18 @@ pub use self::__buffa::view::RecognisedMovieOwnedView;
 pub use self::__buffa::view::RecognisedEpisodesView;
 #[doc(inline)]
 pub use self::__buffa::view::RecognisedEpisodesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentSearchView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentSearchOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentResultsView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentResultsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentResultView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentResultOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SubtitleSearchView;
 #[doc(inline)]

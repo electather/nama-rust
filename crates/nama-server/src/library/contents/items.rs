@@ -149,11 +149,14 @@ impl<'a> From<&'a Item> for ItemRow<'a> {
     }
 }
 
-/// A Version's first Item, by season and episode, as a subtitle source is asked about it.
+/// A Version's first Item, by season and episode, as a subtitle or Segment source is asked about
+/// it.
 #[derive(Debug)]
 pub(crate) struct FirstItem {
     /// The path of the Version's file.
     pub(crate) path: String,
+    /// The Library the Version is in.
+    pub(crate) library: i64,
     pub(crate) kind: ItemKind,
     /// For an Episode, its Season's number and its own.
     pub(crate) episode: Option<(i64, i64)>,
@@ -168,7 +171,8 @@ impl Contents {
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
-                    r#"SELECT library_files.path, library_items.kind AS "kind: ItemKind",
+                    r#"SELECT library_files.path, library_files.library_id,
+                              library_items.kind AS "kind: ItemKind",
                               library_items.season, library_items.episode, "#
                         + $ids
                         + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS "ids?: String"
@@ -186,6 +190,7 @@ impl Contents {
         let row = ids_sql!(select).fetch_optional(self.db.reader()).await?;
         Ok(row.map(|row| FirstItem {
             path: row.path,
+            library: row.library_id,
             kind: row.kind,
             episode: row.season.zip(row.episode),
             ids: ids_from_json(row.ids.as_deref()),

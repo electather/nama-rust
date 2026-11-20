@@ -41,6 +41,9 @@ pub(crate) struct Library {
     /// The ids of the Plugins whose Recognisers it asks, first asked first; none asks only the
     /// Kernel's own Matching (ADR 0050).
     pub(crate) recognisers: Vec<String>,
+    /// The ids of the Plugins whose Segment sources it asks, first asked first, after the Kernel
+    /// reads its Versions' Chapter names (ADR 0075).
+    pub(crate) segment_sources: Vec<String>,
 }
 
 /// The orders a Library asks its Plugins in, as a create or an update gives them.
@@ -52,6 +55,9 @@ pub(crate) struct Order {
     /// Recogniser Plugin ids, first asked first; `None` keeps the stored order, or none for a
     /// new Library.
     pub(crate) recognisers: Option<Vec<String>>,
+    /// Segment source Plugin ids, first asked first; `None` keeps the stored order, or none for a
+    /// new Library.
+    pub(crate) segment_sources: Option<Vec<String>>,
 }
 
 /// Why a change to the Libraries was refused or failed.
@@ -104,6 +110,10 @@ pub(crate) enum Error {
     /// the Recogniser point (ADR 0050).
     #[error("{plugin:?} is no Recogniser's Plugin, or is named twice")]
     RecognisersInvalid { plugin: String },
+    /// The Segment sources name `plugin` twice, or it has a comma or is no Plugin whose Manifest
+    /// names the Segment source point (ADR 0075).
+    #[error("{plugin:?} is no Segment source's Plugin, or is named twice")]
+    SegmentSourcesInvalid { plugin: String },
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -130,6 +140,7 @@ impl Libraries {
         let order = Order {
             title_sources: default_title_sources(),
             recognisers: None,
+            segment_sources: None,
         };
         (self.create_in_order(name, kind, folders, order)).await
     }
@@ -159,7 +170,8 @@ impl Libraries {
     pub(crate) async fn list(&self) -> Result<Vec<Library>, Error> {
         let mut tx = self.db.reader().begin().await?;
         let rows = sqlx::query!(
-            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers
+            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers,
+                      segment_sources
                FROM libraries ORDER BY id"#
         )
         .fetch_all(&mut *tx)
@@ -199,7 +211,8 @@ impl Libraries {
                 name: row.name,
                 kind: row.kind,
                 title_sources: split_sources(&row.title_sources),
-                recognisers: split_recognisers(&row.recognisers),
+                recognisers: split_ids(&row.recognisers),
+                segment_sources: split_ids(&row.segment_sources),
             })
             .collect())
     }
@@ -207,8 +220,8 @@ impl Libraries {
     pub(crate) async fn get(&self, id: i64) -> Result<Library, Error> {
         let mut tx = self.db.reader().begin().await?;
         let row = sqlx::query!(
-            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers FROM libraries
-               WHERE id = ?"#,
+            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers, segment_sources
+               FROM libraries WHERE id = ?"#,
             id
         )
         .fetch_optional(&mut *tx)
@@ -236,7 +249,8 @@ impl Libraries {
             read_only,
             empty_folders,
             title_sources: split_sources(&row.title_sources),
-            recognisers: split_recognisers(&row.recognisers),
+            recognisers: split_ids(&row.recognisers),
+            segment_sources: split_ids(&row.segment_sources),
         })
     }
 
@@ -271,6 +285,19 @@ impl Libraries {
         let order = order.join(",");
         self.db
             .write(move |tx| Box::pin(set_recognisers(tx, id, order)))
+            .await
+    }
+
+    /// Sets the order of the Library `id`'s Segment sources, by Plugin id.
+    #[cfg(test)]
+    pub(crate) async fn set_segment_sources(
+        &self,
+        id: i64,
+        order: Vec<String>,
+    ) -> Result<(), Error> {
+        let order = order.join(",");
+        self.db
+            .write(move |tx| Box::pin(set_segment_sources(tx, id, order)))
             .await
     }
 
@@ -358,6 +385,7 @@ async fn create(
     let Order {
         title_sources,
         recognisers,
+        segment_sources,
     } = order;
     ensure_name_free(conn, &name).await?;
     ensure_folders_free(conn, &folders, None).await?;
@@ -374,6 +402,10 @@ async fn create(
     if !recognisers.is_empty() {
         set_recognisers(conn, id, recognisers.join(",")).await?;
     }
+    let segment_sources = segment_sources.unwrap_or_default();
+    if !segment_sources.is_empty() {
+        set_segment_sources(conn, id, segment_sources.join(",")).await?;
+    }
     Ok(Library {
         id,
         name,
@@ -383,6 +415,7 @@ async fn create(
         empty_folders: Vec::new(),
         title_sources,
         recognisers,
+        segment_sources,
     })
 }
 
@@ -398,6 +431,7 @@ async fn update(
     let Order {
         title_sources,
         recognisers,
+        segment_sources,
     } = order;
     let current = sqlx::query_scalar!("SELECT name FROM libraries WHERE id = ?", id)
         .fetch_optional(&mut *conn)
@@ -410,7 +444,7 @@ async fn update(
     }
     let row = sqlx::query!(
         r#"UPDATE libraries SET name = ? WHERE id = ?
-           RETURNING kind AS "kind: Kind", title_sources, recognisers"#,
+           RETURNING kind AS "kind: Kind", title_sources, recognisers, segment_sources"#,
         name,
         id,
     )
@@ -454,7 +488,14 @@ async fn update(
             set_recognisers(conn, id, recognisers.join(",")).await?;
             recognisers
         }
-        None => split_recognisers(&row.recognisers),
+        None => split_ids(&row.recognisers),
+    };
+    let segment_sources = match segment_sources {
+        Some(segment_sources) => {
+            set_segment_sources(conn, id, segment_sources.join(",")).await?;
+            segment_sources
+        }
+        None => split_ids(&row.segment_sources),
     };
     Ok(Library {
         id,
@@ -465,6 +506,7 @@ async fn update(
         empty_folders,
         title_sources,
         recognisers,
+        segment_sources,
     })
 }
 
@@ -571,6 +613,25 @@ async fn set_recognisers(conn: &mut SqliteConnection, id: i64, order: String) ->
     Ok(())
 }
 
+/// `order` must be Plugin ids joined with commas, none if empty.
+async fn set_segment_sources(
+    conn: &mut SqliteConnection,
+    id: i64,
+    order: String,
+) -> Result<(), Error> {
+    let updated = sqlx::query!(
+        "UPDATE libraries SET segment_sources = ? WHERE id = ?",
+        order,
+        id
+    )
+    .execute(&mut *conn)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(Error::NotFound(id));
+    }
+    Ok(())
+}
+
 /// Fails unless `order` is one or more namespaces by `ExternalId`'s rule, each named once, as a
 /// stored order needs.
 fn check_title_sources(order: &[String]) -> Result<(), Error> {
@@ -637,9 +698,9 @@ fn split_sources(stored: &str) -> Vec<String> {
     stored.split(',').map(str::to_owned).collect()
 }
 
-/// The stored, comma-separated `recognisers`, as a list; empty names none. A Plugin id has no
-/// comma.
-fn split_recognisers(stored: &str) -> Vec<String> {
+/// The stored, comma-separated `recognisers` or `segment_sources`, as a list; empty names none. A
+/// Plugin id has no comma.
+fn split_ids(stored: &str) -> Vec<String> {
     (stored.split(',').filter(|id| !id.is_empty()))
         .map(str::to_owned)
         .collect()

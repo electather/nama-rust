@@ -52,6 +52,7 @@ impl Fixture {
                 empty_folders: Vec::new(),
                 title_sources: vec!["tmdb".to_owned()],
                 recognisers: Vec::new(),
+                segment_sources: Vec::new(),
             },
             title: "Title".to_owned(),
             to_unmonitor: None,

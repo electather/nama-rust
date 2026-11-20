@@ -14,6 +14,7 @@ use nama_plugin_api::{
     notifier::Notifier,
     points::{Events, ServerStarted},
     recogniser::Recogniser,
+    segment_source::SegmentSource,
     subtitle_source::SubtitleSource,
 };
 use nama_proto::nama::v1 as proto;
@@ -58,7 +59,7 @@ pub(super) fn extension_points_to_proto(
 }
 
 /// Each Extension Point this API names, by its key, in the order its enum lists them.
-fn public_points() -> [(PointKey, proto::ExtensionPoint); 13] {
+fn public_points() -> [(PointKey, proto::ExtensionPoint); 14] {
     use proto::ExtensionPoint as Public;
     [
         (
@@ -112,6 +113,10 @@ fn public_points() -> [(PointKey, proto::ExtensionPoint); 13] {
         (
             PointKey::provide::<dyn HomeRowSource>(),
             Public::EXTENSION_POINT_HOME_ROW,
+        ),
+        (
+            PointKey::provide::<dyn SegmentSource>(),
+            Public::EXTENSION_POINT_SEGMENT_SOURCE,
         ),
     ]
 }

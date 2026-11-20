@@ -127,6 +127,11 @@ message Library {
   // in `remove_missing_in`. A folder that never had files isn't listed. Empty in `ListLibraries`
   // for a caller without `PERMISSION_MANAGE_LIBRARIES`.
   repeated string empty_folders = 10;
+  // The ids of the Plugins whose Segment sources the Library asks where its Versions' Intro,
+  // Recap and Credits are, in order, after the Server has read their Chapter names: for each
+  // kind, the first that answers wins (ADR 0075). None unless an Admin set it. `ListPlugins`
+  // lists the Plugins with `EXTENSION_POINT_SEGMENT_SOURCE` that may be named.
+  repeated string segment_source_ids = 11;
 }
 
 message CreateLibraryRequest {
@@ -142,6 +147,9 @@ message CreateLibraryRequest {
   // The Library's `recogniser_ids`, each the id of a Plugin with `EXTENSION_POINT_RECOGNISER`,
   // named once. Empty names none.
   repeated string recogniser_ids = 5;
+  // The Library's `segment_source_ids`, each the id of a Plugin with
+  // `EXTENSION_POINT_SEGMENT_SOURCE`, named once. Empty names none.
+  repeated string segment_source_ids = 6;
 }
 
 message CreateLibraryResponse {
@@ -177,10 +185,19 @@ message UpdateLibraryRequest {
   // The new `recogniser_ids`, under the same rules as `CreateLibraryRequest.recogniser_ids`.
   // Unset keeps the Library's; set with no ids clears them.
   RecogniserOrder recogniser_order = 5;
+  // The new `segment_source_ids`, under the same rules as
+  // `CreateLibraryRequest.segment_source_ids`. Unset keeps the Library's; set with no ids clears
+  // them.
+  SegmentSourceOrder segment_source_order = 6;
 }
 
 // A Library's `recogniser_ids` as an update sets them, so an empty list can be told from none.
 message RecogniserOrder {
+  repeated string ids = 1;
+}
+
+// A Library's `segment_source_ids` as an update sets them, so an empty list can be told from none.
+message SegmentSourceOrder {
   repeated string ids = 1;
 }
 

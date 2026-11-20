@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT segments_due_ms FROM version_probes WHERE version_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "segments_due_ms",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "segments_due_ms"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "cb822fac523c0c49f1030767f2801f5dafac4cc39dcc7a6f382bfef9b0b0893a"
+}

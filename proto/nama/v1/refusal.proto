@@ -301,4 +301,8 @@ enum RefusalReason {
   // `unavailable`: no subtitle source is enabled, or every one asked failed, or the one asked
   // couldn't download the subtitle or gave a file that isn't one. The message says why.
   REFUSAL_REASON_NO_SUBTITLE_SOURCE = 91;
+  // `invalid_argument`: a Library's Segment sources name an id of no Plugin with
+  // `EXTENSION_POINT_SEGMENT_SOURCE`, or name one twice. `field` is `segment_source_ids` or
+  // `segment_source_order`. Params: `pluginId`.
+  REFUSAL_REASON_SEGMENT_SOURCES_INVALID = 92;
 }

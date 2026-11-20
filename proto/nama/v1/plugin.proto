@@ -375,6 +375,9 @@ enum ExtensionPoint {
   EXTENSION_POINT_SUBTITLE_SOURCE = 12;
   // Gives rows of titles for every User's home page, which the Server draws (ADR 0058).
   EXTENSION_POINT_HOME_ROW = 13;
+  // Says where a Version's Intro, Recap and Credits are, which a Library lists to ask it
+  // (ADR 0075).
+  EXTENSION_POINT_SEGMENT_SOURCE = 14;
 }
 
 // What kind of value a setting takes.

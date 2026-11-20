@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT start_ms, title FROM chapters WHERE version_id = ? ORDER BY position",
+  "describe": {
+    "columns": [
+      {
+        "name": "start_ms",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "start_ms"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "title"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "12193a3a6b53bb25b89b0caec85ea15e61d61e5841ddd3a72db03570ff6a6799"
+}

@@ -586,6 +586,9 @@ pub enum ExtensionPoint {
     EXTENSION_POINT_SUBTITLE_SOURCE = 12i32,
     /// Gives rows of titles for every User's home page, which the Server draws (ADR 0058).
     EXTENSION_POINT_HOME_ROW = 13i32,
+    /// Says where a Version's Intro, Recap and Credits are, which a Library lists to ask it
+    /// (ADR 0075).
+    EXTENSION_POINT_SEGMENT_SOURCE = 14i32,
 }
 impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -630,6 +633,9 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_HOME_ROW`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const HomeRow: Self = Self::EXTENSION_POINT_HOME_ROW;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_SEGMENT_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SegmentSource: Self = Self::EXTENSION_POINT_SEGMENT_SOURCE;
 }
 impl ::core::default::Default for ExtensionPoint {
     fn default() -> Self {
@@ -745,6 +751,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             11i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_AUTOMATION),
             12i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SUBTITLE_SOURCE),
             13i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_HOME_ROW),
+            14i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SEGMENT_SOURCE),
             _ => ::core::option::Option::None,
         }
     }
@@ -769,6 +776,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_AUTOMATION => "EXTENSION_POINT_AUTOMATION",
             Self::EXTENSION_POINT_SUBTITLE_SOURCE => "EXTENSION_POINT_SUBTITLE_SOURCE",
             Self::EXTENSION_POINT_HOME_ROW => "EXTENSION_POINT_HOME_ROW",
+            Self::EXTENSION_POINT_SEGMENT_SOURCE => "EXTENSION_POINT_SEGMENT_SOURCE",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -817,6 +825,9 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_HOME_ROW" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_HOME_ROW)
             }
+            "EXTENSION_POINT_SEGMENT_SOURCE" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_SEGMENT_SOURCE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -836,6 +847,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_AUTOMATION,
             Self::EXTENSION_POINT_SUBTITLE_SOURCE,
             Self::EXTENSION_POINT_HOME_ROW,
+            Self::EXTENSION_POINT_SEGMENT_SOURCE,
         ]
     }
 }

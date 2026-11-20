@@ -26,7 +26,7 @@ use std::{
 
 use futures_util::StreamExt;
 use nama_proto::nama::v1::ProbingFinished;
-use tokio::sync::watch;
+use tokio::sync::{Notify, watch};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
@@ -156,6 +156,8 @@ struct Inner {
     claimed: Claims<Probed>,
     /// The Versions whose keyframes are being listed, as `claimed` is for probing.
     listing: Claims<Listed>,
+    /// Notified when a background pass has caught up, so what follows probing can start.
+    passed: Arc<Notify>,
 }
 
 impl Probing {
@@ -182,6 +184,7 @@ impl Probing {
                 whole_file_reads: tokio::sync::Semaphore::new(WHOLE_FILE_READS_AT_ONCE),
                 claimed: Claims::default(),
                 listing: Claims::default(),
+                passed: Arc::default(),
             }),
         }
     }
@@ -301,7 +304,10 @@ impl Probing {
             async move {
                 let pass = probing.probe_stale(library);
                 match probing.inner.cancel.run_until_cancelled(pass).await {
-                    Some(Ok(probed)) => finished(probed),
+                    Some(Ok(probed)) => {
+                        probing.inner.passed.notify_one();
+                        finished(probed);
+                    }
                     Some(Err(err)) => {
                         tracing::error!(library, "probing a Library's files failed: {err}");
                     }
@@ -310,6 +316,11 @@ impl Probing {
             }
             .instrument(pass_span),
         );
+    }
+
+    /// What's notified each time a background pass has caught up with a Library.
+    pub(crate) fn passed(&self) -> Arc<Notify> {
+        Arc::clone(&self.inner.passed)
     }
 
     /// The subtitle cache, from which it throws away what's cached for files gone or changed.

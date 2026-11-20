@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT name, kind AS \"kind: Kind\", title_sources, recognisers, segment_sources\n               FROM libraries WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "kind: Kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "title_sources",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "title_sources"
+          }
+        }
+      },
+      {
+        "name": "recognisers",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "recognisers"
+          }
+        }
+      },
+      {
+        "name": "segment_sources",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "segment_sources"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "28a725b94fba81f66d2a19c630e2cbc692b58655e034376b6ea7cdab813728c3"
+}

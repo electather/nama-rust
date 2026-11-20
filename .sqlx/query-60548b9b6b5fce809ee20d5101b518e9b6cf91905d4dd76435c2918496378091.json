@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO segments (version_id, kind, start_ms, end_ms, source)\n             VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "60548b9b6b5fce809ee20d5101b518e9b6cf91905d4dd76435c2918496378091"
+}

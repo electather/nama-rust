@@ -72,14 +72,14 @@ fn names(names: &[&str]) -> Vec<String> {
 fn sources(namespaces: &[&str]) -> Order {
     Order {
         title_sources: names(namespaces),
-        recognisers: None,
+        ..Order::default()
     }
 }
 
 fn recognisers(ids: &[&str]) -> Order {
     Order {
-        title_sources: Vec::new(),
         recognisers: Some(names(ids)),
+        ..Order::default()
     }
 }
 

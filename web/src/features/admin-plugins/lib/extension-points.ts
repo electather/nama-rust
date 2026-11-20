@@ -11,6 +11,7 @@ import {
   Rows3,
   ScanSearch,
   Server,
+  SkipForward,
   Tv,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ export const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.AUTOMATION]: { label: "Automation", Icon: CalendarClock },
   [ExtensionPoint.HOME_ROW]: { label: "Home rows", Icon: Rows3 },
   [ExtensionPoint.SUBTITLE_SOURCE]: { label: "Subtitle source", Icon: Captions },
+  [ExtensionPoint.SEGMENT_SOURCE]: { label: "Segment source", Icon: SkipForward },
 };
 
 /** What a point's failing calls leave undone, for the points where that isn't plain. */
