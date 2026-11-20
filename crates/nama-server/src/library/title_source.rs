@@ -602,7 +602,7 @@ impl Metadata {
 }
 
 #[cfg(test)]
-#[path = "title_source_tests.rs"]
+#[path = "title_source/title_source_tests.rs"]
 mod tests;
 
 #[cfg(test)]

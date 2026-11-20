@@ -336,7 +336,7 @@ pub(super) fn shown_subtitles(
 }
 
 #[cfg(test)]
-#[path = "choices_tests.rs"]
+#[path = "choices/choices_tests.rs"]
 mod tests;
 
 #[cfg(test)]

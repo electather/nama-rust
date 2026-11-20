@@ -328,5 +328,5 @@ fn not_stopped(plugin: &PluginId, name: &str, reason: &str) {
 }
 
 #[cfg(test)]
-#[path = "deleting_tests.rs"]
+#[path = "deleting/deleting_tests.rs"]
 mod tests;

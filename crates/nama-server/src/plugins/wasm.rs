@@ -700,5 +700,5 @@ fn choices(checked: CheckedSettings) -> Choices {
 }
 
 #[cfg(test)]
-#[path = "wasm_tests.rs"]
+#[path = "wasm/wasm_tests.rs"]
 mod tests;

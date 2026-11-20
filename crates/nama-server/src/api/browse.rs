@@ -741,5 +741,5 @@ fn version_to_proto(version: &Version) -> proto::Version {
 }
 
 #[cfg(test)]
-#[path = "browse_tests.rs"]
+#[path = "browse/browse_tests.rs"]
 mod tests;
