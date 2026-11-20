@@ -80,18 +80,19 @@ function drawnFormats() {
 }
 
 /**
- * Whether JASSUB, the ASS renderer, can start here: its constructor hands its canvas to a module
- * worker and throws without one, which would cost a second plan to burn the Track in (ADR 0033).
+ * Whether JASSUB, the ASS renderer, can start here. Its constructor throws without OffscreenCanvas,
+ * and its worker, an ES module, fails to load where workers can't be modules. Either costs a second
+ * plan to burn the Track in (ADR 0033).
  */
 function startsJassub() {
   return (
     "Worker" in globalThis &&
     "transferControlToOffscreen" in HTMLCanvasElement.prototype &&
-    startsModuleWorkers()
+    knowsModuleWorkers()
   );
 }
 
-function startsModuleWorkers() {
+function knowsModuleWorkers() {
   let readsType = false;
   // Only a browser that knows module workers reads `type`. The URL loads nothing: Chrome throws for
   // it, after reading `type`, and any worker another browser starts is ended at once.
