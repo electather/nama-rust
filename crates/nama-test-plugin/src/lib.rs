@@ -425,9 +425,10 @@ mod home_rows {
     /// empty, `loop` to loop until the Server interrupts it, or `fail` to fail.
     pub(super) const ROWS: &str = "home_rows";
 
-    /// Gives every User `picks`: Heat, Dune and Alien, which the fake TMDB knows; `again`: Alien;
-    /// and `missing`: a Movie no Library has. Gives a User who set a `handle` the row
-    /// `for-<handle>`: Alien. Logs which it was asked for, so a test counts its refreshes.
+    /// Gives every User `picks`: the Movies Heat, Dune and Alien and the Show Dark, which the
+    /// fake TMDB knows; `again`: Alien; and `missing`: Dune and a Movie no title source has. Gives
+    /// a User who set a `handle` the row `for-<handle>`: Alien. Logs which it was asked for, so a
+    /// test counts its refreshes.
     struct TestRows;
 
     impl HomeRowSource for TestRows {
@@ -441,9 +442,17 @@ mod home_rows {
                 return Err(Error::msg("test-plugin was set to fail"));
             }
             let rows = [
-                row("picks", "Picks", &[949, 438_631, 348]),
-                row("again", "Alien again", &[348]),
-                row("missing", "Not on the Server", &[900_001]),
+                row(
+                    "picks",
+                    "Picks",
+                    &[(MOVIE, 949), (MOVIE, 438_631), (MOVIE, 348), (SHOW, 70_523)],
+                ),
+                row("again", "Alien again", &[(MOVIE, 348)]),
+                row(
+                    "missing",
+                    "Not on the Server",
+                    &[(MOVIE, 438_631), (MOVIE, 900_001)],
+                ),
             ];
             Ok(HomeRows {
                 rows: (rows.into_iter())
@@ -462,18 +471,21 @@ mod home_rows {
                 rows: vec![row(
                     &format!("for-{handle}"),
                     &format!("For {handle}"),
-                    &[348],
+                    &[(MOVIE, 348)],
                 )],
                 ..HomeRows::default()
             })
         }
     }
 
-    /// The row `key`, headed `heading`, of the Movies with the TMDB ids `movies`, fresh for an
-    /// hour.
-    fn row(key: &str, heading: &str, movies: &[i64]) -> HomeRow {
-        let title = |tmdb: &i64| HomeRowTitle {
-            kind: TitleKind::TITLE_KIND_MOVIE.into(),
+    const MOVIE: TitleKind = TitleKind::TITLE_KIND_MOVIE;
+    const SHOW: TitleKind = TitleKind::TITLE_KIND_SHOW;
+
+    /// The row `key`, headed `heading`, of the titles of `titles`' kinds and TMDB ids, fresh for
+    /// an hour.
+    fn row(key: &str, heading: &str, titles: &[(TitleKind, i64)]) -> HomeRow {
+        let title = |&(kind, tmdb): &(TitleKind, i64)| HomeRowTitle {
+            kind: kind.into(),
             id: TitleId {
                 namespace: "tmdb".to_owned(),
                 value: tmdb.to_string(),
@@ -486,7 +498,7 @@ mod home_rows {
             key: key.to_owned(),
             heading: heading.to_owned(),
             ttl_seconds: 60 * 60,
-            titles: movies.iter().map(title).collect(),
+            titles: titles.iter().map(title).collect(),
             ..HomeRow::default()
         }
     }

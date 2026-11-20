@@ -6,7 +6,7 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Movies, Shows},
-    metadata::ExternalId,
+    metadata::{ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::{
     self as proto, ApproveFollowedShowRequest, ApproveFollowedShowResponse, ApproveRequestRequest,
@@ -26,8 +26,8 @@ use nama_proto::nama::v1::{
 use crate::{
     library::{Artwork, Candidate, ImageRef, Metadata, Role},
     requests::{
-        self, Asked, Found, FoundShow, Hit, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
-        QualityRefused, Requests,
+        self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
+        QualityRefused, Requests, year_of,
     },
 };
 
@@ -586,6 +586,51 @@ impl RequestServiceHandler {
     }
 }
 
+/// A Movie missing from the Server, as a search for one finds it, with its open `request`. It has
+/// only its Request's id, so it shows a Custom Image kept under that one.
+pub(super) fn missing_movie_to_proto(
+    artwork: &Artwork,
+    movie: Listed,
+    request: Option<Box<proto::Request>>,
+    images: &ShownImages,
+) -> proto::MovieHit {
+    let custom = images.movie_image(&movie.id, &ExternalIds::default(), Role::Poster);
+    let poster_url = custom.or_else(|| offered(artwork, movie.poster));
+    proto::MovieHit {
+        id: external_id_to_proto(&movie.id).into(),
+        title: movie.title,
+        year: movie.year,
+        poster_thumbhash: images.thumbhash(poster_url.as_deref()),
+        poster_url,
+        request: request.map(|request| *request).into(),
+        ..Default::default()
+    }
+}
+
+/// A Show missing from the Server, as a search for one finds it.
+pub(super) fn missing_show_to_proto(
+    artwork: &Artwork,
+    show: Listed,
+    images: &ShownImages,
+) -> proto::ShowHit {
+    let custom = images.show_image(&show.id, &ExternalIds::default(), Role::Poster);
+    let poster_url = custom.or_else(|| offered(artwork, show.poster));
+    proto::ShowHit {
+        id: external_id_to_proto(&show.id).into(),
+        title: show.title,
+        year: show.year,
+        poster_thumbhash: images.thumbhash(poster_url.as_deref()),
+        poster_url,
+        ..Default::default()
+    }
+}
+
+/// Where clients fetch `poster` from its title source. Offered on each read, never stored, so it
+/// loads after a restart forgets the offers.
+fn offered(artwork: &Artwork, poster: Option<ImageRef>) -> Option<String> {
+    poster.map(|poster| artwork.offer(&poster.plugin, &poster.path))
+}
+
 /// `title`, unless it is blank, which a search for titles refuses.
 fn searched_title(title: String) -> Result<String, ConnectError> {
     if title.trim().is_empty() {
@@ -597,11 +642,6 @@ fn searched_title(title: String) -> Result<String, ConnectError> {
         .into());
     }
     Ok(title)
-}
-
-/// The year of a `YYYY-MM-DD` date.
-fn year_of(date: &str) -> Option<i32> {
-    date.get(..4)?.parse().ok()
 }
 
 /// The refusal of a Quality a User named, in the field they named it in.

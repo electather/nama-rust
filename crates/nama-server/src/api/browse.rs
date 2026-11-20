@@ -16,17 +16,19 @@ use nama_proto::nama::v1::{
 
 use crate::{
     browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
-    home_rows::{self, HomeRows, OnServer},
+    home_rows::{self, HomeRows, OnServer, RowTitle},
     library::{
-        FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie, Listing,
-        NotFound, Role, Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
+        Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie,
+        Listing, NotFound, Role, Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
 };
 
 use super::{
     ImageSources, Refused, ShownImages, caller, database_failed, external_id_to_proto,
-    proto_number, refuse, required_id,
+    proto_number, refuse,
+    requests::{missing_movie_to_proto, missing_show_to_proto},
+    required_id,
 };
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
@@ -34,6 +36,8 @@ use super::{
 pub(super) struct BrowseServiceHandler {
     pub(super) browse: Browse,
     pub(super) home_rows: HomeRows,
+    /// Serves the posters of the missing titles Home rows show, which no Match stores.
+    pub(super) artwork: Artwork,
     pub(super) images: ImageSources,
 }
 
@@ -270,8 +274,8 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListHomeRowsRequest>,
     ) -> ServiceResult<ListHomeRowsResponse> {
-        let user = caller(&ctx)?.user.id;
-        let rows = self.home_rows.list(user).await;
+        let reader = &caller(&ctx)?.user;
+        let rows = self.home_rows.list(reader).await;
         let rows = rows.map_err(home_rows_refused)?;
         Response::ok(ListHomeRowsResponse {
             rows: (rows.into_iter())
@@ -291,20 +295,31 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ListHomeRowTitlesRequest>,
     ) -> ServiceResult<ListHomeRowTitlesResponse> {
-        let user = caller(&ctx)?.user.id;
+        let reader = &caller(&ctx)?.user;
         let request = request.to_owned_message();
         let plugin = request.plugin_id.into();
         let listed = (self.home_rows)
-            .titles(user, &plugin, &request.key, &request.page)
+            .titles(reader, &plugin, &request.key, &request.page)
             .await;
         let (titles, page) = listed.map_err(home_rows_refused)?;
         let images = self.images.shown().await?;
+        let artwork = &self.artwork;
         Response::ok(ListHomeRowTitlesResponse {
             titles: (titles.into_iter())
                 .map(|title| proto::HomeRowTitle {
                     movie_or_show: Some(match title {
-                        OnServer::Movie(movie) => found_movie_to_proto(movie, &images).into(),
-                        OnServer::Show(show) => found_show_to_proto(show, &images).into(),
+                        RowTitle::OnServer(OnServer::Movie(movie)) => {
+                            found_movie_to_proto(movie, &images).into()
+                        }
+                        RowTitle::OnServer(OnServer::Show(show)) => {
+                            found_show_to_proto(show, &images).into()
+                        }
+                        RowTitle::MissingMovie(movie, open) => {
+                            missing_movie_to_proto(artwork, movie, open, &images).into()
+                        }
+                        RowTitle::MissingShow(show) => {
+                            missing_show_to_proto(artwork, show, &images).into()
+                        }
                     }),
                     ..Default::default()
                 })

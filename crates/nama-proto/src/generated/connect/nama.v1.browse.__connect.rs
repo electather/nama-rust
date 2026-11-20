@@ -969,7 +969,8 @@ pub trait BrowseService: Send + Sync + 'static {
         >,
     > + Send;
     /// Lists the Home rows Plugins give every User (ADR 0058): each enabled Plugin's, in Plugin id
-    /// order, then in the order the Plugin gave them. A row with no title on the Server is left out.
+    /// order, then in the order the Plugin gave them. A row with no title to show the caller, as
+    /// `ListHomeRowTitles` shows them, is left out.
     /// Never waits on a Plugin: rows past their time to live are refreshed in the background, and
     /// what was stored before is listed meanwhile, so a Plugin's first rows show on a later call.
     ///
@@ -994,8 +995,9 @@ pub trait BrowseService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists a page of one Home row's titles that are on the Server, in the row's order, each in the
-    /// oldest Library that has it. A row its Plugin no longer gives lists none. Fails with
+    /// Lists a page of one Home row's titles, in the row's order: each on the Server in the oldest
+    /// Library that has it, and each missing one the title source had at the row's last refresh, if
+    /// the caller may Request its kind. A row its Plugin no longer gives lists none. Fails with
     /// `invalid_argument` if `page.token` isn't one an earlier call for the same row returned.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).

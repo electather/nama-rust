@@ -14,9 +14,15 @@ use nama_plugin_api::{
 };
 use tempfile::TempDir;
 
-use super::{HomeRows as Kept, Kind, OnServer, Title, kept, lock, shown};
+use super::{HomeRows as Kept, Kind, OnServer, Row, Title, kept, lock, shown};
 use crate::{
-    db::Database, library::FoundMovie, plugins::Registry, users::replace_personal_settings,
+    db::Database,
+    events::EventBus,
+    library::FoundMovie,
+    plugins::Registry,
+    requests::Requests,
+    server_settings::ServerUrl,
+    users::{Permissions, User, replace_personal_settings},
 };
 
 fn movie(value: &str) -> HomeRowTitle {
@@ -125,7 +131,7 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
         release_date: None,
         poster: None,
     };
-    let titles = [
+    let titles = vec![
         Title(Kind::Movie, "imdb-tt0133093".to_owned()),
         Title(Kind::Movie, "tmdb-1".to_owned()),
         Title(Kind::Movie, "tmdb-603".to_owned()),
@@ -137,7 +143,12 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
     .into_iter()
     .collect();
 
-    let shown = shown(&titles, on_server);
+    let row = Row {
+        titles,
+        ..Row::default()
+    };
+
+    let shown = shown(&row, &on_server, |_| true);
 
     let places: Vec<i64> = shown.iter().map(|(place, _)| *place).collect();
     assert_eq!(places, [0]);
@@ -224,7 +235,10 @@ async fn recorded(gives: &'static [HomeRowMethod]) -> (TempDir, Arc<Database>, K
         gives,
     };
     plugins.enable(Arc::new(source)).unwrap();
-    let home = Kept::new(Arc::clone(&db), plugins.extension_points());
+    let points = plugins.extension_points();
+    let events = EventBus::new(Arc::clone(&db), points.clone(), ServerUrl::default());
+    let requests = Requests::new(Arc::clone(&db), events, points.clone());
+    let home = Kept::new(Arc::clone(&db), points, requests);
     (data_dir, db, home, calls)
 }
 
@@ -260,9 +274,19 @@ fn handle(handle: &str) -> BTreeMap<String, String> {
     [("handle".to_owned(), handle.to_owned())].into()
 }
 
+/// The User `id`, as home reads for them.
+fn reader(id: i64) -> User {
+    User {
+        id,
+        name: String::new(),
+        permissions: Permissions::NEW_USER,
+        created_at: 0,
+    }
+}
+
 /// Opens home as `user`, and waits for the refreshes it starts to finish.
 async fn open_home(home: &Kept, user: i64) {
-    home.list(user).await.unwrap();
+    home.list(&reader(user)).await.unwrap();
     wait_for_refreshes(home).await;
 }
 
@@ -386,7 +410,7 @@ async fn rows_asked_before_a_user_changed_their_personal_settings_are_not_kept()
     let ada = insert_user(&db, "ada").await;
     set_handle(&db, ada, "ada").await;
     let held = calls.user_rows_held.lock().await;
-    home.list(ada).await.unwrap();
+    home.list(&reader(ada)).await.unwrap();
     let started = Instant::now();
     while !calls.asked().contains(&Some(handle("ada"))) {
         assert!(started.elapsed() < Duration::from_secs(10), "never asked");
