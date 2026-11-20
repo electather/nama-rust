@@ -352,6 +352,27 @@ async fn a_plan_unused_for_long_enough_is_stopped_and_its_files_deleted() {
 }
 
 #[tokio::test]
+async fn a_plan_whose_ffmpeg_cant_be_spawned_deletes_its_folder_and_isnt_kept() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let runs = FakeRuns::default();
+    runs.fail_next_start();
+    let started = Runs {
+        method: Method::Remux,
+        start: runs.start(),
+        cpu_bound: false,
+        fallback: None,
+    };
+    let (first_id, device) = (1, 7);
+
+    let failed = plans.start_hls(playback(device), every_two_seconds(), 0, started, None);
+
+    assert!(matches!(failed.await, Err(StartError::Run(_))));
+    assert!(!plan_dir(data.path(), first_id).exists());
+    assert!(plans.ask(first_id, device).is_none());
+}
+
+#[tokio::test]
 async fn a_plan_gone_unused_tells_its_playback_ended() {
     let data = tempfile::tempdir().unwrap();
     let db = database(data.path()).await;
