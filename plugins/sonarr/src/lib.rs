@@ -2,6 +2,8 @@
 //! their downloads are progressing, and has Sonarr stop monitoring deleted Episodes (ADR 0038).
 //! The Server builds it for wasm32 and bundles it in its binary.
 
+use nama_pdk::{Manifest, services};
+
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
 #[expect(
@@ -19,7 +21,7 @@ mod exports {
             EpisodeNumbers, RequestedSeason, request::MovieOrSeason, show_deleted::Deleted,
             stop_monitoring::Title,
         },
-        plugin_fn, services, title_id,
+        plugin_fn, title_id,
     };
     use nama_servarr::{QualityProfile, Queued, Servarr};
     use serde::{Deserialize, Serialize};
@@ -32,15 +34,7 @@ mod exports {
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
-        Ok(Buffa(Manifest {
-            logo_svg: include_str!("../logo.svg").to_owned(),
-            points: vec![nama_pdk::point(services::SHOW_FULFILLER)],
-            show_id_namespaces: vec!["tvdb".to_owned()],
-            settings: nama_servarr::settings("Sonarr", "Show", 8989),
-            name: "Sonarr".to_owned(),
-            description: "Sends Approved Season Requests to Sonarr to download.".to_owned(),
-            ..nama_pdk::manifest("sonarr", env!("CARGO_PKG_VERSION"))
-        }))
+        Ok(Buffa(super::manifest()))
     }
 
     #[plugin_fn]
@@ -525,3 +519,30 @@ mod exports {
     #[cfg(test)]
     mod tests;
 }
+
+const SETUP: &str = "\
+1. In Sonarr, open **Settings > General** and copy the API key under Security into the API key setting below.
+2. Enter the URL this Server reaches Sonarr at, such as `http://localhost:8989`, with its URL Base if you set one.
+3. Pick the quality profile and root folder Sonarr adds each Show with.
+";
+
+/// What `manifest()` returns, kept apart from the export so a unit test can read it.
+fn manifest() -> Manifest {
+    Manifest {
+        logo_svg: include_str!("../logo.svg").to_owned(),
+        points: vec![nama_pdk::point(services::SHOW_FULFILLER)],
+        show_id_namespaces: vec!["tvdb".to_owned()],
+        settings: nama_servarr::settings("Sonarr", "Show", 8989),
+        name: "Sonarr".to_owned(),
+        description: "Sends Approved Season Requests to Sonarr to download.".to_owned(),
+        setup_markdown: SETUP.to_owned(),
+        homepage_url: "https://sonarr.tv/".to_owned(),
+        source_url: concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/main/plugins/sonarr").to_owned(),
+        license: env!("CARGO_PKG_LICENSE").to_owned(),
+        ..nama_pdk::manifest("sonarr", env!("CARGO_PKG_VERSION"))
+    }
+}
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;

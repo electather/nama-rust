@@ -29,6 +29,12 @@ const LANGUAGE: &str = "language";
 
 const DEFAULT_LANGUAGE: &str = "en-US";
 
+const SETUP: &str = "\
+1. Sign in to [TMDB](https://www.themoviedb.org/), or sign up there for free.
+2. Under [Settings > API](https://www.themoviedb.org/settings/api), request an API key.
+3. Copy its **API Key**, not the API Read Access Token, into the API key setting below.
+";
+
 /// The TMDB Built-in Plugin, providing the [`TitleSource`] that Matching uses.
 #[derive(Debug, Clone, Default)]
 pub struct Tmdb {
@@ -110,10 +116,10 @@ impl Plugin for Tmdb {
             personal_settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn TitleSource>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
-            setup_markdown: String::new(),
-            homepage_url: String::new(),
-            source_url: String::new(),
-            license: String::new(),
+            setup_markdown: SETUP.to_owned(),
+            homepage_url: "https://www.themoviedb.org/".to_owned(),
+            source_url: concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/main/plugins/tmdb").to_owned(),
+            license: env!("CARGO_PKG_LICENSE").to_owned(),
             permissions: Vec::new(),
             tick_every: None,
             title_source: Some(SourceManifest {

@@ -98,6 +98,25 @@ fn the_api_key_is_a_required_secret_setting() {
 }
 
 #[test]
+fn the_manifest_says_where_to_get_an_api_key_and_gives_its_links_and_licence() {
+    let manifest = Tmdb::new().manifest();
+
+    let setup = &manifest.setup_markdown;
+    assert!(
+        setup.contains("https://www.themoviedb.org/settings/api"),
+        "{setup}"
+    );
+    assert_eq!(
+        [manifest.homepage_url, manifest.source_url, manifest.license],
+        [
+            "https://www.themoviedb.org/",
+            "https://github.com/electather/nama-rust/tree/main/plugins/tmdb",
+            "AGPL-3.0-only",
+        ]
+    );
+}
+
+#[test]
 fn registering_without_an_api_key_fails_and_registers_nothing() {
     let mut registrar = Registrar::with_settings(Settings::default());
 

@@ -64,6 +64,25 @@ fn manifest_serves_the_title_source_looking_up_by_tmdb_imdb_and_tvdb() {
 }
 
 #[test]
+fn manifest_says_where_to_get_an_api_key_and_gives_its_links_and_licence() {
+    let manifest = manifest();
+
+    let setup = &manifest.setup_markdown;
+    assert!(
+        setup.contains("https://fanart.tv/get-an-api-key/"),
+        "{setup}"
+    );
+    assert_eq!(
+        [manifest.homepage_url, manifest.source_url, manifest.license],
+        [
+            "https://fanart.tv/",
+            "https://github.com/electather/nama-rust/tree/main/plugins/fanart",
+            "AGPL-3.0-only",
+        ]
+    );
+}
+
+#[test]
 fn a_movies_lists_map_to_kinds_with_hd_first_languages_and_votes() {
     let artwork = artwork(MOVIE, include_bytes!("../fixtures/movie.json")).unwrap();
 

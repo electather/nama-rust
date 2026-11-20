@@ -41,6 +41,12 @@ mod exports {
     }
 }
 
+const SETUP: &str = "\
+1. Sign in to [TVDB](https://thetvdb.com/), or sign up there for free.
+2. Get an API key from your [API keys page](https://thetvdb.com/dashboard/account/apikey) and paste it into the API key setting below.
+3. If TVDB says your key needs a subscriber PIN, enter it in the Subscriber PIN setting.
+";
+
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
@@ -97,6 +103,10 @@ fn manifest() -> Manifest {
                 "https://artworks.thetvdb.com",
             ),
         ],
+        setup_markdown: SETUP.to_owned(),
+        homepage_url: "https://thetvdb.com/".to_owned(),
+        source_url: concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/main/plugins/tvdb").to_owned(),
+        license: env!("CARGO_PKG_LICENSE").to_owned(),
         ..nama_pdk::manifest("tvdb", env!("CARGO_PKG_VERSION"))
     }
 }

@@ -32,6 +32,12 @@ mod exports {
     }
 }
 
+const SETUP: &str = "\
+1. Sign in to [MDBList](https://mdblist.com/), or sign up there for free.
+2. Copy the API key from your [Preferences](https://mdblist.com/preferences/) into the API key setting below.
+3. For each row you want on the home page, enter a public list's address, such as `https://mdblist.com/lists/garycrawfordgc/latest-tv-shows`, in List 1 to 3.
+";
+
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let list = |(number, key): (usize, &str)| SettingField {
@@ -62,6 +68,10 @@ fn manifest() -> Manifest {
         settings: std::iter::once(api_key)
             .chain(LISTS.into_iter().enumerate().map(list))
             .collect(),
+        setup_markdown: SETUP.to_owned(),
+        homepage_url: "https://mdblist.com/".to_owned(),
+        source_url: concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/main/plugins/mdblist").to_owned(),
+        license: env!("CARGO_PKG_LICENSE").to_owned(),
         ..nama_pdk::manifest("mdblist", env!("CARGO_PKG_VERSION"))
     }
 }

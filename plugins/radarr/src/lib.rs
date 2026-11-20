@@ -2,6 +2,8 @@
 //! their downloads are progressing, and has Radarr stop monitoring a deleted Movie (ADR 0038). The
 //! Server builds it for wasm32 and bundles it in its binary.
 
+use nama_pdk::{Manifest, services};
+
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
 #[expect(
@@ -18,7 +20,7 @@ mod exports {
         nama_plugin_proto::nama::plugin::v1::{
             RequestedMovie, request::MovieOrSeason, stop_monitoring::Title,
         },
-        plugin_fn, services, title_id,
+        plugin_fn, title_id,
     };
     use nama_servarr::{Queued, Servarr};
     use serde::{Deserialize, Serialize};
@@ -28,15 +30,7 @@ mod exports {
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
-        Ok(Buffa(Manifest {
-            logo_svg: include_str!("../logo.svg").to_owned(),
-            points: vec![nama_pdk::point(services::MOVIE_FULFILLER)],
-            movie_id_namespaces: vec!["tmdb".to_owned()],
-            settings: nama_servarr::settings("Radarr", "Movie", 7878),
-            name: "Radarr".to_owned(),
-            description: "Sends Approved Movie Requests to Radarr to download.".to_owned(),
-            ..nama_pdk::manifest("radarr", env!("CARGO_PKG_VERSION"))
-        }))
+        Ok(Buffa(super::manifest()))
     }
 
     #[plugin_fn]
@@ -210,3 +204,30 @@ mod exports {
     #[cfg(test)]
     mod tests;
 }
+
+const SETUP: &str = "\
+1. In Radarr, open **Settings > General** and copy the API key under Security into the API key setting below.
+2. Enter the URL this Server reaches Radarr at, such as `http://localhost:7878`, with its URL Base if you set one.
+3. Pick the quality profile and root folder Radarr adds each Movie with.
+";
+
+/// What `manifest()` returns, kept apart from the export so a unit test can read it.
+fn manifest() -> Manifest {
+    Manifest {
+        logo_svg: include_str!("../logo.svg").to_owned(),
+        points: vec![nama_pdk::point(services::MOVIE_FULFILLER)],
+        movie_id_namespaces: vec!["tmdb".to_owned()],
+        settings: nama_servarr::settings("Radarr", "Movie", 7878),
+        name: "Radarr".to_owned(),
+        description: "Sends Approved Movie Requests to Radarr to download.".to_owned(),
+        setup_markdown: SETUP.to_owned(),
+        homepage_url: "https://radarr.video/".to_owned(),
+        source_url: concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/main/plugins/radarr").to_owned(),
+        license: env!("CARGO_PKG_LICENSE").to_owned(),
+        ..nama_pdk::manifest("radarr", env!("CARGO_PKG_VERSION"))
+    }
+}
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;
