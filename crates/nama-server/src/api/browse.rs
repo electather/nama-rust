@@ -2,7 +2,7 @@
 
 use std::{ffi::OsStr, path::Path};
 
-use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
     GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
@@ -10,26 +10,30 @@ use nama_proto::nama::v1::{
     ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest, ListGenresResponse,
     ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest, ListHomeRowsResponse,
     ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
-    ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission, RefusalReason,
-    SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection, WatchedFilter,
+    ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission, SearchLibrariesRequest,
+    SearchLibrariesResponse, ShowSort, SortDirection, WatchedFilter,
 };
 
 use crate::{
-    browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
-    home_rows::{self, HomeRows, OnServer, RowTitle},
+    browse::{Browse, Episode, ListedShow, Movie, Show, Started, Version},
+    home_rows::{HomeRows, OnServer, RowTitle},
     library::{
-        Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie,
-        Listing, NotFound, Role, Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
+        Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
+        Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
 };
 
 use super::{
-    ImageSources, Refused, ShownImages, caller, database_failed, external_id_to_proto,
-    proto_number, refuse,
+    ImageSources, ShownImages, caller, external_id_to_proto, proto_number,
     requests::{missing_movie_to_proto, missing_show_to_proto},
     required_id,
 };
+
+mod refusals;
+
+use refusals::home_rows_refused;
+pub(super) use refusals::{Fields, not_found, refused};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -701,97 +705,6 @@ fn version_to_proto(version: &Version) -> proto::Version {
         size: u64::try_from(version.file.size).unwrap_or_default(),
         tracks: version.tracks.iter().map(track_to_proto).collect(),
         ..Default::default()
-    }
-}
-
-/// The request's fields naming what Browse looks up, so the refusal for one it didn't find names
-/// its field. A request without one has `""`, and its refusal no field.
-#[derive(Clone, Copy)]
-pub(super) struct Fields {
-    pub(super) library: &'static str,
-    /// The Movie's, Show's or Episode's id; a Season's Show's.
-    pub(super) title: &'static str,
-    pub(super) season: &'static str,
-    /// An Episode's number within its Season.
-    pub(super) episode: &'static str,
-    pub(super) version: &'static str,
-}
-
-impl Fields {
-    /// For a call that looks nothing up by id.
-    pub(super) const NONE: Self = Self {
-        library: "",
-        title: "",
-        season: "",
-        episode: "",
-        version: "",
-    };
-    /// A Browse request naming only its Library, in `library_id`.
-    pub(super) const LIBRARY: Self = Self {
-        library: "library_id",
-        ..Self::NONE
-    };
-}
-
-/// What makes the Connect error a client gets for a Library, title, Season or Version that
-/// Browse didn't find, naming its field in `fields`. Database failures are logged, not sent.
-pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError {
-    move |err| match err {
-        browse::Error::NotFound(err) => not_found(fields, &err).into(),
-        browse::Error::PageTokenInvalid(_) => refuse(
-            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
-            err.to_string(),
-        )
-        .field("page.token")
-        .into(),
-        browse::Error::Database(err) => database_failed(err),
-    }
-}
-
-/// The refusal for finding nothing of what `fields` name.
-pub(super) fn not_found(fields: Fields, err: &NotFound) -> Refused {
-    use RefusalReason as R;
-    let message = err.to_string();
-    match *err {
-        NotFound::NoSuchLibrary(id) => refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
-            .field(fields.library)
-            .param("libraryId", &id),
-        NotFound::NothingMatched => {
-            refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message).field(fields.title)
-        }
-        NotFound::NoSuchSeason => {
-            refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message).field(fields.season)
-        }
-        NotFound::NoSuchEpisode => {
-            refuse(R::REFUSAL_REASON_EPISODE_NOT_FOUND, message).field(fields.episode)
-        }
-        NotFound::NoSuchVersion => {
-            refuse(R::REFUSAL_REASON_VERSION_NOT_FOUND, message).field(fields.version)
-        }
-        NotFound::WrongKind { wanted } => {
-            let kind = match wanted {
-                LibraryKind::Movies => "movies",
-                LibraryKind::Shows => "shows",
-            };
-            refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
-                .field(fields.library)
-                .param("libraryKind", &kind)
-        }
-    }
-}
-
-/// The Connect error a client gets when Home rows couldn't be read. Database failures are logged,
-/// not sent.
-fn home_rows_refused(err: home_rows::Error) -> ConnectError {
-    match err {
-        home_rows::Error::PageTokenInvalid(_) => refuse(
-            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
-            err.to_string(),
-        )
-        .field("page.token")
-        .into(),
-        home_rows::Error::Database(err) => database_failed(err),
-        home_rows::Error::Libraries(err) => err.into(),
     }
 }
 
