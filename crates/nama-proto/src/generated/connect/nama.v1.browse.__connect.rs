@@ -1043,9 +1043,10 @@ pub trait BrowseService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the Home rows Plugins give every User (ADR 0058): each enabled Plugin's, in Plugin id
-    /// order, then in the order the Plugin gave them. A row with no title to show the caller, as
-    /// `ListHomeRowTitles` shows them, is left out.
+    /// Lists the caller's Home rows in the order Home shows them: the Kernel's first, then the rows
+    /// Plugins give (ADR 0058), each enabled Plugin's in Plugin id order, then in the order the
+    /// Plugin gave them. A Plugin row with no title to show the caller, as `ListHomeRowTitles` shows
+    /// them, is left out. Featured isn't a Home row, so it's never listed.
     /// Never waits on a Plugin: rows past their time to live are refreshed in the background, and
     /// what was stored before is listed meanwhile, so a Plugin's first rows show on a later call.
     ///

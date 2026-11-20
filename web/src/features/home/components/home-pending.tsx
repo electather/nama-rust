@@ -5,8 +5,8 @@ import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
 import { backdropTile } from "@/features/home/lib/shelf-tiles";
 
 /**
- * Home while its layout, the rows Plugins give, loads: skeletons only, since Home replaces this
- * page whole once it loads, and would drop a panel opened here.
+ * Home while its layout, the Kernel's rows and those Plugins give, loads: skeletons only, since
+ * Home replaces this page whole once it loads, and would drop a panel opened here.
  */
 export function HomePending() {
   return (
