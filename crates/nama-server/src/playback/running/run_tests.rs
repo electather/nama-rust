@@ -13,7 +13,10 @@ use super::{
     super::testing::{FakeRuns, every_two_seconds},
     DISK_FULL, Fallback, Method, POLL_EVERY, Running, Runs, Timeline, keyframe_number,
 };
-use crate::{ffmpeg::hls_init, log_capture::CapturedLog};
+use crate::{
+    ffmpeg::{hls_init, hls_playlist},
+    log_capture::CapturedLog,
+};
 
 /// How long behind playback the Playback settings keep files by default, five minutes.
 const KEEP_BEHIND_MS: i64 = 300_000;
@@ -84,11 +87,35 @@ async fn start(method: Method, timeline: Timeline, start_ms: i64, falls_back: bo
 }
 
 impl Test {
-    /// Writes the files of `keyframes` as ffmpeg would, each holding its number.
+    /// Writes the files of `keyframes` as the plan joins ffmpeg's, each holding its number.
     fn write(&self, keyframes: Range<usize>) {
         for n in keyframes {
             fs::write(self.dir.join(format!("{n}.m4s")), n.to_string()).unwrap();
         }
+    }
+
+    /// Writes the files a run started at keyframe `from` cut, lasting `durations_ms`, and its
+    /// playlist listing them, as ffmpeg would, each file holding its name and `;`. The playlist
+    /// ends if `ended`.
+    fn write_run(&self, from: usize, durations_ms: &[i64], ended: bool) {
+        let mut playlist = vec![
+            "#EXTM3U".to_owned(),
+            "#EXT-X-PLAYLIST-TYPE:EVENT".to_owned(),
+        ];
+        for (i, ms) in durations_ms.iter().enumerate() {
+            let name = format!("ffmpeg-{from}-{i}.m4s");
+            fs::write(self.dir.join(&name), ran(from, i..i + 1)).unwrap();
+            playlist.push(format!("#EXTINF:{}.{:03}000,", ms / 1000, ms % 1000));
+            playlist.push(name);
+        }
+        if ended {
+            playlist.push("#EXT-X-ENDLIST".to_owned());
+        }
+        fs::write(
+            self.dir.join(hls_playlist(from)),
+            playlist.join("\n") + "\n",
+        )
+        .unwrap();
     }
 
     fn delete(&self, keyframes: Range<usize>) {
@@ -116,6 +143,19 @@ impl Test {
     async fn served(&self, n: usize) -> Vec<u8> {
         self.plan.segment(n).await.unwrap().unwrap()
     }
+}
+
+/// The files `files` that a run started at keyframe `from` cut, joined, as [`Test::write_run`]
+/// fills them.
+fn ran(from: usize, files: Range<usize>) -> String {
+    let joined: Vec<String> = files.map(|i| format!("ffmpeg-{from}-{i}.m4s;")).collect();
+    joined.concat()
+}
+
+/// A Version 16 seconds long whose index lists keyframes at 0, 4, 7 and 13 seconds, so its
+/// segments start at 0, 7 and 13 seconds, while ffmpeg cuts at every second.
+fn sparsely_listed() -> Timeline {
+    Timeline::new(vec![0, 4000, 7000, 13_000], 16_000)
 }
 
 /// What `request` answers, failing the test if it doesn't within 10 seconds.
@@ -608,4 +648,94 @@ async fn stopping_a_plan_stops_its_run_and_deletes_its_files() {
     assert!(!test.dir.exists());
     assert_eq!(answer(waiting).await.unwrap(), None);
     assert_eq!(test.runs.started(), [0], "nor started again");
+}
+
+#[tokio::test]
+async fn a_segment_joins_the_files_ffmpeg_cut_that_start_within_it() {
+    let test = start(Method::Remux, sparsely_listed(), 0, false).await;
+
+    test.write_run(0, &[1000; 16], true);
+
+    assert_eq!(test.served(0).await, ran(0, 0..7).as_bytes());
+    assert_eq!(test.served(1).await, ran(0, 7..13).as_bytes());
+    assert_eq!(test.served(2).await, ran(0, 13..16).as_bytes());
+}
+
+#[tokio::test]
+async fn a_run_started_at_a_listed_keyframe_joins_its_files_from_there() {
+    let test = start(Method::Remux, sparsely_listed(), 7000, false).await;
+
+    test.write_run(2, &[1000; 9], true);
+
+    assert_eq!(test.runs.started(), [2]);
+    assert_eq!(test.served(1).await, ran(2, 0..6).as_bytes());
+    assert_eq!(test.served(2).await, ran(2, 6..9).as_bytes());
+}
+
+#[tokio::test]
+async fn a_listed_keyframes_files_are_joined_once_ffmpeg_cut_past_the_next() {
+    let test = start(Method::Remux, sparsely_listed(), 0, false).await;
+    let first = test.ask(0);
+
+    test.write_run(0, &[1000; 6], false);
+    a_look_later().await;
+    assert!(!first.is_finished());
+    test.write_run(0, &[1000; 7], false);
+
+    assert_eq!(
+        answer(first).await.unwrap().unwrap(),
+        ran(0, 0..7).as_bytes()
+    );
+}
+
+#[tokio::test]
+async fn the_playlist_lists_each_segment_as_long_as_the_files_it_joins() {
+    let test = start(Method::Remux, sparsely_listed(), 0, false).await;
+
+    let playlist = test.plan.playlist();
+
+    let listed: Vec<&str> = (playlist.lines())
+        .filter(|line| line.starts_with("#EXTINF") || line.starts_with("#EXT-X-TARGETDURATION"))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            "#EXT-X-TARGETDURATION:7",
+            "#EXTINF:7.000,",
+            "#EXTINF:6.000,",
+            "#EXTINF:3.000,"
+        ]
+    );
+    test.write_run(0, &[1000; 16], true);
+    assert_eq!(test.served(1).await, ran(0, 7..13).as_bytes());
+}
+
+#[tokio::test]
+async fn a_transcodes_file_joins_the_cut_it_starts_a_frame_after() {
+    let test = start(Method::Transcode, Timeline::transcoded(18_000), 6000, false).await;
+
+    // Its first frame falls 20 ms after 6 seconds, and the next cut's 1 ms after 12.
+    test.write_run(1, &[5981, 6000], true);
+
+    assert_eq!(test.served(1).await, ran(1, 0..1).as_bytes());
+    assert_eq!(test.served(2).await, ran(1, 1..2).as_bytes());
+}
+
+#[tokio::test]
+async fn a_run_started_where_a_stopped_one_did_joins_its_own_files_not_the_stopped_ones() {
+    let test = start(Method::Remux, sparsely_listed(), 0, false).await;
+    // The stopped run's playlist, its files joined and deleted since.
+    test.write_run(0, &[1000; 16], true);
+    for i in 0..16 {
+        fs::remove_file(test.dir.join(format!("ffmpeg-0-{i}.m4s"))).unwrap();
+    }
+    let first = test.ask(0);
+    a_look_later().await;
+
+    test.write_run(0, &[1000; 7], false);
+
+    assert_eq!(
+        answer(first).await.unwrap().unwrap(),
+        ran(0, 0..7).as_bytes()
+    );
 }
