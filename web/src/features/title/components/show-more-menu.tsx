@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-import { DeleteFromShow } from "@/features/title/components/delete-from-show";
+import { DeleteShow } from "@/features/title/components/delete-show";
 import { EditImages } from "@/features/title/components/edit-images";
 import { MoreActions } from "@/features/title/components/more-actions";
 import { ShowMenuItems } from "@/features/title/components/show-menu-items";
@@ -10,43 +10,29 @@ import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { Opener } from "@/shared/lib/opener";
 
 /**
- * A Show's "…" menu, acting on the Show or the Season the row is on, `seasonNumber`, with the
- * dialogs its items open beside it, so they stay once the menu closes.
+ * A Show's "…" menu, acting on the Show, with the dialogs its items open beside it, so they stay
+ * once the menu closes. Edit images also edits the Poster of the Season the row is on, `season`.
  */
 export function ShowMoreMenu({
   libraryId,
   showId,
   show,
-  seasons,
-  seasonNumber,
-  seasonPlayed,
+  season,
 }: {
   libraryId: bigint;
   showId: ExternalId;
   show: Show;
-  seasons: Season[];
-  seasonNumber: number;
-  seasonPlayed: boolean;
+  season: Season | undefined;
 }) {
   const imagesOpener = useRef<Opener>(null);
-  const seasonOpener = useRef<Opener>(null);
-  const showOpener = useRef<Opener>(null);
-  const season = seasons.find(({ number }) => number === seasonNumber);
+  const deleteOpener = useRef<Opener>(null);
   return (
     <>
       <MoreActions label="More actions">
-        <ShowMenuItems
-          {...{ libraryId, showId, seasonNumber, seasonPlayed }}
-          {...{ imagesOpener, seasonOpener, showOpener }}
-        />
+        <ShowMenuItems {...{ libraryId, showId, imagesOpener, deleteOpener }} />
       </MoreActions>
       <EditImages ref={imagesOpener} title={show.title} {...showImages(showId, show, season)} />
-      <DeleteFromShow
-        {...{ libraryId, showId, seasonOpener, showOpener }}
-        title={show.title}
-        seasons={seasons.map(({ number }) => number)}
-        current={seasonNumber}
-      />
+      <DeleteShow {...{ libraryId, showId }} title={show.title} opener={deleteOpener} />
     </>
   );
 }

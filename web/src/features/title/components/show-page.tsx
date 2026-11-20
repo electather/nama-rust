@@ -18,8 +18,9 @@ import { isGone } from "@/shared/hooks/browse";
 
 /**
  * A Show of a Library: its top, with Play or Resume and what else may be done, every Episode in one
- * row with a chip for each Season, then its Details. The row opens on the Season `asked`, if it has
- * it, or else on the Season of the Episode Play starts.
+ * row under the name of the Season it's on, a menu that scrolls it to another, then its Details.
+ * The row opens on the Season `asked`, if it has it, or else on the Season of the Episode Play
+ * starts.
  */
 export function ShowPage({
   libraryId,
@@ -36,7 +37,13 @@ export function ShowPage({
   const episodes = useShowEpisodes(show, seasons);
   const entries = useContinueWatchingEntries();
   const toPlay = episodeToResume(entries, libraryId, showId) ?? nextToWatch(episodes);
-  const { row, season: rowSeason, pick } = useSeasonRow(openingSeason(seasons, asked, toPlay));
+  const {
+    row,
+    scroller,
+    season: rowSeason,
+    opening,
+    pick,
+  } = useSeasonRow(openingSeason(seasons, asked, toPlay), episodes);
   const season = seasonShown(seasons, rowSeason, toPlay);
   if (!data.show || isGone(error)) {
     throw notFound();
@@ -54,8 +61,7 @@ export function ShowPage({
     >
       <NotToldNotice />
       <ShowEpisodes
-        {...{ libraryId, seasons, episodes }}
-        row={row}
+        {...{ libraryId, seasons, episodes, row, scroller, opening }}
         current={season}
         onPick={pick}
       />

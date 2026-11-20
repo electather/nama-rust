@@ -1,7 +1,7 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
-import { cleanup, screen, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { BrowseService, HdrFormat, type MovieSummarySchema } from "@/gen/nama/v1/browse_pb";
 import {
@@ -13,9 +13,16 @@ import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { externalIdFromParam } from "@/shared/hooks/browse";
 import { titleParam } from "@/shared/lib/title-param";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { layOutShelves } from "@/test-layout";
 import { openMenu } from "@/test-menu";
 
-afterEach(cleanup);
+// A Show's row of Episodes is virtual, so it needs a layout to show its cards.
+beforeEach(layOutShelves);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 /** A fake Server with a Movies Library (1) and a Shows Library (2), browsed through `browse`. */
 function serverToBrowse(
@@ -98,15 +105,7 @@ function rowTitles() {
     .map((card) => /Opener of Season \d/u.exec(card.textContent)?.[0]);
 }
 
-/** The Season chips' names, the lit one marked with a star. */
-function chips() {
-  const seasons = screen.getByRole("group", { name: "Seasons" });
-  return within(seasons)
-    .getAllByRole("button")
-    .map((chip) => `${chip.textContent}${chip.getAttribute("aria-current") === "true" ? "*" : ""}`);
-}
-
-test("a Show lists every Season's Episodes in one row, Specials last, under a chip for each", async () => {
+test("a Show lists every Season's Episodes in one row, Specials last, under the Season it's on", async () => {
   openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(0, 1, 2));
 
   await expect(screen.findByText("Opener of Season 2")).resolves.toBeDefined();
@@ -115,26 +114,36 @@ test("a Show lists every Season's Episodes in one row, Specials last, under a ch
     "Opener of Season 2",
     "Opener of Season 0",
   ]);
-  // It opens on the Season of the Episode Play starts.
-  expect(chips()).toStrictEqual(["Season 1*", "Season 2", "Specials"]);
+  // It opens on the Season of the Episode Play starts, and its menu picks any other.
+  await openMenu("Season 1");
+  const seasons = await screen.findAllByRole("menuitem");
+  expect(seasons.map((season) => season.textContent)).toStrictEqual([
+    "Season 1",
+    "Season 2",
+    "Specials",
+  ]);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Specials" }));
+
+  await expect(screen.findByRole("button", { name: "Specials" })).resolves.toBeDefined();
 });
 
 test("the row opens on the Season asked for, or the first for one the Show doesn't have", async () => {
   openApp("/libraries/2/shows/tmdb-95396?season=2", serverWithSeasons(0, 1, 2));
   await screen.findByText("Opener of Season 2");
-  expect(chips()).toStrictEqual(["Season 1", "Season 2*", "Specials"]);
+  expect(screen.getByRole("button", { name: "Season 2" })).toBeDefined();
   cleanup();
 
   openApp("/libraries/2/shows/tmdb-95396?season=9", serverWithSeasons(0, 1, 2));
   await screen.findByText("Opener of Season 2");
-  expect(chips()).toStrictEqual(["Season 1*", "Season 2", "Specials"]);
+  expect(screen.getByRole("button", { name: "Season 1" })).toBeDefined();
 });
 
-test("a Show with one Season lists its Episodes without Season chips", async () => {
+test("a Show with one Season names it over its Episodes, with no menu to pick another", async () => {
   openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(3));
 
   await expect(screen.findByText("Opener of Season 3")).resolves.toBeDefined();
-  expect(screen.queryByRole("group", { name: "Seasons" })).toBeNull();
+  expect(screen.getByRole("heading", { name: "Season 3" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Season 3" })).toBeNull();
 });
 
 test("a Library's page shows a Movie as soon as it's Matched", async () => {

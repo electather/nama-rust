@@ -1,54 +1,55 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { scrollToSeason, seasonInView, smoothUnlessReduced } from "@/features/title/lib/season-row";
+import {
+  type RowScroller,
+  firstOfSeason,
+  seasonInView,
+  smoothUnlessReduced,
+} from "@/features/title/lib/season-row";
+import type { Episode } from "@/gen/nama/v1/browse_pb";
 
 /**
- * The Season a Show's row of Episodes, `row`, is on, starting at `initial`: the Season of the card
+ * The Season a Show's row of `episodes`, `row`, is on, starting at `initial`: the Season of the card
  * at its start as it scrolls, and the one `pick` scrolls it to. While a pick's scroll passes the
- * Seasons between, the picked one stays chosen.
+ * Seasons between, the picked one stays chosen. `opening` is the card the row opens on, and
+ * `scroller` what the row scrolls by.
  */
-export function useSeasonRow(initial: number) {
-  const row = useRef<HTMLUListElement>(null);
+export function useSeasonRow(initial: number, episodes: Episode[]) {
+  const row = useRef<HTMLDivElement>(null);
+  const scroller = useRef<RowScroller>(null);
   const [season, setSeason] = useState(initial);
-  const picked = useRef<number>(undefined);
-  // Once only: a page that suspends again, such as for a Season an Event added, reruns layout
-  // effects when it shows again, which would throw the row back to where it opened.
-  const opening = useRef<number | undefined>(initial);
-  useLayoutEffect(() => {
-    if (row.current && opening.current !== undefined) {
-      scrollToSeason(row.current, opening.current, "instant");
-      opening.current = undefined;
-    }
-  }, []);
+  // The row opens on `initial`, so it holds until the row gets there.
+  const picked = useRef<number | undefined>(initial);
   useEffect(() => {
     const element = row.current;
-    return element ? followScroll(element, picked, setSeason) : undefined;
-  }, []);
+    return element ? followScroll(element, { picked, episodes }, setSeason) : undefined;
+  }, [episodes]);
   return {
     row,
+    scroller,
     season,
+    // Only the row's first render reads it.
+    opening: firstOfSeason(episodes, initial),
     pick: (number: number) => {
       picked.current = number;
       setSeason(number);
-      if (row.current) {
-        scrollToSeason(row.current, number, smoothUnlessReduced());
-      }
+      scroller.current?.toCard(firstOfSeason(episodes, number), smoothUnlessReduced());
     },
   };
 }
 
 /**
- * Sets the Season in view as `row` scrolls, once a frame, holding a `picked` one till it arrives or
- * the scroll ends. Returns what stops it.
+ * Sets the Season in view as `row` of `episodes` scrolls, once a frame, holding a `picked` one till
+ * it arrives or the scroll ends. Returns what stops it.
  */
 function followScroll(
   row: HTMLElement,
-  picked: { current: number | undefined },
+  { picked, episodes }: { picked: { current: number | undefined }; episodes: Episode[] },
   setSeason: (season: number) => void,
 ) {
   let frame = 0;
   const follow = () => {
-    const seen = seasonInView(row);
+    const seen = seasonInView(row, episodes);
     // Still on its way to a pick, past the Seasons between.
     if (seen === undefined || (picked.current !== undefined && picked.current !== seen)) {
       return;

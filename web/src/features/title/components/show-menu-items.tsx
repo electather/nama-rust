@@ -7,42 +7,29 @@ import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { useMay } from "@/shared/hooks/use-may";
 import type { Opener } from "@/shared/lib/opener";
-import { seasonName } from "@/shared/lib/title-facts";
 
 /**
- * What else may be done to a Show: mark the Season the row is on, `seasonNumber`, or the Show
- * watched, edit their images with Manage Libraries, and delete either with Delete media.
- * `imagesOpener`, `seasonOpener` and `showOpener` open those dialogs.
+ * What else may be done to a Show: mark it watched or unwatched, edit its images with Manage
+ * Libraries, and delete it with Delete media. `imagesOpener` and `deleteOpener` open those dialogs.
+ * Its Seasons' actions are in the "…" beside the Season.
  */
 export function ShowMenuItems({
   libraryId,
   showId,
-  seasonNumber,
-  seasonPlayed,
   imagesOpener,
-  seasonOpener,
-  showOpener,
+  deleteOpener,
 }: {
   libraryId: bigint;
   showId: ExternalId;
-  seasonNumber: number;
-  seasonPlayed: boolean;
   imagesOpener: RefObject<Opener | null>;
-  seasonOpener: RefObject<Opener | null>;
-  showOpener: RefObject<Opener | null>;
+  deleteOpener: RefObject<Opener | null>;
 }) {
   const mayEditImages = useMay(Permission.MANAGE_LIBRARIES);
-  const mayDelete = useMayDelete();
   return (
     <>
-      <MarkShowItems {...{ libraryId, showId, seasonNumber, seasonPlayed }} />
+      <MarkShowItems libraryId={libraryId} showId={showId} />
       {mayEditImages && <OpenerItem opener={imagesOpener}>Edit images</OpenerItem>}
-      {mayDelete && (
-        <>
-          <OpenerItem opener={seasonOpener}>Delete {seasonName(seasonNumber)}</OpenerItem>
-          <OpenerItem opener={showOpener}>Delete Show</OpenerItem>
-        </>
-      )}
+      {useMayDelete() && <OpenerItem opener={deleteOpener}>Delete Show</OpenerItem>}
     </>
   );
 }

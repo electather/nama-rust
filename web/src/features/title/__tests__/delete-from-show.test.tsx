@@ -1,7 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { BrowseService, type ListEpisodesResponseSchema } from "@/gen/nama/v1/browse_pb";
 import {
@@ -12,10 +12,17 @@ import {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { layOutShelves } from "@/test-layout";
 import { openMenu, pickFromMenu } from "@/test-menu";
 import { refused } from "@/test-refusal";
 
-afterEach(cleanup);
+// A Show's row of Episodes is virtual, so it needs a layout to show its cards.
+beforeEach(layOutShelves);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 const deletesMedia = [...newUser, Permission.DELETE_MEDIA];
 
@@ -110,7 +117,7 @@ async function menuItems(name: string) {
   return items;
 }
 
-test("only a User with Delete media sees Delete on a Show, its Season and its Episodes", async () => {
+test("only a User with Delete media sees Delete on a Show and its Episodes", async () => {
   openDark(newUser);
   await screen.findByText(/Lies/u);
   await expect(menuItems("More actions")).resolves.not.toContain("Delete Show");
@@ -119,9 +126,7 @@ test("only a User with Delete media sees Delete on a Show, its Season and its Ep
 
   openDark(deletesMedia);
 
-  await expect(menuItems("More actions")).resolves.toStrictEqual(
-    expect.arrayContaining(["Delete Season 1", "Delete Show"]),
-  );
+  await expect(menuItems("More actions")).resolves.toContain("Delete Show");
   await expect(menuItems("More for Lies")).resolves.toStrictEqual(["Mark as watched", "Delete"]);
 });
 
@@ -228,23 +233,15 @@ test("deleting one Version of an Episode with two names only it", async () => {
   });
 });
 
-test("delete Season names the Season, and Delete Show the Show", async () => {
+test("delete Show names the Show", async () => {
   const deleted: Target[] = [];
   openDark(deletesMedia, recording(deleted));
 
-  const season = await openDialog("More actions", "Delete Season 1", "Dark Season 1");
-  fireEvent.click(within(season).getByRole("button", { name: "Delete Season 1" }));
-  await waitFor(() => {
-    expect(deleted).toHaveLength(1);
-  });
   const show = await openDialog("More actions", "Delete Show", "Dark");
   fireEvent.click(within(show).getByRole("button", { name: "Delete Show" }));
 
   await waitFor(() => {
-    expect(deleted).toMatchObject([
-      { case: "season", value: { libraryId: 2n, showId: darkId, seasonNumber: 1 } },
-      { case: "show", value: { libraryId: 2n, showId: darkId } },
-    ]);
+    expect(deleted).toMatchObject([{ case: "show", value: { libraryId: 2n, showId: darkId } }]);
   });
 });
 
@@ -299,7 +296,7 @@ test("an open Show page drops a Season deleted elsewhere, keeping the one left",
     expect(screen.queryByText(/Lies/u)).toBeNull();
   });
   expect(screen.getByText(/Beginnings and Endings/u)).toBeDefined();
-  expect(screen.queryByRole("group", { name: "Seasons" })).toBeNull();
+  expect(screen.getByRole("heading", { name: "Season 2" })).toBeDefined();
 });
 
 test("an open Show page says so once the Show was deleted elsewhere", async () => {
@@ -328,20 +325,6 @@ test("deleting an Episode when Sonarr couldn't be told says so on the Show", asy
   await expect(
     screen.findByText("Sonarr couldn’t be told about the delete, so it may download Lies again."),
   ).resolves.toBeDefined();
-});
-
-test("deleting a Season when Sonarr couldn't be told says so on the Show", async () => {
-  openDark(deletesMedia, sonarrNotTold);
-  const dialog = await openDialog("More actions", "Delete Season 1", "Dark Season 1");
-
-  fireEvent.click(within(dialog).getByRole("button", { name: "Delete Season 1" }));
-
-  await expect(
-    screen.findByText(
-      "Sonarr couldn’t be told about the delete, so it may download Dark Season 1 again.",
-    ),
-  ).resolves.toBeDefined();
-  expect(screen.getByRole("heading", { level: 1, name: "Dark" })).toBeDefined();
 });
 
 test("deleting a whole Show when Sonarr couldn't be told says so on its Library", async () => {

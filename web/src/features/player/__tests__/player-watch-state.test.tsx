@@ -1,16 +1,21 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { type ReportProgressRequest, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { layOutShelves } from "@/test-layout";
 import { openMenu } from "@/test-menu";
 
+// The Show page it leaves to has a virtual row of Episodes, which needs a layout to show its cards.
+beforeEach(layOutShelves);
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   cleanup();
 });
 

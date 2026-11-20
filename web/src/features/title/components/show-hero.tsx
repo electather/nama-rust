@@ -15,7 +15,7 @@ import { yearOf } from "@/shared/lib/title-facts";
 
 /**
  * The top of a Show's page, which says what it is and plays `toPlay`. Its "…" menu acts on the
- * Season the row is on, `seasonNumber`.
+ * Show, and edits the Poster of the Season the row is on, `seasonNumber`, with the Show's images.
  */
 export function ShowHero({
   libraryId,
@@ -34,7 +34,6 @@ export function ShowHero({
   toPlay: Episode | undefined;
   seasonNumber: number;
 }) {
-  const inSeason = episodes.filter((episode) => episode.seasonNumber === seasonNumber);
   return (
     <TitleHero backdrop={{ url: show.backdropUrl, thumbhash: show.backdropThumbhash }}>
       <TitleName title={show.title} logoUrl={show.titleLogoUrl} />
@@ -48,10 +47,8 @@ export function ShowHero({
         {toPlay && <ShowPlay libraryId={libraryId} showId={showId} episode={toPlay} />}
         <WatchlistButton watchlist={{ kind: TitleKind.SHOW, id: showId, on: show.onWatchlist }} />
         <ShowMoreLoader
-          {...{ libraryId, showId, show, seasons, seasonNumber }}
-          seasonPlayed={
-            inSeason.length > 0 && inSeason.every(({ watchState }) => watchState?.played === true)
-          }
+          {...{ libraryId, showId, show }}
+          season={seasons.find(({ number }) => number === seasonNumber)}
         />
       </TitleActions>
     </TitleHero>

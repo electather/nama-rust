@@ -9,14 +9,29 @@ import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
 
 /**
  * An Episode by its Still, which plays its largest Version, with its caption over
- * the Still and a "…" to mark it watched or delete it, as Continue Watching's cards are drawn.
+ * the Still and a "…" to mark it watched or delete it, as Continue Watching's cards are drawn. It is
+ * the card at `place.index` of the `place.of` in its row.
  */
-export function EpisodeCard({ libraryId, episode }: { libraryId: bigint; episode: Episode }) {
+export function EpisodeCard({
+  libraryId,
+  episode,
+  place,
+}: {
+  libraryId: bigint;
+  episode: Episode;
+  place: { index: number; of: number };
+}) {
   // Without its own ID there's nothing to mark or delete.
   const episodeId = episode.id;
   const show = useParams({ from: "/_member/libraries/$libraryId/shows/$showId/" });
   return (
-    <li data-season={episode.seasonNumber} className="w-tile-backdrop shrink-0 snap-start">
+    <li
+      // The row's scroll reads its Season.
+      data-season={episode.seasonNumber}
+      aria-setsize={place.of}
+      aria-posinset={place.index + 1}
+      className="w-tile-backdrop shrink-0 snap-start"
+    >
       <BackdropCard
         art={{ url: episode.stillUrl, thumbhash: episode.stillThumbhash, sizes: backdropTileSizes }}
         link={{
