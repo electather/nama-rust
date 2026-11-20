@@ -228,9 +228,11 @@ fn a_bare_name_missing_from_path_is_an_error_even_with_ffmpeg_there() {
 #[test]
 fn a_configured_path_with_a_folder_is_that_file_not_looked_up_on_path() {
     let on_path = tempfile::tempdir().unwrap();
+    let configured = tempfile::tempdir().unwrap();
     fake(on_path.path(), "ffmpeg", "ffmpeg version 7.1.1");
+    fake(configured.path(), "ffmpeg", "ffmpeg version 6.1");
     let config = Config {
-        ffmpeg: Some("./ffmpeg".into()),
+        ffmpeg: Some(configured.path().join("ffmpeg")),
         ..Config::default()
     };
 
@@ -238,7 +240,10 @@ fn a_configured_path_with_a_folder_is_that_file_not_looked_up_on_path() {
 
     assert_eq!(
         found.ffmpeg,
-        Err("ffmpeg wasn't found at the configured path ./ffmpeg".to_owned())
+        Ok(FoundProgram {
+            path: configured.path().join("ffmpeg"),
+            version: "6.1".to_owned(),
+        })
     );
 }
 
