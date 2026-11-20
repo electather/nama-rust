@@ -492,14 +492,13 @@ fn plugin_to_proto(
     let [setup_markdown, homepage_url, source_url, license] = plugin
         .manifest
         .as_ref()
-        .map(|it| {
+        .map(|manifest| {
             [
-                &it.setup_markdown,
-                &it.homepage_url,
-                &it.source_url,
-                &it.license,
+                manifest.setup_markdown.clone(),
+                manifest.homepage_url.clone(),
+                manifest.source_url.clone(),
+                manifest.license.clone(),
             ]
-            .map(Clone::clone)
         })
         .unwrap_or_default();
     proto::Plugin {

@@ -56,8 +56,8 @@ pub struct Listed {
     /// Whether it is Built-in or Installed.
     pub kind: PluginKind,
     /// What it said about itself when the Server read it, without a logo, setup text, link or
-    /// licence the Server dropped, or
-    /// why the Server refused it, in which case it can't be enabled.
+    /// licence the Server dropped, or why the Server refused it, in which case it can't be
+    /// enabled.
     pub manifest: Result<Manifest, String>,
     /// Whether it has a settings check, which [`Registry::check_settings`] runs.
     pub checks_settings: bool,
@@ -314,56 +314,63 @@ const MAX_SETUP_BYTES: usize = 4 * 1024;
 /// The most characters a Manifest's licence may have.
 const MAX_LICENSE_CHARS: usize = 128;
 
-/// Why a Manifest's text field is flawed, if it is.
-type Flaw = fn(&str) -> Option<String>;
+/// A Manifest's text field as the Server keeps it, or why it drops it.
+type Kept = fn(&str) -> Result<String, String>;
 
 /// Empties each of `manifest`'s setup text, links and licence that is flawed, logging why, which
 /// leaves the Plugin otherwise as it was.
 fn drop_flawed_presentation(manifest: &mut Manifest) {
-    let checked: [(&str, &mut String, Flaw); 4] = [
-        ("setup_markdown", &mut manifest.setup_markdown, setup_flaw),
-        ("homepage_url", &mut manifest.homepage_url, url_flaw),
-        ("source_url", &mut manifest.source_url, url_flaw),
-        ("license", &mut manifest.license, license_flaw),
+    let checked: [(&str, &mut String, Kept); 4] = [
+        ("setup_markdown", &mut manifest.setup_markdown, kept_setup),
+        ("homepage_url", &mut manifest.homepage_url, kept_url),
+        ("source_url", &mut manifest.source_url, kept_url),
+        ("license", &mut manifest.license, kept_license),
     ];
     // Empty is none, as protobuf sends a field left out.
-    for (field, value, flaw) in checked
+    for (field, value, kept) in checked
         .into_iter()
         .filter(|(_, value, _)| !value.is_empty())
     {
-        if let Some(why) = flaw(value) {
+        *value = kept(value).unwrap_or_else(|why| {
             warn!(plugin = %manifest.id, "dropped its {field}: {why}");
-            value.clear();
-        }
+            String::new()
+        });
     }
 }
 
-fn setup_flaw(markdown: &str) -> Option<String> {
-    (markdown.len() > MAX_SETUP_BYTES).then(|| format!("it is over {MAX_SETUP_BYTES} bytes"))
+fn kept_setup(markdown: &str) -> Result<String, String> {
+    if markdown.len() > MAX_SETUP_BYTES {
+        return Err(format!("it is over {MAX_SETUP_BYTES} bytes"));
+    }
+    Ok(markdown.to_owned())
 }
 
-/// Why `url` isn't an http or https URL a client may link to. Parsed as browsers do (WHATWG), so
-/// a scheme hidden behind spaces or tabs is still found.
-fn url_flaw(url: &str) -> Option<String> {
+/// `url` as [`Url`] writes it, if it is an http or https URL a client may link to. Parsed as
+/// browsers do (WHATWG), so a scheme hidden behind spaces or tabs is still found, and kept as
+/// parsed, since a browser would read `https:host` as a link relative to the page.
+fn kept_url(url: &str) -> Result<String, String> {
+    let url = Url::parse(url).map_err(|err| format!("it isn't a URL: {err}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(format!("its scheme is {}, not http or https", url.scheme()));
+    }
+    let url = String::from(url);
     if url.len() > MAX_URL_BYTES {
-        return Some(format!("it is over {MAX_URL_BYTES} bytes"));
+        return Err(format!("it is over {MAX_URL_BYTES} bytes"));
     }
-    match Url::parse(url) {
-        Ok(url) if matches!(url.scheme(), "http" | "https") => None,
-        Ok(url) => Some(format!("its scheme is {}, not http or https", url.scheme())),
-        Err(err) => Some(format!("it isn't a URL: {err}")),
-    }
+    Ok(url)
 }
 
-/// Why `license` isn't an SPDX expression, by its characters alone: whether its ids are SPDX's
+/// `license` if it is an SPDX expression by its characters alone: whether its ids are SPDX's
 /// isn't checked, so a new licence needs no new Server.
-fn license_flaw(license: &str) -> Option<String> {
+fn kept_license(license: &str) -> Result<String, String> {
     let allowed = |byte: u8| byte.is_ascii_alphanumeric() || b" .-+()".contains(&byte);
     if !license.bytes().all(allowed) || !license.bytes().any(|byte| byte.is_ascii_alphanumeric()) {
-        return Some("it isn't an SPDX expression".to_owned());
+        return Err("it isn't an SPDX expression".to_owned());
     }
-    (license.len() > MAX_LICENSE_CHARS)
-        .then(|| format!("it is over {MAX_LICENSE_CHARS} characters"))
+    if license.chars().count() > MAX_LICENSE_CHARS {
+        return Err(format!("it is over {MAX_LICENSE_CHARS} characters"));
+    }
+    Ok(license.to_owned())
 }
 
 /// `answer`, its error turned into a [`Failure`] once it is ready, for [`contain_call`] to await

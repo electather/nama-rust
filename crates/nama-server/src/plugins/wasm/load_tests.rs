@@ -408,11 +408,12 @@ fn a_call_with_no_enablement_logs_nothing() {
 }
 
 #[test]
-fn setup_text_links_and_a_licence_that_fit_are_kept() {
+fn setup_text_links_and_a_licence_that_fit_are_kept_with_links_as_parsed() {
     let mut package = Manifest {
         setup_markdown: "Get an API key at **thetvdb.com**.".to_owned(),
         homepage_url: "https://thetvdb.com/api-information".to_owned(),
-        source_url: "https://github.com/example/tvdb".to_owned(),
+        // A browser would read this as a link relative to the page.
+        source_url: " https:github.com/example/tvdb".to_owned(),
         license: "(MIT OR Apache-2.0) AND GPL-2.0+".to_owned(),
         ..title_source("tvdb")
     };
