@@ -18,7 +18,7 @@ export function HomeLayoutForm() {
   const [featuredHidden, setFeaturedHidden] = useState(saved.featuredHidden);
   const { rows, move, setShown, announced } = useLayoutRows(saved.rows, names);
   const list = useRef<HTMLUListElement>(null);
-  const { rowDrag } = useRowDrag(list, rows.length, move);
+  const rowDrag = useRowDrag(list, rows.length, move);
 
   return (
     <form

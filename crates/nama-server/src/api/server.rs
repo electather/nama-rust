@@ -369,7 +369,7 @@ impl ServerServiceHandler {
             .chain(placeable)
             .collect();
         let layout = self.settings.now().default_home_layout;
-        let rows = layout.arrange(rows, |(id, _)| id.clone());
+        let rows = layout.arrange(rows);
         Ok(proto::HomeLayout {
             featured_hidden: !layout.featured_shown,
             rows: (rows.into_iter())

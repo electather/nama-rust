@@ -58,15 +58,10 @@ impl HomeLayout {
     /// `rows` in this layout's order, each with whether it is shown: those it places at their
     /// first place, then those it doesn't, shown. Rows of one place, and those it doesn't place,
     /// keep the order given.
-    pub(crate) fn arrange<R>(
-        &self,
-        rows: Vec<R>,
-        id_of: impl Fn(&R) -> HomeRowId,
-    ) -> Vec<(R, bool)> {
+    pub(crate) fn arrange<T>(&self, rows: Vec<(HomeRowId, T)>) -> Vec<((HomeRowId, T), bool)> {
         let mut placed: Vec<_> = (rows.into_iter())
             .map(|row| {
-                let id = id_of(&row);
-                let found = (self.rows.iter().enumerate()).find(|(_, placed)| placed.row == id);
+                let found = (self.rows.iter().enumerate()).find(|(_, placed)| placed.row == row.0);
                 let (place, shown) = found.map_or((self.rows.len(), true), |(place, placed)| {
                     (place, placed.shown)
                 });

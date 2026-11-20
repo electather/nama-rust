@@ -9,7 +9,8 @@ package nama.v1;
 // with `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
 // settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
 service PluginService {
-  // Lists every Plugin on the Server, by id, without its settings.
+  // Lists every Plugin on the Server, by id, without its settings. Reads the Installed Plugins
+  // again first, and drops each one no longer there from the default Home layout.
   rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }

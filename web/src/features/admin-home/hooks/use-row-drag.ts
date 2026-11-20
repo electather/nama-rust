@@ -7,9 +7,17 @@ interface Drag {
   before: number;
 }
 
+/** What the handle a row is dragged by listens to. */
+export interface HandleProps {
+  onPointerDown: (event: PointerEvent<HTMLElement>) => void;
+  onPointerMove: (event: PointerEvent) => void;
+  onPointerUp: (event: PointerEvent) => void;
+  onLostPointerCapture: () => void;
+}
+
 /** What one row gets of a drag: its handle's props, the edge a drop marks, and whether it's dragged. */
 export interface RowDrag {
-  handle: ReturnType<ReturnType<typeof useRowDrag>["handleProps"]>;
+  handle: HandleProps;
   marker: "top" | "bottom" | undefined;
   dragging: boolean;
 }
@@ -26,7 +34,7 @@ export function useRowDrag(
   const [drag, setDrag] = useState<Drag>();
   const isOurs = (event: PointerEvent) => drag?.pointerId === event.pointerId;
 
-  const handleProps = (index: number) => ({
+  const handleProps = (index: number): HandleProps => ({
     onPointerDown: (event: PointerEvent<HTMLElement>) => {
       if (event.button !== 0 || drag !== undefined) {
         return;
@@ -57,7 +65,7 @@ export function useRowDrag(
     marker: markerAt(index, before, count),
     dragging: drag?.from === index,
   });
-  return { handleProps, rowDrag };
+  return rowDrag;
 }
 
 /** Where `drag` would drop, or `undefined` just before or after its own row, which stays put. */

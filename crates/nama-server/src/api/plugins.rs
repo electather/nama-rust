@@ -70,7 +70,9 @@ impl PluginService for PluginServiceHandler {
         let listed = self.plugin_settings.list().await.map_err(list_failed)?;
         // Listing is when the Server finds a Package gone from `plugins/`.
         let installed = |plugin: &PluginId| self.plugin_settings.has(plugin);
-        (self.settings.forget_uninstalled(installed).await).map_err(database_failed)?;
+        if let Err(err) = self.settings.forget_uninstalled(installed).await {
+            tracing::error!("could not drop uninstalled Plugins' rows from the Home layout: {err}");
+        }
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut summaries = Vec::with_capacity(listed.len());
         for StoredPlugin {

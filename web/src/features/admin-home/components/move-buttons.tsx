@@ -17,19 +17,26 @@ export function MoveButtons({
   const up = useRef<HTMLButtonElement>(null);
   const down = useRef<HTMLButtonElement>(null);
   const buttons = [
-    { ref: up, other: down, direction: "up", Icon: ArrowUp, before: index - 1, last: index === 0 },
+    {
+      ref: up,
+      other: down,
+      direction: "up",
+      Icon: ArrowUp,
+      before: index - 1,
+      disabled: index === 0,
+    },
     {
       ref: down,
       other: up,
       direction: "down",
       Icon: ArrowDown,
       before: index + 2,
-      last: index === count - 1,
+      disabled: index === count - 1,
     },
   ];
   return (
     <div className="flex">
-      {buttons.map(({ ref, other, direction, Icon, before, last }) => (
+      {buttons.map(({ ref, other, direction, Icon, before, disabled }) => (
         <Button
           key={direction}
           ref={ref}
@@ -37,7 +44,7 @@ export function MoveButtons({
           variant="ghost"
           size="icon"
           aria-label={`Move ${label} ${direction}`}
-          disabled={last}
+          disabled={disabled}
           onClick={() => {
             flushSync(() => {
               onMove(index, before);

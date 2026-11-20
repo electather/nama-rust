@@ -19,6 +19,7 @@ use nama_plugin_api::{
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use thiserror::Error;
+use tracing::warn;
 use url::Url;
 
 use crate::{
@@ -175,7 +176,11 @@ impl Settings {
             },
             image_store: plugin_named(stored.image_store_plugin),
             default_home_layout: (stored.default_home_layout)
-                .and_then(|json| serde_json::from_str(&json).ok())
+                .and_then(|json| {
+                    let read = serde_json::from_str(&json);
+                    read.inspect_err(|err| warn!("the default Home layout reads as none: {err}"))
+                        .ok()
+                })
                 .unwrap_or_default(),
         });
         *self.values.write().unwrap_or_else(PoisonError::into_inner) = values;

@@ -373,7 +373,7 @@ impl BrowseService for BrowseServiceHandler {
             .chain(plugin_rows)
             .collect();
         let layout = self.settings.now().default_home_layout;
-        let rows = layout.arrange(rows, |(id, _)| id.clone());
+        let rows = layout.arrange(rows);
         Response::ok(ListHomeRowsResponse {
             rows: (rows.into_iter())
                 .filter(|&(_, shown)| shown)
