@@ -1,15 +1,16 @@
 use std::{cell::RefCell, collections::HashSet};
 
 use nama_pdk::{
-    Library, Manifest, Permission, TitleId, TitleRef, TitleRefKind, TitleRequesters,
+    Library, Manifest, Permission, Tick, Title, TitleId, TitleRef, TitleRefKind, TitleRequesters,
     TitleWatchStates, WatchState,
     extism_pdk::Error,
     nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
+    testing::{self, with},
 };
 
 use super::{
-    Asked, Cutoffs, DAY_MS, Deleted, Key, MAX_STORED, ask_due, chosen_libraries, days, decode,
-    delete_due, encode, manifest, refusal,
+    Asked, Cutoffs, DAY_MS, DAYS, DAYS_UNWATCHED, Deleted, Key, LIBRARIES, MAX_STORED, ask_due,
+    chosen_libraries, days, decode, delete_due, encode, manifest, refusal,
 };
 
 const NOW_MS: i64 = 1_800_000_000_000;
@@ -67,13 +68,6 @@ fn requested_by(user_ids: &[i64]) -> TitleRequesters {
     }
 }
 
-fn nobody_requested() -> TitleRequesters {
-    TitleRequesters {
-        requested: false,
-        ..requested_by(&[])
-    }
-}
-
 /// The cutoffs of a 30-day `days` and a 90-day `days_unwatched` at `NOW_MS`.
 fn cutoffs() -> Cutoffs {
     Cutoffs::at(NOW_MS, 30, 90)
@@ -87,38 +81,10 @@ const ADDED_LONG_AGO: i64 = NOW_MS - 91 * DAY_MS;
 const ADDED_A_WHILE_AGO: i64 = NOW_MS - 60 * DAY_MS;
 
 #[test]
-fn a_title_its_only_requester_played_more_than_the_days_ago_is_due() {
-    let title = watched(vec![played(ADA, WATCHED_LONG_AGO)]);
-
-    assert!(cutoffs().is_due(ADDED_A_WHILE_AGO, &requested_by(&[ADA]), &title));
-}
-
-#[test]
-fn a_title_another_user_played_but_its_requester_did_not_is_kept_until_days_unwatched() {
-    let title = watched(vec![played(BEN, WATCHED_LONG_AGO)]);
-
-    assert!(!cutoffs().is_due(ADDED_A_WHILE_AGO, &requested_by(&[ADA]), &title));
-    assert!(cutoffs().is_due(ADDED_LONG_AGO, &requested_by(&[ADA]), &title));
-}
-
-#[test]
 fn a_title_its_requester_played_recently_is_kept_however_long_ago_it_was_added() {
     let title = watched(vec![played(ADA, NOW_MS - DAY_MS)]);
 
     assert!(!cutoffs().is_due(ADDED_LONG_AGO, &requested_by(&[ADA]), &title));
-}
-
-#[test]
-fn a_title_two_users_requested_is_kept_until_both_are_done() {
-    let one_done = watched(vec![played(ADA, WATCHED_LONG_AGO), played(BEN, NOW_MS)]);
-    let both_done = watched(vec![
-        played(ADA, WATCHED_LONG_AGO),
-        played(BEN, WATCHED_LONG_AGO),
-    ]);
-
-    let requesters = requested_by(&[ADA, BEN]);
-    assert!(!cutoffs().is_due(ADDED_A_WHILE_AGO, &requesters, &one_done));
-    assert!(cutoffs().is_due(ADDED_A_WHILE_AGO, &requesters, &both_done));
 }
 
 #[test]
@@ -134,13 +100,6 @@ fn a_title_its_requester_never_finished_is_due_once_days_unwatched_passed_since_
         assert!(!cutoffs().is_due(ADDED_A_WHILE_AGO, &requested_by(&[ADA]), &title));
         assert!(cutoffs().is_due(ADDED_LONG_AGO, &requested_by(&[ADA]), &title));
     }
-}
-
-#[test]
-fn a_title_nobody_requested_is_never_due() {
-    let title = watched(vec![played(ADA, WATCHED_LONG_AGO)]);
-
-    assert!(!cutoffs().is_due(ADDED_LONG_AGO, &nobody_requested(), &title));
 }
 
 #[test]
@@ -247,23 +206,6 @@ fn titles_already_considered_are_skipped() {
 }
 
 #[test]
-fn a_refused_delete_is_collected_and_the_rest_go_on() {
-    let kernel = kernel(Vec::new(), vec!["1"]);
-
-    let deleted = delete_due(&titles(&["1", "2"]), &HashSet::new(), |title, also| {
-        kernel.delete(title, also)
-    });
-
-    assert_eq!(
-        deleted,
-        Deleted {
-            recorded: vec![episode("2")],
-            refused: vec!["the Kernel refused 1".to_owned()],
-        }
-    );
-}
-
-#[test]
 fn the_refusal_counts_every_refused_delete_and_says_each_reason_once() {
     let refused = ["no grant", "no grant", "read-only"].map(str::to_owned);
 
@@ -301,22 +243,6 @@ fn ask_at_now(recorded: Vec<Asked>, listed: &[&str], due: &[&str]) -> (Vec<Asked
         .into_iter()
         .map(|(value, _)| value);
     (asking.recorded, delete_asked.collect())
-}
-
-#[test]
-fn a_title_asked_a_day_ago_still_listed_and_due_is_asked_again() {
-    let (recorded, delete_asked) = ask_at_now(vec![asked("1", NOW_MS - DAY_MS)], &["1"], &["1"]);
-
-    assert_eq!(delete_asked, ["1"]);
-    assert_eq!(recorded, [asked("1", NOW_MS)]);
-}
-
-#[test]
-fn a_title_asked_an_hour_ago_still_listed_and_due_is_not_asked_again() {
-    let (recorded, delete_asked) = ask_at_now(vec![asked("1", NOW_MS - HOUR_MS)], &["1"], &["1"]);
-
-    assert_eq!(delete_asked, Vec::<String>::new());
-    assert_eq!(recorded, [asked("1", NOW_MS - HOUR_MS)]);
 }
 
 #[test]
@@ -390,15 +316,6 @@ fn an_id_the_kernel_does_not_list_is_skipped() {
     let cleaned = cleaned(&[4, 9], &[library(4, "Movies"), library(5, "Shows")]);
 
     assert_eq!(cleaned, [4]);
-}
-
-#[test]
-fn a_renamed_library_is_still_cleaned() {
-    let before = cleaned(&[4], &[library(4, "Movies")]);
-    let after = cleaned(&[4], &[library(4, "Films"), library(7, "Movies")]);
-
-    assert_eq!(before, [4]);
-    assert_eq!(after, [4]);
 }
 
 #[test]
@@ -476,4 +393,418 @@ fn manifest_declares_days_defaulting_to_30_days_unwatched_to_90_and_libraries() 
         ..Manifest::default()
     };
     assert_eq!(manifest.permissions, requested.permissions);
+}
+
+/// The Movie `value` in Library 4.
+fn movie(value: &str) -> TitleRef {
+    TitleRef {
+        kind: TitleRefKind::TITLE_REF_KIND_MOVIE.into(),
+        ..Key {
+            namespace: "tmdb".to_owned(),
+            ..episode(value)
+        }
+        .title_ref(4)
+    }
+}
+
+/// `title_ref` as the Kernel lists it, added at `added_at_ms`.
+fn listed(title_ref: &TitleRef, added_at_ms: i64) -> Title {
+    Title {
+        title_ref: title_ref.clone().into(),
+        added_at_ms,
+        ..Title::default()
+    }
+}
+
+/// A Kernel listing `library` with `titles` in Library 4, granting Cleanup its Store, Read
+/// Libraries and Read Watch States, and set to clean Library 4 with a 30-day `days` and a 90-day
+/// `days_unwatched`. A test grants Read Requests by giving a title's Requesters.
+fn listing(library: Library, titles: impl IntoIterator<Item = Title>) -> testing::Kernel {
+    testing::Kernel::new()
+        .setting(DAYS, "30")
+        .setting(DAYS_UNWATCHED, "90")
+        .setting(LIBRARIES, "4")
+        .store()
+        .libraries([library])
+        .titles(4, titles)
+        // Grants Read Watch States for a test that gives no title a Watch State.
+        .watch_states(&movie("unlisted"), [])
+}
+
+/// `kernel` granting Delete media too, each delete starting and taking nothing along.
+fn deleting(kernel: testing::Kernel) -> testing::Kernel {
+    kernel.delete_media(|_title, _also| Ok(Vec::new()))
+}
+
+/// [`deleting`] while [`listing`] Library 4 as Movies.
+fn cleaning(titles: impl IntoIterator<Item = Title>) -> testing::Kernel {
+    deleting(listing(library(4, "Movies"), titles))
+}
+
+/// Cleanup's `tick` at `now_ms`, with `kernel` as the Kernel.
+fn tick_at(kernel: &mut testing::Kernel, now_ms: i64) -> Result<(), String> {
+    let tick = Tick {
+        now_ms,
+        ..Tick::default()
+    };
+    with(kernel, || super::tick(&tick)).map_err(|error| error.to_string())
+}
+
+/// The titles whose deletes Cleanup asked for, in order, refused or not.
+fn asked_to_delete(kernel: &testing::Kernel) -> Vec<TitleRef> {
+    (kernel.deletes().iter())
+        .map(|delete| delete.title.clone())
+        .collect()
+}
+
+/// What the Store keeps as asked to delete in Library 4.
+fn recorded(kernel: &mut testing::Kernel) -> Vec<Asked> {
+    let stored = with(kernel, || nama_pdk::kernel::store_get("deleting/4", None)).unwrap();
+    decode(&stored.unwrap_or_default())
+}
+
+fn asked_at(title: &TitleRef, at_ms: i64) -> Asked {
+    Asked {
+        title: Key::of(title),
+        at_ms,
+    }
+}
+
+/// Asserts Cleanup asked to delete `titles`, in order, and its Store keeps each as asked at
+/// `NOW_MS`.
+fn assert_deleted_at_now(kernel: &mut testing::Kernel, titles: &[TitleRef]) {
+    assert_eq!(asked_to_delete(kernel), titles);
+    let asked: Vec<Asked> = titles.iter().map(|title| asked_at(title, NOW_MS)).collect();
+    assert_eq!(recorded(kernel), asked);
+}
+
+#[test]
+fn a_movie_its_requester_watched_past_the_days_is_deleted_and_a_recent_one_kept() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let mut kernel = cleaning([
+        listed(&alien, ADDED_A_WHILE_AGO),
+        listed(&dune, ADDED_A_WHILE_AGO),
+    ])
+    .requesters(alien.clone(), [ADA])
+    .requesters(dune.clone(), [ADA])
+    .watch_states(&alien, [played(ADA, WATCHED_LONG_AGO)])
+    .watch_states(&dune, [played(ADA, NOW_MS - DAY_MS)]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[alien]);
+}
+
+/// The Kernel fills in a setting not stored with its Manifest's default, so a Cleanup set up
+/// before `days_unwatched` existed is given its default beside the `days` it stored.
+#[test]
+fn a_days_stored_before_days_unwatched_existed_still_applies() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let mut kernel = cleaning([
+        listed(&alien, ADDED_A_WHILE_AGO),
+        listed(&dune, ADDED_A_WHILE_AGO),
+    ])
+    .setting(DAYS, "10")
+    .requesters(alien.clone(), [ADA])
+    .requesters(dune.clone(), [ADA])
+    .watch_states(&alien, [played(ADA, NOW_MS - 11 * DAY_MS)])
+    .watch_states(&dune, [played(ADA, NOW_MS - 9 * DAY_MS)]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[alien]);
+}
+
+#[test]
+fn a_renamed_library_is_still_cleaned() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let dune_in_7 = TitleRef {
+        library_id: 7,
+        ..dune
+    };
+    let mut kernel = deleting(listing(
+        library(4, "Films"),
+        [listed(&alien, ADDED_LONG_AGO)],
+    ))
+    .libraries([library(7, "Movies")])
+    .titles(7, [listed(&dune_in_7, ADDED_LONG_AGO)])
+    .requesters(alien.clone(), [ADA])
+    .requesters(dune_in_7, [ADA]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[alien]);
+}
+
+/// A tick keeps nothing for the next but its Store, so a Library renamed after a tick found it is
+/// one the next tick finds renamed. The first tick stored nothing, so the next starts from an
+/// empty Store too.
+#[test]
+fn a_library_renamed_after_a_tick_found_it_is_still_cleaned() {
+    let alien = movie("348");
+    let mut found = cleaning([listed(&alien, ADDED_A_WHILE_AGO)]).requesters(alien.clone(), [ADA]);
+    let nothing_due = tick_at(&mut found, NOW_MS);
+    let mut renamed = deleting(listing(
+        library(4, "Films"),
+        [listed(&alien, ADDED_A_WHILE_AGO)],
+    ))
+    .requesters(alien.clone(), [ADA]);
+
+    let ticked = tick_at(&mut renamed, NOW_MS + 31 * DAY_MS);
+
+    assert_eq!((nothing_due, asked_to_delete(&found)), (Ok(()), vec![]));
+    assert_eq!(recorded(&mut found), []);
+    assert_eq!(ticked, Ok(()));
+    assert_eq!(
+        recorded(&mut renamed),
+        [asked_at(&alien, NOW_MS + 31 * DAY_MS)]
+    );
+    assert_eq!(asked_to_delete(&renamed), [alien]);
+}
+
+#[test]
+fn without_the_delete_media_permission_nothing_is_deleted_and_the_tick_says_why() {
+    let alien = movie("348");
+    let mut kernel = listing(library(4, "Movies"), [listed(&alien, ADDED_LONG_AGO)])
+        .requesters(alien.clone(), [ADA]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(
+        ticked,
+        Err(
+            "the Kernel refused 1 of the deletes: the Admin hasn't granted the Plugin the Delete \
+             media Permission"
+                .to_owned()
+        )
+    );
+    assert_eq!(asked_to_delete(&kernel), []);
+    assert_eq!(recorded(&mut kernel), []);
+}
+
+#[test]
+fn a_title_another_user_watched_is_kept_until_its_requester_had_the_days_unwatched() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let mut kernel = cleaning([
+        listed(&alien, ADDED_A_WHILE_AGO),
+        listed(&dune, ADDED_LONG_AGO),
+    ])
+    .requesters(alien.clone(), [ADA])
+    .requesters(dune.clone(), [ADA])
+    .watch_states(&alien, [played(BEN, WATCHED_LONG_AGO)])
+    .watch_states(&dune, [played(BEN, WATCHED_LONG_AGO)]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[dune]);
+}
+
+#[test]
+fn a_title_two_users_requested_is_kept_until_both_are_done() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let mut kernel = cleaning([
+        listed(&alien, ADDED_A_WHILE_AGO),
+        listed(&dune, ADDED_A_WHILE_AGO),
+    ])
+    .requesters(alien.clone(), [ADA, BEN])
+    .requesters(dune.clone(), [ADA, BEN])
+    .watch_states(&alien, [played(ADA, WATCHED_LONG_AGO), played(BEN, NOW_MS)])
+    .watch_states(
+        &dune,
+        [played(ADA, WATCHED_LONG_AGO), played(BEN, WATCHED_LONG_AGO)],
+    );
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[dune]);
+}
+
+#[test]
+fn a_title_its_requester_never_played_is_deleted_once_the_days_unwatched_passed() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let mut kernel = cleaning([
+        listed(&alien, ADDED_LONG_AGO),
+        listed(&dune, ADDED_A_WHILE_AGO),
+    ])
+    .requesters(alien.clone(), [ADA])
+    .requesters(dune.clone(), [ADA]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[alien]);
+}
+
+#[test]
+fn a_title_nobody_requested_is_never_deleted() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let mut kernel = cleaning([
+        listed(&alien, ADDED_LONG_AGO),
+        listed(&dune, ADDED_LONG_AGO),
+    ])
+    .requesters(dune.clone(), [ADA])
+    .watch_states(&alien, [played(ADA, WATCHED_LONG_AGO)])
+    .watch_states(&dune, [played(ADA, WATCHED_LONG_AGO)]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[dune]);
+}
+
+#[test]
+fn a_title_whose_requesters_were_all_deleted_is_deleted_once_the_days_unwatched_passed() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let mut kernel = cleaning([
+        listed(&alien, ADDED_LONG_AGO),
+        listed(&dune, ADDED_A_WHILE_AGO),
+    ])
+    .requesters(alien.clone(), [])
+    .requesters(dune.clone(), [])
+    .watch_states(&alien, [played(ADA, WATCHED_LONG_AGO)])
+    .watch_states(&dune, [played(ADA, WATCHED_LONG_AGO)]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[alien]);
+}
+
+/// A played title stays played when started again, so a Requester starting it again unmarks it
+/// first and then has it started, not played.
+#[test]
+fn a_title_its_requester_started_again_is_kept() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let mut kernel = cleaning([
+        listed(&alien, ADDED_A_WHILE_AGO),
+        listed(&dune, ADDED_A_WHILE_AGO),
+    ])
+    .requesters(alien.clone(), [ADA])
+    .requesters(dune.clone(), [ADA])
+    .watch_states(&alien, [started(ADA, NOW_MS)])
+    .watch_states(&dune, [played(ADA, WATCHED_LONG_AGO)]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[dune]);
+}
+
+#[test]
+fn an_episode_of_a_followed_show_waits_for_its_requesters() {
+    const ADMIN: i64 = 3;
+    let (secrets, lies) = (episode("1").title_ref(4), episode("2").title_ref(4));
+    let mut kernel = cleaning([
+        listed(&secrets, ADDED_A_WHILE_AGO),
+        listed(&lies, ADDED_A_WHILE_AGO),
+    ])
+    .requesters(secrets.clone(), [ADA])
+    .requesters(lies.clone(), [ADA])
+    .watch_states(&secrets, [played(ADA, WATCHED_LONG_AGO)])
+    .watch_states(&lies, [played(ADMIN, WATCHED_LONG_AGO)]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[secrets]);
+}
+
+/// A delete runs in the background, so a title still listed after one was asked had its delete
+/// fail.
+#[test]
+fn a_failed_delete_is_asked_again_a_day_later() {
+    let alien = movie("348");
+    let mut kernel = cleaning([listed(&alien, ADDED_LONG_AGO)]).requesters(alien.clone(), [ADA]);
+
+    let ticks = [NOW_MS, NOW_MS + HOUR_MS, NOW_MS + DAY_MS].map(|now_ms| {
+        let ticked = tick_at(&mut kernel, now_ms);
+        (ticked, kernel.deletes().len())
+    });
+
+    assert_eq!(ticks, [(Ok(()), 1), (Ok(()), 1), (Ok(()), 2)]);
+    assert_eq!(recorded(&mut kernel), [asked_at(&alien, NOW_MS + DAY_MS)]);
+}
+
+#[test]
+fn titles_over_more_than_one_page_are_all_cleaned() {
+    let movies: Vec<TitleRef> = (0..=super::PAGE_SIZE)
+        .map(|n| movie(&n.to_string()))
+        .collect();
+    let (first, last) = (movies[0].clone(), movies[movies.len() - 1].clone());
+    let mut kernel = cleaning(movies.iter().map(|movie| listed(movie, ADDED_LONG_AGO)))
+        .requesters(first.clone(), [ADA])
+        .requesters(last.clone(), [ADA]);
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(ticked, Ok(()));
+    assert_deleted_at_now(&mut kernel, &[first, last]);
+}
+
+#[test]
+fn an_episode_a_delete_took_along_is_recorded_and_not_asked_again() {
+    let (secrets, lies) = (episode("1").title_ref(4), episode("2").title_ref(4));
+    let taken_along = lies.clone();
+    let mut kernel = listing(
+        library(4, "Movies"),
+        [
+            listed(&secrets, ADDED_LONG_AGO),
+            listed(&lies, ADDED_LONG_AGO),
+        ],
+    )
+    .requesters(secrets.clone(), [ADA])
+    .requesters(lies.clone(), [ADA])
+    .delete_media(move |_title, _also| Ok(vec![taken_along.clone()]));
+
+    let ticks = [NOW_MS, NOW_MS + HOUR_MS].map(|now_ms| tick_at(&mut kernel, now_ms));
+
+    assert_eq!(ticks, [Ok(()), Ok(())]);
+    let asked: Vec<_> = (kernel.deletes().iter())
+        .map(|delete| (delete.title.clone(), delete.also.clone()))
+        .collect();
+    assert_eq!(asked, [(secrets.clone(), vec![lies.clone()])]);
+    assert_eq!(
+        recorded(&mut kernel),
+        [asked_at(&secrets, NOW_MS), asked_at(&lies, NOW_MS)]
+    );
+}
+
+#[test]
+fn a_refused_delete_is_collected_while_the_rest_go_on() {
+    let (alien, dune) = (movie("348"), movie("438631"));
+    let refused = alien.clone();
+    let mut kernel = listing(
+        library(4, "Movies"),
+        [
+            listed(&alien, ADDED_LONG_AGO),
+            listed(&dune, ADDED_LONG_AGO),
+        ],
+    )
+    .requesters(alien.clone(), [ADA])
+    .requesters(dune.clone(), [ADA])
+    .delete_media(move |title, _also| {
+        if *title == refused {
+            Err("media in /movies can't be deleted: the Server can't write to it".to_owned())
+        } else {
+            Ok(Vec::new())
+        }
+    });
+
+    let ticked = tick_at(&mut kernel, NOW_MS);
+
+    assert_eq!(
+        ticked,
+        Err(
+            "the Kernel refused 1 of the deletes: media in /movies can't be deleted: the Server \
+             can't write to it"
+                .to_owned()
+        )
+    );
+    assert_eq!(asked_to_delete(&kernel), [alien, dune.clone()]);
+    assert_eq!(recorded(&mut kernel), [asked_at(&dune, NOW_MS)]);
 }
