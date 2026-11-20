@@ -1,5 +1,5 @@
-//! The one derivation of a Library's titles, as SQL fragments its title reads build on, so the
-//! rules for which Items a Library lists and how they group into titles live here alone.
+//! The one derivation of a Library's titles, as SQL fragments its title reads build on: which
+//! Items a Library lists, under which id, and how they group into titles.
 //!
 //! Each fragment is a macro, since sqlx reads a query from literals only. It hands `$query!` its
 //! `$arg`s, then itself as one parenthesised group of `+`-joined literals, which `$query` splices

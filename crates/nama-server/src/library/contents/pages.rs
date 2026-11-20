@@ -111,9 +111,9 @@ impl Contents {
                                             item_matches.show_first_air_date) AS released
                                  FROM titles
                                  JOIN item_matches ON item_matches.item_id = titles.item_id
-                                 WHERE titles.nth = 1) AS titles
+                                 WHERE titles.nth = 1) AS shown
                            WHERE (?4 IS NULL
-                                  OR EXISTS (SELECT 1 FROM json_each(titles.genres) AS genre
+                                  OR EXISTS (SELECT 1 FROM json_each(shown.genres) AS genre
                                              WHERE genre.value IN (SELECT value
                                                                    FROM json_each(?4))))
                              AND (?5 IS NULL OR CAST(substr(released, 1, 4) AS INTEGER) >= ?5)
