@@ -194,14 +194,15 @@ impl Config {
         }
         let figment = figment.merge(Env::prefixed(ENV_PREFIX).ignore(&["config"]));
         let NotingIgnored(mut config, ignored) = figment.extract()?;
-        // The default Segment folder is under `data_dir`, and ffmpeg runs inside it while also
+        // The default segment folder is under `data_dir`, and ffmpeg runs inside it while also
         // handed paths that include it, so a relative one would resolve twice (#1120).
         config.data_dir = absolute("data_dir", &config.data_dir)?;
         for (key, program) in [
             ("ffmpeg", &mut config.ffmpeg),
             ("ffprobe", &mut config.ffprobe),
         ] {
-            // A bare name is left as written, per #1120; `ffmpeg::finding` resolves it when found.
+            // A bare name is left as written: whether it means `PATH` or the start folder is
+            // `ffmpeg::finding`'s call, undecided in #1247.
             if let Some(path) = program.as_mut().filter(|p| p.components().count() > 1) {
                 *path = absolute(key, path)?;
             }
