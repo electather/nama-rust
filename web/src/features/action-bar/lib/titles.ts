@@ -1,10 +1,6 @@
-import type {
-  EpisodeInLibrary,
-  MovieInLibrary,
-  SearchLibrariesResponse,
-  ShowInLibrary,
-} from "@/gen/nama/v1/browse_pb";
-import { metadataLine, seasonName, yearOf } from "@/shared/lib/title-facts";
+import type { MovieHit, ShowHit } from "@/gen/nama/v1/request_pb";
+import type { EpisodeHit, SearchResponse } from "@/gen/nama/v1/search_pb";
+import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
 /**
@@ -32,7 +28,7 @@ export interface Found {
   episodes: FoundTitle[];
 }
 
-function movieFound(movie: MovieInLibrary): FoundTitle {
+function movieFound(movie: MovieHit): FoundTitle {
   const titleId = titleParam(movie.id);
   return {
     id: `movie:${movie.libraryId}:${titleId}`,
@@ -40,12 +36,12 @@ function movieFound(movie: MovieInLibrary): FoundTitle {
     libraryId: String(movie.libraryId),
     titleId,
     label: movie.title,
-    hint: metadataLine(yearOf(movie.releaseDate)),
+    hint: metadataLine(movie.year?.toString()),
     poster: movie.posterUrl,
   };
 }
 
-function showFound(show: ShowInLibrary): FoundTitle {
+function showFound(show: ShowHit): FoundTitle {
   const titleId = titleParam(show.id);
   return {
     id: `show:${show.libraryId}:${titleId}`,
@@ -58,7 +54,7 @@ function showFound(show: ShowInLibrary): FoundTitle {
   };
 }
 
-function episodeFound(episode: EpisodeInLibrary): FoundTitle {
+function episodeFound(episode: EpisodeHit): FoundTitle {
   return {
     id: `episode:${episode.libraryId}:${titleParam(episode.id)}`,
     kind: "episode",
@@ -70,12 +66,17 @@ function episodeFound(episode: EpisodeInLibrary): FoundTitle {
   };
 }
 
-/** What `SearchLibraries` answered, as the action bar lists it. */
-export function foundIn(response: SearchLibrariesResponse): Found {
+/** What `Search` has streamed so far, as the action bar lists it, each kind in the Server's order. */
+export function foundIn(responses: readonly SearchResponse[]): Found {
+  const titles = responses
+    .flatMap(({ part }) => (part.case === "hits" ? part.value.hits : []))
+    .map(({ title }) => title);
   return {
-    movies: response.movies.map(movieFound),
-    shows: response.shows.map(showFound),
-    episodes: response.episodes.map(episodeFound),
+    movies: titles.flatMap((title) => (title.case === "movie" ? [movieFound(title.value)] : [])),
+    shows: titles.flatMap((title) => (title.case === "show" ? [showFound(title.value)] : [])),
+    episodes: titles.flatMap((title) =>
+      title.case === "episode" ? [episodeFound(title.value)] : [],
+    ),
   };
 }
 

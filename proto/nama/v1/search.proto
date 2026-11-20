@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package nama.v1;
+
+import "nama/v1/match.proto";
+import "nama/v1/request.proto";
+
+// Finding titles, ranked on the Server so every client lists them alike (ADR 0080).
+service SearchService {
+  // Searches every Library for the Movies, Shows and Episodes whose titles have each word of the
+  // query, ignoring case, accents and the marks that join words, so "amelie" finds Amélie and
+  // "spiderman" finds Spider-Man. Each word matches the start of a word, so a client can search
+  // as the User types. A last word of four digits after others is a year, which keeps only those
+  // released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
+  // Show counts as of every year one of its Episodes aired. A Show is found by its own title,
+  // and an Episode by its own, not its Show's. A title in two Libraries is found in each.
+  //
+  // Streams one batch of what it found, then `Done`. Fails with `invalid_argument` if the query
+  // is blank (`REFUSAL_REASON_FIELD_REQUIRED`).
+  rpc Search(SearchRequest) returns (stream SearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message SearchRequest {
+  // The words to search for. One without letters or digits finds nothing.
+  string query = 1;
+  // What to search for: `TITLE_KIND_MOVIE` for Movies, `TITLE_KIND_SHOW` for Shows and their
+  // Episodes, unset for all three.
+  TitleKind kind = 2;
+  // How many results each batch holds at most: 20 if unset, and never over 100. There are no
+  // further pages.
+  int32 limit = 3;
+}
+
+// One part of what `Search` streams.
+message SearchResponse {
+  oneof part {
+    // A batch of results, best first.
+    Hits hits = 1;
+    // The last part: the search is over.
+    Done done = 2;
+  }
+}
+
+// A batch of results, ordered on the Server: Movies and Shows before Episodes, then an exact
+// title ("Title Year" counts as exact), then a title starting with the query, then one holding
+// each of its words whole, then one of the year asked for, then the better fit, then the
+// shorter title.
+message Hits {
+  repeated Hit hits = 1;
+}
+
+// A Movie, Show or Episode `Search` found, and whether the caller can watch it.
+message Hit {
+  oneof title {
+    // A Movie, with the Library it is in in `library_id`.
+    MovieHit movie = 1;
+    // A Show, with the Library it is in in `library_id`.
+    ShowHit show = 2;
+    EpisodeHit episode = 3;
+  }
+  TitleStatus status = 4;
+}
+
+// Whether a title a search found is one the caller can watch.
+enum TitleStatus {
+  TITLE_STATUS_UNSPECIFIED = 0;
+  // A Library has the Movie, or at least one Episode of the Show.
+  TITLE_STATUS_AVAILABLE = 1;
+}
+
+// An Episode a search found, with what a client needs to show it and open its Season with
+// `BrowseService.ListEpisodes`.
+message EpisodeHit {
+  // The Library it is in.
+  int64 library_id = 1;
+  // As `ListEpisodes` gives it.
+  ExternalId id = 2;
+  // Its Show's id, as `ListShows` gives it.
+  ExternalId show_id = 3;
+  string show_title = 4;
+  uint32 season_number = 5;
+  uint32 episode_number = 6;
+  string title = 7;
+}
+
+// Marks the end of what `Search` streams.
+message Done {}

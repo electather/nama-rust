@@ -129,7 +129,7 @@ const REQUEST_TV: [&str; 5] = [
 
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, and for
 /// playing it, which any signed-in User may call.
-const BROWSE: [&str; 9] = [
+const BROWSE: [&str; 8] = [
     "/nama.v1.LibraryService/ListLibraries",
     "/nama.v1.BrowseService/ListMovies",
     "/nama.v1.BrowseService/GetMovie",
@@ -137,7 +137,6 @@ const BROWSE: [&str; 9] = [
     "/nama.v1.BrowseService/GetShow",
     "/nama.v1.BrowseService/ListEpisodes",
     "/nama.v1.BrowseService/ListContinueWatching",
-    "/nama.v1.BrowseService/SearchLibraries",
     "/nama.v1.PlaybackService/PlanPlayback",
 ];
 

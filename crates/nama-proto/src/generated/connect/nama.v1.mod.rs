@@ -7,6 +7,7 @@ include!("nama.v1.browse.__connect.rs");
 include!("nama.v1.playback.__connect.rs");
 include!("nama.v1.event.__connect.rs");
 include!("nama.v1.library.__connect.rs");
+include!("nama.v1.search.__connect.rs");
 include!("nama.v1.server.__connect.rs");
 include!("nama.v1.sign_in.__connect.rs");
 include!("nama.v1.user.__connect.rs");

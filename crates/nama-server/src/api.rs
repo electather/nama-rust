@@ -50,6 +50,7 @@ mod matches;
 mod playback;
 mod plugins;
 mod requests;
+mod search;
 mod server;
 mod sign_in;
 mod users;
@@ -63,6 +64,7 @@ use matches::MatchServiceHandler;
 use playback::PlaybackServiceHandler;
 use plugins::PluginServiceHandler;
 use requests::RequestServiceHandler;
+use search::SearchServiceHandler;
 use server::ServerServiceHandler;
 use sign_in::SignInServiceHandler;
 use users::UserServiceHandler;
@@ -154,6 +156,10 @@ pub(crate) fn router(
             settings: settings.clone(),
             images: images.clone(),
             db: Arc::clone(&db),
+        }))
+        .add_service(Arc::new(SearchServiceHandler {
+            browse: browse.clone(),
+            images: images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
             browse,
@@ -319,9 +325,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_LIST_FEATURED_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROWS_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC.procedure,   Access::SignedIn),
-    (proto::BROWSE_SERVICE_SEARCH_LIBRARIES_SPEC.procedure,       Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_UNMATCHED_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_UNMATCHED_VERSION_SPEC.procedure,  Access::SignedIn),
+    (proto::SEARCH_SERVICE_SEARCH_SPEC.procedure,                 Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),

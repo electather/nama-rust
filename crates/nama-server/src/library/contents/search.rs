@@ -1,20 +1,27 @@
 //! Searching every Library's Matched titles.
 
+use std::cmp::Ordering;
+
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
-use nama_proto::nama::v1::PageResponse;
 
-use super::{Contents, ImageRef, ItemKind, ids_from_json, ids_sql, primary_id_in, show_poster};
-use crate::page::Page;
+use super::{
+    Contents, ImageRef, ItemKind, ids_from_json, ids_sql, primary_id_in, show_poster,
+    sort_titles::folded,
+};
+use crate::library::TitleKind;
 
-/// A page of what [`Contents::search`] found in every Library, each kind best fit first, and each
-/// Movie, Show or Episode once per Library that has it.
-#[derive(Debug, Default)]
-pub(crate) struct Found {
-    pub(crate) movies: Vec<FoundMovie>,
-    /// Found by their own titles.
-    pub(crate) shows: Vec<FoundShow>,
-    /// Found by their own titles, not their Shows'.
-    pub(crate) episodes: Vec<FoundEpisode>,
+/// How many of the best fits by FTS5's rank [`Contents::search`] orders by [`Fit`].
+// ponytail: a better fit ranked below these by bm25 is missed; raise it if one ever is.
+const CANDIDATES: i64 = 500;
+
+/// A Movie, Show or Episode [`Contents::search`] found, once per Library that has it.
+#[derive(Debug)]
+pub(crate) enum Found {
+    Movie(FoundMovie),
+    /// Found by its own title.
+    Show(FoundShow),
+    /// Found by its own title, not its Show's.
+    Episode(FoundEpisode),
 }
 
 /// A Movie a search found, with the metadata the Match of its best-fitting Item stores.
@@ -59,36 +66,39 @@ pub(crate) struct FoundEpisode {
     pub(crate) title: String,
 }
 
-/// Where a found title sits in a search's order, tie-broken by its best-fitting Item's id: its
-/// FTS5 rank's bits, since JSON doesn't round-trip every `f64`, and whether it was found as a Show.
-/// A rank weighs a word by how many titles have it, so a Scan between two pages can move titles
-/// across the token: ADR 0055's keyset is only as stable as the order it pages.
-type Place = (u64, bool);
-
 impl Contents {
-    /// A `page` of the Matched Movies, Shows and Episodes of every Library whose titles have each
-    /// of the words of `query`, ignoring case, accents and the marks that join words. A year after
-    /// other words keeps only those of that year, or with it in their title. Only the first page
-    /// counts them all.
+    /// The best `limit` Matched Movies, Shows and Episodes of every Library whose titles have
+    /// each of the words of `query`, ignoring case, accents and the marks that join words, of
+    /// `kind` only if it's set, a Show's with its Episodes. A year after other words keeps only
+    /// those of that year, or with it in their title. Ordered as ADR 0080 says: Movies and Shows
+    /// before Episodes, then by [`Fit`], then the year asked for, FTS5's rank, and the shorter
+    /// title.
     pub(crate) async fn search(
         &self,
         query: &str,
-        page: &Page<Place>,
-    ) -> Result<(Found, PageResponse), sqlx::Error> {
-        let mut rows = match SearchWords::of(query) {
-            Some(words) => self.search_rows(&words, page).await?,
-            None => Vec::new(),
+        kind: Option<TitleKind>,
+        limit: usize,
+    ) -> Result<Vec<Found>, sqlx::Error> {
+        let Some(words) = SearchWords::of(query) else {
+            return Ok(Vec::new());
         };
-        let total = rows.first().map_or(0, |row| row.total);
-        let mut paging = page.finish(&mut rows, SearchRow::place);
-        if page.is_first() {
-            paging.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
-        }
-        Ok((found(rows), paging))
+        let rows = self.search_rows(&words, kind).await?;
+        let mut ranked: Vec<(Rank, Found)> = (rows.into_iter())
+            .filter_map(|row| {
+                let rank = Rank::of(&row, &words);
+                Some((rank, found(row)?))
+            })
+            .collect();
+        ranked.sort_by(|(a, _), (b, _)| a.order(b));
+        Ok((ranked.into_iter())
+            .take(limit)
+            .map(|(_, found)| found)
+            .collect())
     }
 
-    /// A page of the titles whose `title_search` rows fit `words`, best fit first: each Movie,
-    /// Show and Episode once per Library, by the row of its best-fitting Item.
+    /// The best [`CANDIDATES`] titles whose `title_search` rows fit `words`, of `kind` only if
+    /// it's set, by FTS5's rank: each Movie, Show and Episode once per Library, by the row of its
+    /// best-fitting Item.
     #[expect(
         clippy::too_many_lines,
         reason = "one query, which sqlx reads only as one literal"
@@ -96,19 +106,17 @@ impl Contents {
     async fn search_rows(
         &self,
         words: &SearchWords<'_>,
-        page: &Page<Place>,
+        kind: Option<TitleKind>,
     ) -> Result<Vec<SearchRow>, sqlx::Error> {
         let (titles, shows) = (words.in_column("title"), words.in_column("show_title"));
-        let (rank, by_show, id) = match page.after {
-            Some(((rank, by_show), id)) => (Some(f64::from_bits(rank)), Some(by_show), Some(id)),
-            None => (None, None, None),
-        };
-        let limit = page.limit();
+        let movies_wanted = kind != Some(TitleKind::Show);
+        let shows_wanted = kind != Some(TitleKind::Movie);
         // A title is grouped by the id browsing knows it by, picked in SQL as `primary_id_in`
-        // picks it, so the keyset and the count see each title once. SQLite can't order a
-        // subquery by an outer column, so a window picks it.
-        // ponytail: each page groups every hit, since a title's Items can be anywhere in FTS5's
-        // order; the `LIMIT` caps what is read back. Store a title row to search if that's slow.
+        // picks it, so each title is read once. SQLite can't order a subquery by an outer
+        // column, so a window picks it.
+        // ponytail: every search groups every hit, since a title's Items can be anywhere in
+        // FTS5's order; the `LIMIT` caps what is read back. Store a title row to search if that's
+        // slow.
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query_as!(
@@ -139,12 +147,13 @@ impl Contents {
                            JOIN libraries ON libraries.id = library_files.library_id
                            -- An Episode is skipped as `Contents::shows` skips it, so browsing
                            -- can open what's found.
-                           WHERE hits.by_show OR library_items.kind = 'movie'
-                              OR (library_items.season IS NOT NULL
-                                  AND library_items.episode IS NOT NULL
-                                  AND EXISTS (SELECT 1 FROM item_match_ids AS show_ids
-                                              WHERE show_ids.item_id = hits.item_id
-                                                AND show_ids.scope = 'show'))
+                           WHERE iif(library_items.kind = 'movie', ?3, ?4)
+                             AND (hits.by_show OR library_items.kind = 'movie'
+                                  OR (library_items.season IS NOT NULL
+                                      AND library_items.episode IS NOT NULL
+                                      AND EXISTS (SELECT 1 FROM item_match_ids AS show_ids
+                                                  WHERE show_ids.item_id = hits.item_id
+                                                    AND show_ids.scope = 'show')))
                        ),
                        grouped AS (
                            SELECT *, row_number() OVER (
@@ -152,20 +161,14 @@ impl Contents {
                            ) AS nth
                            FROM ids WHERE preference = 1
                        ),
-                       titles AS (
-                           SELECT by_show, item_id, rank, library, title_key,
-                                  count(*) OVER () AS total
+                       best AS (
+                           SELECT by_show, item_id, rank, library, title_key
                            FROM grouped WHERE nth = 1
-                       ),
-                       page AS (
-                           SELECT * FROM titles
-                           WHERE ?3 IS NULL OR (rank, by_show, item_id) > (?3, ?4, ?5)
                            ORDER BY rank, by_show, item_id
-                           LIMIT ?6
+                           LIMIT ?5
                        )
-                       SELECT page.library AS "library!", page.by_show AS "by_show!: bool",
-                              page.item_id AS "item_id!", page.rank AS "rank!: f64",
-                              page.total AS "total!: i64",
+                       SELECT best.library AS "library!", best.by_show AS "by_show!: bool",
+                              best.rank AS "rank!: f64",
                               library_items.kind AS "kind: ItemKind", library_items.season,
                               library_items.episode, "#
                         + $ids
@@ -176,27 +179,26 @@ impl Contents {
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.show_poster, item_matches.show_poster_plugin,
                               item_matches.metadata_version, libraries.title_sources,
-                              iif(page.by_show, (
+                              iif(best.by_show, (
                                   SELECT json_group_array(json_array(
                                       library_items.season, item_matches.poster,
                                       item_matches.poster_plugin))
                                   FROM grouped
                                   JOIN item_matches ON item_matches.item_id = grouped.item_id
                                   JOIN library_items ON library_items.id = grouped.item_id
-                                  WHERE grouped.by_show AND grouped.library = page.library
-                                    AND grouped.title_key = page.title_key
+                                  WHERE grouped.by_show AND grouped.library = best.library
+                                    AND grouped.title_key = best.title_key
                               )) AS "seasons?: String"
-                       FROM page
-                       JOIN item_matches ON item_matches.item_id = page.item_id
-                       JOIN library_items ON library_items.id = page.item_id
-                       JOIN libraries ON libraries.id = page.library
-                       ORDER BY page.rank, page.by_show, page.item_id"#,
+                       FROM best
+                       JOIN item_matches ON item_matches.item_id = best.item_id
+                       JOIN library_items ON library_items.id = best.item_id
+                       JOIN libraries ON libraries.id = best.library
+                       ORDER BY best.rank, best.by_show, best.item_id"#,
                     titles,
                     shows,
-                    rank,
-                    by_show,
-                    id,
-                    limit
+                    movies_wanted,
+                    shows_wanted,
+                    CANDIDATES
                 )
             };
         }
@@ -209,10 +211,7 @@ struct SearchRow {
     library: i64,
     /// Whether it is the Show the Item is an Episode of, found by the Show's title.
     by_show: bool,
-    item_id: i64,
     rank: f64,
-    /// How many titles the whole search found.
-    total: i64,
     kind: ItemKind,
     /// Set for an Episode.
     season: Option<i64>,
@@ -238,10 +237,6 @@ struct SearchRow {
 }
 
 impl SearchRow {
-    fn place(&self) -> (Place, i64) {
-        ((self.rank.to_bits(), self.by_show), self.item_id)
-    }
-
     fn ids(&self) -> ExternalIds {
         ids_from_json(self.ids.as_deref())
     }
@@ -272,41 +267,34 @@ impl SearchRow {
     }
 }
 
-/// What the search `rows`, best fit first, found.
-fn found(rows: Vec<SearchRow>) -> Found {
-    let mut found = Found::default();
-    for row in rows {
-        if row.by_show {
-            found.shows.extend(found_show(row));
-            continue;
-        }
-        let Some(id) = row.primary_id() else {
-            continue;
-        };
-        match (row.kind, row.season, row.episode, row.show_primary_id()) {
-            (ItemKind::Episode, Some(season), Some(number), Some(show)) => {
-                found.episodes.push(FoundEpisode {
-                    library: row.library,
-                    id,
-                    show,
-                    show_title: row.show_title.unwrap_or_default(),
-                    season,
-                    number,
-                    title: row.title,
-                });
-            }
-            (ItemKind::Episode, ..) => {}
-            (ItemKind::Movie, ..) => found.movies.push(FoundMovie {
+/// The Movie, Show or Episode `row` found, unless browsing couldn't open it.
+fn found(row: SearchRow) -> Option<Found> {
+    if row.by_show {
+        return found_show(row).map(Found::Show);
+    }
+    let id = row.primary_id()?;
+    match (row.kind, row.season, row.episode, row.show_primary_id()) {
+        (ItemKind::Episode, Some(season), Some(number), Some(show)) => {
+            Some(Found::Episode(FoundEpisode {
                 library: row.library,
                 id,
-                ids: row.ids(),
+                show,
+                show_title: row.show_title.unwrap_or_default(),
+                season,
+                number,
                 title: row.title,
-                release_date: row.release_date,
-                poster: ImageRef::stored(row.poster, row.poster_plugin),
-            }),
+            }))
         }
+        (ItemKind::Episode, ..) => None,
+        (ItemKind::Movie, ..) => Some(Found::Movie(FoundMovie {
+            library: row.library,
+            id,
+            ids: row.ids(),
+            title: row.title,
+            release_date: row.release_date,
+            poster: ImageRef::stored(row.poster, row.poster_plugin),
+        })),
     }
-    found
 }
 
 /// The Show that `row`, found by the Show's title, is an Episode of.
@@ -368,6 +356,98 @@ impl<'a> SearchWords<'a> {
             None => words,
         }
     }
+}
+
+/// Where a found title sits in a search's order, best first (ADR 0080).
+#[derive(Debug)]
+struct Rank {
+    episode: bool,
+    fit: Fit,
+    /// Whether the query ends in a year that isn't the title's.
+    other_year: bool,
+    /// FTS5's bm25, lower for a better fit.
+    bm25: f64,
+    title_length: usize,
+}
+
+impl Rank {
+    fn of(row: &SearchRow, words: &SearchWords<'_>) -> Self {
+        let title = match (row.by_show, &row.show_title) {
+            (true, Some(show_title)) => show_title,
+            _ => &row.title,
+        };
+        let year = row.release_date.as_deref().and_then(|date| date.get(..4));
+        Self {
+            episode: !row.by_show && row.kind == ItemKind::Episode,
+            fit: Fit::of(words, title, year),
+            other_year: words.year.is_some() && words.year != year,
+            bm25: row.rank,
+            title_length: title.chars().count(),
+        }
+    }
+
+    fn order(&self, other: &Self) -> Ordering {
+        let bands = |rank: &Self| (rank.episode, rank.fit, rank.other_year);
+        (bands(self).cmp(&bands(other)))
+            .then(self.bm25.total_cmp(&other.bm25))
+            .then(self.title_length.cmp(&other.title_length))
+    }
+}
+
+/// How well a found title fits a query's words, ignoring case, accents and punctuation, best
+/// first. Every title found has a word starting with each of them, so the worst is that.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Fit {
+    /// The query is the title, or the title and its year.
+    Exact,
+    /// The title starts with the query.
+    Prefix,
+    /// The title has each of the query's words whole, the year aside.
+    AllWords,
+    WordStarts,
+}
+
+impl Fit {
+    /// How `title`, of `year`, fits `words`: its best fit with or without the marks that join
+    /// words, as `title_search` holds it both ways.
+    fn of(words: &SearchWords<'_>, title: &str, year: Option<&str>) -> Self {
+        let without_year: Vec<String> = words.words.iter().map(|word| folded(word)).collect();
+        let query: Vec<String> = (without_year.iter().cloned())
+            .chain(words.year.map(str::to_owned))
+            .collect();
+        let fit = |variant: &str| {
+            let variant = title_words(variant);
+            let with_year = year.map(|year| [&variant[..], &[year.to_owned()]].concat());
+            if variant == query || with_year.is_some_and(|with_year| with_year == query) {
+                Self::Exact
+            } else if starts_with(&variant, &query) {
+                Self::Prefix
+            } else if without_year.iter().all(|word| variant.contains(word)) {
+                Self::AllWords
+            } else {
+                Self::WordStarts
+            }
+        };
+        let joined = title.replace(['-', '\'', '’', '.', '·'], "");
+        fit(title).min(fit(&joined))
+    }
+}
+
+/// `title`'s words, lowercase and without accents.
+fn title_words(title: &str) -> Vec<String> {
+    (folded(title).split(|c: char| !c.is_alphanumeric()))
+        .filter(|word| !word.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Whether `title` starts with `query`, whose last word may be only the start of one.
+fn starts_with(title: &[String], query: &[String]) -> bool {
+    let Some((last, whole)) = query.split_last() else {
+        return false;
+    };
+    title.starts_with(whole)
+        && (title.get(whole.len())).is_some_and(|word| word.starts_with(last.as_str()))
 }
 
 #[cfg(test)]

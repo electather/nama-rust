@@ -10,6 +10,7 @@ include!("nama.v1.browse.rs");
 include!("nama.v1.playback.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
+include!("nama.v1.search.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
 include!("nama.v1.user.rs");
@@ -41,6 +42,7 @@ pub mod __buffa {
         include!("nama.v1.playback.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
+        include!("nama.v1.search.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
         include!("nama.v1.user.__view.rs");
@@ -54,6 +56,7 @@ pub mod __buffa {
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
             include!("nama.v1.library.__view_oneof.rs");
+            include!("nama.v1.search.__view_oneof.rs");
             include!("nama.v1.server.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
         }
@@ -67,6 +70,7 @@ pub mod __buffa {
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
         include!("nama.v1.library.__oneof.rs");
+        include!("nama.v1.search.__oneof.rs");
         include!("nama.v1.server.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
     }
@@ -225,11 +229,8 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_FEATURED_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_FEATURED_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FEATURED_TITLE_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_LIBRARIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_LIBRARIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
-        reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__LIST_UNMATCHED_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_UNMATCHED_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNMATCHED_ITEM_SUMMARY_JSON_ANY);
@@ -344,6 +345,12 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_ARTWORK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_ARTWORK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__TITLE_SOURCE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__HITS_JSON_ANY);
+        reg.register_json_any(super::__HIT_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_HIT_JSON_ANY);
+        reg.register_json_any(super::__DONE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLAYS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLAYS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAY_JSON_ANY);
@@ -1052,14 +1059,6 @@ pub use self::__buffa::view::FeaturedTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::FeaturedTitleOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesResponseOwnedView;
-#[doc(inline)]
 pub use self::__buffa::view::MovieInLibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::MovieInLibraryOwnedView;
@@ -1067,10 +1066,6 @@ pub use self::__buffa::view::MovieInLibraryOwnedView;
 pub use self::__buffa::view::ShowInLibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::ShowInLibraryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeInLibraryView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeInLibraryOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListUnmatchedRequestView;
 #[doc(inline)]
@@ -1527,6 +1522,30 @@ pub use self::__buffa::view::ListArtworkResponseOwnedView;
 pub use self::__buffa::view::TitleSourceView;
 #[doc(inline)]
 pub use self::__buffa::view::TitleSourceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HitsView;
+#[doc(inline)]
+pub use self::__buffa::view::HitsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HitView;
+#[doc(inline)]
+pub use self::__buffa::view::HitOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeHitView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeHitOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DoneView;
+#[doc(inline)]
+pub use self::__buffa::view::DoneOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPlaysRequestView;
 #[doc(inline)]
