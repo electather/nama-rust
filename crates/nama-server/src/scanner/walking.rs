@@ -39,7 +39,7 @@ const BACKDROP_NAMES: &[&str] = &["fanart", "backdrop", "background", "art"];
 const SHOW_POSTER_NAME: &str = "show";
 
 /// Names of the files that make scans skip the folder holding them: Android's `.nomedia` and
-/// Jellyfin's `.ignore`, which Plex and Silo honour too, so existing trees already carry them.
+/// Jellyfin's `.ignore`, which Silo honours too, so existing trees already carry them.
 const IGNORE_MARKERS: [&str; 2] = [".nomedia", ".ignore"];
 
 #[derive(Debug)]
