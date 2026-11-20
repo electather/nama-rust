@@ -8,7 +8,7 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
@@ -95,6 +95,21 @@ async fn accept(
         })
         .await?;
     Ok(response.into_owned())
+}
+
+/// How far the clock, while the test hasn't moved it, is from the start of the Unix second
+/// `second`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn until_second(second: i64) -> Duration {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    // Whole milliseconds, as `db::now_ms` reads it, so moving the clock by this lands on `second`.
+    let now = Duration::from_millis(now.as_millis().try_into().unwrap());
+    Duration::from_secs(second.try_into().unwrap())
+        .checked_sub(now)
+        .unwrap()
 }
 
 #[expect(
@@ -199,11 +214,16 @@ async fn an_invite_stops_working_7_days_after_it_was_made() {
     let admin = users(server.client_config());
     let early = create_invite(&admin, "", &[]).await.unwrap();
     let late = create_invite(&admin, "", &[]).await.unwrap();
-    let week = Duration::from_hours(7 * 24);
+    let early_expiry = early.invite.as_option().unwrap().expires_at;
+    let late_expiry = late.invite.as_option().unwrap().expires_at;
 
-    server.advance_clock(week.saturating_sub(Duration::from_secs(1)));
+    // The real clock keeps running, so land on the start of the last second `early` works, giving
+    // the accept that whole second.
+    server.advance_clock(until_second(early_expiry - 1));
     let within = accept(&server, &token_of(&early), "Mum").await;
-    server.advance_clock(Duration::from_secs(1));
+    // From the last second `early` works to `late`'s expiry, which may be a second after `early`'s.
+    let to_late_expiry = late_expiry - early_expiry + 1;
+    server.advance_clock(Duration::from_secs(to_late_expiry.try_into().unwrap()));
     let after = accept(&server, &token_of(&late), "Dad").await;
 
     within.unwrap();
