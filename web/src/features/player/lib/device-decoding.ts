@@ -91,10 +91,10 @@ function startsJassub() {
   );
 }
 
-/** Whether this browser starts a Web Worker from an ES module. */
 function startsModuleWorkers() {
   let readsType = false;
-  // Only a browser that knows module workers reads `type`; the bad URL stops any worker starting.
+  // Only a browser that knows module workers reads `type`. The URL loads nothing: Chrome throws for
+  // it, after reading `type`, and any worker another browser starts is ended at once.
   try {
     new Worker("blob://", {
       get type() {
@@ -103,7 +103,7 @@ function startsModuleWorkers() {
       },
     }).terminate();
   } catch {
-    // Thrown for the bad URL, after `type` is read.
+    // What a browser throws for the URL says nothing more than whether it read `type`.
   }
   return readsType;
 }
