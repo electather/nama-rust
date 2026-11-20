@@ -1,5 +1,5 @@
+import { DownloadRow } from "@/features/requests/components/download-row";
 import type { Request } from "@/gen/nama/v1/request_pb";
-import { DownloadRow } from "@/shared/components/request-progress/download-row";
 import { overallPercent } from "@/shared/lib/download-progress";
 import { Progress } from "@/shared/ui/progress";
 

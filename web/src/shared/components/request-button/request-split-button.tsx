@@ -28,12 +28,14 @@ export function RequestSplitButton({
   const mayChoose = useMay(Permission.CHOOSE_QUALITY);
   // A ghost button's icon lines up with the caption above it, its padding hanging outside.
   const [variant, hanging] = primary ? (["default"] as const) : (["ghost", "-ms-4"] as const);
-  const shown = { what, variant, disabled: busy };
+  const bothParts = { what, variant, disabled: busy };
   return (
     <span className={hanging}>
       <ButtonGroup>
-        <OneClickRequest {...shown} onRequest={onRequest} />
-        {opening && mayChoose && <QualityMenuLoader {...shown} kind={kind} onPick={onRequest} />}
+        <OneClickRequest {...bothParts} onRequest={onRequest} />
+        {opening && mayChoose && (
+          <QualityMenuLoader {...bothParts} kind={kind} onPick={onRequest} />
+        )}
       </ButtonGroup>
     </span>
   );
