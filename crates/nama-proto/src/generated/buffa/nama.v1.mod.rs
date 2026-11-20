@@ -307,6 +307,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__LAST_SCAN_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_LIBRARIES_REQUEST_JSON_ANY);
@@ -1376,6 +1377,10 @@ pub use self::__buffa::view::PlaybackOwnedView;
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LastScanView;
+#[doc(inline)]
+pub use self::__buffa::view::LastScanOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::CreateLibraryRequestView;
 #[doc(inline)]

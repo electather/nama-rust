@@ -20,8 +20,8 @@ use nama_proto::nama::v1::{
 
 use crate::{
     library::{
-        Contents, FolderProblem, Libraries, Library, LibraryError, LibraryKind, NewestBackdrop,
-        Order, Role, Slot, TitleSources, TitleTarget as Target, artwork_url,
+        Contents, FolderProblem, LastScan, Libraries, Library, LibraryError, LibraryKind,
+        NewestBackdrop, Order, Role, Slot, TitleSources, TitleTarget as Target, artwork_url,
     },
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
@@ -124,8 +124,9 @@ impl LibraryService for LibraryServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListLibrariesRequest>,
     ) -> ServiceResult<ListLibrariesResponse> {
-        // Disk paths are for those who manage Libraries (see AGENTS.md).
-        let sees_folders = caller(&ctx)?
+        // Disk paths are for those who manage Libraries (see AGENTS.md), and so is Library upkeep
+        // such as the last Scan, as #1125 decided.
+        let manages_libraries = caller(&ctx)?
             .user
             .permissions
             .allow(Permission::ManageLibraries);
@@ -135,12 +136,13 @@ impl LibraryService for LibraryServiceHandler {
             libraries: libraries
                 .into_iter()
                 .map(|library| {
-                    if sees_folders {
+                    if manages_libraries {
                         library
                     } else {
                         Library {
                             folders: Vec::new(),
                             empty_folders: Vec::new(),
+                            last_scan: None,
                             ..library
                         }
                     }
@@ -504,6 +506,18 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         segment_source_ids: library.segment_sources,
         empty_folders: library.empty_folders,
         preview_frames: library.preview_frames,
+        last_scan: library.last_scan.map(last_scan_to_proto).into(),
+        ..Default::default()
+    }
+}
+
+fn last_scan_to_proto(last: LastScan) -> proto::LastScan {
+    proto::LastScan {
+        finished_at: last.finished_at,
+        added: last.added,
+        updated: last.updated,
+        removed: last.removed,
+        unchanged: last.unchanged,
         ..Default::default()
     }
 }

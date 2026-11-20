@@ -136,6 +136,26 @@ message Library {
   // kind, the first that answers wins (ADR 0075). None unless an Admin set it. `ListPlugins`
   // lists the Plugins with `EXTENSION_POINT_SEGMENT_SOURCE` that may be named.
   repeated string segment_source_ids = 12;
+  // The Library's last Scan that finished storing, as its `ScanFinished` said, replaced by each
+  // one that does. Recorded just after that `ScanFinished` is sent, so it may not be read yet on
+  // it, and before the Scan's `MatchingFinished`. Unset before its first, and in `ListLibraries`
+  // for a caller without `PERMISSION_MANAGE_LIBRARIES`.
+  optional LastScan last_scan = 13;
+}
+
+// What a Library's last finished Scan stored. A Scan that fails or is cancelled leaves it as it
+// was.
+message LastScan {
+  // When the Scan finished storing, in seconds since the Unix epoch.
+  int64 finished_at = 1;
+  // As `ScanFinished.added`.
+  uint64 added = 2;
+  // As `ScanFinished.updated`.
+  uint64 updated = 3;
+  // As `ScanFinished.removed`.
+  uint64 removed = 4;
+  // As `ScanFinished.unchanged`.
+  uint64 unchanged = 5;
 }
 
 message CreateLibraryRequest {

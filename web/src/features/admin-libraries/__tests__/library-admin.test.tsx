@@ -42,6 +42,45 @@ test("a scan Event updates a Library's progress without a reload", async () => {
   await expect(screen.findByText("Scanned: 9 new, 0 changed and 1 gone")).resolves.toBeDefined();
 });
 
+/** `films`, last scanned on 18 Nov 2026 at 14:02 UTC. */
+const scannedFilms = {
+  ...films,
+  lastScan: { finishedAt: 1_795_010_520n, added: 3n, updated: 1n, removed: 2n, unchanged: 50n },
+};
+
+test.each(["/admin/libraries", "/admin/libraries/1"])(
+  "%s shows a Library's last scan until a scan Event replaces it",
+  async (path) => {
+    const events = eventFeed();
+    openApp(
+      path,
+      adminServer(events.stream, (router) => {
+        router.service(LibraryService, {
+          listLibraries: () => ({ libraries: [scannedFilms] }),
+          getLibrary: () => ({ library: scannedFilms }),
+        });
+      }),
+    );
+    const stored = /^Last scanned .*2026.*: 3 new, 1 changed and 2 gone$/u;
+    await expect(screen.findByText(stored)).resolves.toBeDefined();
+
+    events.send({ event: { case: "scanStarted", value: { libraryId: 1n } } });
+    await expect(screen.findByText("Scanning…")).resolves.toBeDefined();
+    expect(screen.queryByText(stored)).toBeNull();
+  },
+);
+
+test("a Library that has never finished a scan says no scan was seen", async () => {
+  openApp(
+    "/admin/libraries/1",
+    adminServer(new ReadableStream(), (router) => {
+      router.service(LibraryService, { getLibrary: () => ({ library: films }) });
+    }),
+  );
+
+  await expect(screen.findByText("No scan seen yet.")).resolves.toBeDefined();
+});
+
 test("a Library that isn't on the Server shows the not-found page, under the app chrome", async () => {
   openApp(
     "/admin/libraries/9",
