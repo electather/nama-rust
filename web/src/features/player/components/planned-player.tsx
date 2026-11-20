@@ -1,12 +1,14 @@
 import { CantPlay } from "@/features/player/components/cant-play";
 import { DroppedChoice } from "@/features/player/components/dropped-choice";
 import { VideoPlayer } from "@/features/player/components/video-player";
+import { useSubtitleAppearance } from "@/features/player/data/use-subtitle-appearance";
 import { usePlaybackPlan } from "@/features/player/hooks/use-playback-plan";
 import type { PlannedProps } from "@/features/player/lib/player-props";
 
 /** Plays the Version with the plan the Server gives, or says it can't. */
 export function PlannedPlayer(props: PlannedProps) {
   const planned = usePlaybackPlan(props);
+  const subtitles = useSubtitleAppearance();
   const { plan } = planned;
   if (plan.url === "") {
     return <CantPlay {...props} reasons={plan.reasons.filter(({ decided }) => decided)} />;
@@ -26,8 +28,11 @@ export function PlannedPlayer(props: PlannedProps) {
     ),
   };
   return (
-    // Each new plan plays in a new `<video>`, so it starts where that plan does. ponytail: that one
-    // starts unmuted at full volume; carry those over if anyone minds.
-    <VideoPlayer key={planned.asks} {...props} planned={planned} topBar={topBar} />
+    // `src/subtitle-cues.css` styles the text subtitles' cues by these.
+    <div data-subtitle-size={subtitles.size} data-subtitle-background={subtitles.background}>
+      {/* Each new plan plays in a new `<video>`, so it starts where that plan does. ponytail: that
+          one starts unmuted at full volume; carry those over if anyone minds. */}
+      <VideoPlayer key={planned.asks} {...props} planned={planned} topBar={topBar} />
+    </div>
   );
 }
