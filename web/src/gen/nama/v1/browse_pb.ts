@@ -2106,7 +2106,7 @@ export const ShowSortSchema: GenEnum<ShowSort> = /*@__PURE__*/
  * Matched to the same title, and identified by its external id within the Library. A Show is
  * grouped from its Episodes' Show ids, and a Season is the Show's Episodes that share a season
  * number. Items that aren't Matched appear only in `ListUnmatched`, by what their files' names
- * were parsed as, never by where the files are (ADR 0062).
+ * were parsed as, never by where the files are (ADR 0069).
  *
  * @generated from service nama.v1.BrowseService
  */
