@@ -218,7 +218,7 @@ async fn an_invite_stops_working_7_days_after_it_was_made() {
     let late_expiry = late.invite.as_option().unwrap().expires_at;
 
     // The real clock keeps running, so land on the start of the last second `early` works, giving
-    // the accept that whole second, rather than a fixed week after it was made.
+    // the accept that whole second.
     server.advance_clock(until_second(early_expiry - 1));
     let within = accept(&server, &token_of(&early), "Mum").await;
     // From the last second `early` works to `late`'s expiry, which may be a second after `early`'s.
