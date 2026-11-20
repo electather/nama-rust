@@ -1,7 +1,8 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
-//! [`super::tracks`]), and decides what a failure to probe one means for trying it again. It also
-//! lists a Version's keyframes in the background when first asked for them, and keeps them, or
-//! that listing them failed, for its file as it is ([`Probing::keyframes`]).
+//! [`super::tracks`]), with a Matroska file's keyframes when its Cues list them, and decides what a
+//! failure to probe one means for trying it again. It lists any other Version's keyframes in the
+//! background when first asked for them, and keeps them, or that listing them failed, for its
+//! file as it is ([`Probing::keyframes`]).
 //!
 //! After a Library's files change, those without current Tracks, never probed or changed or read
 //! by an older probe version since, are probed in the background, a few at a time
@@ -10,6 +11,7 @@
 //! timeout, is tried again on the next few passes first. A Version can also be probed right away
 //! ([`Probing::current`]), which waits for a background probe of it rather than probe it twice.
 
+mod cues;
 mod ffprobe;
 
 use std::{
@@ -53,8 +55,9 @@ const PROBES_AT_ONCE: usize = 3;
 const WHOLE_FILE_READS_AT_ONCE: usize = 2;
 
 /// How long a plan waits for a Version's keyframes before it Transcodes instead, well short of
-/// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866).
-const LISTING_WAIT: Duration = Duration::from_secs(30);
+/// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866). Short,
+/// as reading a whole big file takes minutes, and a Matroska file's Cues usually spare it (#1122).
+const LISTING_WAIT: Duration = Duration::from_secs(5);
 
 /// Why probing a file failed.
 #[derive(Debug, thiserror::Error)]
@@ -224,11 +227,11 @@ impl Probing {
     }
 
     /// When the Version `version`'s file starts and each keyframe of its first video falls: as
-    /// kept for its file as it is now, or else listed in the background, which reads the whole
-    /// file, and kept. If something is listing them already, waits for that instead. Waits at
-    /// most [`LISTING_WAIT`] for a listing, then returns [`ProbeError::NotListedYet`] while it
-    /// carries on. They're kept only while the Version's Tracks were read from its file as it is
-    /// now.
+    /// kept for its file as it is now, by probing or an earlier listing, or else listed in the
+    /// background, which reads the whole file, and kept. If something is listing them already,
+    /// waits for that instead. Waits at most [`LISTING_WAIT`] for a listing, then returns
+    /// [`ProbeError::NotListedYet`] while it carries on. They're kept only while the Version's
+    /// Tracks were read from its file as it is now.
     pub(super) async fn keyframes(&self, version: i64) -> Result<ListedKeyframes, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
@@ -465,8 +468,19 @@ impl Probing {
             return Ok(probe);
         }
         match ffprobe::probe(&self.inner.ffmpeg, path).await {
-            Ok(probe) => {
+            Ok((probe, file_start_ms)) => {
+                let cued = match probe.container.as_str() {
+                    // ponytail: Matroska only; MP4's sample tables list keyframes too (#1128).
+                    "matroska,webm" => cues::listed(path, file_start_ms, probe.duration_ms).await,
+                    _ => None,
+                };
                 self.inner.tracks.store(file, probe.clone()).await?;
+                // Without usable Cues, the first Remux lists them by reading the whole file.
+                if let Some(cued) = cued {
+                    (self.inner.tracks)
+                        .store_keyframes(file, &Keyframes::Listed(cued))
+                        .await?;
+                }
                 Ok(probe)
             }
             Err(err) => {

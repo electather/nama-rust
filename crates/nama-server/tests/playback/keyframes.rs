@@ -1,7 +1,26 @@
-//! Remuxing with a keyframe scan by a scripted ffprobe: one that fails falls back to a
-//! Transcode, and a Version's keyframes are listed once.
+//! Remuxing with a keyframe scan by a scripted ffprobe: an MKV's Cues spare it, one that fails
+//! falls back to a Transcode, and a Version's keyframes are listed once.
 
 use super::*;
+
+/// Starts a Server with `ffmpeg` and Alien as [`Fixture::alien_mkv`] writes it, but copied through
+/// a pipe, which leaves its Cues out, so its first Remux lists its keyframes by reading it all.
+#[cfg(unix)]
+async fn alien_mkv_without_cues(ffmpeg: Ffmpeg) -> (Fixture, i64) {
+    Fixture::alien_written(ffmpeg, |file| {
+        let cued = file.with_extension("cued.mkv");
+        ffmpeg::write_h264_with_5_1(&cued, "aac")?;
+        let copied = std::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(&cued)
+            .args(["-c", "copy", "-f", "matroska", "pipe:1"])
+            .stdout(fs::File::create(file)?)
+            .status()?;
+        assert!(copied.success());
+        fs::remove_file(cued)
+    })
+    .await
+}
 
 /// A Server whose ffprobe, a shell script in `bin`, runs `first` and then the ffprobe on `PATH`.
 #[expect(
@@ -40,7 +59,7 @@ fn ffprobe_failing_keyframes(bin: &Path) -> Ffmpeg {
 #[tokio::test]
 async fn a_remux_whose_keyframes_cant_be_listed_transcodes_and_says_why() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, version) = Fixture::alien_mkv(ffprobe_failing_keyframes(bin.path()), "aac").await;
+    let (fx, version) = alien_mkv_without_cues(ffprobe_failing_keyframes(bin.path())).await;
 
     let plan = fx.transcode(version).await;
 
@@ -56,7 +75,7 @@ async fn a_remux_whose_keyframes_cant_be_listed_transcodes_and_says_why() {
 #[tokio::test]
 async fn a_remux_whose_keyframes_cant_be_listed_is_refused_as_busy_at_the_transcode_limit() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, version) = Fixture::alien_mkv(ffprobe_failing_keyframes(bin.path()), "aac").await;
+    let (fx, version) = alien_mkv_without_cues(ffprobe_failing_keyframes(bin.path())).await;
     fx.allow_one_transcode().await;
     fx.transcode(version).await;
 
@@ -74,7 +93,7 @@ async fn a_remux_whose_keyframes_cant_be_listed_is_refused_as_busy_at_the_transc
 #[tokio::test]
 async fn a_version_whose_keyframes_couldnt_be_listed_transcodes_next_time_without_listing_them() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, version) = Fixture::alien_mkv(ffprobe_failing_keyframes(bin.path()), "aac").await;
+    let (fx, version) = alien_mkv_without_cues(ffprobe_failing_keyframes(bin.path())).await;
     fx.transcode(version).await;
 
     let plan = fx.transcode(version).await;
@@ -93,7 +112,7 @@ async fn a_version_whose_keyframes_couldnt_be_listed_transcodes_next_time_withou
 async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
     let bin = tempfile::tempdir().unwrap();
     let log = bin.path().join("runs.log");
-    let (fx, version) = Fixture::alien_mkv(ffprobe_logging_its_runs(bin.path(), &log), "aac").await;
+    let (fx, version) = alien_mkv_without_cues(ffprobe_logging_its_runs(bin.path(), &log)).await;
 
     let first = fx.plan(version).await.unwrap();
     let second = fx.plan(version).await.unwrap();
@@ -106,4 +125,23 @@ async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
     let runs = fs::read_to_string(&log).unwrap();
     let listings = runs.lines().filter(|run| run.contains("packet=pts_time"));
     assert_eq!(listings.count(), 1, "{runs}");
+}
+
+// The logging ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_mkv_with_cues_remuxes_on_its_first_play_without_reading_it_all() {
+    let bin = tempfile::tempdir().unwrap();
+    let log = bin.path().join("runs.log");
+    let (fx, version) = Fixture::alien_mkv(ffprobe_logging_its_runs(bin.path(), &log), "aac").await;
+
+    let plan = fx.plan(version).await.unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    let playlist = String::from_utf8(fx.fetch_ok(&plan.url).await).unwrap();
+    for file in segments(&playlist).1 {
+        fx.fetch_ok(&beside(&plan.url, file)).await;
+    }
+    let runs = fs::read_to_string(&log).unwrap();
+    assert!(!runs.contains("packet="), "{runs}");
 }

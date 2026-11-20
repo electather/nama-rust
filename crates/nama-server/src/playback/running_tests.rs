@@ -18,14 +18,14 @@ use super::{
 use crate::{
     db::Database,
     events::{EventBus, Filter, event},
-    ffmpeg::Ffmpeg,
+    ffmpeg::{Accel, Ffmpeg, Hardware},
     library::Contents,
     playback::{Probing, subtitles},
     plugins::ExtensionPoints,
     server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
 };
 
-fn event_bus(db: &Arc<Database>) -> EventBus {
+pub(super) fn event_bus(db: &Arc<Database>) -> EventBus {
     EventBus::new(
         Arc::clone(db),
         ExtensionPoints::default(),
@@ -38,7 +38,11 @@ fn plans_in(db: &Arc<Database>, settings: PlaybackSettings) -> RunningPlans {
     plans_with(db, settings, &events)
 }
 
-fn plans_with(db: &Arc<Database>, settings: PlaybackSettings, events: &EventBus) -> RunningPlans {
+pub(super) fn plans_with(
+    db: &Arc<Database>,
+    settings: PlaybackSettings,
+    events: &EventBus,
+) -> RunningPlans {
     let ffmpeg = Arc::new(Ffmpeg::default());
     // Nothing here cleans subtitles, so their cache's and the image store's folder is never
     // touched.
@@ -54,7 +58,7 @@ fn plans_with(db: &Arc<Database>, settings: PlaybackSettings, events: &EventBus)
 }
 
 /// The playback of a Remux on the Device `device`.
-fn playback(device: i64) -> Playback {
+pub(super) fn playback(device: i64) -> Playback {
     Playback {
         device_id: device,
         method: PlaybackMethod::PLAYBACK_METHOD_REMUX.into(),
@@ -71,15 +75,15 @@ fn only_reason(kind: PlaybackReasonKind) -> Vec<PlaybackReason> {
 }
 
 /// The Server settings in `db`, with segment files going to `default` while no folder is set.
-fn settings(db: &Arc<Database>, default: PathBuf) -> Settings {
+pub(super) fn settings(db: &Arc<Database>, default: PathBuf) -> Settings {
     Settings::new(Arc::clone(db), default)
 }
 
-async fn database(data: &Path) -> Arc<Database> {
+pub(super) async fn database(data: &Path) -> Arc<Database> {
     Arc::new(Database::open(data).await.unwrap())
 }
 
-async fn running_plans(data: &Path) -> RunningPlans {
+pub(super) async fn running_plans(data: &Path) -> RunningPlans {
     let db = database(data).await;
     plans_in(&db, settings(&db, data.join("transcodes")).playback())
 }
@@ -91,7 +95,11 @@ fn plan_dir(data: &Path, id: u64) -> PathBuf {
 
 /// Starts a plan by `method` for the Device `device`, whose runs the test stands in for, and
 /// returns its id with those runs.
-async fn start_faked(plans: &RunningPlans, method: Method, device: i64) -> (u64, FakeRuns) {
+pub(super) async fn start_faked(
+    plans: &RunningPlans,
+    method: Method,
+    device: i64,
+) -> (u64, FakeRuns) {
     let runs = FakeRuns::default();
     let started = Runs {
         method,
@@ -106,13 +114,13 @@ async fn start_faked(plans: &RunningPlans, method: Method, device: i64) -> (u64,
 }
 
 /// Starts a Remux for the Device `device` whose runs the test stands in for, and returns its id.
-async fn start_remux(plans: &RunningPlans, device: i64) -> u64 {
+pub(super) async fn start_remux(plans: &RunningPlans, device: i64) -> u64 {
     start_faked(plans, Method::Remux, device).await.0
 }
 
 /// Starts a Transcode on hardware for the Device 7, as `started`, falling back to software, and
 /// returns its id with its runs on hardware and in software.
-async fn start_on_hardware(
+pub(super) async fn start_on_hardware(
     plans: &RunningPlans,
     started: Playback,
     software_reasons: Vec<PlaybackReason>,
@@ -127,11 +135,21 @@ async fn start_on_hardware(
     let fallback = FallbackRun {
         start: software.start(),
         reasons: software_reasons,
+        hardware: vaapi(),
     };
     let id = (plans.start_hls(started, every_two_seconds(), 0, runs, Some(fallback)))
         .await
         .unwrap();
     (id, hardware, software)
+}
+
+/// The hardware [`start_on_hardware`] Transcodes on.
+pub(super) fn vaapi() -> Hardware {
+    Hardware {
+        accel: Accel::Vaapi,
+        gpu: None,
+        tone_maps: false,
+    }
 }
 
 #[tokio::test]
@@ -511,7 +529,7 @@ async fn the_sweep_deletes_plan_folders_in_the_set_and_default_folders_and_nothi
 }
 
 /// A plan Direct Playing the Version `version`.
-fn direct_play_of(version: i64) -> crate::playback::Plan {
+pub(super) fn direct_play_of(version: i64) -> crate::playback::Plan {
     crate::playback::Plan {
         version,
         playing: Some(crate::playback::Playing::DirectPlay),
@@ -526,7 +544,7 @@ fn direct_play_of(version: i64) -> crate::playback::Plan {
     }
 }
 
-fn ripley() -> crate::users::Caller {
+pub(super) fn ripley() -> crate::users::Caller {
     use crate::users::{Caller, Device, Permissions, User};
 
     Caller {

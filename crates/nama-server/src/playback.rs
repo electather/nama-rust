@@ -36,7 +36,10 @@ pub(crate) use direct_play::router;
 pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
-pub(crate) use running::{RunningPlans, StartError, router as running_router, sweep_leftovers};
+pub(crate) use running::{
+    MessageTooLong, PlayNow, ReportedProgress, RunningPlans, STOP_MESSAGE_LENGTH, StartError,
+    router as running_router, sweep_leftovers,
+};
 pub(crate) use sidecars::{Sidecar, Sidecars, VersionSidecars, is_sidecar};
 pub(crate) use subtitle_appearance::{
     SubtitleAppearance, of as subtitle_appearance_of, set_background as set_subtitle_background,

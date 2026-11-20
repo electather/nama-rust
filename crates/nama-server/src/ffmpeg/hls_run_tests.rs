@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::PathBuf;
 
 use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
 
@@ -17,6 +17,11 @@ fn ffmpeg(version: &str) -> Ffmpeg {
         }),
         ..Ffmpeg::default()
     }
+}
+
+/// The folder runs write to, never created: absolute, as `hls_output` requires.
+fn plan() -> PathBuf {
+    std::env::temp_dir().join("plan")
 }
 
 fn args(run: &HlsRun) -> Vec<String> {
@@ -49,7 +54,7 @@ fn remux_args(remux: Remux, from: Keyframe) -> Vec<String> {
 /// The arguments for a run of `remux` of `alien.mkv`, as if it started at `file_start_ms`, from
 /// `from`, with ffmpeg 7.1.1.
 fn remux_args_starting_at(remux: Remux, from: Keyframe, file_start_ms: i64) -> Vec<String> {
-    let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, Path::new("plan"), from, file_start_ms);
+    let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, &plan(), from, file_start_ms);
     args(&run.unwrap())
 }
 
@@ -61,7 +66,7 @@ fn transcode_args(video: VideoConversion) -> Vec<String> {
         n: 0,
         cuts: &[0, 6000, 12_000],
     };
-    let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+    let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, &plan(), from);
     args(&run.unwrap())
 }
 
@@ -83,7 +88,7 @@ const fn keyframe(n: usize, ms: i64, previous_ms: Option<i64>) -> Keyframe {
 
 /// `name` in the folder the tests write to, as ffmpeg is given it on this platform.
 fn in_plan(name: &str) -> String {
-    Path::new("plan").join(name).display().to_string()
+    plan().join(name).display().to_string()
 }
 
 #[test]
@@ -163,7 +168,7 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
         cuts: &[12_000, 18_000],
     };
 
-    let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+    let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, &plan(), from);
     let args = args(&run.unwrap());
 
     let expected = [
@@ -462,7 +467,7 @@ fn a_run_that_seeks_reads_its_image_subtitle_from_an_input_that_doesnt() {
         n: 1,
         cuts: &[6000, 12_000],
     };
-    let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+    let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, &plan(), from);
     let args = args(&run.unwrap());
 
     let graph = value_of(&args, "-filter_complex").unwrap();
@@ -760,13 +765,7 @@ fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
             audio: None,
             hevc: false,
         };
-        let run = ffmpeg(version).remux(
-            "alien.mkv",
-            &silent,
-            Path::new("plan"),
-            keyframe(0, 0, None),
-            0,
-        );
+        let run = ffmpeg(version).remux("alien.mkv", &silent, &plan(), keyframe(0, 0, None), 0);
         let args = args(&run.unwrap());
         ["-hls_ts_options", "-hls_segment_options"]
             .into_iter()

@@ -70,6 +70,22 @@ pub type OwnedSwitchImageStoreRequestView = ::buffa::view::OwnedView<
 pub type OwnedSwitchImageStoreResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SwitchImageStoreResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListPlaysRequestView<'static>>`.
+pub type OwnedListPlaysRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPlaysRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListPlaysResponseView<'static>>`.
+pub type OwnedListPlaysResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPlaysResponseView<'static>,
+>;
+///Shorthand for `OwnedView<StopPlayRequestView<'static>>`.
+pub type OwnedStopPlayRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StopPlayRequestView<'static>,
+>;
+///Shorthand for `OwnedView<StopPlayResponseView<'static>>`.
+pub type OwnedStopPlayResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StopPlayResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::GetServerInfoResponse>
 for crate::messages::nama::v1::__buffa::view::GetServerInfoResponseView<'_> {
     fn encode(
@@ -376,6 +392,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPlaysResponse>
+for crate::messages::nama::v1::__buffa::view::ListPlaysResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPlaysResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPlaysResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StopPlayResponse>
+for crate::messages::nama::v1::__buffa::view::StopPlayResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StopPlayResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StopPlayResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const SERVER_SERVICE_SERVICE_NAME: &str = "nama.v1.ServerService";
 /// Static [`Spec`](::connectrpc::Spec) for the `GetServerInfo` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -432,6 +516,18 @@ pub const SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC: ::connectrpc::Spec = ::connect
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListPlays` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_LIST_PLAYS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/ListPlays",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `StopPlay` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_STOP_PLAY_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/StopPlay",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Facts about a Server that any client can read, before signing in, and the Server's settings.
 ///
 /// # Implementing handlers
@@ -708,6 +804,56 @@ pub trait ServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SwitchImageStoreResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists every plan playing now, on every User's Device, oldest first. Needs `PERMISSION_ADMIN`.
+    /// The Playback events follow each from here on, by plan id.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_plays<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListPlaysRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListPlaysResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Stops a plan on any Device, the caller's own included, as its player's `StopPlayback` would,
+    /// and cuts off its Direct Play's file mid-response. Its `PlaybackEnded` carries `admin_stop`
+    /// with the message. A plan already stopped is left alone. Needs `PERMISSION_ADMIN`. A message
+    /// over 200 characters is refused with `REFUSAL_REASON_MESSAGE_TOO_LONG`, and nothing stops.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn stop_play<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::StopPlayRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::StopPlayResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1004,6 +1150,64 @@ impl<S: ServerService> ServerServiceExt for S {
                 },
             )
             .with_spec(SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC)
+            .route_view_idempotent(
+                SERVER_SERVICE_SERVICE_NAME,
+                "ListPlays",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListPlaysRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListPlaysRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_plays(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListPlaysResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_LIST_PLAYS_SPEC)
+            .route_view(
+                SERVER_SERVICE_SERVICE_NAME,
+                "StopPlay",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::StopPlayRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::StopPlayRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.stop_play(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::StopPlayResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_STOP_PLAY_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1110,6 +1314,18 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC),
+                )
+            }
+            "ListPlays" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(SERVER_SERVICE_LIST_PLAYS_SPEC),
+                )
+            }
+            "StopPlay" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SERVER_SERVICE_STOP_PLAY_SPEC),
                 )
             }
             _ => None,
@@ -1323,6 +1539,46 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                         .encode::<
                             crate::messages::nama::v1::SwitchImageStoreResponse,
                         >(format)
+                })
+            }
+            "ListPlays" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListPlaysRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListPlaysRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListPlaysRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_plays(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::ListPlaysResponse>(format)
+                })
+            }
+            "StopPlay" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::StopPlayRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::StopPlayRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::StopPlayRequest,
+                    >::from_parts(&req, &body);
+                    svc.stop_play(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::StopPlayResponse>(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -1852,6 +2108,88 @@ where
                 &self.transport,
                 &self.config,
                 SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListPlays RPC. Sends a request to /nama.v1.ServerService/ListPlays.
+    pub async fn list_plays(
+        &self,
+        request: crate::messages::nama::v1::ListPlaysRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListPlaysResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_plays_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListPlays RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_plays_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListPlaysRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListPlaysResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_LIST_PLAYS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the StopPlay RPC. Sends a request to /nama.v1.ServerService/StopPlay.
+    pub async fn stop_play(
+        &self,
+        request: crate::messages::nama::v1::StopPlayRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StopPlayResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.stop_play_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the StopPlay RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn stop_play_with_options(
+        &self,
+        request: crate::messages::nama::v1::StopPlayRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StopPlayResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_STOP_PLAY_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

@@ -8,6 +8,7 @@ import {
   Fingerprint,
   KeyRound,
   Link,
+  Rows3,
   ScanSearch,
   Server,
   Tv,
@@ -29,6 +30,7 @@ export const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.RECOGNISER]: { label: "Recogniser", Icon: Fingerprint },
   [ExtensionPoint.BLOB_STORE]: { label: "Blob store", Icon: Database },
   [ExtensionPoint.AUTOMATION]: { label: "Automation", Icon: CalendarClock },
+  [ExtensionPoint.HOME_ROW]: { label: "Home rows", Icon: Rows3 },
   [ExtensionPoint.SUBTITLE_SOURCE]: { label: "Subtitle source", Icon: Captions },
 };
 
@@ -36,4 +38,6 @@ export const points: Partial<Record<ExtensionPoint, Shown>> = {
 export const failureMeans: Partial<Record<ExtensionPoint, string>> = {
   [ExtensionPoint.RECOGNISER]:
     "Until it answers, the Items it is asked about stay undecided and are tried again at the next Scan; the rest of Matching goes on.",
+  [ExtensionPoint.HOME_ROW]:
+    "Users go on seeing the rows it last gave, and a visit to home 15 minutes or more later asks it again.",
 };
