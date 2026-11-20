@@ -1,4 +1,4 @@
-use super::parse_probe;
+use super::{Starts, parse_probe};
 use crate::playback::tracks::{BaseLayer, Hdr, Probe, Track, TrackKind};
 
 /// Cut down from ffprobe 7.0's output for a Blu-ray remux with cover art.
@@ -356,5 +356,28 @@ fn a_subtitle_is_sdh_when_flagged_or_titled_so_but_audio_titled_so_is_not() {
             (Some("SDH"), false),
             (Some("CC"), false),
         ]
+    );
+}
+
+#[test]
+fn the_video_starts_where_its_first_stream_other_than_cover_art_does() {
+    let json = r#"{
+            "streams": [
+                {"codec_type": "video", "start_time": "0.000000",
+                 "disposition": {"attached_pic": 1}},
+                {"codec_type": "audio", "start_time": "0.000000"},
+                {"codec_type": "video", "start_time": "0.023000"}
+            ],
+            "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "start_time": "0.000000"}
+        }"#;
+
+    let (_, starts) = parse_probe(json.as_bytes()).unwrap();
+
+    assert_eq!(
+        starts,
+        Starts {
+            file_ms: 0,
+            video_ms: Some(23),
+        }
     );
 }

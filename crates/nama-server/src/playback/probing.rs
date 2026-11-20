@@ -28,6 +28,7 @@ use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
+use self::ffprobe::Starts;
 use super::{
     sidecars::Sidecars,
     subtitles,
@@ -451,9 +452,9 @@ impl Probing {
             return Ok(probe);
         }
         match ffprobe::probe(&self.inner.ffmpeg, path).await {
-            Ok((probe, file_start_ms)) => {
+            Ok((probe, starts)) => {
                 self.inner.tracks.store(file, probe.clone()).await?;
-                if let Some(listed) = indexed_keyframes(path, &probe, file_start_ms).await {
+                if let Some(listed) = indexed_keyframes(path, &probe, starts).await {
                     let listed = Keyframes::Listed(listed);
                     self.inner.tracks.store_keyframes(file, &listed).await?;
                 }
@@ -549,33 +550,32 @@ impl Probing {
     }
 }
 
-/// The keyframes of the file at `path`, which `probe` read and found starts at `file_start_ms`,
-/// as its container's index lists them, for an MP4, if they pass [`checked`]. `None` leaves them
-/// to a whole-file listing on the first Remux (ADR 0066).
-async fn indexed_keyframes(
-    path: &str,
-    probe: &Probe,
-    file_start_ms: i64,
-) -> Option<ListedKeyframes> {
+/// The keyframes of the file at `path`, which `probe` read and found `starts` so, as its
+/// container's index lists them, for an MP4, if they pass [`checked`]. `None` leaves them to a
+/// whole-file listing on the first Remux (ADR 0066).
+async fn indexed_keyframes(path: &str, probe: &Probe, starts: Starts) -> Option<ListedKeyframes> {
     if probe.container != "mov,mp4,m4a,3gp,3g2,mj2" {
         return None;
     }
     let path = path.to_owned();
     let read = move || mp4::keyframes(&mut std::fs::File::open(path).ok()?);
     let shown_at = tokio::task::spawn_blocking(read).await.ok()??;
-    checked(shown_at, file_start_ms, probe.duration_ms?)
+    checked(shown_at, starts, probe.duration_ms?)
 }
 
-/// The keyframes shown at `shown_at` in a file starting at `file_start_ms`, measured from that
-/// start as a whole-file listing measures them, if they're in increasing order, the first at the
-/// start within a millisecond's rounding, and none past `duration_ms`.
-fn checked(shown_at: Vec<i64>, file_start_ms: i64, duration_ms: i64) -> Option<ListedKeyframes> {
+/// The keyframes shown at `shown_at` in a file that `starts` so, measured from its start as a
+/// whole-file listing measures them, if they're in increasing order, the first where its video
+/// starts within a millisecond's rounding, and none past `duration_ms`.
+fn checked(shown_at: Vec<i64>, starts: Starts, duration_ms: i64) -> Option<ListedKeyframes> {
+    let file_start_ms = starts.file_ms;
     let keyframes_ms: Vec<i64> = (shown_at.into_iter())
         .map(|at| at - file_start_ms)
         .collect();
-    let at_start = keyframes_ms
-        .first()
-        .is_some_and(|first| (0..=1).contains(first));
+    // The video, not the file: an MP4's empty edit, as ffmpeg writes to line the video up with
+    // audio that starts first, delays its first keyframe past the file's start.
+    let video_start_ms = starts.video_ms? - file_start_ms;
+    let at_start = (keyframes_ms.first())
+        .is_some_and(|first| (video_start_ms..=video_start_ms + 1).contains(first));
     let increasing = keyframes_ms.is_sorted_by(|earlier, later| earlier < later);
     let within = keyframes_ms.last().is_some_and(|&last| last <= duration_ms);
     (at_start && increasing && within).then_some(ListedKeyframes {

@@ -8,7 +8,7 @@ use super::{
     Error, Keyframes, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE,
     ffprobe::WHOLE_FILE_TIMEOUT,
 };
-use super::{ListedKeyframes, checked};
+use super::{ListedKeyframes, Starts, checked};
 #[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
 
@@ -416,23 +416,48 @@ async fn shutting_down_stops_a_listing_and_keeps_nothing() {
 }
 
 #[test]
-fn index_keyframes_are_kept_only_from_the_files_start_in_order_and_within_its_length() {
-    let kept = checked(vec![1000, 3000], 1000, 5000);
+fn index_keyframes_are_kept_only_from_the_videos_start_in_order_and_within_its_length() {
+    let video_at = |video_ms| Starts {
+        file_ms: 1000,
+        video_ms: Some(video_ms),
+    };
 
     assert_eq!(
-        kept,
+        checked(vec![1000, 3000], video_at(1000), 5000),
         Some(ListedKeyframes {
             file_start_ms: 1000,
             keyframes_ms: vec![0, 2000],
         })
     );
+    assert_eq!(
+        checked(vec![1023, 3023], video_at(1023), 5000).map(|listed| listed.keyframes_ms),
+        Some(vec![23, 2023]),
+        "a video starting after the file"
+    );
     let refused = [
-        (vec![], "none"),
-        (vec![1500, 3000], "the first after the file's start"),
-        (vec![1000, 3000, 2000], "out of order"),
-        (vec![1000, 7000], "past the end"),
+        (vec![], video_at(1000), "none"),
+        (
+            vec![1500, 3000],
+            video_at(1000),
+            "the first after the video's start",
+        ),
+        (
+            vec![1000, 3000],
+            video_at(1500),
+            "the first before the video's start",
+        ),
+        (vec![1000, 3000, 2000], video_at(1000), "out of order"),
+        (vec![1000, 7000], video_at(1000), "past the end"),
+        (
+            vec![1000, 3000],
+            Starts {
+                file_ms: 1000,
+                video_ms: None,
+            },
+            "no video start",
+        ),
     ];
-    for (shown_at, why) in refused {
-        assert_eq!(checked(shown_at, 1000, 5000), None, "{why}");
+    for (shown_at, starts, why) in refused {
+        assert_eq!(checked(shown_at, starts, 5000), None, "{why}");
     }
 }

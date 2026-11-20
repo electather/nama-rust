@@ -24,14 +24,22 @@ const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_sub
 /// The ends of the file names of fonts, for an attachment whose MIME type doesn't say it's one.
 const FONT_EXTENSIONS: &[&str] = &[".ttf", ".otf", ".ttc"];
 
+/// When a file ffprobe read starts, and when its first video does, in milliseconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Starts {
+    /// When the file starts, or 0 if it starts before 0.
+    pub(super) file_ms: i64,
+    /// When its first video other than cover art starts, if ffprobe says and it's not before 0.
+    pub(super) video_ms: Option<i64>,
+}
+
 /// The facts of the file at `path`, its video, audio and subtitle Tracks and the fonts it carries,
-/// as ffprobe reads them, and when the file starts, in milliseconds, or 0 if it starts before 0.
-/// Reads the whole file when its format doesn't say how long it is, or says so only from a
-/// placeholder header.
-pub(super) async fn probe(ffmpeg: &Ffmpeg, path: &str) -> Result<(Probe, i64), ProbeError> {
+/// as ffprobe reads them, and when it starts. Reads the whole file when its format doesn't say how
+/// long it is, or says so only from a placeholder header.
+pub(super) async fn probe(ffmpeg: &Ffmpeg, path: &str) -> Result<(Probe, Starts), ProbeError> {
     let args = ["-print_format", "json", "-show_format", "-show_streams"];
     let output = run(ffmpeg, &args, path, PROBE_TIMEOUT).await?;
-    let (mut probe, file_start_ms) = parse_probe(&output)?;
+    let (mut probe, starts) = parse_probe(&output)?;
     if probe.duration_ms.is_none() {
         probe.duration_ms = match video_end(ffmpeg, path).await {
             // Its Tracks were read, so a packet it can't read, as in a damaged file, leaves
@@ -40,7 +48,7 @@ pub(super) async fn probe(ffmpeg: &Ffmpeg, path: &str) -> Result<(Probe, i64), P
             end => end?,
         };
     }
-    Ok((probe, file_start_ms))
+    Ok((probe, starts))
 }
 
 /// When the first video in the file at `path` ends, in milliseconds from its start, or `None`
@@ -196,6 +204,8 @@ struct ProbedStream {
     /// How many bytes of codec header the file carries for it, such as VobSub's `.idx`.
     extradata_size: Option<i64>,
     nb_frames: Option<String>,
+    /// In seconds, such as `"0.023000"`.
+    start_time: Option<String>,
     #[serde(default)]
     disposition: HashMap<String, u8>,
     #[serde(default)]
@@ -216,9 +226,8 @@ struct ProbedSideData {
 /// The frame count ffmpeg's AVI muxer writes until it knows the real one, 2^30.
 const AVI_PLACEHOLDER_FRAMES: &str = "1073741824";
 
-/// The [`Probe`] ffprobe's JSON output describes, and when the file starts, as [`probe`] returns
-/// them.
-fn parse_probe(json: &[u8]) -> Result<(Probe, i64), serde_json::Error> {
+/// The [`Probe`] ffprobe's JSON output describes, and its [`Starts`].
+fn parse_probe(json: &[u8]) -> Result<(Probe, Starts), serde_json::Error> {
     let output: ProbeOutput = serde_json::from_slice(json)?;
     let format = output.format;
     // An AVI written to a pipe can't go back to fill in its header, which keeps ffmpeg's
@@ -233,9 +242,15 @@ fn parse_probe(json: &[u8]) -> Result<(Probe, i64), serde_json::Error> {
         .filter(|(_, attachment)| is_font(attachment))
         .map(|(place, _)| place)
         .collect();
-    let file_start_ms = (format.start_time.as_deref())
-        .and_then(millis)
-        .unwrap_or_default();
+    let starts = Starts {
+        file_ms: (format.start_time.as_deref())
+            .and_then(millis)
+            .unwrap_or_default(),
+        video_ms: (output.streams.iter())
+            .find(|stream| stream.codec_type.as_deref() == Some("video") && !is_cover_art(stream))
+            .and_then(|video| video.start_time.as_deref())
+            .and_then(millis),
+    };
     let probe = Probe {
         container: format.format_name,
         duration_ms: (format.duration.as_deref())
@@ -247,7 +262,13 @@ fn parse_probe(json: &[u8]) -> Result<(Probe, i64), serde_json::Error> {
         tracks: output.streams.into_iter().filter_map(track).collect(),
         font_attachments,
     };
-    Ok((probe, file_start_ms))
+    Ok((probe, starts))
+}
+
+/// Whether `stream` is cover art, a one-picture video stream, or an MP4's chapter pictures, as
+/// `-select_streams V` passes over.
+fn is_cover_art(stream: &ProbedStream) -> bool {
+    stream.disposition.get("attached_pic") == Some(&1)
 }
 
 /// Whether `attachment` is a font: its MIME type says so, or failing that its file name ends as a
@@ -265,8 +286,7 @@ fn is_font(attachment: &ProbedStream) -> bool {
 fn track(mut stream: ProbedStream) -> Option<Track> {
     let flag = |name: &str| stream.disposition.get(name).is_some_and(|&set| set == 1);
     let kind = match stream.codec_type.as_deref()? {
-        // Cover art is a one-picture video stream.
-        "video" if flag("attached_pic") => return None,
+        "video" if is_cover_art(&stream) => return None,
         "video" => TrackKind::Video {
             width: stream.width,
             height: stream.height,
