@@ -106,6 +106,38 @@ async fn a_version_whose_keyframes_couldnt_be_listed_transcodes_next_time_withou
     assert_eq!(runs.lines().count(), 1, "{runs}");
 }
 
+// The hanging ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_first_play_whose_listing_hangs_transcodes_after_the_wait_and_the_next_play_remuxes() {
+    let bin = tempfile::tempdir().unwrap();
+    let (log, go) = (bin.path().join("runs.log"), bin.path().join("go"));
+    let hang = format!(
+        "case \"$*\" in *packet=pts_time,flags*) echo list >> '{}'; \
+         while [ ! -e '{}' ]; do sleep 0.1; done;; esac",
+        log.display(),
+        go.display()
+    );
+    let (fx, version) = alien_mkv_without_cues(ffprobe_after(bin.path(), &hang)).await;
+
+    let started = std::time::Instant::now();
+    let first = fx.transcode(version).await;
+    let waited = started.elapsed();
+    fs::write(&go, "").unwrap();
+    let second = fx.plan(version).await.unwrap();
+
+    reason_of(
+        &first,
+        PlaybackReasonKind::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+    );
+    // At least Probing's `LISTING_WAIT`, and well short of the 30 s it waited before #1214.
+    let about_the_wait = Duration::from_secs(5)..Duration::from_secs(15);
+    assert!(about_the_wait.contains(&waited), "{waited:?}");
+    assert_eq!(second.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    let runs = fs::read_to_string(&log).unwrap();
+    assert_eq!(runs.lines().count(), 1, "{runs}");
+}
+
 // The logging ffprobe is a shell script.
 #[cfg(unix)]
 #[tokio::test]
