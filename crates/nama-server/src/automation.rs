@@ -1,14 +1,15 @@
-//! Automation: the Kernel's functions an Automation Plugin calls (ADR 0048), each checking the
-//! Plugin Permission it needs before anything else.
+//! Automation: the Kernel's functions an Automation Plugin calls (ADR 0048), each by name, with
+//! the Plugin Permission it needs checked before its request is read.
 
 mod store;
 
 use std::{
     collections::{HashMap, HashSet},
+    future,
     sync::{Arc, Weak},
 };
 
-use buffa::{EnumValue, MessageField};
+use buffa::{EnumValue, Message, MessageField};
 use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
@@ -76,32 +77,83 @@ impl Automation {
     }
 }
 
-/// A function of the Kernel's, for the one table of what each needs.
-#[derive(Debug, Clone, Copy)]
-enum Method {
-    StoreGet,
-    StorePut,
-    StoreDelete,
-    ListLibraries,
-    ListTitles,
-    ListWatchStates,
-    ListUsers,
-    ListRequesters,
-    DeleteMedia,
+/// A Kernel function's encoded response, or why it refused.
+type Answer = BoxFuture<'static, Result<Vec<u8>, KernelRefused>>;
+
+/// One Kernel function: its name, the Plugin Permission it needs, and how it answers a request.
+struct Function {
+    name: &'static str,
+    needs: Permission,
+    answer: fn(Caller, Vec<u8>) -> Answer,
 }
 
-impl Method {
-    /// The one place that decides which Permission each function needs.
-    const fn needs(self) -> Permission {
-        match self {
-            Self::StoreGet | Self::StorePut | Self::StoreDelete => Permission::PERMISSION_STORE,
-            Self::ListLibraries | Self::ListTitles => Permission::PERMISSION_READ_LIBRARIES,
-            Self::ListWatchStates => Permission::PERMISSION_READ_WATCH_STATES,
-            Self::ListUsers => Permission::PERMISSION_READ_USERS,
-            Self::ListRequesters => Permission::PERMISSION_READ_REQUESTS,
-            Self::DeleteMedia => Permission::PERMISSION_DELETE_MEDIA,
-        }
-    }
+/// Every Kernel function, as `automation.proto` lists them: the one place that decides which
+/// Permission each needs.
+const FUNCTIONS: &[Function] = &[
+    Function {
+        name: "store_get",
+        needs: Permission::PERMISSION_STORE,
+        answer: |caller, request| typed(caller, request, Caller::store_get),
+    },
+    Function {
+        name: "store_put",
+        needs: Permission::PERMISSION_STORE,
+        answer: |caller, request| typed(caller, request, Caller::store_put),
+    },
+    Function {
+        name: "store_delete",
+        needs: Permission::PERMISSION_STORE,
+        answer: |caller, request| typed(caller, request, Caller::store_delete),
+    },
+    Function {
+        name: "list_libraries",
+        needs: Permission::PERMISSION_READ_LIBRARIES,
+        answer: |caller, request| typed(caller, request, Caller::list_libraries),
+    },
+    Function {
+        name: "list_titles",
+        needs: Permission::PERMISSION_READ_LIBRARIES,
+        answer: |caller, request| typed(caller, request, Caller::list_titles),
+    },
+    Function {
+        name: "list_watch_states",
+        needs: Permission::PERMISSION_READ_WATCH_STATES,
+        answer: |caller, request| typed(caller, request, Caller::list_watch_states),
+    },
+    Function {
+        name: "list_users",
+        needs: Permission::PERMISSION_READ_USERS,
+        answer: |caller, request| typed(caller, request, Caller::list_users),
+    },
+    Function {
+        name: "list_requesters",
+        needs: Permission::PERMISSION_READ_REQUESTS,
+        answer: |caller, request| typed(caller, request, Caller::list_requesters),
+    },
+    Function {
+        name: "delete_media",
+        needs: Permission::PERMISSION_DELETE_MEDIA,
+        answer: |caller, request| typed(caller, request, Caller::delete_media),
+    },
+];
+
+/// Decodes `request`, has `handler` answer it for `caller`, and encodes its response.
+fn typed<Req, Resp, Handled>(
+    caller: Caller,
+    request: Vec<u8>,
+    handler: fn(Caller, Req) -> Handled,
+) -> Answer
+where
+    Req: Message,
+    Resp: Message,
+    Handled: Future<Output = Result<Resp, KernelRefused>> + Send + 'static,
+{
+    Box::pin(async move {
+        let request = Req::decode_from_slice(&request).map_err(|_unreadable| {
+            KernelRefused("the Kernel couldn't read the request".to_owned())
+        })?;
+        Ok(handler(caller, request).await?.encode_to_vec())
+    })
 }
 
 /// How an Admin reads a Permission's name.
@@ -124,21 +176,48 @@ struct PluginKernel {
     granted: HashSet<Permission>,
 }
 
+impl Kernel for PluginKernel {
+    fn call(
+        &self,
+        function: &str,
+        request: Vec<u8>,
+    ) -> BoxFuture<'_, Result<Vec<u8>, KernelRefused>> {
+        self.dispatch(function, request)
+            .unwrap_or_else(|refused| Box::pin(future::ready(Err(refused))))
+    }
+}
+
 impl PluginKernel {
-    /// Checks the Plugin was granted what `method` needs, then hands out the Automation.
-    fn check(&self, method: Method) -> Result<Arc<Automation>, KernelRefused> {
-        let needs = method.needs();
-        if !self.granted.contains(&needs) {
+    /// The answer to `function`, once the Plugin was granted the Permission it needs: checked
+    /// before the request is read, so no handler checks one itself.
+    fn dispatch(&self, function: &str, request: Vec<u8>) -> Result<Answer, KernelRefused> {
+        let found = (FUNCTIONS.iter())
+            .find(|found| found.name == function)
+            .ok_or_else(|| KernelRefused(format!("the Kernel has no function {function}")))?;
+        if !self.granted.contains(&found.needs) {
             return Err(KernelRefused(format!(
                 "the Admin hasn't granted {} the {} Permission",
                 self.plugin,
-                permission_name(needs)
+                permission_name(found.needs)
             )));
         }
-        (self.automation.upgrade())
-            .ok_or_else(|| KernelRefused("the Server is stopping".to_owned()))
+        let automation = (self.automation.upgrade())
+            .ok_or_else(|| KernelRefused("the Server is stopping".to_owned()))?;
+        let caller = Caller {
+            automation,
+            plugin: self.plugin.clone(),
+        };
+        Ok((found.answer)(caller, request))
     }
+}
 
+/// The Plugin a Kernel function answers, and the Automation answering it.
+struct Caller {
+    automation: Arc<Automation>,
+    plugin: PluginId,
+}
+
+impl Caller {
     /// Refuses with the Store's reason, or, for a database failure, logs it and refuses without it.
     fn store_refused(&self, err: &store::Error) -> KernelRefused {
         if let store::Error::Database(err) = err {
@@ -157,11 +236,7 @@ impl PluginKernel {
     /// The page of the Library's titles `asked` names: the first `page_size` after the title its
     /// page token names, or every title for a `page_size` of 0. One query, whatever the
     /// Library's size.
-    async fn titles_page(
-        &self,
-        automation: &Automation,
-        asked: &TitlesAsked,
-    ) -> Result<Titles, KernelRefused> {
+    async fn list_titles(self, asked: TitlesAsked) -> Result<Titles, KernelRefused> {
         // The token is the id of the last title of the page before, so a title Matched since
         // neither repeats nor skips one (ADR 0048).
         let after = match asked.page_token.as_str() {
@@ -173,7 +248,7 @@ impl PluginKernel {
             })?),
         };
         let library = asked.library_id;
-        let found = library::Libraries::new(Arc::clone(&automation.db))
+        let found = library::Libraries::new(Arc::clone(&self.automation.db))
             .get(library)
             .await;
         let (kind, title_kind) = match found {
@@ -199,7 +274,7 @@ impl PluginKernel {
             }
         };
         // One more than the page holds, to tell whether a page follows.
-        let mut listed = Contents::new(Arc::clone(&automation.db))
+        let mut listed = Contents::new(Arc::clone(&self.automation.db))
             .titles_page(library, kind, after.as_ref(), size.map(|size| size + 1))
             .await
             .map_err(|err| self.database_refused("reading the Library's titles", &err))?;
@@ -233,10 +308,9 @@ impl PluginKernel {
     /// source order (ADR 0042). A title its Library doesn't have keeps only the id it is named by.
     async fn every_id(
         &self,
-        automation: &Automation,
         titles: &[TitleRef],
     ) -> Result<Vec<(WatchStateKind, ExternalIds)>, KernelRefused> {
-        let contents = Contents::new(Arc::clone(&automation.db));
+        let contents = Contents::new(Arc::clone(&self.automation.db));
         let read = |err| self.database_refused("reading the Library's titles", &err);
         // One read per Library and kind of the titles asked about, each answer going back to the
         // place its title was asked in.
@@ -267,12 +341,8 @@ impl PluginKernel {
     /// The ids of the Users who Requested `title`, an Episode's being its Season's, or `None` if
     /// nothing did. A Movie's Requests are found by every id its Match gives it, as its Watch
     /// State is; an Episode the Library doesn't have has none.
-    async fn requesters(
-        &self,
-        automation: &Automation,
-        title: &TitleRef,
-    ) -> Result<Option<Vec<i64>>, KernelRefused> {
-        let contents = Contents::new(Arc::clone(&automation.db));
+    async fn requesters(&self, title: &TitleRef) -> Result<Option<Vec<i64>>, KernelRefused> {
+        let contents = Contents::new(Arc::clone(&self.automation.db));
         let read = |err| self.database_refused("reading the Library's titles", &err);
         let library = title.library_id;
         let (ids, season) = match titled(
@@ -292,7 +362,13 @@ impl PluginKernel {
             }
         };
         let refused = |err| self.database_refused("reading the Requests", &err);
-        let mut conn = automation.db.reader().acquire().await.map_err(refused)?;
+        let mut conn = self
+            .automation
+            .db
+            .reader()
+            .acquire()
+            .await
+            .map_err(refused)?;
         (requests::who_requested(&mut conn, &ids, season).await).map_err(refused)
     }
 
@@ -319,6 +395,149 @@ impl PluginKernel {
             | scanner::Error::Requests(_)
             | scanner::Error::NotFound(_)) => KernelRefused(err.to_string()),
         }
+    }
+    async fn store_get(self, key: StoreKey) -> Result<StoreValue, KernelRefused> {
+        let value = store::get(&self.automation.db, &self.plugin, key.user_id, &key.key)
+            .await
+            .map_err(|err| self.store_refused(&err))?;
+        Ok(StoreValue {
+            value,
+            ..StoreValue::default()
+        })
+    }
+
+    async fn store_put(self, entry: StoreEntry) -> Result<Stored, KernelRefused> {
+        let (db, plugin) = (&self.automation.db, &self.plugin);
+        store::put(db, plugin, entry.user_id, entry.key, entry.value)
+            .await
+            .map_err(|err| self.store_refused(&err))?;
+        Ok(Stored::default())
+    }
+
+    async fn store_delete(self, key: StoreKey) -> Result<Stored, KernelRefused> {
+        store::delete(&self.automation.db, &self.plugin, key.user_id, key.key)
+            .await
+            .map_err(|err| self.store_refused(&err))?;
+        Ok(Stored::default())
+    }
+
+    async fn list_libraries(self, _asked: LibrariesAsked) -> Result<Libraries, KernelRefused> {
+        let listed = library::Libraries::new(Arc::clone(&self.automation.db))
+            .list()
+            .await
+            .map_err(|err| {
+                error!(plugin = %self.plugin, "listing the Libraries failed: {err}");
+                KernelRefused("the Kernel couldn't read the Libraries".to_owned())
+            })?;
+        Ok(Libraries {
+            libraries: listed
+                .into_iter()
+                .map(|library| Library {
+                    id: library.id,
+                    name: library.name,
+                    kind: match library.kind {
+                        library::LibraryKind::Movies => LibraryKind::LIBRARY_KIND_MOVIES,
+                        library::LibraryKind::Shows => LibraryKind::LIBRARY_KIND_SHOWS,
+                    }
+                    .into(),
+                    ..Library::default()
+                })
+                .collect(),
+            ..Libraries::default()
+        })
+    }
+
+    async fn list_watch_states(
+        self,
+        asked: WatchStatesAsked,
+    ) -> Result<WatchStates, KernelRefused> {
+        let titles = self.every_id(&asked.titles).await?;
+        let states = (library::WatchStates::new(Arc::clone(&self.automation.db)))
+            .of_titles(None, &titles)
+            .await
+            .map_err(|err| self.database_refused("reading the Watch States", &err))?;
+        Ok(WatchStates {
+            titles: (asked.titles.into_iter().zip(states))
+                .map(|(title, states)| TitleWatchStates {
+                    title_ref: MessageField::some(title),
+                    states: (states.into_iter())
+                        .map(|(user, state)| watch_state_to_proto(user, state))
+                        .collect(),
+                    ..TitleWatchStates::default()
+                })
+                .collect(),
+            ..WatchStates::default()
+        })
+    }
+
+    async fn list_users(self, _asked: UsersAsked) -> Result<Users, KernelRefused> {
+        let automation = &self.automation;
+        let listed = users::Users::new(Arc::clone(&automation.db), automation.points.clone())
+            .list()
+            .await
+            .map_err(|err| self.database_refused("reading the Users", &err))?;
+        Ok(Users {
+            users: (listed.into_iter())
+                .map(|user| User {
+                    id: user.id,
+                    display_name: user.name,
+                    ..User::default()
+                })
+                .collect(),
+            ..Users::default()
+        })
+    }
+
+    async fn list_requesters(self, asked: RequestersAsked) -> Result<Requesters, KernelRefused> {
+        let mut titles = Vec::with_capacity(asked.titles.len());
+        // ponytail: a few queries per title; read a page's titles together if ticks get slow.
+        for title in asked.titles {
+            let requesters = self.requesters(&title).await?;
+            titles.push(TitleRequesters {
+                title_ref: MessageField::some(title),
+                requested: requesters.is_some(),
+                user_ids: requesters.unwrap_or_default(),
+                ..TitleRequesters::default()
+            });
+        }
+        Ok(Requesters {
+            titles,
+            ..Requesters::default()
+        })
+    }
+
+    async fn delete_media(self, asked: DeleteAsked) -> Result<DeleteStarted, KernelRefused> {
+        let title = (asked.title_ref.as_option())
+            .ok_or_else(|| KernelRefused("the title to delete is missing".to_owned()))?;
+        let library = title.library_id;
+        let target = ToDelete::Title {
+            library,
+            title: titled(title, TitleTarget::Movie, TitleTarget::Episode)?,
+        };
+        // One naming no Episode of the Library names nothing a delete takes along.
+        let also = (asked.also.iter())
+            .filter(|named| named.library_id == library)
+            .filter_map(|named| titled(named, |_| None, Some).ok().flatten())
+            .collect();
+        let by = format!("the {} Plugin", self.automation.points.name(&self.plugin));
+        // Only started: the delete waits for the Library's scan lock, which could outrun the
+        // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029). On the
+        // Scanner's tracker, not in the Plugin's scope, since it never calls the Plugin back,
+        // so disabling the Plugin doesn't stop a delete it started (ADR 0048) and shutting
+        // down waits for it. A failure is logged there, since the Plugin has had its answer.
+        let started = (self.automation.scanner)
+            .start_delete(target, also, by, self.plugin.clone())
+            .await;
+        let taken_along = (started.map_err(|err| self.delete_refused(err))?.iter())
+            .map(|taken| {
+                let kind = TitleRefKind::TITLE_REF_KIND_EPISODE;
+                title_ref(library, kind, &taken.episode.id)
+            })
+            .collect();
+        Ok(DeleteStarted {
+            taken_along,
+            ..DeleteStarted::default()
+        })
     }
 }
 
@@ -366,211 +585,6 @@ fn watch_state_to_proto(user: i64, state: library::WatchState) -> WatchState {
         duration_ms: u64::try_from(state.duration_ms).unwrap_or_default(),
         updated_at_ms: state.updated_at.saturating_mul(1000),
         ..WatchState::default()
-    }
-}
-
-impl Kernel for PluginKernel {
-    fn store_get<'a>(
-        &'a self,
-        key: &'a StoreKey,
-    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::StoreGet)?;
-            let value = store::get(&automation.db, &self.plugin, key.user_id, &key.key)
-                .await
-                .map_err(|err| self.store_refused(&err))?;
-            Ok(StoreValue {
-                value,
-                ..StoreValue::default()
-            })
-        })
-    }
-
-    fn store_put<'a>(
-        &'a self,
-        entry: &'a StoreEntry,
-    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::StorePut)?;
-            store::put(
-                &automation.db,
-                &self.plugin,
-                entry.user_id,
-                entry.key.clone(),
-                entry.value.clone(),
-            )
-            .await
-            .map_err(|err| self.store_refused(&err))?;
-            Ok(Stored::default())
-        })
-    }
-
-    fn store_delete<'a>(
-        &'a self,
-        key: &'a StoreKey,
-    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::StoreDelete)?;
-            store::delete(&automation.db, &self.plugin, key.user_id, key.key.clone())
-                .await
-                .map_err(|err| self.store_refused(&err))?;
-            Ok(Stored::default())
-        })
-    }
-
-    fn list_libraries<'a>(
-        &'a self,
-        _asked: &'a LibrariesAsked,
-    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::ListLibraries)?;
-            let listed = library::Libraries::new(Arc::clone(&automation.db))
-                .list()
-                .await
-                .map_err(|err| {
-                    error!(plugin = %self.plugin, "listing the Libraries failed: {err}");
-                    KernelRefused("the Kernel couldn't read the Libraries".to_owned())
-                })?;
-            Ok(Libraries {
-                libraries: listed
-                    .into_iter()
-                    .map(|library| Library {
-                        id: library.id,
-                        name: library.name,
-                        kind: match library.kind {
-                            library::LibraryKind::Movies => LibraryKind::LIBRARY_KIND_MOVIES,
-                            library::LibraryKind::Shows => LibraryKind::LIBRARY_KIND_SHOWS,
-                        }
-                        .into(),
-                        ..Library::default()
-                    })
-                    .collect(),
-                ..Libraries::default()
-            })
-        })
-    }
-
-    fn list_titles<'a>(
-        &'a self,
-        asked: &'a TitlesAsked,
-    ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::ListTitles)?;
-            self.titles_page(&automation, asked).await
-        })
-    }
-
-    fn list_watch_states<'a>(
-        &'a self,
-        asked: &'a WatchStatesAsked,
-    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::ListWatchStates)?;
-            let titles = self.every_id(&automation, &asked.titles).await?;
-            let states = (library::WatchStates::new(Arc::clone(&automation.db)))
-                .of_titles(None, &titles)
-                .await
-                .map_err(|err| self.database_refused("reading the Watch States", &err))?;
-            Ok(WatchStates {
-                titles: (asked.titles.iter().zip(states))
-                    .map(|(title, states)| TitleWatchStates {
-                        title_ref: MessageField::some(title.clone()),
-                        states: (states.into_iter())
-                            .map(|(user, state)| watch_state_to_proto(user, state))
-                            .collect(),
-                        ..TitleWatchStates::default()
-                    })
-                    .collect(),
-                ..WatchStates::default()
-            })
-        })
-    }
-
-    fn list_users<'a>(
-        &'a self,
-        _asked: &'a UsersAsked,
-    ) -> BoxFuture<'a, Result<Users, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::ListUsers)?;
-            let listed = users::Users::new(Arc::clone(&automation.db), automation.points.clone())
-                .list()
-                .await
-                .map_err(|err| self.database_refused("reading the Users", &err))?;
-            Ok(Users {
-                users: (listed.into_iter())
-                    .map(|user| User {
-                        id: user.id,
-                        display_name: user.name,
-                        ..User::default()
-                    })
-                    .collect(),
-                ..Users::default()
-            })
-        })
-    }
-
-    fn list_requesters<'a>(
-        &'a self,
-        asked: &'a RequestersAsked,
-    ) -> BoxFuture<'a, Result<Requesters, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::ListRequesters)?;
-            let mut titles = Vec::with_capacity(asked.titles.len());
-            // ponytail: a few queries per title; read a page's titles together if ticks get slow.
-            for title in &asked.titles {
-                let requesters = self.requesters(&automation, title).await?;
-                titles.push(TitleRequesters {
-                    title_ref: MessageField::some(title.clone()),
-                    requested: requesters.is_some(),
-                    user_ids: requesters.unwrap_or_default(),
-                    ..TitleRequesters::default()
-                });
-            }
-            Ok(Requesters {
-                titles,
-                ..Requesters::default()
-            })
-        })
-    }
-
-    fn delete_media<'a>(
-        &'a self,
-        asked: &'a DeleteAsked,
-    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>> {
-        Box::pin(async move {
-            let automation = self.check(Method::DeleteMedia)?;
-            let title = (asked.title_ref.as_option())
-                .ok_or_else(|| KernelRefused("the title to delete is missing".to_owned()))?;
-            let library = title.library_id;
-            let target = ToDelete::Title {
-                library,
-                title: titled(title, TitleTarget::Movie, TitleTarget::Episode)?,
-            };
-            // One naming no Episode of the Library names nothing a delete takes along.
-            let also = (asked.also.iter())
-                .filter(|named| named.library_id == library)
-                .filter_map(|named| titled(named, |_| None, Some).ok().flatten())
-                .collect();
-            let by = format!("the {} Plugin", automation.points.name(&self.plugin));
-            // Only started: the delete waits for the Library's scan lock, which could outrun the
-            // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029). On the
-            // Scanner's tracker, not in the Plugin's scope, since it never calls the Plugin back,
-            // so disabling the Plugin doesn't stop a delete it started (ADR 0048) and shutting
-            // down waits for it. A failure is logged there, since the Plugin has had its answer.
-            let started = (automation.scanner)
-                .start_delete(target, also, by, self.plugin.clone())
-                .await;
-            let taken_along = (started.map_err(|err| self.delete_refused(err))?.iter())
-                .map(|taken| {
-                    let kind = TitleRefKind::TITLE_REF_KIND_EPISODE;
-                    title_ref(library, kind, &taken.episode.id)
-                })
-                .collect();
-            Ok(DeleteStarted {
-                taken_along,
-                ..DeleteStarted::default()
-            })
-        })
     }
 }
 

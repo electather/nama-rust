@@ -27,7 +27,7 @@ use tracing::error;
 
 use super::{
     Installed, Point, Refused,
-    automation::{FUNCTIONS, Reach, import},
+    automation::{KERNEL_IMPORTS, Reach, import},
     bundled::BUNDLED,
     calls::Calls,
     check_exports, contract,
@@ -334,7 +334,7 @@ fn build(
     });
     // Every import is defined whether or not the Plugin may call it, so a Plugin importing them
     // still instantiates to read its Manifest or check its settings.
-    let builder = FUNCTIONS.iter().fold(
+    let builder = KERNEL_IMPORTS.iter().fold(
         PluginBuilder::new(manifest)
             .with_cache_config(cache_config)
             .with_function_in_namespace("nama", "now", [], [ValType::I64], UserData::new(()), now)
@@ -346,10 +346,10 @@ fn build(
                 UserData::new(log),
                 plugin_log::import,
             ),
-        |builder, function| {
+        |builder, &function| {
             builder.with_function_in_namespace(
                 "nama",
-                function.name,
+                function,
                 [ValType::I64],
                 [ValType::I64],
                 reach.clone(),
