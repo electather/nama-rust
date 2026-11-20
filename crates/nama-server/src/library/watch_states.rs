@@ -373,6 +373,8 @@ async fn upsert(
     for (title, progress) in titles {
         let (kind, title, ids) = title.key();
         let played = progress.is_played();
+        // An upsert, never a replace: the triggers on `watch_states` make Home rows stale on an
+        // insert, a delete or a change to `played`, which a position report must not fire.
         sqlx::query!(
             "INSERT INTO watch_states
                  (user_id, kind, title_id, position_ms, duration_ms, played, updated_at,

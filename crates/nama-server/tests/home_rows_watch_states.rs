@@ -162,18 +162,21 @@ async fn mark_alien(fx: &Fixture, user: &SignedIn, played: bool) {
 }
 
 #[tokio::test]
-async fn starting_and_marking_a_title_played_or_unplayed_asks_the_plugin_again() {
+async fn starting_playing_through_and_marking_a_title_played_or_unplayed_asks_the_plugin_again() {
     let fx = with_plugin_reading_watch_states(TestServer::builder()).await;
     let ada = user(&fx.server, "ada").await;
     open_home_until_asked(&ada, "ada", 1).await;
 
     watch_alien(&fx, &ada, 60_000).await;
     open_home_until_asked(&ada, "ada", 2).await;
-    mark_alien(&fx, &ada, true).await;
+    // Past 90% of its duration, it becomes played.
+    watch_alien(&fx, &ada, 6_900_000).await;
     open_home_until_asked(&ada, "ada", 3).await;
     mark_alien(&fx, &ada, false).await;
-
     open_home_until_asked(&ada, "ada", 4).await;
+    mark_alien(&fx, &ada, true).await;
+
+    open_home_until_asked(&ada, "ada", 5).await;
 }
 
 #[tokio::test]

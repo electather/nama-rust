@@ -26,9 +26,9 @@ service HomeRowService {
   rpc UserRows(UserRowsAsked) returns (HomeRows);
   // The `user_featured` export (1.2.0): titles to suggest for one User's Featured, the top of
   // their home page (ADR 0072), asked as `user_rows` is, past their time to live or after they
-  // changed their Personal settings or, for a Plugin reading them, their Watch States. Featured
-  // shows the 5 heaviest of every Plugin's suggestions and the Kernel's own, which weigh at most
-  // 0.8. Deleted with the User.
+  // changed their Personal settings or, for a Plugin granted `PERMISSION_READ_WATCH_STATES`, their
+  // Watch States. Featured shows the 5 heaviest of every Plugin's suggestions and the Kernel's own,
+  // which weigh at most 0.8. Deleted with the User.
   rpc UserFeatured(UserFeaturedAsked) returns (FeaturedSuggestions);
 }
 

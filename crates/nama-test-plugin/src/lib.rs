@@ -460,7 +460,7 @@ mod home_rows {
     const WAITS: &str = "waits";
 
     /// Spins until a minute past now on the Server's clock, if `handle` is [`WAITS`].
-    fn wait_for_the_clock_if_it_waits(handle: &str) {
+    fn wait_a_clock_minute_for(handle: &str) {
         if handle == WAITS {
             let until = nama_pdk::now() + std::time::Duration::from_secs(60);
             while nama_pdk::now() < until {}
@@ -508,7 +508,7 @@ mod home_rows {
                 return Ok(HomeRows::default());
             };
             nama_pdk::info!("test-plugin gives {handle}'s Home rows");
-            wait_for_the_clock_if_it_waits(handle);
+            wait_a_clock_minute_for(handle);
             Ok(HomeRows {
                 rows: vec![row(
                     &format!("for-{handle}"),
@@ -524,7 +524,7 @@ mod home_rows {
                 return Ok(FeaturedSuggestions::default());
             };
             nama_pdk::info!("test-plugin suggests {handle}'s Featured");
-            wait_for_the_clock_if_it_waits(handle);
+            wait_a_clock_minute_for(handle);
             let suggestion = |(tmdb, weight): (i64, f32)| FeaturedSuggestion {
                 kind: MOVIE.into(),
                 id: tmdb_id(tmdb).into(),
