@@ -142,7 +142,8 @@ fn every_contract_service_has_adapter_rows_and_every_row_a_contract_service() {
 async fn an_answer_that_wont_decode_fails_saying_so_and_isnt_logged_where_its_called() {
     let (_data_dir, radarr) = installed("radarr.wasm");
     let running = running(&radarr);
-    // Radarr's `manifest` succeeds, but its field 1 is a string where `ScanStarted`'s is an integer.
+    // Radarr's `manifest` succeeds, but its field 1 is a string where `ScanStarted`'s is an
+    // integer.
     let manifest = Method {
         export: "manifest",
         ..OBSERVE_EVENTS
@@ -225,7 +226,8 @@ async fn observer_failure_logged(registry: &Registry) -> Vec<String> {
     // The test's runtime has one thread, so the Observer's task logs to it.
     let log = CapturedLog::start();
     points.notify::<Events>(ObservedEvents::default());
-    // The Installed Plugin's call runs on a blocking thread; the failure is logged as it is recorded.
+    // The Installed Plugin's call runs on a blocking thread; the failure is logged as it is
+    // recorded.
     for _ in 0..500 {
         if points
             .failing(&TEST_PLUGIN, PointKey::observe::<Events>())

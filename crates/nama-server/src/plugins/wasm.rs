@@ -279,8 +279,8 @@ fn is_out_of_memory(err: &extism::Error) -> bool {
 }
 
 /// Why a call failed: the [`printable`] root cause, with the memory cap's bare "oom" put in plain
-/// words. A timeout's bare "timeout" is left to the callers: [`Running::call_counted`] words it, and the
-/// settings check reports it as [`CheckTimedOut`].
+/// words. A timeout's bare "timeout" is left to the callers: [`Running::call_counted`] words it,
+/// and the settings check reports it as [`CheckTimedOut`].
 fn failure_cause(err: &extism::Error) -> String {
     if is_out_of_memory(err) {
         format!("it used more than {} MiB of memory", MEMORY_MAX_PAGES / 16)

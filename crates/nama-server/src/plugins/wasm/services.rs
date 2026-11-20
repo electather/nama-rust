@@ -293,8 +293,8 @@ impl Running {
     }
 
     /// Calls `method` with `request` on a fresh instance and decodes its answer. A failure is
-    /// counted and handed back as [`Self::call_counted`] says, and logged by no one here: an Observer's
-    /// by the Registry, a Provider's by its caller.
+    /// counted and handed back as [`Self::call_counted`] says, and logged by no one here: an
+    /// Observer's by the Registry, a Provider's by its caller.
     pub(super) async fn call_method<Req: Message, Resp: Message>(
         &self,
         method: &Method,
