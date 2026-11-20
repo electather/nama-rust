@@ -936,9 +936,9 @@ pub trait BrowseService: Send + Sync + 'static {
     > + Send;
     /// Lists Featured for the caller (ADR 0072): up to 5 Movies and Shows, heaviest first, those of
     /// equal weight the most recently added first, each once. Suggested are their Continue Watching
-    /// entries, at 0.8, and the titles added to a Library in the last 14 days, at 0.5, each fading
-    /// as it ages; a title suggested twice keeps its heavier weight, and is listed in the Library
-    /// that suggestion came from.
+    /// entries, at 0.8 halving every 14 days since their Watch State changed, and the titles added
+    /// to a Library in the last 14 days, at 0.5 fading to nothing over them. A title suggested twice
+    /// keeps its heavier weight, and is listed in the Library that suggestion came from.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

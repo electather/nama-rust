@@ -380,7 +380,7 @@ pub(super) fn show_entry<'a, V>(
 }
 
 /// Season 0, which isn't in aired order.
-const SPECIALS: i64 = 0;
+pub(crate) const SPECIALS: i64 = 0;
 
 /// The first unplayed Episode of `watched`, in aired order, after the one that became played
 /// most recently (see [`unplayed_after`]).

@@ -1325,6 +1325,8 @@ export const ListContinueWatchingResponseSchema: GenMessage<ListContinueWatching
   messageDesc(file_nama_v1_browse, 31);
 
 /**
+ * Asks for the caller's Featured, which takes no options.
+ *
  * @generated from message nama.v1.ListFeaturedRequest
  */
 export type ListFeaturedRequest = Message<"nama.v1.ListFeaturedRequest"> & {
@@ -1338,6 +1340,8 @@ export const ListFeaturedRequestSchema: GenMessage<ListFeaturedRequest> = /*@__P
   messageDesc(file_nama_v1_browse, 32);
 
 /**
+ * The caller's Featured.
+ *
  * @generated from message nama.v1.ListFeaturedResponse
  */
 export type ListFeaturedResponse = Message<"nama.v1.ListFeaturedResponse"> & {
@@ -2305,9 +2309,9 @@ export const BrowseService: GenService<{
   /**
    * Lists Featured for the caller (ADR 0072): up to 5 Movies and Shows, heaviest first, those of
    * equal weight the most recently added first, each once. Suggested are their Continue Watching
-   * entries, at 0.8, and the titles added to a Library in the last 14 days, at 0.5, each fading
-   * as it ages; a title suggested twice keeps its heavier weight, and is listed in the Library
-   * that suggestion came from.
+   * entries, at 0.8 halving every 14 days since their Watch State changed, and the titles added
+   * to a Library in the last 14 days, at 0.5 fading to nothing over them. A title suggested twice
+   * keeps its heavier weight, and is listed in the Library that suggestion came from.
    *
    * @generated from rpc nama.v1.BrowseService.ListFeatured
    */

@@ -12424,6 +12424,7 @@ impl ::serde::Serialize for ListContinueWatchingResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
+/// Asks for the caller's Featured, which takes no options.
 #[derive(Clone, Debug, Default)]
 pub struct ListFeaturedRequestView<'a> {
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
@@ -12655,6 +12656,7 @@ impl ::serde::Serialize for ListFeaturedRequestOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
+/// The caller's Featured.
 #[derive(Clone, Debug, Default)]
 pub struct ListFeaturedResponseView<'a> {
     /// Heaviest first.

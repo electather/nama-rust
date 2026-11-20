@@ -8806,6 +8806,7 @@ pub const __LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY: ::buffa::type_registry::Js
     from_json: ::buffa::type_registry::any_from_json::<ListContinueWatchingResponse>,
     is_wkt: false,
 };
+/// Asks for the caller's Featured, which takes no options.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -8909,6 +8910,7 @@ pub const __LIST_FEATURED_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
     from_json: ::buffa::type_registry::any_from_json::<ListFeaturedRequest>,
     is_wkt: false,
 };
+/// The caller's Featured.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

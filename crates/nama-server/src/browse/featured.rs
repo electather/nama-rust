@@ -15,17 +15,19 @@ use crate::{
     library::{LibraryEpisode, LibraryMovie, WatchState},
 };
 
-// ponytail: the Kernel's weights, and the 14 days they fade over, are fixed (ADR 0072); make them
-// settings if Admins ask to tune Featured.
+// ponytail: the weights and the 14 days are ADR 0072's, how they fade is ours; make them settings
+// if Admins ask to tune Featured.
 /// A Continue Watching entry's weight the moment its Watch State changes.
-const CONTINUE_WATCHING: f64 = 0.8;
-/// A title's weight the moment it is added.
-const ADDED: f64 = 0.5;
-/// How long a title counts as added, and how long a suggestion takes to fade to half its
-/// weight, in seconds.
-const FADES_OVER: i32 = 14 * 24 * 60 * 60;
+const CONTINUE_WATCHING_WEIGHT: f64 = 0.8;
+/// A title's weight the moment it is added, which fades to nothing over [`NEW_FOR`].
+const ADDED_WEIGHT: f64 = 0.5;
+/// How long a title counts as added, in seconds.
+const NEW_FOR: i32 = 14 * 24 * 60 * 60;
+/// How long a Continue Watching entry takes to fade to half its weight, in seconds. It never
+/// fades to nothing, so older entries still rank by when they changed.
+const HALF_LIFE: i32 = NEW_FOR;
 /// How many titles Featured holds.
-const FEATURED: usize = 5;
+const FEATURED_TITLES: usize = 5;
 
 /// A Movie or Show in a User's Featured, in the Library it was suggested from.
 #[derive(Debug)]
@@ -80,7 +82,7 @@ impl Browse {
     /// first: their Continue Watching entries and the titles added in the last 14 days, each
     /// once, at the heavier of its weights and in the Library that suggestion came from.
     pub(crate) async fn featured(&self, user: i64) -> Result<Vec<Featured>, Error> {
-        let mut featured = Vec::with_capacity(FEATURED);
+        let mut featured = Vec::with_capacity(FEATURED_TITLES);
         for suggestion in heaviest(self.suggestions(user).await?) {
             featured.push(self.with_what_plays(user, suggestion).await?);
         }
@@ -97,7 +99,7 @@ impl Browse {
                     Started::Movie { library, movie, .. } => (library, Title::Movie(movie)),
                     Started::Episode { library, show, .. } => (library, Title::Show(show)),
                 };
-                let weight = faded(CONTINUE_WATCHING, now - changed_at);
+                let weight = CONTINUE_WATCHING_WEIGHT * halved(now - changed_at);
                 Suggestion {
                     library,
                     title,
@@ -112,10 +114,11 @@ impl Browse {
                 Titles::Shows(shows) => shows.into_iter().map(Title::Show).collect(),
             };
             let added = (titles.into_iter())
-                .filter(|title| now - title.added_at() < i64::from(FADES_OVER))
+                .filter(|title| now - title.added_at() < i64::from(NEW_FOR))
                 .map(|title| Suggestion {
                     library: library.id,
-                    weight: faded(ADDED, now - title.added_at()),
+                    weight: ADDED_WEIGHT
+                        * (1.0 - seconds(now - title.added_at()) / f64::from(NEW_FOR)),
                     title,
                 });
             suggested.extend(added);
@@ -162,7 +165,7 @@ impl Browse {
     }
 }
 
-/// The [`FEATURED`] heaviest of `suggested`, heaviest first, those of equal weight the most
+/// The [`FEATURED_TITLES`] heaviest of `suggested`, heaviest first, those of equal weight the most
 /// recently added first, each title once at the heaviest of its suggestions.
 fn heaviest(mut suggested: Vec<Suggestion>) -> Vec<Suggestion> {
     suggested.sort_by(|a, b| {
@@ -170,14 +173,19 @@ fn heaviest(mut suggested: Vec<Suggestion>) -> Vec<Suggestion> {
     });
     let mut seen = HashSet::new();
     suggested.retain(|suggestion| seen.insert(suggestion.title.key()));
-    suggested.truncate(FEATURED);
+    suggested.truncate(FEATURED_TITLES);
     suggested
 }
 
-/// `weight`, halved for each [`FADES_OVER`] of `age` seconds.
-fn faded(weight: f64, age: i64) -> f64 {
-    let age = f64::from(i32::try_from(age.max(0)).unwrap_or(i32::MAX));
-    weight * 0.5_f64.powf(age / f64::from(FADES_OVER))
+/// What is left of a weight after `age` seconds: half for each [`HALF_LIFE`].
+fn halved(age: i64) -> f64 {
+    0.5_f64.powf(seconds(age) / f64::from(HALF_LIFE))
+}
+
+/// `age` in seconds, as a float to weigh by: 0 for one in the future.
+fn seconds(age: i64) -> f64 {
+    // f64 has no lossless `From<i64>`; an age past i32's 68 years has faded to nothing anyway.
+    f64::from(i32::try_from(age.max(0)).unwrap_or(i32::MAX))
 }
 
 /// The Episode of a Show that Play or Resume starts, from each of its Episodes in aired order

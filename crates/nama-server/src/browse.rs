@@ -26,7 +26,7 @@ mod featured;
 mod watching;
 
 pub(crate) use featured::Featured;
-pub(crate) use watching::Started;
+pub(crate) use watching::{SPECIALS, Started};
 
 /// A Movie whose Versions have their Tracks.
 pub(crate) type Movie = LibraryMovie<Version>;
