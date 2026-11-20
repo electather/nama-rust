@@ -88,7 +88,7 @@ struct Function {
 }
 
 /// Every Kernel function, as `automation.proto` lists them: the one place that decides which
-/// Permission each needs.
+/// Plugin Permission each needs.
 const FUNCTIONS: &[Function] = &[
     Function {
         name: "store_get",
@@ -188,8 +188,8 @@ impl Kernel for PluginKernel {
 }
 
 impl PluginKernel {
-    /// The answer to `function`, once the Plugin was granted the Permission it needs: checked
-    /// before the request is read, so no handler checks one itself.
+    /// The answer to `function`, once the Plugin was granted the Plugin Permission it needs:
+    /// checked before the request is read, so no handler checks one itself.
     fn dispatch(&self, function: &str, request: Vec<u8>) -> Result<Answer, KernelRefused> {
         let found = (FUNCTIONS.iter())
             .find(|found| found.name == function)

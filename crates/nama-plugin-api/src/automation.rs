@@ -50,8 +50,8 @@ pub trait Kernel: Send + Sync + 'static {
     ///
     /// # Errors
     ///
-    /// When the Kernel refused, in plain words: such as a function it doesn't have, a Permission
-    /// not granted, or a request it can't read.
+    /// When the Kernel refused, in plain words: such as a function it doesn't have, a Plugin
+    /// Permission not granted, or a request it can't read.
     fn call(
         &self,
         function: &str,
