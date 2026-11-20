@@ -66,6 +66,7 @@ use std::{
 use nama_plugin_api::{
     PluginId,
     metadata::{ExternalId, ExternalIds},
+    recogniser::RecogniserMethod,
 };
 use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
@@ -75,12 +76,11 @@ use crate::{
     events::{EventBus, event},
     library::{
         Artwork, Contents, Decided, Decisions, ImageRef, Item, Libraries, LibraryError, Metadata,
-        Name, Named, Picked, Pin, ScanLock, ScanLocks, Source, SourceEpisode, SourceSeason,
-        SourceShow, TitleKind, TitleSources, Unanswered, UnmatchedReason,
+        Name, Named, Picked, Pin, Recognisers, ScanLock, ScanLocks, Source, SourceEpisode,
+        SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered, UnmatchedReason,
     },
     plugins::ExtensionPoints,
 };
-use recognisers::Recognisers;
 
 /// What one pass of Matching decided.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -307,8 +307,8 @@ impl Matcher {
     ) -> Self {
         Self {
             libraries: Libraries::new(Arc::clone(&db)),
+            recognisers: Recognisers::new(plugins.clone(), RecogniserMethod::Title),
             contents: Contents::new(db),
-            recognisers: Recognisers::new(plugins.clone()),
             metadata: TitleSources::new(plugins),
             artwork,
             events,
@@ -400,8 +400,6 @@ impl Matcher {
             // The only other failure of a read is the Library being gone, with nothing to Match.
             Err(_) => return Ok(Summary::default()),
         };
-        // Bound to a name, not `_`, so it logs once as this returns, by `?` or a cancel too.
-        let _failures_log = this.recognisers.failures_log();
         let Pending {
             movies,
             shows,

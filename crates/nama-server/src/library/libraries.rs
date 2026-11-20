@@ -325,10 +325,24 @@ impl Libraries {
         Ok(changed.unwrap_or(false))
     }
 
-    /// Records `read`, the ids of the enabled Recognisers the Library `id` lists, in its order and
-    /// joined with commas, as those its starting scan reads with, and returns whether they differ
-    /// from its last scan's. Part of the scan's write that reads its files again (ADR 0050).
-    pub(crate) async fn record_recognisers_read(
+    /// Records `read`, the Library `id`'s enabled Recognisers in its order, joined with commas; if
+    /// they differ from its last scan's, Contents reads its unparsed files again and forgets its
+    /// Unmatched, in one write (ADR 0050). Unchanged, it only reads, so waits behind no write.
+    pub(super) async fn read_again_if_recognisers_changed(
+        &self,
+        id: i64,
+        read: String,
+    ) -> Result<(), sqlx::Error> {
+        if !self.recognisers_changed(id, &read).await? {
+            return Ok(());
+        }
+        (self.db)
+            .write(move |tx| Box::pin(read_again_if_recognisers_changed(tx, id, read)))
+            .await
+    }
+
+    /// Records `read`; whether it differs from the last scan's.
+    async fn record_recognisers_read(
         conn: &mut SqliteConnection,
         id: i64,
         read: &str,
@@ -543,6 +557,18 @@ async fn set_title_sources(
     .await?;
     if updated.rows_affected() == 0 {
         return Err(Error::NotFound(id));
+    }
+    Ok(())
+}
+
+async fn read_again_if_recognisers_changed(
+    conn: &mut SqliteConnection,
+    id: i64,
+    read: String,
+) -> Result<(), sqlx::Error> {
+    if Libraries::record_recognisers_read(conn, id, &read).await? {
+        super::Contents::read_unparsed_again(conn, id).await?;
+        super::Contents::forget_unmatched(conn, id).await?;
     }
     Ok(())
 }

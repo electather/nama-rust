@@ -13,8 +13,7 @@ use crate::{
     },
     matching::{
         Miss, PendingEpisode,
-        recognisers::Recognisers,
-        testing::{Fixture, episode, matched},
+        testing::{Fixture, episode, matched, no_recognisers},
     },
     plugins::Registry,
 };
@@ -158,7 +157,7 @@ async fn tied_show(metadata: &TitleSources) -> Result<ExternalId, Miss> {
         episode: 1,
     };
     let key = dark(None);
-    let found = show(metadata, &Recognisers::default(), &key, &[], &[pilot]).await?;
+    let found = show(metadata, &no_recognisers(), &key, &[], &[pilot]).await?;
     Ok(found.id)
 }
 
@@ -192,14 +191,7 @@ async fn a_tied_show_not_listing_the_season_is_asked_for_none_of_its_seasons() {
         episode: 1,
     };
 
-    let found = show(
-        &metadata,
-        &Recognisers::default(),
-        &key,
-        &[],
-        &[second_season],
-    )
-    .await;
+    let found = show(&metadata, &no_recognisers(), &key, &[], &[second_season]).await;
 
     assert!(matches!(
         found,
@@ -246,7 +238,7 @@ async fn the_tied_shows_that_have_every_episode_stay_ambiguous_in_their_order() 
 async fn an_ambiguous_movie_looks_up_none_of_the_tied_titles() {
     let (metadata, sources_asked) = tying(&[HAS, HAS]);
 
-    let movie = super::movie(&metadata, &Recognisers::default(), &dark(None), &[]).await;
+    let movie = super::movie(&metadata, &no_recognisers(), &dark(None), &[]).await;
 
     assert!(matches!(
         movie,

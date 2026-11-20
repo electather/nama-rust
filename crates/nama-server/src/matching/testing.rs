@@ -4,6 +4,7 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 use nama_plugin_api::{
     metadata::{ExternalId, TMDB},
+    recogniser::RecogniserMethod,
     settings::{SettingValue, Settings},
 };
 use nama_plugin_tmdb::{
@@ -21,7 +22,7 @@ use crate::{
     images::ImageStore,
     library::{
         Artwork, Change, Contents, File, FileItem, Item, Libraries, LibraryKind, LibraryShow,
-        Recorded, ScanLocks, UnmatchedReason,
+        Recognisers, Recorded, ScanLocks, UnmatchedReason,
     },
     page::Page,
     plugins::{ExtensionPoints, Registry},
@@ -106,6 +107,11 @@ impl Library {
             .collect::<Vec<_>>()
             .join("/")
     }
+}
+
+/// Recognisers listing none, for a test of what the title sources alone decide.
+pub(super) fn no_recognisers() -> Recognisers {
+    Recognisers::new(ExtensionPoints::default(), RecogniserMethod::Title)
 }
 
 /// A Movie as its file names it: by title and year, without an ID Hint.

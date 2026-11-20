@@ -15,17 +15,16 @@ use nama_plugin_api::{
         file_recognised::Recognised,
     },
     metadata::ExternalId,
-    recogniser::Recogniser,
+    recogniser::{Recogniser, RecogniserMethod},
 };
 use nama_proto::nama::v1::{EventType, ScanFinished, subscribe_response};
 use tokio_util::sync::CancellationToken;
 
-use super::{super::tests::Fixture, Planned, items, listed, recognise};
+use super::{super::tests::Fixture, Planned, items, recognise};
 use crate::{
     events::{Filter, event},
-    library::{Change, Item, LibraryKind},
-    log_capture::CapturedLog,
-    plugins::Registry,
+    library::{Change, Item, LibraryKind, Recognisers},
+    plugins::{ExtensionPoints, Registry},
 };
 
 fn movie(title: &str) -> FileRecognised {
@@ -99,6 +98,12 @@ impl Plugin for ProposingPlugin {
     }
 }
 
+/// The Recognisers a scan asks among `plugins` for a Library listing `listing`.
+fn listed(plugins: &ExtensionPoints, listing: &[&str]) -> Recognisers {
+    let order: Vec<String> = listing.iter().map(|&id| id.to_owned()).collect();
+    Recognisers::new(plugins.clone(), RecogniserMethod::File).in_order(&order)
+}
+
 /// What a scan of a Shows Library listing the Recognisers `listing` stores when a Recogniser
 /// answering as `answer` does is enabled as `proposing`: an unread new file, a parsed one and a
 /// removed one.
@@ -131,12 +136,10 @@ async fn recognised_listing(
             added: false,
         },
     ];
-    let order: Vec<String> = listing.iter().map(|&id| id.to_owned()).collect();
     let cancel = CancellationToken::new();
     recognise(
-        &plugins.extension_points(),
+        &listed(&plugins.extension_points(), listing),
         LibraryKind::Shows,
-        &order,
         planned,
         &cancel,
     )
@@ -280,17 +283,6 @@ async fn a_library_not_listing_the_recogniser_leaves_the_file_unread() {
     );
 }
 
-#[test]
-fn listed_keeps_the_librarys_order_of_enabled_recognisers_only() {
-    let plugins = Registry::new();
-    plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
-    let order = ["gone", "proposing"].map(str::to_owned);
-
-    let listed = listed(&plugins.extension_points(), &order);
-
-    assert_eq!(listed, [PluginId::from_static("proposing")]);
-}
-
 /// A Recogniser that can't tell what any file is, counting the files it is asked about.
 #[derive(Clone, Default)]
 struct Counting(Arc<AtomicUsize>);
@@ -415,7 +407,7 @@ async fn a_scan_does_not_count_a_new_file_a_recogniser_failed_on_as_added() {
 }
 
 #[tokio::test]
-async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
+async fn every_file_a_recogniser_fails_on_is_left_out_and_each_failure_recorded() {
     let plugins = Registry::new();
     plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
     let points = plugins.extension_points();
@@ -430,20 +422,16 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
         added: true,
     };
     let planned = ["Show - 1.mkv", "Show - 2.mkv", "Show - 3.mkv"].map(unread);
-    // The test's runtime has one thread, so the scan logs to it.
-    let log = CapturedLog::start();
 
     let (_, dropped) = recognise(
-        &points,
+        &listed(&points, &["proposing"]),
         LibraryKind::Shows,
-        &["proposing".to_owned()],
         planned.into(),
         &CancellationToken::new(),
     )
     .await
     .unwrap();
 
-    let log = log.finish();
     assert_eq!(dropped.len(), 3);
     let failing = points
         .failing(
@@ -455,9 +443,6 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
         (failing.in_a_row, failing.last_error.as_str()),
         (3, "the Recogniser is down")
     );
-    let warned: Vec<&str> = log.lines().filter(|line| line.contains("WARN")).collect();
-    assert_eq!(warned.len(), 1, "{log}");
-    assert!(warned[0].contains("files=3"), "{log}");
 }
 
 #[tokio::test]
@@ -484,9 +469,8 @@ async fn a_recogniser_answering_clears_its_failure() {
     }];
 
     recognise(
-        &points,
+        &listed(&points, &["proposing"]),
         LibraryKind::Shows,
-        &["proposing".to_owned()],
         planned,
         &CancellationToken::new(),
     )

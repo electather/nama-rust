@@ -45,7 +45,7 @@ mod walking;
 mod watch;
 
 pub(crate) use deleting::{Deleted, File as DoomedFile, TakenAlong, ToDelete, read_only_folder};
-use recognised::{Planned, read_again_if_changed, recognise};
+use recognised::{Planned, recognise};
 use walking::{FoundLocalImages, FoundSidecars, after_stem, is_video, plan, walk};
 
 use std::{
@@ -53,6 +53,7 @@ use std::{
     sync::{Arc, Mutex, PoisonError},
 };
 
+use nama_plugin_api::recogniser::RecogniserMethod;
 use nama_proto::nama::v1::{
     MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
 };
@@ -63,7 +64,7 @@ use crate::{
     events::{EventBus, event},
     library::{
         Artwork, Change, Contents, CustomImages, Libraries, LibraryError, LibraryKind, LocalImages,
-        NotFound, ScanLock, ScanLocks,
+        NotFound, Recognisers, ScanLock, ScanLocks,
     },
     matching::{self, Matcher, count},
     playback::{Probing, RunningPlans, Sidecars},
@@ -157,8 +158,8 @@ pub(crate) struct Scanner {
 
 #[derive(Debug)]
 struct Inner {
-    /// Where a scan starts by checking its Library's Recognisers (ADR 0050).
-    db: Arc<Database>,
+    /// Asked what a file the name parser can't read is (ADR 0050).
+    recognisers: Recognisers,
     contents: Contents,
     sidecars: Sidecars,
     /// Downloads the images Matches store, and deletes those none does.
@@ -169,8 +170,7 @@ struct Inner {
     local_images: LocalImages,
     libraries: Libraries,
     matcher: Matcher,
-    /// Asks Recognisers what a file the name parser can't read is, and Fulfillers to stop
-    /// monitoring what a delete takes.
+    /// Asks Fulfillers to stop monitoring what a delete takes.
     plugins: ExtensionPoints,
     /// Says which title sources and Recognisers a Library's orders may name.
     plugin_settings: PluginSettings,
@@ -234,6 +234,7 @@ impl Scanner {
                 artwork,
                 custom_images,
                 local_images,
+                recognisers: Recognisers::new(plugins.clone(), RecogniserMethod::File),
                 plugins,
                 plugin_settings,
                 events,
@@ -241,8 +242,7 @@ impl Scanner {
                 running,
                 requests,
                 contents: Contents::new(Arc::clone(&db)),
-                sidecars: Sidecars::new(Arc::clone(&db)),
-                db,
+                sidecars: Sidecars::new(db),
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 queued: Mutex::default(),
@@ -326,8 +326,9 @@ impl Scanner {
         }
         let library = self.inner.libraries.get(id).await?;
         let scan_number = self.publish_started(id);
-        let libraries = &self.inner.libraries;
-        read_again_if_changed(&self.inner.db, libraries, &self.inner.plugins, &library).await?;
+        (self.inner.recognisers)
+            .read_again_if_changed(&self.inner.libraries, &library)
+            .await?;
         let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
         let mut found =
@@ -352,9 +353,14 @@ impl Scanner {
             self.inner.libraries.set_read_only(id, read_only).await?;
         }
         let (planned, mut summary) = plan(library.kind, stored, found);
-        let order = &library.recognisers;
-        let (changes, dropped) =
-            recognise(&self.inner.plugins, library.kind, order, planned, &cancel).await?;
+        // A temporary, so its failures are logged as soon as this statement ends.
+        let (changes, dropped) = recognise(
+            &self.inner.recognisers.in_order(&library.recognisers),
+            library.kind,
+            planned,
+            &cancel,
+        )
+        .await?;
         summary.leave_out(&dropped);
         let files_total = count(changes.len());
         let mut files_done = 0;

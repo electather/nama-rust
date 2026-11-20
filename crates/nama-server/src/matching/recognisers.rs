@@ -2,54 +2,17 @@
 //! sources' search has decided (ADR 0050's title level). A Recogniser only proposes ids; Matching
 //! fetches the title they name from the Library's title sources, as it does an ID Hint's.
 
-use std::{
-    collections::BTreeMap,
-    ffi::OsStr,
-    mem,
-    path::Path,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
-};
+use std::{ffi::OsStr, path::Path, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
     contract::{self as wire, TitleRecognised, TitleToRecognise},
     metadata::{ExternalId, ExternalIds},
-    recogniser::{Recogniser, RecogniserMethod},
+    recogniser::Recogniser,
 };
 
 use super::Miss;
-use crate::{
-    library::{Candidate, Source, TitleKind, TitleSources},
-    plugins::{Answer, ExtensionPoints},
-};
-
-/// The enabled Recognisers a Library lists.
-#[derive(Debug, Clone, Default)]
-pub(super) struct Recognisers {
-    plugins: ExtensionPoints,
-    /// The Plugins asked, first asked first: none until [`Recognisers::in_order`] gives some.
-    order: Vec<PluginId>,
-    /// Each Recogniser that failed and isn't logged yet: how many titles it failed on, and its last
-    /// error.
-    failed: Arc<Mutex<BTreeMap<PluginId, (usize, String)>>>,
-}
-
-/// What [`Recognisers::failures_log`] returns.
-pub(super) struct FailuresLog<'a>(&'a Recognisers);
-
-impl Drop for FailuresLog<'_> {
-    fn drop(&mut self) {
-        let failed = mem::take(&mut *self.0.failures());
-        for (plugin, (titles, last)) in failed {
-            tracing::warn!(
-                %plugin,
-                titles,
-                last_error = last,
-                "a Recogniser failed, so the titles it failed on are matched again on the next scan"
-            );
-        }
-    }
-}
+use crate::library::{Candidate, RecogniserFailed, Recognisers, Source, TitleKind, TitleSources};
 
 /// What a search for an Item's title found, which the Recognisers are asked about.
 #[derive(Debug)]
@@ -75,101 +38,35 @@ pub(super) struct Recognised {
     pub(super) routed: Vec<Source>,
 }
 
-impl Recognisers {
-    pub(super) fn new(plugins: ExtensionPoints) -> Self {
-        Self {
-            plugins,
-            order: Vec::new(),
-            failed: Arc::default(),
-        }
-    }
-
-    /// These Recognisers asking those of the Plugins `order` names that are enabled, in its
-    /// order, as a Library's `recognisers` lists them, with no failures yet.
-    pub(super) fn in_order(&self, order: &[String]) -> Self {
-        Self {
-            plugins: self.plugins.clone(),
-            order: order.iter().map(|id| PluginId::from(id.clone())).collect(),
-            failed: Arc::default(),
-        }
-    }
-
-    /// Logs each Recogniser that failed, once, with how many titles it failed on and its last
-    /// error, when what this returns is dropped. Matching holds it while it asks during a scan, so
-    /// the log is written however it stops: done, cancelled or failing to store.
-    pub(super) const fn failures_log(&self) -> FailuresLog<'_> {
-        FailuresLog(self)
-    }
-
-    fn failures(&self) -> MutexGuard<'_, BTreeMap<PluginId, (usize, String)>> {
-        self.failed.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// The title the first Recogniser in order to name one by an id `metadata`'s sources serve
-    /// names, or `None` when none can tell. Ids no source keeps or looks titles up by are ignored.
-    ///
-    /// # Errors
-    ///
-    /// [`Miss::RecogniserFailed`] when a Recogniser fails, so the next scan asks again.
-    pub(super) async fn recognise(
-        &self,
-        metadata: &TitleSources,
-        searched: &Searched<'_>,
-    ) -> Result<Option<Recognised>, Miss> {
-        let asked = &searched.asked();
-        for plugin in &self.order {
-            let Some(named) = self.ask(plugin, asked).await? else {
-                continue;
-            };
-            if let Some(recognised) = served(metadata, searched.kind, named).await {
-                let id = &recognised.id;
-                tracing::info!(%plugin, title = searched.title, %id, "a Recogniser named it");
-                return Ok(Some(recognised));
-            }
-        }
-        Ok(None)
-    }
-
-    /// The well-formed ids the Plugin `plugin`'s Recogniser names for `asked`, in its order;
-    /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Counts a failure
-    /// for [`Self::failures_log`].
-    async fn ask(
-        &self,
-        plugin: &PluginId,
-        asked: &TitleToRecognise,
-    ) -> Result<Option<Vec<ExternalId>>, Miss> {
-        let serves = (self.plugins)
-            .read_provider(plugin, |recogniser: &dyn Recogniser| {
-                recogniser.recognises(RecogniserMethod::Title)
-            })
-            .await;
-        if serves != Some(true) {
-            return Ok(None);
-        }
-        let answered = (self.plugins)
+/// The title the first of `recognisers` to name one by an id `metadata`'s sources serve names, or
+/// `None` when none can tell. Ids no source keeps or looks titles up by are ignored.
+///
+/// # Errors
+///
+/// [`Miss::RecogniserFailed`] when a Recogniser fails, so the next scan asks again.
+pub(super) async fn recognise(
+    recognisers: &Recognisers,
+    metadata: &TitleSources,
+    searched: &Searched<'_>,
+) -> Result<Option<Recognised>, Miss> {
+    let asked = &searched.asked();
+    for plugin in recognisers.listed() {
+        let answered = recognisers
             .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
                 recogniser.recognise_title(asked).await
             })
-            .await;
-        match answered {
-            Some(Answer {
-                result: Ok(recognised),
-                ..
-            }) => Ok(Some(well_formed(plugin, &recognised))),
-            Some(Answer {
-                result: Err(failure),
-                ..
-            }) => {
-                let mut failed = self.failures();
-                let (titles, last) = failed.entry(plugin.clone()).or_default();
-                *titles = titles.saturating_add(1);
-                *last = failure.message;
-                Err(Miss::RecogniserFailed)
-            }
-            // No longer enabled or a Recogniser, or it panicked, which disabled it.
-            None => Ok(None),
+            .await
+            .map_err(|RecogniserFailed| Miss::RecogniserFailed)?;
+        let Some(named) = answered.map(|recognised| well_formed(plugin, &recognised)) else {
+            continue;
+        };
+        if let Some(recognised) = served(metadata, searched.kind, named).await {
+            let id = &recognised.id;
+            tracing::info!(%plugin, title = searched.title, %id, "a Recogniser named it");
+            return Ok(Some(recognised));
         }
     }
+    Ok(None)
 }
 
 impl Searched<'_> {
