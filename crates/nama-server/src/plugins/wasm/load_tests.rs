@@ -466,6 +466,10 @@ fn a_bad_setup_text_link_or_licence_is_dropped_saying_why_and_the_plugin_still_t
             "homepage_url: it is over 2048 bytes",
         ),
         (
+            url(format!("{}:x", "a".repeat(2 * 1024))),
+            "homepage_url: it is over 2048 bytes",
+        ),
+        (
             Manifest {
                 source_url: "ftp://example.com/".to_owned(),
                 ..title_source("tvdb")

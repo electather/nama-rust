@@ -315,23 +315,23 @@ const MAX_SETUP_BYTES: usize = 4 * 1024;
 const MAX_LICENSE_CHARS: usize = 128;
 
 /// A Manifest's text field as the Server keeps it, or why it drops it.
-type Kept = fn(&str) -> Result<String, String>;
+type FieldCheck = fn(&str) -> Result<String, String>;
 
 /// Empties each of `manifest`'s setup text, links and licence that is flawed, logging why, which
 /// leaves the Plugin otherwise as it was.
 fn drop_flawed_presentation(manifest: &mut Manifest) {
-    let checked: [(&str, &mut String, Kept); 4] = [
+    let checked: [(&str, &mut String, FieldCheck); 4] = [
         ("setup_markdown", &mut manifest.setup_markdown, kept_setup),
         ("homepage_url", &mut manifest.homepage_url, kept_url),
         ("source_url", &mut manifest.source_url, kept_url),
         ("license", &mut manifest.license, kept_license),
     ];
     // Empty is none, as protobuf sends a field left out.
-    for (field, value, kept) in checked
+    for (field, value, check) in checked
         .into_iter()
         .filter(|(_, value, _)| !value.is_empty())
     {
-        *value = kept(value).unwrap_or_else(|why| {
+        *value = check(value).unwrap_or_else(|why| {
             warn!(plugin = %manifest.id, "dropped its {field}: {why}");
             String::new()
         });
@@ -349,11 +349,16 @@ fn kept_setup(markdown: &str) -> Result<String, String> {
 /// browsers do (WHATWG), so a scheme hidden behind spaces or tabs is still found, and kept as
 /// parsed, since a browser would read `https:host` as a link relative to the page.
 fn kept_url(url: &str) -> Result<String, String> {
+    // Before parsing too, so a huge scheme is never parsed or logged.
+    if url.len() > MAX_URL_BYTES {
+        return Err(format!("it is over {MAX_URL_BYTES} bytes"));
+    }
     let url = Url::parse(url).map_err(|err| format!("it isn't a URL: {err}"))?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err(format!("its scheme is {}, not http or https", url.scheme()));
     }
     let url = String::from(url);
+    // Parsing percent-encodes, which can lengthen it.
     if url.len() > MAX_URL_BYTES {
         return Err(format!("it is over {MAX_URL_BYTES} bytes"));
     }
