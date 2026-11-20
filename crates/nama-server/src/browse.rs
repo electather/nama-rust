@@ -214,7 +214,7 @@ impl Browse {
     }
 
     /// The `asked` page of the Unmatched Items of the Library `library`, the one found most
-    /// recently first. Its token holds no path, which a User may not see (ADR 0062).
+    /// recently first. Its token holds no path, which a User may not see (ADR 0069).
     pub(crate) async fn unmatched(
         &self,
         library: i64,

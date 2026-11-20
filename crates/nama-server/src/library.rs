@@ -37,6 +37,8 @@ pub(crate) use local_images::{
     FoundImages, LocalImageUrls, LocalImages, router as local_images_router,
 };
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
+#[cfg(test)]
+pub(crate) use title_source::scripted;
 pub(crate) use title_source::{
     Candidate, Episode as SourceEpisode, SearchQuery, Season as SourceSeason, Show as SourceShow,
     Source, TitleKind, TitleSources, Unanswered,
