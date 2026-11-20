@@ -241,3 +241,40 @@ async fn a_sup_sidecar_is_burned_in_in_step_from_the_start_and_after_a_seek() {
         "the picture around it stays black"
     );
 }
+
+/// The last frame of the segment `segment` of the 320×240 plan at `url`, as 8-bit grey pixels row
+/// by row.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+pub(crate) async fn last_frame(fx: &Fixture, url: &str, segment: &str) -> Vec<u8> {
+    // The segment first, so ffmpeg starts there and the init segment is that run's.
+    let segment = fx.fetch_ok(&beside(url, segment)).await;
+    let init = fx.fetch_ok(&beside(url, "init.mp4")).await;
+    // What a failure saw of each part, so a bad one is told apart from a mismatched pair (#1305).
+    let seen = format!(
+        "init {} bytes {:02x?}, segment {} bytes {:02x?}",
+        init.len(),
+        init.get(..16).unwrap_or(&init),
+        segment.len(),
+        segment.get(..16).unwrap_or(&segment)
+    );
+    let mut mp4 = init;
+    mp4.extend(segment);
+    let file = tempfile::NamedTempFile::new().unwrap();
+    fs::write(file.path(), mp4).unwrap();
+    let output = std::process::Command::new("ffmpeg")
+        .args(["-v", "error", "-i"])
+        .arg(file.path())
+        .args(["-f", "rawvideo", "-pix_fmt", "gray", "-"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{seen}: {output:?}");
+    output
+        .stdout
+        .rchunks_exact(320 * 240)
+        .next()
+        .unwrap()
+        .to_vec()
+}
