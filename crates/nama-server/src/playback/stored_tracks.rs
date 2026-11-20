@@ -14,6 +14,7 @@ pub(crate) struct StoredTracks {
 }
 
 impl StoredTracks {
+    /// Reads `db` through the owners of the probe and sidecar tables.
     pub(crate) fn new(db: Arc<Database>) -> Self {
         Self {
             tracks: Tracks::new(Arc::clone(&db)),

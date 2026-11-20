@@ -191,7 +191,9 @@ impl Probing {
         }
     }
 
-    /// The Version `version`'s file as stored, once probing has read it and stored what it holds.
+    /// The Version `version`'s file as stored, once a probe of it has finished. A probe it waited
+    /// for may have read the file as it was before a scan changed it, so its Tracks may not be
+    /// stored for the file returned.
     async fn probed(&self, version: i64) -> Result<Stored, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
