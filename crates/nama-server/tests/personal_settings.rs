@@ -2,6 +2,8 @@
 //! (ADR 0046): a secret's value never sent back, a required one refused blank, and nobody, an
 //! Admin included, seeing another User's values.
 
+#[path = "support/installed_test_plugin.rs"]
+mod installed_test_plugin;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
@@ -14,9 +16,8 @@ use std::collections::HashMap;
 
 use connectrpc::{ConnectError, ErrorCode, client::ClientConfig, client::HttpClient};
 use nama_proto::nama::v1::{
-    DeletePersonalSettingsRequest, EnablePluginRequest, ListPersonalSettingsRequest,
-    ListPluginsRequest, PersonalSettings, PluginServiceClient, RefusalReason, SettingValue,
-    UpdatePersonalSettingsRequest, UserServiceClient, setting_value::Value,
+    DeletePersonalSettingsRequest, ListPersonalSettingsRequest, PersonalSettings, RefusalReason,
+    SettingValue, UpdatePersonalSettingsRequest, UserServiceClient, setting_value::Value,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -26,31 +27,12 @@ const PLUGIN: &str = "test-plugin";
 
 /// A Server with the test Plugin, which declares a required TEXT `handle` and an optional SECRET
 /// `token` as Personal settings, enabled.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn started() -> TestServer {
     let server = TestServer::builder()
         .plugins(Registry::with_builtins())
         .start()
         .await;
-    let dir = server.data_dir().join("plugins");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test.wasm"), test_plugin::build("")).unwrap();
-    let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
-    // Listing is what reads `plugins/`.
-    plugins
-        .list_plugins(ListPluginsRequest::default())
-        .await
-        .unwrap();
-    plugins
-        .enable_plugin(EnablePluginRequest {
-            id: PLUGIN.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    server.enable_test_plugin("").await;
     server
 }
 
