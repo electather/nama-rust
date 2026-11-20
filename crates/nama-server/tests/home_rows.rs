@@ -669,3 +669,67 @@ async fn a_refresh_no_title_source_answers_keeps_the_missing_titles_and_tries_ag
     assert_eq!(before, 2, "home within 15 minutes refreshed it");
     log.wait_for(&asked, 3).await;
 }
+
+/// `server` restarted with the test Plugin built with `features` in place of the one it had, as
+/// a new version of it is installed.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn restarted_as(server: TestServer, features: &str) -> TestServer {
+    let plugin = server.data_dir().join("plugins/test.wasm");
+    std::fs::write(plugin, test_plugin::build(features)).unwrap();
+    TestServer::builder().tmdb().restart(server).await
+}
+
+/// The keys of the Home rows home lists the caller `config` signs in as now.
+async fn keys_as(config: ClientConfig) -> Vec<String> {
+    let rows = rows_as(config).await;
+    rows.into_iter().map(|(_, key, _)| key).collect()
+}
+
+#[tokio::test]
+async fn a_version_giving_only_shared_rows_shows_them_and_no_users_rows_of_the_old_one() {
+    let server = enabled("picks").await;
+    let ada = server.user_with_default_permissions("ada").await;
+    let bea = server.user_with_default_permissions("bea").await;
+    set_handle(&ada, "ada").await;
+    set_handle(&bea, "bea").await;
+    wait_for_rows_as(ada.client_config(), &["picks", "for-ada"]).await;
+    wait_for_rows_as(bea.client_config(), &["picks", "for-bea"]).await;
+
+    let server = restarted_as(server, "home-rows-shared-only").await;
+
+    // Before any listing, which deletes the old version's rows.
+    let beas = titles_page_as(server.client_config_as(&bea.token), "for-bea", 10, "").await;
+    assert!(beas.unwrap().titles.is_empty(), "the old version's row");
+    assert_eq!(
+        keys_as(server.client_config_as(&ada.token)).await,
+        ["picks"]
+    );
+    assert_eq!(
+        keys_as(server.client_config_as(&bea.token)).await,
+        ["picks"]
+    );
+}
+
+#[tokio::test]
+async fn a_version_giving_only_users_rows_shows_theirs_and_no_shared_rows_of_the_old_one() {
+    let server = enabled("picks").await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_handle(&ada, "ada").await;
+    wait_for_rows_as(ada.client_config(), &["picks", "for-ada"]).await;
+
+    let server = restarted_as(server, "home-rows-user-only").await;
+    let cy = server.user_with_default_permissions("cy").await;
+    set_handle(&cy, "cy").await;
+
+    // Before any listing, which deletes the old version's rows.
+    let picks = titles_page_as(server.client_config_as(&ada.token), "picks", 10, "").await;
+    assert!(picks.unwrap().titles.is_empty(), "the old version's row");
+    assert_eq!(
+        keys_as(server.client_config_as(&ada.token)).await,
+        ["for-ada"]
+    );
+    wait_for_rows_as(cy.client_config(), &["for-cy"]).await;
+}

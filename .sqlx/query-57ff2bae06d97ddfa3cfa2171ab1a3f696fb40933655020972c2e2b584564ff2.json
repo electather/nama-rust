@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT plugin_id, key, heading, titles, missing FROM home_rows\n             WHERE user_id IS NULL OR user_id = ?\n             ORDER BY plugin_id, user_id IS NOT NULL, position",
+  "query": "SELECT plugin_id, user_id, key, heading, titles, missing FROM home_rows\n             WHERE user_id IS NULL OR user_id = ?\n             ORDER BY plugin_id, user_id IS NOT NULL, position",
   "describe": {
     "columns": [
       {
@@ -15,8 +15,19 @@
         }
       },
       {
-        "name": "key",
+        "name": "user_id",
         "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "key",
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "heading",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "titles",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "missing",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -64,11 +75,12 @@
     },
     "nullable": [
       false,
+      true,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "bd8497854870818816d25402c1adf4406595761d57c0fcea1473d1ab6781ecae"
+  "hash": "57ff2bae06d97ddfa3cfa2171ab1a3f696fb40933655020972c2e2b584564ff2"
 }

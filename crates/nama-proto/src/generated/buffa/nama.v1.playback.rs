@@ -1764,6 +1764,10 @@ pub enum PlaybackReasonKind {
     /// Rules out Remux: the Server couldn't list the Version's keyframes, which a Remux cuts its
     /// segments at, as when reading the whole file failed or took too long.
     PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED = 33i32,
+    /// Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): the Server's ffmpeg stopped
+    /// before writing anything for it, so the Server planned the next method instead. One for each
+    /// method that did.
+    PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER = 34i32,
     /// The rest rule nothing out.
     ///
     /// The plan converts the audio to fewer channels because the Device says it plays fewer.
@@ -1864,6 +1868,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const KeyframesUnlisted: Self = Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MethodFailedOnServer: Self = Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER;
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DevicePlaysFewerChannels: Self = Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS;
@@ -2089,6 +2096,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
                 )
             }
+            34i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
+                )
+            }
             16i32 => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -2222,6 +2234,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             }
             Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED => {
                 "PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED"
+            }
+            Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER => {
+                "PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER"
             }
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS => {
                 "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS"
@@ -2359,6 +2374,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
                 )
             }
+            "PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
+                )
+            }
             "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS" => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -2456,6 +2476,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
             Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
             Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+            Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
             Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,

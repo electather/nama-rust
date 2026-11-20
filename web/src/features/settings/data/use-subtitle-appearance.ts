@@ -6,6 +6,7 @@ import {
 } from "@connectrpc/connect-query";
 
 import { PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
 /** The query key of the Subtitle Appearance, to refetch after saving part of it. */
 export const subtitleAppearanceKey = createConnectQueryKey({
@@ -20,5 +21,9 @@ export function subtitleAppearanceQuery(transport: Transport) {
 
 /** The signed-in User's Subtitle Appearance. */
 export function useSubtitleAppearance() {
-  return useSuspenseQuery(PlaybackService.method.getSubtitleAppearance, {}).data;
+  return useSuspenseQuery(
+    PlaybackService.method.getSubtitleAppearance,
+    {},
+    { staleTime: loaderStaleTime },
+  ).data;
 }

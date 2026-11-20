@@ -52,7 +52,7 @@ pub trait HomeRowSource: Send + Sync + 'static {
 }
 
 /// A [`HomeRowSource`] method the Kernel may ask, for [`HomeRowSource::gives`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HomeRowMethod {
     /// [`HomeRowSource::shared_rows`].
     Shared,

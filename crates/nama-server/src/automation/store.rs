@@ -1,4 +1,4 @@
-//! The Store: what each Automation Plugin keeps, Plugin-wide or for one User, by key.
+//! The Store: what each Plugin keeps, Plugin-wide or for one User, by key.
 
 use nama_plugin_api::PluginId;
 use sqlx::SqliteConnection;
