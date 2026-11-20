@@ -2,8 +2,10 @@
 //! Items a Library lists, under which id, and how they group into titles.
 //!
 //! Each fragment is a macro, since sqlx reads a query from literals only. It hands `$query!` its
-//! `$arg`s, then itself as one parenthesised group of `+`-joined literals, which `$query` splices
-//! into its own `sqlx::query!` after a `+`, so the query stays checked at compile time.
+//! `$arg`s, then itself: [`matched_items`] and [`library_titles`] as one parenthesised group of
+//! `+`-joined literals, which `$query` splices into its own `sqlx::query!` after a `+`, and
+//! [`listed_id_sql`] as one literal the caller finishes. Either way the query stays checked at
+//! compile time.
 //! `$query` may be a path, such as `$crate::…`, so a fragment can build on another a reader
 //! didn't import.
 
@@ -32,8 +34,9 @@ pub(super) use listed_id_sql;
 /// Hands `$query!` a subquery with one row per Item a Library lists: `library_id`, `item_id`,
 /// `kind`, `path`, `season`, `episode`, `added_at`, `own_id` (its preferred `title` id) and
 /// `listed_id` (the preferred id of the title it is listed under: a Movie's own, an Episode's
-/// Show's). It keeps an Item whose Match is Matched and has both ids, and for an Episode a season
-/// and an episode number. With no window or aggregate, SQLite flattens it into a reader's join.
+/// Show's). It keeps an Item of the kind its Library lists whose Match is Matched and has both
+/// ids, and for an Episode a season and an episode number. With no window or aggregate, SQLite
+/// flattens it into a reader's join.
 macro_rules! matched_items {
     ([$($query:tt)::+ $(, $arg:tt)*], $listed_id:literal) => {
         $($query)::+!(

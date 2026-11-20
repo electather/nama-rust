@@ -260,8 +260,8 @@ async fn an_episode_without_a_show_id_and_a_match_without_a_title_id_are_left_ou
     let shows = fx.places(fx.shows).await;
     let movies = fx.places(fx.movies).await;
 
-    let own = |id: &str| id.to_owned();
-    assert_eq!(shows, [(own("tmdb-100"), own("tmdb-13"), listed, 1)]);
+    let text = |id: &str| id.to_owned();
+    assert_eq!(shows, [(text("tmdb-100"), text("tmdb-13"), listed, 1)]);
     assert!(movies.is_empty(), "{movies:?}");
 }
 
