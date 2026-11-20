@@ -312,6 +312,8 @@ impl Running {
     async fn read_keyframe(&self, n: usize) -> io::Result<Option<Vec<u8>>> {
         match tokio::fs::read(self.keyframe_path(n)).await {
             Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+            // Windows refuses to open a file deleted while another request still reads it.
+            Err(err) if cfg!(windows) && err.kind() == io::ErrorKind::PermissionDenied => Ok(None),
             read => read.map(Some),
         }
     }

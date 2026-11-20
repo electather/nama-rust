@@ -16,6 +16,15 @@ use nama_server::config::{Config, PluginConfig};
 use schemars::generate::SchemaSettings;
 use serde_json::Value;
 
+/// `path` as the Server keeps it: on Windows `/var/lib/nama` has no drive, so it's relative.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a path that can't be made absolute fails the test"
+)]
+fn absolute(path: &str) -> PathBuf {
+    std::path::absolute(path).unwrap()
+}
+
 #[test]
 fn defaults_apply_when_there_is_no_config_file_or_environment() {
     Jail::expect_with(|_jail| {
@@ -48,7 +57,7 @@ fn a_config_file_sets_listen_address_and_data_directory() {
             .0;
 
         assert_eq!(config.listen, "127.0.0.1:9000".parse().unwrap());
-        assert_eq!(config.data_dir, PathBuf::from("/var/lib/nama"));
+        assert_eq!(config.data_dir, absolute("/var/lib/nama"));
         Ok(())
     });
 }
@@ -71,7 +80,7 @@ fn nama_environment_variables_override_the_config_file() {
             .0;
 
         assert_eq!(config.listen, "[::1]:9100".parse().unwrap());
-        assert_eq!(config.data_dir, PathBuf::from("/srv/nama"));
+        assert_eq!(config.data_dir, absolute("/srv/nama"));
         Ok(())
     });
 }
@@ -93,7 +102,7 @@ fn without_a_named_file_nama_toml_in_the_working_directory_is_read() {
 
         let config = Config::load(None).unwrap().0;
 
-        assert_eq!(config.data_dir, PathBuf::from("/opt/nama"));
+        assert_eq!(config.data_dir, absolute("/opt/nama"));
         assert_eq!(config.listen, "0.0.0.0:7980".parse().unwrap());
         Ok(())
     });
@@ -127,10 +136,10 @@ fn ffmpeg_and_ffprobe_paths_come_from_the_config_file_or_environment() {
         jail.set_env("NAMA_FFPROBE", "/usr/lib/jellyfin-ffmpeg/ffprobe");
         let config = Config::load(None).unwrap().0;
 
-        assert_eq!(config.ffmpeg, Some(PathBuf::from("/opt/ffmpeg/ffmpeg")));
+        assert_eq!(config.ffmpeg, Some(absolute("/opt/ffmpeg/ffmpeg")));
         assert_eq!(
             config.ffprobe,
-            Some(PathBuf::from("/usr/lib/jellyfin-ffmpeg/ffprobe"))
+            Some(absolute("/usr/lib/jellyfin-ffmpeg/ffprobe"))
         );
         Ok(())
     });
