@@ -41,8 +41,8 @@ const MAX_PAGE_SIZE: usize = 1000;
 
 /// What makes the Kernel's functions for each enabled Plugin.
 ///
-/// The Plugins it serves hold it only weakly, since it holds them in turn through the Scanner and
-/// the Extension Points: whoever starts the Server holds it, until the Plugins have stopped.
+/// The Plugins it serves hold it only weakly, since it holds them in turn through the Scanner, the
+/// Extension Points and `Users`: whoever starts the Server holds it, until the Plugins have stopped.
 pub(crate) struct Automation {
     db: Arc<Database>,
     scanner: Scanner,
