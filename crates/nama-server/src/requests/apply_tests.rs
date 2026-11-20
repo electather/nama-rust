@@ -200,7 +200,7 @@ async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_mad
 }
 
 /// A Shows Fulfiller that takes every Request, and keeps the TMDB id of each Show it is told
-/// to stop following.
+/// to stop following. Its own, since a `ScriptedFulfiller` keeps only the Request's id.
 #[derive(Default)]
 struct Unfollowing(std::sync::Mutex<Vec<i64>>);
 

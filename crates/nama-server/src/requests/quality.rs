@@ -3,7 +3,7 @@
 
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Fulfiller, Movies, Shows},
+    fulfiller::{Movies, Shows},
     metadata::{ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::{
@@ -16,7 +16,7 @@ use super::followed::{followed_show_ids, open_followed_show_by_any};
 use super::listing::load_one;
 use super::state::{ids_json, read_state};
 use super::{Error, Requests, qualities};
-use crate::{db::now, library::TitleKind, users::User};
+use crate::{db::now, library::TitleKind, plugins::enabled_fulfiller, users::User};
 
 /// A User changing a Request's Quality: a Request manager as they approve or retry it, or an
 /// auto-approved Requester whose ask approves it.
@@ -30,7 +30,7 @@ pub(super) struct NewQuality {
 impl Requests {
     /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
     pub(super) fn fulfiller<Kind: 'static>(&self) -> Option<PluginId> {
-        self.plugins.providers::<dyn Fulfiller<Kind>>().pop_first()
+        enabled_fulfiller::<Kind>(&self.plugins)
     }
 
     /// The enabled Plugin providing the Fulfiller for `request`'s kind, Movies or Shows, if any.

@@ -1,20 +1,12 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
-use nama_plugin_api::{
-    BoxFuture, PluginError, contract,
-    fulfiller::{Download, Fulfilled, Fulfiller, Shows},
-    metadata::{ExternalId, ExternalIds},
-};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{RequestState, event::Event as Happened};
 
 use super::availability;
 use crate::requests::asking::{Wanted, WantedSeasons, ask, ask_movie, ask_seasons};
 use crate::requests::deciding::{cancel, decline};
 use crate::requests::followed::decide_followed;
-use crate::requests::hand_off::unmet;
 use crate::requests::listing::{load, load_one};
 use crate::requests::qualities;
 use crate::requests::testing::{
@@ -507,29 +499,6 @@ async fn a_scan_opens_a_season_of_a_followed_show_kept_under_tvdb_when_a_match_p
     );
 }
 
-/// A Shows Fulfiller that needs a `tvdb` id, as Sonarr does.
-struct NeedsTvdb;
-
-impl Fulfiller<Shows> for NeedsTvdb {
-    fn needs(&self) -> Vec<String> {
-        vec!["tvdb".to_owned()]
-    }
-
-    fn fulfill<'a>(
-        &'a self,
-        _: &'a contract::Request,
-    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        Box::pin(async { Ok(fulfilled()) })
-    }
-
-    fn progress<'a>(
-        &'a self,
-        _: &'a [String],
-    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
-        Box::pin(async { Ok(HashMap::new()) })
-    }
-}
-
 #[tokio::test]
 async fn a_season_a_scan_opens_carries_the_tvdb_id_its_followed_show_stores_for_a_fulfiller_needing_it()
  {
@@ -549,8 +518,6 @@ async fn a_season_a_scan_opens_carries_the_tvdb_id_its_followed_show_stores_for_
     let opened = &newest[0];
     assert_eq!(asked_season(opened).season_number, 3);
     let show_ids = &asked_season(opened).show_ids;
-    let namespaces = show_ids.iter().map(|id| id.namespace.as_str());
-    assert_eq!(unmet::<Shows>(&NeedsTvdb, namespaces), None);
     assert!(
         (show_ids.iter()).any(|id| id.namespace == "tvdb" && id.value == "334824"),
         "{show_ids:?}"

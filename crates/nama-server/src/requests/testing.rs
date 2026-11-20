@@ -2,17 +2,14 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::Arc,
     time::Duration,
 };
 
 use futures_util::{Stream, StreamExt};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, contract,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows, TryAgainIn},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     metadata::{ExternalId, ExternalIds},
     settings::{SettingValue, Settings},
 };
@@ -117,7 +114,8 @@ pub(super) async fn insert_ada(conn: &mut SqliteConnection) -> Result<i64, sqlx:
 
 /// A Fulfiller for Movies and Shows that takes every Request at once, giving a Movie's TMDB id
 /// or `season-<number>` as the reference, keeps each batch of references it is asked about,
-/// and says it is downloading [`downloading`] for each.
+/// and says it is downloading [`downloading`] for each. Its own, since a `ScriptedFulfiller` says
+/// nothing is downloading.
 #[derive(Default)]
 pub(super) struct Asked(pub(super) std::sync::Mutex<Vec<Vec<String>>>);
 
@@ -157,7 +155,8 @@ impl Fulfiller<Shows> for Asked {
 }
 
 /// A Fulfiller of Movies that takes every Request as [`Asked`] does, but never says how one is
-/// progressing, notifying `.0` once it is asked.
+/// progressing, notifying `.0` once it is asked. Its own, since a `ScriptedFulfiller` answers at
+/// once.
 #[derive(Default)]
 pub(super) struct NeverAnswers(pub(super) tokio::sync::Notify);
 
@@ -177,49 +176,6 @@ impl Fulfiller<Movies> for NeverAnswers {
     ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
         self.0.notify_one();
         Box::pin(std::future::pending())
-    }
-}
-
-/// How long [`TriesAgain`] says to wait.
-pub(super) const TRY_AGAIN_IN: Duration = Duration::from_secs(30);
-
-/// A Fulfiller of Movies that says to try again in [`TRY_AGAIN_IN`] the first `busy` times it is
-/// handed a Request, then takes it, counting each time it is handed one.
-pub(super) struct TriesAgain {
-    busy: usize,
-    asked: AtomicUsize,
-}
-
-impl TriesAgain {
-    pub(super) fn new(busy: usize) -> Arc<Self> {
-        Arc::new(Self {
-            busy,
-            asked: AtomicUsize::new(0),
-        })
-    }
-
-    /// How many times it was handed a Request.
-    pub(super) fn asked(&self) -> usize {
-        self.asked.load(Ordering::SeqCst)
-    }
-}
-
-impl Fulfiller<Movies> for TriesAgain {
-    fn fulfill<'a>(
-        &'a self,
-        _request: &'a contract::Request,
-    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        if self.asked.fetch_add(1, Ordering::SeqCst) < self.busy {
-            return Box::pin(async { Err(TryAgainIn(TRY_AGAIN_IN).into()) });
-        }
-        took("taken".to_owned())
-    }
-
-    fn progress<'a>(
-        &'a self,
-        _references: &'a [String],
-    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
-        Box::pin(async { Ok(HashMap::new()) })
     }
 }
 
