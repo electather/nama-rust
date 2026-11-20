@@ -155,7 +155,8 @@ impl Refreshes {
         for &method in adapter.methods() {
             // ponytail: reads every Plugin with a put-off or answer by `method` on each visit to
             // Home, bounded by Plugins; delete them as a Plugin is disabled if visits grow slow.
-            let mut plugins: BTreeSet<PluginId> = self.marked(method).await?.into_iter().collect();
+            let mut plugins: BTreeSet<PluginId> =
+                self.put_off_plugins(method).await?.into_iter().collect();
             plugins.extend(adapter.plugins(method).await?);
             stored.extend(plugins.into_iter().map(|plugin| (plugin, method)));
         }
@@ -223,7 +224,7 @@ impl Refreshes {
     }
 
     /// The Plugins with a put-off by `method`, any User's.
-    async fn marked(&self, method: HomeRowMethod) -> Result<Vec<PluginId>, sqlx::Error> {
+    async fn put_off_plugins(&self, method: HomeRowMethod) -> Result<Vec<PluginId>, sqlx::Error> {
         let plugins = match method {
             HomeRowMethod::Featured => {
                 sqlx::query_scalar!("SELECT DISTINCT plugin_id FROM featured_refreshes")
@@ -296,7 +297,7 @@ impl Refreshes {
         self.db
             .write(move |tx| {
                 Box::pin(
-                    async move { replace_if_marked(tx, &adapter, &scope, kept, stale_at).await },
+                    async move { replace_if_put_off(tx, &adapter, &scope, kept, stale_at).await },
                 )
             })
             .await
@@ -305,7 +306,7 @@ impl Refreshes {
 
 /// [`Refreshes::replace`]'s write: moves `scope`'s put-off to `stale_at` and, only if it was still
 /// stored, has `adapter` store `kept`.
-async fn replace_if_marked<A: Adapter>(
+async fn replace_if_put_off<A: Adapter>(
     conn: &mut SqliteConnection,
     adapter: &A,
     scope: &Scope,
@@ -313,7 +314,7 @@ async fn replace_if_marked<A: Adapter>(
     stale_at: i64,
 ) -> Result<(), sqlx::Error> {
     let plugin = scope.plugin.as_str();
-    let marked =
+    let renewed =
         match scope.method {
             HomeRowMethod::Featured => sqlx::query!(
                 "UPDATE featured_refreshes SET stale_at = ? WHERE plugin_id = ? AND user_id = ?",
@@ -332,7 +333,7 @@ async fn replace_if_marked<A: Adapter>(
             .execute(&mut *conn)
             .await?,
         };
-    if marked.rows_affected() == 0 {
+    if renewed.rows_affected() == 0 {
         return Ok(());
     }
     adapter.store(conn, scope, kept).await
@@ -346,14 +347,14 @@ async fn delete<A: Adapter>(
     gone: &[(PluginId, HomeRowMethod)],
 ) -> Result<(), sqlx::Error> {
     for (plugin, method) in gone {
-        unmark(conn, plugin.as_str(), *method).await?;
+        delete_put_offs(conn, plugin.as_str(), *method).await?;
         adapter.delete(conn, plugin.as_str(), *method).await?;
     }
     Ok(())
 }
 
 /// Deletes the Plugin `plugin`'s put-offs by `method`, every User's for one per User.
-async fn unmark(
+async fn delete_put_offs(
     conn: &mut SqliteConnection,
     plugin: &str,
     method: HomeRowMethod,

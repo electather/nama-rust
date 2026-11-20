@@ -413,6 +413,21 @@ async fn a_plugin_no_longer_giving_a_method_has_its_answers_by_it_deleted_for_ev
 }
 
 #[tokio::test]
+async fn a_plugin_no_longer_giving_a_method_has_its_put_offs_deleted_with_no_answer_stored() {
+    let (_dir, db, old_version, mut probe, _) = probed(ALL).await;
+    probe.fresh_for = None;
+    let ada = insert_user(&db, "ada").await;
+    visit(&old_version, &probe, ada).await;
+    let (new_version, _) = started(&db, SHARED);
+
+    new_version.refreshes.forget(&probe).await.unwrap();
+
+    assert_eq!(put_offs(&db, HomeRowMethod::Shared).await, 1);
+    assert_eq!(put_offs(&db, HomeRowMethod::User).await, 0);
+    assert_eq!(put_offs(&db, HomeRowMethod::Featured).await, 0);
+}
+
+#[tokio::test]
 async fn a_plugin_is_never_asked_for_a_method_it_doesnt_give() {
     let (_dir, db, refreshes, probe, calls) = probed(SHARED).await;
     let ada = insert_user(&db, "ada").await;

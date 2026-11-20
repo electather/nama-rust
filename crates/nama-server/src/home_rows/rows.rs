@@ -104,7 +104,7 @@ impl Adapter for Rows {
             .execute(&mut *conn)
             .await?;
         }
-        // After the rows are stored, so a reader of the log knows they are.
+        // In the write, after the rows, so it is logged only when they are stored.
         if let Some(err) = unanswered {
             warn!(plugin = %plugin, user, "the title source couldn't look up the Plugin's Home row titles, which keep what the last refresh looked up until a refresh in 15 minutes: {err}");
         }
