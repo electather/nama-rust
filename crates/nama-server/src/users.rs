@@ -19,6 +19,7 @@ use crate::{
 
 mod codes;
 mod device_names;
+mod home_layout;
 mod invites;
 mod managing;
 mod names;
@@ -35,6 +36,7 @@ mod sign_in_codes;
 pub use codes::SetupCode;
 use codes::new_token;
 pub(crate) use codes::random_secret;
+pub(crate) use home_layout::UserHomeLayout;
 pub(crate) use invites::Invite;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 use names::checked_name;

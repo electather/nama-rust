@@ -1,6 +1,9 @@
 //! The Server's Plugins and their settings: `nama.v1.PluginService`.
 
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
@@ -18,6 +21,7 @@ use nama_proto::nama::v1::{
 use tracing::Level;
 
 use crate::{
+    db::Database,
     diagnostics::{self, PluginLine},
     images::PluginLogos,
     library::{CustomImageUrls, CustomImages, Slot},
@@ -25,6 +29,7 @@ use crate::{
     plugins::{CheckError, EnableError, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
     server_settings,
+    users::UserHomeLayout,
 };
 
 use super::{database_failed, refuse};
@@ -42,6 +47,8 @@ pub(super) struct PluginServiceHandler {
     /// Holds the default Home layout, whose rows of a Plugin uninstalled go once a listing finds
     /// it gone.
     pub(super) settings: server_settings::Settings,
+    /// Holds each User's Home layout, whose rows of a Plugin uninstalled go with the default's.
+    pub(super) db: Arc<Database>,
     /// The logos admins uploaded, shown in place of the Manifests'.
     pub(super) custom_images: CustomImages,
     /// The Manifests' logos, stored as their URLs are handed out.
@@ -72,6 +79,11 @@ impl PluginService for PluginServiceHandler {
         let installed = |plugin: &PluginId| self.plugin_settings.has(plugin);
         if let Err(err) = self.settings.forget_uninstalled(installed).await {
             tracing::error!("could not drop uninstalled Plugins' rows from the Home layout: {err}");
+        }
+        if let Err(err) = UserHomeLayout::forget_uninstalled(&self.db, installed).await {
+            tracing::error!(
+                "could not drop uninstalled Plugins' rows from Users' Home layouts: {err}"
+            );
         }
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut summaries = Vec::with_capacity(listed.len());

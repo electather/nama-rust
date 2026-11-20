@@ -1,4 +1,4 @@
-import type { RowName } from "@/features/admin-home/lib/home-layout";
+import type { RowName } from "@/shared/lib/home-layout";
 
 /** What a row is called, and the Plugin it's from under it. */
 export function RowLabel({ name: { label, from } }: { name: RowName }) {

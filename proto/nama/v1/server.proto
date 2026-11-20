@@ -409,7 +409,8 @@ message HomeLayout {
 message HomeLayoutRow {
   oneof row {
     KernelHomeRow kernel = 1;
-    // A row the Plugin gives every User. `SetDefaultHomeLayout` reads only its Plugin id and key.
+    // A row the Plugin gives every User or, in a User's own layout, one it gives them alone.
+    // Saving a layout reads only its Plugin id and key.
     PluginHomeRow plugin = 2;
     // The id of a Plugin whose rows for each User, built for them alone, go here.
     string plugin_users_rows = 3;
