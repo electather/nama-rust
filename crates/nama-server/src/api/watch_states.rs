@@ -11,6 +11,7 @@ use nama_proto::nama::v1::{
 use crate::{
     browse,
     library::{Progress, TitleTarget},
+    playback::{ReportedProgress, RunningPlans},
 };
 
 use super::{
@@ -21,6 +22,7 @@ use super::{
 /// `nama.v1.WatchStateService`: each signed-in User's progress through what they play.
 pub(super) struct WatchStateServiceHandler {
     pub(super) browse: browse::Browse,
+    pub(super) running: RunningPlans,
 }
 
 #[expect(
@@ -34,7 +36,7 @@ impl WatchStateService for WatchStateServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ReportProgressRequest>,
     ) -> ServiceResult<ReportProgressResponse> {
-        let user = caller(&ctx)?.user.id;
+        let caller = caller(&ctx)?;
         let progress =
             Progress::new(request.position_ms, request.duration_ms).ok_or_else(|| {
                 refuse(
@@ -46,12 +48,17 @@ impl WatchStateService for WatchStateServiceHandler {
                 .param("maxDurationMs", &i64::MAX)
             })?;
         self.browse
-            .report(user, request.version_id, progress)
+            .report(caller.user.id, request.version_id, progress)
             .await
             .map_err(refused(Fields {
                 version: "version_id",
                 ..Fields::NONE
             }))?;
+        let reported = ReportedProgress {
+            position_ms: request.position_ms,
+            duration_ms: request.duration_ms,
+        };
+        (self.running).report_progress(request.version_id, caller.device.id, reported);
         Response::ok(ReportProgressResponse::default())
     }
 

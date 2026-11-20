@@ -4,6 +4,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Playback } from "./event_pb";
+import { file_nama_v1_event } from "./event_pb";
 import type { PlaybackLimit } from "./playback_pb";
 import { file_nama_v1_playback } from "./playback_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
@@ -12,7 +14,158 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCKBAQoVR2V0U2VydmVySW5mb1Jlc3BvbnNlEgwKBG5hbWUYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIWCg5zZXR1cF9yZXF1aXJlZBgDIAEoCBIUCgxpbWFnZV93aWR0aHMYBCADKA0SGwoTZXhwb3J0c19kaWFnbm9zdGljcxgFIAEoCCIaChhHZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QiRgoZR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuU2VydmVyU2V0dGluZ3MiSAobVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0EikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJJChxVcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyIdCg5TZXJ2ZXJTZXR0aW5ncxILCgN1cmwYASABKAkiGgoYR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0IoUCChlHZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlEiUKBmZmbXBlZxgBIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEiYKB2ZmcHJvYmUYAiABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRIWCg5mZm1wZWdfcHJvYmxlbRgDIAEoCRIXCg9mZnByb2JlX3Byb2JsZW0YBCABKAkSKAoIaGFyZHdhcmUYBSADKAsyFi5uYW1hLnYxLkZvdW5kSGFyZHdhcmUSEwoLaGFzX2xpYngyNjQYBiABKAgSEgoKaGFzX3pzY2FsZRgHIAEoCBIVCg1jYW5fdHJhbnNjb2RlGAggASgIIqgBCg1Gb3VuZEhhcmR3YXJlEioKA2FwaRgBIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSEQoJdG9uZV9tYXBzGAIgASgIEioKDHRvbmVfbWFwcGluZxgDIAEoDjIULm5hbWEudjEuVG9uZU1hcHBpbmcSEQoJYXV0b21hdGljGAQgASgIIh8KA0dwdRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIi0KDEZvdW5kUHJvZ3JhbRIMCgRwYXRoGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiHAoaR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QiSgobR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIkwKHVVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIk0KHlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyKkAgoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIbCg5tYXhfdHJhbnNjb2RlcxgCIAEoDUgAiAEBEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgDIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBI8ChVoYXJkd2FyZV9hY2NlbGVyYXRpb24YBCABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgFIAEoCzIMLm5hbWEudjEuR3B1EiAKE2tlZXBfYmVoaW5kX21pbnV0ZXMYBiABKA1IAYgBAUIRCg9fbWF4X3RyYW5zY29kZXNCFgoUX2tlZXBfYmVoaW5kX21pbnV0ZXMiGQoXR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QicgoYR2V0SW1hZ2VTZXR0aW5nc1Jlc3BvbnNlEigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzEiwKCXN3aXRjaGluZxgCIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJGChpVcGRhdGVJbWFnZVNldHRpbmdzUmVxdWVzdBIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJHChtVcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2USKAoIc2V0dGluZ3MYASABKAsyFi5uYW1hLnYxLkltYWdlU2V0dGluZ3MidQoNSW1hZ2VTZXR0aW5ncxIVCg1yZXNpemVfaW1hZ2VzGAEgASgIEh4KEXJlc2l6ZWRfY2FjaGVfbWliGAIgASgNSACIAQESFwoPc3RvcmVfcGx1Z2luX2lkGAMgASgJQhQKEl9yZXNpemVkX2NhY2hlX21pYiIsChdTd2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkiSAoYU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEiwKCXN3aXRjaGluZxgBIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJYChBJbWFnZVN0b3JlU3dpdGNoEhQKDHRvX3BsdWdpbl9pZBgBIAEoCRIOCgZjb3BpZWQYAiABKA0SDQoFdG90YWwYAyABKA0SDwoHZmFpbHVyZRgEIAEoCSpzCgtUb25lTWFwcGluZxIcChhUT05FX01BUFBJTkdfVU5TUEVDSUZJRUQQABIVChFUT05FX01BUFBJTkdfTk9ORRABEhQKEFRPTkVfTUFQUElOR19HUFUQAhIZChVUT05FX01BUFBJTkdfU09GVFdBUkUQAyrlAQoUSGFyZHdhcmVBY2NlbGVyYXRpb24SJQohSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1VOU1BFQ0lGSUVEEAASHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX09GRhABEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9WQUFQSRACEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9RU1YQAxIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fTlZFTkMQBBImCiJIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVklERU9UT09MQk9YEAUyhQcKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXAoQR2V0SW1hZ2VTZXR0aW5ncxIgLm5hbWEudjEuR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QaIS5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXNwb25zZSIDkAIBEmUKE1VwZGF0ZUltYWdlU2V0dGluZ3MSIy5uYW1hLnYxLlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACAhJXChBTd2l0Y2hJbWFnZVN0b3JlEiAubmFtYS52MS5Td2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBohLm5hbWEudjEuU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlYgZwcm90bzM", [file_nama_v1_playback]);
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSISChBMaXN0UGxheXNSZXF1ZXN0IjEKEUxpc3RQbGF5c1Jlc3BvbnNlEhwKBXBsYXlzGAEgAygLMg0ubmFtYS52MS5QbGF5IqwBCgRQbGF5EiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjaxINCgV0aXRsZRgCIAEoCRIYCgtwb3NpdGlvbl9tcxgDIAEoBEgAiAEBEhMKC2R1cmF0aW9uX21zGAQgASgEEjEKDXRyYW5zY29kZXNfb24YBSABKAsyGi5uYW1hLnYxLlRyYW5zY29kZUhhcmR3YXJlQg4KDF9wb3NpdGlvbl9tcyJaChFUcmFuc2NvZGVIYXJkd2FyZRIqCgNhcGkYASABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgCIAEoCzIMLm5hbWEudjEuR3B1IjMKD1N0b3BQbGF5UmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEEg8KB21lc3NhZ2UYAiABKAkiEgoQU3RvcFBsYXlSZXNwb25zZSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCKBAQoVR2V0U2VydmVySW5mb1Jlc3BvbnNlEgwKBG5hbWUYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIWCg5zZXR1cF9yZXF1aXJlZBgDIAEoCBIUCgxpbWFnZV93aWR0aHMYBCADKA0SGwoTZXhwb3J0c19kaWFnbm9zdGljcxgFIAEoCCIaChhHZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QiRgoZR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuU2VydmVyU2V0dGluZ3MiSAobVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0EikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJJChxVcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyIdCg5TZXJ2ZXJTZXR0aW5ncxILCgN1cmwYASABKAkiGgoYR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0IoUCChlHZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlEiUKBmZmbXBlZxgBIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEiYKB2ZmcHJvYmUYAiABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRIWCg5mZm1wZWdfcHJvYmxlbRgDIAEoCRIXCg9mZnByb2JlX3Byb2JsZW0YBCABKAkSKAoIaGFyZHdhcmUYBSADKAsyFi5uYW1hLnYxLkZvdW5kSGFyZHdhcmUSEwoLaGFzX2xpYngyNjQYBiABKAgSEgoKaGFzX3pzY2FsZRgHIAEoCBIVCg1jYW5fdHJhbnNjb2RlGAggASgIIqgBCg1Gb3VuZEhhcmR3YXJlEioKA2FwaRgBIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSEQoJdG9uZV9tYXBzGAIgASgIEioKDHRvbmVfbWFwcGluZxgDIAEoDjIULm5hbWEudjEuVG9uZU1hcHBpbmcSEQoJYXV0b21hdGljGAQgASgIIh8KA0dwdRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIi0KDEZvdW5kUHJvZ3JhbRIMCgRwYXRoGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiHAoaR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QiSgobR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIkwKHVVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIk0KHlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyKkAgoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIbCg5tYXhfdHJhbnNjb2RlcxgCIAEoDUgAiAEBEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgDIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBI8ChVoYXJkd2FyZV9hY2NlbGVyYXRpb24YBCABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgFIAEoCzIMLm5hbWEudjEuR3B1EiAKE2tlZXBfYmVoaW5kX21pbnV0ZXMYBiABKA1IAYgBAUIRCg9fbWF4X3RyYW5zY29kZXNCFgoUX2tlZXBfYmVoaW5kX21pbnV0ZXMiGQoXR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QicgoYR2V0SW1hZ2VTZXR0aW5nc1Jlc3BvbnNlEigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzEiwKCXN3aXRjaGluZxgCIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJGChpVcGRhdGVJbWFnZVNldHRpbmdzUmVxdWVzdBIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJHChtVcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2USKAoIc2V0dGluZ3MYASABKAsyFi5uYW1hLnYxLkltYWdlU2V0dGluZ3MidQoNSW1hZ2VTZXR0aW5ncxIVCg1yZXNpemVfaW1hZ2VzGAEgASgIEh4KEXJlc2l6ZWRfY2FjaGVfbWliGAIgASgNSACIAQESFwoPc3RvcmVfcGx1Z2luX2lkGAMgASgJQhQKEl9yZXNpemVkX2NhY2hlX21pYiIsChdTd2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkiSAoYU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEiwKCXN3aXRjaGluZxgBIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJYChBJbWFnZVN0b3JlU3dpdGNoEhQKDHRvX3BsdWdpbl9pZBgBIAEoCRIOCgZjb3BpZWQYAiABKA0SDQoFdG90YWwYAyABKA0SDwoHZmFpbHVyZRgEIAEoCSpzCgtUb25lTWFwcGluZxIcChhUT05FX01BUFBJTkdfVU5TUEVDSUZJRUQQABIVChFUT05FX01BUFBJTkdfTk9ORRABEhQKEFRPTkVfTUFQUElOR19HUFUQAhIZChVUT05FX01BUFBJTkdfU09GVFdBUkUQAyrlAQoUSGFyZHdhcmVBY2NlbGVyYXRpb24SJQohSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1VOU1BFQ0lGSUVEEAASHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX09GRhABEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9WQUFQSRACEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9RU1YQAxIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fTlZFTkMQBBImCiJIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVklERU9UT09MQk9YEAUylAgKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXAoQR2V0SW1hZ2VTZXR0aW5ncxIgLm5hbWEudjEuR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QaIS5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXNwb25zZSIDkAIBEmUKE1VwZGF0ZUltYWdlU2V0dGluZ3MSIy5uYW1hLnYxLlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACAhJXChBTd2l0Y2hJbWFnZVN0b3JlEiAubmFtYS52MS5Td2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBohLm5hbWEudjEuU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEkcKCUxpc3RQbGF5cxIZLm5hbWEudjEuTGlzdFBsYXlzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFBsYXlzUmVzcG9uc2UiA5ACARJECghTdG9wUGxheRIYLm5hbWEudjEuU3RvcFBsYXlSZXF1ZXN0GhkubmFtYS52MS5TdG9wUGxheVJlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_event, file_nama_v1_playback]);
+
+/**
+ * @generated from message nama.v1.ListPlaysRequest
+ */
+export type ListPlaysRequest = Message<"nama.v1.ListPlaysRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.ListPlaysRequest.
+ * Use `create(ListPlaysRequestSchema)` to create a new message.
+ */
+export const ListPlaysRequestSchema: GenMessage<ListPlaysRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 0);
+
+/**
+ * @generated from message nama.v1.ListPlaysResponse
+ */
+export type ListPlaysResponse = Message<"nama.v1.ListPlaysResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.Play plays = 1;
+   */
+  plays: Play[];
+};
+
+/**
+ * Describes the message nama.v1.ListPlaysResponse.
+ * Use `create(ListPlaysResponseSchema)` to create a new message.
+ */
+export const ListPlaysResponseSchema: GenMessage<ListPlaysResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 1);
+
+/**
+ * A plan playing now.
+ *
+ * @generated from message nama.v1.Play
+ */
+export type Play = Message<"nama.v1.Play"> & {
+  /**
+   * How it plays now: as its `PlaybackStarted` told it, or its last `PlaybackChanged`.
+   *
+   * @generated from field: nama.v1.Playback playback = 1;
+   */
+  playback?: Playback | undefined;
+
+  /**
+   * What it plays, as people name it: the Movie's title, or the Show's with the Episode, such as
+   * "Dark S01E02", the first one for a file of several. The name the file was found under when it
+   * isn't Matched. Empty if its Version was deleted since.
+   *
+   * @generated from field: string title = 2;
+   */
+  title: string;
+
+  /**
+   * How far in the Device last said it was in this Version (`ReportProgress`), in milliseconds.
+   * Unset until it says.
+   *
+   * @generated from field: optional uint64 position_ms = 3;
+   */
+  positionMs?: bigint | undefined;
+
+  /**
+   * How long the Version is, as that report said, in milliseconds. 0 until it says.
+   *
+   * @generated from field: uint64 duration_ms = 4;
+   */
+  durationMs: bigint;
+
+  /**
+   * Where its Transcode runs now. Unset for a Direct Play or a Remux.
+   *
+   * @generated from field: nama.v1.TranscodeHardware transcodes_on = 5;
+   */
+  transcodesOn?: TranscodeHardware | undefined;
+};
+
+/**
+ * Describes the message nama.v1.Play.
+ * Use `create(PlaySchema)` to create a new message.
+ */
+export const PlaySchema: GenMessage<Play> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 2);
+
+/**
+ * Where a Transcode runs.
+ *
+ * @generated from message nama.v1.TranscodeHardware
+ */
+export type TranscodeHardware = Message<"nama.v1.TranscodeHardware"> & {
+  /**
+   * The API it runs on, or `HARDWARE_ACCELERATION_OFF` for software, on the CPU, as after its
+   * hardware failed partway.
+   *
+   * @generated from field: nama.v1.HardwareAcceleration api = 1;
+   */
+  api: HardwareAcceleration;
+
+  /**
+   * The GPU it runs on. Unset in software, and where ffmpeg picks one, as for
+   * `FoundHardware.gpu`.
+   *
+   * @generated from field: nama.v1.Gpu gpu = 2;
+   */
+  gpu?: Gpu | undefined;
+};
+
+/**
+ * Describes the message nama.v1.TranscodeHardware.
+ * Use `create(TranscodeHardwareSchema)` to create a new message.
+ */
+export const TranscodeHardwareSchema: GenMessage<TranscodeHardware> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 3);
+
+/**
+ * @generated from message nama.v1.StopPlayRequest
+ */
+export type StopPlayRequest = Message<"nama.v1.StopPlayRequest"> & {
+  /**
+   * The plan, as `Playback.plan_id` names it.
+   *
+   * @generated from field: uint64 plan_id = 1;
+   */
+  planId: bigint;
+
+  /**
+   * What to tell the viewer, at most 200 characters. Empty for nothing.
+   *
+   * @generated from field: string message = 2;
+   */
+  message: string;
+};
+
+/**
+ * Describes the message nama.v1.StopPlayRequest.
+ * Use `create(StopPlayRequestSchema)` to create a new message.
+ */
+export const StopPlayRequestSchema: GenMessage<StopPlayRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 4);
+
+/**
+ * @generated from message nama.v1.StopPlayResponse
+ */
+export type StopPlayResponse = Message<"nama.v1.StopPlayResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.StopPlayResponse.
+ * Use `create(StopPlayResponseSchema)` to create a new message.
+ */
+export const StopPlayResponseSchema: GenMessage<StopPlayResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 5);
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -25,7 +178,7 @@ export type GetServerInfoRequest = Message<"nama.v1.GetServerInfoRequest"> & {
  * Use `create(GetServerInfoRequestSchema)` to create a new message.
  */
 export const GetServerInfoRequestSchema: GenMessage<GetServerInfoRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 0);
+  messageDesc(file_nama_v1_server, 6);
 
 /**
  * @generated from message nama.v1.GetServerInfoResponse
@@ -83,7 +236,7 @@ export type GetServerInfoResponse = Message<"nama.v1.GetServerInfoResponse"> & {
  * Use `create(GetServerInfoResponseSchema)` to create a new message.
  */
 export const GetServerInfoResponseSchema: GenMessage<GetServerInfoResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 1);
+  messageDesc(file_nama_v1_server, 7);
 
 /**
  * @generated from message nama.v1.GetServerSettingsRequest
@@ -96,7 +249,7 @@ export type GetServerSettingsRequest = Message<"nama.v1.GetServerSettingsRequest
  * Use `create(GetServerSettingsRequestSchema)` to create a new message.
  */
 export const GetServerSettingsRequestSchema: GenMessage<GetServerSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 2);
+  messageDesc(file_nama_v1_server, 8);
 
 /**
  * @generated from message nama.v1.GetServerSettingsResponse
@@ -113,7 +266,7 @@ export type GetServerSettingsResponse = Message<"nama.v1.GetServerSettingsRespon
  * Use `create(GetServerSettingsResponseSchema)` to create a new message.
  */
 export const GetServerSettingsResponseSchema: GenMessage<GetServerSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 3);
+  messageDesc(file_nama_v1_server, 9);
 
 /**
  * @generated from message nama.v1.UpdateServerSettingsRequest
@@ -132,7 +285,7 @@ export type UpdateServerSettingsRequest = Message<"nama.v1.UpdateServerSettingsR
  * Use `create(UpdateServerSettingsRequestSchema)` to create a new message.
  */
 export const UpdateServerSettingsRequestSchema: GenMessage<UpdateServerSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 4);
+  messageDesc(file_nama_v1_server, 10);
 
 /**
  * @generated from message nama.v1.UpdateServerSettingsResponse
@@ -151,7 +304,7 @@ export type UpdateServerSettingsResponse = Message<"nama.v1.UpdateServerSettings
  * Use `create(UpdateServerSettingsResponseSchema)` to create a new message.
  */
 export const UpdateServerSettingsResponseSchema: GenMessage<UpdateServerSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 5);
+  messageDesc(file_nama_v1_server, 11);
 
 /**
  * What an admin sets about the Server as a whole.
@@ -173,7 +326,7 @@ export type ServerSettings = Message<"nama.v1.ServerSettings"> & {
  * Use `create(ServerSettingsSchema)` to create a new message.
  */
 export const ServerSettingsSchema: GenMessage<ServerSettings> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 6);
+  messageDesc(file_nama_v1_server, 12);
 
 /**
  * @generated from message nama.v1.GetPlaybackStatusRequest
@@ -186,7 +339,7 @@ export type GetPlaybackStatusRequest = Message<"nama.v1.GetPlaybackStatusRequest
  * Use `create(GetPlaybackStatusRequestSchema)` to create a new message.
  */
 export const GetPlaybackStatusRequestSchema: GenMessage<GetPlaybackStatusRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 7);
+  messageDesc(file_nama_v1_server, 13);
 
 /**
  * @generated from message nama.v1.GetPlaybackStatusResponse
@@ -259,7 +412,7 @@ export type GetPlaybackStatusResponse = Message<"nama.v1.GetPlaybackStatusRespon
  * Use `create(GetPlaybackStatusResponseSchema)` to create a new message.
  */
 export const GetPlaybackStatusResponseSchema: GenMessage<GetPlaybackStatusResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 8);
+  messageDesc(file_nama_v1_server, 14);
 
 /**
  * A hardware acceleration API that passed its test encode at startup, on one GPU.
@@ -310,7 +463,7 @@ export type FoundHardware = Message<"nama.v1.FoundHardware"> & {
  * Use `create(FoundHardwareSchema)` to create a new message.
  */
 export const FoundHardwareSchema: GenMessage<FoundHardware> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 9);
+  messageDesc(file_nama_v1_server, 15);
 
 /**
  * A GPU the Server found.
@@ -338,7 +491,7 @@ export type Gpu = Message<"nama.v1.Gpu"> & {
  * Use `create(GpuSchema)` to create a new message.
  */
 export const GpuSchema: GenMessage<Gpu> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 10);
+  messageDesc(file_nama_v1_server, 16);
 
 /**
  * A program the Server found and runs, such as ffmpeg.
@@ -366,7 +519,7 @@ export type FoundProgram = Message<"nama.v1.FoundProgram"> & {
  * Use `create(FoundProgramSchema)` to create a new message.
  */
 export const FoundProgramSchema: GenMessage<FoundProgram> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 11);
+  messageDesc(file_nama_v1_server, 17);
 
 /**
  * @generated from message nama.v1.GetPlaybackSettingsRequest
@@ -379,7 +532,7 @@ export type GetPlaybackSettingsRequest = Message<"nama.v1.GetPlaybackSettingsReq
  * Use `create(GetPlaybackSettingsRequestSchema)` to create a new message.
  */
 export const GetPlaybackSettingsRequestSchema: GenMessage<GetPlaybackSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 12);
+  messageDesc(file_nama_v1_server, 18);
 
 /**
  * @generated from message nama.v1.GetPlaybackSettingsResponse
@@ -396,7 +549,7 @@ export type GetPlaybackSettingsResponse = Message<"nama.v1.GetPlaybackSettingsRe
  * Use `create(GetPlaybackSettingsResponseSchema)` to create a new message.
  */
 export const GetPlaybackSettingsResponseSchema: GenMessage<GetPlaybackSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 13);
+  messageDesc(file_nama_v1_server, 19);
 
 /**
  * @generated from message nama.v1.UpdatePlaybackSettingsRequest
@@ -415,7 +568,7 @@ export type UpdatePlaybackSettingsRequest = Message<"nama.v1.UpdatePlaybackSetti
  * Use `create(UpdatePlaybackSettingsRequestSchema)` to create a new message.
  */
 export const UpdatePlaybackSettingsRequestSchema: GenMessage<UpdatePlaybackSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 14);
+  messageDesc(file_nama_v1_server, 20);
 
 /**
  * @generated from message nama.v1.UpdatePlaybackSettingsResponse
@@ -434,7 +587,7 @@ export type UpdatePlaybackSettingsResponse = Message<"nama.v1.UpdatePlaybackSett
  * Use `create(UpdatePlaybackSettingsResponseSchema)` to create a new message.
  */
 export const UpdatePlaybackSettingsResponseSchema: GenMessage<UpdatePlaybackSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 15);
+  messageDesc(file_nama_v1_server, 21);
 
 /**
  * What an admin sets about how the Server plays Versions it changes.
@@ -509,7 +662,7 @@ export type PlaybackSettings = Message<"nama.v1.PlaybackSettings"> & {
  * Use `create(PlaybackSettingsSchema)` to create a new message.
  */
 export const PlaybackSettingsSchema: GenMessage<PlaybackSettings> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 16);
+  messageDesc(file_nama_v1_server, 22);
 
 /**
  * @generated from message nama.v1.GetImageSettingsRequest
@@ -522,7 +675,7 @@ export type GetImageSettingsRequest = Message<"nama.v1.GetImageSettingsRequest">
  * Use `create(GetImageSettingsRequestSchema)` to create a new message.
  */
 export const GetImageSettingsRequestSchema: GenMessage<GetImageSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 17);
+  messageDesc(file_nama_v1_server, 23);
 
 /**
  * @generated from message nama.v1.GetImageSettingsResponse
@@ -547,7 +700,7 @@ export type GetImageSettingsResponse = Message<"nama.v1.GetImageSettingsResponse
  * Use `create(GetImageSettingsResponseSchema)` to create a new message.
  */
 export const GetImageSettingsResponseSchema: GenMessage<GetImageSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 18);
+  messageDesc(file_nama_v1_server, 24);
 
 /**
  * @generated from message nama.v1.UpdateImageSettingsRequest
@@ -566,7 +719,7 @@ export type UpdateImageSettingsRequest = Message<"nama.v1.UpdateImageSettingsReq
  * Use `create(UpdateImageSettingsRequestSchema)` to create a new message.
  */
 export const UpdateImageSettingsRequestSchema: GenMessage<UpdateImageSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 19);
+  messageDesc(file_nama_v1_server, 25);
 
 /**
  * @generated from message nama.v1.UpdateImageSettingsResponse
@@ -585,7 +738,7 @@ export type UpdateImageSettingsResponse = Message<"nama.v1.UpdateImageSettingsRe
  * Use `create(UpdateImageSettingsResponseSchema)` to create a new message.
  */
 export const UpdateImageSettingsResponseSchema: GenMessage<UpdateImageSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 20);
+  messageDesc(file_nama_v1_server, 26);
 
 /**
  * What an admin sets about how the Server resizes Posters and Backdrops.
@@ -624,7 +777,7 @@ export type ImageSettings = Message<"nama.v1.ImageSettings"> & {
  * Use `create(ImageSettingsSchema)` to create a new message.
  */
 export const ImageSettingsSchema: GenMessage<ImageSettings> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 21);
+  messageDesc(file_nama_v1_server, 27);
 
 /**
  * @generated from message nama.v1.SwitchImageStoreRequest
@@ -643,7 +796,7 @@ export type SwitchImageStoreRequest = Message<"nama.v1.SwitchImageStoreRequest">
  * Use `create(SwitchImageStoreRequestSchema)` to create a new message.
  */
 export const SwitchImageStoreRequestSchema: GenMessage<SwitchImageStoreRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 22);
+  messageDesc(file_nama_v1_server, 28);
 
 /**
  * @generated from message nama.v1.SwitchImageStoreResponse
@@ -663,7 +816,7 @@ export type SwitchImageStoreResponse = Message<"nama.v1.SwitchImageStoreResponse
  * Use `create(SwitchImageStoreResponseSchema)` to create a new message.
  */
 export const SwitchImageStoreResponseSchema: GenMessage<SwitchImageStoreResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 23);
+  messageDesc(file_nama_v1_server, 29);
 
 /**
  * How far a switch to another image store has got.
@@ -705,7 +858,7 @@ export type ImageStoreSwitch = Message<"nama.v1.ImageStoreSwitch"> & {
  * Use `create(ImageStoreSwitchSchema)` to create a new message.
  */
 export const ImageStoreSwitchSchema: GenMessage<ImageStoreSwitch> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 24);
+  messageDesc(file_nama_v1_server, 30);
 
 /**
  * What tone-maps HDR to SDR in a Transcode.
@@ -933,6 +1086,30 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof SwitchImageStoreRequestSchema;
     output: typeof SwitchImageStoreResponseSchema;
+  },
+  /**
+   * Lists every plan playing now, on every User's Device, oldest first. Needs `PERMISSION_ADMIN`.
+   * The Playback events follow each from here on, by plan id.
+   *
+   * @generated from rpc nama.v1.ServerService.ListPlays
+   */
+  listPlays: {
+    methodKind: "unary";
+    input: typeof ListPlaysRequestSchema;
+    output: typeof ListPlaysResponseSchema;
+  },
+  /**
+   * Stops a plan on any Device, the caller's own included, as its player's `StopPlayback` would,
+   * and cuts off its Direct Play's file mid-response. Its `PlaybackEnded` carries `admin_stop`
+   * with the message. A plan already stopped is left alone. Needs `PERMISSION_ADMIN`. A message
+   * over 200 characters is refused with `REFUSAL_REASON_MESSAGE_TOO_LONG`, and nothing stops.
+   *
+   * @generated from rpc nama.v1.ServerService.StopPlay
+   */
+  stopPlay: {
+    methodKind: "unary";
+    input: typeof StopPlayRequestSchema;
+    output: typeof StopPlayResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_server, 0);
