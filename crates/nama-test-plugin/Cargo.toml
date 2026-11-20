@@ -30,10 +30,10 @@ looping-tick = ["automation"]
 # Builds the Plugin naming the Recogniser Extension Point and exporting `recognise_file`, which
 # reads `<Show> - <n>.<ext>`, or `<Show> (<year>) - <n>.<ext>`, as that Show's Season 1, Episode n.
 recogniser = []
-# Builds the Plugin naming the Home row Extension Point and requesting the Store Permission; its
-# `shared_rows` gives fixed rows, those its `home_rows` setting picks, after keeping a value in its
-# Store and reading it back, its `user_rows` a row named for the User's `handle`, and its
-# `user_featured` fixed suggestions for a User who set one.
+# Builds the Plugin naming the Home row Extension Point and requesting the Store and Read Watch
+# States Permissions; its `shared_rows` gives fixed rows, those its `home_rows` setting picks,
+# after keeping a value in its Store and reading it back, its `user_rows` a row named for the
+# User's `handle`, and its `user_featured` fixed suggestions for a User who set one.
 home-rows = []
 # Builds the Plugin as `home-rows` does, exporting only `shared_rows`, or only `user_rows`, as a
 # new version of it that stopped giving the others.

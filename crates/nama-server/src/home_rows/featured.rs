@@ -81,7 +81,7 @@ impl HomeRows {
 
     async fn refresh_featured_now(&self, plugin: &PluginId, user: i64) {
         // Put off before the Plugin is asked, as `refresh_now` puts off rows, and for the same
-        // reasons: the triggers on `personal_settings` delete it.
+        // reasons: the triggers on `personal_settings` and `watch_states` delete it.
         if let Err(err) = self.put_off_featured(plugin, user).await {
             warn!(plugin = %plugin, user, "could not put off refreshing the Plugin's Featured suggestions: {err}");
             return;
@@ -173,7 +173,8 @@ impl HomeRows {
 
     /// Replaces the Plugin `plugin`'s suggestions for the User `user` with `suggestions`, fresh
     /// for `fresh_for`. Stores nothing once the put-off its refresh started with is gone, as the
-    /// User changed their Personal settings meanwhile.
+    /// User changed their Personal settings, or their Watch State for a Plugin reading it,
+    /// meanwhile.
     async fn replace_suggestions(
         &self,
         plugin: &PluginId,

@@ -45,8 +45,9 @@ mod exports {
     // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
     // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
     // requests the Store and Library Permissions, with `recogniser` it recognises files, with
-    // `home-rows` it gives Home rows and requests the Store Permission, with `subtitle-source` it
-    // is a subtitle source that finds nothing, and with `panic` it panics instead.
+    // `home-rows` it gives Home rows and requests the Store and Read Watch States Permissions, with
+    // `subtitle-source` it is a subtitle source that finds nothing, and with `panic` it panics
+    // instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -129,7 +130,10 @@ mod exports {
             points: [manifest.points, vec![nama_pdk::point(services::HOME_ROW)]].concat(),
             permissions: [
                 manifest.permissions,
-                vec![nama_pdk::Permission::PERMISSION_STORE.into()],
+                vec![
+                    nama_pdk::Permission::PERMISSION_STORE.into(),
+                    nama_pdk::Permission::PERMISSION_READ_WATCH_STATES.into(),
+                ],
             ]
             .concat(),
             settings: [
@@ -447,8 +451,21 @@ mod home_rows {
     /// a User who set a `handle` the row `for-<handle>`: Alien, and suggests for their Featured
     /// Heat at 1.0, Alien at 0.0 and a Movie no title source has at 1.0. Logs which it was asked
     /// for, so a test counts its refreshes, and what its Store kept or why the Kernel refused it,
-    /// so a test sees a Plugin that isn't an Automation call the Kernel's functions.
+    /// so a test sees a Plugin that isn't an Automation call the Kernel's functions. For the
+    /// `handle` [`WAITS`] it answers a User's rows and Featured only once the clock has moved.
     struct TestRows;
+
+    /// The `handle` whose rows and Featured are answered only once the Server's clock reads a
+    /// minute past when they were asked, so a test can change something while a refresh runs.
+    const WAITS: &str = "waits";
+
+    /// Spins until a minute past now on the Server's clock, if `handle` is [`WAITS`].
+    fn wait_for_the_clock_if_it_waits(handle: &str) {
+        if handle == WAITS {
+            let until = nama_pdk::now() + std::time::Duration::from_secs(60);
+            while nama_pdk::now() < until {}
+        }
+    }
 
     impl HomeRowSource for TestRows {
         fn shared_rows() -> Result<HomeRows, Error> {
@@ -491,6 +508,7 @@ mod home_rows {
                 return Ok(HomeRows::default());
             };
             nama_pdk::info!("test-plugin gives {handle}'s Home rows");
+            wait_for_the_clock_if_it_waits(handle);
             Ok(HomeRows {
                 rows: vec![row(
                     &format!("for-{handle}"),
@@ -502,9 +520,11 @@ mod home_rows {
         }
 
         fn user_featured(asked: UserFeaturedAsked) -> Result<FeaturedSuggestions, Error> {
-            if !asked.personal_settings.contains_key(super::exports::HANDLE) {
+            let Some(handle) = asked.personal_settings.get(super::exports::HANDLE) else {
                 return Ok(FeaturedSuggestions::default());
-            }
+            };
+            nama_pdk::info!("test-plugin suggests {handle}'s Featured");
+            wait_for_the_clock_if_it_waits(handle);
             let suggestion = |(tmdb, weight): (i64, f32)| FeaturedSuggestion {
                 kind: MOVIE.into(),
                 id: tmdb_id(tmdb).into(),

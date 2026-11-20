@@ -305,8 +305,9 @@ impl HomeRows {
     async fn refresh_now(&self, plugin: &PluginId, user: Option<i64>) {
         // Put off before the Plugin is asked, so one whose service is down isn't called on every
         // visit to home. A User's change to their Personal settings meanwhile deletes the put-off
-        // (the triggers on `personal_settings`), and `replace` then drops this answer, built from
-        // the old settings, rather than store it as fresh.
+        // (the triggers on `personal_settings`), as does one to their Watch State for a Plugin
+        // reading it (those on `watch_states`), and `replace` then drops this answer, built from
+        // what they changed, rather than store it as fresh.
         if let Err(err) = self.put_off(plugin, user).await {
             warn!(plugin = %plugin, user, "could not put off refreshing the Plugin's Home rows: {err}");
             return;
@@ -561,7 +562,7 @@ impl HomeRows {
     /// Replaces the Plugin `plugin`'s rows for `user`, or its shared rows for `None`, with
     /// `rows`, fresh for `fresh_for`, in one write. Stores nothing once the put-off its refresh
     /// started with is gone, as the Plugin was forgotten or the User changed their Personal
-    /// settings meanwhile.
+    /// settings, or their Watch State for a Plugin reading it, meanwhile.
     async fn replace(
         &self,
         plugin: &PluginId,
