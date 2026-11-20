@@ -482,7 +482,7 @@ fn system_ffprobe_logging_listings(bin: &Path) -> Ffmpeg {
     fake_ffprobe(
         bin,
         &format!(
-            "case \"$*\" in *packet=*) echo list >> '{}' ;; esac\nexec '{}' \"$@\"",
+            "case \"$*\" in *packet=pts_time,flags*) echo list >> '{}' ;; esac\nexec '{}' \"$@\"",
             bin.join("runs").display(),
             real.display()
         ),
@@ -519,15 +519,16 @@ impl Fixture {
     }
 
     /// Stores the file written at `relative` as a Version, probes it as a scan would, and
-    /// returns the keyframes probing kept for it.
+    /// returns the keyframes probing kept for it. Fails the test if ffprobe couldn't read it, so
+    /// a fixture it can't read never passes as one without an index.
     async fn probe_written(&self, relative: &str) -> Option<Keyframes> {
         self.store(relative).await;
         self.match_to_alien(relative).await;
         self.probe_changed().await;
-        self.tracks
-            .keyframes(self.stored(relative).await)
-            .await
-            .unwrap()
+        let file = self.stored(relative).await;
+        let probed = self.tracks.of(&[file]).await.unwrap();
+        assert!(probed.contains_key(&file.id), "ffprobe couldn't read it");
+        self.tracks.keyframes(file).await.unwrap()
     }
 
     /// The keyframes the ffprobe on `PATH` lists by reading the whole file at `relative`.
@@ -602,9 +603,6 @@ async fn an_mkv_whose_cues_are_corrupted_keeps_no_keyframes_when_probed_and_list
     let version = media.file_id(alien).await;
     let listed = media.probing.keyframes(version).await.unwrap();
 
-    let file = media.stored(alien).await;
-    let probed = media.tracks.of(&[file]).await.unwrap();
-    assert!(probed.contains_key(&file.id), "ffprobe couldn't read it");
     assert_eq!(kept, None);
     assert_eq!(listed, media.whole_file_listing(alien).await);
     assert_eq!(probe_runs(bin.path()), 1);
