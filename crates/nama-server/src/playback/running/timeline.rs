@@ -6,11 +6,18 @@ use crate::ffmpeg::Keyframe;
 /// How long segments aim to be, in milliseconds.
 pub(super) const SEGMENT_MS: i64 = 6000;
 
+/// [`Timeline::cut_within_ms`] for a Version's own keyframes: listed keyframes are whole
+/// milliseconds and ffmpeg's playlist sums microseconds, while frames are at least 8 ms apart even
+/// at 120 fps.
+const SAME_FRAME_MS: i64 = 4;
+
 /// Where a Version's keyframes fall, and the segments its playlist lists, made of them.
 pub(super) struct Timeline {
-    /// When each keyframe falls, in milliseconds, in order.
+    /// When each listed keyframe falls, in milliseconds, in order. ffmpeg may cut at more.
     pub(super) keyframes: Vec<i64>,
     pub(super) segments: Vec<Segment>,
+    /// How far from a listed keyframe a file ffmpeg cut there can start, in milliseconds.
+    cut_within_ms: i64,
 }
 
 /// One segment a playlist lists.
@@ -41,6 +48,7 @@ impl Timeline {
         Self {
             keyframes,
             segments,
+            cut_within_ms: SAME_FRAME_MS,
         }
     }
 
@@ -48,7 +56,12 @@ impl Timeline {
     /// [`SEGMENT_MS`] before its end, so each is a segment's first.
     pub(super) fn transcoded(duration_ms: i64) -> Self {
         let segments = (duration_ms + SEGMENT_MS - 1) / SEGMENT_MS;
-        Self::new((0..segments).map(|n| n * SEGMENT_MS).collect(), duration_ms)
+        Self {
+            // Each forced keyframe falls on the first frame at or after its time, so a run started
+            // at one times the others up to a frame off, and ffmpeg cuts nowhere else.
+            cut_within_ms: SEGMENT_MS / 2,
+            ..Self::new((0..segments).map(|n| n * SEGMENT_MS).collect(), duration_ms)
+        }
     }
 
     /// The keyframes whose files segment `n` joins, by number.
@@ -77,6 +90,48 @@ impl Timeline {
         let starting_by = (self.segments)
             .partition_point(|segment| self.keyframe_ms(segment.first_keyframe) <= ms);
         starting_by.saturating_sub(1)
+    }
+
+    /// The listed keyframe a file ffmpeg wrote starting at `ms` joins, by number: the last at or
+    /// before it.
+    fn keyframe_at(&self, ms: i64) -> usize {
+        (self.keyframes)
+            .partition_point(|&keyframe| keyframe <= ms + self.cut_within_ms)
+            .saturating_sub(1)
+    }
+
+    /// The files a run started at keyframe `from` wrote, as its own playlist `playlist` lists
+    /// them, grouped by the keyframe whose file each joins, by when it starts: ffmpeg cuts a file
+    /// at every keyframe, listed or not (ADR 0066). A keyframe's group is left out until the run
+    /// wrote up to the next one, or ended.
+    pub(super) fn written_by_keyframe<'a>(
+        &self,
+        from: usize,
+        playlist: &'a str,
+    ) -> Vec<(usize, Vec<&'a str>)> {
+        // ponytail: times the files from the run's first starting at `from`; an unlisted keyframe
+        // in a Remux's lead-in before it moves them up to 500 ms late; read each file's own start
+        // if that shows.
+        let from_ms = self.keyframe_ms(from);
+        let (files, ended) = listed_files(playlist);
+        let mut groups: Vec<(usize, Vec<&str>)> = vec![];
+        let mut written_us = 0;
+        for (file, us) in files {
+            let n = self.keyframe_at(from_ms + rounded_ms(written_us));
+            match groups.last_mut() {
+                Some((last, joining)) if *last == n => joining.push(file),
+                _ => groups.push((n, vec![file])),
+            }
+            written_us += us;
+        }
+        let written_to_ms = from_ms + rounded_ms(written_us);
+        if !ended
+            && (groups.last())
+                .is_some_and(|&(n, _)| written_to_ms + self.cut_within_ms < self.keyframe_ms(n + 1))
+        {
+            groups.pop();
+        }
+        groups
     }
 
     /// Keyframe `n`, for ffmpeg to start at.
@@ -112,6 +167,37 @@ impl Timeline {
         playlist.push_str("#EXT-X-ENDLIST\n");
         playlist
     }
+}
+
+/// The files ffmpeg's playlist `playlist` lists, in order, with how long each lasts in
+/// microseconds, up to any it can't time, and whether it ended.
+fn listed_files(playlist: &str) -> (Vec<(&str, i64)>, bool) {
+    let mut files = vec![];
+    let mut file_us = None;
+    for line in playlist.lines() {
+        if line == "#EXT-X-ENDLIST" {
+            return (files, true);
+        } else if let Some(info) = line.strip_prefix("#EXTINF:") {
+            file_us = info.split(',').next().and_then(microseconds);
+        } else if !line.starts_with('#') {
+            // Unreadable, as no ffmpeg writes it, so what follows can't be timed.
+            let Some(us) = file_us.take() else { break };
+            files.push((line, us));
+        }
+    }
+    (files, false)
+}
+
+/// `seconds`, as ffmpeg's playlist gives a duration such as `2.000000`, in microseconds.
+fn microseconds(seconds: &str) -> Option<i64> {
+    let (whole, fraction) = seconds.split_once('.').unwrap_or((seconds, ""));
+    let fraction = format!("{fraction:0<6}");
+    Some(whole.parse::<i64>().ok()? * 1_000_000 + fraction.get(..6)?.parse::<i64>().ok()?)
+}
+
+/// `us` microseconds to the nearest millisecond.
+const fn rounded_ms(us: i64) -> i64 {
+    (us + 500) / 1000
 }
 
 /// The keyframe whose file is named `name`, if it's one.

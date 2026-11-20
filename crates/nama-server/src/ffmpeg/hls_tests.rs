@@ -1,4 +1,7 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use super::{
     Ffmpeg, FromCut, Keyframe, Remux, RemuxAudio, ToneMapper, Transcode, TranscodeAudio,
@@ -97,23 +100,26 @@ fn boxes<'a>(data: &'a [u8], name: &'a [u8; 4]) -> impl Iterator<Item = &'a [u8]
     })
 }
 
+/// The file in `dir` that a run started at keyframe `from` cut at keyframe `n`.
+fn cut(dir: &Path, from: usize, n: usize) -> PathBuf {
+    dir.join(format!("ffmpeg-{from}-{}.m4s", n - from))
+}
+
 /// Asserts that a Remux of a 14-second file into `restarted` from keyframe 3 of its 2-second
-/// ones wrote only `3.m4s` to `6.m4s`, each's video starting within `within` of the track's units
-/// of where it does in the Remux from the first into `whole`.
+/// ones cut only at keyframes 3 to 6, each file's video starting within `within` of the track's
+/// units of where it does in the Remux from the first into `whole`.
 fn assert_same_video_from_3(whole: &Path, restarted: &Path, within: u64) {
-    assert!(!restarted.join("2.m4s").exists());
     for n in 3..7 {
-        let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
         let (expected, actual) = (
-            starts_at(&segment(whole), VIDEO),
-            starts_at(&segment(restarted), VIDEO),
+            starts_at(&fs::read(cut(whole, 0, n)).unwrap(), VIDEO),
+            starts_at(&fs::read(cut(restarted, 3, n)).unwrap(), VIDEO),
         );
         assert!(
             expected.abs_diff(actual) <= within,
-            "{n}.m4s: {actual} against {expected}"
+            "keyframe {n}: {actual} against {expected}"
         );
     }
-    assert!(!restarted.join("7.m4s").exists());
+    assert!(!cut(restarted, 3, 7).exists());
 }
 
 /// What Probing reads of the file at `path`: when it starts, in milliseconds, and when each
@@ -224,7 +230,7 @@ async fn tone_mapped_hdr10_probed(limit: Option<VideoLimit>) -> String {
     let output = output.spawn().unwrap().wait_with_output().await.unwrap();
     assert!(output.status.success(), "{output:?}");
     let init_and_first =
-        [dir.join("init-0.mp4"), dir.join("0.m4s")].map(|written| fs::read(written).unwrap());
+        [dir.join("init-0.mp4"), cut(&dir, 0, 0)].map(|written| fs::read(written).unwrap());
     let played = work.path().join("played.mp4");
     fs::write(&played, init_and_first.concat()).unwrap();
     let ffprobe = &ffmpeg.ffprobe.as_ref().unwrap().path;
@@ -306,9 +312,9 @@ async fn hardware_found_on_this_host_transcodes_cut_at_every_cut_and_tone_maps_h
     let output = output.spawn().unwrap().wait_with_output().await.unwrap();
     assert!(output.status.success(), "{hardware:?}: {output:?}");
     for n in 0..4 {
-        assert!(dir.join(format!("{n}.m4s")).exists(), "{n}.m4s");
+        assert!(cut(&dir, 0, n).exists(), "cut {n}");
     }
-    assert!(!dir.join("4.m4s").exists(), "a keyframe of its own");
+    assert!(!cut(&dir, 0, 4).exists(), "a keyframe of its own");
 }
 
 #[tokio::test]
@@ -322,16 +328,14 @@ async fn a_transcode_started_at_a_cut_writes_the_same_files_from_there_on() {
 
     transcode(&ffmpeg, &file, &restarted, 2).await;
 
-    assert!(!restarted.join("1.m4s").exists());
     for n in 2..4 {
-        let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
         let (expected, actual) = (
-            starts_at(&segment(&whole), VIDEO),
-            starts_at(&segment(&restarted), VIDEO),
+            starts_at(&fs::read(cut(&whole, 0, n)).unwrap(), VIDEO),
+            starts_at(&fs::read(cut(&restarted, 2, n)).unwrap(), VIDEO),
         );
-        assert_eq!(actual, expected, "{n}.m4s");
+        assert_eq!(actual, expected, "cut {n}");
     }
-    assert!(!restarted.join("4.m4s").exists());
+    assert!(!cut(&restarted, 2, 4).exists());
 }
 
 #[tokio::test]
@@ -414,10 +418,9 @@ async fn a_remux_started_at_a_keyframe_starts_its_audio_where_a_run_from_the_fir
 
         remux(&ffmpeg, &file, &restarted, third, aac_channels).await;
 
-        let segment = |dir: &Path| fs::read(dir.join("3.m4s")).unwrap();
         let (expected, actual) = (
-            starts_at(&segment(&whole), AUDIO),
-            starts_at(&segment(&restarted), AUDIO),
+            starts_at(&fs::read(cut(&whole, 0, 3)).unwrap(), AUDIO),
+            starts_at(&fs::read(cut(&restarted, 3, 3)).unwrap(), AUDIO),
         );
         assert!(
             expected.abs_diff(actual) <= within,
@@ -468,10 +471,9 @@ async fn a_remux_of_a_file_starting_after_0_starts_its_copied_audio_where_a_run_
     // Within 2 ms, as a run's first file can round differently: MPEG-TS video is timed at 90000
     // units a second, and this audio at 44100.
     assert_same_video_from_3(&whole, &restarted, 180);
-    let segment = |dir: &Path| fs::read(dir.join("3.m4s")).unwrap();
     let (expected, actual) = (
-        starts_at(&segment(&whole), AUDIO),
-        starts_at(&segment(&restarted), AUDIO),
+        starts_at(&fs::read(cut(&whole, 0, 3)).unwrap(), AUDIO),
+        starts_at(&fs::read(cut(&restarted, 3, 3)).unwrap(), AUDIO),
     );
     assert!(
         expected.abs_diff(actual) <= 88,

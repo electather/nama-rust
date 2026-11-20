@@ -6,18 +6,21 @@
 //! `/media/plans/<id>/`: the playlist `index.m3u8`, then `init.mp4` and the segments `<n>.m4s`.
 //! The playlist lists the whole Version up front, cut at keyframes where it will be cut, so HLS
 //! time is the file's time and Watch State needs no conversion. ffmpeg writes a file per keyframe
-//! to `nama-plan-<id>/` in the segment folder, and a segment joins its keyframes' files. A Remux
-//! keeps the Version's own keyframes; a Transcode forces one every [`SEGMENT_MS`], so each of its
-//! segments is one file.
+//! to `nama-plan-<id>/` in the segment folder, and the plan joins those starting from each listed
+//! keyframe up to the next into that keyframe's file, by the times ffmpeg's own playlist gives, as
+//! the Version's index may list only some (ADR 0066). A segment joins its keyframes' files. A
+//! Remux keeps the Version's own keyframes; a Transcode forces one every [`SEGMENT_MS`], so each
+//! of its segments is one file.
 //!
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
 //! waits for them to be written again. One far past what ffmpeg has written restarts ffmpeg at it,
 //! and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked for, to start again at
 //! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending further
 //! before the last segment asked for than the Playback settings keep for skipping back are
-//! deleted, and so are earlier runs' init files and, unless ffmpeg is writing them, files starting
-//! [`RUN_AHEAD_MS`] or more past that segment. A plan's folder so holds at most the time kept
-//! behind plus [`RUN_AHEAD_MS`] (ADR 0062); a file asked for again is written again.
+//! deleted, and so are the files earlier runs wrote themselves and, unless ffmpeg is writing
+//! them, files starting [`RUN_AHEAD_MS`] or more past that segment. A plan's folder so holds at
+//! most the time kept behind plus [`RUN_AHEAD_MS`] (ADR 0062); a file asked for again is written
+//! again.
 //!
 //! A Transcode on hardware that fails carries on in software from the first file it hadn't
 //! written, takes its software fallback's reasons and publishes `PlaybackChanged`.

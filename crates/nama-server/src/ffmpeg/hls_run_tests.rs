@@ -138,18 +138,16 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
         "-hls_time",
         "0.001",
         "-hls_playlist_type",
-        "vod",
+        "event",
         "-hls_flags",
         "temp_file",
         "-hls_fmp4_init_filename",
         "init-3.mp4",
         "-hls_segment_options",
         "movflags=+frag_discont",
-        "-start_number",
-        "3",
         "-hls_segment_filename",
-        &in_plan("%d.m4s"),
-        &in_plan("ffmpeg.m3u8"),
+        &in_plan("ffmpeg-3-%d.m4s"),
+        &in_plan("ffmpeg-3.m3u8"),
     ];
     assert_eq!(args, expected);
 }
@@ -208,18 +206,16 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
         "-hls_time",
         "0.001",
         "-hls_playlist_type",
-        "vod",
+        "event",
         "-hls_flags",
         "temp_file",
         "-hls_fmp4_init_filename",
         "init-2.mp4",
         "-hls_segment_options",
         "movflags=+frag_discont",
-        "-start_number",
-        "2",
         "-hls_segment_filename",
-        &in_plan("%d.m4s"),
-        &in_plan("ffmpeg.m3u8"),
+        &in_plan("ffmpeg-2-%d.m4s"),
+        &in_plan("ffmpeg-2.m3u8"),
     ];
     assert_eq!(args, expected);
 }

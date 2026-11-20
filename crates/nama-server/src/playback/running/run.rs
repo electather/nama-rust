@@ -14,14 +14,16 @@ use super::{
     Method, POLL_EVERY, REMUX_WAIT_AHEAD_MS, RUN_AHEAD_MS,
     timeline::{SEGMENT_MS, Timeline, keyframe_number},
 };
-use crate::ffmpeg::{Keyframe, hls_init, hls_init_from};
+use crate::ffmpeg::{Keyframe, hls_init, hls_playlist, hls_run_from};
 
 /// How ffmpeg's stderr says a write failed with ENOSPC. ffmpeg, not the Server, writes a plan's
 /// files, so its words are all the Server sees of it.
 const DISK_FULL: &str = "No space left on device";
 
 /// Starts a run writing a plan's files, from a keyframe on, to the folder it's given: one file
-/// per keyframe, named by its number such as `3.m4s`, and an init file named by [`hls_init`].
+/// per keyframe of the file, listed or not, which the playlist named by [`hls_playlist`] lists,
+/// and an init file named by [`hls_init`]. The plan joins them into one per listed keyframe, named
+/// by its number such as `3.m4s`.
 pub(super) type Start = dyn Fn(&Path, Keyframe) -> io::Result<Run> + Send + Sync;
 
 /// A run writing a plan's files, which ends with how it went, and stops when dropped.
@@ -91,6 +93,18 @@ struct FfmpegRun {
     written_to: AtomicUsize,
     /// Whether the run has stopped, so a file not written yet never will be by it.
     stopped: AtomicBool,
+    /// How far its files were joined into listed keyframes' files. Locked while joining, which
+    /// `watch` and a tick may both do.
+    joined: tokio::sync::Mutex<Joined>,
+}
+
+/// How far a run's files were joined into listed keyframes' files.
+#[derive(Default)]
+struct Joined {
+    /// How many of the files its playlist lists were.
+    files: usize,
+    /// Whether joining them failed since it started, which is logged only once.
+    failed: bool,
 }
 
 impl Running {
@@ -176,7 +190,7 @@ impl Running {
 
     /// Deletes the files of keyframes ending more than `keep_behind_ms` before the start of the
     /// last segment asked for, or starting [`RUN_AHEAD_MS`] or more past it, such as those a seek
-    /// back left (ADR 0062), and the init files of every run but the current one. Those behind
+    /// back left (ADR 0062), and the files every run but the current one wrote itself. Those behind
     /// that the current run may still be writing are kept, and while it runs, those less than
     /// [`RUN_AHEAD_MS`] past where it started, since a seek ahead started it there. A warning that
     /// the segment folder is full names `keep_behind_ms` from then on.
@@ -220,7 +234,7 @@ impl Running {
                         || (n < still_writing_from
                             && self.timeline.keyframe_ms(n + 1) < keep_from_ms)
                 }
-                None => hls_init_from(&name).is_some_and(|from| from != run.from),
+                None => hls_run_from(&name).is_some_and(|from| from != run.from),
             };
             // Going on past one, which Windows refuses while a request reads it.
             if unkept && let Err(err) = tokio::fs::remove_file(entry.path()).await {
@@ -391,6 +405,7 @@ impl Running {
             from: n,
             written_to: AtomicUsize::new(n),
             stopped: AtomicBool::new(false),
+            joined: tokio::sync::Mutex::default(),
         });
         let task = tokio::spawn(Arc::clone(self).watch(ffmpeg, Arc::clone(&run)));
         Ok((run, task))
@@ -516,11 +531,13 @@ impl Running {
         asked.max(self.timeline.keyframe_ms(run.from))
     }
 
-    /// Notes in `run` how far it has written, and returns it. Walks on from where it last looked,
-    /// not from where it started, whose files may be gone since.
+    /// Joins the files `run` wrote into listed keyframes' files, then notes in `run` how far it
+    /// has written, and returns it. Walks on from where it last looked, not from where it started,
+    /// whose files may be gone since.
     // A file deleted before it's looked at stops the walk there, so `delete_unkept` keeps those,
     // but for those past where `written_far_ahead` stops the run anyway.
     async fn note_written(&self, run: &FfmpegRun) -> usize {
+        self.join_written(run).await;
         let mut written_to = run.written_to.load(Ordering::Relaxed);
         while written_to < self.timeline.keyframes.len()
             && tokio::fs::try_exists(self.keyframe_path(written_to))
@@ -533,6 +550,85 @@ impl Running {
         run.written_to
             .fetch_max(written_to, Ordering::Relaxed)
             .max(written_to)
+    }
+
+    /// Joins the files `run` wrote whole into one per listed keyframe, as its playlist lists them,
+    /// and deletes them, or logs why it couldn't, once.
+    async fn join_written(&self, run: &FfmpegRun) {
+        let mut joined = run.joined.lock().await;
+        let playlist = match tokio::fs::read_to_string(self.dir.join(hls_playlist(run.from))).await
+        {
+            Ok(playlist) => playlist,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return,
+            Err(err) => {
+                tracing::warn!(plan = self.id, "could not read ffmpeg's playlist: {err}");
+                return;
+            }
+        };
+        let mut listed = 0;
+        for (n, files) in self.timeline.written_by_keyframe(run.from, &playlist) {
+            listed += files.len();
+            if listed <= joined.files {
+                continue;
+            }
+            match self.join(n, &files).await {
+                Ok(true) => joined.files = listed,
+                Ok(false) => return,
+                Err(err) => {
+                    self.warn_join_failed(&mut joined, n, &err);
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Warns that keyframe `n`'s files couldn't be joined, as the segment folder being full, which
+    /// a copy needs room for, or otherwise, unless `joined` says it did since its run started.
+    fn warn_join_failed(&self, joined: &mut Joined, n: usize, err: &io::Error) {
+        if std::mem::replace(&mut joined.failed, true) {
+            return;
+        }
+        if err.kind() == io::ErrorKind::StorageFull {
+            self.warn_disk_full();
+        } else {
+            tracing::warn!(plan = self.id, "could not join keyframe {n}'s files: {err}");
+        }
+    }
+
+    /// Joins `files`, which ffmpeg wrote whole, into keyframe `n`'s file, unless it's there, and
+    /// deletes them. `false`, touching none, while one isn't there.
+    // One isn't when the playlist is a stopped run's that started at the same keyframe, until the
+    // run started there again writes its own.
+    async fn join(&self, n: usize, files: &[&str]) -> io::Result<bool> {
+        let path = self.keyframe_path(n);
+        if !tokio::fs::try_exists(&path).await? {
+            let outcome = match files {
+                [file] => tokio::fs::rename(self.dir.join(file), &path).await,
+                _ => self.concatenate(files, &path).await,
+            };
+            match outcome {
+                Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
+                outcome => outcome?,
+            }
+        }
+        for file in files {
+            match tokio::fs::remove_file(self.dir.join(file)).await {
+                Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err),
+                _ => {}
+            }
+        }
+        Ok(true)
+    }
+
+    /// Writes `files` one after another to `path`, which appears only once it's whole.
+    async fn concatenate(&self, files: &[&str], path: &Path) -> io::Result<()> {
+        let mut bytes = vec![];
+        for file in files {
+            bytes.extend(tokio::fs::read(self.dir.join(file)).await?);
+        }
+        let whole = path.with_extension("m4s.tmp");
+        tokio::fs::write(&whole, bytes).await?;
+        tokio::fs::rename(whole, path).await
     }
 }
 
