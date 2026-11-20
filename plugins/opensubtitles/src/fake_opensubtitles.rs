@@ -131,8 +131,7 @@ impl FakeOpenSubtitles {
         }
         let languages: Vec<&str> = (pairs.iter())
             .find(|(key, _)| key == "languages")
-            .map(|(_, languages)| languages.split(',').collect())
-            .unwrap_or_default();
+            .map_or_else(Vec::new, |(_, languages)| languages.split(',').collect());
         if !languages.is_sorted() {
             return answer(301, &json!({}));
         }
