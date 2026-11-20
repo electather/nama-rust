@@ -230,6 +230,12 @@ fn encode(text: &str) -> String {
 }
 
 impl Urls {
+    /// `urls` by slot, without a database, for a test of what a response shows.
+    #[cfg(test)]
+    pub(super) fn for_tests(urls: impl IntoIterator<Item = (Slot, String)>) -> Self {
+        Self(urls.into_iter().collect())
+    }
+
     /// The URL of the Custom Image at `slot`, if there is one.
     pub(crate) fn of(&self, slot: &Slot) -> Option<String> {
         self.0.get(slot).cloned()

@@ -2,9 +2,12 @@
 
 use nama_proto::nama::v1 as proto;
 
-use crate::browse::{Featured, Started};
+use crate::{
+    browse::{Featured, Started},
+    library::ShownImages,
+};
 
-use super::{super::ShownImages, episode_to_proto, movie_to_proto, show_to_proto};
+use super::{episode_to_proto, movie_to_proto, show_to_proto};
 
 /// A Continue Watching entry as clients see it, with its images as `images` gives them, its Movie
 /// or Show `on_watchlist` or not.

@@ -24,7 +24,9 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    library::{Artwork, Candidate, ImageRef, Metadata, Role},
+    library::{
+        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
+    },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
         QualityRefused, Requests, year_of,
@@ -32,8 +34,8 @@ use crate::{
 };
 
 use super::{
-    ImageSources, Refused, ShownImages, caller, database_failed, external_id_to_proto, refuse,
-    required_id, title_kind_from_proto,
+    Refused, caller, database_failed, external_id_to_proto, refuse, required_id,
+    title_kind_from_proto,
 };
 
 /// `nama.v1.RequestService`: Users asking for Movies and Seasons of Shows. Asking needs
@@ -42,9 +44,7 @@ use super::{
 /// [`Requests`] shows a User only their own Requests.
 pub(super) struct RequestServiceHandler {
     pub(super) requests: Requests,
-    /// Serves the images of the Movies found, which no Match stores.
-    pub(super) artwork: Artwork,
-    /// Shown in place of the images found, for titles an admin gave one, with their thumbhashes.
+    /// The images found, or those the Server shows in their place, with their thumbhashes.
     pub(super) images: ImageSources,
 }
 
@@ -163,11 +163,11 @@ impl RequestService for RequestServiceHandler {
         let viewer = &caller(&ctx)?.user;
         let title = searched_title(request.to_owned_message().title)?;
         let found = self.requests.search(viewer, title).await?;
-        let images = self.images.shown().await?;
+        let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(SearchMoviesResponse {
             movies: found
                 .into_iter()
-                .map(|found| self.searched_to_proto(found, &images))
+                .map(|found| searched_to_proto(found, &images))
                 .collect(),
             ..Default::default()
         })
@@ -255,9 +255,9 @@ impl RequestService for RequestServiceHandler {
                 err.into()
             }
         })?;
-        let images = self.images.shown().await?;
+        let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpMovieResponse {
-            movie: self.looked_up_to_proto(found, &images).into(),
+            movie: looked_up_to_proto(found, &images).into(),
             ..Default::default()
         })
     }
@@ -269,11 +269,11 @@ impl RequestService for RequestServiceHandler {
     ) -> ServiceResult<SearchShowsResponse> {
         let title = searched_title(request.to_owned_message().title)?;
         let found = self.requests.search_shows(title).await?;
-        let images = self.images.shown().await?;
+        let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(SearchShowsResponse {
             shows: found
                 .into_iter()
-                .map(|found| self.searched_show_to_proto(found, &images))
+                .map(|found| searched_show_to_proto(found, &images))
                 .collect(),
             ..Default::default()
         })
@@ -299,9 +299,9 @@ impl RequestService for RequestServiceHandler {
                 err.into()
             }
         })?;
-        let images = self.images.shown().await?;
+        let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpShowResponse {
-            show: self.looked_up_show_to_proto(found, &images).into(),
+            show: looked_up_show_to_proto(found, &images).into(),
             ..Default::default()
         })
     }
@@ -457,178 +457,158 @@ impl RequestService for RequestServiceHandler {
     }
 }
 
-impl RequestServiceHandler {
-    /// The URL and thumbhash of an image a title shows: `custom`, its Custom Image's URL or else
-    /// that of the image beside its media, or else the one at `path` from `plugin`'s Provider,
-    /// offered to clients.
-    fn image(
-        &self,
-        images: &ShownImages,
-        custom: Option<String>,
-        plugin: &PluginId,
-        path: Option<String>,
-    ) -> (Option<String>, Option<Vec<u8>>) {
-        let url = custom.or_else(|| path.map(|path| self.artwork.offer(plugin, &path)));
-        let thumbhash = images.thumbhash(url.as_deref());
-        (url, thumbhash)
-    }
-
-    /// A Movie a search found, as clients see it, with its poster offered to them.
-    fn searched_to_proto(&self, found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
-        let Found {
-            id,
-            plugin,
-            movie,
-            library,
-            request,
-        } = found;
-        let shown = images.movie_image(&id, &movie.ids, Role::Poster);
-        let (poster_url, poster_thumbhash) = self.image(images, shown, &plugin, movie.poster);
-        proto::MovieHit {
-            id: external_id_to_proto(&id).into(),
-            title: movie.title,
-            year: movie.year,
-            poster_url,
-            poster_thumbhash,
-            library_id: library,
-            request: request.into(),
-            ..Default::default()
-        }
-    }
-
-    /// A Movie looked up, as clients see it, with its images offered to them.
-    fn looked_up_to_proto(
-        &self,
-        found: Found<Metadata>,
-        images: &ShownImages,
-    ) -> proto::FoundMovie {
-        let Found {
-            id,
-            plugin,
-            movie,
-            library,
-            request,
-        } = found;
-        let image = |role, image: Option<ImageRef>| {
-            let custom = images.movie_image(&id, &movie.ids, role);
-            match image {
-                Some(ImageRef { plugin: by, path }) => self.image(images, custom, &by, Some(path)),
-                None => self.image(images, custom, &plugin, None),
-            }
-        };
-        let (poster_url, poster_thumbhash) = image(Role::Poster, movie.poster);
-        let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, movie.backdrop);
-        proto::FoundMovie {
-            id: external_id_to_proto(&id).into(),
-            title: movie.title,
-            year: movie.release_date.as_deref().and_then(year_of),
-            overview: movie.overview,
-            runtime_minutes: movie.runtime_minutes,
-            poster_url,
-            poster_thumbhash,
-            backdrop_url,
-            backdrop_thumbhash,
-            library_id: library,
-            request: request.into(),
-            ..Default::default()
-        }
-    }
-
-    /// A Show a search found, as clients see it, with its poster offered to them.
-    fn searched_show_to_proto(&self, hit: Hit, images: &ShownImages) -> proto::ShowHit {
-        let Hit {
-            id,
-            plugin,
-            candidate: show,
-        } = hit;
-        let shown = images.show_image(&id, &show.ids, Role::Poster);
-        let (poster_url, poster_thumbhash) = self.image(images, shown, &plugin, show.poster);
-        proto::ShowHit {
-            id: external_id_to_proto(&id).into(),
-            title: show.title,
-            year: show.year,
-            poster_url,
-            poster_thumbhash,
-            ..Default::default()
-        }
-    }
-
-    /// A Show looked up, as clients see it, with its images offered to them.
-    fn looked_up_show_to_proto(&self, found: FoundShow, images: &ShownImages) -> proto::FoundShow {
-        let FoundShow {
-            id,
-            plugin,
-            show,
-            seasons,
-            followed_show,
-            quality,
-        } = found;
-        let image = |role, path| {
-            let shown = images.show_image(&id, &show.ids, role);
-            self.image(images, shown, &plugin, path)
-        };
-        let (poster_url, poster_thumbhash) = image(Role::Poster, show.poster);
-        let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, show.backdrop);
-        proto::FoundShow {
-            id: external_id_to_proto(&id).into(),
-            title: show.title,
-            year: show.first_air_date.as_deref().and_then(year_of),
-            overview: show.overview,
-            poster_url,
-            poster_thumbhash,
-            backdrop_url,
-            backdrop_thumbhash,
-            seasons,
-            followed_show: followed_show.into(),
-            quality: quality.into(),
-            ..Default::default()
-        }
+/// A Movie a search found, as clients see it, with its poster offered to them.
+fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
+    let Found {
+        id,
+        plugin,
+        movie,
+        library,
+        request,
+    } = found;
+    let path = movie.poster.as_deref();
+    let downloaded = path.map(|path| Downloaded::Offered {
+        plugin: &plugin,
+        path,
+    });
+    let poster = images.of_title(&id, &movie.ids, MOVIE_POSTER, downloaded);
+    proto::MovieHit {
+        id: external_id_to_proto(&id).into(),
+        title: movie.title,
+        year: movie.year,
+        poster_url: poster.url,
+        poster_thumbhash: poster.thumbhash,
+        library_id: library,
+        request: request.into(),
+        ..Default::default()
     }
 }
+
+/// A Movie looked up, as clients see it, with its images offered to them, each under the Plugin
+/// whose artwork list had it.
+fn looked_up_to_proto(found: Found<Metadata>, images: &ShownImages) -> proto::FoundMovie {
+    let Found {
+        id,
+        movie,
+        library,
+        request,
+        ..
+    } = found;
+    let shown = |role, image: Option<&ImageRef>| {
+        let downloaded = image.map(Downloaded::offered);
+        images.of_title(&id, &movie.ids, TitleImage::Movie(role), downloaded)
+    };
+    let poster = shown(Role::Poster, movie.poster.as_ref());
+    let backdrop = shown(Role::Backdrop, movie.backdrop.as_ref());
+    proto::FoundMovie {
+        id: external_id_to_proto(&id).into(),
+        title: movie.title,
+        year: movie.release_date.as_deref().and_then(year_of),
+        overview: movie.overview,
+        runtime_minutes: movie.runtime_minutes,
+        poster_url: poster.url,
+        poster_thumbhash: poster.thumbhash,
+        backdrop_url: backdrop.url,
+        backdrop_thumbhash: backdrop.thumbhash,
+        library_id: library,
+        request: request.into(),
+        ..Default::default()
+    }
+}
+
+/// A Show a search found, as clients see it, with its poster offered to them.
+fn searched_show_to_proto(hit: Hit, images: &ShownImages) -> proto::ShowHit {
+    let Hit {
+        id,
+        plugin,
+        candidate: show,
+    } = hit;
+    let path = show.poster.as_deref();
+    let downloaded = path.map(|path| Downloaded::Offered {
+        plugin: &plugin,
+        path,
+    });
+    let poster = images.of_title(&id, &show.ids, SHOW_POSTER, downloaded);
+    proto::ShowHit {
+        id: external_id_to_proto(&id).into(),
+        title: show.title,
+        year: show.year,
+        poster_url: poster.url,
+        poster_thumbhash: poster.thumbhash,
+        ..Default::default()
+    }
+}
+
+/// A Show looked up, as clients see it, with its images offered to them.
+fn looked_up_show_to_proto(found: FoundShow, images: &ShownImages) -> proto::FoundShow {
+    let FoundShow {
+        id,
+        plugin,
+        show,
+        seasons,
+        followed_show,
+        quality,
+    } = found;
+    let shown = |role, path: Option<&str>| {
+        let downloaded = path.map(|path| Downloaded::Offered {
+            plugin: &plugin,
+            path,
+        });
+        images.of_title(&id, &show.ids, TitleImage::Show(role), downloaded)
+    };
+    let poster = shown(Role::Poster, show.poster.as_deref());
+    let backdrop = shown(Role::Backdrop, show.backdrop.as_deref());
+    proto::FoundShow {
+        id: external_id_to_proto(&id).into(),
+        title: show.title,
+        year: show.first_air_date.as_deref().and_then(year_of),
+        overview: show.overview,
+        poster_url: poster.url,
+        poster_thumbhash: poster.thumbhash,
+        backdrop_url: backdrop.url,
+        backdrop_thumbhash: backdrop.thumbhash,
+        seasons,
+        followed_show: followed_show.into(),
+        quality: quality.into(),
+        ..Default::default()
+    }
+}
+
+const MOVIE_POSTER: TitleImage = TitleImage::Movie(Role::Poster);
+const SHOW_POSTER: TitleImage = TitleImage::Show(Role::Poster);
 
 /// A Movie missing from the Server, as a search for one finds it, with its open `request`. It has
 /// only its Request's id, so it shows a Custom Image kept under that one.
 pub(super) fn missing_movie_to_proto(
-    artwork: &Artwork,
     movie: Listed,
     request: Option<Box<proto::Request>>,
     images: &ShownImages,
 ) -> proto::MovieHit {
-    let custom = images.movie_image(&movie.id, &ExternalIds::default(), Role::Poster);
-    let poster_url = custom.or_else(|| offered(artwork, movie.poster));
+    let downloaded = movie.poster.as_ref().map(Downloaded::offered);
+    let poster = images.of_title(&movie.id, &ExternalIds::default(), MOVIE_POSTER, downloaded);
     proto::MovieHit {
         id: external_id_to_proto(&movie.id).into(),
         title: movie.title,
         year: movie.year,
-        poster_thumbhash: images.thumbhash(poster_url.as_deref()),
-        poster_url,
+        poster_url: poster.url,
+        poster_thumbhash: poster.thumbhash,
         request: request.map(|request| *request).into(),
         ..Default::default()
     }
 }
 
 /// A Show missing from the Server, as a search for one finds it.
-pub(super) fn missing_show_to_proto(
-    artwork: &Artwork,
-    show: Listed,
-    images: &ShownImages,
-) -> proto::ShowHit {
-    let custom = images.show_image(&show.id, &ExternalIds::default(), Role::Poster);
-    let poster_url = custom.or_else(|| offered(artwork, show.poster));
+pub(super) fn missing_show_to_proto(show: Listed, images: &ShownImages) -> proto::ShowHit {
+    let downloaded = show.poster.as_ref().map(Downloaded::offered);
+    let poster = images.of_title(&show.id, &ExternalIds::default(), SHOW_POSTER, downloaded);
     proto::ShowHit {
         id: external_id_to_proto(&show.id).into(),
         title: show.title,
         year: show.year,
-        poster_thumbhash: images.thumbhash(poster_url.as_deref()),
-        poster_url,
+        poster_url: poster.url,
+        poster_thumbhash: poster.thumbhash,
         ..Default::default()
     }
-}
-
-/// Where clients fetch `poster` from its title source. Offered on each read, never stored, so it
-/// loads after a restart forgets the offers.
-fn offered(artwork: &Artwork, poster: Option<ImageRef>) -> Option<String> {
-    poster.map(|poster| artwork.offer(&poster.plugin, &poster.path))
 }
 
 /// `title`, unless it is blank, which a search for titles refuses.

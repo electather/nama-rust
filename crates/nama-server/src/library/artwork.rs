@@ -221,7 +221,7 @@ impl Artwork {
         Ok(self.fetch(&PluginId::from(plugin), &path).await?.bytes)
     }
 
-    fn was_offered(&self, plugin: &str, path: &str) -> bool {
+    pub(super) fn was_offered(&self, plugin: &str, path: &str) -> bool {
         let offered = self.offered.lock().unwrap_or_else(PoisonError::into_inner);
         offered.contains(&(plugin.to_owned(), path.to_owned()))
     }

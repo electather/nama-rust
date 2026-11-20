@@ -22,10 +22,9 @@ use http::{Reply, fetch};
 use image::ImageFormat;
 use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
-    ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest, ListLibrariesRequest,
-    LookUpMovieRequest, LookUpShowRequest, ReportProgressRequest, RequestServiceClient,
-    SearchLibrariesRequest, SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show,
-    ShowInLibrary, TitleKind, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
+    ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest, ReportProgressRequest,
+    RequestServiceClient, SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show,
+    TitleKind, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
 };
 use server::tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, THE_OFFICE};
 
@@ -108,20 +107,6 @@ impl Fixture {
             .unwrap()
             .into_owned()
             .entries
-    }
-
-    /// Dark, as a search for it finds it.
-    async fn search_dark(&self) -> ShowInLibrary {
-        let found = self
-            .browse
-            .search_libraries(SearchLibrariesRequest {
-                query: "dark".to_owned(),
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned();
-        found.shows[0].clone()
     }
 
     fn requests(&self) -> RequestServiceClient<HttpClient> {
@@ -370,83 +355,6 @@ async fn a_seasons_custom_poster_shows_on_the_season_and_not_as_its_shows() {
 }
 
 #[tokio::test]
-async fn a_shows_custom_poster_shows_in_continue_watching_and_on_a_request_for_it() {
-    let fx = Fixture::dark().await;
-
-    fx.upload(
-        &format!("/custom-images/show/tmdb-{DARK}/poster"),
-        &image(ImageFormat::Png, 2, 3),
-    )
-    .await;
-
-    let show = fx.get_dark().await.show.into_option().unwrap();
-    assert!(show.custom_poster);
-    let poster = show.poster_url;
-    let started = fx.continue_watching_dark().await;
-    assert_eq!(show_of(&started[0]).unwrap().poster_url, poster);
-    let found = fx.search_dark().await;
-    assert_eq!(found.poster_url, poster);
-    let looked_up = fx
-        .requests()
-        .look_up_show(LookUpShowRequest {
-            show_id: tmdb_id(DARK).into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .show
-        .into_option()
-        .unwrap();
-    assert_eq!(looked_up.poster_url, poster);
-}
-
-#[tokio::test]
-async fn a_shows_custom_backdrop_is_the_backdrop_continue_watching_returns_for_its_episodes() {
-    let fx = Fixture::dark().await;
-
-    fx.upload(
-        &format!("/custom-images/show/tmdb-{DARK}/backdrop"),
-        &image(ImageFormat::Png, 3, 2),
-    )
-    .await;
-
-    let show = fx.get_dark().await.show.into_option().unwrap();
-    assert!(show.custom_backdrop);
-    let backdrop = show.backdrop_url.unwrap();
-    assert!(backdrop.starts_with("/media/custom-images/show/tmdb-70523/backdrop/"));
-    let started = fx.continue_watching_dark().await;
-    assert_eq!(show_of(&started[0]).unwrap().backdrop_url, Some(backdrop));
-}
-
-#[tokio::test]
-async fn a_movies_custom_backdrop_shows_on_a_request_for_it() {
-    let fx = Fixture::alien().await;
-
-    fx.upload(
-        &format!("/custom-images/movie/tmdb-{ALIEN}/backdrop"),
-        &image(ImageFormat::Png, 3, 2),
-    )
-    .await;
-
-    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    assert!(movie.custom_backdrop);
-    let looked_up = fx
-        .requests()
-        .look_up_movie(LookUpMovieRequest {
-            movie_id: tmdb_id(ALIEN).into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .movie
-        .into_option()
-        .unwrap();
-    assert_eq!(looked_up.backdrop_url, movie.backdrop_url);
-}
-
-#[tokio::test]
 async fn a_path_naming_no_slot_is_not_found() {
     let fx = Fixture::alien().await;
 
@@ -608,30 +516,20 @@ async fn removing_a_custom_image_once_its_title_has_left_the_server_still_remove
 }
 
 #[tokio::test]
-async fn a_movies_custom_images_kept_under_its_imdb_id_show_everywhere_it_does() {
+async fn a_movies_custom_images_kept_under_its_imdb_id_show_on_its_page() {
     let fx = Fixture::alien().await;
     let images = "/custom-images/movie/imdb-tt0078748";
-    fx.upload(&format!("{images}/poster"), &image(ImageFormat::Png, 2, 3))
-        .await;
-    fx.upload(
-        &format!("{images}/backdrop"),
-        &image(ImageFormat::Png, 3, 2),
-    )
-    .await;
+    for (path, width, height) in [("poster", 2, 3), ("backdrop", 3, 2)] {
+        let uploaded = fx
+            .upload(
+                &format!("{images}/{path}"),
+                &image(ImageFormat::Png, width, height),
+            )
+            .await;
+        assert_eq!(uploaded.status, 204, "{path}");
+    }
 
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    let looked_up = fx
-        .requests()
-        .look_up_movie(LookUpMovieRequest {
-            movie_id: tmdb_id(ALIEN).into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .movie
-        .into_option()
-        .unwrap();
 
     assert!(movie.custom_poster && movie.custom_backdrop);
     let poster = movie.poster_url.unwrap();
@@ -639,31 +537,10 @@ async fn a_movies_custom_images_kept_under_its_imdb_id_show_everywhere_it_does()
         poster.starts_with(&format!("/media{images}/poster/")),
         "{poster}"
     );
-    assert_eq!(looked_up.poster_url, Some(poster.clone()));
-    assert_eq!(looked_up.backdrop_url, movie.backdrop_url);
-    let found = (fx.browse)
-        .search_libraries(SearchLibrariesRequest {
-            query: "alien".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .movies;
-    assert_eq!(found[0].poster_url, Some(poster));
-    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
-        .list_libraries(ListLibrariesRequest::default())
-        .await
-        .unwrap()
-        .into_owned()
-        .libraries;
-    let library = libraries.iter().find(|it| it.id == fx.library).unwrap();
-    assert_eq!(library.backdrop_url, movie.backdrop_url);
 }
 
 #[tokio::test]
-async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_in_browse_and_on_a_request()
-{
+async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_on_its_page() {
     let fx = Fixture::dark().await;
     let images = format!("/custom-images/show/tvdb-{DARK_TVDB}");
     for (path, width, height) in [
@@ -681,18 +558,6 @@ async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_in_browse
     }
 
     let dark = fx.get_dark().await;
-    let looked_up = fx
-        .requests()
-        .look_up_show(LookUpShowRequest {
-            show_id: tmdb_id(DARK).into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .show
-        .into_option()
-        .unwrap();
 
     let show = dark.show.into_option().unwrap();
     assert!(show.custom_poster && show.custom_backdrop);
@@ -702,8 +567,6 @@ async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_in_browse
         backdrop.starts_with(&format!("/media{images}/backdrop/")),
         "{backdrop}"
     );
-    assert_eq!(looked_up.poster_url, show.poster_url);
-    assert_eq!(looked_up.backdrop_url, Some(backdrop));
 }
 
 /// The fake TMDB gives a search hit only its tmdb id, so this proves the hit's own id; the path

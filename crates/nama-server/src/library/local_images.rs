@@ -101,7 +101,7 @@ impl LocalImageUrls {
     }
 
     /// Files each of `images` under its title's ids; of one title's, the first is kept.
-    fn filed(images: Vec<TitleLocalImage>) -> Self {
+    pub(super) fn filed(images: Vec<TitleLocalImage>) -> Self {
         let mut urls = Self::default();
         for image in images {
             let (ids, url) = (&image.ids, url(image.library, &image.stored));

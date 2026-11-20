@@ -25,8 +25,8 @@ use crate::{
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImages, Libraries, LocalImages, TitleKind, TitleSources,
-        artwork_router, custom_images_router, local_images_router,
+        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, TitleKind,
+        TitleSources, artwork_router, custom_images_router, local_images_router,
     },
     playback::{
         PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
@@ -51,7 +51,6 @@ mod playback;
 mod plugins;
 mod requests;
 mod server;
-mod shown_images;
 mod sign_in;
 mod users;
 mod watch_states;
@@ -65,7 +64,6 @@ use playback::PlaybackServiceHandler;
 use plugins::PluginServiceHandler;
 use requests::RequestServiceHandler;
 use server::ServerServiceHandler;
-use shown_images::{ImageSources, ShownImages};
 use sign_in::SignInServiceHandler;
 use users::UserServiceHandler;
 use watch_states::WatchStateServiceHandler;
@@ -154,7 +152,6 @@ pub(crate) fn router(
             browse: browse.clone(),
             home_rows,
             settings: settings.clone(),
-            artwork: artwork.clone(),
             images: images.clone(),
             db: Arc::clone(&db),
         }))
@@ -177,7 +174,6 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(RequestServiceHandler {
             requests,
-            artwork: artwork.clone(),
             images: images.clone(),
         }))
         .add_service(Arc::new(PluginServiceHandler {
