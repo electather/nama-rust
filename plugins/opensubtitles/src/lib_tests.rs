@@ -1,11 +1,13 @@
 use std::{cell::RefCell, rc::Rc};
 
 use nama_pdk::{
-    SubtitleDownload, SubtitleResults, SubtitleSearch, SubtitleSource, TitleId, TitleKind,
+    Permission, SubtitleDownload, SubtitleResults, SubtitleSearch, SubtitleSource, TitleId,
+    TitleKind,
     nama_plugin_proto::nama::plugin::v1::SettingKind,
     services,
     testing::{Kernel, with},
 };
+use url::Url;
 
 use super::{
     OpenSubtitles, Refused, check_settings,
@@ -13,7 +15,8 @@ use super::{
     manifest,
 };
 
-/// A Kernel holding the fake's account and key, whose requests `fake` answers.
+/// A Kernel holding the fake's account and key, whose requests `fake` answers, not granting the
+/// Store.
 fn kernel(fake: &Rc<RefCell<FakeOpenSubtitles>>) -> Kernel {
     let fake = Rc::clone(fake);
     Kernel::new()
@@ -67,6 +70,7 @@ fn manifest_serves_subtitles_from_an_api_key_and_an_account() {
     let points: Vec<_> = manifest.points.iter().map(|point| &point.service).collect();
     assert_eq!(points, [services::SUBTITLE_SOURCE]);
     assert_eq!(manifest.allowed_hosts, ["*.opensubtitles.com"]);
+    assert_eq!(manifest.permissions, [Permission::PERMISSION_STORE]);
     let settings: Vec<_> = (manifest.settings.iter())
         .map(|field| (field.key.as_str(), field.kind.as_known(), field.required))
         .collect();
@@ -194,6 +198,96 @@ fn a_download_logs_in_and_answers_the_file_in_its_format() {
     assert_eq!(fake.borrow().remaining, 19);
 }
 
+/// The last segment of each URL the Plugin sent to, in order, such as `login`.
+fn sent_to(kernel: &Kernel) -> Vec<String> {
+    (kernel.sent().iter())
+        .map(|sent| {
+            let url = Url::parse(&sent.request.url).unwrap();
+            url.path_segments().unwrap().next_back().unwrap().to_owned()
+        })
+        .collect()
+}
+
+/// The file name a download link of the fake's subtitle 101 ends in.
+const LINKED_FILE: &str = "Alien.1979.1080p.BluRay.srt";
+
+#[test]
+fn downloads_share_the_login_the_store_keeps() {
+    let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
+    let mut kernel = kernel(&fake).store();
+
+    for _ in 0..2 {
+        with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap();
+    }
+
+    let sent = sent_to(&kernel);
+    assert_eq!(
+        sent,
+        ["login", "download", LINKED_FILE, "download", LINKED_FILE]
+    );
+}
+
+#[test]
+fn a_refused_stored_token_logs_in_once_retries_once_and_keeps_the_new_token() {
+    let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
+    let mut kernel = kernel(&fake).store();
+    with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap();
+    fake.borrow_mut().token = "renewed-token";
+
+    let downloaded = with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap();
+    with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap();
+
+    assert_eq!(downloaded.data, srt("Alien.1979.1080p.BluRay").into_bytes());
+    let sent = sent_to(&kernel);
+    assert_eq!(
+        sent[3..],
+        [
+            "download",
+            "login",
+            "download",
+            LINKED_FILE,
+            "download",
+            LINKED_FILE
+        ]
+    );
+}
+
+#[test]
+fn without_the_store_each_download_logs_in() {
+    let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
+    let mut kernel = kernel(&fake);
+
+    for _ in 0..2 {
+        with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap();
+    }
+
+    let sent = sent_to(&kernel);
+    assert_eq!(
+        sent,
+        [
+            "login",
+            "download",
+            LINKED_FILE,
+            "login",
+            "download",
+            LINKED_FILE
+        ]
+    );
+}
+
+#[test]
+fn a_stored_login_for_another_username_is_not_used() {
+    let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
+    let mut kernel = kernel(&fake).store();
+    with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap();
+    let mut kernel = kernel.setting("username", "someone-else");
+
+    let err = with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap_err();
+
+    assert_eq!(err.downcast_ref(), Some(&Refused::Login));
+    assert_eq!(sent_to(&kernel)[3..], ["login"]);
+}
+
 #[test]
 fn a_vip_accounts_download_goes_to_the_host_its_login_answers() {
     let fake = serving(vec![FakeSubtitle::new(101, "Alien.1979.1080p.BluRay")]);
@@ -247,10 +341,14 @@ fn a_rate_limited_search_fails_saying_so_without_trying_again() {
 
     let err = with(&mut kernel, || OpenSubtitles::search(alien(&["en"]))).unwrap_err();
 
-    assert_eq!(err.downcast_ref(), Some(&Refused::RateLimit));
+    let retry_after = Some(7);
+    assert_eq!(
+        err.downcast_ref(),
+        Some(&Refused::RateLimit { retry_after })
+    );
     assert_eq!(
         err.to_string(),
-        "OpenSubtitles is limiting this Server's requests; try again in a few seconds"
+        "OpenSubtitles is limiting this Server's requests; try again in 7 s"
     );
     assert_eq!(kernel.sent().len(), 1);
 }

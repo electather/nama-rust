@@ -63,7 +63,9 @@ macro_rules! automation {
 /// The Kernel's functions, which any Plugin, whatever its Manifest's `points`, may call during any
 /// of its calls (ADR 0071). Each needs a Plugin Permission the Manifest requests in `permissions`
 /// and the Admin granted, and fails with the Kernel's plain words when it wasn't. Off wasm32, as
-/// in a Plugin's unit tests, each fails, since there is no Kernel to call.
+/// in a Plugin's unit tests, the [`testing::Kernel`](crate::testing::Kernel) a test installs with
+/// [`testing::with`](crate::testing::with) answers the Store's and the others fail; called outside
+/// `with`, each panics.
 pub mod kernel {
     use buffa::Message;
     use extism_pdk::Error;
@@ -287,13 +289,10 @@ pub mod kernel {
         Ok(bytes)
     }
 
-    /// Off wasm32 there is no Kernel, so every function fails, and a Plugin's native unit tests
-    /// and doctests still link.
+    /// Off wasm32 the installed [`testing::Kernel`](crate::testing::Kernel) answers.
     #[cfg(not(target_arch = "wasm32"))]
-    fn raw(_name: &str, _request: &[u8]) -> Result<Vec<u8>, Error> {
-        Err(Error::msg(
-            "the Kernel's functions exist only inside the Kernel",
-        ))
+    fn raw(name: &str, request: &[u8]) -> Result<Vec<u8>, Error> {
+        crate::testing::kernel_function(name, request)
     }
 }
 
@@ -345,15 +344,5 @@ mod tests {
         let error = kernel::answer::<StoreValue>("store_get", &bytes).expect_err("a refusal");
 
         assert_eq!(error.to_string(), words);
-    }
-
-    #[test]
-    fn off_wasm32_every_kernel_function_fails() {
-        let error = kernel::store_get("counter", None).expect_err("no Kernel");
-
-        assert_eq!(
-            error.to_string(),
-            "the Kernel's functions exist only inside the Kernel"
-        );
     }
 }
