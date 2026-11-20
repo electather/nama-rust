@@ -6,10 +6,7 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -51,10 +48,6 @@ pub(crate) struct FakeSonarr {
 struct Fake {
     /// The Shows it has, each as it was added with its `id` and Seasons' monitoring kept current.
     shows: Mutex<Vec<Value>>,
-    /// Whether the refreshes it starts as it adds a Show wait for [`FakeSonarr::release_refreshes`].
-    hold_refreshes: AtomicBool,
-    /// The refreshes held so far, as the index of their command, their Show's id and its Seasons.
-    held: Mutex<Vec<(usize, i64, Value)>>,
     /// Each call to its own routes, as `GET /api/v3/series`, in order.
     calls: Mutex<Vec<String>>,
     /// The commands it queued, as `GET /api/v3/command` lists them.
@@ -79,21 +72,6 @@ impl FakeSonarr {
         Self {
             servarr: FakeServarr::start(SONARR, routes).await,
             state,
-        }
-    }
-
-    /// Makes the refreshes it starts as it adds a Show from now on wait for
-    /// [`Self::release_refreshes`].
-    pub(crate) fn hold_refreshes(&self) {
-        self.state.hold_refreshes.store(true, Ordering::Relaxed);
-    }
-
-    /// Finishes each held refresh at once, and stops holding them.
-    pub(crate) fn release_refreshes(&self) {
-        self.state.hold_refreshes.store(false, Ordering::Relaxed);
-        let held = std::mem::take(&mut *lock(&self.state.held));
-        for (command, id, seasons) in held {
-            finish_refresh(&self.state, command, id, seasons);
         }
     }
 
@@ -267,10 +245,6 @@ fn refresh(fake: &Arc<Fake>, id: i64, seasons: Value) {
         "body": { "seriesIds": [id], "isNewSeries": true },
         "id": command + 1,
     }));
-    if fake.hold_refreshes.load(Ordering::Relaxed) {
-        lock(&fake.held).push((command, id, seasons));
-        return;
-    }
     let fake = Arc::clone(fake);
     tokio::spawn(async move {
         tokio::time::sleep(REFRESH).await;
