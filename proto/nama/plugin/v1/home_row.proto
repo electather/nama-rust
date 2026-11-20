@@ -7,13 +7,14 @@ import "nama/plugin/v1/title_source.proto";
 
 // The Extension Point for Home rows: headed rows of titles on a User's home page (ADR 0058). An
 // Installed Plugin serves it through the WASM exports each rpc names, each taking and returning its
-// messages encoded as protobuf. Both exports are optional, and serving one is the Plugin's
-// declaration: the Kernel asks only for those it has.
+// messages encoded as protobuf. Every export is optional, and serving one is the Plugin's
+// declaration: the Kernel asks only for those it has. A Plugin built against 1.0 or 1.1 serves no
+// `user_featured` and works as before.
 //
-// The Kernel asks ahead of time, never while a page loads: it stores the rows and refreshes them
-// when a User opens home past their time to live, and the shared rows also when the Plugin is
-// enabled or its settings change. A refresh replaces the Plugin's rows in its scope, the shared
-// rows or one User's; one that fails keeps them.
+// The Kernel asks ahead of time, never while a page loads: it stores the answer and refreshes it
+// when a User opens home past its time to live, and the shared rows also when the Plugin is
+// enabled or its settings change. A refresh replaces the Plugin's answer in its scope, the shared
+// rows or one User's; one that fails keeps it.
 service HomeRowService {
   // The `shared_rows` export: the rows every User sees, asked with no User.
   rpc SharedRows(SharedRowsAsked) returns (HomeRows);
@@ -22,6 +23,11 @@ service HomeRowService {
   // Personal settings. Home shows them after the Plugin's shared rows, leaving out one whose key a
   // shared row has. Deleted with the User.
   rpc UserRows(UserRowsAsked) returns (HomeRows);
+  // The `user_featured` export (1.2.0): titles to suggest for one User's Featured, the top of
+  // their home page (ADR 0072), asked as `user_rows` is, past their time to live or after they
+  // changed their Personal settings. Featured shows the 5 heaviest of every Plugin's suggestions
+  // and the Kernel's own, which weigh at most 0.8. Deleted with the User.
+  rpc UserFeatured(UserFeaturedAsked) returns (FeaturedSuggestions);
 }
 
 // What the `shared_rows` export is asked: nothing yet.
@@ -33,6 +39,30 @@ message UserRowsAsked {
   // Each Personal setting the User set, under its key, as text, as `UserRecipient` holds them. One
   // the User didn't set is not here, so a User who set none is asked with none.
   map<string, string> personal_settings = 1;
+}
+
+// What the `user_featured` export is asked: as `UserRowsAsked`.
+message UserFeaturedAsked {
+  // As `UserRowsAsked.personal_settings`.
+  map<string, string> personal_settings = 1;
+}
+
+// What the `user_featured` export returns.
+message FeaturedSuggestions {
+  // The titles suggested. The Kernel keeps the first 20, and drops one no Library has.
+  repeated FeaturedSuggestion suggestions = 1;
+  // How long the suggestions stay fresh, in seconds, clamped as `HomeRow.ttl_seconds` is.
+  uint32 ttl_seconds = 2;
+}
+
+// A title suggested for Featured, by one of its ids.
+message FeaturedSuggestion {
+  // As `HomeRowTitle.kind`.
+  TitleKind kind = 1;
+  TitleId id = 2;
+  // How strongly it is suggested, from 0.0 to 1.0, which the Kernel clamps it to. A title
+  // suggested twice, by the Kernel or another Plugin, keeps its heaviest weight.
+  float weight = 3;
 }
 
 // What the `shared_rows` and `user_rows` exports return.

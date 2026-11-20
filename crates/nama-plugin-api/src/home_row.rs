@@ -9,14 +9,14 @@
 
 use crate::{
     BoxFuture, PluginError,
-    contract::{HomeRows, SharedRowsAsked, UserRowsAsked},
+    contract::{FeaturedSuggestions, HomeRows, SharedRowsAsked, UserFeaturedAsked, UserRowsAsked},
 };
 
 /// A Home row source. It speaks the contract's `HomeRowService` messages, as an Installed Plugin's
 /// exports do. The Kernel asks it ahead of time and stores the answer, so home never waits on it.
 ///
-/// Both methods are optional: one left out gives no rows, so one point serves sources that give
-/// only shared rows, only each User's, or both.
+/// Every method is optional: one left out gives nothing, so one point serves sources that give
+/// only shared rows, only each User's, or both, and may suggest titles for Featured.
 pub trait HomeRowSource: Send + Sync + 'static {
     /// The rows every User sees, in the order home shows them.
     ///
@@ -43,9 +43,21 @@ pub trait HomeRowSource: Send + Sync + 'static {
         no_rows()
     }
 
-    /// Whether this source gives the rows `method` asks for. The Kernel asks it only for those;
-    /// a Built-in that leaves a method out may keep the default, which costs a call giving no
-    /// rows each time those rows go stale, every 15 minutes for each User who opens home.
+    /// Titles for one User's Featured, from that User's Personal settings in `asked` (ADR 0072).
+    ///
+    /// # Errors
+    ///
+    /// When it couldn't answer, which keeps that User's suggestions stored before.
+    fn user_featured<'a>(
+        &'a self,
+        _asked: &'a UserFeaturedAsked,
+    ) -> BoxFuture<'a, Result<FeaturedSuggestions, PluginError>> {
+        Box::pin(std::future::ready(Ok(FeaturedSuggestions::default())))
+    }
+
+    /// Whether this source gives what `method` asks for. The Kernel asks it only for those; a
+    /// Built-in that leaves a method out may keep the default, which costs a call giving nothing
+    /// each time its answer goes stale, every 15 minutes for each User who opens home.
     fn gives(&self, _method: HomeRowMethod) -> bool {
         true
     }
@@ -58,6 +70,8 @@ pub enum HomeRowMethod {
     Shared,
     /// [`HomeRowSource::user_rows`].
     User,
+    /// [`HomeRowSource::user_featured`].
+    Featured,
 }
 
 /// The answer of a [`HomeRowSource`] method its source left out.

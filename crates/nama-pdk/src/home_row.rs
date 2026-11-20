@@ -1,10 +1,13 @@
 //! A Home row source: gives headed rows of titles for the home page, which the Server draws.
 
 use extism_pdk::Error;
-pub use nama_plugin_proto::nama::plugin::v1::{HomeRow, HomeRowTitle, HomeRows, UserRowsAsked};
+pub use nama_plugin_proto::nama::plugin::v1::{
+    FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows, UserFeaturedAsked,
+    UserRowsAsked,
+};
 
 /// A Home row source (ADR 0058). Its Manifest's `points` name
-/// [`services::HOME_ROW`](crate::services::HOME_ROW). Both methods are optional, and only those
+/// [`services::HOME_ROW`](crate::services::HOME_ROW). Every method is optional, and only those
 /// [`home_row_source!`](crate::home_row_source!) lists are exported; the Server asks only for
 /// those, so a source giving only shared rows is never asked for a User's.
 ///
@@ -81,10 +84,22 @@ pub trait HomeRowSource {
     fn user_rows(_asked: UserRowsAsked) -> Result<HomeRows, Error> {
         Ok(HomeRows::default())
     }
+
+    /// Titles for one User's Featured, the top of their home page, from that User's Personal
+    /// settings in `asked` (ADR 0072). The Server keeps the first 20, clamps each weight to
+    /// between 0.0 and 1.0, drops a title no Library has, and shows the 5 heaviest of every
+    /// Plugin's suggestions and its own, which weigh at most 0.8.
+    ///
+    /// # Errors
+    ///
+    /// When it couldn't answer, which keeps that User's suggestions the Server stored before.
+    fn user_featured(_asked: UserFeaturedAsked) -> Result<FeaturedSuggestions, Error> {
+        Ok(FeaturedSuggestions::default())
+    }
 }
 
-/// Exports the [`HomeRowSource`] methods a Plugin serves, each under its own name, taking its
-/// `nama.plugin.v1` message and returning its `nama.plugin.v1.HomeRows`:
+/// Exports the [`HomeRowSource`] methods a Plugin serves, each under its own name, taking and
+/// returning its `nama.plugin.v1` messages:
 /// `home_row_source!(Classics, [shared_rows, user_rows])`.
 ///
 /// A macro can't see which of the trait's defaults a type overrides, so the list is explicit.
@@ -117,6 +132,22 @@ macro_rules! home_row_source {
             #[plugin_fn]
             pub fn user_rows(Buffa(asked): Buffa<UserRowsAsked>) -> FnResult<Buffa<HomeRows>> {
                 Ok(Buffa(<$source as HomeRowSource>::user_rows(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, user_featured) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FeaturedSuggestions, FnResult, HomeRowSource, UserFeaturedAsked, extism_pdk,
+                plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn user_featured(
+                Buffa(asked): Buffa<UserFeaturedAsked>,
+            ) -> FnResult<Buffa<FeaturedSuggestions>> {
+                Ok(Buffa(<$source as HomeRowSource>::user_featured(asked)?))
             }
         };
     };

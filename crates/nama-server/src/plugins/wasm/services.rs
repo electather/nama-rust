@@ -160,6 +160,10 @@ pub(super) const USER_ROWS: Method = Method {
     limit: HOME_ROWS_TIMEOUT,
     ..optional(services::HOME_ROW, "UserRows", "user_rows")
 };
+pub(super) const USER_FEATURED: Method = Method {
+    limit: HOME_ROWS_TIMEOUT,
+    ..optional(services::HOME_ROW, "UserFeatured", "user_featured")
+};
 pub(super) const SUBTITLE_SEARCH: Method =
     required(services::SUBTITLE_SOURCE, "Search", "subtitle_search");
 pub(super) const SUBTITLE_DOWNLOAD: Method =
@@ -263,7 +267,7 @@ pub(super) const POINTS: &[Point] = &[
     Point {
         service: services::HOME_ROW,
         crash_group: services::HOME_ROW,
-        methods: &[SHARED_ROWS, USER_ROWS],
+        methods: &[SHARED_ROWS, USER_ROWS, USER_FEATURED],
         key: PointKey::provide::<dyn HomeRowSource>,
         register: |registrar, running| {
             registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, Arc::new(running));

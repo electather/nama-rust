@@ -1,5 +1,6 @@
 //! Featured, the titles at the top of a User's home page (ADR 0072), as `ListFeatured` lists the
-//! Kernel's suggestions, over a real socket with the TMDB Plugin enabled against a fake TMDB.
+//! Kernel's suggestions and the test Plugin's, over a real socket with the TMDB Plugin enabled
+//! against a fake TMDB.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -7,18 +8,22 @@ mod browsing;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
+#[path = "support/test_plugin.rs"]
+mod test_plugin;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use browsing::{ALIEN_1080P, Fixture};
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_proto::nama::v1::{
-    BrowseServiceClient, FeaturedTitle, LibraryKind, ListEpisodesRequest, ListFeaturedRequest,
-    ReportProgressRequest, WatchStateServiceClient, featured_title::MovieOrShow,
+    BrowseServiceClient, EnablePluginRequest, FeaturedTitle, LibraryKind, ListEpisodesRequest,
+    ListFeaturedRequest, ListPluginsRequest, PluginServiceClient, ReportProgressRequest,
+    SettingValue, UpdatePersonalSettingsRequest, UserServiceClient, WatchStateServiceClient,
+    featured_title::MovieOrShow, setting_value::Value,
 };
 use server::{
-    TestServer,
-    tmdb::{ALIEN, DARK, HEAT},
+    TestServer, WAIT,
+    tmdb::{ALIEN, DARK, DUNE, HEAT},
 };
 
 /// Dark's Season 1 Episodes 1 and 2, in one file, and its Season 2 Episode 1. TMDB has three
@@ -198,4 +203,95 @@ async fn a_title_another_user_started_is_not_listed_for_the_caller() {
         ["Alien"]
     );
     assert_eq!(featured(grace.client_config()).await, []);
+}
+
+/// Installs and enables the test Plugin, built as a Home row source, on `server`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn enable_test_plugin(server: &TestServer) {
+    let dir = server.data_dir().join("plugins");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("test.wasm"), test_plugin::build("home-rows")).unwrap();
+    let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
+    // Listing is what reads `plugins/`.
+    plugins
+        .list_plugins(ListPluginsRequest::default())
+        .await
+        .unwrap();
+    plugins
+        .enable_plugin(EnablePluginRequest {
+            id: "test-plugin".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+/// Saves a `handle` Personal setting for the test Plugin as the User whose session `config` holds,
+/// for which it suggests Heat at 1.0, Alien at 0.0 and a Movie no title source has at 1.0.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn set_handle(config: ClientConfig) {
+    let handle = SettingValue {
+        value: Some(Value::TextValue("ada".to_owned())),
+        ..Default::default()
+    };
+    UserServiceClient::new(HttpClient::plaintext(), config)
+        .update_personal_settings(UpdatePersonalSettingsRequest {
+            plugin_id: "test-plugin".to_owned(),
+            settings: std::iter::once(("handle".to_owned(), handle)).collect(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+/// The names of the Featured titles of the User whose session `config` holds, once they include
+/// `title`, which a refresh in the background stores.
+async fn featured_once_it_lists(config: ClientConfig, title: &str) -> Vec<String> {
+    let started = Instant::now();
+    loop {
+        let featured = featured(config.clone()).await;
+        let names: Vec<String> = titles(&featured).into_iter().map(str::to_owned).collect();
+        if names.iter().any(|name| name == title) {
+            return names;
+        }
+        assert!(started.elapsed() < WAIT, "{title} never listed: {names:?}");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+#[tokio::test]
+async fn a_plugins_suggestions_rank_by_weight_among_the_kernels_for_their_user_alone() {
+    let files = [
+        ALIEN_1080P,
+        "Heat (1995) {tmdb-949}/Heat (1995).mkv",
+        "Dune (2021) {tmdb-438631}/Dune (2021).mkv",
+    ];
+    let fx = library_of(
+        LibraryKind::LIBRARY_KIND_MOVIES,
+        &files,
+        TestServer::builder().moves_clock(),
+    )
+    .await;
+    let ada = fx.server.user_with_default_permissions("Ada").await;
+    let bea = fx.server.user_with_default_permissions("Bea").await;
+    enable_test_plugin(&fx.server).await;
+    set_handle(ada.client_config()).await;
+    fx.server.advance_clock(FIFTEEN_DAYS);
+    start(ada.client_config(), fx.version_ids(DUNE).await[0]).await;
+
+    let adas = featured_once_it_lists(ada.client_config(), "Heat").await;
+
+    assert_eq!(
+        adas,
+        ["Heat", "Dune", "Alien"],
+        "Heat at 1.0 over Dune started at 0.8, Alien at 0.0 with fewer than 5 others, and the \
+         Movie no Library has dropped"
+    );
+    assert_eq!(featured(bea.client_config()).await, [], "Bea set no handle");
 }

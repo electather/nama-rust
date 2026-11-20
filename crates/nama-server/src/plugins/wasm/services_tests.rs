@@ -102,7 +102,7 @@ fn a_blob_store_is_five_required_rows_that_may_run_long() {
 }
 
 #[test]
-fn a_home_row_source_runs_long_on_a_compile_of_its_own_and_serves_shared_or_user_rows() {
+fn a_home_row_source_runs_long_on_a_compile_of_its_own_and_serves_rows_or_featured_by_choice() {
     let home_row = POINTS
         .iter()
         .find(|point| point.service == services::HOME_ROW)
@@ -119,6 +119,11 @@ fn a_home_row_source_runs_long_on_a_compile_of_its_own_and_serves_shared_or_user
             },
             Method {
                 export: "user_rows",
+                optional: true,
+                ..
+            },
+            Method {
+                export: "user_featured",
                 optional: true,
                 ..
             }
