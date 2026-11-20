@@ -237,6 +237,11 @@ async fn a_version_no_longer_giving_featured_suggestions_deletes_every_users() {
 
     let stored = new_version.stored_suggestions(bea).await.unwrap();
     assert!(stored.is_empty(), "Bea's are deleted too");
+    let put_offs: i64 = sqlx::query_scalar("SELECT count(*) FROM featured_refreshes")
+        .fetch_one(db.reader())
+        .await
+        .unwrap();
+    assert_eq!(put_offs, 0, "and every User's put-off");
 }
 
 #[tokio::test]

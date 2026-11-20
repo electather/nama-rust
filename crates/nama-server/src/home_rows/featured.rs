@@ -201,11 +201,12 @@ impl HomeRows {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
+                    // Upserts from the put-off, so it stores nothing once that is gone.
                     sqlx::query!(
-                        "UPDATE featured_suggestions SET suggestions = ?1
+                        "INSERT INTO featured_suggestions (plugin_id, user_id, suggestions)
+                         SELECT plugin_id, user_id, ?1 FROM featured_refreshes
                          WHERE plugin_id = ?2 AND user_id = ?3
-                           AND EXISTS (SELECT 1 FROM featured_refreshes r
-                                       WHERE r.plugin_id = ?2 AND r.user_id = ?3)",
+                         ON CONFLICT (plugin_id, user_id) DO UPDATE SET suggestions = excluded.suggestions",
                         suggestions,
                         plugin,
                         user

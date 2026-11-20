@@ -10,6 +10,8 @@ mod home_row_plugin;
 #[path = "support/installed_test_plugin.rs"]
 #[expect(dead_code, reason = "this binary only installs the test Plugin")]
 mod installed_test_plugin;
+#[path = "support/log.rs"]
+mod log;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
@@ -21,6 +23,7 @@ use std::time::{Duration, Instant};
 use browsing::{ALIEN_1080P, Fixture};
 use connectrpc::client::{ClientConfig, HttpClient};
 use home_row_plugin::{disable, enable, enable_granting, set_handle};
+use log::Log;
 use nama_proto::nama::v1::{
     BrowseServiceClient, FeaturedTitle, LibraryKind, ListEpisodesRequest, ListFeaturedRequest,
     PluginPermission, ReportProgressRequest, WatchStateServiceClient, featured_title::MovieOrShow,
@@ -280,7 +283,9 @@ async fn disabling_the_plugin_drops_its_suggestions() {
 }
 
 #[tokio::test]
-async fn starting_a_title_keeps_a_plugin_reading_watch_states_suggestions_listed() {
+async fn starting_a_title_lists_a_plugin_reading_watch_states_old_suggestions_as_it_asks_again() {
+    // Before the Server logs, since a line logged with no subscriber yet is never logged again.
+    let log = Log::global();
     let files = [ALIEN_1080P, "Heat (1995) {tmdb-949}/Heat (1995).mkv"];
     let fx = library_of(
         LibraryKind::LIBRARY_KIND_MOVIES,
@@ -291,17 +296,20 @@ async fn starting_a_title_keeps_a_plugin_reading_watch_states_suggestions_listed
     fx.server.install_test_plugin("home-rows").await;
     let granted = [PluginPermission::PLUGIN_PERMISSION_READ_WATCH_STATES];
     enable_granting(&fx.server, &granted).await;
-    let ada = fx.server.user_with_default_permissions("Ada").await;
-    set_handle(&ada, "ada").await;
+    // A handle of its own, as the log counts every Server's asks in this binary.
+    let gus = fx.server.user_with_default_permissions("Gus").await;
+    set_handle(&gus, "gus").await;
     fx.server.advance_clock(FIFTEEN_DAYS);
-    featured_once_it_lists(ada.client_config(), "Heat").await;
+    featured_once_it_lists(gus.client_config(), "Heat").await;
+    let asked = ["test-plugin suggests gus's Featured"];
 
-    start(ada.client_config(), fx.version_ids(ALIEN).await[0]).await;
+    start(gus.client_config(), fx.version_ids(ALIEN).await[0]).await;
 
-    let listed = featured(ada.client_config()).await;
+    let listed = featured(gus.client_config()).await;
     assert!(
         titles(&listed).contains(&"Heat"),
         "the Plugin's stale suggestions are still listed: {:?}",
         titles(&listed)
     );
+    log.wait_for(&asked, 2).await;
 }
