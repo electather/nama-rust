@@ -12,7 +12,7 @@ use super::{
 use super::{Keyframes, ListedKeyframes, Probe, ffprobe, plausible};
 use crate::ffmpeg;
 #[cfg(unix)]
-use crate::ffmpeg::Ffmpeg;
+use crate::ffmpeg::{Ffmpeg, RunError};
 
 /// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
 /// Tracks, and lists keyframes at 0 and at as many seconds as the file has bytes, so a changed
@@ -224,7 +224,7 @@ async fn a_versions_keyframes_that_timed_out_arent_listed_again() {
         again.as_ref().is_ok_and(|again| matches!(
             again,
             Err(Error::Probe(err))
-                if matches!(**err, ProbeError::TimedOut(_) | ProbeError::UnlistedBefore)
+                if matches!(**err, ProbeError::Run(RunError::TimedOut(_)) | ProbeError::UnlistedBefore)
         )),
         "{again:?}"
     );

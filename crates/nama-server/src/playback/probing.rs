@@ -40,7 +40,7 @@ use super::{
 use crate::{
     db::Database,
     diagnostics,
-    ffmpeg::Ffmpeg,
+    ffmpeg::{Ffmpeg, RunError},
     images::{DOWNLOADED_SUBTITLES_DIR, ImageStore, PREVIEW_FRAMES_DIR},
     library::{Contents, Stored},
 };
@@ -62,14 +62,8 @@ const LISTING_WAIT: Duration = Duration::from_secs(5);
 /// Why probing a file failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ProbeError {
-    #[error("the Server has no ffprobe")]
-    Unavailable,
-    #[error("ffprobe couldn't be run: {0}")]
-    Run(#[from] io::Error),
-    #[error("ffprobe took too long")]
-    TimedOut(#[from] tokio::time::error::Elapsed),
-    #[error("ffprobe failed: {0}")]
-    Failed(String),
+    #[error(transparent)]
+    Run(#[from] RunError),
     #[error("ffprobe's output couldn't be read: {0}")]
     Output(#[from] serde_json::Error),
     /// Kept from an earlier listing of the keyframes, which isn't tried again until the file
@@ -85,7 +79,7 @@ pub(crate) enum ProbeError {
 /// Why probing a Version right away failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    /// ffprobe couldn't read it, or the Server has no ffprobe ([`ProbeError::Unavailable`]).
+    /// ffprobe couldn't read it, or the Server has no ffprobe ([`RunError::Unavailable`]).
     /// Shared, as whoever waited for the same probe gets it too.
     #[error(transparent)]
     Probe(Arc<ProbeError>),
@@ -416,7 +410,10 @@ impl Probing {
                 Ok(Some(Ok(_))) => probed.probed += 1,
                 // ffprobe didn't run, so the file is left for the next scan.
                 Ok(Some(Err(err)))
-                    if matches!(*err, ProbeError::Unavailable | ProbeError::Run(_)) => {}
+                    if matches!(
+                        *err,
+                        ProbeError::Run(RunError::Unavailable(_) | RunError::Run(..))
+                    ) => {}
                 Ok(Some(Err(_))) => probed.failed += 1,
                 Ok(None) => {}
                 Err(err) => unstored = Some(err),
@@ -641,22 +638,22 @@ async fn failure(err: &ProbeError, path: &str) -> ProbeFailure {
     match err {
         // ffprobe never reached the file, so counting it against the file would skip a whole
         // Library after one bad pass, such as during a package upgrade.
-        ProbeError::Run(_) => ProbeFailure::StopsPass,
+        ProbeError::Run(RunError::Run(..)) => ProbeFailure::StopsPass,
         // Nothing was read, so what's stored isn't known to be wrong, and a Server without
         // ffprobe keeps it, as it never probes in the background.
-        ProbeError::Unavailable => ProbeFailure::Retried,
+        ProbeError::Run(RunError::Unavailable(_)) => ProbeFailure::Retried,
         // ffprobe fails fast on a file it can't open, as on a share that dropped or an NFS handle
         // gone stale since the scan, which may read fine once it's back unchanged.
-        ProbeError::Failed(_) if !readable(path).await => ProbeFailure::Retried,
+        ProbeError::Run(RunError::Failed(..)) if !readable(path).await => ProbeFailure::Retried,
         // ffprobe read the file and refused it, or said something it can't parse: it will again.
         // Only `Probing::keyframes` returns `UnlistedBefore` and `NotListedYet`, never ffprobe, so
         // no probe or listing gets here with them.
-        ProbeError::Failed(_) | ProbeError::UnlistedBefore | ProbeError::NotListedYet => {
-            ProbeFailure::Lasting(LastingReason::Failed)
-        }
+        ProbeError::Run(RunError::Failed(..))
+        | ProbeError::UnlistedBefore
+        | ProbeError::NotListedYet => ProbeFailure::Lasting(LastingReason::Failed),
         ProbeError::Output(_) => ProbeFailure::Lasting(LastingReason::UnreadableOutput),
         // A slow or unmounted share, or a busy disk, may not be slow next time.
-        ProbeError::TimedOut(_) => ProbeFailure::Passing(PassingReason::TimedOut),
+        ProbeError::Run(RunError::TimedOut(_)) => ProbeFailure::Passing(PassingReason::TimedOut),
     }
 }
 

@@ -72,7 +72,7 @@ use proto::PlaybackReasonKind as Kind;
 
 use crate::{
     db::detached,
-    ffmpeg::{Abilities, Accel, CanDo, Remux, Transcode},
+    ffmpeg::{Abilities, Accel, CanDo, Remux, RunError, Transcode},
     server_settings::{HardwareChoice, PlaybackLimit, PlaybackValues},
     users::Caller,
 };
@@ -409,7 +409,7 @@ pub(crate) async fn plan(
     let probe = match probing.current(version).await {
         Ok(probe) => Some(probe),
         Err(probing::Error::Probe(err)) => {
-            if !matches!(*err, ProbeError::Unavailable) {
+            if !matches!(*err, ProbeError::Run(RunError::Unavailable(_))) {
                 tracing::warn!(
                     version,
                     "could not probe a Version to plan playing it: {err}"
