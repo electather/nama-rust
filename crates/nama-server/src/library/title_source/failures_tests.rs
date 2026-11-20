@@ -14,7 +14,8 @@ use super::{TitleSources, Unanswered};
 use crate::plugins::{Failure, Registry};
 
 /// A title source that answers every question with the error `.0` makes, or with the title unset
-/// where it makes none.
+/// where it makes none. Not a `ScriptedSource`: its Plugin's id differs from its namespace and
+/// declares a secret setting its failure must come without, and it refuses images too.
 struct Failing(fn() -> Option<MetadataError>);
 
 impl Failing {

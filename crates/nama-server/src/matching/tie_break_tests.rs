@@ -1,20 +1,16 @@
-use std::sync::{Arc, PoisonError};
+use std::sync::Arc;
 
-use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    contract::{
-        Candidate, Episode, SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show,
-        ShowAnswer, TitleAsked, TitleId,
-    },
-    metadata::{ExternalId, MetadataError, TitleSource},
-};
+use nama_plugin_api::metadata::{ExternalId, TitleMethod};
 
 use super::{
     show,
-    tests::{Answering, Answers, Asked, HAS, asked, dark},
+    tests::{Answering, Answers, HAS, dark},
 };
 use crate::{
-    library::{Decided, TiedTitle, TitleSources, UnmatchedReason},
+    library::{
+        Decided, TiedTitle, TitleSources, UnmatchedReason,
+        scripted::{ScriptedSource, SourcesAsked},
+    },
     matching::{
         Miss, PendingEpisode,
         recognisers::Recognisers,
@@ -133,140 +129,23 @@ async fn a_newer_name_parser_matches_an_episode_only_one_tied_show_has() {
     );
 }
 
-/// A title source under `aa` whose search ties one Show `Dark` per entry of `answering`, `aa-1`
-/// first, each looked up as its entry says: its Show, then its Season, of one Episode.
-struct Tying {
-    answering: Vec<Answering>,
-    asked: Asked,
-}
-
-impl Tying {
-    fn answer<T: Default>(
-        &self,
-        asked: String,
-        answers: Answers,
-        found: T,
-    ) -> Result<T, MetadataError> {
-        let mut log = self.asked.lock().unwrap_or_else(PoisonError::into_inner);
-        log.push(asked);
-        match answers {
-            Answers::Has => Ok(found),
-            Answers::NotFound => Ok(T::default()),
-            Answers::Fails => Err(MetadataError::Failed("unreachable".into())),
-        }
+/// A source under `aa` whose search ties one Show `Dark` per entry of `answering`, `aa-1` first,
+/// each answering as its entry says: its Show, then its Season 1, of one Episode.
+fn tying(answering: &[Answering]) -> (TitleSources, SourcesAsked) {
+    let asked = SourcesAsked::default();
+    let mut source = ScriptedSource::new("aa", &asked);
+    for (index, &(show, season)) in answering.iter().enumerate() {
+        let id = format!("aa-{}", index + 1);
+        source = source.found(&[&id], "Dark");
+        source = show.script(source, &[TitleMethod::Show], |s| {
+            s.with_show(&[&id], "Dark", &[1])
+        });
+        source = season.script(source, &[TitleMethod::Season], |s| {
+            s.with_season(&id, 1, &[1])
+        });
     }
-
-    /// How the Show `aa-<value>` answers: its lookup, then its Season's.
-    fn answering(&self, value: &str) -> Answering {
-        let index: usize = value.parse().unwrap();
-        self.answering[index - 1]
-    }
-}
-
-fn aa(value: &str) -> TitleId {
-    TitleId {
-        namespace: "aa".to_owned(),
-        value: value.to_owned(),
-        ..Default::default()
-    }
-}
-
-impl TitleSource for Tying {
-    fn namespace(&self) -> &'static str {
-        "aa"
-    }
-
-    fn search<'a>(
-        &'a self,
-        _query: &'a SearchQuery,
-    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
-        let candidates = (1..=self.answering.len())
-            .map(|value| Candidate {
-                id: aa(&value.to_string()).into(),
-                title: "Dark".to_owned(),
-                ..Default::default()
-            })
-            .collect();
-        let found = SearchResults {
-            candidates,
-            ..Default::default()
-        };
-        let found = self.answer("search".to_owned(), Answers::Has, found);
-        Box::pin(async { found })
-    }
-
-    fn show<'a>(
-        &'a self,
-        asked: &'a TitleAsked,
-    ) -> BoxFuture<'a, Result<ShowAnswer, MetadataError>> {
-        let value = &asked.id.value;
-        let show = ShowAnswer {
-            show: Show {
-                ids: vec![aa(value)],
-                title: "Dark".to_owned(),
-                seasons: vec![1],
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        };
-        let (lookup, _) = self.answering(value);
-        let found = self.answer(format!("show {value}"), lookup, show);
-        Box::pin(async { found })
-    }
-
-    fn season<'a>(
-        &'a self,
-        asked: &'a SeasonAsked,
-    ) -> BoxFuture<'a, Result<SeasonAnswer, MetadataError>> {
-        let value = &asked.show.value;
-        let episode = Episode {
-            season: asked.season,
-            number: 1,
-            ..Default::default()
-        };
-        let season = SeasonAnswer {
-            season: Season {
-                number: asked.season,
-                episodes: vec![episode],
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        };
-        let (_, lookup) = self.answering(value);
-        let found = self.answer(format!("season {value}"), lookup, season);
-        Box::pin(async { found })
-    }
-}
-
-struct TyingPlugin(Vec<Answering>, Asked);
-
-impl Plugin for TyingPlugin {
-    fn manifest(&self) -> Manifest {
-        Manifest {
-            version: "0.0.0".to_owned(),
-            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
-            ..Manifest::new(PluginId::from_static("aa"))
-        }
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        let source = Tying {
-            answering: self.0.clone(),
-            asked: Arc::clone(&self.1),
-        };
-        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(source));
-        Ok(())
-    }
-}
-
-/// The [`Tying`] source, answering as `answering` says, and what it was asked.
-fn tying(answering: &[Answering]) -> (TitleSources, Asked) {
     let plugins = Registry::new();
-    let asked = Asked::default();
-    let plugin = TyingPlugin(answering.to_vec(), Arc::clone(&asked));
-    plugins.enable(Arc::new(plugin)).unwrap();
+    plugins.enable(Arc::new(source)).unwrap();
     (TitleSources::new(plugins.extension_points()), asked)
 }
 
@@ -292,8 +171,13 @@ async fn a_tied_show_the_source_cannot_find_only_drops_out() {
 
     assert_eq!(tied_show(&metadata).await, Ok(aa_id("2")));
     assert_eq!(
-        asked(&sources_asked),
-        ["search", "show 1", "show 2", "season 2"]
+        sources_asked.lines(),
+        [
+            "aa search",
+            "aa show aa-1",
+            "aa show aa-2",
+            "aa season aa-2 1"
+        ]
     );
 }
 
@@ -320,7 +204,10 @@ async fn a_tied_show_not_listing_the_season_is_asked_for_none_of_its_seasons() {
         found,
         Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(_))))
     ));
-    assert_eq!(asked(&sources_asked), ["search", "show 1", "show 2"]);
+    assert_eq!(
+        sources_asked.lines(),
+        ["aa search", "aa show aa-1", "aa show aa-2"]
+    );
 }
 
 #[tokio::test]
@@ -364,5 +251,5 @@ async fn an_ambiguous_movie_looks_up_none_of_the_tied_titles() {
         movie,
         Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(_))))
     ));
-    assert_eq!(asked(&sources_asked), ["search"]);
+    assert_eq!(sources_asked.lines(), ["aa search"]);
 }
