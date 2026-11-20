@@ -535,9 +535,9 @@ mod exports {
 
         use super::{SonarrFulfiller, needed_tvdb_id};
 
-        /// Dark's TVDB id, and Sonarr's own id for it once it has it.
         const DARK_TVDB: i64 = 81189;
-        const DARK: i64 = 7;
+        /// Sonarr's own id for Dark, once it has it.
+        const DARK_SONARR_ID: i64 = 7;
 
         /// Sonarr's settings, answering each request with the next of `answers`, a status and a
         /// JSON body.
@@ -600,7 +600,7 @@ mod exports {
             let seasons = json!([{"seasonNumber": 1, "monitored": true}]);
             (
                 200,
-                json!([{"id": DARK, "qualityProfileId": 1, "seasons": seasons}]),
+                json!([{"id": DARK_SONARR_ID, "qualityProfileId": 1, "seasons": seasons}]),
             )
         }
 
@@ -650,7 +650,7 @@ mod exports {
                 .unwrap();
             assert_eq!(
                 monitored,
-                json!({"series": [{"id": DARK, "monitored": true, "seasons": [
+                json!({"series": [{"id": DARK_SONARR_ID, "monitored": true, "seasons": [
                     {"seasonNumber": 3, "monitored": true}
                 ]}]})
             );
@@ -666,7 +666,7 @@ mod exports {
         #[test]
         fn a_season_of_a_show_sonarr_is_refreshing_is_tried_again_in_5_seconds_changing_nothing() {
             let refreshing = json!([{"name": "RefreshSeries", "status": "started",
-                "body": {"seriesIds": [DARK]}}]);
+                "body": {"seriesIds": [DARK_SONARR_ID]}}]);
             let mut kernel = sonarr(vec![profiles(), dark_had(), (200, refreshing)]);
 
             let error =
