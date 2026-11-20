@@ -88,7 +88,9 @@ pub(super) fn ids_from_json(json: Option<&str>) -> ExternalIds {
 }
 
 /// `id` and every id a Matched title of `kind`, in any Library, shares with it, through any
-/// chain of Matches each sharing an id with the last. Read on `conn` so a write can act on it.
+/// chain of Matches each sharing an id with the last, since each Library's Match of a title may
+/// hold a different set of its ids. Read on `conn` so a write can act on it; a stored pair that
+/// isn't a valid id is skipped.
 pub(crate) async fn matched_ids(
     conn: &mut SqliteConnection,
     kind: TitleKind,

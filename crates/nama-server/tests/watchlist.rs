@@ -17,6 +17,7 @@ use nama_proto::nama::v1::{
 };
 use server::{
     TestServer,
+    requests::title_id,
     tmdb::{ALIEN, DARK, DARK_TVDB, HEAT, UNLISTED},
 };
 
@@ -156,14 +157,6 @@ async fn adding_twice_and_removing_what_isnt_there_change_nothing() {
     );
 }
 
-fn id(namespace: &str, value: &str) -> ExternalId {
-    ExternalId {
-        namespace: namespace.to_owned(),
-        value: value.to_owned(),
-        ..Default::default()
-    }
-}
-
 #[tokio::test]
 async fn a_title_added_under_one_of_its_ids_comes_off_under_another() {
     let fx = Fixture::start().await;
@@ -171,13 +164,13 @@ async fn a_title_added_under_one_of_its_ids_comes_off_under_another() {
     add(
         &watchlist,
         TitleKind::TITLE_KIND_MOVIE,
-        id("imdb", ALIEN_IMDB),
+        title_id("imdb", ALIEN_IMDB),
     )
     .await;
     add(
         &watchlist,
         TitleKind::TITLE_KIND_SHOW,
-        id("tvdb", &DARK_TVDB.to_string()),
+        title_id("tvdb", &DARK_TVDB.to_string()),
     )
     .await;
     assert_eq!(
@@ -201,7 +194,7 @@ async fn a_title_added_while_missing_comes_off_under_the_id_it_is_matched_by() {
     add(
         &watchlist,
         TitleKind::TITLE_KIND_MOVIE,
-        id("imdb", ALIEN_IMDB),
+        title_id("imdb", ALIEN_IMDB),
     )
     .await;
     let fx = Fixture::matching_into(server).await;
@@ -222,12 +215,17 @@ async fn removing_keeps_other_titles_and_other_users_watchlists() {
     add(
         &fx.watchlist(),
         TitleKind::TITLE_KIND_MOVIE,
-        id("imdb", ALIEN_IMDB),
+        title_id("imdb", ALIEN_IMDB),
     )
     .await;
     add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, tmdb_id(HEAT)).await;
     add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
-    add(&beas, TitleKind::TITLE_KIND_MOVIE, id("imdb", ALIEN_IMDB)).await;
+    add(
+        &beas,
+        TitleKind::TITLE_KIND_MOVIE,
+        title_id("imdb", ALIEN_IMDB),
+    )
+    .await;
 
     remove(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
 
