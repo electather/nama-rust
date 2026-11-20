@@ -238,7 +238,7 @@ fn a_user_with_no_history_is_suggested_nothing_for_featured() {
 }
 
 #[test]
-fn manifest_serves_users_rows_with_the_permissions_and_family_ratings_setting() {
+fn manifest_is_a_home_row_source_with_the_permissions_and_family_ratings_setting() {
     let manifest = manifest();
 
     let points: Vec<_> = manifest.points.iter().map(|point| &point.service).collect();

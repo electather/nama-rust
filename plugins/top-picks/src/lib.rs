@@ -18,9 +18,10 @@ use nama_pdk::{
 const FAMILY_RATINGS: &str = "family_ratings";
 const DEFAULT_FAMILY_RATINGS: &str = "G, PG, PG-13, TV-Y, TV-G, TV-PG";
 
-/// How long the rows and suggestions stay fresh, in seconds: an hour, so a title the User starts
-/// soon leaves them.
-const FRESH_FOR_SECONDS: u32 = 60 * 60;
+/// How long the rows and suggestions stay fresh, in seconds: the 15 minutes the Kernel holds a
+/// shorter time to, since it asks again only once they're stale, and a title the User started
+/// shows in them until then.
+const FRESH_FOR_SECONDS: u32 = 15 * 60;
 
 /// How many picks Featured is suggested.
 const FEATURED_PICKS: usize = 5;
@@ -109,7 +110,7 @@ fn picks_for(user: i64) -> Result<Vec<Pick>, Error> {
     // ponytail: one call for every title on the Server; ask a page at a time if a large Server's
     // answer outgrows the Plugin's memory.
     let states = kernel::watch_states(&refs, Some(user))?;
-    // The Admin may grant the other Permissions alone (ADR 0071): rank by genres then.
+    // The Admin may grant the other Plugin Permissions alone (ADR 0071): rank by genres then.
     let watchlist = kernel::watchlist(user).unwrap_or_else(|err| {
         nama_pdk::warn!("ranking without the User's Watchlist: {err}");
         Vec::new()
