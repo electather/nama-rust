@@ -173,7 +173,7 @@ mod tests {
     }
 
     /// What `service` makes of `answer` to a request it sends.
-    fn sent(service: OutsideService, answer: Response) -> Result<Response, Error> {
+    fn answered(service: OutsideService, answer: Response) -> Result<Response, Error> {
         let mut answer = Some(answer);
         let mut kernel = Kernel::new()
             .http(move |_request, _body| Ok(answer.take().expect("the service sent one request")));
@@ -184,7 +184,7 @@ mod tests {
     }
 
     fn refused(service: OutsideService, answer: Response) -> String {
-        sent(service, answer).unwrap_err().to_string()
+        answered(service, answer).unwrap_err().to_string()
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn a_2xx_is_accepted() {
-        let accepted = sent(FANART, Response::new(204, "done")).unwrap();
+        let accepted = answered(FANART, Response::new(204, "done")).unwrap();
 
         assert_eq!(accepted, Response::new(204, "done"));
     }
@@ -287,7 +287,7 @@ mod tests {
     fn a_refusal_downcasts_with_its_status_and_seconds() {
         let answer = Response::new(429, "").with_header("Retry-After", "7");
 
-        let failed = sent(FANART, answer).unwrap_err();
+        let failed = answered(FANART, answer).unwrap_err();
 
         let refusal = failed.downcast_ref::<Refusal>().unwrap();
         assert_eq!(
