@@ -30,8 +30,7 @@
       // `import()` and type-only imports are fine: neither puts the library in the first chunk.
       "id": "dynamic-loading",
       "kind": "banned-import",
-      // Both ASS renderers, so this holds whichever of #1133 and #1160 lands first.
-      "specifiers": ["hls.js", "libbitsub", "jsqr", "@jellyfin/libass-wasm", "jassub"],
+      "specifiers": ["hls.js", "libbitsub", "jsqr", "jassub"],
       "ignoreTypeOnly": true,
       "files": ["src/app/**", "src/features/**", "src/shared/**"],
       "exclude": ["src/**/__tests__/**"],

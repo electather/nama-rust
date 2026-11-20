@@ -14,42 +14,24 @@ import { openTracks, rowIn, rowsOf } from "@/test-player";
 
 /** The options of each ASS renderer made, and whether the next one fails to start. */
 const libass = vi.hoisted(
-  (): {
-    made: { subContent: string; fonts: string[]; workerUrl: string }[];
-    failsToStart: boolean;
-  } => ({
+  (): { made: { subContent: string; fonts: Uint8Array[] }[]; failsToStart: boolean } => ({
     made: [],
     failsToStart: false,
   }),
 );
-vi.mock(import("@jellyfin/libass-wasm"), () => ({
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
+vi.mock("jassub", () => ({
   default: class {
-    public constructor(options: {
-      subContent: string;
-      fonts: string[];
-      workerUrl: string;
-      onReady: () => void;
-      onError: (error: unknown) => void;
-    }) {
+    public readonly ready: Promise<void>;
+    public readonly _worker = Object.assign(new EventTarget(), { terminate: vi.fn<() => void>() });
+    public constructor(options: { subContent: string; fonts: Uint8Array[] }) {
       libass.made.push(options);
-      // As its worker reports a renderer that won't start: after it's made, and then it disposes
-      // of itself.
-      queueMicrotask(
-        libass.failsToStart
-          ? () => {
-              options.onError("no wasm");
-              this.dispose();
-            }
-          : options.onReady,
-      );
+      // As its worker reports a track libass rejects.
+      this.ready = libass.failsToStart ? Promise.reject(new Error("no track")) : Promise.resolve();
     }
-    public disposed = false;
-    public dispose() {
-      // As the package's does, which posts to the worker it has dropped.
-      if (this.disposed) {
-        throw new TypeError("Cannot read properties of null");
-      }
-      this.disposed = true;
+    // As the package's does, which waits for it to be ready, so rethrows a failed start.
+    public async destroy() {
+      await this.ready;
     }
   },
 }));
@@ -185,7 +167,6 @@ test("an ASS Track says Loading… until it and its fonts are fetched, then is d
   const [made] = libass.made;
   expect(made?.subContent).toBe("ASS");
   expect(made?.fonts).toHaveLength(1);
-  expect(made?.workerUrl).toMatch(/^blob:/u);
   expect(asked).toHaveLength(1);
   expect(screen.getByLabelText("Alien")).toBe(video);
 });

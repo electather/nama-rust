@@ -74,20 +74,13 @@ async fn the_app_s_manifest_is_served_as_such() {
     assert_eq!(content_type, "application/manifest+json");
 }
 
-/// The ASS renderer ships with the notices of what it bundles, and without its asm.js worker for
-/// browsers without WebAssembly, which the app never lists ASS on.
+/// The ASS renderer ships with the notices of what it bundles, as their licenses ask.
 #[tokio::test]
-async fn the_app_ships_the_ass_renderer_s_notices_and_not_its_asm_js_worker() {
+async fn the_app_ships_the_ass_renderer_s_notices() {
     let server = TestServer::builder().start().await;
-    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
-    let legacy = std::fs::read_dir(assets)
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .find(|name| name.contains("worker-legacy"));
 
-    let (status, _, notices) = http1_get(server.addr, "/licenses/libass-wasm.txt").await;
+    let (status, _, notices) = http1_get(server.addr, "/licenses/jassub.txt").await;
 
-    assert_eq!(legacy, None);
     assert_eq!(status, 200);
     assert!(String::from_utf8(notices).unwrap().contains("FreeType"));
 }

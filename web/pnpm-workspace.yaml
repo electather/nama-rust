@@ -2,8 +2,12 @@
 # caught and pulled before it reaches us. In minutes.
 minimumReleaseAge: 1440
 
-# Dependencies allowed to run install scripts. None needs to yet; pnpm skips any that asks.
-allowBuilds: {}
+# Dependencies allowed to run install scripts. None needs to yet; pnpm fails on any that asks and
+# isn't listed here.
+allowBuilds:
+  # Its postinstall only refreshes the Google Fonts list it ships, for remote font lookup, which
+  # the ASS renderer leaves off.
+  lfa-ponyfill: false
 
 # `vp` pins Node and pnpm (devEngines in package.json), so pnpm leaves the versions to it.
 runtimeOnFail: ignore

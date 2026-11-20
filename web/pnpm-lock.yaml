@@ -39,9 +39,6 @@ importers:
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
-      '@jellyfin/libass-wasm':
-        specifier: 4.2.4
-        version: 4.2.4
       '@opentelemetry/api':
         specifier: ^1.10.0
         version: 1.10.0
@@ -75,6 +72,9 @@ importers:
       hls.js:
         specifier: ^1.7.4
         version: 1.7.4
+      jassub:
+        specifier: 2.5.38
+        version: 2.5.38
       libbitsub:
         specifier: 1.13.2
         version: 1.13.2(hls.js@1.7.4)(react@19.3.1)
@@ -438,9 +438,6 @@ packages:
 
   '@isaacs/nonrecursive-glob-match@1.1.0':
     resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
-
-  '@jellyfin/libass-wasm@4.2.4':
-    resolution: {integrity: sha512-xgOxp0Lmg7djdRpC+RRFaN28QeoMr46tOgL9/xbXqM46RjjVruFC3iK7K8AuGNUZ11Ysil23p0kACQw06GuaRw==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1588,6 +1585,9 @@ packages:
   '@yuku-toolchain/types@0.19.0':
     resolution: {integrity: sha512-tFkNbsP4WXX9UMUC5syJGdK9dPMLK0PPaIuXCcCYH75sZ8MrebfBZ2XvCILRTw8AgLivSSCfDa4R67iYBDa4Kg==}
 
+  abslink@1.3.1:
+    resolution: {integrity: sha512-ukFoU6q/RBMjoC7fu0Zx2+eVH2QFMfV+aJ2cI3Ypl0Shm0ikGjZ0T2VN0xvLl0a8imhWqvfVrqu2n2Ml3eSMyQ==}
+
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
     peerDependencies:
@@ -2097,6 +2097,9 @@ packages:
     resolution: {integrity: sha512-6B3tLtFqtQS4ekarvLVMZ+X+VlvQekbe4taUkf/rhVO3d/h0M2rfARm/pXLcPEsjjMsFgrFgSrhQIxcSVrBz8w==}
     engines: {node: '>=18'}
 
+  jassub@2.5.38:
+    resolution: {integrity: sha512-JlWOEobmIPLlAquiD3kEdzkyNVh8HH9nFnMhBKHmh7ORPLuqBW9VPFpUDub0rwI7KvHXHF01t7EOWo96YfWsvg==}
+
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
@@ -2133,6 +2136,9 @@ packages:
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
+
+  lfa-ponyfill@1.1.1:
+    resolution: {integrity: sha512-Had4tsGEHtIj58MRtf6SlubNDltxinxMSdxIn1GdwrWbye8TD+pZ+D6qKETnJ9+vQOfG9q/Ds4WUPskhyAMp5Q==}
 
   libbitsub@1.13.2:
     resolution: {integrity: sha512-Wp1hgTt/ujU0AWuBYKMHPrej2y6DKRbtctGY9JnUr2ZxkTOebEi4bjCsOZWuyJC89pILS/Hk0fu30yuWcck7LA==}
@@ -2510,6 +2516,9 @@ packages:
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
 
+  rvfc-polyfill@1.0.8:
+    resolution: {integrity: sha512-uA+0wwTkZ4OT8v45pfDfH+7Yq8mY6MvNngiF5Sq6VBgjJsvsfgt7Q18cyZqZjfAhW9rhkgXPX0cW0R9uw7yElA==}
+
   scheduler@0.28.0:
     resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
 
@@ -2639,6 +2648,9 @@ packages:
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
+
+  throughput@1.0.2:
+    resolution: {integrity: sha512-jvK1ZXuhsggjb3qYQjMiU/AVYYiTeqT5thWvYR2yuy2LGM84P5MSSyAinwHahGsdBYKR9m9HncVR/3f3nFKkxg==}
 
   thumbhash@0.1.1:
     resolution: {integrity: sha512-kH5pKeIIBPQXAOni2AiY/Cu/NKdkFREdpH+TLdM0g6WA7RriCv0kPLgP731ady67MhTAqrVG/4mnEeibVuCJcg==}
@@ -3234,8 +3246,6 @@ snapshots:
   '@fontsource-variable/geist@5.3.0': {}
 
   '@isaacs/nonrecursive-glob-match@1.1.0': {}
-
-  '@jellyfin/libass-wasm@4.2.4': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -4034,6 +4044,8 @@ snapshots:
 
   '@yuku-toolchain/types@0.19.0': {}
 
+  abslink@1.3.1: {}
+
   ajv-formats@2.1.1:
     dependencies:
       ajv: 8.20.0
@@ -4457,6 +4469,13 @@ snapshots:
 
   isexe@3.1.5: {}
 
+  jassub@2.5.38:
+    dependencies:
+      abslink: 1.3.1
+      lfa-ponyfill: 1.1.1
+      rvfc-polyfill: 1.0.8
+      throughput: 1.0.2
+
   jiti@2.7.0: {}
 
   js-tokens@4.0.0: {}
@@ -4480,6 +4499,8 @@ snapshots:
   kleur@3.0.3: {}
 
   kleur@4.1.5: {}
+
+  lfa-ponyfill@1.1.1: {}
 
   libbitsub@1.13.2(hls.js@1.7.4)(react@19.3.1):
     dependencies:
@@ -4836,6 +4857,8 @@ snapshots:
     dependencies:
       queue-microtask: 1.2.3
 
+  rvfc-polyfill@1.0.8: {}
+
   scheduler@0.28.0: {}
 
   semver@6.3.2: {}
@@ -4961,6 +4984,8 @@ snapshots:
   tailwindcss@4.3.5: {}
 
   tapable@2.3.3: {}
+
+  throughput@1.0.2: {}
 
   thumbhash@0.1.1: {}
 

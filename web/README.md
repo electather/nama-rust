@@ -66,6 +66,17 @@ playwright screenshot --viewport-size 512,512 "file://$PWD/public/icon.svg" publ
 playwright screenshot --viewport-size 180,180 "file://$PWD/public/icon.svg" public/apple-touch-icon.png
 ```
 
+## JASSUB's notices
+
+`public/licenses/jassub.txt` holds the notices of the libraries JASSUB bundles, which its npm package doesn't carry. After bumping `jassub`, generate it again from a clone of [JASSUB](https://github.com/ThaUnknown/jassub) at the commit the release was built from, with its submodules, and [`licensecheck`](https://metacpan.org/dist/App-Licensecheck) on `PATH`:
+
+```sh
+make -f Makefile_licence LIB_LICENSES="brotli freetype fribidi harfbuzz libass"
+cat dist/license/all.tmp build/license_fullnotice > path/to/web/public/licenses/jassub.txt
+```
+
+`LIB_LICENSES` leaves out expat, which the Makefile still lists but JASSUB no longer bundles. The Makefile's own lint step can fail after `all.tmp` is written, and the `# Project: jassub` section comes out empty, so copy the copyright lines of JASSUB's `LICENSE` into it by hand. The Makefile also misses mimalloc, which Emscripten links into `jassub-worker-modern.wasm`, so add its `# Project: mimalloc` section by hand too, from the `LICENSE` in Emscripten's `system/lib/mimalloc`.
+
 ## How the app is put together
 
 The app is organised by feature (ADR 0064). [`src/AGENTS.md`](src/AGENTS.md) has the layout, which folder imports which, and the rules for each folder.
