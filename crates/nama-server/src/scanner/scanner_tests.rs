@@ -169,6 +169,15 @@ impl Fixture {
             })
             .collect()
     }
+
+    /// The stored files' paths, as [`Fixture::files`] gives them.
+    pub(super) async fn paths(&self) -> Vec<String> {
+        self.files()
+            .await
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect()
+    }
 }
 
 fn movie(title: &str, year: i64, hint: Option<ExternalId>) -> Vec<Item> {
@@ -607,21 +616,13 @@ async fn watch(media: &Fixture) {
 
 /// Waits for the stored files to be `expected`.
 async fn wait_for_files(media: &Fixture, expected: &[&str]) {
-    let names = async || -> Vec<String> {
-        media
-            .files()
-            .await
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect()
-    };
     for _ in 0..POLLS {
-        if names().await == expected {
+        if media.paths().await == expected {
             return;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    assert_eq!(names().await, expected);
+    assert_eq!(media.paths().await, expected);
 }
 
 #[tokio::test]

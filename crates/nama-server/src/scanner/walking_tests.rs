@@ -183,17 +183,8 @@ fn an_episode_its_name_doesnt_give_takes_its_season_from_the_stored_items_and_a_
     );
 }
 
-async fn stored_paths(media: &Fixture) -> Vec<String> {
-    media
-        .files()
-        .await
-        .into_iter()
-        .map(|(path, _)| path)
-        .collect()
-}
-
 #[tokio::test]
-async fn a_scan_skips_a_folder_holding_nomedia_or_ignore_and_all_below_it_removing_their_items() {
+async fn a_scan_skips_a_folder_holding_nomedia_or_ignore_and_all_below_it_until_the_marker_goes() {
     let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.write("Samples/Up (2009).mkv", 10);
@@ -204,21 +195,22 @@ async fn a_scan_skips_a_folder_holding_nomedia_or_ignore_and_all_below_it_removi
     media.write("Staging/.ignore", 0);
 
     assert_eq!(media.scan().await, summary(0, 0, 2, 1));
-    assert_eq!(
-        stored_paths(&media).await,
-        ["Alien (1979)/Alien (1979).mkv"]
-    );
+    assert_eq!(media.paths().await, ["Alien (1979)/Alien (1979).mkv"]);
+
+    fs::remove_file(media.path("Samples/.nomedia")).unwrap();
+    fs::remove_file(media.path("Staging/.ignore")).unwrap();
+    assert_eq!(media.scan().await, summary(2, 0, 0, 1));
 }
 
 #[tokio::test]
-async fn a_marker_added_to_the_library_folder_removes_its_only_items_until_its_deleted() {
+async fn a_marker_in_the_library_folder_removes_all_its_items_until_the_marker_is_deleted() {
     let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scan().await;
 
     media.write(".nomedia", 0);
     assert_eq!(media.scan().await, summary(0, 0, 1, 0));
-    assert_eq!(stored_paths(&media).await, Vec::<String>::new());
+    assert_eq!(media.paths().await, Vec::<String>::new());
 
     fs::remove_file(media.path(".nomedia")).unwrap();
     assert_eq!(media.scan().await, summary(1, 0, 0, 0));

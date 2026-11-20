@@ -84,7 +84,7 @@ pub(super) fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Wal
             }
             if (entry.as_ref()).is_ok_and(|entry| skips(entry, &mut walked.unreadable)) {
                 entries.skip_current_dir();
-                // Not held as empty, so what's stored from a skipped folder is removed.
+                // Not held as empty, so what a skipped folder stored goes, unless it's unreadable.
                 empty = false;
                 continue;
             }
@@ -156,7 +156,7 @@ pub(super) fn holds_ignore_marker(folder: &Path) -> io::Result<bool> {
     Ok(false)
 }
 
-/// Whether `path` is an ignore marker's.
+/// Whether `path` names an ignore marker.
 pub(super) fn is_ignore_marker(path: &Path) -> bool {
     path.file_name()
         .is_some_and(|name| IGNORE_MARKERS.iter().any(|marker| name == *marker))
