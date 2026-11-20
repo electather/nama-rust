@@ -4,11 +4,12 @@
 //! written, and it keeps the rules a Library lives by: a folder belongs to at most one Library,
 //! and a Library's kind is fixed when it is created.
 
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
+use super::folders::{check_folders, ensure_folders_free};
 use crate::{db::Database, users::name_key};
 
 /// The kind of media a Library holds.
@@ -670,61 +671,6 @@ fn check_name(name: &str) -> Result<String, Error> {
     Ok(name.to_owned())
 }
 
-// Canonical paths make two spellings of one folder (a trailing slash, a symlink) the same folder.
-async fn check_folders(folders: Vec<String>) -> Result<Vec<String>, Error> {
-    if folders.is_empty() {
-        return Err(Error::FoldersEmpty);
-    }
-    let mut canonical = Vec::with_capacity(folders.len());
-    for (index, folder) in folders.into_iter().enumerate() {
-        match check_folder(&folder, &canonical).await {
-            Ok(path) => canonical.push(path),
-            Err(problem) => {
-                return Err(Error::Folder {
-                    index,
-                    folder,
-                    problem,
-                });
-            }
-        }
-    }
-    Ok(canonical)
-}
-
-/// `folder`'s canonical path, if it can be a Library's and isn't in `earlier` yet.
-async fn check_folder(folder: &str, earlier: &[String]) -> Result<String, FolderProblem> {
-    if !Path::new(folder).is_absolute() {
-        return Err(FolderProblem::NotAbsolute);
-    }
-    let path = tokio::fs::canonicalize(folder)
-        .await
-        .map_err(FolderProblem::NotFound)?;
-    ensure_readable_dir(&path)
-        .await
-        .map_err(FolderProblem::NotReadable)?;
-    let path = path
-        .into_os_string()
-        .into_string()
-        .map_err(|path| FolderProblem::NotUtf8(Path::new(&path).display().to_string()))?;
-    if earlier.contains(&path) {
-        return Err(FolderProblem::Repeated);
-    }
-    Ok(path)
-}
-
-/// Fails unless `path` is a directory the Server can list and open the files in.
-async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
-    // Listing fails for anything that isn't a directory, and for a directory without read
-    // permission.
-    tokio::fs::read_dir(path).await?.next_entry().await?;
-    // Opening what's inside also needs search (execute) permission, which reaching `.` through
-    // the directory checks. Windows has no separate permission for this, and its verbatim
-    // `\\?\` paths don't resolve `.`, so the check is Unix-only.
-    #[cfg(unix)]
-    tokio::fs::metadata(path.join(".")).await?;
-    Ok(())
-}
-
 /// Fails if a Library already has `name`, by the key a User's name is unique under. Folded in
 /// Rust, as SQLite's `lower()` and `NOCASE` fold only ASCII.
 async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(), Error> {
@@ -736,45 +682,6 @@ async fn ensure_name_free(conn: &mut SqliteConnection, name: &str) -> Result<(),
         Some(library) => Err(Error::NameTaken { library }),
         None => Ok(()),
     }
-}
-
-/// Fails if one of `folders` is, is inside, or holds a folder of a Library other than `except`.
-async fn ensure_folders_free(
-    conn: &mut SqliteConnection,
-    folders: &[String],
-    except: Option<i64>,
-) -> Result<(), Error> {
-    let others = sqlx::query!(
-        "SELECT library_folders.path, libraries.name FROM library_folders
-         JOIN libraries ON libraries.id = library_folders.library_id
-         WHERE library_folders.library_id IS NOT ?",
-        except,
-    )
-    .fetch_all(&mut *conn)
-    .await?;
-    for folder in folders {
-        // First, as a path `starts_with` itself and the overlap check would take this for one.
-        if let Some(other) = others.iter().find(|other| other.path == *folder) {
-            return Err(Error::FolderTaken {
-                folder: folder.clone(),
-                library: other.name.clone(),
-            });
-        }
-        // By components, not as strings, so `/media/movies2` isn't inside `/media/movies`.
-        let path = Path::new(folder);
-        for other in &others {
-            let inside = path.starts_with(&other.path);
-            if inside || Path::new(&other.path).starts_with(path) {
-                return Err(Error::FolderOverlaps {
-                    folder: folder.clone(),
-                    library: other.name.clone(),
-                    library_folder: other.path.clone(),
-                    inside,
-                });
-            }
-        }
-    }
-    Ok(())
 }
 
 async fn insert_folders(

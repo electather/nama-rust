@@ -5,6 +5,7 @@ mod artwork;
 mod contents;
 mod country_tags;
 mod custom_images;
+mod folders;
 mod libraries;
 mod local_images;
 mod recognisers;
