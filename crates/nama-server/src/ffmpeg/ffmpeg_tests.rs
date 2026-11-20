@@ -148,7 +148,7 @@ fn a_configured_path_that_is_missing_or_wont_run_is_reported_with_that_path() {
 }
 
 #[test]
-fn a_relative_configured_path_is_from_the_working_directory_not_path() {
+fn a_bare_configured_name_is_found_on_path() {
     let on_path = tempfile::tempdir().unwrap();
     fake(on_path.path(), "ffmpeg", "ffmpeg version 7.1.1");
     let config = Config {
@@ -160,10 +160,74 @@ fn a_relative_configured_path_is_from_the_working_directory_not_path() {
 
     assert_eq!(
         found.ffmpeg,
-        Err(format!(
-            "ffmpeg wasn't found at the configured path {}",
-            std::env::current_dir().unwrap().join("ffmpeg").display()
-        ))
+        Ok(FoundProgram {
+            path: on_path.path().join("ffmpeg"),
+            version: "7.1.1".to_owned(),
+        })
+    );
+}
+
+#[test]
+fn a_renamed_bare_name_is_found_on_path_if_it_says_its_ffmpeg() {
+    let on_path = tempfile::tempdir().unwrap();
+    fake(
+        on_path.path(),
+        "jellyfin-ffmpeg",
+        "ffmpeg version 7.1.1-Jellyfin",
+    );
+    fake(on_path.path(), "ffprobe7", "something else entirely");
+    let config = Config {
+        ffmpeg: Some("jellyfin-ffmpeg".into()),
+        ffprobe: Some("ffprobe7".into()),
+        ..Config::default()
+    };
+
+    let found = Ffmpeg::find(&config, on_path.path().as_os_str());
+
+    assert_eq!(
+        found.ffmpeg,
+        Ok(FoundProgram {
+            path: on_path.path().join("jellyfin-ffmpeg"),
+            version: "7.1.1-Jellyfin".to_owned(),
+        })
+    );
+    assert_eq!(
+        found.ffprobe,
+        Err("ffprobe (configured as ffprobe7) wasn't found on PATH".to_owned())
+    );
+}
+
+#[test]
+fn a_bare_name_missing_from_path_is_an_error_even_with_ffmpeg_there() {
+    let on_path = tempfile::tempdir().unwrap();
+    fake(on_path.path(), "ffmpeg", "ffmpeg version 7.1.1");
+    let config = Config {
+        ffmpeg: Some("jellyfin-ffmpeg".into()),
+        ..Config::default()
+    };
+
+    let found = Ffmpeg::find(&config, on_path.path().as_os_str());
+
+    assert_eq!(
+        found.ffmpeg,
+        Err("ffmpeg (configured as jellyfin-ffmpeg) wasn't found on PATH".to_owned())
+    );
+}
+
+#[test]
+fn a_configured_path_with_a_folder_is_that_file_not_looked_up_on_path() {
+    let on_path = tempfile::tempdir().unwrap();
+    fake(on_path.path(), "ffmpeg", "ffmpeg version 7.1.1");
+    let config = Config {
+        ffmpeg: Some("./ffmpeg".into()),
+        ..Config::default()
+    };
+
+    let found = Ffmpeg::find(&config, on_path.path().as_os_str());
+
+    assert_eq!(
+        found.ffmpeg,
+        Err("ffmpeg wasn't found at the configured path ./ffmpeg".to_owned())
     );
 }
 

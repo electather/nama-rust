@@ -51,11 +51,13 @@ pub struct Config {
     /// Empty by default, so the headers are ignored.
     // ADR 0018; kept out of the doc comment, which editors show users.
     pub trusted_proxies: Vec<IpRange>,
-    /// The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`. A
-    /// relative path, such as `bin/ffmpeg`, counts from the folder the Server starts in.
+    /// The ffmpeg to run, such as a container's own. Unset, the default, looks for `ffmpeg` on
+    /// `PATH`. A bare name, such as `jellyfin-ffmpeg`, is looked up on `PATH`, and a path with a
+    /// folder in it, such as `bin/ffmpeg`, counts from the folder the Server starts in.
     pub ffmpeg: Option<PathBuf>,
-    /// The ffprobe to run. Unset, the default, looks for it on `PATH`. A relative path counts from
-    /// the folder the Server starts in.
+    /// The ffprobe to run. Unset, the default, looks for `ffprobe` on `PATH`. A bare name is looked
+    /// up on `PATH`, and a path with a folder in it, such as `./ffprobe`, counts from the folder
+    /// the Server starts in.
     pub ffprobe: Option<PathBuf>,
     /// Whether the OS reports changes in Library folders so they're scanned soon after. On by
     /// default; off, folders are scanned every six hours and when asked.
@@ -201,8 +203,7 @@ impl Config {
             ("ffmpeg", &mut config.ffmpeg),
             ("ffprobe", &mut config.ffprobe),
         ] {
-            // A bare name is left as written: whether it means `PATH` or the start folder is
-            // `ffmpeg::finding`'s call, undecided in #1247.
+            // A bare name is left as written, for `ffmpeg::finding` to look up on `PATH`.
             if let Some(path) = program.as_mut().filter(|p| p.components().count() > 1) {
                 *path = absolute(key, path)?;
             }
