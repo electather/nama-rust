@@ -4,7 +4,10 @@
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use crate::{db::Database, library::TitleKind};
+use crate::{
+    db::Database,
+    library::{TitleKind, matched_ids},
+};
 
 /// Puts the title of `kind` with the id `id` on the User `user`'s Watchlist, if it isn't already.
 pub(crate) async fn add(
@@ -30,24 +33,27 @@ pub(crate) async fn add(
     .await
 }
 
-/// Takes the title of `kind` added under the id `id` off the User `user`'s Watchlist, if it's
-/// there.
-// ponytail: a title added under another of its ids stays on; remove under every id the Server
-// knows it by once Libraries' title source orders, or Home rows' ids, differ in practice (#1292).
+/// Takes the title of `kind` with the id `id` off the User `user`'s Watchlist, under every id the
+/// Server's Matches give it, since [`has`] finds it under any of them.
 pub(crate) async fn remove(
     db: &Database,
     user: i64,
     kind: TitleKind,
     id: &ExternalId,
 ) -> Result<(), sqlx::Error> {
-    let (kind, id) = (stored(kind), id.to_string());
+    let id = id.clone();
     db.write(move |tx| {
         Box::pin(async move {
+            let mut ids = matched_ids(tx, kind, &id).await?;
+            ids.push(id);
+            let ids: Vec<String> = ids.iter().map(ExternalId::to_string).collect();
+            let (kind, ids) = (stored(kind), serde_json::Value::from(ids).to_string());
             sqlx::query!(
-                "DELETE FROM watchlist WHERE user_id = ? AND kind = ? AND title_id = ?",
+                "DELETE FROM watchlist
+                 WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
                 user,
                 kind,
-                id
+                ids
             )
             .execute(&mut **tx)
             .await

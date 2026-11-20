@@ -10,17 +10,19 @@ mod server;
 use browsing::{ALIEN_1080P, tmdb_id};
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_proto::nama::v1::{
-    AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, GetShowRequest, LibraryKind,
-    ListContinueWatchingRequest, ListEpisodesRequest, RemoveFromWatchlistRequest,
+    AddToWatchlistRequest, BrowseServiceClient, ExternalId, GetMovieRequest, GetShowRequest,
+    LibraryKind, ListContinueWatchingRequest, ListEpisodesRequest, RemoveFromWatchlistRequest,
     ReportProgressRequest, TitleKind, WatchStateServiceClient, WatchlistServiceClient,
     continue_watching_entry::MovieOrEpisode,
 };
 use server::{
     TestServer,
-    tmdb::{ALIEN, DARK, UNLISTED},
+    tmdb::{ALIEN, DARK, DARK_TVDB, UNLISTED},
 };
 
 const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
+/// Alien's IMDb id, which its Match holds beside its TMDB id.
+const ALIEN_IMDB: &str = "tt0078748";
 
 /// A Server with Alien in a Movies Library and Dark in a Shows Library, and their ids.
 struct Fixture {
@@ -35,7 +37,11 @@ struct Fixture {
 )]
 impl Fixture {
     async fn start() -> Self {
-        let server = TestServer::builder().tmdb().start().await;
+        Self::matching_into(TestServer::builder().tmdb().start().await).await
+    }
+
+    /// `server` with Libraries Matching Alien and Dark added to it.
+    async fn matching_into(server: TestServer) -> Self {
         let movies =
             (server.matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])).await;
         let shows = (server.matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])).await;
@@ -78,32 +84,32 @@ impl Fixture {
     }
 }
 
-/// Adds the title of `kind` with the TMDB id `tmdb` to the Watchlist `watchlist` is of.
+/// Adds the title of `kind` with the id `id` to the Watchlist `watchlist` is of.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn add(watchlist: &WatchlistServiceClient<HttpClient>, kind: TitleKind, tmdb: i64) {
+async fn add(watchlist: &WatchlistServiceClient<HttpClient>, kind: TitleKind, id: ExternalId) {
     watchlist
         .add_to_watchlist(AddToWatchlistRequest {
             kind: kind.into(),
-            id: tmdb_id(tmdb).into(),
+            id: id.into(),
             ..Default::default()
         })
         .await
         .unwrap();
 }
 
-/// Removes the title of `kind` with the TMDB id `tmdb` from the Watchlist `watchlist` is of.
+/// Removes the title of `kind` with the id `id` from the Watchlist `watchlist` is of.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn remove(watchlist: &WatchlistServiceClient<HttpClient>, kind: TitleKind, tmdb: i64) {
+async fn remove(watchlist: &WatchlistServiceClient<HttpClient>, kind: TitleKind, id: ExternalId) {
     watchlist
         .remove_from_watchlist(RemoveFromWatchlistRequest {
             kind: kind.into(),
-            id: tmdb_id(tmdb).into(),
+            id: id.into(),
             ..Default::default()
         })
         .await
@@ -115,8 +121,8 @@ async fn adding_a_movie_and_a_show_puts_them_on_the_callers_watchlist_only() {
     let fx = Fixture::start().await;
     let bea = fx.server.user_with_default_permissions("bea").await;
 
-    add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, ALIEN).await;
-    add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, DARK).await;
+    add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+    add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
 
     assert_eq!(
         fx.on_watchlist(fx.server.client_config()).await,
@@ -130,16 +136,54 @@ async fn adding_twice_and_removing_what_isnt_there_change_nothing() {
     let fx = Fixture::start().await;
     let watchlist = fx.watchlist();
 
-    add(&watchlist, TitleKind::TITLE_KIND_MOVIE, ALIEN).await;
-    add(&watchlist, TitleKind::TITLE_KIND_MOVIE, ALIEN).await;
-    remove(&watchlist, TitleKind::TITLE_KIND_SHOW, DARK).await;
+    add(&watchlist, TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+    add(&watchlist, TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+    remove(&watchlist, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
     assert_eq!(
         fx.on_watchlist(fx.server.client_config()).await,
         (true, false)
     );
 
-    remove(&watchlist, TitleKind::TITLE_KIND_MOVIE, ALIEN).await;
-    remove(&watchlist, TitleKind::TITLE_KIND_MOVIE, ALIEN).await;
+    remove(&watchlist, TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+    remove(&watchlist, TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+    assert_eq!(
+        fx.on_watchlist(fx.server.client_config()).await,
+        (false, false)
+    );
+}
+
+fn id(namespace: &str, value: &str) -> ExternalId {
+    ExternalId {
+        namespace: namespace.to_owned(),
+        value: value.to_owned(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn a_title_added_under_one_of_its_ids_comes_off_under_another() {
+    let fx = Fixture::start().await;
+    let watchlist = fx.watchlist();
+    add(
+        &watchlist,
+        TitleKind::TITLE_KIND_MOVIE,
+        id("imdb", ALIEN_IMDB),
+    )
+    .await;
+    add(
+        &watchlist,
+        TitleKind::TITLE_KIND_SHOW,
+        id("tvdb", &DARK_TVDB.to_string()),
+    )
+    .await;
+    assert_eq!(
+        fx.on_watchlist(fx.server.client_config()).await,
+        (true, true)
+    );
+
+    remove(&watchlist, TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+    remove(&watchlist, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+
     assert_eq!(
         fx.on_watchlist(fx.server.client_config()).await,
         (false, false)
@@ -147,18 +191,71 @@ async fn adding_twice_and_removing_what_isnt_there_change_nothing() {
 }
 
 #[tokio::test]
+async fn a_title_added_while_missing_comes_off_under_the_id_it_is_matched_by() {
+    let server = TestServer::builder().tmdb().start().await;
+    let watchlist = WatchlistServiceClient::new(HttpClient::plaintext(), server.client_config());
+    add(
+        &watchlist,
+        TitleKind::TITLE_KIND_MOVIE,
+        id("imdb", ALIEN_IMDB),
+    )
+    .await;
+    let fx = Fixture::matching_into(server).await;
+
+    remove(&watchlist, TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+
+    assert_eq!(
+        fx.on_watchlist(fx.server.client_config()).await,
+        (false, false)
+    );
+}
+
+#[tokio::test]
+async fn removing_keeps_other_titles_and_other_users_watchlists() {
+    let fx = Fixture::start().await;
+    let bea = fx.server.user_with_default_permissions("bea").await;
+    let beas = WatchlistServiceClient::new(HttpClient::plaintext(), bea.client_config());
+    add(
+        &fx.watchlist(),
+        TitleKind::TITLE_KIND_MOVIE,
+        id("imdb", ALIEN_IMDB),
+    )
+    .await;
+    add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+    add(&beas, TitleKind::TITLE_KIND_MOVIE, id("imdb", ALIEN_IMDB)).await;
+
+    remove(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+
+    assert_eq!(
+        fx.on_watchlist(fx.server.client_config()).await,
+        (false, true)
+    );
+    assert_eq!(fx.on_watchlist(bea.client_config()).await, (true, false));
+}
+
+#[tokio::test]
 async fn adding_and_removing_a_title_the_server_doesnt_have_succeed() {
     let fx = Fixture::start().await;
 
-    add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, UNLISTED).await;
-    remove(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, UNLISTED).await;
+    add(
+        &fx.watchlist(),
+        TitleKind::TITLE_KIND_MOVIE,
+        tmdb_id(UNLISTED),
+    )
+    .await;
+    remove(
+        &fx.watchlist(),
+        TitleKind::TITLE_KIND_MOVIE,
+        tmdb_id(UNLISTED),
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn a_show_on_the_watchlist_doesnt_put_the_movie_with_its_id_on_it() {
     let fx = Fixture::start().await;
 
-    add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, ALIEN).await;
+    add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, tmdb_id(ALIEN)).await;
 
     assert_eq!(
         fx.on_watchlist(fx.server.client_config()).await,
@@ -195,8 +292,8 @@ async fn continue_watching_says_its_movie_and_show_are_on_the_watchlist() {
         watch_states.report_progress(report).await.unwrap();
     }
 
-    add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, ALIEN).await;
-    add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, DARK).await;
+    add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, tmdb_id(ALIEN)).await;
+    add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
 
     let asked = ListContinueWatchingRequest::default();
     let listed = browse

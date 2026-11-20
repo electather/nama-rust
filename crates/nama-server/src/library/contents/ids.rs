@@ -4,8 +4,10 @@
 use std::collections::HashMap;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB};
+use sqlx::SqliteConnection;
 
 use super::pins::Pin;
+use crate::library::title_source::TitleKind;
 
 impl Pin {
     /// The pin stored in a `match_pins` row, if there is one, holding the id `id` in its text
@@ -83,6 +85,42 @@ pub(super) fn ids_from_json(json: Option<&str>) -> ExternalIds {
     (pairs.into_iter())
         .filter_map(|(namespace, value)| ExternalId::new(&namespace, value).ok())
         .collect()
+}
+
+/// Every id of every Matched title of `kind`, in any Library, that a Match gives the id `id`,
+/// `id` among them; none if no Match does. Read on `conn` so a write can act on the answer.
+pub(crate) async fn matched_ids(
+    conn: &mut SqliteConnection,
+    kind: TitleKind,
+    id: &ExternalId,
+) -> Result<Vec<ExternalId>, sqlx::Error> {
+    // A Show's ids are the `show` scope of its Episodes' Matches; an Episode's `title` ids are
+    // its own, so a Movie's are read only off Movies.
+    let (scope, item_kind) = match kind {
+        TitleKind::Movie => ("title", "movie"),
+        TitleKind::Show => ("show", "episode"),
+    };
+    let (namespace, value) = (id.namespace(), id.value());
+    let rows = sqlx::query!(
+        "SELECT DISTINCT other.namespace, other.value
+         FROM item_match_ids AS named
+         JOIN item_matches ON item_matches.item_id = named.item_id
+         JOIN library_items ON library_items.id = named.item_id
+         JOIN item_match_ids AS other
+             ON other.item_id = named.item_id AND other.scope = named.scope
+         WHERE named.scope = ? AND named.namespace = ? AND named.value = ?
+           AND item_matches.state = 'matched'
+           AND library_items.kind = ?",
+        scope,
+        namespace,
+        value,
+        item_kind
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok((rows.into_iter())
+        .filter_map(|row| ExternalId::new(&row.namespace, row.value).ok())
+        .collect())
 }
 
 /// The ID Hint stored as `text`, which is how [`ExternalId`] displays: any well-formed id.
