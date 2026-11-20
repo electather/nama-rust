@@ -2,6 +2,8 @@
 //! Admin sets, and a scan asks those about a file the name parser can't read, and Matches what
 //! they propose as it would a parsed name.
 
+#[path = "support/installed_test_plugin.rs"]
+mod installed_test_plugin;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
@@ -20,11 +22,11 @@ use nama_plugin_api::{
     recogniser::{self, RecogniserMethod},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, CreateLibraryRequest, EnablePluginRequest, Episode, ExtensionPoint,
-    ExternalId, GetLibraryRequest, GetPluginRequest, GetShowRequest, LibraryKind,
-    LibraryServiceClient, ListEpisodesRequest, ListLibrariesRequest, ListPluginsRequest,
-    ListUnmatchedItemsRequest, MatchServiceClient, PluginServiceClient, RecogniserOrder,
-    RefusalReason, UnmatchedItemFilter, UpdateLibraryRequest, UpdateLibraryResponse, event,
+    BrowseServiceClient, CreateLibraryRequest, Episode, ExtensionPoint, ExternalId,
+    GetLibraryRequest, GetPluginRequest, GetShowRequest, LibraryKind, LibraryServiceClient,
+    ListEpisodesRequest, ListLibrariesRequest, ListPluginsRequest, ListUnmatchedItemsRequest,
+    MatchServiceClient, PluginServiceClient, RecogniserOrder, RefusalReason, UnmatchedItemFilter,
+    UpdateLibraryRequest, UpdateLibraryResponse, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -38,28 +40,9 @@ const ABSOLUTE: &str = "Dark (2017)/Dark (2017) - 2.mkv";
 const RECOGNISER: &str = "test-plugin";
 
 /// A Server with the fake TMDB and the test Plugin built as a Recogniser, enabled.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn with_recogniser() -> TestServer {
     let server = TestServer::builder().tmdb().start().await;
-    let dir = server.data_dir().join("plugins");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test.wasm"), test_plugin::build("recogniser")).unwrap();
-    let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
-    // Listing is what reads `plugins/`.
-    plugins
-        .list_plugins(ListPluginsRequest::default())
-        .await
-        .unwrap();
-    plugins
-        .enable_plugin(EnablePluginRequest {
-            id: RECOGNISER.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    server.enable_test_plugin("recogniser").await;
     server
 }
 

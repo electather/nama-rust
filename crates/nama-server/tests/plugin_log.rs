@@ -1,5 +1,7 @@
 //! A Plugin's recent Plugin Log lines, as an Admin reads them on its Plugins page (ADR 0061).
 
+#[path = "support/installed_test_plugin.rs"]
+mod installed_test_plugin;
 #[path = "support/log.rs"]
 #[expect(
     dead_code,
@@ -21,8 +23,8 @@ use connectrpc::{ConnectError, client::HttpClient};
 use log::Log;
 use nama_plugin_api::{Manifest, Plugin, PluginError, PluginId, Registrar};
 use nama_proto::nama::v1::{
-    DisablePluginRequest, EnablePluginRequest, LibraryKind, ListPluginLogLinesRequest,
-    ListPluginsRequest, PluginLogLevel, PluginLogLine, PluginServiceClient,
+    DisablePluginRequest, LibraryKind, ListPluginLogLinesRequest, PluginLogLevel, PluginLogLine,
+    PluginServiceClient,
 };
 use nama_server::plugins::Registry;
 use server::{TestServer, WAIT};
@@ -135,20 +137,8 @@ async fn an_installed_plugins_lines_come_newest_first_and_go_when_it_is_disabled
         .plugins(Registry::with_builtins())
         .start()
         .await;
-    let dir = server.data_dir().join("plugins");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test.wasm"), test_plugin::build("")).unwrap();
+    server.enable_test_plugin("").await;
     let client = plugins(&server);
-    // Listing is what reads `plugins/`.
-    client
-        .list_plugins(ListPluginsRequest::default())
-        .await
-        .unwrap();
-    let enable = EnablePluginRequest {
-        id: "test-plugin".to_owned(),
-        ..Default::default()
-    };
-    client.enable_plugin(enable).await.unwrap();
 
     server
         .library(LibraryKind::LIBRARY_KIND_MOVIES, &["Heat (1995).mkv"])
