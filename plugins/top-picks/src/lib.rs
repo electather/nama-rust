@@ -102,13 +102,19 @@ fn picks_for(user: i64) -> Result<Vec<Pick>, Error> {
     for library in kernel::libraries()? {
         titles.extend(kernel::titles(library.id)?);
     }
+    // One per title, even one without a `title_ref`, so `ranked` pairs each with its own.
     let refs: Vec<_> = (titles.iter())
-        .filter_map(|title| title.title_ref.as_option().cloned())
+        .map(|title| (*title.title_ref).clone())
         .collect();
     // ponytail: one call for every title on the Server; ask a page at a time if a large Server's
     // answer outgrows the Plugin's memory.
     let states = kernel::watch_states(&refs, Some(user))?;
-    Ok(ranked(&titles, &states, &kernel::watchlist(user)?))
+    // The Admin may grant the other Permissions alone (ADR 0071): rank by genres then.
+    let watchlist = kernel::watchlist(user).unwrap_or_else(|err| {
+        nama_pdk::warn!("ranking without the User's Watchlist: {err}");
+        Vec::new()
+    });
+    Ok(ranked(&titles, &states, &watchlist))
 }
 
 /// A Movie, or a Show by its Episodes' ids, as a row and Featured name it.
@@ -171,9 +177,10 @@ impl Pick {
     }
 }
 
-/// What the User did with a Movie, or with any Episode of a Show.
+/// A Movie or Show on the Server: its genres and Content Rating, and whether the User started or
+/// played it, or any of the Show's Episodes.
 #[derive(Default)]
-struct Watched {
+struct Candidate {
     genres: Vec<String>,
     content_rating: Option<String>,
     started: bool,
@@ -193,24 +200,25 @@ fn ranked(
     watchlist: &[WatchlistTitle],
 ) -> Vec<Pick> {
     let mut order = Vec::new();
-    let mut watched: HashMap<Key, Watched> = HashMap::new();
+    let mut candidates: HashMap<Key, Candidate> = HashMap::new();
     for (title, state) in titles.iter().zip(states) {
         let Some(key) = Key::of_title(title).filter(|_| state.title_ref == title.title_ref) else {
             continue;
         };
-        let entry = watched.entry(key.clone()).or_insert_with(|| {
+        let candidate = candidates.entry(key.clone()).or_insert_with(|| {
             order.push(key);
-            Watched {
+            Candidate {
                 genres: title.genres.clone(),
                 content_rating: title.content_rating.clone(),
-                ..Watched::default()
+                ..Candidate::default()
             }
         });
-        entry.started |= (state.states.iter()).any(|s| s.played || s.position_ms > 0);
-        entry.played |= state.states.iter().any(|s| s.played);
+        candidate.started |= (state.states.iter()).any(|it| it.played || it.position_ms > 0);
+        candidate.played |= (state.states.iter()).any(|it| it.played);
     }
     let mut genre_plays: HashMap<&str, usize> = HashMap::new();
-    for genre in (watched.values().filter(|title| title.played)).flat_map(|title| &title.genres) {
+    for genre in (candidates.values().filter(|title| title.played)).flat_map(|title| &title.genres)
+    {
         *genre_plays.entry(genre).or_default() += 1;
     }
     let watchlist: HashSet<Key> = (watchlist.iter())
@@ -218,7 +226,7 @@ fn ranked(
         .collect();
     let mut picks: Vec<Pick> = (order.into_iter())
         .filter_map(|key| {
-            let title = watched.get(&key).filter(|title| !title.started)?;
+            let title = candidates.get(&key).filter(|title| !title.started)?;
             Some(Pick {
                 on_watchlist: watchlist.contains(&key),
                 genre_plays: (title.genres.iter())
