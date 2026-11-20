@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO featured_suggestions (plugin_id, user_id, suggestions) VALUES (?, ?, ?)\n             ON CONFLICT (plugin_id, user_id) DO UPDATE SET suggestions = excluded.suggestions",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "42de1e76f336ac9c526d39ab17df80c0538a3f2925fd1a6374ce6ffa561a8c16"
+}

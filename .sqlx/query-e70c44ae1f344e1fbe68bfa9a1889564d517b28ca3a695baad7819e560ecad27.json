@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id FROM featured_refreshes WHERE stale_at > ? AND user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "featured_refreshes",
+            "name": "plugin_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e70c44ae1f344e1fbe68bfa9a1889564d517b28ca3a695baad7819e560ecad27"
+}

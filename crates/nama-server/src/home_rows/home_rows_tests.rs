@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use nama_plugin_api::{
@@ -15,7 +15,11 @@ use nama_plugin_api::{
 };
 use tempfile::TempDir;
 
-use super::{HomeRows as Kept, Kind, OnServer, Row, Title, kept, lock, shown};
+use super::{
+    HomeRows as Kept, Kind, OnServer, Row, Title,
+    rows::{Rows, kept},
+    shown,
+};
 use crate::{
     db::Database,
     events::EventBus,
@@ -87,14 +91,10 @@ fn rows_past_three_titles_past_200_and_headings_past_40_characters_are_cut() {
 }
 
 #[test]
-fn a_time_to_live_is_clamped_and_the_rows_are_fresh_for_the_shortest() {
-    let (_, too_short) = kept(given(vec![row("a", 60, vec![]), row("b", 3600, vec![])]));
-    let (_, too_long) = kept(given(vec![row("a", 30 * 24 * 3600, vec![])]));
-    let (_, within) = kept(given(vec![row("a", 7200, vec![]), row("b", 3600, vec![])]));
+fn the_rows_are_fresh_for_the_shortest_time_to_live() {
+    let (_, fresh_for) = kept(given(vec![row("a", 7200, vec![]), row("b", 60, vec![])]));
 
-    assert_eq!(too_short, Duration::from_mins(15));
-    assert_eq!(too_long, Duration::from_hours(7 * 24));
-    assert_eq!(within, Duration::from_hours(1));
+    assert_eq!(fresh_for, Duration::from_mins(1));
 }
 
 #[test]
@@ -159,18 +159,17 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
 #[derive(Default)]
 pub(super) struct Calls {
     /// In order: `None` for the shared rows, or the Personal settings a User's call carried.
-    asked: Mutex<Vec<Option<BTreeMap<String, String>>>>,
+    pub(super) asked: Mutex<Vec<Option<BTreeMap<String, String>>>>,
     /// In order, the Personal settings each `user_featured` call carried.
     pub(super) featured_asked: Mutex<Vec<BTreeMap<String, String>>>,
     /// In order, the User id each `user_rows` and `user_featured` call carried.
     pub(super) user_ids: Mutex<Vec<i64>>,
-    /// Its `user_rows` and `user_featured` answer only once it holds this, so a test keeps a
-    /// call in flight.
-    pub(super) users_held: tokio::sync::Mutex<()>,
+    /// It answers only once it holds this, so a test keeps a call in flight.
+    pub(super) held: tokio::sync::Mutex<()>,
 }
 
 impl Calls {
-    fn asked(&self) -> Vec<Option<BTreeMap<String, String>>> {
+    pub(super) fn asked(&self) -> Vec<Option<BTreeMap<String, String>>> {
         self.asked.lock().unwrap().clone()
     }
 }
@@ -208,7 +207,10 @@ impl HomeRowSource for Recorded {
         _asked: &'a SharedRowsAsked,
     ) -> BoxFuture<'a, Result<HomeRows, PluginError>> {
         self.calls.asked.lock().unwrap().push(None);
-        Box::pin(async { Ok(given(vec![row("shared", 3600, vec![movie("1")])])) })
+        Box::pin(async {
+            let _held = self.calls.held.lock().await;
+            Ok(given(vec![row("shared", 3600, vec![movie("1")])]))
+        })
     }
 
     fn user_rows<'a>(
@@ -219,7 +221,7 @@ impl HomeRowSource for Recorded {
         self.calls.asked.lock().unwrap().push(Some(settings));
         self.calls.user_ids.lock().unwrap().push(asked.user_id);
         Box::pin(async {
-            let _held = self.calls.users_held.lock().await;
+            let _held = self.calls.held.lock().await;
             Ok(given(vec![row("theirs", 3600, vec![movie("2")])]))
         })
     }
@@ -233,7 +235,7 @@ impl HomeRowSource for Recorded {
         self.calls.user_ids.lock().unwrap().push(asked.user_id);
         let handle = asked.personal_settings.get("handle").cloned();
         Box::pin(async move {
-            let _held = self.calls.users_held.lock().await;
+            let _held = self.calls.held.lock().await;
             let suggestion = |tmdb: String| FeaturedSuggestion {
                 kind: TitleKind::TITLE_KIND_MOVIE.into(),
                 id: movie(&tmdb).id,
@@ -331,84 +333,13 @@ async fn open_home(home: &Kept, user: i64) {
 }
 
 async fn wait_for_refreshes(home: &Kept) {
-    let started = Instant::now();
-    while !lock(&home.refreshing).is_empty() {
-        assert!(
-            started.elapsed() < Duration::from_secs(10),
-            "still refreshing"
-        );
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    home.refreshes.settled().await;
 }
 
 /// The keys of the rows stored for `user`, the shared ones first.
 async fn stored_keys(home: &Kept, user: i64) -> Vec<String> {
-    let stored = home.stored(user).await.unwrap();
+    let stored = Rows(home.clone()).stored(user).await.unwrap();
     stored.into_iter().map(|(_, row)| row.key).collect()
-}
-
-/// Whose rows' refreshes are marked, `None` for the shared rows first.
-async fn refreshes_marked(db: &Database) -> Vec<Option<i64>> {
-    sqlx::query_scalar("SELECT user_id FROM home_row_refreshes ORDER BY user_id")
-        .fetch_all(db.reader())
-        .await
-        .unwrap()
-}
-
-#[tokio::test]
-async fn a_version_no_longer_giving_users_rows_deletes_every_users_rows_and_their_refreshes() {
-    let (_dir, db, old_version, _) = recorded(BOTH).await;
-    let ada = insert_user(&db, "ada").await;
-    let bea = insert_user(&db, "bea").await;
-    open_home(&old_version, ada).await;
-    open_home(&old_version, bea).await;
-    let (new_version, _) = started(&db, SHARED);
-
-    open_home(&new_version, ada).await;
-
-    assert_eq!(stored_keys(&new_version, bea).await, ["shared"]);
-    assert_eq!(refreshes_marked(&db).await, [None]);
-}
-
-#[tokio::test]
-async fn a_version_no_longer_giving_users_rows_deletes_them_as_a_user_without_any_lists_home() {
-    let (_dir, db, old_version, _) = recorded(BOTH).await;
-    let ada = insert_user(&db, "ada").await;
-    let cy = insert_user(&db, "cy").await;
-    open_home(&old_version, ada).await;
-    let (new_version, _) = started(&db, SHARED);
-
-    open_home(&new_version, cy).await;
-
-    assert_eq!(stored_keys(&new_version, ada).await, ["shared"]);
-    assert_eq!(refreshes_marked(&db).await, [None]);
-}
-
-#[tokio::test]
-async fn a_version_no_longer_giving_shared_rows_deletes_them_and_their_refresh() {
-    let (_dir, db, old_version, _) = recorded(BOTH).await;
-    let ada = insert_user(&db, "ada").await;
-    let bea = insert_user(&db, "bea").await;
-    open_home(&old_version, ada).await;
-    open_home(&old_version, bea).await;
-    let (new_version, _) = started(&db, &[HomeRowMethod::User]);
-
-    open_home(&new_version, ada).await;
-
-    assert_eq!(stored_keys(&new_version, bea).await, ["theirs"]);
-    assert_eq!(refreshes_marked(&db).await, [Some(ada), Some(bea)]);
-}
-
-#[tokio::test]
-async fn a_source_giving_only_shared_rows_is_never_asked_for_a_users() {
-    let (_dir, db, home, calls) = recorded(SHARED).await;
-    let ada = insert_user(&db, "ada").await;
-    set_handle(&db, ada, "ada").await;
-
-    open_home(&home, ada).await;
-
-    assert_eq!(calls.asked(), [None]);
-    assert_eq!(stored_keys(&home, ada).await, ["shared"]);
 }
 
 #[tokio::test]
@@ -478,48 +409,4 @@ async fn deleting_a_user_deletes_their_rows() {
     .unwrap();
 
     assert_eq!(stored_keys(&home, ada).await, ["shared"]);
-}
-
-#[tokio::test]
-async fn changing_a_users_personal_settings_refreshes_their_rows_on_their_next_visit() {
-    let (_dir, db, home, calls) = recorded(BOTH).await;
-    let ada = insert_user(&db, "ada").await;
-    set_handle(&db, ada, "ada").await;
-    open_home(&home, ada).await;
-
-    set_handle(&db, ada, "ada-2").await;
-    open_home(&home, ada).await;
-
-    assert_eq!(
-        calls.asked(),
-        [None, Some(handle("ada")), Some(handle("ada-2"))],
-        "the fresh shared rows aren't asked again"
-    );
-}
-
-#[tokio::test]
-async fn rows_asked_before_a_user_changed_their_personal_settings_are_not_kept() {
-    let (_dir, db, home, calls) = recorded(BOTH).await;
-    let ada = insert_user(&db, "ada").await;
-    set_handle(&db, ada, "ada").await;
-    let held = calls.users_held.lock().await;
-    home.list(&reader(ada)).await.unwrap();
-    let started = Instant::now();
-    while !calls.asked().contains(&Some(handle("ada"))) {
-        assert!(started.elapsed() < Duration::from_secs(10), "never asked");
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-
-    set_handle(&db, ada, "ada-2").await;
-    drop(held);
-    wait_for_refreshes(&home).await;
-
-    assert_eq!(
-        stored_keys(&home, ada).await,
-        ["shared"],
-        "the answer was dropped"
-    );
-    open_home(&home, ada).await;
-    assert_eq!(calls.asked().last(), Some(&Some(handle("ada-2"))));
-    assert_eq!(stored_keys(&home, ada).await, ["shared", "theirs"]);
 }

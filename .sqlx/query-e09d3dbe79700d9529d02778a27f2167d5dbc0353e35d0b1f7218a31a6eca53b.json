@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT plugin_id, user_id FROM home_row_refreshes\n             WHERE stale_at > ? AND (user_id IS NULL OR user_id = ?)",
+  "query": "SELECT plugin_id, suggestions FROM featured_suggestions WHERE user_id = ?",
   "describe": {
     "columns": [
       {
@@ -9,30 +9,30 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "home_row_refreshes",
+            "table": "featured_suggestions",
             "name": "plugin_id"
           }
         }
       },
       {
-        "name": "user_id",
+        "name": "suggestions",
         "ordinal": 1,
-        "type_info": "Integer",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "home_row_refreshes",
-            "name": "user_id"
+            "table": "featured_suggestions",
+            "name": "suggestions"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
       false,
-      true
+      false
     ]
   },
-  "hash": "5d87d08a9d8e870cb8751d35a5ac1adfa11521a7183e35c705eb3c9f5925f570"
+  "hash": "e09d3dbe79700d9529d02778a27f2167d5dbc0353e35d0b1f7218a31a6eca53b"
 }

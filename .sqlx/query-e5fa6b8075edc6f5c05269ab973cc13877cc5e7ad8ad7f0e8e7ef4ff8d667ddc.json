@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM featured_suggestions WHERE plugin_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "e5fa6b8075edc6f5c05269ab973cc13877cc5e7ad8ad7f0e8e7ef4ff8d667ddc"
+}
