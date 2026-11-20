@@ -3,18 +3,20 @@ export type SetupRun =
   | { kind: "text" | "strong" | "code"; text: string }
   | { kind: "link"; text: string; href: string };
 
-/** A paragraph, bulleted list or numbered list of a Plugin's setup steps. A paragraph has one item. */
-export interface SetupBlock {
-  kind: "paragraph" | "bullets" | "steps";
-  items: SetupRun[][];
-}
+/** A paragraph, bulleted list or numbered list of a Plugin's setup steps. */
+export type SetupBlock =
+  | { kind: "paragraph"; runs: SetupRun[] }
+  | { kind: "bullets" | "steps"; items: SetupRun[][] };
 
 const bullet = /^\s*[-*+]\s+(?<rest>.*)$/u;
 const step = /^\s*\d+[.)]\s+(?<rest>.*)$/u;
-const run =
+const inlineRun =
   /\*\*(?<strong>.+?)\*\*|`(?<code>[^`]+)`|\[(?<label>[^\]]+)\]\((?<href>(?:[^\s()]|\([^\s()]*\))+)\)/gu;
 
-/** `href` as an absolute http or https URL, or `undefined` for any other scheme or none. */
+/**
+ * `href` as an absolute http or https URL, or `undefined` for any other scheme or none: the only
+ * links a Plugin's page renders (`src/features/admin-plugins/AGENTS.md`).
+ */
 export function webUrl(href: string): string | undefined {
   const url = URL.parse(href);
   return url?.protocol === "http:" || url?.protocol === "https:" ? url.href : undefined;
@@ -23,19 +25,24 @@ export function webUrl(href: string): string | undefined {
 /**
  * A Plugin's setup steps, read as the small Markdown subset its page shows: paragraphs, lists,
  * bold, inline code and links. Anything else, raw HTML included, stays text, since the page puts
- * it in the DOM only as text (ADR 0058).
+ * it in the DOM only as text (ADR 0058, `src/features/admin-plugins/AGENTS.md`).
  */
 export function parseSetupMarkdown(source: string): SetupBlock[] {
   const blocks: LineBlock[] = [];
   let afterBlank = false;
-  for (const line of source.split("\n")) {
+  // shortcut: no nested lists, `start` numbers or links in bold; add them if a Plugin needs them.
+  for (const line of source.split(/\r?\n/u)) {
     const blank = line.trim() === "";
     if (!blank) {
       addLine(blocks, line, afterBlank);
     }
     afterBlank = blank;
   }
-  return blocks.map(({ kind, items }) => ({ kind, items: items.map((text) => runsOf(text)) }));
+  return blocks.map(({ kind, items }) =>
+    kind === "paragraph"
+      ? { kind, runs: runsOf(items.join(" ")) }
+      : { kind, items: items.map((text) => runsOf(text)) },
+  );
 }
 
 /** A `SetupBlock` whose items are still their Markdown. */
@@ -73,15 +80,14 @@ function listItem(line: string) {
   return numbered === undefined ? undefined : { kind: "steps" as const, text: numbered };
 }
 
-/** The runs of one paragraph or list item. */
 function runsOf(text: string): SetupRun[] {
   const runs: SetupRun[] = [];
   let at = 0;
-  for (const match of text.matchAll(run)) {
+  for (const match of text.matchAll(inlineRun)) {
     if (match.index > at) {
       runs.push({ kind: "text", text: text.slice(at, match.index) });
     }
-    runs.push(styled(match.groups ?? {}));
+    runs.push(runOfMatch(match.groups ?? {}));
     at = match.index + match[0].length;
   }
   if (at < text.length) {
@@ -90,8 +96,8 @@ function runsOf(text: string): SetupRun[] {
   return runs;
 }
 
-/** The run one match of `run` stands for. A link to anything but a web page stays its label. */
-function styled({
+/** The run one match of `inlineRun` stands for. A link to anything but a web page stays its label. */
+function runOfMatch({
   strong,
   code,
   label = "",

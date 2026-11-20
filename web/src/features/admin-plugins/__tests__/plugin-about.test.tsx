@@ -65,7 +65,7 @@ test("a Plugin with only a licence shows just the licence", async () => {
   expect(page.queryByRole("link", { name: "Homepage" })).toBeNull();
 });
 
-test("hTML in setup steps reaches the page as text, never as an element", () => {
+test("raw HTML in setup steps reaches the page as text, never as an element", () => {
   const { container } = renderSetup(
     [
       "<script>alert(1)</script>",
@@ -103,8 +103,8 @@ test("a homepage that isn't http or https isn't linked", () => {
   expect(container.innerHTML).toBe("");
 });
 
-test("a numbered list with blank lines between its steps stays one list", () => {
-  renderSetup("1. Sign in.\n\n2. Copy the key\n   from your profile.");
+test("a numbered list with blank lines and CRLFs between its steps stays one list", () => {
+  renderSetup("1. Sign in.\r\n\r\n2. Copy the key\r\n   from your profile.");
 
   expect(screen.getAllByRole("list")).toHaveLength(1);
   expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toStrictEqual([

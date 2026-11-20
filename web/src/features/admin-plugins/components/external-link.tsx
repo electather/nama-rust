@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 
-/** A link out of the app to `href`, an http or https URL, in a new tab that can't reach this one. */
+/**
+ * A link out of the app to `href`, an http or https URL (`webUrl`), in a new tab that can’t reach
+ * this one (`src/features/admin-plugins/AGENTS.md`).
+ */
 export function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <a
