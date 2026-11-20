@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO chapters (version_id, position, start_ms, title) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "8556acbd48e34a694347d0a4f9f5395ebfbf17b926aa6db37b3c2fb99f99be03"
+}

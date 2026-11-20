@@ -191,6 +191,7 @@ fn probe_of(tracks: Vec<Track>) -> Probe {
         bitrate: None,
         tracks,
         font_attachments: vec![],
+        chapters: vec![],
     }
 }
 

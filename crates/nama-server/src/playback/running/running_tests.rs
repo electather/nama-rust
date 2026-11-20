@@ -642,6 +642,7 @@ pub(super) fn direct_play_of(version: i64) -> crate::playback::Plan {
         burn_in: None,
         starting_subtitle: None,
         offers: crate::playback::Offers::default(),
+        chapters: vec![],
     }
 }
 

@@ -53,7 +53,7 @@ pub(crate) use track_preferences::{
     Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,
     is_language,
 };
-pub(crate) use tracks::{Probe, Track, TrackKind, Tracks, track_to_proto};
+pub(crate) use tracks::{Chapter, Probe, Track, TrackKind, Tracks, track_to_proto};
 
 use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32};
 
@@ -143,6 +143,8 @@ pub(crate) struct Plan {
     /// one in `burn_in`, or else a text one the Server chose for the Device to show.
     pub(crate) starting_subtitle: Option<usize>,
     pub(crate) offers: Offers,
+    /// The Version's Chapters, or none when it has fewer than two, which the player has no use for.
+    pub(crate) chapters: Vec<Chapter>,
 }
 
 impl Plan {
@@ -675,6 +677,10 @@ fn build(facts: &mut Facts) -> Plan {
         burn_in: burned_in,
         starting_subtitle: burned_in.or(facts.shown_subtitle),
         offers: offers(facts, &lasting),
+        chapters: (facts.probe.as_ref())
+            .map(|probe| probe.chapters.clone())
+            .filter(|chapters| chapters.len() > 1)
+            .unwrap_or_default(),
     }
 }
 
