@@ -26,7 +26,7 @@ const STOP_FILE = ".sandcastle/STOP";
 // SIGUSR1 (see handover.sh) does the same for this run alone, so a newer run can start beside it: it drains.
 let draining = false;
 const stopping = () => draining || existsSync(STOP_FILE);
-// Opus for implement and review; fix (merge main, mend CI) is narrow enough for Sonnet, with Opus as fallback.
+// Opus for implement and review; triage and fix (merge main, mend CI) are narrow enough for Sonnet, fix with Opus as fallback.
 const OPUS = sandcastle.claudeCode("claude-opus-5-5", { effort: "high" });
 const SONNET = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" });
 const READY = "ready-for-agent";
@@ -752,7 +752,7 @@ async function triage(issue: Issue): Promise<Outcome> {
   let out: string;
   try {
     stage(issue, "triage");
-    out = (await agent(box, issue, "triage", { ME })).stdout;
+    out = (await agent(box, issue, "triage", { ME }, SONNET)).stdout;
   } finally {
     await box.close();
     ok("git", "branch", "-D", issue.branch);
@@ -1190,24 +1190,29 @@ async function mainLoop() {
   await Promise.all(running);
 }
 
-// Acts on the finished push run of main's tip (see mainAction). Returns the run and attempt it judged, so each is
-// acted on once. Main's runs are never cancelled (ci.yml's concurrency group is the commit), so every tip gets one.
+// Acts on main's newest finished push run (see mainAction), not only the tip's: while merges land faster than CI
+// the tip's run is never finished when it's looked at (#1274). Returns the run and attempt it judged, so each is
+// acted on once. A rerun leaves the finished list until it finishes again.
 function watchMain(fixOpen: boolean, judged: string): string {
-  const tip = git("ls-remote", "origin", `refs/heads/${BASE}`).split("\t")[0];
-  const run: { databaseId: number; status: string; attempt: number } | undefined = JSON.parse(
-    gh("run", "list", "--workflow", "CI", "--commit", tip, "--event", "push", "--limit", "1", "--json", "databaseId,status,attempt"),
-  )[0];
-  if (!run || run.status !== "completed") return judged;
+  const runs: { databaseId: number; status: string; attempt: number; headSha: string }[] = JSON.parse(
+    gh("run", "list", "--workflow", "CI", "--branch", BASE, "--event", "push", "--limit", "10",
+      "--json", "databaseId,status,attempt,headSha"),
+  );
+  const [run, before] = runs.filter((r) => r.status === "completed");
+  if (!run) return judged;
   const key = `${run.databaseId}/${run.attempt}`;
   if (key === judged) return judged;
   const id = String(run.databaseId);
-  const failed = failedJobs(JSON.parse(gh("run", "view", id, "--json", "jobs", "--jq", "[.jobs[] | {name, conclusion}]")));
-  const action = mainAction({ attempt: run.attempt, failed }, fixOpen);
+  const failedIn = (runId: string) =>
+    failedJobs(JSON.parse(gh("run", "view", runId, "--json", "jobs", "--jq", "[.jobs[] | {name, conclusion}]")));
+  const failed = failedIn(id);
+  const failedBefore = failed.length && before ? failedIn(String(before.databaseId)) : [];
+  const action = mainAction({ attempt: run.attempt, failed, failedBefore }, fixOpen);
   if (action === "rerun") {
-    log(`main ${tip.slice(0, 7)} failed ${failed.join(", ")}: rerunning them once, in case they're flaky`);
+    log(`main ${run.headSha.slice(0, 7)} failed ${failed.join(", ")}: rerunning them once, in case they're flaky`);
     gh("run", "rerun", id, "--failed");
   }
-  if (action === "file") fileMainRed(tip, id, failed);
+  if (action === "file") fileMainRed(run.headSha, id, failed);
   return key;
 }
 
@@ -1219,7 +1224,7 @@ function fileMainRed(sha: string, run: string, failed: string[]) {
   const logs = spawnSync("gh", ["run", "view", run, "--log-failed"], { encoding: "utf8", maxBuffer: 512 * 2 ** 20 }).stdout ?? "";
   const errors = logs.replaceAll(/\x1b\[[0-9;]*m/g, "").split("\n")
     .filter((l) => /error|panicked|failed|assert/i.test(l)).slice(-80).join("\n").slice(-15_000);
-  const body = `🏭 Main's CI failed on ${sha}, and again when the failed jobs were rerun: ${url}
+  const body = `🏭 Main's CI failed on ${sha}, and again on a rerun or on the commit before it: ${url}
 
 **Failing jobs:** ${failed.join(", ")}
 
