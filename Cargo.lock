@@ -2425,6 +2425,7 @@ dependencies = [
 name = "nama-test-plugin"
 version = "0.1.0"
 dependencies = [
+ "extism-pdk",
  "nama-pdk",
 ]
 

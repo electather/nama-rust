@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fs,
     path::Path,
     sync::Arc,
@@ -10,8 +10,10 @@ use buffa::MessageField;
 use nama_plugin_api::{
     PluginId,
     automation::{
-        DeleteAsked, Kernel, LibrariesAsked, LibraryKind, Permission, Requesters, RequestersAsked,
-        StoreKey, TitleRef, TitleRefKind, Titles, TitlesAsked, UsersAsked, WatchStatesAsked,
+        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries as ListedLibraries,
+        LibrariesAsked, LibraryKind, Permission, Requesters, RequestersAsked, StoreKey, StoreValue,
+        TitleRef, TitleRefKind, Titles, TitlesAsked, Users as ListedUsers, UsersAsked,
+        WatchStates as ListedWatchStates, WatchStatesAsked,
     },
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
@@ -22,7 +24,7 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 
-use super::Automation;
+use super::{Automation, FUNCTIONS, permission_name};
 use crate::{
     db::{self, Database},
     events::EventBus,
@@ -33,12 +35,16 @@ use crate::{
         fixture::{self, MatchedMovie, tmdb_movie},
     },
     playback::RunningPlans,
-    plugins::{ExtensionPoints, Registry},
+    plugins::{ExtensionPoints, KERNEL_IMPORTS, Registry},
     requests::Requests,
     scanner::Scanner,
     server_settings::ServerUrl,
     users::{Permissions, User, Users},
 };
+
+#[path = "../../tests/support/kernel.rs"]
+mod kernel_support;
+use kernel_support::ask;
 
 const ALIEN_TMDB_ID: i64 = 348;
 
@@ -197,6 +203,9 @@ async fn movies(db: &Arc<Database>, folder: &Path, tmdb_ids: &[i64]) -> i64 {
     library
 }
 
+/// A request no function can read: a varint cut off.
+const UNREADABLE: &[u8] = &[0xff];
+
 fn titles_asked(library: i64, page_size: u32, page_token: &str) -> TitlesAsked {
     TitlesAsked {
         library_id: library,
@@ -206,31 +215,53 @@ fn titles_asked(library: i64, page_size: u32, page_token: &str) -> TitlesAsked {
     }
 }
 
-fn delete(title: TitleRef) -> DeleteAsked {
-    DeleteAsked {
+/// What `kernel` answers deleting `title`.
+async fn delete(kernel: &Arc<dyn Kernel>, title: TitleRef) -> Result<DeleteStarted, KernelRefused> {
+    let asked = DeleteAsked {
         title_ref: MessageField::some(title),
         ..DeleteAsked::default()
+    };
+    ask(kernel, "delete_media", &asked).await
+}
+
+#[tokio::test]
+async fn every_function_refuses_a_plugin_not_granted_its_permission_before_reading_the_request() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_UNSPECIFIED);
+
+    for function in FUNCTIONS {
+        let refused = kernel.call(function.name, UNREADABLE.to_vec()).await;
+
+        let needs = permission_name(function.needs);
+        let words = format!("the Admin hasn't granted cleanup the {needs} Permission");
+        assert_eq!(refused.unwrap_err().0, words);
     }
 }
 
 #[tokio::test]
-async fn a_function_without_its_permission_is_refused_in_plain_words() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-    let (_automation, kernel) = kernel(&db, data_dir.path(), Permission::PERMISSION_STORE);
+async fn a_granted_function_refuses_a_request_it_cant_read_and_an_unknown_one_is_refused() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_STORE);
 
-    let deleted = kernel.delete_media(&DeleteAsked::default()).await;
-    let listed = kernel.list_libraries(&LibrariesAsked::default()).await;
+    let unreadable = kernel.call("store_get", UNREADABLE.to_vec()).await;
+    let unknown = kernel.call("list_everything", Vec::new()).await;
 
-    assert_eq!(
-        deleted.unwrap_err().0,
-        "the Admin hasn't granted cleanup the Delete media Permission"
-    );
-    assert_eq!(
-        listed.unwrap_err().0,
-        "the Admin hasn't granted cleanup the Read Libraries Permission"
-    );
-    kernel.store_get(&StoreKey::default()).await.unwrap();
+    let unreadable = unreadable.unwrap_err().0;
+    assert_eq!(unreadable, "the Kernel couldn't read the request");
+    let unknown = unknown.unwrap_err().0;
+    assert_eq!(unknown, "the Kernel has no function list_everything");
+}
+
+#[test]
+fn every_kernel_import_has_one_function_and_every_function_an_import() {
+    let rows: BTreeSet<_> = FUNCTIONS.iter().map(|function| function.name).collect();
+    let imports: BTreeSet<_> = KERNEL_IMPORTS.iter().copied().collect();
+
+    assert_eq!(rows, imports);
+    let listed_once = rows.len() == FUNCTIONS.len() && imports.len() == KERNEL_IMPORTS.len();
+    assert!(listed_once, "a name is listed twice");
 }
 
 #[tokio::test]
@@ -241,8 +272,7 @@ async fn list_libraries_lists_each_library() {
     let id = fixture::movies_library(&db, media.path()).await;
     let (_automation, kernel) = kernel(&db, data_dir.path(), Permission::PERMISSION_READ_LIBRARIES);
 
-    let listed = kernel
-        .list_libraries(&LibrariesAsked::default())
+    let listed = ask::<ListedLibraries>(&kernel, "list_libraries", &LibrariesAsked::default())
         .await
         .unwrap();
 
@@ -273,7 +303,7 @@ async fn list_titles_gives_each_movie_with_the_id_its_watch_state_uses() {
         library_id: alien.library,
         ..TitlesAsked::default()
     };
-    let listed = kernel.list_titles(&asked).await.unwrap();
+    let listed = ask::<Titles>(&kernel, "list_titles", &asked).await.unwrap();
 
     let [title] = listed.titles.as_slice() else {
         panic!("{listed:?}");
@@ -297,7 +327,7 @@ async fn list_titles_gives_when_each_movie_and_episode_was_added() {
 
     let mut added = Vec::new();
     for library in [alien.library, dark] {
-        let listed = kernel.list_titles(&titles_asked(library, 0, "")).await;
+        let listed = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 0, "")).await;
         added.extend(listed.unwrap().titles.iter().map(|title| title.added_at_ms));
     }
 
@@ -319,7 +349,7 @@ async fn list_titles_pages_cover_every_title_once_in_order_and_the_last_has_no_t
     let mut pages = Vec::new();
     let mut token = String::new();
     loop {
-        let page = kernel.list_titles(&titles_asked(library, 2, &token)).await;
+        let page = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 2, &token)).await;
         let page = page.unwrap();
         let ids: Vec<_> = (page.titles.iter())
             .map(|title| title.title_ref.id.value.clone())
@@ -347,7 +377,7 @@ async fn a_title_matched_between_two_pages_neither_repeats_nor_skips_a_listed_on
             .collect()
     };
 
-    let first = kernel.list_titles(&titles_asked(library, 2, "")).await;
+    let first = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 2, "")).await;
     let first = first.unwrap();
     let path = media.path().canonicalize().unwrap().join("1.mkv");
     let contents = Contents::new(Arc::clone(&db));
@@ -359,7 +389,7 @@ async fn a_title_matched_between_two_pages_neither_repeats_nor_skips_a_listed_on
     )
     .await;
     let asked = titles_asked(library, 2, &first.next_page_token);
-    let second = kernel.list_titles(&asked).await.unwrap();
+    let second = ask::<Titles>(&kernel, "list_titles", &asked).await.unwrap();
 
     assert_eq!(ids(&first), ["2", "3"]);
     assert_eq!(ids(&second), ["5", "6"]);
@@ -374,7 +404,7 @@ async fn list_titles_with_page_size_0_gives_every_title_without_a_token() {
     let library = movies(&db, media.path(), &[2, 1, 3]).await;
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
 
-    let listed = kernel.list_titles(&titles_asked(library, 0, "")).await;
+    let listed = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 0, "")).await;
 
     let listed = listed.unwrap();
     let ids: Vec<_> = (listed.titles.iter())
@@ -392,7 +422,7 @@ async fn list_titles_refuses_a_page_token_it_didnt_hand_out() {
     let library = movies(&db, media.path(), &[1]).await;
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
 
-    let refused = kernel.list_titles(&titles_asked(library, 2, "next")).await;
+    let refused = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 2, "next")).await;
 
     assert_eq!(
         refused.unwrap_err().0,
@@ -418,7 +448,7 @@ async fn list_watch_states_gives_each_users_watch_state_of_each_title() {
         titles: vec![movie_ref(1, ALIEN_TMDB_ID), movie_ref(1, 1)],
         ..WatchStatesAsked::default()
     };
-    let listed = kernel.list_watch_states(&asked).await.unwrap();
+    let listed: ListedWatchStates = ask(&kernel, "list_watch_states", &asked).await.unwrap();
 
     let [watched, unwatched] = listed.titles.as_slice() else {
         panic!("{listed:?}");
@@ -469,7 +499,7 @@ async fn list_watch_states_finds_a_movies_watch_state_kept_under_another_of_its_
         titles: vec![movie_ref(alien.library, ALIEN_TMDB_ID)],
         ..WatchStatesAsked::default()
     };
-    let listed = kernel.list_watch_states(&asked).await.unwrap();
+    let listed: ListedWatchStates = ask(&kernel, "list_watch_states", &asked).await.unwrap();
 
     assert_eq!(users_played(&listed), [(ada, true)]);
 }
@@ -493,23 +523,9 @@ async fn list_watch_states_finds_an_episodes_watch_state_kept_under_another_of_i
         titles: vec![episode_ref(library, LIES_TMDB_ID)],
         ..WatchStatesAsked::default()
     };
-    let listed = kernel.list_watch_states(&asked).await.unwrap();
+    let listed: ListedWatchStates = ask(&kernel, "list_watch_states", &asked).await.unwrap();
 
     assert_eq!(users_played(&listed), [(ada, true)]);
-}
-
-#[tokio::test]
-async fn list_users_without_its_permission_is_refused_naming_it() {
-    let data = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCH_STATES);
-
-    let refused = kernel.list_users(&UsersAsked::default()).await;
-
-    assert_eq!(
-        refused.unwrap_err().0,
-        "the Admin hasn't granted cleanup the Read Users Permission"
-    );
 }
 
 #[tokio::test]
@@ -523,7 +539,9 @@ async fn list_users_gives_every_user_with_their_id_and_display_name() {
         .unwrap();
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_USERS);
 
-    let listed = kernel.list_users(&UsersAsked::default()).await.unwrap();
+    let listed = ask::<ListedUsers>(&kernel, "list_users", &UsersAsked::default())
+        .await
+        .unwrap();
 
     let users: Vec<_> = (listed.users.iter())
         .map(|user| (user.id, user.display_name.as_str()))
@@ -539,9 +557,7 @@ async fn delete_media_refuses_a_title_the_library_doesnt_have() {
     let library = fixture::movies_library(&db, media.path()).await;
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_DELETE_MEDIA);
 
-    let refused = kernel
-        .delete_media(&delete(movie_ref(library, ALIEN_TMDB_ID)))
-        .await;
+    let refused = delete(&kernel, movie_ref(library, ALIEN_TMDB_ID)).await;
 
     assert_eq!(
         refused.unwrap_err().0,
@@ -562,9 +578,7 @@ async fn delete_media_refuses_media_in_a_read_only_folder() {
         .unwrap();
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_DELETE_MEDIA);
 
-    let refused = kernel
-        .delete_media(&delete(movie_ref(alien.library, ALIEN_TMDB_ID)))
-        .await;
+    let refused = delete(&kernel, movie_ref(alien.library, ALIEN_TMDB_ID)).await;
 
     assert_eq!(
         refused.unwrap_err().0,
@@ -582,8 +596,7 @@ async fn delete_media_removes_the_movies_versions_in_the_background() {
     fs::write(&file, "alien").unwrap();
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_DELETE_MEDIA);
 
-    kernel
-        .delete_media(&delete(movie_ref(alien.library, ALIEN_TMDB_ID)))
+    delete(&kernel, movie_ref(alien.library, ALIEN_TMDB_ID))
         .await
         .unwrap();
 
@@ -613,8 +626,7 @@ async fn shutting_down_right_after_delete_media_waits_for_the_delete() {
     fs::write(&file, "alien").unwrap();
     let (automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_DELETE_MEDIA);
 
-    kernel
-        .delete_media(&delete(movie_ref(alien.library, ALIEN_TMDB_ID)))
+    delete(&kernel, movie_ref(alien.library, ALIEN_TMDB_ID))
         .await
         .unwrap();
     automation.scanner.shutdown().await;
@@ -630,9 +642,7 @@ async fn delete_media_refuses_an_episode_whose_file_holds_one_not_named_and_dele
     let (library, path) = two_episodes_in_one_file(&db, media.path()).await;
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_DELETE_MEDIA);
 
-    let refused = kernel
-        .delete_media(&delete(episode_ref(library, SECRETS_TMDB_ID)))
-        .await;
+    let refused = delete(&kernel, episode_ref(library, SECRETS_TMDB_ID)).await;
 
     assert_eq!(
         refused.unwrap_err().0,
@@ -656,10 +666,11 @@ async fn delete_media_of_an_episode_naming_the_other_in_also_starts_and_gives_it
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_DELETE_MEDIA);
 
     let asked = DeleteAsked {
+        title_ref: MessageField::some(episode_ref(library, SECRETS_TMDB_ID)),
         also: vec![episode_ref(library, LIES_TMDB_ID)],
-        ..delete(episode_ref(library, SECRETS_TMDB_ID))
+        ..DeleteAsked::default()
     };
-    let started = kernel.delete_media(&asked).await.unwrap();
+    let started: DeleteStarted = ask(&kernel, "delete_media", &asked).await.unwrap();
 
     assert_eq!(started.taken_along, [episode_ref(library, LIES_TMDB_ID)]);
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -679,22 +690,8 @@ async fn a_function_refuses_once_the_server_is_stopping() {
 
     drop(automation);
 
-    let refused = kernel.store_get(&StoreKey::default()).await;
+    let refused = ask::<StoreValue>(&kernel, "store_get", &StoreKey::default()).await;
     assert_eq!(refused.unwrap_err().0, "the Server is stopping");
-}
-
-#[tokio::test]
-async fn list_requesters_without_its_permission_is_refused_naming_it() {
-    let data = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_USERS);
-
-    let refused = kernel.list_requesters(&RequestersAsked::default()).await;
-
-    assert_eq!(
-        refused.unwrap_err().0,
-        "the Admin hasn't granted cleanup the Read Requests Permission"
-    );
 }
 
 /// Requests on `db` looking titles up in `tmdb`, and the Plugins they need kept enabled.
@@ -754,7 +751,9 @@ async fn list_requesters_gives_who_requested_each_movie_and_episode() {
         ],
         ..RequestersAsked::default()
     };
-    let listed = kernel.list_requesters(&asked).await.unwrap();
+    let listed = ask::<Requesters>(&kernel, "list_requesters", &asked)
+        .await
+        .unwrap();
 
     assert_eq!(
         requested(&listed),
@@ -793,7 +792,9 @@ async fn list_requesters_gives_a_title_whose_only_requester_was_deleted_as_reque
         titles: vec![movie_ref(library, ALIEN_TMDB_ID)],
         ..RequestersAsked::default()
     };
-    let listed = kernel.list_requesters(&asked).await.unwrap();
+    let listed = ask::<Requesters>(&kernel, "list_requesters", &asked)
+        .await
+        .unwrap();
 
     assert_eq!(requested(&listed), [(true, vec![])]);
 }

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use nama_pdk::{
     HomeRow, HomeRowSource, HomeRowTitle, HomeRows, Manifest, TitleId, TitleKind,
-    extism_pdk::{Error, HttpRequest, config, json},
+    extism_pdk::{Error, HttpRequest, json},
     nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind},
     services,
 };
@@ -84,7 +84,7 @@ struct MdbList;
 
 impl HomeRowSource for MdbList {
     fn shared_rows() -> Result<HomeRows, Error> {
-        rows(|key| config::get(key), send)
+        rows(nama_pdk::setting, send)
     }
 }
 
@@ -106,7 +106,7 @@ fn send(url: &Url) -> Result<Answer, Error> {
     )?;
     Ok(Answer {
         status: response.status_code(),
-        body: response.body(),
+        body: response.into_body(),
     })
 }
 

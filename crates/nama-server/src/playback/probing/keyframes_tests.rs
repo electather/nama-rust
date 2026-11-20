@@ -7,7 +7,7 @@ use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 use super::{
     Error, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE, ffprobe::WHOLE_FILE_TIMEOUT,
 };
-use super::{Keyframes, ListedKeyframes, Probe};
+use super::{Keyframes, ListedKeyframes, Probe, plausible};
 use crate::ffmpeg;
 #[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
@@ -446,4 +446,28 @@ async fn a_version_read_by_an_older_probe_gets_its_keyframes_from_its_cues_when_
         media.tracks.keyframes(file).await.unwrap(),
         Some(Keyframes::Listed(cued))
     );
+}
+
+#[test]
+fn index_keyframes_are_plausible_only_from_where_the_first_should_fall_in_order_and_by_the_end() {
+    let from_23 = |keyframes_ms: &[i64]| {
+        let listed = ListedKeyframes {
+            file_start_ms: 0,
+            keyframes_ms: keyframes_ms.to_vec(),
+        };
+        plausible(&listed, 23, Some(5000))
+    };
+
+    assert!(from_23(&[23, 2023]));
+    assert!(from_23(&[24, 2024]), "within a millisecond's rounding");
+    let refused: [(&[i64], _); 5] = [
+        (&[], "none"),
+        (&[0, 2000], "the first before where it should fall"),
+        (&[100, 2023], "the first after"),
+        (&[23, 3023, 2023], "out of order"),
+        (&[23, 7023], "past the end"),
+    ];
+    for (keyframes_ms, why) in refused {
+        assert!(!from_23(keyframes_ms), "{why}");
+    }
 }
