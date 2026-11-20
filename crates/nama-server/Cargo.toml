@@ -64,6 +64,8 @@ serde_json = "1"
 sha2 = "0.11"
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }
 svg-hush = "0.9.7"
+# Backups are one `.tar` (ADR 0068). Its default `xattr` would copy attributes no restore needs.
+tar = { version = "0.4", default-features = false }
 tempfile = "3"
 thiserror = "2"
 thumbhash = "0.1"

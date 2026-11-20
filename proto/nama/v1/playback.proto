@@ -83,6 +83,23 @@ service PlaybackService {
   rpc DownloadSubtitle(DownloadSubtitleRequest) returns (DownloadSubtitleResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns how big the caller's text subtitles are and what's behind them, on every Device: their
+  // Subtitle Appearance. A styled ASS Track the Device draws, and a burned-in one, keep their own.
+  rpc GetSubtitleAppearance(GetSubtitleAppearanceRequest) returns (GetSubtitleAppearanceResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Sets the size of the caller's text subtitles, on every Device. Refused with
+  // `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `SUBTITLE_SIZE_UNSPECIFIED` or a value the Server
+  // doesn't know.
+  rpc SetSubtitleSize(SetSubtitleSizeRequest) returns (SetSubtitleSizeResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Sets what's behind the caller's text subtitles, on every Device. Refused with
+  // `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `SUBTITLE_BACKGROUND_UNSPECIFIED` or a value the Server
+  // doesn't know.
+  rpc SetSubtitleBackground(SetSubtitleBackgroundRequest) returns (SetSubtitleBackgroundResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message SearchSubtitlesRequest {
@@ -156,6 +173,50 @@ message SetAutoplayRequest {
 }
 
 message SetAutoplayResponse {}
+
+message GetSubtitleAppearanceRequest {}
+
+message GetSubtitleAppearanceResponse {
+  // The caller's text subtitle size: `SUBTITLE_SIZE_DEFAULT` until they pick another.
+  SubtitleSize size = 1;
+  // What's behind the caller's text subtitles: `SUBTITLE_BACKGROUND_OUTLINE` until they pick
+  // another.
+  SubtitleBackground background = 2;
+}
+
+message SetSubtitleSizeRequest {
+  // The caller's text subtitle size from now on.
+  SubtitleSize size = 1;
+}
+
+message SetSubtitleSizeResponse {}
+
+message SetSubtitleBackgroundRequest {
+  // What's behind the caller's text subtitles from now on.
+  SubtitleBackground background = 1;
+}
+
+message SetSubtitleBackgroundResponse {}
+
+// How big a User's text subtitles are, beside the size each browser or app shows them at.
+enum SubtitleSize {
+  SUBTITLE_SIZE_UNSPECIFIED = 0;
+  SUBTITLE_SIZE_SMALL = 1;
+  // The size each browser or app shows text subtitles at on its own.
+  SUBTITLE_SIZE_DEFAULT = 2;
+  SUBTITLE_SIZE_LARGE = 3;
+  SUBTITLE_SIZE_LARGEST = 4;
+}
+
+// What's behind a User's text subtitles. Either keeps them legible over any frame, which is why
+// there's no bare text.
+enum SubtitleBackground {
+  SUBTITLE_BACKGROUND_UNSPECIFIED = 0;
+  // A dark edge around each letter, and nothing behind the line.
+  SUBTITLE_BACKGROUND_OUTLINE = 1;
+  // A dark box behind each line.
+  SUBTITLE_BACKGROUND_BOX = 2;
+}
 
 // What a User wants audio to start as in everything they play, unless the Show or Movie has an
 // Audio Preference of its own.

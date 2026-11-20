@@ -1,6 +1,10 @@
 //! Home rows a Plugin gives every User, over the API (ADR 0058): the test Plugin built as a Home
-//! row source, refreshed in the background, its rows showing the titles on the Server.
+//! row source, refreshed in the background, its rows showing the titles on the Server and those
+//! missing from it to Request.
 
+#[path = "support/http.rs"]
+#[expect(dead_code, reason = "this binary reads only a response's status")]
+mod http;
 #[path = "support/log.rs"]
 mod log;
 #[path = "support/refused.rs"]
@@ -14,17 +18,19 @@ mod test_plugin;
 use std::time::{Duration, Instant};
 
 use connectrpc::{ErrorCode, client::HttpClient};
+use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
     BrowseServiceClient, DisablePluginRequest, EnablePluginRequest, HomeRowTitle, LibraryKind,
     ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest, ListPluginsRequest,
-    PageRequest, PluginServiceClient, RefusalReason, SettingValue, UpdatePluginSettingsRequest,
-    home_row_title::MovieOrShow, setting_value::Value,
+    PageRequest, Permission, PluginServiceClient, RefusalReason, RequestState, SettingValue,
+    UpdatePluginSettingsRequest, home_row_title::MovieOrShow, setting_value::Value,
 };
 use refused::assert_refused;
 use server::{
-    Builder, TestServer, WAIT,
-    tmdb::{ALIEN, HEAT},
+    Builder, SignedIn, TestServer, WAIT,
+    requests::Requester,
+    tmdb::{ALIEN, DARK, DUNE, HEAT},
 };
 
 const PLUGIN: &str = "test-plugin";
@@ -74,6 +80,10 @@ fn browse(server: &TestServer) -> BrowseServiceClient<HttpClient> {
     BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
 }
 
+fn browse_as(server: &TestServer, who: &SignedIn) -> BrowseServiceClient<HttpClient> {
+    BrowseServiceClient::new(HttpClient::plaintext(), server.client_config_as(&who.token))
+}
+
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -109,12 +119,17 @@ async fn set_rows(server: &TestServer, rows: &str) {
 }
 
 /// The Home rows home lists now, each as its Plugin, key and heading.
+async fn rows(server: &TestServer) -> Vec<(String, String, String)> {
+    rows_from(&browse(server)).await
+}
+
+/// The Home rows home lists `browse`'s caller now, as [`rows`] lists them.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn rows(server: &TestServer) -> Vec<(String, String, String)> {
-    let listed = browse(server)
+async fn rows_from(browse: &BrowseServiceClient<HttpClient>) -> Vec<(String, String, String)> {
+    let listed = browse
         .list_home_rows(ListHomeRowsRequest::default())
         .await
         .unwrap()
@@ -151,6 +166,24 @@ async fn titles_page(
     size: i32,
     token: &str,
 ) -> Result<ListHomeRowTitlesResponse, connectrpc::ConnectError> {
+    titles_page_from(&browse(server), key, size, token).await
+}
+
+/// The whole of the row `key` as `browse`'s caller sees it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn titles_from(browse: &BrowseServiceClient<HttpClient>, key: &str) -> Vec<HomeRowTitle> {
+    titles_page_from(browse, key, 0, "").await.unwrap().titles
+}
+
+async fn titles_page_from(
+    browse: &BrowseServiceClient<HttpClient>,
+    key: &str,
+    size: i32,
+    token: &str,
+) -> Result<ListHomeRowTitlesResponse, connectrpc::ConnectError> {
     let asked = ListHomeRowTitlesRequest {
         plugin_id: PLUGIN.to_owned(),
         key: key.to_owned(),
@@ -162,26 +195,33 @@ async fn titles_page(
         .into(),
         ..Default::default()
     };
-    Ok(browse(server)
-        .list_home_row_titles(asked)
-        .await?
-        .into_owned())
+    Ok(browse.list_home_row_titles(asked).await?.into_owned())
 }
 
-/// The TMDB id of a Movie in a row, or what else it is.
-fn tmdb(title: &HomeRowTitle) -> String {
+/// A title in a row as its kind, whether it is on the Server, and its TMDB id.
+fn shown(title: &HomeRowTitle) -> String {
     match &title.movie_or_show {
-        Some(MovieOrShow::Movie(movie)) => movie.id.value.clone(),
-        other => format!("not a Movie: {other:?}"),
+        Some(MovieOrShow::Movie(movie)) => format!("Movie {}", movie.id.value),
+        Some(MovieOrShow::Show(show)) => format!("Show {}", show.id.value),
+        Some(MovieOrShow::MissingMovie(movie)) => format!("missing Movie {}", movie.id.value),
+        Some(MovieOrShow::MissingShow(show)) => format!("missing Show {}", show.id.value),
+        None => "nothing".to_owned(),
     }
 }
 
+/// Each of `titles`, as [`shown`] gives it.
+fn all_shown(titles: &[HomeRowTitle]) -> Vec<String> {
+    titles.iter().map(shown).collect()
+}
+
 #[tokio::test]
-async fn enabling_a_home_row_source_shows_its_rows_with_only_the_titles_on_the_server() {
+async fn enabling_a_home_row_source_shows_its_rows_with_the_titles_on_the_server_or_a_title_source()
+{
     let server = enabled("").await;
 
-    wait_for_rows(&server, &["picks", "again"]).await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
     let picks = titles_page(&server, "picks", 0, "").await.unwrap();
+    let missing = titles_page(&server, "missing", 0, "").await.unwrap();
 
     assert_eq!(
         rows(&server).await,
@@ -192,36 +232,49 @@ async fn enabling_a_home_row_source_shows_its_rows_with_only_the_titles_on_the_s
                 "again".to_owned(),
                 "Alien again".to_owned()
             ),
-        ],
-        "the row with no title on the Server is left out"
+            (
+                PLUGIN.to_owned(),
+                "missing".to_owned(),
+                "Not on the Server".to_owned()
+            ),
+        ]
     );
-    let ids: Vec<String> = picks.titles.iter().map(tmdb).collect();
     assert_eq!(
-        ids,
-        [HEAT.to_string(), ALIEN.to_string()],
-        "the Plugin's order, without Dune"
+        all_shown(&picks.titles),
+        [
+            format!("Movie {HEAT}"),
+            format!("missing Movie {DUNE}"),
+            format!("Movie {ALIEN}"),
+            format!("missing Show {DARK}"),
+        ],
+        "the Plugin's order"
     );
-    assert_eq!(picks.page.total_size, Some(2));
+    assert_eq!(picks.page.total_size, Some(4));
+    assert_eq!(
+        all_shown(&missing.titles),
+        [format!("missing Movie {DUNE}")],
+        "the id no title source has is dropped"
+    );
 }
 
 #[tokio::test]
 async fn a_row_pages_by_keyset_and_refuses_another_rows_token() {
     let server = enabled("").await;
-    wait_for_rows(&server, &["picks", "again"]).await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
 
     let first = titles_page(&server, "picks", 1, "").await.unwrap();
     let second = (titles_page(&server, "picks", 1, &first.page.next_token).await).unwrap();
     let other_row = titles_page(&server, "again", 1, &first.page.next_token).await;
 
+    let last = (titles_page(&server, "picks", 2, &second.page.next_token).await).unwrap();
+
+    assert_eq!(all_shown(&first.titles), [format!("Movie {HEAT}")]);
+    assert_eq!(all_shown(&second.titles), [format!("missing Movie {DUNE}")]);
     assert_eq!(
-        first.titles.iter().map(tmdb).collect::<Vec<_>>(),
-        [HEAT.to_string()]
+        all_shown(&last.titles),
+        [format!("Movie {ALIEN}"), format!("missing Show {DARK}")]
     );
-    assert_eq!(
-        second.titles.iter().map(tmdb).collect::<Vec<_>>(),
-        [ALIEN.to_string()]
-    );
-    assert_eq!(second.page.next_token, "", "the last page");
+    assert_eq!(last.page.next_token, "", "the last page");
     let refusal = assert_refused(
         other_row,
         ErrorCode::InvalidArgument,
@@ -233,7 +286,7 @@ async fn a_row_pages_by_keyset_and_refuses_another_rows_token() {
 #[tokio::test]
 async fn disabling_the_plugin_removes_its_rows() {
     let server = enabled("").await;
-    wait_for_rows(&server, &["picks", "again"]).await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
 
     (plugins(&server))
         .disable_plugin(DisablePluginRequest {
@@ -251,7 +304,7 @@ async fn disabling_the_plugin_removes_its_rows() {
 #[tokio::test]
 async fn a_row_the_plugin_stops_giving_is_gone_once_its_settings_change_refreshes_it() {
     let server = enabled("").await;
-    wait_for_rows(&server, &["picks", "again"]).await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
 
     set_rows(&server, "picks").await;
 
@@ -262,7 +315,7 @@ async fn a_row_the_plugin_stops_giving_is_gone_once_its_settings_change_refreshe
 async fn home_lists_the_stored_rows_without_waiting_for_a_refresh() {
     let log = Log::global();
     let server = enabled("").await;
-    wait_for_rows(&server, &["picks", "again"]).await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
 
     // Its new settings refresh it, and the refresh loops until the call's time limit.
     set_rows(&server, "loop").await;
@@ -275,7 +328,7 @@ async fn home_lists_the_stored_rows_without_waiting_for_a_refresh() {
         started.elapsed() < Duration::from_secs(2),
         "home waited on the Plugin"
     );
-    assert_eq!(listed.len(), 2, "the rows stored before: {listed:?}");
+    assert_eq!(listed.len(), 3, "the rows stored before: {listed:?}");
 }
 
 #[tokio::test]
@@ -321,4 +374,150 @@ async fn a_failed_refresh_is_not_tried_again_for_15_minutes() {
         "home within 15 minutes of the failure refreshed it"
     );
     log.wait_for(&asked, 2).await;
+}
+
+#[tokio::test]
+async fn a_missing_title_shows_what_the_title_source_gave_and_its_poster_loads_after_a_restart() {
+    let server = enabled("picks").await;
+    wait_for_rows(&server, &["picks"]).await;
+
+    let picks = titles_from(&browse(&server), "picks").await;
+    let Some(MovieOrShow::MissingMovie(dune)) = &picks[1].movie_or_show else {
+        panic!("Dune isn't a missing Movie: {:?}", picks[1]);
+    };
+    let Some(MovieOrShow::MissingShow(dark)) = &picks[3].movie_or_show else {
+        panic!("Dark isn't a missing Show: {:?}", picks[3]);
+    };
+    assert_eq!((dune.title.as_str(), dune.year), ("Dune", Some(2021)));
+    assert_eq!((dark.title.as_str(), dark.year), ("Dark", Some(2017)));
+    let poster = dark.poster_url.clone().unwrap_or_default();
+    let before = fetch(&server, &poster, Some(&server.admin_token)).await;
+    assert_eq!(before.status, 200);
+
+    let server = TestServer::builder().tmdb().restart(server).await;
+    titles_from(&browse(&server), "picks").await;
+
+    let after = fetch(&server, &poster, Some(&server.admin_token)).await;
+    assert_eq!(after.status, 200);
+}
+
+#[tokio::test]
+async fn a_missing_movie_with_an_open_request_shows_its_state() {
+    let server = enabled("picks").await;
+    wait_for_rows(&server, &["picks"]).await;
+    let ada = server.user_with_default_permissions("Ada").await;
+    server.requests(&ada).ask(DUNE).await;
+
+    let picks = titles_from(&browse_as(&server, &ada), "picks").await;
+
+    let Some(MovieOrShow::MissingMovie(dune)) = &picks[1].movie_or_show else {
+        panic!("Dune isn't a missing Movie: {:?}", picks[1]);
+    };
+    let state = dune.request.as_option().map(|request| request.state);
+    assert_eq!(state, Some(RequestState::REQUEST_STATE_PENDING.into()));
+}
+
+#[tokio::test]
+async fn a_user_sees_only_the_missing_titles_of_kinds_they_may_request() {
+    let server = enabled("").await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
+    let grace = server.user("Grace", &[]).await;
+    let mia = server.user("Mia", &[Permission::RequestMovie]).await;
+
+    let for_grace = titles_from(&browse_as(&server, &grace), "picks").await;
+    let for_mia = titles_from(&browse_as(&server, &mia), "picks").await;
+
+    assert_eq!(
+        all_shown(&for_grace),
+        [format!("Movie {HEAT}"), format!("Movie {ALIEN}")]
+    );
+    assert_eq!(
+        all_shown(&for_mia),
+        [
+            format!("Movie {HEAT}"),
+            format!("missing Movie {DUNE}"),
+            format!("Movie {ALIEN}")
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_row_of_only_missing_titles_is_left_out_for_a_user_who_may_not_request_them() {
+    let server = enabled("").await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
+    let grace = server.user("Grace", &[]).await;
+
+    let for_grace = rows_from(&browse_as(&server, &grace)).await;
+
+    let keys: Vec<&str> = for_grace.iter().map(|(_, key, _)| key.as_str()).collect();
+    assert_eq!(keys, ["picks", "again"]);
+}
+
+#[tokio::test]
+async fn a_title_a_scan_adds_turns_playable_in_its_row_without_a_refresh() {
+    let log = Log::global();
+    // A setting no other test sets, so only this test's refreshes log it.
+    let asked = ["test-plugin gives Home rows \"picks,again\""];
+    let server = enabled("picks,again").await;
+    wait_for_rows(&server, &["picks", "again"]).await;
+
+    let library = (server)
+        .create_library(
+            LibraryKind::LIBRARY_KIND_MOVIES,
+            &["Dune (2021) {tmdb-438631}/Dune (2021).mkv"],
+        )
+        .await;
+    server.scan_and_match(&library).await;
+    let picks = titles_from(&browse(&server), "picks").await;
+
+    assert_eq!(shown(&picks[1]), format!("Movie {DUNE}"));
+    assert_eq!(log.count(&asked), 1, "the row was refreshed");
+}
+
+#[tokio::test]
+async fn opening_home_asks_no_title_source() {
+    let server = enabled("").await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
+    let asked_before = server.tmdb().requests().len();
+
+    rows(&server).await;
+    titles_from(&browse(&server), "picks").await;
+
+    assert_eq!(server.tmdb().requests().len(), asked_before);
+}
+
+#[tokio::test]
+async fn a_refresh_no_title_source_answers_keeps_the_missing_titles_and_tries_again_in_15_minutes()
+{
+    let log = Log::global();
+    // A setting no other test sets, so only this test's refreshes log it.
+    let asked = ["test-plugin gives Home rows \"missing,picks\""];
+    let unanswered = ["the title source couldn't look up the Plugin's Home row titles"];
+    let server = installed(TestServer::builder().moves_clock(), "missing,picks").await;
+    enable(&server).await;
+    wait_for_rows(&server, &["picks", "missing"]).await;
+
+    // Without TMDB no title source answers the refresh the Plugin coming up starts.
+    let server = TestServer::builder().restart(server).await;
+    log.wait_for(&unanswered, 1).await;
+    let picks = titles_from(&browse(&server), "picks").await;
+    rows(&server).await;
+    // Time for a refresh home started to call the Plugin.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let before = log.count(&asked);
+    server.advance_clock(Duration::from_mins(16));
+    rows(&server).await;
+
+    assert_eq!(
+        all_shown(&picks),
+        [
+            format!("Movie {HEAT}"),
+            format!("missing Movie {DUNE}"),
+            format!("Movie {ALIEN}"),
+            format!("missing Show {DARK}"),
+        ],
+        "the titles the last refresh looked up"
+    );
+    assert_eq!(before, 2, "home within 15 minutes refreshed it");
+    log.wait_for(&asked, 3).await;
 }

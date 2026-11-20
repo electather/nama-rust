@@ -12,6 +12,7 @@ The app is organised by feature (ADR 0064).
   - `routes/`: TanStack Router's file routes, which are thin (`routes/AGENTS.md`).
   - `gen/` and `routeTree.gen.ts`: generated (`web/AGENTS.md`).
   - `test-*.ts(x)`: the fake Server and helpers the tests share.
+  - `styles.css`: the tokens and global CSS, with text subtitles' `::cue` rules in `subtitle-cues.css`, which it imports.
 - **Layers.** Imports go one way, which Fallow's zones enforce (`.fallowrc.jsonc`):
   - `shared/lib/` imports only `shared/lib/`.
   - `shared/hooks/` imports `shared/hooks/` and `shared/lib/`.

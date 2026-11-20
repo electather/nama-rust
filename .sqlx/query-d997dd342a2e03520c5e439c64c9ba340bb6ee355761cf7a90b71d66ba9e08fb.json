@@ -1,26 +1,26 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT titles FROM home_rows WHERE plugin_id = ? AND key = ?",
+  "query": "SELECT key FROM schema_meta WHERE value = 'x' ORDER BY key",
   "describe": {
     "columns": [
       {
-        "name": "titles",
+        "name": "key",
         "ordinal": 0,
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "home_rows",
-            "name": "titles"
+            "table": "schema_meta",
+            "name": "key"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 0
     },
     "nullable": [
       false
     ]
   },
-  "hash": "12a2349f7ae4799f34ed49718e129af734be680656905cdc8229f4c660846e1d"
+  "hash": "d997dd342a2e03520c5e439c64c9ba340bb6ee355761cf7a90b71d66ba9e08fb"
 }

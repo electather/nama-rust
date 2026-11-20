@@ -9,9 +9,10 @@ use std::{
     sync::Arc,
 };
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
 use nama_server::{
+    backup,
     config::{self, Config},
     db::{self, Database},
     diagnostics,
@@ -40,15 +41,36 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 #[command(version, about)]
 struct Args {
     /// TOML config file. Defaults to `nama.toml` in the working directory, if it exists.
-    #[arg(long, env = config::FILE_ENV)]
+    #[arg(long, env = config::FILE_ENV, global = true)]
     config: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+/// What to do instead of serving.
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Writes a backup of the Server to a `.tar` file. Safe while it serves.
+    Backup {
+        /// Where to write the backup, replacing any file there.
+        path: PathBuf,
+    },
+    /// Replaces the Server's database, config file and Custom Images with a backup's, keeping
+    /// each it replaces beside it with `.before-restore` added to its name. Stop the Server first.
+    Restore {
+        /// The backup to restore.
+        path: PathBuf,
+    },
 }
 
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = Args::parse();
     let exporting = init_tracing();
-    let exit = run(args, exporting.is_some()).await;
+    let exit = match args.command {
+        None => run(args.config.as_deref(), exporting.is_some()).await,
+        Some(command) => back_up_or_restore(args.config, command).await,
+    };
     if let Some(exporting) = exporting {
         exporting.shutdown();
     }
@@ -56,8 +78,8 @@ async fn main() -> ExitCode {
 }
 
 /// Runs the Server until it is told to stop. `exporting` says whether Diagnostics are exported.
-async fn run(args: Args, exporting: bool) -> ExitCode {
-    let Some(mut config) = load_config(args.config.as_deref()) else {
+async fn run(config_file: Option<&Path>, exporting: bool) -> ExitCode {
+    let Some(mut config) = load_config(config_file) else {
         return ExitCode::FAILURE;
     };
     if exporting {
@@ -143,6 +165,58 @@ async fn run(args: Args, exporting: bool) -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+/// Writes or restores a backup, as `command` says, of the Server `config_file` configures.
+async fn back_up_or_restore(config_file: Option<PathBuf>, command: Command) -> ExitCode {
+    let Some(config) = load_config(config_file.as_deref()) else {
+        return ExitCode::FAILURE;
+    };
+    // The file a Server started the same way reads, which a restore writes even if it's missing.
+    let config_file = config_file.unwrap_or_else(|| PathBuf::from(config::DEFAULT_FILE));
+    let (done, path, outcome) = match command {
+        Command::Backup { path } => (
+            backup::write(&config.data_dir, &config_file, &path).await,
+            path,
+            "wrote the backup",
+        ),
+        Command::Restore { path } => {
+            let restored = backup::restore(&config.data_dir, &config_file, &path).await;
+            if restored.is_ok() {
+                warn_if_data_dir_moved(&config.data_dir, &config_file);
+            }
+            (
+                restored,
+                path,
+                "restored the backup; what it replaced is kept beside it as `.before-restore`",
+            )
+        }
+    };
+    match done {
+        Ok(()) => {
+            info!(path = %path.display(), "{outcome}");
+            ExitCode::SUCCESS
+        }
+        Err(err) => {
+            error!(path = %path.display(), "{err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Warns when the config file a restore put back names another data directory than the one it
+/// restored into, where the next start wouldn't find what it restored.
+fn warn_if_data_dir_moved(restored_into: &Path, config_file: &Path) {
+    if let Ok((restored, _)) = Config::load(Some(config_file))
+        && restored.data_dir != restored_into
+    {
+        warn!(
+            restored_into = %restored_into.display(),
+            config_names = %restored.data_dir.display(),
+            "the restored config file names another data directory: set `data_dir` in it, or \
+             `NAMA_DATA_DIR`, to the one restored into"
+        );
+    }
 }
 
 /// Loads the config, warning about each key in the file it ignores. Returns `None`, having logged

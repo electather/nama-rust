@@ -1,12 +1,13 @@
 import { AudioForm } from "@/features/settings/components/audio-form";
 import { AutoplayPreference } from "@/features/settings/components/autoplay-preference";
+import { SubtitleAppearance } from "@/features/settings/components/subtitle-appearance";
 import { SubtitlesForm } from "@/features/settings/components/subtitles-form";
 import { useTrackPreferences } from "@/features/settings/data/use-track-preferences";
 
 /**
  * The signed-in User's own Track Preferences: the subtitles and audio everything they play starts
- * with, unless they picked others in that Show or Movie (ADR 0035), and whether the next Episode
- * plays by itself.
+ * with, unless they picked others in that Show or Movie (ADR 0035), their Subtitle Appearance, and
+ * whether the next Episode plays by itself.
  */
 export function TrackPreferences() {
   const data = useTrackPreferences();
@@ -21,6 +22,7 @@ export function TrackPreferences() {
       </p>
       <SubtitlesForm saved={data.subtitle} />
       <AudioForm saved={data.audio} />
+      <SubtitleAppearance />
       <AutoplayPreference />
     </section>
   );

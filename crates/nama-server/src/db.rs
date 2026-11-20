@@ -446,13 +446,20 @@ async fn upgrade(conn: &mut SqliteConnection) -> Result<(), OpenError> {
 }
 
 /// Writes a copy of the database to [`BEFORE_UPGRADE_FILE_NAME`], replacing the last upgrade's.
-/// It's written under another name first, so a failed copy leaves the last good one in place.
 async fn copy_before_upgrade(
     conn: &mut SqliteConnection,
     data_dir: &Path,
 ) -> Result<(), sqlx::Error> {
-    let copy = data_dir.join(BEFORE_UPGRADE_FILE_NAME);
-    let partial = data_dir.join(format!("{BEFORE_UPGRADE_FILE_NAME}.partial"));
+    tracing::info!("copying the database to {BEFORE_UPGRADE_FILE_NAME} before upgrading it");
+    copy_to(conn, &data_dir.join(BEFORE_UPGRADE_FILE_NAME)).await
+}
+
+/// Writes a copy of the database `conn` is open on to `copy`, replacing any file there. It's
+/// written under another name first, so a failed copy leaves the file at `copy` as it was.
+pub(crate) async fn copy_to(conn: &mut SqliteConnection, copy: &Path) -> Result<(), sqlx::Error> {
+    let mut partial = copy.as_os_str().to_owned();
+    partial.push(".partial");
+    let partial = PathBuf::from(partial);
     // VACUUM INTO refuses a file that isn't empty, such as one a crash left half-written.
     if let Err(err) = tokio::fs::remove_file(&partial).await
         && err.kind() != std::io::ErrorKind::NotFound
@@ -462,10 +469,9 @@ async fn copy_before_upgrade(
     let partial_path = partial.to_str().ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
-            "the data directory's path isn't valid UTF-8",
+            "the copy's path isn't valid UTF-8",
         )
     })?;
-    tracing::info!("copying the database to {BEFORE_UPGRADE_FILE_NAME} before upgrading it");
     let written = async {
         sqlx::query!("VACUUM INTO ?", partial_path)
             .execute(&mut *conn)
@@ -478,7 +484,7 @@ async fn copy_before_upgrade(
             .await?
             .sync_all()
             .await?;
-        tokio::fs::rename(&partial, &copy).await?;
+        tokio::fs::rename(&partial, copy).await?;
         Ok(())
     }
     .await;
@@ -488,6 +494,40 @@ async fn copy_before_upgrade(
         let _: std::io::Result<()> = tokio::fs::remove_file(&partial).await;
     }
     written
+}
+
+/// Opens the database file at `path` on a connection of its own, beside any a running Server
+/// holds, without creating it or applying migrations.
+///
+/// # Errors
+///
+/// If there's no such file or SQLite can't open it.
+pub(crate) async fn connect_existing(path: &Path) -> Result<SqliteConnection, sqlx::Error> {
+    SqliteConnection::connect_with(
+        &SqliteConnectOptions::new()
+            .filename(path)
+            .busy_timeout(BUSY_TIMEOUT),
+    )
+    .await
+}
+
+/// The highest migration the database `conn` is open on has had, or `None` if it has had none.
+///
+/// # Errors
+///
+/// If reading fails, such as on a file no Server made.
+pub(crate) async fn highest_migration_applied(
+    conn: &mut SqliteConnection,
+) -> Result<Option<i64>, sqlx::Error> {
+    sqlx::query_scalar!(r#"SELECT MAX(version) AS "version?: i64" FROM _sqlx_migrations"#)
+        .fetch_one(conn)
+        .await
+}
+
+/// The highest migration this Server knows: it can't open a database that has had a higher one.
+#[must_use]
+pub(crate) fn highest_migration_known() -> i64 {
+    MIGRATOR.iter().map(|m| m.version).max().unwrap_or_default()
 }
 
 /// How far [`advance_clock`] has moved the Server's clock, in milliseconds.

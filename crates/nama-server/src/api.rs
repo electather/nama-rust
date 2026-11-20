@@ -144,6 +144,7 @@ pub(crate) fn router(
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
             home_rows,
+            artwork: artwork.clone(),
             images: images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler { browse }))
@@ -314,6 +315,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC.procedure,         Access::SignedIn),
     (proto::PLAYBACK_SERVICE_SEARCH_SUBTITLES_SPEC.procedure,     DOWNLOAD_SUBTITLES),
     (proto::PLAYBACK_SERVICE_DOWNLOAD_SUBTITLE_SPEC.procedure,    DOWNLOAD_SUBTITLES),
+    (proto::PLAYBACK_SERVICE_GET_SUBTITLE_APPEARANCE_SPEC.procedure, Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SET_SUBTITLE_SIZE_SPEC.procedure,    Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC.procedure, Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),

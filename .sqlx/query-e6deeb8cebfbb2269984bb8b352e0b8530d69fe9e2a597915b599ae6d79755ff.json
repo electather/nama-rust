@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO subtitle_appearances (user_id, size, background) VALUES (?, ?, ?)\n                 ON CONFLICT (user_id) DO UPDATE SET\n                     size = COALESCE(excluded.size, size),\n                     background = COALESCE(excluded.background, background)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "e6deeb8cebfbb2269984bb8b352e0b8530d69fe9e2a597915b599ae6d79755ff"
+}
