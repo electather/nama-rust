@@ -314,7 +314,7 @@ impl HomeRows {
         let answer = match user {
             None => self.ask_shared(plugin).await,
             Some(user) => match personal_settings_of(&self.db, user, plugin).await {
-                Ok(settings) => self.ask_user_rows(plugin, settings).await,
+                Ok(settings) => self.ask_user_rows(plugin, user, settings).await,
                 Err(err) => {
                     warn!(plugin = %plugin, user, "could not read Personal settings to refresh Home rows: {err}");
                     return;
@@ -364,17 +364,19 @@ impl HomeRows {
             .await
     }
 
-    /// Asks the Plugin `plugin` for a User's rows with only that User's Personal `settings`, each
-    /// value by key with whether it is secret. A secret one is blanked from the failure the
-    /// Plugins page and the log show.
+    /// Asks the Plugin `plugin` for the User `user`'s rows with only that User's Personal
+    /// `settings`, each value by key with whether it is secret. A secret one is blanked from the
+    /// failure the Plugins page and the log show.
     async fn ask_user_rows(
         &self,
         plugin: &PluginId,
+        user: i64,
         settings: BTreeMap<String, (String, bool)>,
     ) -> Option<Answer<Given>> {
         let (settings, secrets) = personal(settings);
         let asked = UserRowsAsked {
             personal_settings: settings.into_iter().collect(),
+            user_id: user,
             ..UserRowsAsked::default()
         };
         (self.points)
