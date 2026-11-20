@@ -106,8 +106,8 @@ test("hiding the page reports where it is", async () => {
 });
 
 /**
- * A fake Server with Episode 3 of Dark's Season 1 in Library 2, played once a report reaches its
- * end, which counts how often each browse call is asked.
+ * A fake Server with Episode 3 of Dark's Season 1 in Library 2. It counts how often each browse
+ * call is asked, and the Episode is played once a report reaches its end.
  */
 function episodeServer() {
   const reports: ReportProgressRequest[] = [];
@@ -155,7 +155,7 @@ function episodeServer() {
   return { transport, reports, asked };
 }
 
-test("playing an Episode only reports, and leaving it shows it played", async () => {
+test("reports while an Episode plays refetch no browsing, and leaving shows it played", async () => {
   const { transport, reports, asked } = episodeServer();
   const router = openApp("/libraries/2/shows/tmdb-70523/seasons/1/episodes/3/play", transport);
   const video = await screen.findByLabelText<HTMLVideoElement>("Past and Present");

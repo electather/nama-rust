@@ -14,8 +14,9 @@ const finalReports = new WeakSet();
 
 /**
  * Reports how far in the Movie or Episode you are, in the background, one at a time and in order,
- * and sends a failed report again. A `final` report, sent on leaving the player, refreshes
- * browsing once it lands; any other changes nothing the player shows, so refreshes nothing.
+ * and sends a failed report again. A `final` report, sent as the player stops following the video
+ * (on leaving it, or on a new plan for it), refreshes browsing once it lands; any other changes
+ * nothing the player shows, so refreshes nothing.
  */
 export function useReportProgress() {
   const queryClient = useQueryClient();
