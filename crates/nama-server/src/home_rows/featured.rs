@@ -226,8 +226,8 @@ impl HomeRows {
             .await
     }
 
-    /// Deletes every User's suggestions, and their put-offs, from each Plugin no longer giving them, as it is disabled
-    /// or its version stopped serving `user_featured`.
+    /// Deletes every User's suggestions, and their put-offs, from each Plugin no longer giving
+    /// them, as it is disabled or its version stopped serving `user_featured`.
     async fn forget_featured_of_plugins_no_longer_giving_it(&self) -> Result<(), sqlx::Error> {
         let plugins = sqlx::query_scalar!("SELECT DISTINCT plugin_id FROM featured_suggestions")
             .fetch_all(self.db.reader())

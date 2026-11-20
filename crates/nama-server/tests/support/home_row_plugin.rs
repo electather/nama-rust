@@ -3,7 +3,7 @@
 
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
-    DisablePluginRequest, EnablePluginRequest, PluginServiceClient, SettingValue,
+    DisablePluginRequest, EnablePluginRequest, PluginPermission, PluginServiceClient, SettingValue,
     UpdatePersonalSettingsRequest, UserServiceClient, setting_value::Value,
 };
 
@@ -17,14 +17,20 @@ fn plugins(server: &TestServer) -> PluginServiceClient<HttpClient> {
 }
 
 /// Enables the installed test Plugin.
+pub(crate) async fn enable(server: &TestServer) {
+    enable_granting(server, &[]).await;
+}
+
+/// Enables the installed test Plugin, granting it `granted`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-pub(crate) async fn enable(server: &TestServer) {
+pub(crate) async fn enable_granting(server: &TestServer, granted: &[PluginPermission]) {
     (plugins(server))
         .enable_plugin(EnablePluginRequest {
             id: PLUGIN.to_owned(),
+            granted_permissions: granted.iter().map(|&it| it.into()).collect(),
             ..Default::default()
         })
         .await

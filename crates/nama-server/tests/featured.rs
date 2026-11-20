@@ -20,11 +20,10 @@ use std::time::{Duration, Instant};
 
 use browsing::{ALIEN_1080P, Fixture};
 use connectrpc::client::{ClientConfig, HttpClient};
-use home_row_plugin::{PLUGIN, disable, enable, set_handle};
+use home_row_plugin::{disable, enable, enable_granting, set_handle};
 use nama_proto::nama::v1::{
-    BrowseServiceClient, EnablePluginRequest, FeaturedTitle, LibraryKind, ListEpisodesRequest,
-    ListFeaturedRequest, PluginPermission, ReportProgressRequest, WatchStateServiceClient,
-    featured_title::MovieOrShow,
+    BrowseServiceClient, FeaturedTitle, LibraryKind, ListEpisodesRequest, ListFeaturedRequest,
+    PluginPermission, ReportProgressRequest, WatchStateServiceClient, featured_title::MovieOrShow,
 };
 use server::{
     TestServer, WAIT,
@@ -290,14 +289,8 @@ async fn starting_a_title_keeps_a_plugin_reading_watch_states_suggestions_listed
     )
     .await;
     fx.server.install_test_plugin("home-rows").await;
-    (fx.server.plugin_service())
-        .enable_plugin(EnablePluginRequest {
-            id: PLUGIN.to_owned(),
-            granted_permissions: vec![PluginPermission::PLUGIN_PERMISSION_READ_WATCH_STATES.into()],
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    let granted = [PluginPermission::PLUGIN_PERMISSION_READ_WATCH_STATES];
+    enable_granting(&fx.server, &granted).await;
     let ada = fx.server.user_with_default_permissions("Ada").await;
     set_handle(&ada, "ada").await;
     fx.server.advance_clock(FIFTEEN_DAYS);
