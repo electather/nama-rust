@@ -1,6 +1,7 @@
-use std::{ffi::OsStr, path::Path};
+use std::{ffi::OsStr, fs, path::Path};
 
 use super::*;
+use crate::scanner::tests::{Fixture, summary};
 
 #[test]
 fn a_sidecar_belongs_to_the_video_with_the_longest_stem_its_name_starts_with() {
@@ -180,4 +181,59 @@ fn an_episode_its_name_doesnt_give_takes_its_season_from_the_stored_items_and_a_
             ),
         ]
     );
+}
+
+/// The paths of the files `media` stores.
+async fn stored_paths(media: &Fixture) -> Vec<String> {
+    media
+        .files()
+        .await
+        .into_iter()
+        .map(|(path, _)| path)
+        .collect()
+}
+
+#[tokio::test]
+async fn a_scan_skips_a_folder_holding_nomedia_or_ignore_and_all_below_it() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.write("Samples/Up (2009).mkv", 10);
+    media.write("Samples/.nomedia", 0);
+    media.write("Staging/Deep/Heat (1995).mkv", 10);
+    media.write("Staging/.ignore", 0);
+
+    media.scan().await;
+
+    assert_eq!(
+        stored_paths(&media).await,
+        ["Alien (1979)/Alien (1979).mkv"]
+    );
+}
+
+#[tokio::test]
+async fn a_marker_added_to_the_library_folder_removes_its_only_items_until_its_deleted() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.scan().await;
+
+    media.write(".nomedia", 0);
+    assert_eq!(media.scan().await, summary(0, 0, 1, 0));
+    assert_eq!(stored_paths(&media).await, Vec::<String>::new());
+
+    fs::remove_file(media.path(".nomedia")).unwrap();
+    assert_eq!(media.scan().await, summary(1, 0, 0, 0));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_marker_that_cant_be_checked_keeps_whats_stored_under_it() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.scan().await;
+
+    // A symlink to itself fails with ELOOP, not NotFound.
+    let marker = media.path("Alien (1979)/.nomedia");
+    std::os::unix::fs::symlink(&marker, &marker).unwrap();
+
+    assert_eq!(media.scan().await, summary(0, 0, 0, 1));
 }

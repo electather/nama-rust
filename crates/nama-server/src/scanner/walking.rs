@@ -4,7 +4,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
-    iter, mem,
+    fs, io, iter, mem,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -38,6 +38,10 @@ const BACKDROP_NAMES: &[&str] = &["fanart", "backdrop", "background", "art"];
 /// besides those of [`POSTER_NAMES`].
 const SHOW_POSTER_NAME: &str = "show";
 
+/// Names of the files that make scans skip the folder holding them: Android's `.nomedia` and
+/// Jellyfin's `.ignore`, which Plex and Silo honour too, so existing trees already carry them.
+const IGNORE_MARKERS: [&str; 2] = [".nomedia", ".ignore"];
+
 #[derive(Debug)]
 struct Found {
     path: String,
@@ -69,14 +73,20 @@ pub(super) fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Wal
         if !writable(root) {
             walked.read_only.push(folder.clone());
         }
-        let entries = WalkDir::new(root)
+        let mut entries = WalkDir::new(root)
             .follow_links(true)
             .into_iter()
             .filter_entry(|entry| entry.depth() == 0 || !is_hidden(entry.file_name()));
         let mut empty = true;
-        for entry in entries {
+        while let Some(entry) = entries.next() {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
+            }
+            if (entry.as_ref()).is_ok_and(|entry| skips(entry, &mut walked.unreadable)) {
+                entries.skip_current_dir();
+                // Not held as empty, so what's stored from a skipped folder is removed.
+                empty = false;
+                continue;
             }
             // An unreadable folder isn't empty: its items are kept as unreadable, with no warning.
             empty &= entry
@@ -118,6 +128,38 @@ const fn writable(_folder: &Path) -> bool {
 /// Whether a file or folder is hidden: dot files, and the thumbnails Synology NASes leave.
 fn is_hidden(name: &OsStr) -> bool {
     name.as_encoded_bytes().starts_with(b".") || name == "@eaDir"
+}
+
+/// Whether the walk skips `entry`, a folder holding an ignore marker. One whose marker can't be
+/// checked is skipped too, and added to `unreadable` so what's stored under it is kept.
+fn skips(entry: &DirEntry, unreadable: &mut Vec<PathBuf>) -> bool {
+    if !entry.file_type().is_dir() {
+        return false;
+    }
+    holds_ignore_marker(entry.path()).unwrap_or_else(|err| {
+        let folder = entry.path();
+        tracing::warn!("could not check {} for a marker: {err}", folder.display());
+        unreadable.push(folder.to_owned());
+        true
+    })
+}
+
+/// Whether `folder` holds a file telling scans to skip it and all below it.
+pub(super) fn holds_ignore_marker(folder: &Path) -> io::Result<bool> {
+    for marker in IGNORE_MARKERS {
+        match fs::metadata(folder.join(marker)) {
+            Ok(metadata) if metadata.is_file() => return Ok(true),
+            Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err),
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
+/// Whether `path` is an ignore marker's.
+pub(super) fn is_ignore_marker(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| IGNORE_MARKERS.iter().any(|marker| name == *marker))
 }
 
 /// Whether `path`'s extension is a video's.
