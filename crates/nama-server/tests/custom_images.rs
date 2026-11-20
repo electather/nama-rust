@@ -13,12 +13,18 @@ mod http;
 #[path = "support/server.rs"]
 mod server;
 
-use std::fs;
+use std::{convert::Infallible, fs};
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
 use custom_images::image;
-use http::{Reply, fetch};
+use futures_util::stream;
+use http::{Reply, fetch, send};
+use http_body_util::StreamBody;
+use hyper::{
+    Request,
+    body::{Bytes, Frame},
+};
 use image::ImageFormat;
 use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
@@ -544,7 +550,7 @@ async fn an_upload_for_tmdb_0348_is_not_found_and_leaves_tmdb_348s_poster_alone(
 async fn an_upload_for_a_title_no_library_has_is_not_found_and_kept_nowhere_but_removing_succeeds()
 {
     let fx = Fixture::alien().await;
-    let mut uploads = vec![
+    let uploads = [
         ("movie/tmdb-1/poster", image(ImageFormat::Png, 2, 3)),
         ("movie/tmdb-1/backdrop", image(ImageFormat::Png, 3, 2)),
         ("show/tmdb-1/poster", image(ImageFormat::Png, 2, 3)),
@@ -552,11 +558,6 @@ async fn an_upload_for_a_title_no_library_has_is_not_found_and_kept_nowhere_but_
         // Alien is a Movie, not a Show.
         ("show/tmdb-348/poster", image(ImageFormat::Png, 2, 3)),
     ];
-    // Refused before its body is read, so not as too big. Windows resets a connection closed with
-    // a body still unread, so the client there loses the 404 while it's still sending.
-    if cfg!(not(windows)) {
-        uploads.push(("movie/tmdb-1/poster", vec![0; 20 * 1024 * 1024 + 1]));
-    }
 
     for (path, bytes) in uploads {
         let path = format!("/custom-images/{path}");
@@ -565,6 +566,16 @@ async fn an_upload_for_a_title_no_library_has_is_not_found_and_kept_nowhere_but_
         assert_eq!(refused.status, 404, "{path}");
         assert_eq!(fx.remove(&path).await.status, 204, "{path}");
     }
+    // Refused before its body is read, so not as too big. The body never comes: a Server closing
+    // with a sent body unread resets the connection, and the client can lose the 404 to it.
+    let path = "/custom-images/movie/tmdb-1/poster";
+    let never_sent = StreamBody::new(stream::pending::<Result<Frame<Bytes>, Infallible>>());
+    let request = Request::put(path)
+        .header("content-length", 20 * 1024 * 1024 + 1)
+        .body(never_sent)
+        .unwrap();
+    let refused = send(&fx.server, request, Some(&fx.server.admin_token)).await;
+    assert_eq!(refused.status, 404, "{path}");
     assert!(!fx.server.data_dir().join("custom-images").exists());
 }
 
