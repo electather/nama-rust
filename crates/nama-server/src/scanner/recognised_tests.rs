@@ -20,7 +20,6 @@ use tokio_util::sync::CancellationToken;
 use super::{super::tests::Fixture, Planned, items, recognise};
 use crate::{
     library::{Change, Item, LibraryKind, Recognisers},
-    log_capture::CapturedLog,
     plugins::{ExtensionPoints, Registry},
 };
 
@@ -359,7 +358,7 @@ async fn a_scan_does_not_count_a_new_file_a_recogniser_failed_on_as_added() {
 }
 
 #[tokio::test]
-async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
+async fn every_file_a_recogniser_fails_on_is_left_out_and_each_failure_recorded() {
     let plugins = Registry::new();
     plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
     let points = plugins.extension_points();
@@ -374,8 +373,6 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
         added: true,
     };
     let planned = ["Show - 1.mkv", "Show - 2.mkv", "Show - 3.mkv"].map(unread);
-    // The test's runtime has one thread, so the scan logs to it.
-    let log = CapturedLog::start();
 
     let (_, dropped) = recognise(
         &listed(&points, &["proposing"]),
@@ -386,7 +383,6 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
     .await
     .unwrap();
 
-    let log = log.finish();
     assert_eq!(dropped.len(), 3);
     let failing = points
         .failing(
@@ -398,9 +394,6 @@ async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
         (failing.in_a_row, failing.last_error.as_str()),
         (3, "the Recogniser is down")
     );
-    let warned: Vec<&str> = log.lines().filter(|line| line.contains("WARN")).collect();
-    assert_eq!(warned.len(), 1, "{log}");
-    assert!(warned[0].contains("files=3"), "{log}");
 }
 
 #[tokio::test]

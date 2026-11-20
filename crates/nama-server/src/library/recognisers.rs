@@ -147,7 +147,8 @@ impl Drop for Failures {
             .get_mut()
             .unwrap_or_else(PoisonError::into_inner);
         for (plugin, (count, last)) in failed.iter() {
-            // The words say what each level does with what it failed on.
+            // Each level's words name what it does with what it failed on, and `tracing` takes
+            // field names only as literals, hence an arm per level.
             match self.level {
                 RecogniserMethod::File => tracing::warn!(
                     %plugin,

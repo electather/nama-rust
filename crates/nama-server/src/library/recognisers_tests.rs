@@ -6,6 +6,7 @@ use nama_plugin_api::{
     recogniser::{Recogniser, RecogniserMethod},
 };
 use tempfile::TempDir;
+use tokio::sync::Notify;
 
 use super::{RecogniserFailed, Recognisers};
 use crate::{
@@ -239,6 +240,33 @@ async fn failures_are_logged_when_the_scan_lets_go_however_it_ends() {
         "{logged}"
     );
     assert!(logged.contains("plugin=aa titles=1"), "{logged}");
+}
+
+#[tokio::test]
+async fn failures_are_logged_when_a_scan_is_cancelled_while_asking() {
+    let (plugins, _) = enabled(&[("aa", BOTH, true)]);
+    let listed = recognisers(&plugins, RecogniserMethod::File).in_order(&order(&["aa"]));
+    let asking = Arc::new(Notify::new());
+    let asked_again = Arc::clone(&asking);
+    // The test's runtime has one thread, so the aborted scan logs to it.
+    let log = CapturedLog::start();
+
+    let scan = tokio::spawn(async move {
+        ask_file(&listed, "Show - 1.mkv").await;
+        let aa = PluginId::from_static("aa");
+        let answer = listed.ask(&aa, |_: Arc<dyn Recogniser>| {
+            asked_again.notify_one();
+            std::future::pending::<Result<FileRecognised, PluginError>>()
+        });
+        answer.await
+    });
+    asking.notified().await;
+    scan.abort();
+    let ended = scan.await;
+
+    let logged = log.finish();
+    assert!(ended.is_err_and(|ended| ended.is_cancelled()));
+    assert!(logged.contains("plugin=aa files=1"), "{logged}");
 }
 
 /// Stores an unparsed file and a Movie that Matching left Unmatched in the Library `id`.
