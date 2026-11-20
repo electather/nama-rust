@@ -6,6 +6,7 @@ import { BrowseService, type FeaturedTitleSchema } from "@/gen/nama/v1/browse_pb
 import { TitleKind } from "@/gen/nama/v1/match_pb";
 import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { heldBack } from "@/test-held-back";
 
 afterEach(cleanup);
 
@@ -119,7 +120,6 @@ test("the Watchlist button adds a title, or takes it off once it's on", async ()
   const remove = within(panelOf("Severance")).getByRole("button", {
     name: "Remove from your Watchlist",
   });
-  expect(remove.getAttribute("aria-pressed")).toBe("true");
   fireEvent.click(remove);
 
   await waitFor(() => {
@@ -137,4 +137,29 @@ test("featured shows nothing when there's nothing to feature", async () => {
     expect(screen.queryByRole("region", { name: "Featured" })).toBeNull();
   });
   expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+});
+
+test("the Watchlist button turns to Remove as you press it, and back if the Server refuses", async () => {
+  const adding = heldBack();
+  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
+    router.service(BrowseService, {
+      listFeatured: () => ({
+        titles: [{ libraryId: 1n, movieOrShow: { case: "movie", value: arrival } }],
+      }),
+      listContinueWatching: () => ({}),
+      listHomeRows: () => ({}),
+    });
+    router.service(WatchlistService, { addToWatchlist: adding.answer });
+  });
+  openApp("/", transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Add to your Watchlist" }));
+  await expect(
+    screen.findByRole("button", { name: "Remove from your Watchlist" }),
+  ).resolves.toBeDefined();
+  adding.refuse();
+
+  await expect(
+    screen.findByRole("button", { name: "Add to your Watchlist" }),
+  ).resolves.toBeDefined();
 });

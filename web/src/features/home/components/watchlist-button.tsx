@@ -3,23 +3,20 @@ import { Check, Plus } from "lucide-react";
 import { type OnWatchlist, useToggleWatchlist } from "@/features/home/data/use-toggle-watchlist";
 import { Button } from "@/shared/ui/button";
 
-/** Adds a title to your Watchlist, or, lit while it's on it, takes it off. */
+/**
+ * Adds a title to your Watchlist, or, with a check while it's on it, takes it off. Its name says
+ * which, so it isn't also `aria-pressed`, which would light it and say it twice.
+ */
 export function WatchlistButton({ watchlist }: { watchlist: OnWatchlist }) {
-  const { pending, toggle } = useToggleWatchlist();
+  const { on, toggle } = useToggleWatchlist(watchlist);
   return (
     <Button
       variant="secondary"
       size="round"
-      aria-label={watchlist.on ? "Remove from your Watchlist" : "Add to your Watchlist"}
-      aria-pressed={watchlist.on}
-      onClick={() => {
-        // Pressed twice before the Server answers, it would ask the same thing twice.
-        if (!pending) {
-          toggle(watchlist);
-        }
-      }}
+      aria-label={on ? "Remove from your Watchlist" : "Add to your Watchlist"}
+      onClick={toggle}
     >
-      {watchlist.on ? <Check aria-hidden /> : <Plus aria-hidden />}
+      {on ? <Check aria-hidden /> : <Plus aria-hidden />}
     </Button>
   );
 }

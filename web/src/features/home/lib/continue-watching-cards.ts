@@ -26,6 +26,8 @@ import { isStarted } from "@/shared/lib/watch-progress";
  * watched or removing it.
  */
 export interface Card {
+  /** Unique on the shelf, which lists it by this. */
+  key: string;
   link: LinkOptions;
   backdrop: {
     url: string | undefined;
@@ -63,15 +65,15 @@ function movieCard(library: bigint, movie: Movie): Card[] {
   }
   const libraryId = String(library);
   const movieId = titleParam(movie.id);
-  const title = { key: `${libraryId}/${movieId}`, title: movie.title, libraryId: library };
   return [
     {
+      key: `${libraryId}/${movieId}`,
       page: {
         label: "Go to Movie",
         link: { to: "/libraries/$libraryId/movies/$movieId", params: { libraryId, movieId } },
       },
-      marking: { ...title, target: { case: "movieId", value: movie.id } },
-      hiding: { ...title, target: { case: "movieId", value: movie.id } },
+      marking: { libraryId: library, target: { case: "movieId", value: movie.id } },
+      hiding: { libraryId: library, target: { case: "movieId", value: movie.id } },
       link: {
         to: "/libraries/$libraryId/movies/$movieId/play",
         params: { libraryId, movieId },
@@ -101,20 +103,16 @@ function episodeCard(library: bigint, entry: ContinueWatchingEpisode): Card[] {
   const number = String(episode.episodeNumber);
   const which = episodeName(episode.seasonNumber, episode.episodeNumber, "short");
   const time = episodeTime(episode);
-  const title = {
-    key: `${libraryId}/${showId}/${season}/${number}`,
-    title: show.title,
-    libraryId: library,
-  };
   return [
     {
+      key: `${libraryId}/${showId}/${season}/${number}`,
       page: {
         label: "Go to Show",
         link: { to: "/libraries/$libraryId/shows/$showId", params: { libraryId, showId } },
       },
-      marking: { ...title, target: { case: "episodeId", value: episode.id } },
+      marking: { libraryId: library, target: { case: "episodeId", value: episode.id } },
       // Removing an Episode removes its Show, till you play any of its Episodes again.
-      hiding: { ...title, target: { case: "showId", value: show.id } },
+      hiding: { libraryId: library, target: { case: "showId", value: show.id } },
       link: {
         to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
         params: { libraryId, showId, season, episode: number },

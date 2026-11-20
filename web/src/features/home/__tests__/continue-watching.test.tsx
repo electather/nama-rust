@@ -19,6 +19,7 @@ import {
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { WatchStateService, type WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { heldBack } from "@/test-held-back";
 import { layOutShelves } from "@/test-layout";
 
 beforeEach(layOutShelves);
@@ -282,14 +283,11 @@ test("marking an Episode watched moves its card on to the Show's next Episode", 
 
   await expect(screen.findByRole("link", { name: "Play Dark, S1, E3" })).resolves.toBeDefined();
   expect(asked).toStrictEqual([{ episode: "Dark-1-2", played: true }]);
-  const notice = screen.getByText("Dark is marked as watched.");
-  expect(screen.getByRole("status").contains(notice)).toBe(true);
-  expect(document.activeElement).toBe(notice);
 });
 
 /**
  * A fake Server whose Continue Watching lists `entry` until it's removed, with each removal asked
- * of it: what it removed or brought back, and which.
+ * of it: whether it hid it, and which.
  */
 function serverRemoving(entry: MessageInitShape<typeof ContinueWatchingEntrySchema>) {
   let hidden = false;
@@ -307,26 +305,43 @@ function serverRemoving(entry: MessageInitShape<typeof ContinueWatchingEntrySche
   return { transport, asked };
 }
 
-test("removing a Show from recently watched takes its card away, and Undo brings it back", async () => {
+test("removing a Show from recently watched takes its card away", async () => {
   const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
   const { transport, asked } = serverRemoving(episodeEntry(dark, 1, 2));
   openApp("/", transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "More for Dark" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Remove from recently watched" }));
-  const undo = await screen.findByRole("button", { name: "Undo" });
+
   await waitFor(() => {
     expect(screen.queryByRole("link", { name: /Dark/u })).toBeNull();
   });
-  expect(screen.getByRole("status").textContent).toContain(
-    "Dark is removed from recently watched until you play it again.",
-  );
-  expect(document.activeElement).toBe(undo);
+  expect(asked).toStrictEqual([{ case: "showId", hidden: true }]);
+});
 
-  fireEvent.click(undo);
-  await expect(screen.findByRole("link", { name: /Dark/u })).resolves.toBeDefined();
-  expect(asked).toStrictEqual([
-    { case: "showId", hidden: true },
-    { case: "showId", hidden: false },
-  ]);
+/** Picks `item` from Dark's card's menu, which takes the card away, then the card `refuse` brings back. */
+async function leavesThenComesBack(item: string, refuse: () => void) {
+  fireEvent.click(await screen.findByRole("button", { name: "More for Dark" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: item }));
+  await waitFor(() => {
+    expect(screen.queryByRole("link", { name: /Dark/u })).toBeNull();
+  });
+  refuse();
+  return screen.findByRole("link", { name: /Dark/u });
+}
+
+test("a card leaves as you mark it watched or remove it, and comes back if the Server refuses", async () => {
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
+  const marking = heldBack();
+  const removing = heldBack();
+  const transport = server(
+    { listContinueWatching: () => ({ entries: [episodeEntry(dark, 1, 2)] }) },
+    { setPlayed: marking.answer, setHiddenFromContinueWatching: removing.answer },
+  );
+  openApp("/", transport);
+
+  await expect(leavesThenComesBack("Mark as watched", marking.refuse)).resolves.toBeDefined();
+  await expect(
+    leavesThenComesBack("Remove from recently watched", removing.refuse),
+  ).resolves.toBeDefined();
 });

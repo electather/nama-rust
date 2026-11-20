@@ -13,10 +13,11 @@ export interface OnWatchlist {
 }
 
 /**
- * Adds a title to your Watchlist or takes it off, then refetches what's on screen, so its button
- * shows the Server's word. `pending` while it's asking.
+ * Adds the title `watchlist` names to your Watchlist or takes it off, then refetches what's on
+ * screen. It shows `on` as you asked at once, till the Server answers and the refetch is done, and
+ * as it was if the Server refuses.
  */
-export function useToggleWatchlist() {
+export function useToggleWatchlist({ kind, id, on }: OnWatchlist) {
   const queryClient = useQueryClient();
   const refetch = {
     onSuccess: async () => {
@@ -25,10 +26,15 @@ export function useToggleWatchlist() {
   };
   const add = useMutation(WatchlistService.method.addToWatchlist, refetch);
   const remove = useMutation(WatchlistService.method.removeFromWatchlist, refetch);
+  const pending = add.isPending || remove.isPending;
+  const shown = pending ? add.isPending : on;
   return {
-    pending: add.isPending || remove.isPending,
-    toggle: ({ kind, id, on }: OnWatchlist) => {
-      (on ? remove : add).mutate({ kind, id });
+    on: shown,
+    toggle: () => {
+      // Pressed again before the Server answers, it would race the first ask.
+      if (!pending) {
+        (shown ? remove : add).mutate({ kind, id });
+      }
     },
   };
 }
