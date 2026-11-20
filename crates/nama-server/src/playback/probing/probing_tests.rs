@@ -7,7 +7,7 @@ use super::{Error, PROBES_AT_ONCE, ProbeError, Probing, ffprobe};
 use crate::{
     config::Config,
     db::Database,
-    ffmpeg::{self, Ffmpeg},
+    ffmpeg::{self, Ffmpeg, RunError},
     library::{
         Change, Contents, Decided, Item, Libraries, LibraryKind as Kind, Stored,
         fixture::{decide, tmdb_movie},
@@ -276,7 +276,7 @@ async fn without_ffprobe_probing_a_version_right_away_reports_that_probing_is_un
     let probed = media.current(alien).await;
 
     assert!(
-        matches!(&probed, Err(Error::Probe(err)) if matches!(**err, ProbeError::Unavailable)),
+        matches!(&probed, Err(Error::Probe(err)) if matches!(**err, ProbeError::Run(RunError::Unavailable(_)))),
         "{probed:?}"
     );
 }
@@ -620,7 +620,7 @@ async fn probing_a_version_right_away_while_the_background_probe_fails_returns_t
     let probed = media.current(alien).await;
 
     assert!(
-        matches!(&probed, Err(Error::Probe(err)) if matches!(**err, ProbeError::Failed(_))),
+        matches!(&probed, Err(Error::Probe(err)) if matches!(**err, ProbeError::Run(RunError::Failed(..)))),
         "{probed:?}"
     );
     media.probing.idle().await;

@@ -35,7 +35,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use super::{Probe, Probing, RunningPlans, TrackKind, Tracks};
 use crate::{
     db::Database,
-    ffmpeg::{Ffmpeg, ReadOutError},
+    ffmpeg::{Ffmpeg, RunError},
     images::{ImageStore, PREVIEW_FRAMES_DIR as DIR},
     library::{Contents, Libraries, LibraryError, Stored},
 };
@@ -61,7 +61,7 @@ const PLAYING_CHECK: Duration = Duration::from_secs(1);
 #[derive(Debug, thiserror::Error)]
 pub(super) enum Error {
     #[error(transparent)]
-    Ffmpeg(ReadOutError),
+    Ffmpeg(RunError),
     #[error("couldn't keep them: {0}")]
     Store(#[from] io::Error),
     #[error(transparent)]
@@ -255,14 +255,14 @@ impl PreviewFrames {
                 tracing::warn!(version, "could not pack a Version's Preview frames: {err}");
                 None
             }
-            Err(err @ (ReadOutError::Unavailable | ReadOutError::Run(_))) => {
+            Err(err @ (RunError::Unavailable(_) | RunError::Run(..))) => {
                 return Err(Error::Ffmpeg(err));
             }
             // Like a probe's, a failure to open the file, as on a share gone, says nothing about it.
-            Err(err @ ReadOutError::Failed(_)) if tokio::fs::File::open(&path).await.is_err() => {
+            Err(err @ RunError::Failed(..)) if tokio::fs::File::open(&path).await.is_err() => {
                 return Err(Error::Ffmpeg(err));
             }
-            Err(err @ (ReadOutError::TimedOut(_) | ReadOutError::Failed(_))) => {
+            Err(err @ (RunError::TimedOut(_) | RunError::Failed(..))) => {
                 tracing::warn!(
                     version,
                     "ffmpeg couldn't make a Version's Preview frames: {err}"
