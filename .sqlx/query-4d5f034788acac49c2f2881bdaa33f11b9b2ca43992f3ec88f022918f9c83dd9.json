@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT titles, missing FROM home_rows WHERE plugin_id = ? AND key = ?",
+  "query": "SELECT titles, missing FROM home_rows\n             WHERE plugin_id = ? AND key = ? AND (user_id IS NULL OR user_id = ?)\n             ORDER BY user_id IS NOT NULL LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -27,12 +27,12 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 3
     },
     "nullable": [
       false,
       false
     ]
   },
-  "hash": "2115cf9692e14575f075f960e7ea063b512887b77ee9ab21a6d30f13dab6c997"
+  "hash": "4d5f034788acac49c2f2881bdaa33f11b9b2ca43992f3ec88f022918f9c83dd9"
 }

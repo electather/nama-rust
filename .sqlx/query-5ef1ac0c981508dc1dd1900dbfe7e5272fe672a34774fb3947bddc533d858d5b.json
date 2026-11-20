@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM home_rows WHERE plugin_id = ? AND user_id IS ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "5ef1ac0c981508dc1dd1900dbfe7e5272fe672a34774fb3947bddc533d858d5b"
+}

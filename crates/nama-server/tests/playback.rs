@@ -608,7 +608,7 @@ async fn a_transcode_runs_on_the_gpu_an_admin_picked_and_its_plan_names_it() {
         .text,
         "It Transcodes on the AMD integrated GPU with VAAPI"
     );
-    let transcoded = written(&runs).await;
+    let transcoded = written_to_end(&runs, "\n").await;
     let integrated = format!("vaapi=nama:{}", dri.join("renderD129").display());
     assert!(transcoded.contains(&integrated), "{transcoded}");
 }
@@ -941,19 +941,20 @@ fn beside(url: &str, file: &str) -> String {
 )]
 async fn ffmpegs_own_playlist(folder: &Path, url: &str) -> String {
     let id = url.split('/').nth(3).unwrap();
-    written(&folder.join(format!("nama-plan-{id}")).join("ffmpeg.m3u8")).await
+    let playlist = folder.join(format!("nama-plan-{id}")).join("ffmpeg-0.m3u8");
+    written_to_end(&playlist, "#EXT-X-ENDLIST\n").await
 }
 
-/// What the file at `path` holds once it ends in a newline, so its last line isn't half written.
+/// What the file at `path` holds once it ends in `end`, so its last line isn't half written.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn written(path: &Path) -> String {
+async fn written_to_end(path: &Path, end: &str) -> String {
     tokio::time::timeout(WAIT, async {
         loop {
             if let Ok(written) = fs::read_to_string(path)
-                && written.ends_with('\n')
+                && written.ends_with(end)
             {
                 return written;
             }

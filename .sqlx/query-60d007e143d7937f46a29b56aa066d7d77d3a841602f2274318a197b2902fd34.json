@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT missing FROM home_rows WHERE plugin_id = ? AND user_id IS ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "missing",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "missing"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "60d007e143d7937f46a29b56aa066d7d77d3a841602f2274318a197b2902fd34"
+}

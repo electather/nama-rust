@@ -38,6 +38,7 @@
 //! one whose Probing ends after a later scan of the Library started sends nothing.
 
 mod deleting;
+mod library_changes;
 mod names;
 mod recognised;
 mod walking;
@@ -59,14 +60,15 @@ use nama_proto::nama::v1::{
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
-    db::{Database, detached},
+    db::Database,
     events::{EventBus, event},
     library::{
-        Artwork, Change, Contents, CustomImages, Libraries, Library, LibraryError, LibraryKind,
-        LocalImages, NotFound, Order, Recognisers, ScanLock, ScanLocks, check_title_sources,
+        Artwork, Change, Contents, CustomImages, Libraries, LibraryError, LibraryKind, LocalImages,
+        NotFound, Recognisers, ScanLock, ScanLocks,
     },
     matching::{self, Matcher, count},
     playback::{Probing, RunningPlans, Sidecars},
+    plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
     requests::{self, Requests},
 };
@@ -170,6 +172,8 @@ struct Inner {
     matcher: Matcher,
     /// Asks Fulfillers to stop monitoring what a delete takes.
     plugins: ExtensionPoints,
+    /// Says which title sources and Recognisers a Library's orders may name.
+    plugin_settings: PluginSettings,
     events: EventBus,
     /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
     probing: Option<Probing>,
@@ -206,7 +210,7 @@ impl Scanner {
     )]
     pub(crate) fn new(
         db: Arc<Database>,
-        plugins: ExtensionPoints,
+        plugin_settings: PluginSettings,
         artwork: Artwork,
         custom_images: CustomImages,
         local_images: LocalImages,
@@ -216,6 +220,7 @@ impl Scanner {
         requests: Requests,
     ) -> Self {
         let locks = ScanLocks::new();
+        let plugins = plugin_settings.extension_points();
         Self {
             inner: Arc::new(Inner {
                 libraries: Libraries::new(Arc::clone(&db)),
@@ -231,6 +236,7 @@ impl Scanner {
                 local_images,
                 recognisers: Recognisers::new(plugins.clone(), RecogniserMethod::File),
                 plugins,
+                plugin_settings,
                 events,
                 probing,
                 running,
@@ -275,76 +281,6 @@ impl Scanner {
             Ok(libraries) => libraries.iter().for_each(|library| self.queue(library.id)),
             Err(err) => tracing::error!("could not list the Libraries to scan: {err}"),
         }
-    }
-
-    /// Creates a Library asking its Plugins in `order`, and watches its folders. The watch follows
-    /// even if the caller stops waiting (ADR 0029); scanning the new Library is left to the
-    /// caller.
-    pub(crate) async fn create_library(
-        &self,
-        name: String,
-        kind: LibraryKind,
-        folders: Vec<String>,
-        order: Order,
-    ) -> Result<Library, LibraryError> {
-        let scanner = self.clone();
-        detached(async move {
-            let libraries = &scanner.inner.libraries;
-            if !order.title_sources.is_empty() {
-                check_title_sources(&order.title_sources)?;
-            }
-            let library = (libraries.create_in_order(&name, kind, folders, order)).await?;
-            scanner.rewatch().await;
-            Ok(library)
-        })
-        .await
-    }
-
-    /// Renames the Library `id`, replaces its folders and whichever of its orders `order` gives,
-    /// then watches its new folders and not its old ones, even if the caller stops waiting (ADR
-    /// 0029). A new order doesn't Match its titles again.
-    pub(crate) async fn update_library(
-        &self,
-        id: i64,
-        name: String,
-        folders: Vec<String>,
-        order: Order,
-    ) -> Result<Library, LibraryError> {
-        let scanner = self.clone();
-        detached(async move {
-            let libraries = &scanner.inner.libraries;
-            if !order.title_sources.is_empty() {
-                check_title_sources(&order.title_sources)?;
-            }
-            let library = libraries.update(id, &name, folders, order).await?;
-            scanner.rewatch().await;
-            Ok(library)
-        })
-        .await
-    }
-
-    /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
-    /// probes, the images only its Matches stored, its Custom Image and its copies of the images
-    /// beside its media, and stops watching its folders, even if the caller stops waiting
-    /// (ADR 0029).
-    pub(crate) async fn delete_library(&self, id: i64) -> Result<(), LibraryError> {
-        let scanner = self.clone();
-        detached(async move {
-            scanner.inner.libraries.delete(id).await?;
-            scanner
-                .inner
-                .artwork
-                .drop_unused(&scanner.inner.contents)
-                .await;
-            scanner.inner.custom_images.delete_library(id).await;
-            scanner.inner.local_images.delete_library(id).await;
-            if let Some(probing) = &scanner.inner.probing {
-                probing.clean_subtitles().await;
-            }
-            scanner.rewatch().await;
-            Ok(())
-        })
-        .await
     }
 
     /// The Matcher that fixes a Match by hand, waiting for a scan of the item's Library.

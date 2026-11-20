@@ -18,12 +18,17 @@ pub(crate) fn hls_init(n: usize) -> String {
     format!("init-{n}.mp4")
 }
 
-/// The file the run whose init segment [`hls_init`] named `name` started at, if it's one.
-pub(crate) fn hls_init_from(name: &str) -> Option<usize> {
-    name.strip_prefix("init-")?
-        .strip_suffix(".mp4")?
-        .parse()
-        .ok()
+/// The playlist a Remux or Transcode started at file `n` writes beside its files, listing each
+/// once it's whole, such as `ffmpeg-3-0.m4s`, `ffmpeg-3-1.m4s` and so on, and how long it lasts.
+pub(crate) fn hls_playlist(n: usize) -> String {
+    format!("ffmpeg-{n}.m3u8")
+}
+
+/// The file the run that wrote the file named `name` started at, if it's a run's init segment
+/// ([`hls_init`]), playlist ([`hls_playlist`]) or one of the files that lists.
+pub(crate) fn hls_run_from(name: &str) -> Option<usize> {
+    let rest = (name.strip_prefix("init-")).or_else(|| name.strip_prefix("ffmpeg-"))?;
+    rest.split(['-', '.']).next()?.parse().ok()
 }
 
 /// What a Remux converts.
@@ -369,8 +374,9 @@ pub(super) fn aac(command: &mut tokio::process::Command, channels: Option<i64>) 
     }
 }
 
-/// `command`, ffmpeg at `version` given its input and codecs, writing HLS with fMP4 to `dir`: a
-/// file per keyframe, numbered from `n`, and an init segment named by [`hls_init`].
+/// `command`, ffmpeg at `version` given its input and codecs, writing HLS with fMP4 to `dir`, as
+/// the run started at file `n`: a file per keyframe, listed by [`hls_playlist`], and an init
+/// segment named by [`hls_init`].
 pub(super) fn hls_output(
     mut command: tokio::process::Command,
     version: &str,
@@ -393,17 +399,17 @@ pub(super) fn hls_output(
         .args(["-f", "hls", "-hls_segment_type", "fmp4"])
         // ffmpeg cuts at multiples of `-hls_time` from where it started, so a run started
         // elsewhere would cut elsewhere: cutting at every keyframe keeps the cuts put.
-        .args(["-hls_time", "0.001", "-hls_playlist_type", "vod"])
+        // An event playlist lists each file once it's whole; ffmpeg writes a VOD one only at the
+        // end.
+        .args(["-hls_time", "0.001", "-hls_playlist_type", "event"])
         .args(["-hls_flags", "temp_file", "-hls_fmp4_init_filename"])
         .arg(hls_init(n))
         // Or each run's fragments would be timed from where it started.
         .args([segment_options, "movflags=+frag_discont"])
-        .arg("-start_number")
-        .arg(n.to_string())
+        // Named by the run, as a run started elsewhere numbers its files from there.
         .arg("-hls_segment_filename")
-        .arg(dir.join("%d.m4s"))
-        // The Server serves a playlist of its own, listing the whole Version up front.
-        .arg(dir.join("ffmpeg.m3u8"))
+        .arg(dir.join(format!("ffmpeg-{n}-%d.m4s")))
+        .arg(dir.join(hls_playlist(n)))
         // ffmpeg puts the init segment in the playlist's folder, which it finds by the last `/`
         // alone, so on Windows it'd put it in its working folder instead.
         .current_dir(dir)

@@ -88,7 +88,7 @@ impl HomeRowSource for MdbList {
     }
 }
 
-nama_pdk::home_row_source!(MdbList);
+nama_pdk::home_row_source!(MdbList, [shared_rows]);
 
 /// MDBList's answer to a request: the Server gives a Plugin no response headers.
 #[derive(Debug)]

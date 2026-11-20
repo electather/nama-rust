@@ -18,7 +18,8 @@ use crate::{
     },
     log_capture::CapturedLog,
     playback::{Probing, RunningPlans, SubtitleCache},
-    plugins::ExtensionPoints,
+    plugin_settings::PluginSettings,
+    plugins::{ExtensionPoints, Registry},
     requests::Requests,
     server_settings::ServerUrl,
 };
@@ -44,25 +45,21 @@ pub(super) struct Fixture {
 impl Fixture {
     /// With nothing probing.
     pub(super) async fn new(kind: LibraryKind) -> Self {
-        Self::with_probing(kind, None, ExtensionPoints::default()).await
+        Self::with_probing(kind, None, Registry::new()).await
     }
 
     /// With nothing probing, and `plugins` as the Plugins the scanner asks.
-    pub(super) async fn with_plugins(kind: LibraryKind, plugins: ExtensionPoints) -> Self {
+    pub(super) async fn with_plugins(kind: LibraryKind, plugins: Registry) -> Self {
         Self::with_probing(kind, None, plugins).await
     }
 
     /// Probing with `ffmpeg`.
     #[cfg(unix)]
     pub(super) async fn with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
-        Self::with_probing(kind, Some(ffmpeg), ExtensionPoints::default()).await
+        Self::with_probing(kind, Some(ffmpeg), Registry::new()).await
     }
 
-    async fn with_probing(
-        kind: LibraryKind,
-        ffmpeg: Option<Ffmpeg>,
-        plugins: ExtensionPoints,
-    ) -> Self {
+    async fn with_probing(kind: LibraryKind, ffmpeg: Option<Ffmpeg>, plugins: Registry) -> Self {
         let data = tempfile::tempdir().unwrap();
         let media = tempfile::tempdir().unwrap();
         let root = media.path().canonicalize().unwrap().join("library");
@@ -86,7 +83,7 @@ impl Fixture {
         Self {
             scanner: Scanner::new(
                 Arc::clone(&db),
-                plugins,
+                PluginSettings::for_tests(Arc::clone(&db), plugins),
                 Artwork::new(images.clone(), ExtensionPoints::default()),
                 CustomImages::new(Arc::clone(&db), images.clone()),
                 LocalImages::new(Arc::clone(&db), images),
@@ -676,7 +673,8 @@ async fn a_file_written_in_chunks_is_scanned_once() {
 
 #[tokio::test]
 async fn watches_follow_libraries_created_updated_and_deleted() {
-    let media = Fixture::new(LibraryKind::Movies).await;
+    // Built-in TMDB, as a Server has, keeps the titles of a new Library by default.
+    let media = Fixture::with_plugins(LibraryKind::Movies, Registry::with_builtins()).await;
     let watched = || media.scanner.watched();
     let more = tempfile::tempdir().unwrap();
     let (first, second) = (more.path().join("first"), more.path().join("second"));
@@ -723,7 +721,8 @@ async fn watches_follow_libraries_created_updated_and_deleted() {
 
 #[tokio::test]
 async fn deleting_a_library_inside_another_keeps_the_outer_one_watched() {
-    let media = Fixture::new(LibraryKind::Movies).await;
+    // Built-in TMDB, as a Server has, keeps the titles of a new Library by default.
+    let media = Fixture::with_plugins(LibraryKind::Movies, Registry::with_builtins()).await;
     let beside = media.root.with_file_name("beside");
     fs::create_dir(&beside).unwrap();
     fs::create_dir(media.path("inner")).unwrap();

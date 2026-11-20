@@ -154,7 +154,11 @@ pub(super) const BLOB_LIST: Method = blob("List", "blob_list");
 pub(super) const BLOB_EXISTS: Method = blob("Exists", "blob_exists");
 pub(super) const SHARED_ROWS: Method = Method {
     limit: HOME_ROWS_TIMEOUT,
-    ..required(services::HOME_ROW, "SharedRows", "shared_rows")
+    ..optional(services::HOME_ROW, "SharedRows", "shared_rows")
+};
+pub(super) const USER_ROWS: Method = Method {
+    limit: HOME_ROWS_TIMEOUT,
+    ..optional(services::HOME_ROW, "UserRows", "user_rows")
 };
 pub(super) const SUBTITLE_SEARCH: Method =
     required(services::SUBTITLE_SOURCE, "Search", "subtitle_search");
@@ -259,7 +263,7 @@ pub(super) const POINTS: &[Point] = &[
     Point {
         service: services::HOME_ROW,
         crash_group: services::HOME_ROW,
-        methods: &[SHARED_ROWS],
+        methods: &[SHARED_ROWS, USER_ROWS],
         key: PointKey::provide::<dyn HomeRowSource>,
         register: |registrar, running| {
             registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, Arc::new(running));

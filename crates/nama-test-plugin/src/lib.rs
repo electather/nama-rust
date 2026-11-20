@@ -32,7 +32,7 @@ mod exports {
     const NOTIFIER: &str = "notifier";
 
     /// The Personal setting naming whom a User's notifications go to.
-    const HANDLE: &str = "handle";
+    pub(super) const HANDLE: &str = "handle";
 
     /// The setting that makes its settings check fail with its text, or hoard 256 MiB, loop
     /// forever or panic for `hoard`, `loop` or `panic`.
@@ -420,7 +420,8 @@ mod exports {
 #[cfg(feature = "home-rows")]
 mod home_rows {
     use nama_pdk::{
-        HomeRow, HomeRowSource, HomeRowTitle, HomeRows, TitleId, TitleKind, extism_pdk::Error,
+        HomeRow, HomeRowSource, HomeRowTitle, HomeRows, TitleId, TitleKind, UserRowsAsked,
+        extism_pdk::Error,
     };
 
     /// The setting naming the keys of the rows it gives, comma-separated, all of them when
@@ -428,9 +429,10 @@ mod home_rows {
     /// saying the value, so two tests counting the log lines fail apart.
     pub(super) const ROWS: &str = "home_rows";
 
-    /// Gives `picks`: the Movies Heat, Dune and Alien and the Show Dark, which the fake TMDB
-    /// knows; `again`: Alien; and `missing`: Dune and a Movie no title source has. Logs which it
-    /// was asked for, so a test counts its refreshes.
+    /// Gives every User `picks`: the Movies Heat, Dune and Alien and the Show Dark, which the
+    /// fake TMDB knows; `again`: Alien; and `missing`: Dune and a Movie no title source has. Gives
+    /// a User who set a `handle` the row `for-<handle>`: Alien. Logs which it was asked for, so a
+    /// test counts its refreshes.
     struct TestRows;
 
     impl HomeRowSource for TestRows {
@@ -463,6 +465,21 @@ mod home_rows {
                 ..HomeRows::default()
             })
         }
+
+        fn user_rows(asked: UserRowsAsked) -> Result<HomeRows, Error> {
+            let Some(handle) = asked.personal_settings.get(super::exports::HANDLE) else {
+                return Ok(HomeRows::default());
+            };
+            nama_pdk::info!("test-plugin gives {handle}'s Home rows");
+            Ok(HomeRows {
+                rows: vec![row(
+                    &format!("for-{handle}"),
+                    &format!("For {handle}"),
+                    &[(MOVIE, 348)],
+                )],
+                ..HomeRows::default()
+            })
+        }
     }
 
     const MOVIE: TitleKind = TitleKind::TITLE_KIND_MOVIE;
@@ -490,7 +507,7 @@ mod home_rows {
         }
     }
 
-    nama_pdk::home_row_source!(TestRows);
+    nama_pdk::home_row_source!(TestRows, [shared_rows, user_rows]);
 }
 
 #[cfg(feature = "subtitle-source")]

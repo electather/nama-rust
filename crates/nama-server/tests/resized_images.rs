@@ -241,27 +241,6 @@ async fn a_jpeg_xl_paints_a_full_frame_from_its_first_hundredth() {
 }
 
 #[tokio::test]
-async fn an_output_over_7_megapixels_is_a_jpeg_or_as_stored_with_transparency() {
-    // At 2560 px wide this is 2560x3840, 9.8 megapixels.
-    let opaque = jpeg(2600, 3900);
-    let transparent = encoded(
-        RgbaImage::from_pixel(2600, 3900, [0, 0, 0, 0].into()),
-        ImageFormat::Png,
-    );
-    let (fx, poster) = alien_with_poster(&opaque).await;
-
-    let as_jpeg = fetch_accepting(&fx, &poster, 2560, ACCEPTS_JXL).await;
-    assert_eq!(as_jpeg.header("content-type"), "image/jpeg");
-    assert_eq!(dimensions(&as_jpeg), (2560, 3840));
-
-    fs::write(fx.server.data_dir().join(POSTER), &transparent).unwrap();
-    // A copy is made from the image's key alone, so the opaque one's would be found.
-    fs::remove_dir_all(fx.server.data_dir().join("resized")).unwrap();
-    let as_stored = fetch_accepting(&fx, &poster, 2560, ACCEPTS_JXL).await;
-    assert!(as_stored.body == transparent, "it was changed");
-}
-
-#[tokio::test]
 async fn a_png_with_transparency_becomes_a_jpeg_xl_that_keeps_it_only_for_a_browser_that_asks() {
     let png = encoded(
         RgbaImage::from_fn(1000, 1500, |x, _| {

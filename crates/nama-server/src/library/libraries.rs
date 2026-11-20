@@ -9,7 +9,6 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 use nama_plugin_api::metadata::{ExternalId, InvalidId, SourceManifest, TMDB};
 use sqlx::SqliteConnection;
 
-use super::Contents;
 use crate::{db::Database, users::name_key};
 
 /// The kind of media a Library holds.
@@ -46,11 +45,11 @@ pub(crate) struct Library {
 /// The orders a Library asks its Plugins in, as a create or an update gives them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Order {
-    /// Title source namespaces, first asked first; empty keeps the stored order, or TMDB alone
-    /// for a new Library.
+    /// Title source namespaces, first asked first; empty keeps the stored order. A new Library's
+    /// names at least one: the Scanner gives one naming none the default.
     pub(crate) title_sources: Vec<String>,
     /// Recogniser Plugin ids, first asked first; `None` keeps the stored order, or none for a
-    /// new Library. The caller checks each names a Recogniser.
+    /// new Library.
     pub(crate) recognisers: Option<Vec<String>>,
 }
 
@@ -100,6 +99,10 @@ pub(crate) enum Error {
     /// No source the title sources name searches, so the Library could never Match (ADR 0045).
     #[error("no source in this order searches for titles; add one that does, such as TMDB")]
     NoTitleSourceSearches,
+    /// The Recognisers name `plugin` twice, or it has a comma or is no Plugin whose Manifest names
+    /// the Recogniser point (ADR 0050).
+    #[error("{plugin:?} is no Recogniser's Plugin, or is named twice")]
+    RecognisersInvalid { plugin: String },
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -141,10 +144,15 @@ impl Libraries {
         kind: Kind,
         folders: Vec<String>,
     ) -> Result<Library, Error> {
-        (self.create_in_order(name, kind, folders, Order::default())).await
+        let order = Order {
+            title_sources: default_title_sources(),
+            recognisers: None,
+        };
+        (self.create_in_order(name, kind, folders, order)).await
     }
 
-    /// Creates a Library asking its Plugins in `order`, in one write.
+    /// Creates a Library asking its Plugins in `order`, which must already be checked, in one
+    /// write.
     pub(crate) async fn create_in_order(
         &self,
         name: &str,
@@ -152,11 +160,13 @@ impl Libraries {
         folders: Vec<String>,
         order: Order,
     ) -> Result<Library, Error> {
+        // Stored joined with commas, so an empty order would read back as one blank namespace.
+        debug_assert!(
+            !order.title_sources.is_empty(),
+            "a new Library's title sources weren't defaulted and checked"
+        );
         let name = check_name(name)?;
         let folders = check_folders(folders).await?;
-        if !order.title_sources.is_empty() {
-            check_title_sources(&order.title_sources)?;
-        }
         self.db
             .write(move |tx| Box::pin(create(tx, name, kind, folders, order)))
             .await
@@ -281,8 +291,8 @@ impl Libraries {
             .await
     }
 
-    /// Renames the Library, replaces its folders and whichever of its orders `order` gives, in
-    /// one write; its kind can't change.
+    /// Renames the Library, replaces its folders and whichever of its orders `order`, which must
+    /// already be checked, gives, in one write; its kind can't change.
     pub(crate) async fn update(
         &self,
         id: i64,
@@ -292,9 +302,6 @@ impl Libraries {
     ) -> Result<Library, Error> {
         let name = check_name(name)?;
         let folders = check_folders(folders).await?;
-        if !order.title_sources.is_empty() {
-            check_title_sources(&order.title_sources)?;
-        }
         self.db
             .write(move |tx| Box::pin(update(tx, id, name, folders, order)))
             .await
@@ -318,10 +325,9 @@ impl Libraries {
         Ok(changed.unwrap_or(false))
     }
 
-    /// Records `read`, the ids of the enabled Recognisers the Library `id` lists, in its order and
-    /// joined with commas, as those its starting scan reads with, and if they differ from its last
-    /// scan's has Contents read its unparsed files again and forget what Matching left Unmatched
-    /// there, in one write (ADR 0050). Unchanged, it only reads: no wait behind writes (#1130).
+    /// Records `read`, the Library `id`'s enabled Recognisers in its order, joined with commas; if
+    /// they differ from its last scan's, Contents reads its unparsed files again and forgets its
+    /// Unmatched, in one write (ADR 0050). Unchanged, it only reads, so waits behind no write.
     pub(super) async fn read_again_if_recognisers_changed(
         &self,
         id: i64,
@@ -335,8 +341,7 @@ impl Libraries {
             .await
     }
 
-    /// Records `read` as [`Self::read_again_if_recognisers_changed`] says, and returns whether it
-    /// differs from the last scan's.
+    /// Records `read`; whether it differs from the last scan's.
     async fn record_recognisers_read(
         conn: &mut SqliteConnection,
         id: i64,
@@ -354,13 +359,12 @@ impl Libraries {
     }
 }
 
-/// The title sources of a Library created naming none, as the column's default stores them.
+/// The title sources of a Library created naming none.
 pub(crate) fn default_title_sources() -> Vec<String> {
     vec![TMDB.to_owned()]
 }
 
-/// `name`, `folders` and `order` must already be checked; what `order` leaves empty keeps the
-/// column's default.
+/// `name`, `folders` and `order` must already be checked.
 async fn create(
     conn: &mut SqliteConnection,
     name: String,
@@ -369,7 +373,7 @@ async fn create(
     order: Order,
 ) -> Result<Library, Error> {
     let Order {
-        mut title_sources,
+        title_sources,
         recognisers,
     } = order;
     ensure_name_free(conn, &name).await?;
@@ -382,11 +386,7 @@ async fn create(
     .fetch_one(&mut *conn)
     .await?;
     insert_folders(conn, id, &folders).await?;
-    if title_sources.is_empty() {
-        title_sources = default_title_sources();
-    } else {
-        set_title_sources(conn, id, title_sources.join(",")).await?;
-    }
+    set_title_sources(conn, id, title_sources.join(",")).await?;
     let recognisers = recognisers.unwrap_or_default();
     if !recognisers.is_empty() {
         set_recognisers(conn, id, recognisers.join(",")).await?;
@@ -567,8 +567,8 @@ async fn read_again_if_recognisers_changed(
     read: String,
 ) -> Result<(), sqlx::Error> {
     if Libraries::record_recognisers_read(conn, id, &read).await? {
-        Contents::read_unparsed_again(conn, id).await?;
-        Contents::forget_unmatched(conn, id).await?;
+        super::Contents::read_unparsed_again(conn, id).await?;
+        super::Contents::forget_unmatched(conn, id).await?;
     }
     Ok(())
 }
@@ -588,9 +588,9 @@ async fn set_recognisers(conn: &mut SqliteConnection, id: i64, order: String) ->
     Ok(())
 }
 
-/// Fails unless `order` is one or more namespaces by `ExternalId`'s rule, each named once, as
-/// [`Libraries::set_title_sources`] needs, so a caller can check before it changes anything else.
-pub(crate) fn check_title_sources(order: &[String]) -> Result<(), Error> {
+/// Fails unless `order` is one or more namespaces by `ExternalId`'s rule, each named once, as a
+/// stored order needs.
+fn check_title_sources(order: &[String]) -> Result<(), Error> {
     if order.is_empty() {
         return Err(Error::TitleSources { namespace: None });
     }

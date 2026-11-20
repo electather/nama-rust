@@ -25,7 +25,7 @@ pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 use self::hls::filter_value;
 pub(crate) use self::hls::{
     BurnIn, FromCut, HlsRun, ImageSubtitle, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
-    TranscodeAudio, VideoConversion, VideoLimit, hls_init, hls_init_from,
+    TranscodeAudio, VideoConversion, VideoLimit, hls_init, hls_playlist, hls_run_from,
 };
 use self::hls::{VideoArgs, aac, hls_output, map_audio, pgs_start_ms, seconds, video_args};
 #[cfg(any(test, feature = "testing"))]
@@ -356,11 +356,11 @@ impl Ffmpeg {
 
     /// The run of ffmpeg that copies the first video of the file at `path`, and `remux`'s audio
     /// Track if any, untouched into fMP4 in `dir`, but for converting that audio to AAC as `remux`
-    /// says, from the keyframe `from` to the end. It writes a file per keyframe, named by its
-    /// number such as `3.m4s`, and an init segment named by [`hls_init`] that's whole once
-    /// `from`'s file is. A run started at any keyframe writes the same files, so one can pick up
-    /// where another stopped. Each file appears only once it's whole. HEVC video is tagged `hvc1`
-    /// so Apple's players play it. Fails without ffmpeg.
+    /// says, from the keyframe `from` to the end. It writes a file per keyframe of the file, listed
+    /// or not, which [`hls_playlist`] lists with how long each lasts, and an init segment named by
+    /// [`hls_init`] that's whole once its first file is. A run started at any keyframe cuts at the
+    /// same ones, so one can pick up where another stopped. Each file appears only once it's whole.
+    /// HEVC video is tagged `hvc1` so Apple's players play it. Fails without ffmpeg.
     ///
     /// The video starts up to [`REMUX_BACK_AT_MOST_MS`] before `from`, the audio as
     /// [`REMUX_AUDIO_BACK_MS`] says, so it doesn't step back where this run picks up another's.
@@ -434,8 +434,8 @@ impl Ffmpeg {
 
     /// The run of ffmpeg that converts the first video of the file at `path` to 8-bit H.264, and
     /// its audio Track if any to AAC, as `transcode` says, into fMP4 in `dir`, from the cut `from`
-    /// to the end. It cuts a file at each cut, numbered from `from`'s, such as `3.m4s`, and writes
-    /// an init segment named by [`hls_init`] that's whole once the first file is. A run started at
+    /// to the end. It cuts a file at each cut, which [`hls_playlist`] lists, and writes an init
+    /// segment named by [`hls_init`] that's whole once the first file is. A run started at
     /// any cut writes the same files, so one can pick up where another stopped. Each file appears
     /// only once it's whole. Fails without ffmpeg, or if a PGS sidecar it burns in can't be read.
     pub(crate) fn transcode(
