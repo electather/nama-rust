@@ -4,6 +4,7 @@ import { TransportProvider } from "@connectrpc/connect-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, renderHook, screen, waitFor } from "@testing-library/react";
 import { type ReactNode, Suspense } from "react";
+import { rgbaToThumbHash, thumbHashToDataURL } from "thumbhash";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import {
@@ -56,12 +57,20 @@ function openHome(...entries: MessageInitShape<typeof ContinueWatchingEntrySchem
   openApp("/", server({ listContinueWatching: () => ({ entries }) }));
 }
 
-/** The Backdrop shown on the card `link` covers, if it has one. */
-function artOf(link: HTMLElement) {
-  return (
-    link.parentElement?.querySelector("img:not([src^='data:'])")?.getAttribute("src") ?? undefined
-  );
+/** What the card `link` covers shows: its art, the preview until that loads, its Title Logo and its text. */
+function looksOf(link: HTMLElement) {
+  const card = link.parentElement;
+  return {
+    art: card?.querySelector("img:not([src^='data:'])")?.getAttribute("src") ?? undefined,
+    preview: card?.querySelector("img[src^='data:']")?.getAttribute("src") ?? undefined,
+    logo: card?.querySelector("img[alt]:not([alt=''])")?.getAttribute("src") ?? undefined,
+    text: card?.textContent,
+  };
 }
+
+/** One-pixel thumbhashes of two colours, so a titled Backdrop's preview differs from a Backdrop's. */
+const backdropHash = rgbaToThumbHash(1, 1, new Uint8Array([10, 0, 0, 255]));
+const titledHash = rgbaToThumbHash(1, 1, new Uint8Array([20, 0, 0, 255]));
 
 /**
  * A Continue Watching entry for Season `seasonNumber`'s Episode `episodeNumber` of `show`, in TV
@@ -162,7 +171,7 @@ test("a Movie's Continue Watching card resumes it, with how much is left", async
 
   const card = await screen.findByRole("link", { name: "Resume Alien, 1h 12m left" });
   expect(card.getAttribute("href")).toBe("/libraries/1/movies/tmdb-348/play");
-  expect(artOf(card)).toBe("/media/artwork/tmdb/%2Falien-backdrop.jpg");
+  expect(looksOf(card).art).toBe("/media/artwork/tmdb/%2Falien-backdrop.jpg");
 });
 
 test("a Season 2 Episode's card shows its Show's Backdrop, not a Season's Poster", async () => {
@@ -177,10 +186,50 @@ test("a Season 2 Episode's card shows its Show's Backdrop, not a Season's Poster
   const card = await screen.findByRole("link", { name: "Resume Dark, S2, E3 · 33m left" });
   expect(card.parentElement?.querySelector(String.raw`.before\:w-\(--played\)`)).not.toBeNull();
   expect(card.getAttribute("href")).toBe("/libraries/2/shows/tmdb-70523/seasons/2/episodes/3/play");
-  expect(artOf(card)).toBe("/media/artwork/tmdb/%2Fdark-backdrop.jpg");
+  expect(looksOf(card).art).toBe("/media/artwork/tmdb/%2Fdark-backdrop.jpg");
   // Beside its bar, the card leaves out "left": the bar says it.
   expect(card.parentElement?.textContent).toContain("S2, E3 · 33m");
   expect(card.parentElement?.textContent).not.toContain("left");
+});
+
+/** `title` with its Backdrop, Title Logo and, only if `titled`, its titled Backdrop. */
+function withArt(title: string, titled: boolean) {
+  return {
+    title,
+    backdropUrl: `/${title}-backdrop.jpg`,
+    backdropThumbhash: backdropHash,
+    titleLogoUrl: `/${title}-logo.png`,
+    titledBackdropUrl: titled ? `/${title}-titled.jpg` : undefined,
+    titledBackdropThumbhash: titled ? titledHash : undefined,
+  };
+}
+
+/** What Alien's and Dark's Episode 2's cards show, with their titled Backdrops only if `titled`. */
+async function cardsWithArt(titled: boolean) {
+  const movie = { id: alien, ...withArt("Alien", titled) };
+  const dark = { id: { namespace: "tmdb", value: "70523" }, ...withArt("Dark", titled) };
+  const alienEntry = { libraryId: 1n, movieOrEpisode: { case: "movie", value: movie } } as const;
+  openHome(alienEntry, episodeEntry(dark, 1, 2));
+  return [
+    looksOf(await screen.findByRole("link", { name: "Play Alien" })),
+    looksOf(await screen.findByRole("link", { name: "Play Dark, S1, E2" })),
+  ];
+}
+
+test("a card shows its titled Backdrop and its preview, without its Title Logo or title", async () => {
+  const preview = thumbHashToDataURL(titledHash);
+  await expect(cardsWithArt(true)).resolves.toStrictEqual([
+    { art: "/Alien-titled.jpg", preview, logo: undefined, text: "" },
+    { art: "/Dark-titled.jpg", preview, logo: undefined, text: "S1, E2" },
+  ]);
+});
+
+test("a card without a titled Backdrop shows its Backdrop under its Title Logo", async () => {
+  const preview = thumbHashToDataURL(backdropHash);
+  await expect(cardsWithArt(false)).resolves.toStrictEqual([
+    { art: "/Alien-backdrop.jpg", preview, logo: "/Alien-logo.png", text: "" },
+    { art: "/Dark-backdrop.jpg", preview, logo: "/Dark-logo.png", text: "S1, E2" },
+  ]);
 });
 
 test("a Show's next Episode's card plays it, saying which it is", async () => {
@@ -210,7 +259,7 @@ test("a Special without a Backdrop shows its Show's title on a plain card", asyn
   const card = await screen.findByRole("link", {
     name: "Resume Severance, Specials, E1 · 1m left",
   });
-  expect(artOf(card)).toBeUndefined();
+  expect(looksOf(card).art).toBeUndefined();
   expect(card.parentElement?.textContent).toContain("Severance");
 });
 
