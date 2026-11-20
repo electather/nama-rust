@@ -14,7 +14,7 @@ use super::{Installed, Listable, Refused, load::read_plugins, printable};
 use crate::plugins::{Registry, registry::Described};
 
 /// The bundled Installed Plugins and those in `<data_dir>/plugins/`, compiled but not yet listed.
-pub(crate) struct Found(Vec<(PathBuf, Result<Installed, Refused>)>);
+pub(crate) struct Found(pub(super) Vec<(PathBuf, Result<Installed, Refused>)>);
 
 /// Reads the bundled Installed Plugins and those in `<data_dir>/plugins/`, for
 /// [`Registry::list_installed`] to list.

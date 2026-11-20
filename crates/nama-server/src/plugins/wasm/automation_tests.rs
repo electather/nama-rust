@@ -1,10 +1,12 @@
 use std::{
     collections::HashSet,
+    path::PathBuf,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Registrar,
     automation::{
         Automation, DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked,
         Permission, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Tick,
@@ -15,9 +17,10 @@ use nama_plugin_api::{
 
 use super::super::{
     Installed,
+    listing::Found,
     load::{load, write_cache_config},
 };
-use crate::plugins::Registry;
+use crate::{log_capture::CapturedLog, plugins::Registry};
 
 #[path = "../../../tests/support/test_plugin.rs"]
 mod test_plugin;
@@ -229,5 +232,41 @@ async fn an_enabled_plugin_is_granted_only_what_its_manifest_requests_once_the_k
     assert_eq!(
         *made.lock().unwrap(),
         [(id, HashSet::from([Permission::PERMISSION_STORE]))]
+    );
+}
+
+#[tokio::test]
+async fn an_installed_automations_failed_tick_is_logged_once() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let registry = Registry::new();
+    let found = (PathBuf::from("test.wasm"), Ok(automation_plugin(&data_dir)));
+    registry.list_installed(Found(vec![found]));
+    registry.serve_kernel(Arc::new(|_, _| Arc::new(Fake::default())));
+    let id = PluginId::from_static("test-plugin");
+    let points = registry.extension_points();
+
+    // The test's runtime has one thread, so the tick loop logs to it.
+    let log = CapturedLog::start();
+    registry.enable_by_id(&id, Settings::default()).unwrap();
+    // The tick runs on a blocking thread; the loop logs its failure as it is recorded.
+    for _ in 0..500 {
+        if points
+            .failing(&id, PointKey::provide::<dyn Automation>())
+            .is_some()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let logged = log.finish();
+
+    let failed: Vec<&str> = logged
+        .lines()
+        .filter(|line| line.contains(NOT_GRANTED))
+        .collect();
+    assert_eq!(failed.len(), 1, "{logged}");
+    assert!(
+        failed[0].contains("automation tick failed plugin=test-plugin"),
+        "{logged}"
     );
 }

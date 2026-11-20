@@ -252,7 +252,8 @@ async fn a_tick_logging_in_a_loop_times_out_at_its_limit_and_counts_as_a_crash()
         .await
         .unwrap_err();
 
-    assert_eq!(failed.to_string(), "timeout");
+    let timed_out = format!("it crashed: it didn't answer within {SHORT:?}");
+    assert_eq!(failed.to_string(), timed_out);
     assert_eq!(running.crashes.load(Ordering::Relaxed), 1);
     assert!(started.elapsed() < CALL_TIMEOUT, "{:?}", started.elapsed());
 }
@@ -298,7 +299,10 @@ async fn a_call_another_calls_timeout_interrupts_fails_plainly_and_not_as_a_cras
         .unwrap()
         .unwrap_err();
 
-    assert_eq!(timed_out.to_string(), "timeout");
+    assert_eq!(
+        timed_out.to_string(),
+        format!("it crashed: it didn't answer within {SHORT:?}")
+    );
     assert_eq!(
         interrupted.to_string(),
         "another call of the Plugin ran past its time limit, and ending it ended this one too"

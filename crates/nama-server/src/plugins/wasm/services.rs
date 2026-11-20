@@ -1,10 +1,7 @@
 //! The adapter between the Kernel's Extension Points and the Plugin contract's services: one row
 //! per service method, which the calls into an Installed Plugin and the checks at load both read.
 
-use std::{
-    sync::{Arc, atomic::Ordering},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use buffa::Message;
 use nama_plugin_api::{
@@ -21,27 +18,17 @@ use nama_plugin_api::{
     subtitle_source::SubtitleSource,
 };
 use nama_plugin_proto::services;
-use tracing::warn;
 
 use super::{
-    Running, failure_cause,
+    Running,
     load::{BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, TICK_TIMEOUT},
 };
-use crate::plugins::without_secrets;
 
 /// The export that checks a Plugin's settings, if it has one. No service's: a Plugin of any has it.
 pub(super) const CHECK_SETTINGS: &str = "check_settings";
 
 /// The export that checks a User's Personal settings when they save them, if the Plugin has one.
 pub(super) const CHECK_PERSONAL_SETTINGS: &str = "check_personal_settings";
-
-/// How a method's failure reaches the Kernel.
-pub(super) enum Failure {
-    /// The error becomes the caller's [`PluginError`], and counts toward the crashes in a row.
-    Provider,
-    /// Logged and counted toward the crashes in a row; the Kernel waits for no answer.
-    Observer,
-}
 
 /// One method of a contract service, as the Kernel calls it in a Plugin.
 pub(super) struct Method {
@@ -57,7 +44,6 @@ pub(super) struct Method {
     pub(super) export: &'static str,
     /// Whether a Plugin naming the service may lack the export: the Kernel then doesn't ask it.
     pub(super) optional: bool,
-    pub(super) failure: Failure,
     /// How long one call of it may run, of the Plugin's own time; past it the call fails as a
     /// timeout, and counts as a crash.
     pub(super) limit: Duration,
@@ -95,7 +81,6 @@ const fn provider(service: &'static str, name: &'static str, export: &'static st
         name,
         export,
         optional: false,
-        failure: Failure::Provider,
         limit: CALL_TIMEOUT,
     }
 }
@@ -129,10 +114,8 @@ pub(super) const START_CONNECTION: Method =
     provider(services::CONNECTOR, "StartConnection", "start_connection");
 pub(super) const POLL_CONNECTION: Method =
     provider(services::CONNECTOR, "PollConnection", "poll_connection");
-pub(super) const OBSERVE_EVENTS: Method = Method {
-    failure: Failure::Observer,
-    ..provider(services::EVENT_OBSERVER, "ObserveEvents", "observe_events")
-};
+pub(super) const OBSERVE_EVENTS: Method =
+    provider(services::EVENT_OBSERVER, "ObserveEvents", "observe_events");
 pub(super) const TITLE_SEARCH: Method = optional(services::TITLE_SOURCE, "Search", "title_search");
 pub(super) const TITLE_MOVIE: Method = optional(services::TITLE_SOURCE, "Movie", "title_movie");
 pub(super) const TITLE_SHOW: Method = optional(services::TITLE_SOURCE, "Show", "title_show");
@@ -152,7 +135,6 @@ pub(super) const RECOGNISE_TITLE: Method =
 pub(super) const RECOGNISE_FILE: Method =
     optional(services::RECOGNISER, "RecogniseFile", "recognise_file");
 pub(super) const TICK: Method = Method {
-    failure: Failure::Observer,
     limit: TICK_TIMEOUT,
     ..provider(services::AUTOMATION, "Tick", "tick")
 };
@@ -310,38 +292,20 @@ impl Running {
         !method.optional || self.exports.contains(method.export)
     }
 
-    /// Calls `method` with `request` on a fresh instance and decodes its answer, its failure
-    /// mapped as the method's [`Failure`] says.
+    /// Calls `method` with `request` on a fresh instance and decodes its answer. A failure is
+    /// counted and handed back as [`Self::call_counted`] says, and logged by no one here: an Observer's
+    /// by the Registry, a Provider's by its caller.
     pub(super) async fn call_method<Req: Message, Resp: Message>(
         &self,
         method: &Method,
         request: &Req,
     ) -> Result<Resp, PluginError> {
         let input = request.encode_to_vec();
-        let output = match method.failure {
-            Failure::Provider => self.provide(method.export, input, method.limit).await?,
-            Failure::Observer => match self.call_blocking(method.export, input, method.limit).await
-            {
-                Ok(Ok(output)) => {
-                    self.crashes.store(0, Ordering::Relaxed);
-                    output
-                }
-                Ok(Err(err)) => {
-                    self.observer_failed(&err);
-                    return Err(without_secrets(failure_cause(&err), &self.secrets).into());
-                }
-                Err(err) => {
-                    warn!(plugin = %self.package.id, "observer failed: {err}");
-                    return Err(err.into());
-                }
-            },
-        };
-        let answer = Resp::decode_from_slice(&output);
-        // A Provider's caller logs or shows its error; nothing else logs an Observer's failed decode.
-        if let (Failure::Observer, Err(err)) = (&method.failure, &answer) {
-            warn!(plugin = %self.package.id, "observer failed: its answer didn't decode: {err}");
-        }
-        Ok(answer?)
+        let output = self
+            .call_counted(method.export, input, method.limit)
+            .await?;
+        Resp::decode_from_slice(&output)
+            .map_err(|err| format!("its answer didn't decode: {err}").into())
     }
 }
 
