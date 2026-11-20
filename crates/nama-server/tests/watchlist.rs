@@ -11,8 +11,9 @@ use browsing::{ALIEN_1080P, tmdb_id};
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_proto::nama::v1::{
     AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, GetShowRequest, LibraryKind,
-    ListContinueWatchingRequest, RemoveFromWatchlistRequest, ReportProgressRequest, TitleKind,
-    WatchStateServiceClient, WatchlistServiceClient, continue_watching_entry::MovieOrEpisode,
+    ListContinueWatchingRequest, ListEpisodesRequest, RemoveFromWatchlistRequest,
+    ReportProgressRequest, TitleKind, WatchStateServiceClient, WatchlistServiceClient,
+    continue_watching_entry::MovieOrEpisode,
 };
 use server::{
     TestServer,
@@ -146,7 +147,7 @@ async fn adding_twice_and_removing_what_isnt_there_change_nothing() {
 }
 
 #[tokio::test]
-async fn a_title_the_server_doesnt_have_can_be_added_and_removed() {
+async fn adding_and_removing_a_title_the_server_doesnt_have_succeed() {
     let fx = Fixture::start().await;
 
     add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, UNLISTED).await;
@@ -166,7 +167,7 @@ async fn a_show_on_the_watchlist_doesnt_put_the_movie_with_its_id_on_it() {
 }
 
 #[tokio::test]
-async fn continue_watching_says_its_movie_is_on_the_watchlist() {
+async fn continue_watching_says_its_movie_and_show_are_on_the_watchlist() {
     let fx = Fixture::start().await;
     let config = fx.server.client_config();
     let browse = BrowseServiceClient::new(HttpClient::plaintext(), config.clone());
@@ -176,16 +177,26 @@ async fn continue_watching_says_its_movie_is_on_the_watchlist() {
         ..Default::default()
     };
     let movie = browse.get_movie(alien).await.unwrap().into_owned().movie;
-    let report = ReportProgressRequest {
-        version_id: movie.versions[0].id,
-        position_ms: 60_000,
-        duration_ms: 6_000_000,
+    let dark_s01 = ListEpisodesRequest {
+        library_id: fx.shows,
+        show_id: tmdb_id(DARK).into(),
+        season_number: 1,
         ..Default::default()
     };
+    let episodes = browse.list_episodes(dark_s01).await.unwrap().into_owned();
     let watch_states = WatchStateServiceClient::new(HttpClient::plaintext(), config);
-    watch_states.report_progress(report).await.unwrap();
+    for version_id in [movie.versions[0].id, episodes.episodes[0].versions[0].id] {
+        let report = ReportProgressRequest {
+            version_id,
+            position_ms: 60_000,
+            duration_ms: 6_000_000,
+            ..Default::default()
+        };
+        watch_states.report_progress(report).await.unwrap();
+    }
 
     add(&fx.watchlist(), TitleKind::TITLE_KIND_MOVIE, ALIEN).await;
+    add(&fx.watchlist(), TitleKind::TITLE_KIND_SHOW, DARK).await;
 
     let asked = ListContinueWatchingRequest::default();
     let listed = browse
@@ -193,8 +204,13 @@ async fn continue_watching_says_its_movie_is_on_the_watchlist() {
         .await
         .unwrap()
         .into_owned();
-    let Some(MovieOrEpisode::Movie(listed_movie)) = &listed.entries[0].movie_or_episode else {
-        panic!("expected Alien, got {listed:?}");
-    };
-    assert!(listed_movie.on_watchlist);
+    let mut on = (listed.entries.iter())
+        .map(|entry| match &entry.movie_or_episode {
+            Some(MovieOrEpisode::Movie(started)) => ("movie", started.on_watchlist),
+            Some(MovieOrEpisode::Episode(started)) => ("show", started.show.on_watchlist),
+            None => panic!("an entry with neither a Movie nor an Episode: {entry:?}"),
+        })
+        .collect::<Vec<_>>();
+    on.sort_unstable();
+    assert_eq!(on, [("movie", true), ("show", true)]);
 }
