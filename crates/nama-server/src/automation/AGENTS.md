@@ -1,6 +1,6 @@
 ## Automation
 
-The Kernel's functions an Automation Plugin calls (ADR 0048), served to each Plugin by `Automation::serve`.
+The Kernel's functions any Plugin calls (ADR 0048, ADR 0071), served to each Plugin by `Automation::serve`.
 
 - **One owner for the Store:** only `store.rs` reads or writes `plugin_store`, tests included. A key is at most 256 bytes, a value at most 64 KiB, and a Plugin keeps at most 10 000 entries, Plugin-wide and per-User together, counted in the write that adds one; entries outlive disabling the Plugin, and deleting a User deletes theirs.
 - **Permission first:** the one table in `../automation.rs` names each Kernel function's Plugin Permission, and dispatch checks it before decoding the request or running the handler, refusing in plain words naming the Plugin and the Permission. A handler never checks a Permission itself.

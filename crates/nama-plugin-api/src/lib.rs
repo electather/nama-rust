@@ -435,7 +435,7 @@ impl Registrar {
         }
     }
 
-    /// Hands the Plugin `kernel`, the functions an Automation Plugin may call. Only the Kernel
+    /// Hands the Plugin `kernel`, the functions any Plugin may call. Only the Kernel
     /// calls it, when enabling a Plugin.
     #[must_use]
     pub fn with_kernel(self, kernel: Arc<dyn Kernel>) -> Self {

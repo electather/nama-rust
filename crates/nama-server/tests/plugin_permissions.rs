@@ -1,6 +1,9 @@
 //! Plugin Permissions over the API: those a Plugin's Manifest requests are listed, and an Admin
-//! grants some of them when enabling it, kept across a restart (ADR 0049).
+//! grants some of them when enabling it, kept across a restart (ADR 0049), and they alone decide
+//! which Kernel functions any Plugin may call (ADR 0071).
 
+#[path = "support/log.rs"]
+mod log;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
@@ -11,6 +14,7 @@ mod test_plugin;
 
 use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};
+use log::Log;
 use nama_proto::nama::v1::{
     EnablePluginRequest, ExtensionPoint, ListPluginsRequest, PluginPermission, PluginServiceClient,
     PluginSummary, RefusalReason,
@@ -23,19 +27,20 @@ const STORE: PluginPermission = PluginPermission::PLUGIN_PERMISSION_STORE;
 const READ_LIBRARIES: PluginPermission = PluginPermission::PLUGIN_PERMISSION_READ_LIBRARIES;
 const DELETE_MEDIA: PluginPermission = PluginPermission::PLUGIN_PERMISSION_DELETE_MEDIA;
 
-/// A Server with the test Plugin, built to request the Store and Library Permissions, dropped in.
+/// A Server with the test Plugin, built with `features`, dropped in. With `automation` it requests
+/// the Store and Library Permissions, with `home-rows` the Store alone.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn with_automation_plugin() -> TestServer {
+async fn with_test_plugin(features: &str) -> TestServer {
     let server = TestServer::builder()
         .plugins(Registry::with_builtins())
         .start()
         .await;
     let dir = server.data_dir().join("plugins");
     std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test.wasm"), test_plugin::build("automation")).unwrap();
+    std::fs::write(dir.join("test.wasm"), test_plugin::build(features)).unwrap();
     server
 }
 
@@ -74,7 +79,7 @@ fn values(permissions: &[PluginPermission]) -> Vec<EnumValue<PluginPermission>> 
 
 #[tokio::test]
 async fn listing_shows_the_permissions_a_plugin_requests_and_none_granted() {
-    let server = with_automation_plugin().await;
+    let server = with_test_plugin("automation").await;
 
     let summary = listed(&server).await;
 
@@ -87,7 +92,7 @@ async fn listing_shows_the_permissions_a_plugin_requests_and_none_granted() {
 
 #[tokio::test]
 async fn an_automation_plugin_is_listed_at_the_automation_point() {
-    let server = with_automation_plugin().await;
+    let server = with_test_plugin("automation").await;
 
     let summary = listed(&server).await;
 
@@ -101,7 +106,7 @@ async fn an_automation_plugin_is_listed_at_the_automation_point() {
 
 #[tokio::test]
 async fn enabling_with_a_requested_permission_grants_it() {
-    let server = with_automation_plugin().await;
+    let server = with_test_plugin("automation").await;
     listed(&server).await;
 
     client(&server)
@@ -116,7 +121,7 @@ async fn enabling_with_a_requested_permission_grants_it() {
 
 #[tokio::test]
 async fn granting_a_permission_the_plugin_does_not_request_is_refused() {
-    let server = with_automation_plugin().await;
+    let server = with_test_plugin("automation").await;
     listed(&server).await;
 
     let refusal = assert_refused(
@@ -139,7 +144,7 @@ async fn granting_a_permission_the_plugin_does_not_request_is_refused() {
 
 #[tokio::test]
 async fn a_restart_keeps_the_grants() {
-    let server = with_automation_plugin().await;
+    let server = with_test_plugin("automation").await;
     listed(&server).await;
     client(&server)
         .enable_plugin(enable_granting(&[STORE, READ_LIBRARIES]))
@@ -161,7 +166,7 @@ async fn a_restart_keeps_the_grants() {
 
 #[tokio::test]
 async fn enabling_again_with_none_clears_the_grants() {
-    let server = with_automation_plugin().await;
+    let server = with_test_plugin("automation").await;
     listed(&server).await;
     client(&server)
         .enable_plugin(enable_granting(&[STORE]))
@@ -180,7 +185,7 @@ async fn enabling_again_with_none_clears_the_grants() {
 
 #[tokio::test]
 async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
-    let server = with_automation_plugin().await;
+    let server = with_test_plugin("automation").await;
     listed(&server).await;
     client(&server)
         .enable_plugin(enable_granting(&[STORE]))
@@ -198,4 +203,41 @@ async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
         .unwrap();
 
     server.tick("test-plugin").await.unwrap();
+}
+
+#[tokio::test]
+async fn a_plugin_not_naming_the_automation_point_reads_back_what_it_put_in_its_granted_store() {
+    let log = Log::global();
+    let server = with_test_plugin("home-rows").await;
+    listed(&server).await;
+
+    // Enabling asks the Home row source for its shared rows, which go through its Store.
+    client(&server)
+        .enable_plugin(enable_granting(&[STORE]))
+        .await
+        .unwrap();
+
+    log.wait_for(&["test-plugin's Store keeps Some(\"rows\")"], 1)
+        .await;
+}
+
+#[tokio::test]
+async fn a_plugin_not_naming_the_automation_point_is_refused_a_store_not_granted() {
+    let log = Log::global();
+    let server = with_test_plugin("home-rows").await;
+    listed(&server).await;
+
+    client(&server)
+        .enable_plugin(enable_granting(&[]))
+        .await
+        .unwrap();
+
+    log.wait_for(
+        &[
+            "test-plugin's Store refused",
+            "hasn't granted test-plugin the Store Permission",
+        ],
+        1,
+    )
+    .await;
 }

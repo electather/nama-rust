@@ -45,8 +45,8 @@ mod exports {
     // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
     // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
     // requests the Store and Library Permissions, with `recogniser` it recognises files, with
-    // `home-rows` it gives Home rows, with `subtitle-source` it is a subtitle source that finds
-    // nothing, and with `panic` it panics instead.
+    // `home-rows` it gives Home rows and requests the Store Permission, with `subtitle-source` it
+    // is a subtitle source that finds nothing, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -127,6 +127,11 @@ mod exports {
         #[cfg(feature = "home-rows")]
         let manifest = Manifest {
             points: [manifest.points, vec![nama_pdk::point(services::HOME_ROW)]].concat(),
+            permissions: [
+                manifest.permissions,
+                vec![nama_pdk::Permission::PERMISSION_STORE.into()],
+            ]
+            .concat(),
             settings: [
                 manifest.settings,
                 vec![setting(
@@ -440,13 +445,19 @@ mod home_rows {
     /// Gives every User `picks`: the Movies Heat, Dune and Alien and the Show Dark, which the
     /// fake TMDB knows; `again`: Alien; and `missing`: Dune and a Movie no title source has. Gives
     /// a User who set a `handle` the row `for-<handle>`: Alien. Logs which it was asked for, so a
-    /// test counts its refreshes.
+    /// test counts its refreshes, and what its Store kept or why the Kernel refused it, so a test
+    /// sees a Plugin that isn't an Automation call the Kernel's functions.
     struct TestRows;
 
     impl HomeRowSource for TestRows {
         fn shared_rows() -> Result<HomeRows, Error> {
             let asked = nama_pdk::setting(ROWS)?.unwrap_or_default();
             nama_pdk::info!("test-plugin gives Home rows {asked:?}");
+            match keep_and_read_back() {
+                Ok(kept) => nama_pdk::info!("test-plugin's Store keeps {kept:?}"),
+                // A Plugin carries on without the Store (ADR 0071).
+                Err(refused) => nama_pdk::warn!("test-plugin's Store refused: {refused}"),
+            }
             if asked == "loop" {
                 super::exports::loop_forever();
             }
@@ -488,6 +499,13 @@ mod home_rows {
                 ..HomeRows::default()
             })
         }
+    }
+
+    /// Keeps the text "rows" in the Plugin's Store and reads back what the Store then keeps.
+    fn keep_and_read_back() -> Result<Option<String>, Error> {
+        nama_pdk::kernel::store_put("asked", None, b"rows")?;
+        let kept = nama_pdk::kernel::store_get("asked", None)?;
+        Ok(kept.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
     }
 
     const MOVIE: TitleKind = TitleKind::TITLE_KIND_MOVIE;
