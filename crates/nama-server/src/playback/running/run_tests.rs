@@ -694,11 +694,16 @@ async fn the_playlist_lists_each_segment_as_long_as_the_files_it_joins() {
     let playlist = test.plan.playlist();
 
     let listed: Vec<&str> = (playlist.lines())
-        .filter(|line| line.starts_with("#EXTINF"))
+        .filter(|line| line.starts_with("#EXTINF") || line.starts_with("#EXT-X-TARGETDURATION"))
         .collect();
     assert_eq!(
         listed,
-        ["#EXTINF:7.000,", "#EXTINF:6.000,", "#EXTINF:3.000,"]
+        [
+            "#EXT-X-TARGETDURATION:7",
+            "#EXTINF:7.000,",
+            "#EXTINF:6.000,",
+            "#EXTINF:3.000,"
+        ]
     );
     test.write_run(0, &[1000; 16], true);
     assert_eq!(test.served(1).await, ran(0, 7..13).as_bytes());
