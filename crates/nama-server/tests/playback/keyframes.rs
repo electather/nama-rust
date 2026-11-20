@@ -1,5 +1,6 @@
 //! Remuxing with a keyframe scan by a scripted ffprobe: one that fails falls back to a
-//! Transcode, and a Version's keyframes are listed once.
+//! Transcode, a Version's keyframes are listed once, and an MP4's are read from its sample tables
+//! without one.
 
 use super::*;
 
@@ -106,4 +107,71 @@ async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
     let runs = fs::read_to_string(&log).unwrap();
     let listings = runs.lines().filter(|run| run.contains("packet=pts_time"));
     assert_eq!(listings.count(), 1, "{runs}");
+}
+
+/// Starts a Server with `ffmpeg` and a Movies Library holding Alien as an MP4 that ffmpeg wrote
+/// from [`ffmpeg::write_h264_with_5_1`]'s H.264 with B-frames, with its `moov` before `mdat` if
+/// `faststart`, after it if not, and returns it with that Version's id.
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+#[cfg(unix)]
+async fn alien_mp4(ffmpeg: Ffmpeg, faststart: bool) -> (Fixture, i64) {
+    let builder = TestServer::builder().ffmpeg(ffmpeg);
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
+    let file = fx.folder.join("Alien (1979)/Alien (1979).mp4");
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let mkv = tempfile::tempdir().unwrap();
+    let mkv = mkv.path().join("alien.mkv");
+    ffmpeg::write_h264_with_5_1(&mkv, "aac").unwrap();
+    let status = std::process::Command::new("ffmpeg")
+        .args(["-v", "error", "-i"])
+        .arg(&mkv)
+        .args([
+            "-c",
+            "copy",
+            "-movflags",
+            if faststart {
+                "+faststart"
+            } else {
+                "-faststart"
+            },
+        ])
+        .arg(&file)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    fx.scan_and_match().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    (fx, version)
+}
+
+// The logging ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_mp4_remuxes_on_its_first_play_without_a_whole_file_listing_wherever_its_moov_is() {
+    for faststart in [true, false] {
+        let bin = tempfile::tempdir().unwrap();
+        let log = bin.path().join("runs.log");
+        let ffprobe = ffprobe_logging_its_runs(bin.path(), &log);
+        let (fx, version) = alien_mp4(ffprobe, faststart).await;
+
+        let direct_play_failed = [PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY];
+        let plan = fx.plan_on_device(version, &direct_play_failed, 0).await;
+
+        let plan = plan.unwrap();
+        assert_eq!(
+            plan.method,
+            PlaybackMethod::PLAYBACK_METHOD_REMUX,
+            "{faststart}"
+        );
+        fx.fetch_ok(&plan.url).await;
+        let runs = fs::read_to_string(&log).unwrap();
+        assert!(
+            !runs.contains("packet=pts_time,flags"),
+            "{faststart}: {runs}"
+        );
+    }
 }

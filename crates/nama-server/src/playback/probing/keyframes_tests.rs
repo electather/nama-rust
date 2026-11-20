@@ -5,9 +5,10 @@ use super::tests::Fixture;
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
 use super::{
-    Error, Keyframes, LISTING_WAIT, ListedKeyframes, ProbeError, WHOLE_FILE_READS_AT_ONCE,
+    Error, Keyframes, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE,
     ffprobe::WHOLE_FILE_TIMEOUT,
 };
+use super::{ListedKeyframes, checked};
 #[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
 
@@ -412,4 +413,26 @@ async fn shutting_down_stops_a_listing_and_keeps_nothing() {
         .await
         .unwrap();
     assert!(kept.is_none(), "{kept:?}");
+}
+
+#[test]
+fn index_keyframes_are_kept_only_from_the_files_start_in_order_and_within_its_length() {
+    let kept = checked(vec![1000, 3000], 1000, 5000);
+
+    assert_eq!(
+        kept,
+        Some(ListedKeyframes {
+            file_start_ms: 1000,
+            keyframes_ms: vec![0, 2000],
+        })
+    );
+    let refused = [
+        (vec![], "none"),
+        (vec![1500, 3000], "the first after the file's start"),
+        (vec![1000, 3000, 2000], "out of order"),
+        (vec![1000, 7000], "past the end"),
+    ];
+    for (shown_at, why) in refused {
+        assert_eq!(checked(shown_at, 1000, 5000), None, "{why}");
+    }
 }

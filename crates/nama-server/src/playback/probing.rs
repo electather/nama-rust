@@ -11,6 +11,7 @@
 //! ([`Probing::current`]), which waits for a background probe of it rather than probe it twice.
 
 mod ffprobe;
+mod mp4;
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -450,8 +451,12 @@ impl Probing {
             return Ok(probe);
         }
         match ffprobe::probe(&self.inner.ffmpeg, path).await {
-            Ok(probe) => {
+            Ok((probe, file_start_ms)) => {
                 self.inner.tracks.store(file, probe.clone()).await?;
+                if let Some(listed) = indexed_keyframes(path, &probe, file_start_ms).await {
+                    let listed = Keyframes::Listed(listed);
+                    self.inner.tracks.store_keyframes(file, &listed).await?;
+                }
                 Ok(probe)
             }
             Err(err) => {
@@ -542,6 +547,41 @@ impl Probing {
         claim.found.send_replace(Some(listed));
         stored
     }
+}
+
+/// The keyframes of the file at `path`, which `probe` read and found starts at `file_start_ms`,
+/// as its container's index lists them, for an MP4, if they pass [`checked`]. `None` leaves them
+/// to a whole-file listing on the first Remux (ADR 0066).
+async fn indexed_keyframes(
+    path: &str,
+    probe: &Probe,
+    file_start_ms: i64,
+) -> Option<ListedKeyframes> {
+    if probe.container != "mov,mp4,m4a,3gp,3g2,mj2" {
+        return None;
+    }
+    let path = path.to_owned();
+    let read = move || mp4::keyframes(&mut std::fs::File::open(path).ok()?);
+    let shown_at = tokio::task::spawn_blocking(read).await.ok()??;
+    checked(shown_at, file_start_ms, probe.duration_ms?)
+}
+
+/// The keyframes shown at `shown_at` in a file starting at `file_start_ms`, measured from that
+/// start as a whole-file listing measures them, if they're in increasing order, the first at the
+/// start within a millisecond's rounding, and none past `duration_ms`.
+fn checked(shown_at: Vec<i64>, file_start_ms: i64, duration_ms: i64) -> Option<ListedKeyframes> {
+    let keyframes_ms: Vec<i64> = (shown_at.into_iter())
+        .map(|at| at - file_start_ms)
+        .collect();
+    let at_start = keyframes_ms
+        .first()
+        .is_some_and(|first| (0..=1).contains(first));
+    let increasing = keyframes_ms.is_sorted_by(|earlier, later| earlier < later);
+    let within = keyframes_ms.last().is_some_and(|&last| last <= duration_ms);
+    (at_start && increasing && within).then_some(ListedKeyframes {
+        file_start_ms,
+        keyframes_ms,
+    })
 }
 
 /// What failing to probe the file at `path` with `err` means for trying it again.
