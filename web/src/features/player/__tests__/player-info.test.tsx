@@ -159,7 +159,19 @@ test("playback info words every kind of reason the schema has, naming its params
     channels: "6",
     hardwareAcceleration: "HARDWARE_ACCELERATION_NVENC",
   };
-  const reasons = kinds.map((kind) => ({ kind, params, text: serverText, decided: true }));
+  // The kinds that say what audio is converted to name an audio codec, not the video's.
+  const audio = { codec: "eac3" };
+  const audioParams: Partial<Record<PlaybackReasonKind, typeof audio>> = {
+    [PlaybackReasonKind.DEVICE_PLAYS_FEWER_CHANNELS]: audio,
+    [PlaybackReasonKind.DEVICE_CHANNELS_UNKNOWN]: audio,
+    [PlaybackReasonKind.CONVERSION_CHANNELS_CAPPED]: audio,
+  };
+  const reasons = kinds.map((kind) => ({
+    kind,
+    params: { ...params, ...audioParams[kind] },
+    text: serverText,
+    decided: true,
+  }));
   await openInfo(
     serverPlaying({ method: PlaybackMethod.TRANSCODE, url: "/planned/7", tracks, reasons }),
   );
@@ -175,7 +187,7 @@ test("playback info words every kind of reason the schema has, naming its params
       "This Device can’t show Dolby Vision, so it can’t be Direct Played or Remuxed.",
       "Direct Play failed on this Device.",
       "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to 1280×534.",
-      "Its audio is converted to HEVC 5.1, the most a Remux or a Transcode makes.",
+      "Its audio is converted to Dolby Digital Plus 5.1, the most a Remux or a Transcode makes.",
       "It Transcodes on the GPU with NVIDIA NVENC.",
     ]),
   );
