@@ -396,6 +396,7 @@ impl Caller {
             | scanner::Error::NotFound(_)) => KernelRefused(err.to_string()),
         }
     }
+
     async fn store_get(self, key: StoreKey) -> Result<StoreValue, KernelRefused> {
         let value = store::get(&self.automation.db, &self.plugin, key.user_id, &key.key)
             .await
