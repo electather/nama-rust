@@ -1162,6 +1162,7 @@ async fn deleting_a_version_being_transcoded_ends_its_plan_which_the_preview_cou
     let preview = fx.preview(version(alien)).await.unwrap();
     fx.delete(version(alien)).await.unwrap();
 
+    assert!(gone(&pid), "ffmpeg {pid} still runs");
     assert_eq!(preview.playing, 1);
     let event::Event::PlaybackEnded(told) = subscription.next().await else {
         panic!("expected its playback ended");
@@ -1169,7 +1170,6 @@ async fn deleting_a_version_being_transcoded_ends_its_plan_which_the_preview_cou
     assert_eq!(told.playback.version_id, alien);
     let token = Some(fx.server.admin_token.as_str());
     assert_eq!(fetch(&fx.server, &plan.url, token).await.status, 404);
-    assert!(gone(&pid), "ffmpeg {pid} still runs");
 }
 
 /// The process id the fake ffmpeg in `bin` writes once it runs, waiting up to 10 seconds for it.

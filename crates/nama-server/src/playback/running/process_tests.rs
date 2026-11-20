@@ -55,13 +55,13 @@ async fn a_stopped_run_ends_once_its_ffmpeg_has_exited() {
     let outcome = running.await.unwrap();
 
     assert!(matches!(outcome, Outcome::Stopped), "{outcome:?}");
-    // Unlike `kill -0`, `ps` fails on no zombie either, which only a wait reaps.
+    // `ps` lists a zombie, which only a wait reaps, so it lists nothing only once that's done.
     let ps = std::process::Command::new("ps")
         .args(["-o", "stat=", "-p", &pid.to_string()])
         .output()
         .unwrap();
     assert!(
-        !ps.status.success(),
+        ps.stdout.trim_ascii().is_empty(),
         "{}",
         String::from_utf8_lossy(&ps.stdout)
     );
