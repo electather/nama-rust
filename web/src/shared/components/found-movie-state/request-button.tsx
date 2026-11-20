@@ -1,14 +1,12 @@
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import type { FoundMovie, MovieHit } from "@/gen/nama/v1/request_pb";
-import { RequestMovieButton } from "@/shared/components/found-movie-state/request-movie-button";
-import { QualityPicker } from "@/shared/components/quality-picker/quality-picker";
+import { type FoundMovie, type MovieHit, RequestState } from "@/gen/nama/v1/request_pb";
+import { RequestSplitButton } from "@/shared/components/request-button/request-split-button";
 import { useAskForMovie } from "@/shared/hooks/use-ask-for-movie";
-import { useQualityPicker } from "@/shared/hooks/use-quality-picker";
 import { askRefusal } from "@/shared/lib/forms";
 
 /**
- * Asks for `movie`, then shows its Request once the Server has it. Opening a Request asks in a
- * dialog which Quality to download it at, when the signed-in User may choose and there's a choice.
+ * Asks for `movie`, at the User's Quality or one they pick, then shows its Request once the Server
+ * has it. Asking for one Declined opens a new Request, so its Quality can be picked again.
  */
 export function RequestButton({
   movie,
@@ -19,7 +17,6 @@ export function RequestButton({
 }) {
   const movieId = movie.id;
   const ask = useAskForMovie();
-  const picker = useQualityPicker(movie.request === undefined, "movie");
   const whyRefused = (error: unknown) =>
     askRefusal(error, `Request ${movie.title}`, {
       [RefusalReason.ALREADY_IN_LIBRARY]: { form: `${movie.title} is already in a Library.` },
@@ -29,24 +26,15 @@ export function RequestButton({
     });
   return (
     <>
-      <RequestMovieButton
-        title={movie.title}
+      <RequestSplitButton
+        what={movie.title}
+        kind="movie"
+        opening={movie.request === undefined || movie.request.state === RequestState.DECLINED}
         primary={primary}
-        hasPopup={picker.hasPopup}
-        disabled={ask.isPending || picker.loading}
-        onRequest={() => {
-          if (!picker.open()) {
-            ask.mutate({ movieId });
-          }
+        busy={ask.isPending}
+        onRequest={(quality) => {
+          ask.mutate({ movieId, quality });
         }}
-      />
-      <QualityPicker
-        {...picker.dialog}
-        title={movie.title}
-        onPick={async (quality) => {
-          await ask.mutateAsync({ movieId, quality });
-        }}
-        refusal={whyRefused}
       />
       {ask.isError && (
         <p role="alert" className="w-full text-sm text-destructive">

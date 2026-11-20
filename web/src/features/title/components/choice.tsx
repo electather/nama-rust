@@ -12,10 +12,10 @@ export interface ChoiceProps {
   description?: string;
   disabled: boolean;
   onChange?: (checked: boolean) => void;
-  /** What follows its state, such as a Season's downloads, on lines of their own. */
-  below?: ReactNode;
   /** Its state, at the end of the row. */
   children: ReactNode;
+  /** What can be done about its state, such as Retry, after it and outside its description. */
+  action?: ReactNode;
 }
 
 /**
@@ -30,8 +30,8 @@ export function Choice({
   description,
   disabled,
   onChange,
-  below,
   children,
+  action,
 }: ChoiceProps) {
   const stateId = useId();
   const descriptionId = useId();
@@ -58,14 +58,13 @@ export function Choice({
       <span id={stateId} className="ms-auto">
         {children}
       </span>
+      {action}
       {description !== undefined && (
         // Lined up with the label's text, past the checkbox and the gap after it.
         <p id={descriptionId} className="basis-full ps-7 text-sm text-muted-foreground">
           {description}
         </p>
       )}
-      {/* Hidden when empty, so a row with nothing below gains no gap. */}
-      <div className="basis-full ps-7 empty:hidden">{below}</div>
     </li>
   );
 }

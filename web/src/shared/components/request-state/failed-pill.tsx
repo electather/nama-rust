@@ -1,0 +1,26 @@
+import { useId } from "react";
+
+import { RequestState } from "@/gen/nama/v1/request_pb";
+import { shownOnTitle } from "@/shared/components/request-state/request-states";
+import { StateLabel } from "@/shared/components/state-label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
+
+const failed = <StateLabel {...shownOnTitle(RequestState.FAILED)} />;
+
+/** "Failed" in red, with its Fulfiller's `reason`, if it gave one, on hover and on focus. */
+export function FailedPill({ reason }: { reason: string | undefined }) {
+  const reasonId = useId();
+  if (reason === undefined) {
+    return failed;
+  }
+  return (
+    <Tooltip>
+      {/* A screen reader hears the reason as the pill's description, open or not. */}
+      <TooltipTrigger aria-describedby={reasonId}>{failed}</TooltipTrigger>
+      <span id={reasonId} hidden>
+        {reason}
+      </span>
+      <TooltipContent>{reason}</TooltipContent>
+    </Tooltip>
+  );
+}

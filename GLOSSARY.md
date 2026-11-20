@@ -398,7 +398,7 @@ Giving an Approved Request to its Fulfiller, which ends with the Request Process
 _Avoid_: dispatch, submit, send
 
 **Processing**:
-The state of a Request once its Fulfiller has taken it, until a Library scan Matches what it asked for.
+The state of a Request once its Fulfiller has taken it, until a Library scan Matches what it asked for. A title's pill says "Downloading" while its Fulfiller reports a download, since that's what's being waited on; the state is still Processing.
 _Avoid_: downloading, sent, in progress
 
 **Failed**:

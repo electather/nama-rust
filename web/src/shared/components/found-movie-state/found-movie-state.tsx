@@ -2,14 +2,12 @@ import type { FoundMovie, MovieHit } from "@/gen/nama/v1/request_pb";
 import { InYourLibrary } from "@/shared/components/found-movie-state/in-your-library";
 import { RequestButton } from "@/shared/components/found-movie-state/request-button";
 import { RequestStateAndQuality } from "@/shared/components/found-movie-state/request-state-and-quality";
-import { RequestProgress } from "@/shared/components/request-progress/request-progress";
-import { isRequester } from "@/shared/lib/is-requester";
+import { canAsk } from "@/shared/lib/can-ask";
 
 /**
  * Where a Movie found in the title source is on its way to the Server: in a Library, linking
- * there, or its Request's state, and its downloads while Processing. Request, while the signed-in
- * User `you` isn't one of its Requesters, which `primary` makes the screen's primary action. The
- * caller lays them out.
+ * there, or its Request's status. Request, which `primary` makes the screen's primary action,
+ * while the signed-in User `you` can ask for it. The caller lays them out.
  */
 export function FoundMovieState({
   movie,
@@ -26,9 +24,8 @@ export function FoundMovieState({
   const { request } = movie;
   return (
     <>
-      {request && <RequestStateAndQuality request={request} />}
-      {!isRequester(request, you) && <RequestButton movie={movie} primary={primary} />}
-      <RequestProgress request={request} />
+      {request && <RequestStateAndQuality request={request} what={movie.title} />}
+      {canAsk(request, you) && <RequestButton movie={movie} primary={primary} />}
     </>
   );
 }
