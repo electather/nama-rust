@@ -470,6 +470,14 @@ fn asked_at(title: &TitleRef, at_ms: i64) -> Asked {
     }
 }
 
+/// Asserts Cleanup asked to delete `titles`, in order, and its Store keeps each as asked at
+/// `NOW_MS`.
+fn assert_deleted_at_now(kernel: &mut testing::Kernel, titles: &[TitleRef]) {
+    assert_eq!(asked_to_delete(kernel), titles);
+    let asked: Vec<Asked> = titles.iter().map(|title| asked_at(title, NOW_MS)).collect();
+    assert_eq!(recorded(kernel), asked);
+}
+
 #[test]
 fn a_movie_its_requester_watched_past_the_days_is_deleted_and_a_recent_one_kept() {
     let (alien, dune) = (movie("348"), movie("438631"));
@@ -485,8 +493,7 @@ fn a_movie_its_requester_watched_past_the_days_is_deleted_and_a_recent_one_kept(
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(recorded(&mut kernel), [asked_at(&alien, NOW_MS)]);
-    assert_eq!(asked_to_delete(&kernel), [alien]);
+    assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
 /// The Kernel fills in a setting not stored with its Manifest's default, so a Cleanup set up
@@ -507,7 +514,7 @@ fn a_days_stored_before_days_unwatched_existed_still_applies() {
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [alien]);
+    assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
 #[test]
@@ -529,11 +536,12 @@ fn a_renamed_library_is_still_cleaned() {
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [alien]);
+    assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
 /// A tick keeps nothing for the next but its Store, so a Library renamed after a tick found it is
-/// one the next tick finds renamed, with that Store.
+/// one the next tick finds renamed. The first tick stored nothing, so the next starts from an
+/// empty Store too.
 #[test]
 fn a_library_renamed_after_a_tick_found_it_is_still_cleaned() {
     let alien = movie("348");
@@ -550,6 +558,10 @@ fn a_library_renamed_after_a_tick_found_it_is_still_cleaned() {
     assert_eq!((nothing_due, asked_to_delete(&found)), (Ok(()), vec![]));
     assert_eq!(recorded(&mut found), []);
     assert_eq!(ticked, Ok(()));
+    assert_eq!(
+        recorded(&mut renamed),
+        [asked_at(&alien, NOW_MS + 31 * DAY_MS)]
+    );
     assert_eq!(asked_to_delete(&renamed), [alien]);
 }
 
@@ -588,7 +600,7 @@ fn a_title_another_user_watched_is_kept_until_its_requester_had_the_days_unwatch
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [dune]);
+    assert_deleted_at_now(&mut kernel, &[dune]);
 }
 
 #[test]
@@ -609,7 +621,7 @@ fn a_title_two_users_requested_is_kept_until_both_are_done() {
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [dune]);
+    assert_deleted_at_now(&mut kernel, &[dune]);
 }
 
 #[test]
@@ -625,7 +637,7 @@ fn a_title_its_requester_never_played_is_deleted_once_the_days_unwatched_passed(
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [alien]);
+    assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
 #[test]
@@ -642,7 +654,7 @@ fn a_title_nobody_requested_is_never_deleted() {
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [dune]);
+    assert_deleted_at_now(&mut kernel, &[dune]);
 }
 
 #[test]
@@ -660,10 +672,11 @@ fn a_title_whose_requesters_were_all_deleted_is_deleted_once_the_days_unwatched_
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [alien]);
+    assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
-/// Starting a played title again unmarks it, so its Requester no longer has it played.
+/// A played title stays played when started again, so a Requester starting it again unmarks it
+/// first and then has it started, not played.
 #[test]
 fn a_title_its_requester_started_again_is_kept() {
     let (alien, dune) = (movie("348"), movie("438631"));
@@ -679,7 +692,7 @@ fn a_title_its_requester_started_again_is_kept() {
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [dune]);
+    assert_deleted_at_now(&mut kernel, &[dune]);
 }
 
 #[test]
@@ -698,7 +711,7 @@ fn an_episode_of_a_followed_show_waits_for_its_requesters() {
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [secrets]);
+    assert_deleted_at_now(&mut kernel, &[secrets]);
 }
 
 /// A delete runs in the background, so a title still listed after one was asked had its delete
@@ -730,7 +743,7 @@ fn titles_over_more_than_one_page_are_all_cleaned() {
     let ticked = tick_at(&mut kernel, NOW_MS);
 
     assert_eq!(ticked, Ok(()));
-    assert_eq!(asked_to_delete(&kernel), [first, last]);
+    assert_deleted_at_now(&mut kernel, &[first, last]);
 }
 
 #[test]
