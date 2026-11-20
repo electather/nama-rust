@@ -6,16 +6,10 @@
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod browsing;
 #[path = "support/home_row_plugin.rs"]
-#[expect(
-    dead_code,
-    reason = "this binary enables the test Plugin itself, granting Permissions"
-)]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod home_row_plugin;
 #[path = "support/installed_test_plugin.rs"]
-#[expect(
-    dead_code,
-    reason = "this binary enables the test Plugin itself, granting Permissions"
-)]
+#[expect(dead_code, reason = "this binary only installs the test Plugin")]
 mod installed_test_plugin;
 #[path = "support/log.rs"]
 mod log;
@@ -29,12 +23,11 @@ use std::time::{Duration, Instant};
 
 use browsing::{Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
-use home_row_plugin::{PLUGIN, disable, set_handle};
+use home_row_plugin::{disable, enable_granting, set_handle};
 use log::Log;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, EnablePluginRequest, ListFeaturedRequest, ListHomeRowsRequest,
-    PluginPermission, ReportProgressRequest, SetPlayedRequest, WatchStateServiceClient,
-    set_played_request::Target,
+    BrowseServiceClient, ListFeaturedRequest, ListHomeRowsRequest, PluginPermission,
+    ReportProgressRequest, SetPlayedRequest, WatchStateServiceClient, set_played_request::Target,
 };
 use server::{Builder, SignedIn, TestServer, WAIT, tmdb::ALIEN};
 
@@ -46,23 +39,12 @@ const SETTLE: Duration = Duration::from_millis(500);
 
 /// A Server with a Movies Library of Alien and the test Plugin built as a Home row source,
 /// enabled and granted `granted`.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn with_plugin_granted(builder: Builder, granted: &[PluginPermission]) -> Fixture {
     // Before the Server logs, since a line logged with no subscriber yet is never logged again.
     Log::global();
     let fx = Fixture::alien_on(builder).await;
     fx.server.install_test_plugin("home-rows").await;
-    (fx.server.plugin_service())
-        .enable_plugin(EnablePluginRequest {
-            id: PLUGIN.to_owned(),
-            granted_permissions: granted.iter().map(|&it| it.into()).collect(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    enable_granting(&fx.server, granted).await;
     fx
 }
 

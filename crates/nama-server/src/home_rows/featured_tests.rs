@@ -39,6 +39,11 @@ fn movies(tmdb: &[(i64, f64)]) -> Suggested {
 /// Lists `user`'s Featured suggestions, waits for the refreshes that starts, and lists them again.
 async fn refreshed(home: &HomeRows, user: i64) -> Suggested {
     home.featured(user).await.unwrap();
+    wait_for_refreshes(home).await;
+    home.featured(user).await.unwrap()
+}
+
+async fn wait_for_refreshes(home: &HomeRows) {
     let started = Instant::now();
     while !lock(&home.refreshing_featured).is_empty() {
         assert!(
@@ -47,7 +52,6 @@ async fn refreshed(home: &HomeRows, user: i64) -> Suggested {
         );
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    home.featured(user).await.unwrap()
 }
 
 #[test]
@@ -160,7 +164,7 @@ async fn listing_stale_suggestions_asks_the_plugin_again_and_fresh_ones_do_not()
 
     db.write(|tx| {
         Box::pin(async move {
-            sqlx::query("UPDATE featured_suggestions SET stale_at = 0")
+            sqlx::query("UPDATE featured_refreshes SET stale_at = 0")
                 .execute(&mut **tx)
                 .await
                 .map(drop)
@@ -177,7 +181,7 @@ async fn listing_stale_suggestions_asks_the_plugin_again_and_fresh_ones_do_not()
 }
 
 #[tokio::test]
-async fn changing_personal_settings_drops_the_users_suggestions_and_asks_again() {
+async fn changing_personal_settings_lists_the_old_suggestions_until_the_plugin_answers_again() {
     let (_dir, db, home, calls) = recorded(FEATURED).await;
     let ada = insert_user(&db, "ada").await;
     set_handle(&db, ada, "1").await;
@@ -185,12 +189,37 @@ async fn changing_personal_settings_drops_the_users_suggestions_and_asks_again()
 
     set_handle(&db, ada, "2").await;
 
-    assert_eq!(home.featured(ada).await.unwrap(), Suggested::new());
+    assert_eq!(home.featured(ada).await.unwrap(), movies(&[(1, 0.5)]));
     assert_eq!(refreshed(&home, ada).await, movies(&[(2, 0.5)]));
     assert_eq!(
         *calls.featured_asked.lock().unwrap(),
         [handle("1"), handle("2")]
     );
+}
+
+#[tokio::test]
+async fn suggestions_asked_before_a_user_changed_their_personal_settings_are_not_kept() {
+    let (_dir, db, home, calls) = recorded(FEATURED).await;
+    let ada = insert_user(&db, "ada").await;
+    set_handle(&db, ada, "1").await;
+    let held = calls.users_held.lock().await;
+    home.featured(ada).await.unwrap();
+    let started = Instant::now();
+    while calls.featured_asked.lock().unwrap().is_empty() {
+        assert!(started.elapsed() < Duration::from_secs(10), "never asked");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    set_handle(&db, ada, "2").await;
+    drop(held);
+    wait_for_refreshes(&home).await;
+
+    assert_eq!(
+        home.featured(ada).await.unwrap(),
+        Suggested::new(),
+        "the answer was dropped"
+    );
+    assert_eq!(refreshed(&home, ada).await, movies(&[(2, 0.5)]));
 }
 
 #[tokio::test]
@@ -208,6 +237,11 @@ async fn a_version_no_longer_giving_featured_suggestions_deletes_every_users() {
 
     let stored = new_version.stored_suggestions(bea).await.unwrap();
     assert!(stored.is_empty(), "Bea's are deleted too");
+    let put_offs: i64 = sqlx::query_scalar("SELECT count(*) FROM featured_refreshes")
+        .fetch_one(db.reader())
+        .await
+        .unwrap();
+    assert_eq!(put_offs, 0, "and every User's put-off");
 }
 
 #[tokio::test]

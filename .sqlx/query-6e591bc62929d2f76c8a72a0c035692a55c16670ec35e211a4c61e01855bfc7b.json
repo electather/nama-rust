@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO featured_refreshes (plugin_id, user_id, stale_at) VALUES (?, ?, ?)\n                         ON CONFLICT (plugin_id, user_id) DO UPDATE SET stale_at = excluded.stale_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "6e591bc62929d2f76c8a72a0c035692a55c16670ec35e211a4c61e01855bfc7b"
+}
