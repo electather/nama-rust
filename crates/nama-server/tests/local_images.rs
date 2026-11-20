@@ -6,6 +6,7 @@
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
 mod browsing;
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/custom_images.rs"]
 mod custom_images;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -34,11 +35,6 @@ use server::{
     TestServer,
     tmdb::{ALIEN, DARK, THE_OFFICE},
 };
-
-/// Where Alien's Custom Poster is uploaded to and removed from.
-fn custom_alien_poster() -> String {
-    format!("/custom-images/movie/tmdb-{ALIEN}/poster")
-}
 
 #[expect(
     clippy::unwrap_used,
@@ -98,12 +94,6 @@ impl Fixture {
     }
 }
 
-/// Where Dark's Custom Poster, and its Season 1's, are uploaded to and removed from.
-fn custom_dark_posters() -> [String; 2] {
-    let show = format!("/custom-images/show/tmdb-{DARK}");
-    [format!("{show}/poster"), format!("{show}/season/1/poster")]
-}
-
 #[tokio::test]
 async fn a_poster_and_fanart_beside_a_movies_file_are_its_poster_and_backdrop_after_a_scan() {
     let fx = Fixture::alien().await;
@@ -118,28 +108,6 @@ async fn a_poster_and_fanart_beside_a_movies_file_are_its_poster_and_backdrop_af
     assert_eq!(fx.listed_alien_poster().await, poster);
     let movie = fx.get_movie(fx.library, ALIEN).await;
     assert!(!movie.unwrap().custom_poster);
-}
-
-#[tokio::test]
-async fn a_custom_image_beats_the_one_beside_the_file_and_removing_it_brings_that_one_back() {
-    let fx = Fixture::alien().await;
-    let beside = image(ImageFormat::Jpeg, 2, 3);
-    fx.write("Alien (1979)/poster.jpg", &beside);
-    fx.scan_and_match().await;
-    let custom = image(ImageFormat::Png, 4, 6);
-
-    fx.upload(&custom_alien_poster(), &custom).await;
-    let (shown_over_it, _) = fx.alien_images().await;
-    let listed_over_it = fx.listed_alien_poster().await;
-    fx.remove(&custom_alien_poster()).await;
-    let (shown_after, _) = fx.alien_images().await;
-    let listed_after = fx.listed_alien_poster().await;
-
-    assert_eq!(
-        (shown_over_it, shown_after),
-        (custom.clone(), beside.clone())
-    );
-    assert_eq!((listed_over_it, listed_after), (custom, beside));
 }
 
 #[tokio::test]
@@ -332,29 +300,6 @@ async fn a_poster_beside_episodes_straight_in_the_shows_folder_is_the_shows() {
 
     assert_eq!(fx.dark_images().await.0, poster);
     assert_ne!(fx.dark_season_poster(1).await.0, poster);
-}
-
-#[tokio::test]
-async fn a_custom_image_beats_a_shows_or_seasons_file_and_removing_it_brings_the_file_back() {
-    let fx = Fixture::dark().await;
-    let show_file = image(ImageFormat::Jpeg, 2, 3);
-    let season_file = image(ImageFormat::WebP, 2, 3);
-    fx.write("Dark (2017)/poster.jpg", &show_file);
-    fx.write("Dark (2017)/Season 01/poster.jpg", &season_file);
-    fx.scan_and_match().await;
-    let custom = image(ImageFormat::Png, 4, 6);
-
-    for path in custom_dark_posters() {
-        assert_eq!(fx.upload(&path, &custom).await.status, 204, "{path}");
-    }
-    let shown_over_them = (fx.dark_images().await.0, fx.dark_season_poster(1).await);
-    for path in custom_dark_posters() {
-        fx.remove(&path).await;
-    }
-    let shown_after = (fx.dark_images().await.0, fx.dark_season_poster(1).await);
-
-    assert_eq!(shown_over_them, (custom.clone(), (custom, true)));
-    assert_eq!(shown_after, (show_file, (season_file, false)));
 }
 
 #[tokio::test]

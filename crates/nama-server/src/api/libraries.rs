@@ -20,8 +20,8 @@ use nama_proto::nama::v1::{
 
 use crate::{
     library::{
-        Contents, FolderProblem, LastScan, Libraries, Library, LibraryError, LibraryKind,
-        NewestBackdrop, Order, Role, Slot, TitleSources, TitleTarget as Target, artwork_url,
+        Contents, FolderProblem, ImageSources, LastScan, Libraries, Library, LibraryError,
+        LibraryKind, NewestBackdrop, Order, ShownImages, TitleSources, TitleTarget as Target,
     },
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
@@ -29,7 +29,7 @@ use crate::{
 };
 
 use super::{
-    ImageSources, Refused, ShownImages,
+    Refused,
     browse::{Fields, not_found},
     caller, database_failed, external_id_from_proto, external_id_to_proto, proto_number, refuse,
     required_id, title_kind_from_proto, unknown_enum_value,
@@ -53,7 +53,7 @@ pub(super) struct LibraryServiceHandler {
     pub(super) plugin_settings: PluginSettings,
 }
 
-/// What each Library is shown by: see [`Backdrops::of`].
+/// What each Library is shown by: see [`ShownImages::of_library`].
 struct Backdrops {
     newest: HashMap<i64, NewestBackdrop>,
     images: ShownImages,
@@ -65,27 +65,8 @@ impl LibraryServiceHandler {
     async fn backdrops(&self) -> Result<Backdrops, ConnectError> {
         Ok(Backdrops {
             newest: (self.contents.newest_backdrops().await).map_err(database_failed)?,
-            images: self.images.shown().await?,
+            images: self.images.shown().await.map_err(database_failed)?,
         })
-    }
-}
-
-impl Backdrops {
-    /// The URL of `library`'s Backdrop, and whether it is the Library's Custom Image: that, or
-    /// else the Backdrop of its newest title with one, as the title's page shows it.
-    fn of(&self, library: &Library) -> (Option<String>, bool) {
-        if let Some(url) = self.images.custom.of(&Slot::library(library.id)) {
-            return (Some(url), true);
-        }
-        let newest = self.newest.get(&library.id).map(|newest| {
-            let (title, ids) = (&newest.title, &newest.ids);
-            let shown = match library.kind {
-                LibraryKind::Movies => self.images.movie_image(title, ids, Role::Backdrop),
-                LibraryKind::Shows => self.images.show_image(title, ids, Role::Backdrop),
-            };
-            shown.unwrap_or_else(|| artwork_url(&newest.plugin, &newest.path))
-        });
-        (newest, false)
     }
 }
 
@@ -488,7 +469,8 @@ fn kind_from_proto(kind: EnumValue<proto::LibraryKind>) -> Result<LibraryKind, C
 }
 
 fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
-    let (backdrop_url, custom_backdrop) = backdrops.of(&library);
+    let newest = backdrops.newest.get(&library.id);
+    let backdrop = backdrops.images.of_library(&library, newest);
     proto::Library {
         id: library.id,
         name: library.name,
@@ -498,9 +480,9 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         }
         .into(),
         folders: library.folders,
-        backdrop_thumbhash: backdrops.images.thumbhash(backdrop_url.as_deref()),
-        backdrop_url,
-        custom_backdrop,
+        backdrop_url: backdrop.url,
+        backdrop_thumbhash: backdrop.thumbhash,
+        custom_backdrop: backdrop.custom,
         title_sources: library.title_sources,
         recogniser_ids: library.recognisers,
         segment_source_ids: library.segment_sources,

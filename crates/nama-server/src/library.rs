@@ -11,13 +11,14 @@ mod libraries;
 mod local_images;
 mod recognisers;
 mod scan_locks;
+mod shown_images;
 mod title_source;
 mod titles;
 mod versions;
 mod watch_states;
 
 pub use artwork::{Artwork, Error as ArtworkError};
-pub(crate) use artwork::{Picked, router as artwork_router, url as artwork_url};
+pub(crate) use artwork::{Picked, router as artwork_router};
 pub(crate) use contents::{
     Change, Contents, DEFAULT_ORDER, Decided, Decisions, Episode as LibraryEpisode, Found,
     FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, ItemKind, Listing, LocalImageFile,
@@ -38,11 +39,10 @@ pub(crate) use libraries::{
     Error as LibraryError, Kind as LibraryKind, Libraries, Library, Order, check_known,
     default_title_sources,
 };
-pub(crate) use local_images::{
-    FoundImages, LocalImageUrls, LocalImages, router as local_images_router,
-};
+pub(crate) use local_images::{FoundImages, LocalImages, router as local_images_router};
 pub(crate) use recognisers::{RecogniserFailed, Recognisers};
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
+pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage};
 #[cfg(test)]
 pub(crate) use title_source::scripted;
 pub(crate) use title_source::{
