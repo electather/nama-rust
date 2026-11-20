@@ -58,6 +58,12 @@ test("a Plugin without setup steps or links shows no About section", async () =>
   expect(page.queryByRole("region", { name: "About" })).toBeNull();
 });
 
+test("setup steps of only blank lines show no About section", async () => {
+  const page = await openTmdbWith({ setupMarkdown: " \r\n\n  " });
+
+  expect(page.queryByRole("region", { name: "About" })).toBeNull();
+});
+
 test("a Plugin with only a licence shows just the licence", async () => {
   const page = await openTmdbWith({ license: "Apache-2.0" });
 

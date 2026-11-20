@@ -30,7 +30,7 @@ export function webUrl(href: string): string | undefined {
 export function parseSetupMarkdown(source: string): SetupBlock[] {
   const blocks: LineBlock[] = [];
   let afterBlank = false;
-  // shortcut: no nested lists, `start` numbers or links in bold; add them if a Plugin needs them.
+  // ponytail: no nested lists, `start` numbers, or links or code in bold; add them if a Plugin needs them.
   for (const line of source.split(/\r?\n/u)) {
     const blank = line.trim() === "";
     if (!blank) {

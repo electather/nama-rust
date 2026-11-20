@@ -22,10 +22,10 @@ export function SetupSteps({ markdown }: { markdown: string }) {
     }
     const { List, className } = lists[block.kind];
     return (
-      // oxlint-disable-next-line react/no-array-index-key -- as above
+      // oxlint-disable-next-line react/no-array-index-key -- blocks may repeat, and the list is replaced whole, never reordered
       <List key={index} className={className}>
         {block.items.map((runs, item) => (
-          // oxlint-disable-next-line react/no-array-index-key -- as above
+          // oxlint-disable-next-line react/no-array-index-key -- items may repeat, and the list is replaced whole, never reordered
           <li key={item}>
             <SetupRuns runs={runs} />
           </li>

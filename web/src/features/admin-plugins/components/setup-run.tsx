@@ -10,7 +10,7 @@ export function SetupRun({ run }: { run: Run }) {
     return <strong>{run.text}</strong>;
   }
   if (run.kind === "code") {
-    return <code className="rounded-sm bg-muted px-1 font-mono text-sm">{run.text}</code>;
+    return <code className="rounded-sm bg-muted px-1 font-sans text-sm">{run.text}</code>;
   }
   return run.text;
 }

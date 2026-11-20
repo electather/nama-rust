@@ -16,7 +16,8 @@ export function PluginAbout({
     { name: "Homepage", href: webUrl(plugin.homepageUrl) },
     { name: "Source", href: webUrl(plugin.sourceUrl) },
   ].flatMap(({ name, href }) => (href === undefined ? [] : [{ name, href }]));
-  if (plugin.setupMarkdown === "" && links.length === 0 && plugin.license === "") {
+  const hasFooter = links.length > 0 || plugin.license !== "";
+  if (plugin.setupMarkdown.trim() === "" && !hasFooter) {
     return null;
   }
   return (
@@ -25,7 +26,7 @@ export function PluginAbout({
         About
       </h2>
       <SetupSteps markdown={plugin.setupMarkdown} />
-      {(links.length > 0 || plugin.license !== "") && (
+      {hasFooter && (
         <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {links.map(({ name, href }) => (
             <ExternalLink key={name} href={href}>
