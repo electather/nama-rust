@@ -182,6 +182,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
         "src/playback/subtitle_appearance",
         &["subtitle_appearances"],
     ),
+    ("src/playback/subtitle_offsets", &["subtitle_offsets"]),
     (
         "src/playback/sidecars",
         &["sidecar_subtitles", "downloaded_subtitles"],

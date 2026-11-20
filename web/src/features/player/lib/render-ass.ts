@@ -1,4 +1,5 @@
 import { fetchAll, fetchSubtitle } from "@/features/player/lib/fetch-subtitle";
+import { drawnTimeOffset } from "@/features/player/lib/subtitle-offset";
 import type { Render } from "@/features/player/lib/subtitle-render";
 
 /** Draws an ASS subtitle with libass, with all the fonts its file carries. */
@@ -49,6 +50,11 @@ export const renderAss: Render = async ({ video, subtitle: { url, fontUrls }, re
       void Promise.allSettled([renderer.destroy()]);
       // `destroy` ends the worker only once `ready` settles, which a crashed worker's never does.
       worker.terminate();
+    },
+    shift: (offsetMs) => {
+      renderer.timeOffset = drawnTimeOffset(offsetMs);
+      // It draws the new time at the next frame, which a paused video never reaches: this redraws.
+      void Promise.allSettled([renderer.resize()]);
     },
   };
 };

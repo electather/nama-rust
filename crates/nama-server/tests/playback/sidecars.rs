@@ -19,7 +19,9 @@ impl Fixture {
     /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien in 1080p, with
     /// an untagged SRT Track of its own and the sidecars `sidecars`, each a file name and what it
     /// says, scanned and Matched, and returns it with that Version's id.
-    async fn alien_with_sidecars<Says: AsRef<[u8]>>(sidecars: &[(&str, Says)]) -> (Self, i64) {
+    pub(super) async fn alien_with_sidecars<Says: AsRef<[u8]>>(
+        sidecars: &[(&str, Says)],
+    ) -> (Self, i64) {
         let fx = Self::alien_written_by(ALIEN_1080P, |path| {
             write_subtitled(path, HELLO_SRT, "srt");
             for (name, says) in sidecars {
@@ -32,7 +34,7 @@ impl Fixture {
     }
 
     /// Writes `says` to Alien's sidecar `name` and scans again.
-    async fn rewrite_sidecar(&self, name: &str, says: &str) {
+    pub(super) async fn rewrite_sidecar(&self, name: &str, says: &str) {
         let video = self.folder.join(ALIEN_1080P);
         fs::write(video.with_file_name(name), says).unwrap();
         self.scan_and_match().await;

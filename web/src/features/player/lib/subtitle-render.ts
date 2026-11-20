@@ -6,6 +6,14 @@ export type SubtitleState = "loading" | "ready" | "failed";
 /** A renderer drawing a subtitle over a `<video>` until it's disposed of. */
 export interface Renderer {
   dispose: () => void;
+  /** Draws each cue `offsetMs` later than its file times it. */
+  shift: (offsetMs: number) => void;
+}
+
+/** A subtitle being drawn, until it's stopped, which `shift` shifts once it's drawn. */
+export interface Drawing {
+  stop: () => void;
+  shift: (offsetMs: number) => void;
 }
 
 /** What a renderer draws, over what, and how it says it's getting on. */
@@ -31,13 +39,17 @@ export interface DrawRequest {
 }
 
 /**
- * Draws the request's subtitle over its video with what `render` makes, until the cleanup it
- * returns, saying how it's getting on with `settle`, or calling `rendererFailed` if the renderer
- * won't start or throws.
+ * Draws the request's subtitle over its video with what `render` makes, until it's stopped, saying
+ * how it's getting on with `settle`, or calling `rendererFailed` if the renderer won't start or
+ * throws.
  */
-export function draw({ video, subtitle, settle, rendererFailed }: DrawRequest, render: Render) {
+export function draw(
+  { video, subtitle, settle, rendererFailed }: DrawRequest,
+  render: Render,
+): Drawing {
   let renderer: Renderer | undefined;
   let left = false;
+  let offsetMs = 0;
   const failed = () => {
     if (!left) {
       rendererFailed();
@@ -55,6 +67,7 @@ export function draw({ video, subtitle, settle, rendererFailed }: DrawRequest, r
       made.dispose();
     } else {
       renderer = made;
+      made.shift(offsetMs);
     }
   };
   const start = async () => {
@@ -67,8 +80,14 @@ export function draw({ video, subtitle, settle, rendererFailed }: DrawRequest, r
     }
   };
   void start();
-  return () => {
-    left = true;
-    renderer?.dispose();
+  return {
+    stop: () => {
+      left = true;
+      renderer?.dispose();
+    },
+    shift: (shifted) => {
+      offsetMs = shifted;
+      renderer?.shift(shifted);
+    },
   };
 }

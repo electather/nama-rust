@@ -1,4 +1,5 @@
 import { fetchSubtitle } from "@/features/player/lib/fetch-subtitle";
+import { drawnTimeOffset } from "@/features/player/lib/subtitle-offset";
 import type { Render } from "@/features/player/lib/subtitle-render";
 import { SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 
@@ -22,11 +23,20 @@ export const renderBitmap: Render = async ({ video, subtitle: { url, format }, r
       }
     },
   };
-  if (format !== SubtitleFormat.VOBSUB) {
-    return new libbitsub.PgsRenderer(options);
-  }
   // ponytail: libbitsub 1.13.2 never reports a VobSub load that throws (altqx/libbitsub#14), so
   // the picker stays on "Loading…"; a release that fixes it lets the fallback to Burn-in catch it.
   // The name says Matroska, which carries the palette and size, rather than a `.sub` and `.idx`.
-  return new libbitsub.VobSubRenderer({ ...options, fileName: "track.mks" });
+  const renderer =
+    format === SubtitleFormat.VOBSUB
+      ? new libbitsub.VobSubRenderer({ ...options, fileName: "track.mks" })
+      : new libbitsub.PgsRenderer(options);
+  return {
+    dispose: () => {
+      renderer.dispose();
+    },
+    // It redraws a paused frame itself.
+    shift: (offsetMs) => {
+      renderer.timeOffset = drawnTimeOffset(offsetMs);
+    },
+  };
 };

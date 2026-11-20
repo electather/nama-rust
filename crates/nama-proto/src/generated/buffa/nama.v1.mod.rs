@@ -260,6 +260,8 @@ pub mod __buffa {
         reg.register_json_any(super::__SET_SUBTITLE_SIZE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_BACKGROUND_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_BACKGROUND_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_OFFSET_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_OFFSET_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USERS_AUDIO_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
@@ -1187,6 +1189,14 @@ pub use self::__buffa::view::SetSubtitleBackgroundRequestOwnedView;
 pub use self::__buffa::view::SetSubtitleBackgroundResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetSubtitleBackgroundResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleOffsetRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleOffsetRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleOffsetResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitleOffsetResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UsersAudioPreferenceView;
 #[doc(inline)]

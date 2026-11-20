@@ -5436,6 +5436,288 @@ pub const __SET_SUBTITLE_BACKGROUND_RESPONSE_JSON_ANY: ::buffa::type_registry::J
     from_json: ::buffa::type_registry::any_from_json::<SetSubtitleBackgroundResponse>,
     is_wkt: false,
 };
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct SetSubtitleOffsetRequest {
+    /// The Version, as browsing gave it.
+    ///
+    /// Field 1: `version_id`
+    #[serde(
+        rename = "versionId",
+        alias = "version_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub version_id: i64,
+    /// The subtitle Track, by its place in the Version's `tracks`, counting from 0.
+    ///
+    /// Field 2: `track`
+    #[serde(
+        rename = "track",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub track: u32,
+    /// How many milliseconds later than its file times it the Track shows from now on, negative for
+    /// earlier.
+    ///
+    /// Field 3: `offset_ms`
+    #[serde(
+        rename = "offsetMs",
+        alias = "offset_ms",
+        with = "::buffa::json_helpers::int32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i32"
+    )]
+    pub offset_ms: i32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for SetSubtitleOffsetRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("SetSubtitleOffsetRequest")
+            .field("version_id", &self.version_id)
+            .field("track", &self.track)
+            .field("offset_ms", &self.offset_ms)
+            .finish()
+    }
+}
+impl SetSubtitleOffsetRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetSubtitleOffsetRequest";
+}
+::buffa::impl_default_instance!(SetSubtitleOffsetRequest);
+impl ::buffa::MessageName for SetSubtitleOffsetRequest {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SetSubtitleOffsetRequest";
+    const FULL_NAME: &'static str = "nama.v1.SetSubtitleOffsetRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetSubtitleOffsetRequest";
+}
+impl ::buffa::Message for SetSubtitleOffsetRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.version_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.version_id) as u64;
+        }
+        if self.track != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.track) as u64;
+        }
+        if self.offset_ms != 0i32 {
+            size += 1u64 + ::buffa::types::int32_encoded_len(self.offset_ms) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.version_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.version_id, buf);
+        }
+        if self.track != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.track, buf);
+        }
+        if self.offset_ms != 0i32 {
+            ::buffa::types::put_int32_field(3u32, self.offset_ms, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.version_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.track = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.offset_ms = ::buffa::types::decode_int32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.version_id = 0i64;
+        self.track = 0u32;
+        self.offset_ms = 0i32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for SetSubtitleOffsetRequest {
+    const PROTO_FQN: &'static str = "nama.v1.SetSubtitleOffsetRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for SetSubtitleOffsetRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __SET_SUBTITLE_OFFSET_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SetSubtitleOffsetRequest",
+    to_json: ::buffa::type_registry::any_to_json::<SetSubtitleOffsetRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<SetSubtitleOffsetRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct SetSubtitleOffsetResponse {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for SetSubtitleOffsetResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("SetSubtitleOffsetResponse").finish()
+    }
+}
+impl SetSubtitleOffsetResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetSubtitleOffsetResponse";
+}
+::buffa::impl_default_instance!(SetSubtitleOffsetResponse);
+impl ::buffa::MessageName for SetSubtitleOffsetResponse {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SetSubtitleOffsetResponse";
+    const FULL_NAME: &'static str = "nama.v1.SetSubtitleOffsetResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetSubtitleOffsetResponse";
+}
+impl ::buffa::Message for SetSubtitleOffsetResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for SetSubtitleOffsetResponse {
+    const PROTO_FQN: &'static str = "nama.v1.SetSubtitleOffsetResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for SetSubtitleOffsetResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __SET_SUBTITLE_OFFSET_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SetSubtitleOffsetResponse",
+    to_json: ::buffa::type_registry::any_to_json::<SetSubtitleOffsetResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<SetSubtitleOffsetResponse>,
+    is_wkt: false,
+};
 /// What a User wants audio to start as in everything they play, unless the Show or Movie has an
 /// Audio Preference of its own.
 #[derive(Clone, PartialEq, Default)]
@@ -8875,6 +9157,17 @@ pub struct PlaybackSubtitle {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub font_urls: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The caller's Subtitle Offset for it: how many milliseconds later than its file times it to show
+    /// it, negative for earlier. 0 until they set one.
+    ///
+    /// Field 6: `offset_ms`
+    #[serde(
+        rename = "offsetMs",
+        alias = "offset_ms",
+        with = "::buffa::json_helpers::int32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i32"
+    )]
+    pub offset_ms: i32,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -8887,6 +9180,7 @@ impl ::core::fmt::Debug for PlaybackSubtitle {
             .field("url", &self.url)
             .field("format", &self.format)
             .field("font_urls", &self.font_urls)
+            .field("offset_ms", &self.offset_ms)
             .finish()
     }
 }
@@ -8940,6 +9234,9 @@ impl ::buffa::Message for PlaybackSubtitle {
         if self.place != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.place) as u64;
         }
+        if self.offset_ms != 0i32 {
+            size += 1u64 + ::buffa::types::int32_encoded_len(self.offset_ms) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8972,6 +9269,9 @@ impl ::buffa::Message for PlaybackSubtitle {
         }
         if self.place != 0u32 {
             ::buffa::types::put_uint32_field(5u32, self.place, buf);
+        }
+        if self.offset_ms != 0i32 {
+            ::buffa::types::put_int32_field(6u32, self.offset_ms, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9031,6 +9331,13 @@ impl ::buffa::Message for PlaybackSubtitle {
                 )?;
                 self.place = ::buffa::types::decode_uint32(buf)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.offset_ms = ::buffa::types::decode_int32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -9044,6 +9351,7 @@ impl ::buffa::Message for PlaybackSubtitle {
         self.format = ::buffa::EnumValue::from(0);
         self.font_urls.clear();
         self.place = 0u32;
+        self.offset_ms = 0i32;
         self.__buffa_unknown_fields.clear();
     }
 }

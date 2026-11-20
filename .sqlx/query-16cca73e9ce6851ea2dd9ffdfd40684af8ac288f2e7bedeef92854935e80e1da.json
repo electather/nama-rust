@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO subtitle_offsets (user_id, version_id, track, offset_ms)\n                 VALUES (?, ?, ?, ?)\n                 ON CONFLICT (user_id, version_id, track) DO UPDATE SET\n                     offset_ms = excluded.offset_ms",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "16cca73e9ce6851ea2dd9ffdfd40684af8ac288f2e7bedeef92854935e80e1da"
+}
