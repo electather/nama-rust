@@ -11,17 +11,13 @@ mod refused;
 mod server;
 
 use browsing::{Fixture, tmdb_id};
-use connectrpc::{
-    ConnectError, ErrorCode,
-    client::{ClientConfig, HttpClient},
-};
+use connectrpc::ErrorCode;
 use nama_proto::nama::v1::{
-    Done, Hit, LibraryKind, RefusalReason, SearchRequest, SearchResponse, SearchServiceClient,
-    TitleKind, TitleStatus, hit, search_response::Part,
+    Done, Hit, LibraryKind, RefusalReason, TitleKind, TitleStatus, hit, search_response::Part,
 };
 use refused::assert_refused;
 use server::{
-    TestServer,
+    TestServer, search,
     tmdb::{ALIEN, DUNE, THE_OFFICE},
 };
 
@@ -31,26 +27,6 @@ const THE_OFFICE_US_S01E02: &str = "The Office {tmdb-2316}/Season 01/The Office 
 /// TMDB Matches it to the 2021 Dune.
 const DUNE_2021: &str = "Dune (2021)/Dune (2021).mkv";
 
-/// Every part `who`'s search for `query` of `kind` streams, in order.
-async fn search_as(
-    who: &ClientConfig,
-    query: &str,
-    kind: TitleKind,
-) -> Result<Vec<Part>, ConnectError> {
-    let request = SearchRequest {
-        query: query.to_owned(),
-        kind: kind.into(),
-        ..Default::default()
-    };
-    let client = SearchServiceClient::new(HttpClient::plaintext(), who.clone());
-    let mut stream = client.search(request).await?;
-    let mut parts = Vec::new();
-    while let Some(response) = stream.message::<SearchResponse>().await? {
-        parts.extend(response.to_owned_message().part);
-    }
-    Ok(parts)
-}
-
 /// What the Admin's search for `query` of `kind` found in its one batch, best first.
 #[expect(
     clippy::unwrap_used,
@@ -58,7 +34,7 @@ async fn search_as(
     reason = "a test helper fails its test by panicking"
 )]
 async fn found(fx: &Fixture, query: &str, kind: TitleKind) -> Vec<hit::Title> {
-    let parts = search_as(&fx.server.client_config(), query, kind).await;
+    let parts = search(&fx.server.client_config(), query, kind).await;
     let [Part::Hits(hits), Part::Done(_)] = &parts.unwrap()[..] else {
         panic!("one batch, then Done");
     };
@@ -83,7 +59,7 @@ async fn a_search_by_any_user_streams_one_batch_of_available_library_titles_then
     let fx = Fixture::alien().await;
     let user = fx.server.user("Grace", &[]).await;
 
-    let parts = search_as(
+    let parts = search(
         &fx.server.client_config_as(&user.token),
         "alien",
         TitleKind::TITLE_KIND_UNSPECIFIED,
@@ -206,7 +182,7 @@ async fn a_movie_a_scan_matches_is_found_right_after_it_and_not_once_its_file_is
 async fn a_blank_search_is_refused_naming_the_query() {
     let fx = Fixture::alien().await;
 
-    let blank = search_as(
+    let blank = search(
         &fx.server.client_config(),
         " ",
         TitleKind::TITLE_KIND_UNSPECIFIED,

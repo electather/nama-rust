@@ -17,12 +17,12 @@ use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
     ApproveSignInCodeRequest, CreateLibraryRequest, LibraryKind, LibraryServiceClient,
     ListLibrariesRequest, Permission, PollSignInCodeRequest, RefusalReason, ScanLibraryRequest,
-    SessionDelivery, SignInServiceClient, StartSignInCodeRequest,
+    SessionDelivery, SignInServiceClient, StartSignInCodeRequest, TitleKind,
 };
 use nama_server::db::Database;
 use refused::{assert_refused, refusal_of};
 use serde_json::{Value, json};
-use server::{PASSWORD, TestServer, subscribe};
+use server::{PASSWORD, TestServer, search, subscribe};
 
 /// Every RPC that deletes media, which needs `PERMISSION_DELETE_MEDIA`.
 const DELETE_MEDIA: [&str; 2] = [
@@ -458,6 +458,17 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
         .map(|_| ());
     assert_refused(
         subscribed,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+    );
+    let searched = search(
+        &server.anonymous_client_config(),
+        "alien",
+        TitleKind::TITLE_KIND_UNSPECIFIED,
+    )
+    .await;
+    assert_refused(
+        searched,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
     );

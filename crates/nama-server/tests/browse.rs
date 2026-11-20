@@ -26,10 +26,10 @@ use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, Episode, ExternalId,
     GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, Movie,
-    ProbingFinished, RefusalReason, ReportProgressRequest, SearchRequest, SearchResponse,
-    SearchServiceClient, Season, SetMatchRequest, SetPlayedRequest, ShowHit, ShowSeason,
-    ShowSummary, Track, Version, VideoTrack, WatchState, WatchStateServiceClient,
-    continue_watching_entry, event, hit, search_response, set_played_request::Target,
+    ProbingFinished, RefusalReason, ReportProgressRequest, Season, SetMatchRequest,
+    SetPlayedRequest, ShowHit, ShowSeason, ShowSummary, TitleKind, Track, Version, VideoTrack,
+    WatchState, WatchStateServiceClient, continue_watching_entry, event, hit, search_response,
+    set_played_request::Target,
 };
 use nama_server::{
     config::Config,
@@ -37,7 +37,7 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{
-    SignedIn,
+    SignedIn, search,
     tmdb::{ALIEN, DARK, HEAT, THE_OFFICE as THE_OFFICE_US},
 };
 
@@ -109,23 +109,19 @@ impl Fixture {
 
     /// The Shows the Admin's search of every Library for `query` finds, best first.
     async fn search_shows(&self, query: &str) -> Vec<ShowHit> {
-        let client = SearchServiceClient::new(HttpClient::plaintext(), self.server.client_config());
-        let request = SearchRequest {
-            query: query.to_owned(),
-            ..Default::default()
-        };
-        let mut stream = client.search(request).await.unwrap();
-        let mut shows = Vec::new();
-        while let Some(response) = stream.message::<SearchResponse>().await.unwrap() {
-            let Some(search_response::Part::Hits(hits)) = response.to_owned_message().part else {
-                continue;
-            };
-            shows.extend(hits.hits.into_iter().filter_map(|hit| match hit.title {
+        let all = TitleKind::TITLE_KIND_UNSPECIFIED;
+        let parts = search(&self.server.client_config(), query, all).await;
+        (parts.unwrap().into_iter())
+            .filter_map(|part| match part {
+                search_response::Part::Hits(hits) => Some(hits.hits),
+                search_response::Part::Done(_) => None,
+            })
+            .flatten()
+            .filter_map(|hit| match hit.title {
                 Some(hit::Title::Show(show)) => Some(*show),
                 _ => None,
-            }));
-        }
-        shows
+            })
+            .collect()
     }
 
     async fn list_movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
