@@ -11,6 +11,8 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds, MetadataError, TitleMethod, TitleSource},
 };
 
+#[cfg(test)]
+pub(crate) mod scripted;
 mod titles;
 
 pub(crate) use titles::{

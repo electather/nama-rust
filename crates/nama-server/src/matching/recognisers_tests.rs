@@ -2,11 +2,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    contract::{
-        Candidate, Movie, MovieAnswer, SearchQuery, SearchResults, TitleAsked, TitleId,
-        TitleRecognised, TitleToRecognise,
-    },
-    metadata::{ExternalId, MetadataError, TitleSource},
+    contract::{TitleId, TitleRecognised, TitleToRecognise},
+    metadata::ExternalId,
     recogniser::{Recogniser, RecogniserMethod},
 };
 use tokio_util::sync::CancellationToken;
@@ -19,6 +16,7 @@ use crate::{
     library::{
         Artwork, Change, Contents, Item, Libraries, Recognisers, ScanLocks, TitleSources,
         UnmatchedReason, fixture,
+        scripted::{ScriptedSource, SourcesAsked},
     },
     log_capture::CapturedLog,
     matching::{
@@ -29,55 +27,11 @@ use crate::{
     server_settings::ServerUrl,
 };
 
-/// A title source under `aa` whose search finds two Movies called `Dark`, `aa-1` and `aa-2`, which
-/// fit equally well, so the search alone leaves `Dark` Ambiguous.
-struct Twins;
-
 fn aa(value: &str) -> TitleId {
     TitleId {
         namespace: "aa".to_owned(),
         value: value.to_owned(),
         ..Default::default()
-    }
-}
-
-impl TitleSource for Twins {
-    fn namespace(&self) -> &'static str {
-        "aa"
-    }
-
-    fn search<'a>(
-        &'a self,
-        _query: &'a SearchQuery,
-    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
-        let twin = |value| Candidate {
-            id: aa(value).into(),
-            ids: vec![aa(value)],
-            title: "Dark".to_owned(),
-            vote_count: 100,
-            ..Default::default()
-        };
-        let found = SearchResults {
-            candidates: vec![twin("1"), twin("2")],
-            ..Default::default()
-        };
-        Box::pin(async { Ok(found) })
-    }
-
-    fn movie<'a>(
-        &'a self,
-        asked: &'a TitleAsked,
-    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
-        let movie = MovieAnswer {
-            movie: Movie {
-                ids: vec![aa(&asked.id.value)],
-                title: format!("Dark {}", asked.id.value),
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        };
-        Box::pin(async { Ok(movie) })
     }
 }
 
@@ -123,40 +77,38 @@ impl Recogniser for Fake {
     }
 }
 
-/// The Plugin `aa` serving [`Twins`], and the Plugin `rr` serving a [`Fake`] when given one.
-struct FakePlugin(Option<(Answers, Asked)>);
+/// The Plugin `rr` serving a [`Fake`].
+struct FakePlugin(Answers, Asked);
 
 impl Plugin for FakePlugin {
     fn manifest(&self) -> Manifest {
-        let (id, point) = match self.0 {
-            Some(_) => ("rr", PointKey::provide::<dyn Recogniser>()),
-            None => ("aa", PointKey::provide::<dyn TitleSource>()),
-        };
         Manifest {
             version: "0.0.0".to_owned(),
-            extension_points: vec![point],
-            ..Manifest::new(PluginId::from_static(id))
+            extension_points: vec![PointKey::provide::<dyn Recogniser>()],
+            ..Manifest::new(PluginId::from_static("rr"))
         }
     }
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        match &self.0 {
-            Some((answers, asked)) => {
-                let fake = Fake(answers.clone(), Arc::clone(asked));
-                registrar.provide::<dyn Recogniser>(Priority::DEFAULT, Arc::new(fake));
-            }
-            None => registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(Twins)),
-        }
+        let fake = Fake(self.0.clone(), Arc::clone(&self.1));
+        registrar.provide::<dyn Recogniser>(Priority::DEFAULT, Arc::new(fake));
         Ok(())
     }
 }
 
-/// [`Twins`] and a Recogniser answering `answers`, enabled, and what the Recogniser is asked.
+/// A title source under `aa` whose search finds two Movies called `Dark`, `aa-1` and `aa-2`, which
+/// fit equally well, so the search alone leaves `Dark` Ambiguous, and a Recogniser answering
+/// `answers`, enabled, and what the Recogniser is asked.
 fn enabled(answers: Answers) -> (Registry, Asked) {
     let plugins = Registry::new();
     let asked = Asked::default();
-    plugins.enable(Arc::new(FakePlugin(None))).unwrap();
-    let recogniser = FakePlugin(Some((answers, Arc::clone(&asked))));
+    let twins = ScriptedSource::new("aa", &SourcesAsked::default())
+        .found(&["aa-1"], "Dark")
+        .found(&["aa-2"], "Dark")
+        .with_movie(&["aa-1"], "Dark 1")
+        .with_movie(&["aa-2"], "Dark 2");
+    plugins.enable(Arc::new(twins)).unwrap();
+    let recogniser = FakePlugin(answers, Arc::clone(&asked));
     plugins.enable(Arc::new(recogniser)).unwrap();
     (plugins, asked)
 }
@@ -292,7 +244,7 @@ async fn the_recogniser_receives_the_items_path_relative_to_the_library_folder()
 /// `answers`.
 async fn recognising(answers: Answers) -> Fixture {
     let media = Fixture::new().await;
-    let recogniser = FakePlugin(Some((answers, Asked::default())));
+    let recogniser = FakePlugin(answers, Asked::default());
     media.plugins.enable(Arc::new(recogniser)).unwrap();
     for library in [media.movies.id, media.shows.id] {
         (media
