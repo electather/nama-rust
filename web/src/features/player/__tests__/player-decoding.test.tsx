@@ -69,18 +69,19 @@ test.each([
 
 /** What the fake `decodingInfo` refuses from each type: Vorbis files, and E-AC-3 and H.264 High 10
  * from MSE. */
-const refusals: Record<string, string[]> = {
+const refusals: Partial<Record<MediaDecodingType, string[]>> = {
   file: ["vorbis"],
   "media-source": ["ec-3", "avc1.6E0028"],
 };
 
 /**
- * Lends the browser MSE and a `decodingInfo` that decodes all but `refusals`, which it rejects if
- * `rejects`, or else says are unsupported. Each type it's asked about goes in `types`.
+ * Lends the browser MSE and a `decodingInfo` that decodes all but `refusals`, answering those as
+ * `refusal` says, and returns the types it is asked about.
  */
-function lendMse(rejects: boolean, types: MediaDecodingType[] = []) {
+function lendMse(refusal: "says unsupported" | "rejects") {
   // The app only asks whether `MediaSource` exists.
   vi.stubGlobal("MediaSource", {});
+  const types: MediaDecodingType[] = [];
   // oxlint-disable-next-line require-await -- a fake answers at once
   const decodingInfo = async (configuration: MediaDecodingConfiguration) => {
     types.push(configuration.type);
@@ -88,7 +89,7 @@ function lendMse(rejects: boolean, types: MediaDecodingType[] = []) {
     if (!(refusals[configuration.type] ?? []).some((contentType) => asked.includes(contentType))) {
       return { supported: true };
     }
-    if (rejects) {
+    if (refusal === "rejects") {
       throw new TypeError("unsupported");
     }
     return { supported: false };
@@ -97,15 +98,13 @@ function lendMse(rejects: boolean, types: MediaDecodingType[] = []) {
     value: { decodingInfo },
     configurable: true,
   });
+  return types;
 }
 
-test.each([
-  { refusal: "says unsupported", rejects: false },
-  { refusal: "rejects", rejects: true },
-])(
-  "without native HLS, a codec is left out unless files and MSE both decode it, when MSE $refusal",
-  async ({ rejects }) => {
-    lendMse(rejects);
+test.each(["says unsupported", "rejects"] as const)(
+  "without native HLS, a codec is left out unless files and MSE both decode it, when MSE %s",
+  async (refusal) => {
+    lendMse(refusal);
     const asked: PlanPlaybackRequest[] = [];
     openApp("/libraries/1/movies/tmdb-603/play", serverAsked(asked));
 
@@ -121,8 +120,7 @@ test.each([
 
 test("with native HLS, only files are asked about and MSE's refusals don't count", async () => {
   vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("maybe");
-  const types: MediaDecodingType[] = [];
-  lendMse(false, types);
+  const types = lendMse("says unsupported");
   const asked: PlanPlaybackRequest[] = [];
   openApp("/libraries/1/movies/tmdb-603/play", serverAsked(asked));
 
