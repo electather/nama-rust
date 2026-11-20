@@ -159,6 +159,23 @@ mod tests {
     }
 
     #[test]
+    fn a_scripted_header_reads_back_in_any_case() {
+        let mut kernel = Kernel::new()
+            .http(|_request, _body| Ok(Response::new(429, "").with_header("Retry-After", "120")));
+
+        let answered = with(&mut kernel, || get("http://service.test")).unwrap();
+
+        let read = [
+            "Retry-After",
+            "retry-after",
+            "RETRY-AFTER",
+            "ratelimit-reset",
+        ]
+        .map(|name| answered.header(name));
+        assert_eq!(read, [Some("120"), Some("120"), Some("120"), None]);
+    }
+
+    #[test]
     fn requests_are_recorded_in_the_order_sent_with_their_bodies() {
         let mut kernel = Kernel::new().http(|_request, _body| Ok(Response::new(204, "")));
 

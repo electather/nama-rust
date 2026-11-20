@@ -179,9 +179,9 @@ mod exports {
     }
 
     // Logs each Event it is told about, so a test can see them arrive, then requests its `fetch`
-    // setting's URL, if it has one, and logs the response's status. Its `observer` setting can
-    // make it log the time by `nama_pdk::now` instead, or hoard 256 MiB, loop forever or panic, so
-    // a test can see the Server survive that. Set to `garble`, it answers with bytes that don't
+    // setting's URL, if it has one, and logs the response's status and `Retry-After`. Its
+    // `observer` setting can make it log the time by `nama_pdk::now` instead, or hoard 256 MiB,
+    // loop forever or panic, so a test can see the Server survive that. Set to `garble`, it answers with bytes that don't
     // decode, so a test can see that logged as a failure (#1117).
     #[plugin_fn]
     pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<Vec<u8>> {
@@ -206,7 +206,13 @@ mod exports {
                 if let Some(url) = nama_pdk::setting("fetch")? {
                     let response =
                         ::extism_pdk::http::request::<()>(&HttpRequest::new(&url), None)?;
-                    nama_pdk::info!("test-plugin fetched {url}: {}", response.status_code());
+                    // Extism's own lookup is case-sensitive, and the Server's HTTP client
+                    // lowercases every name.
+                    let retry_after = response.header("retry-after").unwrap_or("none");
+                    let status = response.status_code();
+                    nama_pdk::info!(
+                        "test-plugin fetched {url}: {status}, Retry-After {retry_after}"
+                    );
                 }
             }
         }

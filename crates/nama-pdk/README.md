@@ -274,7 +274,7 @@ nama_pdk::blob_store!(Bucket);
 
 Send requests with `nama_pdk::http_request`, which takes the error the call fails with when nothing answers and answers a `nama_pdk::Response`. `nama_pdk::extism_pdk` has no `config` or `http`, so settings and requests always go through `nama-pdk`, which a test can stand in for (section 14). Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
 
-Plugins are not given HTTP response headers today: a response carries its status and body only. A later stage may add them, so don't build on either.
+A response carries its status, headers and body. `Response::header` reads a header whatever case it is asked in, such as `Retry-After` on a 429, so a Plugin keeps to an outside service's rate limits. A test (section 14) answers with headers through `Response::with_header`.
 
 ## 10. The call budget
 

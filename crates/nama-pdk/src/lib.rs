@@ -906,10 +906,11 @@ pub fn http_request<'a, T: ToBytes<'a>>(
         .map_err(|_handlers_error| Error::msg(unreachable.to_owned()))
 }
 
-/// An HTTP response a Plugin was answered: its status and body, as the Server gives no headers.
+/// An HTTP response a Plugin was answered: its status, headers and body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Response {
     status: u16,
+    headers: Vec<(String, String)>,
     body: Vec<u8>,
 }
 
@@ -919,8 +920,24 @@ impl Response {
     pub fn new(status: u16, body: impl Into<Vec<u8>>) -> Self {
         Self {
             status,
+            headers: Vec::new(),
             body: body.into(),
         }
+    }
+
+    /// The response, with the header `name` holding `value`, as a test answers a Plugin's request.
+    #[must_use]
+    pub fn with_header(mut self, name: &str, value: &str) -> Self {
+        self.headers.push((name.to_owned(), value.to_owned()));
+        self
+    }
+
+    /// The value of its header `name`, such as `Retry-After`, matched whatever its case.
+    #[must_use]
+    pub fn header(&self, name: &str) -> Option<&str> {
+        (self.headers.iter())
+            .find(|(held, _value)| held.eq_ignore_ascii_case(name))
+            .map(|(_name, value)| value.as_str())
     }
 
     /// Its HTTP status code, such as 200.
@@ -958,11 +975,16 @@ impl Response {
 impl From<::extism_pdk::HttpResponse> for Response {
     fn from(response: ::extism_pdk::HttpResponse) -> Self {
         let status = response.status_code();
+        let headers = response.headers().clone().into_iter().collect();
         // Copied out and freed, so a large body isn't held twice for the rest of the call.
         let memory = response.into_memory();
         let body = memory.to_vec();
         memory.free();
-        Self { status, body }
+        Self {
+            status,
+            headers,
+            body,
+        }
     }
 }
 
