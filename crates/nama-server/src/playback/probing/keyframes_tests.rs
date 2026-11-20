@@ -1,13 +1,14 @@
 use std::{fs, time::Duration};
 
-use super::tests::Fixture;
+use super::tests::{Fixture, system_ffmpeg};
 #[cfg(unix)]
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
 use super::{
-    Error, Keyframes, LISTING_WAIT, ListedKeyframes, ProbeError, WHOLE_FILE_READS_AT_ONCE,
-    ffprobe::WHOLE_FILE_TIMEOUT,
+    Error, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE, ffprobe::WHOLE_FILE_TIMEOUT,
 };
+use super::{Keyframes, ListedKeyframes, Probe};
+use crate::ffmpeg;
 #[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
 
@@ -412,4 +413,37 @@ async fn shutting_down_stops_a_listing_and_keeps_nothing() {
         .await
         .unwrap();
     assert!(kept.is_none(), "{kept:?}");
+}
+
+#[tokio::test]
+async fn a_version_read_by_an_older_probe_gets_its_keyframes_from_its_cues_when_probed_again() {
+    let media = Fixture::with_ffmpeg(system_ffmpeg()).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    let path = media.path(alien);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    ffmpeg::write_h264_with_5_1(&path, "aac").unwrap();
+    media.store(alien).await;
+    let file = media.stored(alien).await;
+    // As the probe version before stored it: Tracks, but no keyframes.
+    let tracks_only = Probe {
+        container: "matroska,webm".to_owned(),
+        duration_ms: Some(14_000),
+        bitrate: None,
+        tracks: vec![],
+        font_attachments: vec![],
+    };
+    media.tracks.store(file, tracks_only).await.unwrap();
+    media.tracks.read_by_older_probe(file.id).await;
+
+    media.probe_changed().await;
+
+    let cued = ListedKeyframes {
+        file_start_ms: 0,
+        // A keyframe every 2 seconds.
+        keyframes_ms: (0..7).map(|n| n * 2_000).collect(),
+    };
+    assert_eq!(
+        media.tracks.keyframes(file).await.unwrap(),
+        Some(Keyframes::Listed(cued))
+    );
 }
