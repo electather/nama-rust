@@ -35,6 +35,8 @@ export interface Card {
     title: string;
     /** Its Title Logo, shown in place of its title, if it has one. */
     logoUrl: string | undefined;
+    /** Whether the art carries its title, so the card doesn't draw it again. */
+    titled: boolean;
     /** Which Episode, and how much is left, such as "S1, E3 · 33m left", as its link says it. */
     detail: string | undefined;
     /** `detail` as the card shows it, beside its bar, which says the rest: "S1, E3 · 33m". */
@@ -79,10 +81,8 @@ function movieCard(library: bigint, movie: Movie): Card[] {
         params: { libraryId, movieId },
       },
       backdrop: {
-        url: movie.backdropUrl,
-        thumbhash: movie.backdropThumbhash,
+        ...artOf(movie),
         title: movie.title,
-        logoUrl: movie.titleLogoUrl,
         detail: timeLeft(movie.watchState),
         shownDetail: remainingOf(movie.watchState),
         watchState: movie.watchState,
@@ -118,16 +118,24 @@ function episodeCard(library: bigint, entry: ContinueWatchingEpisode): Card[] {
         params: { libraryId, showId, season, episode: number },
       },
       backdrop: {
-        url: show.backdropUrl,
-        thumbhash: show.backdropThumbhash,
+        ...artOf(show),
         title: show.title,
-        logoUrl: show.titleLogoUrl,
         detail: metadataLine(which, time.spoken),
         shownDetail: metadataLine(which, time.shown),
         watchState: episode.watchState,
       },
     },
   ];
+}
+
+/** A card's art: its titled Backdrop, which needs no Title Logo, or else its Backdrop and Title Logo. */
+function artOf(movieOrShow: Movie | Show) {
+  if (movieOrShow.titledBackdropUrl !== undefined) {
+    const { titledBackdropUrl: url, titledBackdropThumbhash: thumbhash } = movieOrShow;
+    return { url, thumbhash, logoUrl: undefined, titled: true };
+  }
+  const { backdropUrl: url, backdropThumbhash: thumbhash, titleLogoUrl: logoUrl } = movieOrShow;
+  return { url, thumbhash, logoUrl, titled: false };
 }
 
 /** An Episode entry with its Show's and Episode's ids, as the Server always sends it. */
