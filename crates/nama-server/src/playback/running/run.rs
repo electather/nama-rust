@@ -5,6 +5,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering},
     },
+    time::Duration,
 };
 
 use futures_util::future::BoxFuture;
@@ -22,6 +23,10 @@ use crate::{
 /// How ffmpeg's stderr says a write failed with ENOSPC. ffmpeg, not the Server, writes a plan's
 /// files, so its words are all the Server sees of it.
 const DISK_FULL: &str = "No space left on device";
+
+/// How long a new plan waits at most for its first file before it's answered, so one whose ffmpeg
+/// dies at start-up is never handed to a Device, while a slow but healthy start is.
+const START_WAIT: Duration = Duration::from_secs(5);
 
 /// Starts a run writing a plan's files, from a keyframe on, to the folder it's given: one file
 /// per keyframe of the file, listed or not, which the playlist named by [`hls_playlist`] lists,
@@ -148,6 +153,16 @@ impl Running {
         });
         *running.ffmpeg.lock().await = Some(running.run_from(first_keyframe)?);
         Ok(running)
+    }
+
+    /// Whether its first run stopped without writing its first file, whatever ffmpeg's exit code,
+    /// waiting [`START_WAIT`] at most. A run on hardware that fell back to software counts as the
+    /// software run, which `init` waits for.
+    pub(super) async fn failed_at_start(&self) -> bool {
+        matches!(
+            tokio::time::timeout(START_WAIT, self.init()).await,
+            Ok(Ok(None))
+        )
     }
 
     /// Whether it Remuxes or Transcodes.

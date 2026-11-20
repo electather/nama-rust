@@ -116,6 +116,7 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
             gpus: vec![],
         },
         failed: BTreeSet::new(),
+        failed_on_server: BTreeSet::new(),
         keyframes_unlisted: false,
         audio: None,
         running_transcodes: RunningTranscodes::default(),

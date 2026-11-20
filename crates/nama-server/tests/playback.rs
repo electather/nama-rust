@@ -6,6 +6,8 @@
 mod browsing;
 #[path = "playback/burn_in.rs"]
 mod burn_in;
+#[path = "playback/failing_ffmpeg.rs"]
+mod failing_ffmpeg;
 #[path = "support/http.rs"]
 mod http;
 #[path = "playback/keyframes.rs"]
@@ -439,11 +441,8 @@ impl Fixture {
     /// and a Movies Library holding Alien in 1080p and 2160p, and returns it with the ids of those
     /// Versions, which Chrome Remuxes and Transcodes.
     async fn alien_with_room_for_one_transcode(bin: &Path) -> (Self, [i64; 2]) {
-        let fx = Self::start_with_ffmpeg(
-            LibraryKind::LIBRARY_KIND_MOVIES,
-            ffmpeg_writing_nothing(bin, "libx264"),
-        )
-        .await;
+        let ffmpeg = ffmpeg_writing_nothing(bin, "libx264");
+        let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
         fx.write(ALIEN_1080P, b"video");
         fx.write(ALIEN_2160P, b"video");
         fx.scan_and_match().await;

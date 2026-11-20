@@ -1,5 +1,7 @@
 //! The lasting and now steps of a plan, and what they work out (ADR 0027).
 
+use std::collections::BTreeSet;
+
 use buffa::Enumeration;
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
@@ -452,14 +454,30 @@ pub(super) fn too_busy_to_play(facts: Facts) -> Option<u32> {
 /// The step for what just failed to play on the Device: it rules out each method that did, so
 /// the player can ask again without looping.
 pub(super) fn failed_on_device(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
-    (facts.failed.iter())
+    failures(
+        &facts.failed,
+        Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
+        "on this Device",
+    )
+}
+
+/// The step for plans whose ffmpeg stopped before writing anything: it rules out each method that
+/// did, so planning goes on to the next.
+pub(super) fn failed_on_server(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
+    failures(
+        &facts.failed_on_server,
+        Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
+        "on the Server, as its ffmpeg stopped before writing anything",
+    )
+}
+
+/// A reason of `kind` for each of `methods`, ruling it out, saying it failed `where_`.
+fn failures(methods: &BTreeSet<Method>, kind: Kind, where_: &str) -> Vec<Reason> {
+    (methods.iter())
         .map(|&method| {
-            Reason::new(
-                Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
-                format!("{} failed on this Device", method.name()),
-            )
-            .with("method", &method_to_proto(Some(method)).proto_name())
-            .ruling_out([method])
+            Reason::new(kind, format!("{} failed {where_}", method.name()))
+                .with("method", &method_to_proto(Some(method)).proto_name())
+                .ruling_out([method])
         })
         .collect()
 }
