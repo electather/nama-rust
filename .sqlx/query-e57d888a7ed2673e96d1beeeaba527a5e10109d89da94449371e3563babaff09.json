@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH RECURSIVE found (namespace, value) AS (\n               SELECT ?1, ?2\n               UNION\n               SELECT other.namespace, other.value\n               FROM found\n               JOIN item_match_ids AS named\n                   ON named.scope = ?3 AND named.namespace = found.namespace\n                  AND named.value = found.value\n               JOIN item_matches ON item_matches.item_id = named.item_id\n               JOIN library_items ON library_items.id = named.item_id\n               JOIN item_match_ids AS other\n                   ON other.item_id = named.item_id AND other.scope = named.scope\n               WHERE item_matches.state = 'matched' AND library_items.kind = ?4\n           )\n           SELECT namespace AS \"namespace!: String\", value AS \"value!: String\" FROM found",
+  "describe": {
+    "columns": [
+      {
+        "name": "namespace!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_match_ids",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "name": "value!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_match_ids",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "e57d888a7ed2673e96d1beeeaba527a5e10109d89da94449371e3563babaff09"
+}

@@ -4,7 +4,10 @@
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use crate::{db::Database, library::TitleKind};
+use crate::{
+    db::Database,
+    library::{TitleKind, matched_ids},
+};
 
 /// Puts the title of `kind` with the id `id` on the User `user`'s Watchlist, if it isn't already.
 pub(crate) async fn add(
@@ -30,24 +33,25 @@ pub(crate) async fn add(
     .await
 }
 
-/// Takes the title of `kind` added under the id `id` off the User `user`'s Watchlist, if it's
-/// there.
-// ponytail: a title added under another of its ids stays on; remove under every id the Server
-// knows it by once Libraries' title source orders, or Home rows' ids, differ in practice (#1292).
+/// Takes the title of `kind` with the id `id` off the User `user`'s Watchlist, under every id the
+/// Server's Matches give it, since [`has`] finds it under any of them.
 pub(crate) async fn remove(
     db: &Database,
     user: i64,
     kind: TitleKind,
     id: &ExternalId,
 ) -> Result<(), sqlx::Error> {
-    let (kind, id) = (stored(kind), id.to_string());
+    let id = id.clone();
     db.write(move |tx| {
         Box::pin(async move {
+            let ids = json_ids(matched_ids(tx, kind, &id).await?);
+            let kind = stored(kind);
             sqlx::query!(
-                "DELETE FROM watchlist WHERE user_id = ? AND kind = ? AND title_id = ?",
+                "DELETE FROM watchlist
+                 WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
                 user,
                 kind,
-                id
+                ids
             )
             .execute(&mut **tx)
             .await
@@ -64,8 +68,7 @@ pub(crate) async fn has(
     kind: TitleKind,
     ids: &ExternalIds,
 ) -> Result<bool, sqlx::Error> {
-    let ids: Vec<String> = ids.iter().map(|id| id.to_string()).collect();
-    let (kind, ids) = (stored(kind), serde_json::Value::from(ids).to_string());
+    let (kind, ids) = (stored(kind), json_ids(ids.iter()));
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM watchlist
                           WHERE user_id = ? AND kind = ?
@@ -76,6 +79,12 @@ pub(crate) async fn has(
     )
     .fetch_one(db.reader())
     .await
+}
+
+/// `ids` as the JSON array of their text form that `json_each` reads.
+fn json_ids(ids: impl IntoIterator<Item = ExternalId>) -> String {
+    let ids: Vec<String> = ids.into_iter().map(|id| id.to_string()).collect();
+    serde_json::Value::from(ids).to_string()
 }
 
 /// The User `user`'s Watchlist, each title by the id it was added under. A row whose kind or id
