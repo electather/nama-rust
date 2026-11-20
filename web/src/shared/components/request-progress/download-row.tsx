@@ -2,7 +2,8 @@ import { CircleArrowDown, Clock, FolderInput, TriangleAlert } from "lucide-react
 
 import { type Download, DownloadStatus } from "@/gen/nama/v1/request_pb";
 import type { Shown } from "@/shared/components/state-label";
-import { metadataLine, runtimeOf, sizeOf } from "@/shared/lib/title-facts";
+import { timeLeftText } from "@/shared/lib/download-progress";
+import { metadataLine, sizeOf } from "@/shared/lib/title-facts";
 
 /** Each status in words, with its icon, so it never rests on colour alone. */
 const statuses: Partial<Record<DownloadStatus, Shown>> = {
@@ -36,6 +37,6 @@ function facts({ percent, sizeBytes, etaSeconds }: Download) {
   return [
     `${Math.floor(percent)}%`,
     sizeBytes === undefined ? undefined : sizeOf(sizeBytes),
-    etaSeconds === undefined ? undefined : `${runtimeOf(Math.ceil(Number(etaSeconds) / 60))} left`,
+    etaSeconds === undefined ? undefined : timeLeftText(Number(etaSeconds)),
   ];
 }

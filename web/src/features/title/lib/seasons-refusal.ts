@@ -17,8 +17,3 @@ export function seasonsRefusal(error: unknown, title: string) {
     },
   });
 }
-
-/** What Requesting the Show titled `title` asks for, the Whole Show or Seasons, in words. */
-export function askedFor(title: string, whole: boolean) {
-  return whole ? `the Whole Show of ${title}` : `Seasons of ${title}`;
-}

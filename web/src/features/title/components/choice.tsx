@@ -12,8 +12,6 @@ export interface ChoiceProps {
   description?: string;
   disabled: boolean;
   onChange?: (checked: boolean) => void;
-  /** What follows its state, such as a Season's downloads, on lines of their own. */
-  below?: ReactNode;
   /** Its state, at the end of the row. */
   children: ReactNode;
 }
@@ -30,7 +28,6 @@ export function Choice({
   description,
   disabled,
   onChange,
-  below,
   children,
 }: ChoiceProps) {
   const stateId = useId();
@@ -64,8 +61,6 @@ export function Choice({
           {description}
         </p>
       )}
-      {/* Hidden when empty, so a row with nothing below gains no gap. */}
-      <div className="basis-full ps-7 empty:hidden">{below}</div>
     </li>
   );
 }

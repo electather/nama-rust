@@ -1,5 +1,5 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { QualitySchema } from "@/gen/nama/v1/plugin_pb";
@@ -45,69 +45,105 @@ function server(
       listMovieQualities: () => ({ qualities, personalDefault }),
       createRequest: (request) => {
         asked.push(request);
-        found.request = create(RequestSchema, { state: RequestState.PENDING });
+        found.request = create(RequestSchema, {
+          state: RequestState.PENDING,
+          requesters: [{ userId: 1n, name: "Sam" }],
+        });
         return { request: found.request };
       },
     });
   });
 }
 
-async function clickRequest() {
-  const button = await screen.findByRole<HTMLButtonElement>("button", { name: "Request Dune" });
-  await waitFor(() => {
-    expect(button.disabled).toBe(false);
-  });
-  fireEvent.click(button);
+/** The chevron beside Request that opens the Qualities to Request `what` at. */
+async function openQualities(what: string) {
+  fireEvent.click(await screen.findByRole("button", { name: `Request ${what} at a Quality` }));
+  return screen.findAllByRole("menuitemradio");
 }
 
-test("a User who may choose picks a Quality, the default picked and marked, each with its description", async () => {
+test("request asks for a Movie at once, at the User's Quality", async () => {
   const asked: CreateRequestRequest[] = [];
   openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], asked));
 
-  await clickRequest();
-  const dialog = await screen.findByRole("alertdialog", { name: "Request Dune" });
-  const picked = within(dialog).getByRole<HTMLInputElement>("radio", { name: "HD (Default)" });
-  const other = within(dialog).getByRole<HTMLInputElement>("radio", { name: "4K" });
+  fireEvent.click(await screen.findByRole("button", { name: "Request Dune" }));
 
-  expect(picked.checked).toBe(true);
-  expect(other.getAttribute("aria-describedby")).not.toBeNull();
-  expect(within(dialog).getByText("About 50 GB per film")).toBeDefined();
-  fireEvent.click(other);
-  fireEvent.click(within(dialog).getByRole("button", { name: "Request" }));
+  await waitFor(() => {
+    expect(asked.map(({ quality }) => quality)).toStrictEqual([undefined]);
+  });
+  expect(screen.queryByRole("menu")).toBeNull();
+});
+
+test("the Quality menu checks the Fulfiller's default, and each Quality says what it is", async () => {
+  openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], []));
+
+  const items = await openQualities("Dune");
+
+  expect(items.map((item) => [item.textContent, item.getAttribute("aria-checked")])).toStrictEqual([
+    ["HD", "true"],
+    ["4KAbout 50 GB per film", "false"],
+  ]);
+  expect(screen.getByRole("menuitemradio", { description: "About 50 GB per film" })).toBe(items[1]);
+});
+
+test("the Quality menu checks the User's own default over the Fulfiller's", async () => {
+  openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], [], dune, 2n));
+
+  const items = await openQualities("Dune");
+
+  expect(items.map((item) => item.getAttribute("aria-checked"))).toStrictEqual(["false", "true"]);
+});
+
+test("picking a Quality in the menu Requests the Movie at it", async () => {
+  const asked: CreateRequestRequest[] = [];
+  openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], asked));
+
+  await openQualities("Dune");
+  fireEvent.click(screen.getByRole("menuitemradio", { name: /^4K/u }));
+
   await waitFor(() => {
     expect(asked.map(({ quality }) => quality)).toStrictEqual([2n]);
   });
 });
 
-test("the picker starts at the User's own default, the Movie Fulfiller's still marked", async () => {
-  const asked: CreateRequestRequest[] = [];
-  openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], asked, dune, 2n));
+test("request is disabled while it's being sent", async () => {
+  openApp(
+    "/movies/tmdb-438631",
+    fakeServer({ signedIn: newUser }, {}, {}, (router) => {
+      router.service(RequestService, {
+        listRequests: () => ({}),
+        lookUpMovie: () => ({ movie: dune }),
+        createRequest: async () => {
+          await new Promise(() => {});
+          return {};
+        },
+      });
+    }),
+  );
+  const request = await screen.findByRole<HTMLButtonElement>("button", { name: "Request Dune" });
 
-  await clickRequest();
-  const dialog = await screen.findByRole("alertdialog", { name: "Request Dune" });
+  fireEvent.click(request);
 
-  expect(within(dialog).getByRole<HTMLInputElement>("radio", { name: "4K" }).checked).toBe(true);
-  expect(
-    within(dialog).getByRole<HTMLInputElement>("radio", { name: "HD (Default)" }).checked,
-  ).toBe(false);
+  await waitFor(() => {
+    expect(request.disabled).toBe(true);
+  });
 });
 
 test.each([
   { who: "may not choose", permissions: newUser, qualities: [hd, fourK] },
   { who: "has one Quality to choose from", permissions: mayChoose, qualities: [hd] },
-])("a User who $who Requests without a picker", async ({ permissions, qualities }) => {
+])("a User who $who gets Request with no Quality menu", async ({ permissions, qualities }) => {
   const asked: CreateRequestRequest[] = [];
   openApp("/movies/tmdb-438631", server(permissions, qualities, asked));
 
-  await clickRequest();
+  fireEvent.click(await screen.findByRole("button", { name: "Request Dune" }));
 
   await waitFor(() => {
     expect(asked.map(({ quality }) => quality)).toStrictEqual([undefined]);
   });
-  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Request Dune at a Quality" })).toBeNull();
 });
 
-test("a Movie's page shows its open Request's Quality, and joining it shows no picker", async () => {
+test("a Movie's page shows its open Request's Quality, and joining it offers no Quality menu", async () => {
   const asked: CreateRequestRequest[] = [];
   const askedByAda = {
     ...dune,
@@ -120,12 +156,12 @@ test("a Movie's page shows its open Request's Quality, and joining it shows no p
   openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], asked, askedByAda));
 
   await expect(screen.findByText("4K")).resolves.toBeDefined();
-  await clickRequest();
+  fireEvent.click(screen.getByRole("button", { name: "Request Dune" }));
 
   await waitFor(() => {
     expect(asked.map(({ quality }) => quality)).toStrictEqual([undefined]);
   });
-  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Request Dune at a Quality" })).toBeNull();
 });
 
 const dark = {
@@ -163,34 +199,32 @@ function showServer(
   });
 }
 
-/** Picks Season 2 of Dark and Requests it, once the Qualities are read. */
-async function requestSeason2() {
-  await requestPicking("Season 2");
-}
-
-/** Picks the Whole Show of Dark and Requests it, once the Qualities are read. */
-async function requestWholeShow() {
-  await requestPicking("Whole Show");
-}
-
-/** Picks the choice `name` on Dark's page and Requests it, once the Qualities are read. */
-async function requestPicking(name: string) {
+/** Picks the choice `name` on Dark's page, then the Quality `quality` from Request's menu. */
+async function requestAt(name: string, quality: RegExp) {
   fireEvent.click(await screen.findByRole("checkbox", { name }));
-  const button = screen.getByRole<HTMLButtonElement>("button", { name: "Request Seasons of Dark" });
-  await waitFor(() => {
-    expect(button.disabled).toBe(false);
-  });
-  fireEvent.click(button);
+  await openQualities("Seasons of Dark");
+  fireEvent.click(screen.getByRole("menuitemradio", { name: quality }));
 }
 
-test("a User who may choose picks the Quality of a Show's first Seasons", async () => {
+test("request asks for a Show's Seasons at once, at the User's Quality", async () => {
   const asked: CreateSeasonRequestsRequest[] = [];
   openApp("/shows/tmdb-70523", showServer([hd, fourK], asked));
 
-  await requestSeason2();
-  const dialog = await screen.findByRole("alertdialog", { name: "Request Seasons of Dark" });
-  fireEvent.click(within(dialog).getByRole("radio", { name: "4K" }));
-  fireEvent.click(within(dialog).getByRole("button", { name: "Request" }));
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Season 2" }));
+  fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
+
+  await waitFor(() => {
+    expect(asked.map(({ seasonNumbers, quality }) => [seasonNumbers, quality])).toStrictEqual([
+      [[2], undefined],
+    ]);
+  });
+});
+
+test("picking a Quality in the menu Requests the Seasons picked at it", async () => {
+  const asked: CreateSeasonRequestsRequest[] = [];
+  openApp("/shows/tmdb-70523", showServer([hd, fourK], asked));
+
+  await requestAt("Season 2", /^4K/u);
 
   await waitFor(() => {
     expect(asked.map(({ seasonNumbers, quality }) => [seasonNumbers, quality])).toStrictEqual([
@@ -199,18 +233,30 @@ test("a User who may choose picks the Quality of a Show's first Seasons", async 
   });
 });
 
-test("a Show with a Quality shows it, and its later Seasons are Requested without a picker", async () => {
+test("picking a Quality in the menu follows the Whole Show at it", async () => {
+  const followed: CreateFollowedShowRequest[] = [];
+  openApp("/shows/tmdb-70523", showServer([hd, fourK], [], dark, followed));
+
+  await requestAt("Whole Show", /^4K/u);
+
+  await waitFor(() => {
+    expect(followed.map(({ quality }) => quality)).toStrictEqual([2n]);
+  });
+});
+
+test("a Show with a Quality shows it, and its Seasons are Requested with no Quality menu", async () => {
   const asked: CreateSeasonRequestsRequest[] = [];
   const withQuality = { ...dark, quality: { id: 2n, name: "4K", profileId: "5" } };
   openApp("/shows/tmdb-70523", showServer([hd, fourK], asked, withQuality));
 
   await expect(screen.findByText(/downloads at 4K/u)).resolves.toBeDefined();
-  await requestSeason2();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Season 2" }));
+  fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
 
   await waitFor(() => {
     expect(asked.map(({ quality }) => quality)).toStrictEqual([undefined]);
   });
-  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Request Seasons of Dark at a Quality" })).toBeNull();
 });
 
 test("a Show whose Quality Sonarr kept and no Quality offers says it is set in the service", async () => {
@@ -220,32 +266,4 @@ test("a Show whose Quality Sonarr kept and no Quality offers says it is set in t
   await expect(
     screen.findByText(/downloads at HD-1080p \(set in the service\)/u),
   ).resolves.toBeDefined();
-});
-
-test("a User who may choose picks the Quality of a Whole Show they follow", async () => {
-  const followed: CreateFollowedShowRequest[] = [];
-  openApp("/shows/tmdb-70523", showServer([hd, fourK], [], dark, followed));
-
-  await requestWholeShow();
-  const dialog = await screen.findByRole("alertdialog", { name: "Request the Whole Show of Dark" });
-  fireEvent.click(within(dialog).getByRole("radio", { name: "4K" }));
-  fireEvent.click(within(dialog).getByRole("button", { name: "Request" }));
-
-  await waitFor(() => {
-    expect(followed.map(({ quality }) => quality)).toStrictEqual([2n]);
-  });
-});
-
-test("a Show whose Quality is fixed shows it, and its Whole Show is followed without a picker", async () => {
-  const followed: CreateFollowedShowRequest[] = [];
-  const withQuality = { ...dark, quality: { id: 2n, name: "4K", profileId: "5" } };
-  openApp("/shows/tmdb-70523", showServer([hd, fourK], [], withQuality, followed));
-
-  await expect(screen.findByText(/downloads at 4K/u)).resolves.toBeDefined();
-  await requestWholeShow();
-
-  await waitFor(() => {
-    expect(followed.map(({ quality }) => quality)).toStrictEqual([undefined]);
-  });
-  expect(screen.queryByRole("alertdialog")).toBeNull();
 });

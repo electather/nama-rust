@@ -1,6 +1,6 @@
 import { ChangeButton } from "@/features/requests/components/change-button";
-import { useRetryRequest } from "@/features/requests/data/use-retry-request";
 import { type Target, changeRefusal } from "@/features/requests/lib/request-target";
+import { useRetryRequest } from "@/shared/hooks/use-retry-request";
 
 /** Hands a Failed Request to its Fulfiller again. */
 export function Retry({ id, ...target }: Target) {

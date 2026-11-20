@@ -1,5 +1,6 @@
-import type { Download, Request } from "@/gen/nama/v1/request_pb";
+import type { Request } from "@/gen/nama/v1/request_pb";
 import { DownloadRow } from "@/shared/components/request-progress/download-row";
+import { overallPercent } from "@/shared/lib/download-progress";
 import { Progress } from "@/shared/ui/progress";
 
 /**
@@ -24,17 +25,4 @@ export function RequestProgress({ request }: { request: Request | undefined }) {
       </ul>
     </div>
   );
-}
-
-/** Each download's percent weighted by its size, or counted evenly unless every size is known. */
-function overallPercent(downloads: Download[]) {
-  const sized = downloads.every(({ sizeBytes }) => sizeBytes !== undefined && sizeBytes > 0n);
-  const weight = ({ sizeBytes }: Download) => (sized ? Number(sizeBytes) : 1);
-  let total = 0;
-  let done = 0;
-  for (const download of downloads) {
-    total += weight(download);
-    done += weight(download) * download.percent;
-  }
-  return done / total;
 }
