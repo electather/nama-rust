@@ -622,7 +622,7 @@ echo "{{\"format\": {{\"format_name\": \"matroska,webm\", \"duration\": \"1.0000
     )
 }
 
-/// How many times [`counting_ffprobe`] in `bin` has run.
+/// How many runs a fake ffprobe in `bin` logged to `bin/runs`, as [`counting_ffprobe`] logs each.
 #[cfg(unix)]
 pub(super) fn probe_runs(bin: &std::path::Path) -> usize {
     fs::read_to_string(bin.join("runs")).map_or(0, |runs| runs.lines().count())

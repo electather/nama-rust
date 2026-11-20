@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT recognisers_read IS NOT ? AS \"changed!: bool\" FROM libraries WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "changed!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bcdc660817f7ee9bcac2057ad5157bbea6cd9e88df180f6cf738124c0c983dc3"
+}

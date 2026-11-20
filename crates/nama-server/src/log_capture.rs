@@ -7,7 +7,7 @@ use std::{
 
 use tempfile::NamedTempFile;
 use tracing::{
-    Event, Metadata, span,
+    Event, Level, Metadata, span,
     subscriber::{DefaultGuard, Interest, Subscriber},
 };
 
@@ -27,6 +27,12 @@ impl CapturedLog {
     /// misses the line (#945). A global [`Silent`] subscriber keeps a second dispatcher live, so
     /// every callsite comes out `sometimes` and each event asks its own thread's subscriber.
     pub(crate) fn start() -> Self {
+        Self::start_at(Level::INFO)
+    }
+
+    /// Like [`CapturedLog::start`], capturing lines down to `level`; below INFO, a test also sees
+    /// what sqlx and wasmtime log, so it looks for its own line instead of the whole log.
+    pub(crate) fn start_at(level: Level) -> Self {
         static SILENT: Once = Once::new();
         SILENT.call_once(|| {
             tracing::subscriber::set_global_default(Silent)
@@ -36,6 +42,7 @@ impl CapturedLog {
         let subscriber = tracing_subscriber::fmt()
             .with_writer(Arc::new(file.reopen().unwrap()))
             .with_ansi(false)
+            .with_max_level(level)
             .finish();
         let logging = tracing::subscriber::set_default(subscriber);
         Self { file, logging }

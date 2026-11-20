@@ -210,7 +210,7 @@ One installment of a Show, numbered within a Season.
 _Avoid_: chapter, part
 
 **Version**:
-One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0062).
+One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0069).
 _Avoid_: copy, edition, file
 
 **Taken along**:
@@ -332,11 +332,11 @@ What a User wants the audio to start as when they play something: a language, an
 _Avoid_: default audio, remembered audio, audio choice (a pick in one playback)
 
 **Subtitle Appearance**:
-How a User's text subtitles look on every Device: one of four sizes, Small, Default, Large or Largest, and an outline or a box behind them. A styled ASS Track the Device draws, and a burned-in one, keep their own look (ADR 0068).
+How a User's text subtitles look on every Device: one of four sizes, Small, Default, Large or Largest, and an outline or a box behind them. A styled ASS Track the Device draws, and a burned-in one, keep their own look (ADR 0070).
 _Avoid_: subtitle style, caption style, subtitle settings
 
 **Subtitle Offset**:
-How far a User shifts one subtitle Track's timing to match the audio, kept for that Track of that Version. It doesn't apply to Burn-in (ADR 0068).
+How far a User shifts one subtitle Track's timing to match the audio, kept for that Track of that Version. It doesn't apply to Burn-in (ADR 0070).
 _Avoid_: subtitle delay, subtitle sync, subtitle timing
 
 **GPU**:
