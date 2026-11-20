@@ -10,6 +10,13 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-20, #1331
+
+- `RPC_NO_DELETE`, `nama/v1/watch_state.proto`: `WatchStateService.SetHiddenFromContinueWatching`.
+- `MESSAGE_NO_DELETE`, `nama/v1/watch_state.proto`: `SetHiddenFromContinueWatchingRequest` and `SetHiddenFromContinueWatchingResponse`.
+- Hiding a title from Continue Watching is gone, and the Server forgets what was hidden, so those titles are listed again until they're played; `SetPlayed` takes a title out of Continue Watching instead.
+- A client built before is refused with `unimplemented` when it hides a title; it must regenerate and mark the title played with `SetPlayed`. The web app is the only client, and stopped calling it in #1330.
+
 ## 2026-11-18, #1029
 
 - None that `buf breaking` reports: in `nama/v1/library.proto`, `TitleSource` gains `running` (5).

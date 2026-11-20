@@ -11,7 +11,7 @@ use crate::{
     },
     db::{self, Database},
     library::{
-        Change, Contents, LibraryKind, Progress,
+        LibraryKind, Progress,
         fixture::{MatchedMovie, tmdb_movie},
     },
 };
@@ -61,19 +61,6 @@ impl Knight {
         let matched = knight_match(episode_id((season, number)));
         let item = vec![(knight_episode(season, number), matched)];
         store(&self.db, self.library, path, item).await
-    }
-
-    async fn hide(&self, target: Target, hidden: bool) {
-        (self.browse.hide(self.user, self.library, target, hidden))
-            .await
-            .unwrap();
-    }
-
-    async fn mark_unplayed(&self, episode: Numbered) {
-        let episode = Target::Episode(ExternalId::tmdb(episode_id(episode)));
-        (self.browse.mark(self.user, self.library, episode, false))
-            .await
-            .unwrap();
     }
 
     async fn mark_played(&self, target: Target) {
@@ -237,121 +224,19 @@ async fn continuing_ids(browse: &Browse, user: i64) -> Vec<Option<ExternalId>> {
         .unwrap();
     listed.iter().map(tmdb_id).collect()
 }
-
-/// Ada, halfway through Alien in a Movies Library of its own on `movies`, which she hides.
-async fn hide_started_alien(knight: &Knight, movies: &TempDir) -> MatchedMovie {
+#[tokio::test]
+async fn marking_a_started_movie_played_leaves_it_out_and_keeps_a_started_episode() {
+    let (knight, movies) = (Knight::with(&[]).await, tempfile::tempdir().unwrap());
     let alien = MatchedMovie::new(&knight.db, movies.path(), tmdb_movie(348, "Alien")).await;
     let (browse, user) = (&knight.browse, knight.user);
-    browse.report(user, alien.version, halfway()).await.unwrap();
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    browse.report(user, alien.version, halfway).await.unwrap();
+    let episode = knight.add((1, 1)).await;
+    browse.report(user, episode, halfway).await.unwrap();
+
     let movie = Target::Movie(ExternalId::tmdb(348));
-    browse.hide(user, alien.library, movie, true).await.unwrap();
-    alien
-}
+    browse.mark(user, alien.library, movie, true).await.unwrap();
 
-fn halfway() -> Progress {
-    Progress::new(1_000, 2_000).unwrap()
-}
-
-#[tokio::test]
-async fn a_hidden_movie_is_left_out_with_its_resume_point_kept_until_it_is_played_again() {
-    let (knight, movies) = (Knight::with(&[]).await, tempfile::tempdir().unwrap());
-    let (browse, user) = (&knight.browse, knight.user);
-
-    let alien = hide_started_alien(&knight, &movies).await;
-    assert_eq!(continuing_ids(browse, user).await, []);
-    let (_, state, _) = (browse.movie(user, alien.library, &ExternalId::tmdb(348)))
-        .await
-        .unwrap();
-    let state = state.unwrap();
-    assert_eq!((state.position_ms, state.played), (1_000, false));
-
-    db::advance_clock(Duration::from_secs(2));
-    browse.report(user, alien.version, halfway()).await.unwrap();
-    assert_eq!(
-        continuing_ids(browse, user).await,
-        [Some(ExternalId::tmdb(348))]
-    );
-}
-
-#[tokio::test]
-async fn a_hidden_show_is_left_out_until_any_of_its_episodes_is_played_again() {
-    let knight = Knight::with(&EPISODES).await;
-    knight.play(&[(1, 1), (1, 2), (1, 3)]).await;
-
-    knight.hide(knight_show(), true).await;
-    assert_eq!(knight.continuing().await, []);
-
-    db::advance_clock(Duration::from_secs(2));
-    knight.play(&[(1, 1)]).await;
-    assert_eq!(knight.continuing().await, [((1, 4), None)]);
-}
-
-#[tokio::test]
-async fn a_hidden_show_comes_back_when_one_of_its_episodes_is_marked_unplayed() {
-    let knight = Knight::with(&EPISODES).await;
-    knight.play(&[(1, 1), (1, 2)]).await;
-    knight.hide(knight_show(), true).await;
-
-    knight.mark_unplayed((1, 2)).await;
-
-    assert_eq!(knight.continuing().await, [((1, 2), None)]);
-}
-
-#[tokio::test]
-async fn marking_an_unstarted_episode_unplayed_leaves_its_show_hidden() {
-    let knight = Knight::with(&EPISODES).await;
-    knight.play(&[(1, 1), (1, 2)]).await;
-    knight.hide(knight_show(), true).await;
-
-    knight.mark_unplayed((1, 4)).await;
-
-    assert_eq!(knight.continuing().await, []);
-}
-
-#[tokio::test]
-async fn a_new_episode_doesnt_bring_back_a_hidden_show() {
-    let knight = Knight::with(&EPISODES).await;
-    knight
-        .play(&[(1, 1), (1, 2), (1, 3), (1, 4), (2, 5), (2, 6)])
-        .await;
-    knight.add((2, 7)).await;
-
-    knight.hide(knight_show(), true).await;
-    knight.add((2, 8)).await;
-
-    assert_eq!(knight.continuing().await, []);
-}
-
-#[tokio::test]
-async fn showing_a_hidden_show_again_undoes_hiding_it() {
-    let knight = Knight::with(&EPISODES).await;
-    knight.play(&[(1, 1)]).await;
-
-    knight.hide(knight_show(), true).await;
-    knight.hide(knight_show(), false).await;
-
-    assert_eq!(knight.continuing().await, [((1, 2), None)]);
-}
-
-#[tokio::test]
-async fn a_hidden_movie_stays_hidden_when_a_new_version_replaces_its_old_one() {
-    let (knight, movies) = (Knight::with(&[]).await, tempfile::tempdir().unwrap());
-    let alien = hide_started_alien(&knight, &movies).await;
-
-    let contents = Contents::new(Arc::clone(&knight.db));
-    let remux = movies
-        .path()
-        .canonicalize()
-        .unwrap()
-        .join("Alien remux.mkv");
-    let remux = remux.to_str().unwrap();
-    MatchedMovie::store(&contents, alien.library, remux, tmdb_movie(348, "Alien")).await;
-    let removed = vec![Change::Remove(alien.version)];
-    contents.apply(alien.library, removed).await.unwrap();
-
-    assert_eq!(continuing_ids(&knight.browse, knight.user).await, []);
-}
-
-fn knight_show() -> Target {
-    Target::Show(ExternalId::tmdb(KNIGHT_TMDB_ID))
+    let started = Some(ExternalId::tmdb(episode_id((1, 1))));
+    assert_eq!(continuing_ids(browse, user).await, [started]);
 }

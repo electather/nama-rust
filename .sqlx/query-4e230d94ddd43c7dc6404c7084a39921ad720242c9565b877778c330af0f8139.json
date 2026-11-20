@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT rowid AS \"row!: i64\", kind, title_id, position_ms, duration_ms,\n                      played AS \"played: bool\", played_at, updated_at, hidden AS \"hidden: bool\"\n             FROM watch_states\n             WHERE user_id = ?",
+  "query": "SELECT rowid AS \"row!: i64\", kind, title_id, position_ms, duration_ms,\n                      played AS \"played: bool\", played_at, updated_at\n             FROM watch_states\n             WHERE user_id = ?",
   "describe": {
     "columns": [
       {
@@ -90,17 +90,6 @@
             "name": "updated_at"
           }
         }
-      },
-      {
-        "name": "hidden: bool",
-        "ordinal": 8,
-        "type_info": "Integer",
-        "origin": {
-          "Table": {
-            "table": "watch_states",
-            "name": "hidden"
-          }
-        }
       }
     ],
     "parameters": {
@@ -114,9 +103,8 @@
       false,
       false,
       true,
-      false,
       false
     ]
   },
-  "hash": "2d5d806e0d84204edaf346fb10273aa000cc8d142d6628f5268954b97fe86598"
+  "hash": "4e230d94ddd43c7dc6404c7084a39921ad720242c9565b877778c330af0f8139"
 }
