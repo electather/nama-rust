@@ -7,6 +7,7 @@ import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { type ReportProgressRequest, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openMenu } from "@/test-menu";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -246,8 +247,7 @@ test("reports while an Episode plays refetch no browsing, and leaving shows it p
 
   video.currentTime = 3000;
   fireEvent.click(screen.getByRole("link", { name: "Back" }));
-  const watched = await screen.findByRole("button", { name: "Watched: Past and Present" });
-  await waitFor(() => {
-    expect(watched.getAttribute("aria-pressed")).toBe("true");
-  });
+  // Played, its card's menu offers to mark it unwatched.
+  await openMenu("More for Past and Present");
+  await expect(screen.findByRole("menuitem", { name: "Mark as unwatched" })).resolves.toBeDefined();
 });

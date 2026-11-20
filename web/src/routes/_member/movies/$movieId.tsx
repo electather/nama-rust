@@ -2,6 +2,7 @@ import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 
 import { NotFound } from "@/app/route-error/not-found";
 import { MovieToRequest } from "@/features/title/components/movie-to-request";
+import { TitlePending } from "@/features/title/components/title-pending";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/_member/movies/$movieId")({
     }
     return input;
   },
+  pendingComponent: TitlePending,
   notFoundComponent: NotFound,
   component: Movie,
 });

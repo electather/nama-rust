@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 
-import { TileArt } from "@/features/home/components/tile-art";
 import { TileBadge } from "@/features/home/components/tile-badge";
 import type { RowTile } from "@/features/home/lib/row-tiles";
 import { posterTile } from "@/features/home/lib/shelf-tiles";
+import { TileArt } from "@/shared/components/tile-art";
 
 /** The `sizes` of a shelf's poster, as `posterTile` sizes it. */
 const posterSizes = "(max-width: 1071px) 150px, (max-width: 1500px) 14vw, 210px";

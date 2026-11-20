@@ -13,6 +13,7 @@ import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { externalIdFromParam } from "@/shared/hooks/browse";
 import { titleParam } from "@/shared/lib/title-param";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openMenu } from "@/test-menu";
 
 afterEach(cleanup);
 
@@ -89,62 +90,51 @@ function serverWithSeasons(...seasons: number[]) {
   });
 }
 
-test("a Season the Show doesn't have falls back to its first, after the Specials", async () => {
+/** The titles of the Episodes in the Show's row, in order. */
+function rowTitles() {
+  const row = screen.getByRole("list", { name: "Episodes" });
+  return within(row)
+    .getAllByRole("listitem")
+    .map((card) => /Opener of Season \d/u.exec(card.textContent)?.[0]);
+}
+
+/** The Season chips' names, the lit one marked with a star. */
+function chips() {
+  const seasons = screen.getByRole("group", { name: "Seasons" });
+  return within(seasons)
+    .getAllByRole("button")
+    .map((chip) => `${chip.textContent}${chip.getAttribute("aria-current") === "true" ? "*" : ""}`);
+}
+
+test("a Show lists every Season's Episodes in one row, Specials last, under a chip for each", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(0, 1, 2));
+
+  await expect(screen.findByText("Opener of Season 2")).resolves.toBeDefined();
+  expect(rowTitles()).toStrictEqual([
+    "Opener of Season 1",
+    "Opener of Season 2",
+    "Opener of Season 0",
+  ]);
+  // It opens on the Season of the Episode Play starts.
+  expect(chips()).toStrictEqual(["Season 1*", "Season 2", "Specials"]);
+});
+
+test("the row opens on the Season asked for, or the first for one the Show doesn't have", async () => {
+  openApp("/libraries/2/shows/tmdb-95396?season=2", serverWithSeasons(0, 1, 2));
+  await screen.findByText("Opener of Season 2");
+  expect(chips()).toStrictEqual(["Season 1", "Season 2*", "Specials"]);
+  cleanup();
+
   openApp("/libraries/2/shows/tmdb-95396?season=9", serverWithSeasons(0, 1, 2));
-
-  await expect(screen.findByText(/Opener of Season 1/u)).resolves.toBeDefined();
-  expect(screen.queryByText(/Opener of Season (?:0|9)/u)).toBeNull();
+  await screen.findByText("Opener of Season 2");
+  expect(chips()).toStrictEqual(["Season 1*", "Season 2", "Specials"]);
 });
 
-test("a Show with one Season lists its Episodes without Season links", async () => {
-  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(1));
-
-  await expect(screen.findByText("Opener of Season 1")).resolves.toBeDefined();
-  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
-});
-
-test("a Show with one Season and Specials lists the Season's Episodes, then the Specials", async () => {
-  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(0, 1));
-
-  const specials = await screen.findByRole("region", { name: "Specials" });
-  expect(within(specials).getByText("Opener of Season 0")).toBeDefined();
-  const season = screen.getByText("Opener of Season 1");
-  // oxlint-disable-next-line no-bitwise -- `compareDocumentPosition` answers with a bit mask.
-  const following = season.compareDocumentPosition(specials) & Node.DOCUMENT_POSITION_FOLLOWING;
-  expect(following).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
-  expect(within(specials).getByRole("link", { name: "Specials" }).getAttribute("href")).toBe(
-    "/libraries/2/shows/tmdb-95396?season=0",
-  );
-});
-
-test("a one-Season Show's Specials keep their own page, with Season links", async () => {
-  openApp("/libraries/2/shows/tmdb-95396?season=0", serverWithSeasons(0, 1));
-
-  const seasons = await screen.findByRole("navigation", { name: "Seasons" });
-  expect(within(seasons).getByRole("link", { name: "Season 1" })).toBeDefined();
-  await expect(screen.findByText("Opener of Season 0")).resolves.toBeDefined();
-  expect(screen.queryByText("Opener of Season 1")).toBeNull();
-});
-
-test("a Show whose one Season isn't Season 1 lists it without Season links", async () => {
+test("a Show with one Season lists its Episodes without Season chips", async () => {
   openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(3));
 
   await expect(screen.findByText("Opener of Season 3")).resolves.toBeDefined();
-  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
-});
-
-test("a Show with two Seasons links to each and lists one at a time", async () => {
-  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(0, 1, 2));
-
-  const seasons = await screen.findByRole("navigation", { name: "Seasons" });
-  expect(
-    within(seasons)
-      .getAllByRole("link")
-      .map((link) => link.textContent),
-  ).toStrictEqual(["Specials", "Season 1", "Season 2"]);
-  await expect(screen.findByText("Opener of Season 1")).resolves.toBeDefined();
-  expect(screen.queryByRole("region", { name: "Specials" })).toBeNull();
+  expect(screen.queryByRole("group", { name: "Seasons" })).toBeNull();
 });
 
 test("a Library's page shows a Movie as soon as it's Matched", async () => {
@@ -171,7 +161,7 @@ test("a Library's page shows a Movie as soon as it's Matched", async () => {
   await expect(screen.findByText("Alien")).resolves.toBeDefined();
 });
 
-test("a Movie's Version choice says each one's picture and sound, such as 4K, HDR and 5.1", async () => {
+test("a Movie's menu chooses its Version, each by its picture, sound and size, the largest first", async () => {
   const transport = serverToBrowse({
     getMovie: () => ({
       movie: {
@@ -211,18 +201,18 @@ test("a Movie's Version choice says each one's picture and sound, such as 4K, HD
   });
   openApp("/libraries/1/movies/tmdb-348", transport);
 
-  await expect(
-    screen.findByRole("option", {
-      name: "Alien (1979) - 2160p.mkv (4K · HDR · 5.1 · 60 GB)",
-    }),
-  ).resolves.toBeDefined();
+  await openMenu("More actions");
+  const versions = await screen.findAllByRole("menuitemradio");
   expect(
-    screen.getByRole("option", { name: "Alien (1979) - 720p.mkv (720p · Stereo · 2 GB)" }),
-  ).toBeDefined();
-  expect(screen.getByRole("option", { name: "Alien (1979).avi (0.7 GB)" })).toBeDefined();
+    versions.map((version) => [version.textContent, version.getAttribute("aria-checked")]),
+  ).toStrictEqual([
+    ["4K · HDR · 5.1 · 60 GB", "true"],
+    ["720p · Stereo · 2 GB", "false"],
+    ["0.7 GB", "false"],
+  ]);
 });
 
-test("a Show's Episodes each say the picture and sound of the Version they play", async () => {
+test("a Show's Details say the picture of its Episodes' Versions", async () => {
   const transport = serverToBrowse({
     getShow: () => ({ show: { title: "Severance" }, seasons: [{ number: 1 }] }),
     listEpisodes: () => ({
@@ -247,7 +237,8 @@ test("a Show's Episodes each say the picture and sound of the Version they play"
   });
   openApp("/libraries/2/shows/tmdb-95396", transport);
 
-  await expect(screen.findByText("Feb 18, 2022 · 1080p · 7.1")).resolves.toBeDefined();
+  const details = await screen.findByRole("region", { name: "Details" });
+  expect(within(details).getByText("1080p")).toBeDefined();
 });
 
 /** A fake Server with a Show whose only Season is `seasonNumber`, holding Episode 3, `title`, half watched, with `stillUrl`. */
@@ -275,21 +266,24 @@ test("a Show's Episode is a card with its Still, number, synopsis, runtime and p
   const still = "/media/stills/1.jpg";
   openApp("/libraries/2/shows/tmdb-95396", serverWithEpisode(1, "In Perpetuity", still));
 
-  const episode = await screen.findByRole("link", { name: /In Perpetuity/u });
+  const episode = await screen.findByRole("link", {
+    name: "Resume Season 1, Episode 3: In Perpetuity, 28m left",
+  });
   expect(episode.getAttribute("href")).toBe(
     "/libraries/2/shows/tmdb-95396/seasons/1/episodes/3/play",
   );
-  expect(episode.querySelector("img")?.getAttribute("src")).toBe(still);
-  expect(within(episode).getByText("Episode 3")).toBeDefined();
-  expect(within(episode).getByText("Mark is promoted.")).toBeDefined();
-  expect(within(episode).getByText("55 min")).toBeDefined();
-  expect(within(episode).getByRole("progressbar", { name: "Watched" })).toBeDefined();
+  const card = episode.closest("li");
+  expect(card?.querySelector("img")?.getAttribute("src")).toBe(still);
+  expect(card?.textContent).toContain("Episode 3");
+  expect(card?.textContent).toContain("Mark is promoted.");
+  expect(card?.textContent).toContain("28m");
 });
 
 test("a Special without a Still shows the placeholder, named as a Special", async () => {
   openApp("/libraries/2/shows/tmdb-95396", serverWithEpisode(0, "Behind the Scenes"));
 
   const special = await screen.findByRole("link", { name: /Behind the Scenes/u });
-  expect(special.querySelector("img")).toBeNull();
-  expect(within(special).getByText("Specials, Episode 3")).toBeDefined();
+  const card = special.closest("li");
+  expect(card?.querySelector("img")).toBeNull();
+  expect(card?.textContent).toContain("Specials, Episode 3");
 });

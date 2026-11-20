@@ -12,6 +12,7 @@ import {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { type ServerState, admin, eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { openMenu, pickFromMenu } from "@/test-menu";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "@/test-refusal";
 
 afterEach(cleanup);
@@ -73,19 +74,26 @@ function openAlien(
 }
 
 async function openDeleteDialog() {
-  fireEvent.click(await screen.findByRole("button", { name: "Delete Alien" }));
+  await pickFromMenu("More actions", "Delete");
   return screen.findByRole("alertdialog", { name: "Delete Alien?" });
+}
+
+/** Alien's menu's Delete item, once the menu is open. */
+async function deleteItem() {
+  await openMenu("More actions");
+  return screen.findByRole("menuitem", { name: /^Delete/u });
 }
 
 test("only a User with Delete media sees the Delete action", async () => {
   openAlien(newUser);
-  await screen.findByRole("link", { name: "Play" });
-  expect(screen.queryByRole("button", { name: "Delete Alien" })).toBeNull();
+  await openMenu("More actions");
+  await screen.findByRole("menuitem", { name: "Mark as watched" });
+  expect(screen.queryByRole("menuitem", { name: /^Delete/u })).toBeNull();
   cleanup();
 
   openAlien(deletesMedia);
 
-  await expect(screen.findByRole("button", { name: "Delete Alien" })).resolves.toBeDefined();
+  await expect(deleteItem()).resolves.toBeDefined();
 });
 
 test("the confirmation lists the files that go and the space they free, and can't be undone", async () => {
@@ -163,28 +171,27 @@ function deletingOnlyOnceConfirmed(deleted: Target[]): Partial<ServiceImpl<typeo
 test("a read-only folder disables the Delete action, saying which folder", async () => {
   openAlien(deletesMedia, {}, { readOnlyFolder: () => "/media/movies" });
 
-  const action = await screen.findByRole("button", { name: "Delete Alien" });
+  const action = await deleteItem();
 
-  expect(action).toHaveProperty("disabled", true);
-  expect(action.getAttribute("aria-describedby")).not.toBeNull();
-  expect(screen.getByText(/the Server can’t write to \/media\/movies/u)).toBeDefined();
+  expect(action.getAttribute("aria-disabled")).toBe("true");
+  expect(action.textContent).toMatch(/Server can’t write to \/media\/movies/u);
 });
 
 test("a scan that makes the folder writable enables the open page's Delete action", async () => {
   const events = eventFeed();
   let readOnlyFolder: string | undefined = "/media/movies";
   openAlien(deletesMedia, {}, { readOnlyFolder: () => readOnlyFolder, events: events.stream });
-  await expect(screen.findByRole("button", { name: "Delete Alien" })).resolves.toHaveProperty(
-    "disabled",
-    true,
-  );
-  expect(screen.getByText(/the Server can’t write to \/media\/movies/u)).toBeDefined();
+  const action = await deleteItem();
+  expect(action.getAttribute("aria-disabled")).toBe("true");
 
   readOnlyFolder = undefined;
   events.send({ event: { case: "scanFinished", value: { libraryId: 1n } } });
 
+  // The open menu follows the page.
   await waitFor(() => {
-    expect(screen.getByRole("button", { name: "Delete Alien" })).toHaveProperty("disabled", false);
+    expect(
+      screen.getByRole("menuitem", { name: "Delete" }).getAttribute("aria-disabled"),
+    ).toBeNull();
   });
 });
 
@@ -267,7 +274,7 @@ test("deleting one Version when Radarr couldn't be told says so on the Movie", a
   await expect(
     screen.findByText("Radarr couldn’t be told about the delete, so it may download Alien again."),
   ).resolves.toBeDefined();
-  expect(screen.getByRole("button", { name: "Delete Alien" })).toBeDefined();
+  expect(screen.getByRole("heading", { level: 1, name: "Alien" })).toBeDefined();
 });
 
 test("delete media is a Permission an Admin can give", async () => {

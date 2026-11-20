@@ -20,6 +20,11 @@
         "reason": "A test file holds a feature's cases and the fixtures they share.",
       },
       {
+        "files": ["src/styles.css"],
+        "maxFileLines": 220,
+        "reason": "The app's tokens and global CSS, plus one import for each feature's own tokens file (`home.css`, `title.css`).",
+      },
+      {
         "files": ["vite.config.ts"],
         "maxFileLines": 0,
         "reason": "All format, lint and test config lives in it (web/AGENTS.md, \"Only `vp`\").",

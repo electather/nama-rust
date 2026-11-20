@@ -1,18 +1,17 @@
 import { useNavigate } from "@tanstack/react-router";
+import type { RefObject } from "react";
 
-import { NotToldNotice } from "@/features/title/components/not-told-notice";
 import { useMayDelete } from "@/features/title/hooks/use-may-delete";
-import type { Season } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { DeleteMedia } from "@/shared/components/delete-media/delete-media";
 import { deletedSearch } from "@/shared/lib/deleted-search";
+import type { Opener } from "@/shared/lib/opener";
 import { seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
 /**
- * With Delete media, deletes the Season shown, then shows another, or the whole Show, then leaves
- * for its Library, either saying which Fulfillers may download what went again. Says so too for
- * an Episode whose row went.
+ * The dialogs that delete the Season the row is on, `current`, and the whole Show. Each says after
+ * which Fulfillers may download what went again: on the Show, or on its Library once it's gone.
  */
 export function DeleteFromShow({
   libraryId,
@@ -20,18 +19,23 @@ export function DeleteFromShow({
   title,
   seasons,
   current,
+  seasonOpener,
+  showOpener,
 }: {
   libraryId: bigint;
   showId: ExternalId;
   title: string;
-  seasons: Season[];
+  seasons: number[];
   current: number;
+  seasonOpener: RefObject<Opener | null>;
+  showOpener: RefObject<Opener | null>;
 }) {
   const navigate = useNavigate();
-  const params = { libraryId: String(libraryId) };
+  // Without Delete media, the page holds no dialogs it can't open.
   if (!useMayDelete()) {
     return null;
   }
+  const params = { libraryId: String(libraryId) };
   const toLibrary = async (deleted: string, notTold: string[]) => {
     await navigate({
       to: "/libraries/$libraryId",
@@ -39,28 +43,30 @@ export function DeleteFromShow({
       search: deletedSearch(deleted, notTold),
     });
   };
-  const other = seasons.find(({ number }) => number !== current);
-  const season = seasonName(current);
+  const season = `${title} ${seasonName(current)}`;
+  const stay = async (notTold: string[]) => {
+    await navigate({
+      to: "/libraries/$libraryId/shows/$showId",
+      params: { ...params, showId: titleParam(showId) },
+      search: deletedSearch(season, notTold),
+    });
+  };
   return (
     <>
       <DeleteMedia
-        action={`Delete ${season}`}
-        title={`${title} ${season}`}
+        ref={seasonOpener}
+        action={`Delete ${seasonName(current)}`}
+        title={season}
         versions={[]}
         target={() => ({
           target: { case: "season", value: { libraryId, showId, seasonNumber: current } },
         })}
         onDeletedEveryVersion={async (notTold) => {
-          await (other
-            ? navigate({
-                to: "/libraries/$libraryId/shows/$showId",
-                params: { ...params, showId: titleParam(showId) },
-                search: { season: other.number, ...deletedSearch(`${title} ${season}`, notTold) },
-              })
-            : toLibrary(`${title} ${season}`, notTold));
+          await (seasons.length > 1 ? stay(notTold) : toLibrary(season, notTold));
         }}
       />
       <DeleteMedia
+        ref={showOpener}
         action="Delete Show"
         title={title}
         versions={[]}
@@ -69,7 +75,6 @@ export function DeleteFromShow({
           await toLibrary(title, notTold);
         }}
       />
-      <NotToldNotice />
     </>
   );
 }

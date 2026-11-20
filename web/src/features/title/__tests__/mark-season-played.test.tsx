@@ -1,11 +1,12 @@
 import type { ServiceImpl } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openMenu, pickFromMenu } from "@/test-menu";
 
 afterEach(cleanup);
 
@@ -50,15 +51,14 @@ test("marking a Season played marks each of its Episodes played", async () => {
     },
   );
   openApp("/libraries/2/shows/tmdb-95396", transport);
-  const marks = await screen.findAllByRole("button", { name: /^Watched: Episode/u });
-  expect(marks.map((mark) => mark.getAttribute("aria-pressed"))).toStrictEqual(["false", "false"]);
+  await screen.findByRole("link", { name: "Play Season 1, Episode 1" });
 
-  fireEvent.click(screen.getByRole("button", { name: "More for this Show" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Mark Season 1 as watched" }));
+  await pickFromMenu("More actions", "Mark Season 1 as watched");
 
-  await waitFor(() => {
-    const now = screen.getAllByRole("button", { name: /^Watched: Episode/u });
-    expect(now.map((mark) => mark.getAttribute("aria-pressed"))).toStrictEqual(["true", "true"]);
-  });
+  // Once the Episodes come back played, the open menu offers to mark the Season unwatched.
+  await openMenu("More actions");
+  await expect(
+    screen.findByRole("menuitem", { name: "Mark Season 1 as unwatched" }),
+  ).resolves.toBeDefined();
   expect(marked).toBe("season");
 });
