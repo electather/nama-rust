@@ -2,6 +2,8 @@
 //! the Plugin Permission it needs checked before its request is read.
 
 mod store;
+#[cfg(test)]
+mod testing;
 
 use std::{
     collections::{HashMap, HashSet},
