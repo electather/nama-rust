@@ -3,7 +3,7 @@
 use std::{
     env,
     ffi::OsStr,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::Command,
 };
 
@@ -15,15 +15,24 @@ use super::FoundProgram;
 /// (Ubuntu 22.04), so nothing older gets tested.
 const MINIMUM: (u32, u32) = (4, 4);
 
-/// `name` at `configured`, or else on `path`, if it's new enough, or why the Server can't use it.
+/// `name` at `configured`, or on `path` when `configured` is unset or a bare program name, if
+/// it's new enough, or why the Server can't use it.
 pub(super) fn find(
     name: &str,
     configured: Option<&Path>,
     path: &OsStr,
 ) -> Result<FoundProgram, String> {
     let found = match configured {
-        Some(configured) => at_configured_path(name, configured)?,
-        None => on_path(name, path).ok_or_else(|| not_on_path(name))?,
+        None => on_path(name, OsStr::new(name), path).ok_or_else(|| not_on_path(name))?,
+        Some(configured) => match bare_name(configured) {
+            Some(file) => on_path(name, file, path).ok_or_else(|| {
+                format!(
+                    "{name} (configured as {}) wasn't found on PATH",
+                    configured.display()
+                )
+            })?,
+            None => at_configured_path(name, configured)?,
+        },
     };
     if is_release_before(&found.version, MINIMUM) {
         let (major, minor) = MINIMUM;
@@ -40,11 +49,18 @@ pub(super) fn not_on_path(name: &str) -> String {
     format!("{name} wasn't found on PATH")
 }
 
+/// `path` as a file name with no folder, which is looked up on `PATH` as a shell would.
+fn bare_name(path: &Path) -> Option<&OsStr> {
+    match path.components().collect::<Vec<_>>()[..] {
+        [Component::Normal(name)] => Some(name),
+        _ => None,
+    }
+}
+
 /// `name` at the path the config sets, or why it can't be run.
 fn at_configured_path(name: &str, path: &Path) -> Result<FoundProgram, String> {
-    // Relative to the working directory, like `data_dir`. Left relative, a bare `ffmpeg` would
-    // be looked up on `PATH` when run.
-    let path = std::path::absolute(path).unwrap_or_else(|_| path.to_owned());
+    // `Config::load` made a path with a folder absolute; left relative, it would break where
+    // ffmpeg runs in another folder (#1120).
     if !path.is_file() {
         return Err(format!(
             "{name} wasn't found at the configured path {}",
@@ -52,13 +68,17 @@ fn at_configured_path(name: &str, path: &Path) -> Result<FoundProgram, String> {
         ));
     }
     let shown = path.display().to_string();
-    run(name, path)
+    run(name, path.to_owned())
         .ok_or_else(|| format!("{name} at the configured path {shown} won't run or isn't {name}"))
 }
 
-/// The first `name` in the directories of `path` that runs and says which version it is.
-fn on_path(name: &str, path: &OsStr) -> Option<FoundProgram> {
-    let file = format!("{name}{}", env::consts::EXE_SUFFIX);
+/// The first `file` in the directories of `path` that runs and says it's `name` and which version.
+fn on_path(name: &str, file: &OsStr, path: &OsStr) -> Option<FoundProgram> {
+    let mut file = PathBuf::from(file);
+    // As `Command::new` finds programs on Windows, so `ffmpeg.exe` doesn't become `ffmpeg.exe.exe`.
+    if file.extension().is_none() {
+        file.set_extension(env::consts::EXE_EXTENSION);
+    }
     env::split_paths(path)
         // A relative entry, such as an empty one, would run whatever is in the working directory.
         .filter(|dir| dir.is_absolute())

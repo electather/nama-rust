@@ -1,12 +1,16 @@
 //! An in-process Kernel for a Plugin's native tests (ADR 0065): [`with`] installs one for a call
 //! to the Plugin, which then reads its settings from it and has its HTTP requests answered by the
-//! test, which reads back what the Plugin sent. Unstable until the Kernel's functions can be
-//! scripted too; until then they refuse, as they always have off wasm32. The crate's README shows
-//! a test in its section 14.
+//! test, which reads back what the Plugin sent, and keeps its Store in memory when the test grants
+//! one. Unstable until the Kernel's other functions can be scripted too; until then they fail, as
+//! they always have off wasm32. The crate's README shows a test in its section 14.
 
 use std::{cell::RefCell, collections::HashMap, fmt};
 
 use ::extism_pdk::{Error, HttpRequest};
+use buffa::Message;
+use nama_plugin_proto::nama::plugin::v1::{
+    KernelAnswer, StoreEntry, StoreKey, StoreValue, Stored, kernel_answer,
+};
 
 use crate::Response;
 
@@ -14,13 +18,19 @@ use crate::Response;
 /// that can't be reached.
 type Handler = Box<dyn FnMut(&HttpRequest, &[u8]) -> Result<Response, Error>>;
 
-/// What the Kernel gives a Plugin during a test: its settings, and answers to its HTTP requests.
+/// What the Kernel gives a Plugin during a test: its settings, answers to its HTTP requests, and
+/// its Store.
 #[derive(Default)]
 pub struct Kernel {
     settings: HashMap<String, String>,
     http: Option<Handler>,
     sent: Vec<Sent>,
+    /// `None` when the Admin didn't grant the Store.
+    store: Option<Store>,
 }
+
+/// The values a Plugin's Store keeps, by key and User (`None` for the Plugin alone).
+type Store = HashMap<(String, Option<i64>), Vec<u8>>;
 
 /// An HTTP request a Plugin sent.
 #[derive(Debug, Clone, PartialEq)]
@@ -57,6 +67,14 @@ impl Kernel {
         self
     }
 
+    /// The Kernel, the Admin having granted the Plugin its Store, which starts empty. Without it,
+    /// each of `kernel::store_get`, `store_put` and `store_delete` is refused.
+    #[must_use]
+    pub fn store(mut self) -> Self {
+        self.store = Some(HashMap::new());
+        self
+    }
+
     /// The HTTP requests the Plugin sent, in order.
     #[must_use]
     pub fn sent(&self) -> &[Sent] {
@@ -69,6 +87,7 @@ impl fmt::Debug for Kernel {
         f.debug_struct("Kernel")
             .field("settings", &self.settings)
             .field("sent", &self.sent)
+            .field("store", &self.store)
             .finish_non_exhaustive()
     }
 }
@@ -121,6 +140,55 @@ pub(crate) fn http_request(request: &HttpRequest, body: &[u8]) -> Result<Respons
         };
         handler(request, body)
     })
+}
+
+/// The installed Kernel's answer to the Kernel function `name` with `request`, encoded as the
+/// Kernel's `KernelAnswer`. Only the Store's functions answer.
+pub(crate) fn kernel_function(name: &str, request: &[u8]) -> Result<Vec<u8>, Error> {
+    installed(|kernel| {
+        let result = match (name, &mut kernel.store) {
+            ("store_get" | "store_put" | "store_delete", None) => kernel_answer::Result::Refused(
+                "the Admin hasn't granted the Plugin the Store Permission".to_owned(),
+            ),
+            ("store_get", Some(store)) => {
+                let StoreKey { key, user_id, .. } = StoreKey::decode_from_slice(request)?;
+                let value = store.get(&(key, user_id)).cloned();
+                answer(&StoreValue {
+                    value,
+                    ..StoreValue::default()
+                })
+            }
+            ("store_put", Some(store)) => {
+                let StoreEntry {
+                    key,
+                    user_id,
+                    value,
+                    ..
+                } = StoreEntry::decode_from_slice(request)?;
+                store.insert((key, user_id), value);
+                answer(&Stored::default())
+            }
+            ("store_delete", Some(store)) => {
+                let StoreKey { key, user_id, .. } = StoreKey::decode_from_slice(request)?;
+                store.remove(&(key, user_id));
+                answer(&Stored::default())
+            }
+            _ => {
+                return Err(Error::msg(format!(
+                    "nama_pdk::testing can't script the Kernel's {name} yet"
+                )));
+            }
+        };
+        Ok(KernelAnswer {
+            result: Some(result),
+            ..KernelAnswer::default()
+        }
+        .encode_to_vec())
+    })
+}
+
+fn answer(message: &impl Message) -> kernel_answer::Result {
+    kernel_answer::Result::Answer(message.encode_to_vec())
 }
 
 #[expect(
@@ -214,6 +282,50 @@ mod tests {
         let failed = with(&mut kernel, || get("http://service.test")).unwrap_err();
 
         assert_eq!(failed.to_string(), "nothing answered");
+    }
+
+    #[test]
+    fn a_granted_store_keeps_each_value_by_key_and_user() {
+        let mut kernel = Kernel::new().store();
+
+        let read = with(&mut kernel, || {
+            crate::kernel::store_put("token", None, b"plugin's")?;
+            crate::kernel::store_put("token", Some(7), b"user's")?;
+            crate::kernel::store_put("gone", None, b"soon")?;
+            crate::kernel::store_delete("gone", None)?;
+            ["token", "gone"]
+                .into_iter()
+                .flat_map(|key| [None, Some(7)].map(|user| crate::kernel::store_get(key, user)))
+                .collect::<Result<Vec<_>, Error>>()
+        })
+        .unwrap();
+
+        let kept = |value: &[u8]| Some(value.to_vec());
+        assert_eq!(read, [kept(b"plugin's"), kept(b"user's"), None, None]);
+    }
+
+    #[test]
+    fn a_store_not_granted_is_refused() {
+        let refused = with(&mut Kernel::new(), || {
+            crate::kernel::store_get("token", None).unwrap_err()
+        });
+
+        assert_eq!(
+            refused.to_string(),
+            "the Admin hasn't granted the Plugin the Store Permission"
+        );
+    }
+
+    #[test]
+    fn a_kernel_function_other_than_the_stores_fails() {
+        let failed = with(&mut Kernel::new().store(), || {
+            crate::kernel::libraries().unwrap_err()
+        });
+
+        assert_eq!(
+            failed.to_string(),
+            "nama_pdk::testing can't script the Kernel's list_libraries yet"
+        );
     }
 
     #[test]

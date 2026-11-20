@@ -543,6 +543,10 @@ enum PlaybackReasonKind {
   // Rules out Remux: the Server couldn't list the Version's keyframes, which a Remux cuts its
   // segments at, as when reading the whole file failed or took too long.
   PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED = 33;
+  // Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): the Server's ffmpeg stopped
+  // before writing anything for it, so the Server planned the next method instead. One for each
+  // method that did.
+  PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER = 34;
 
   // The rest rule nothing out.
 

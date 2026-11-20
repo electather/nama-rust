@@ -337,6 +337,8 @@ enum PluginPermission {
   PLUGIN_PERMISSION_READ_USERS = 5;
   // See which Users asked for each Movie and Episode, and nothing else about their Requests.
   PLUGIN_PERMISSION_READ_REQUESTS = 6;
+  // See what every User put on their Watchlist.
+  PLUGIN_PERMISSION_READ_WATCHLISTS = 7;
 }
 
 // A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin

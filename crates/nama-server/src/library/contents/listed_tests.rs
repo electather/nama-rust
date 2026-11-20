@@ -155,6 +155,9 @@ async fn a_page_of_episodes_gives_their_show_numbers_and_added_time_and_leaves_o
             season: Some(1),
             episode: Some(1),
             added_at: listed.added_at,
+            genres: Vec::new(),
+            content_rating: None,
+            show_id: Some(ExternalId::tmdb(70_523)),
         }
     );
     assert!((before..=after).contains(&listed.added_at), "{listed:?}");

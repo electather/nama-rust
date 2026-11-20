@@ -68,6 +68,14 @@ service BrowseService {
   rpc ListContinueWatching(ListContinueWatchingRequest) returns (ListContinueWatchingResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Lists Featured for the caller (ADR 0072): up to 5 Movies and Shows, heaviest first, those of
+  // equal weight the most recently added first, each once. Suggested are their Continue Watching
+  // entries, at 0.8 halving every 14 days since their Watch State changed, and the titles added
+  // to a Library in the last 14 days, at 0.5 fading to nothing over them. A title suggested twice
+  // keeps its heavier weight, and is listed in the Library that suggestion came from.
+  rpc ListFeatured(ListFeaturedRequest) returns (ListFeaturedResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Searches every Library for the Movies, Shows and Episodes whose titles have each word of the
   // query, ignoring case, accents and the marks that join words, so "amelie" finds Amélie and
   // "spiderman" finds Spider-Man. Each word matches the start of a word, so a client can search
@@ -360,6 +368,8 @@ message Show {
   optional string first_air_date = 13;
   // As `Movie.on_watchlist`.
   bool on_watchlist = 14;
+  // How many of its Seasons the Library has an Episode of, Specials aside.
+  uint32 season_count = 15;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.
@@ -537,6 +547,32 @@ message ListContinueWatchingResponse {
   repeated ContinueWatchingEntry entries = 1;
   // The rest of the list: the next page's token, and on the first page how many entries it has.
   PageResponse page = 2;
+}
+
+// Asks for the caller's Featured, which takes no options.
+message ListFeaturedRequest {}
+
+// The caller's Featured.
+message ListFeaturedResponse {
+  // Heaviest first.
+  repeated FeaturedTitle titles = 1;
+}
+
+// A Movie or Show in Featured, with what its Play or Resume starts. The web app words why it is
+// shown from the caller's Watch State: there is no reason field (ADR 0072).
+message FeaturedTitle {
+  // The Library it is in.
+  int64 library_id = 1;
+  // It, as browsing describes it: a Movie with its Versions and the caller's Watch State.
+  oneof movie_or_show {
+    Movie movie = 2;
+    Show show = 3;
+  }
+  // A Show's Episode that Play or Resume starts, with its Versions and the caller's Watch State:
+  // the one they most recently started and haven't played, or else the one `GetNextEpisode`
+  // picks after the one they played most recently, or else the first they haven't played in
+  // aired order, Specials aside. Unset for a Movie, or a Show with none of those.
+  optional Episode next_episode = 4;
 }
 
 message SearchLibrariesRequest {

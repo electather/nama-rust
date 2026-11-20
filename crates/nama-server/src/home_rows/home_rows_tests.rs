@@ -228,6 +228,13 @@ const BOTH: &[HomeRowMethod] = &[HomeRowMethod::Shared, HomeRowMethod::User];
 async fn recorded(gives: &'static [HomeRowMethod]) -> (TempDir, Arc<Database>, Kept, Arc<Calls>) {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let (home, calls) = started(&db, gives);
+    (data_dir, db, home, calls)
+}
+
+/// Home rows over `db`, with [`Recorded`] enabled, giving the rows `gives` names, as a Server
+/// starts with that version of it.
+fn started(db: &Arc<Database>, gives: &'static [HomeRowMethod]) -> (Kept, Arc<Calls>) {
     let calls = Arc::new(Calls::default());
     let plugins = Registry::new();
     let source = Recorded {
@@ -236,10 +243,9 @@ async fn recorded(gives: &'static [HomeRowMethod]) -> (TempDir, Arc<Database>, K
     };
     plugins.enable(Arc::new(source)).unwrap();
     let points = plugins.extension_points();
-    let events = EventBus::new(Arc::clone(&db), points.clone(), ServerUrl::default());
-    let requests = Requests::new(Arc::clone(&db), events, points.clone());
-    let home = Kept::new(Arc::clone(&db), points, requests);
-    (data_dir, db, home, calls)
+    let events = EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default());
+    let requests = Requests::new(Arc::clone(db), events, points.clone());
+    (Kept::new(Arc::clone(db), points, requests), calls)
 }
 
 async fn insert_user(db: &Database, name: &str) -> i64 {
@@ -305,6 +311,58 @@ async fn wait_for_refreshes(home: &Kept) {
 async fn stored_keys(home: &Kept, user: i64) -> Vec<String> {
     let stored = home.stored(user).await.unwrap();
     stored.into_iter().map(|(_, row)| row.key).collect()
+}
+
+/// Whose rows' refreshes are marked, `None` for the shared rows first.
+async fn refreshes_marked(db: &Database) -> Vec<Option<i64>> {
+    sqlx::query_scalar("SELECT user_id FROM home_row_refreshes ORDER BY user_id")
+        .fetch_all(db.reader())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_version_no_longer_giving_users_rows_deletes_every_users_rows_and_their_refreshes() {
+    let (_dir, db, old_version, _) = recorded(BOTH).await;
+    let ada = insert_user(&db, "ada").await;
+    let bea = insert_user(&db, "bea").await;
+    open_home(&old_version, ada).await;
+    open_home(&old_version, bea).await;
+    let (new_version, _) = started(&db, SHARED);
+
+    open_home(&new_version, ada).await;
+
+    assert_eq!(stored_keys(&new_version, bea).await, ["shared"]);
+    assert_eq!(refreshes_marked(&db).await, [None]);
+}
+
+#[tokio::test]
+async fn a_version_no_longer_giving_users_rows_deletes_them_as_a_user_without_any_lists_home() {
+    let (_dir, db, old_version, _) = recorded(BOTH).await;
+    let ada = insert_user(&db, "ada").await;
+    let cy = insert_user(&db, "cy").await;
+    open_home(&old_version, ada).await;
+    let (new_version, _) = started(&db, SHARED);
+
+    open_home(&new_version, cy).await;
+
+    assert_eq!(stored_keys(&new_version, ada).await, ["shared"]);
+    assert_eq!(refreshes_marked(&db).await, [None]);
+}
+
+#[tokio::test]
+async fn a_version_no_longer_giving_shared_rows_deletes_them_and_their_refresh() {
+    let (_dir, db, old_version, _) = recorded(BOTH).await;
+    let ada = insert_user(&db, "ada").await;
+    let bea = insert_user(&db, "bea").await;
+    open_home(&old_version, ada).await;
+    open_home(&old_version, bea).await;
+    let (new_version, _) = started(&db, &[HomeRowMethod::User]);
+
+    open_home(&new_version, ada).await;
+
+    assert_eq!(stored_keys(&new_version, bea).await, ["theirs"]);
+    assert_eq!(refreshes_marked(&db).await, [Some(ada), Some(bea)]);
 }
 
 #[tokio::test]

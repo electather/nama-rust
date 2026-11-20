@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
-use nama_plugin_api::{PluginId, metadata::ExternalId};
+use nama_plugin_api::{PluginId, home_row::HomeRowMethod, metadata::ExternalId};
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 
@@ -52,6 +52,33 @@ pub(super) async fn set_stale_at(
     )
     .execute(conn)
     .await?;
+    Ok(())
+}
+
+/// Deletes, with when they were refreshed, each Plugin's rows that `gone` names by the method
+/// that gave them, every User's for [`HomeRowMethod::User`].
+pub(super) async fn delete_rows(
+    conn: &mut SqliteConnection,
+    gone: &HashSet<(PluginId, HomeRowMethod)>,
+) -> Result<(), sqlx::Error> {
+    for (plugin, method) in gone {
+        let plugin = plugin.as_str();
+        let users = *method == HomeRowMethod::User;
+        sqlx::query!(
+            "DELETE FROM home_rows WHERE plugin_id = ? AND (user_id IS NOT NULL) = ?",
+            plugin,
+            users
+        )
+        .execute(&mut *conn)
+        .await?;
+        sqlx::query!(
+            "DELETE FROM home_row_refreshes WHERE plugin_id = ? AND (user_id IS NOT NULL) = ?",
+            plugin,
+            users
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
     Ok(())
 }
 

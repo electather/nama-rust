@@ -34,6 +34,10 @@ recogniser = []
 # `shared_rows` gives fixed rows, those its `home_rows` setting picks, after keeping a value in its
 # Store and reading it back, and its `user_rows` a row named for the User's `handle`.
 home-rows = []
+# Builds the Plugin as `home-rows` does, exporting only `shared_rows`, or only `user_rows`, as a
+# new version of it that stopped giving the other.
+home-rows-shared-only = ["home-rows"]
+home-rows-user-only = ["home-rows"]
 # Builds the Plugin naming the subtitle source Extension Point; it finds and downloads nothing.
 subtitle-source = []
 

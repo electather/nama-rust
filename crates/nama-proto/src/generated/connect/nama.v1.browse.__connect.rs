@@ -62,6 +62,14 @@ pub type OwnedListContinueWatchingRequestView = ::buffa::view::OwnedView<
 pub type OwnedListContinueWatchingResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListContinueWatchingResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListFeaturedRequestView<'static>>`.
+pub type OwnedListFeaturedRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListFeaturedRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListFeaturedResponseView<'static>>`.
+pub type OwnedListFeaturedResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListFeaturedResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<SearchLibrariesRequestView<'static>>`.
 pub type OwnedSearchLibrariesRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SearchLibrariesRequestView<'static>,
@@ -374,6 +382,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListFeaturedResponse>
+for crate::messages::nama::v1::__buffa::view::ListFeaturedResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListFeaturedResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListFeaturedResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchLibrariesResponse>
 for crate::messages::nama::v1::__buffa::view::SearchLibrariesResponseView<'_> {
     fn encode(
@@ -591,6 +633,12 @@ pub const BROWSE_SERVICE_GET_NEXT_EPISODE_SPEC: ::connectrpc::Spec = ::connectrp
 /// Static [`Spec`](::connectrpc::Spec) for the `ListContinueWatching` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.BrowseService/ListContinueWatching",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListFeatured` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const BROWSE_SERVICE_LIST_FEATURED_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.BrowseService/ListFeatured",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
@@ -883,6 +931,33 @@ pub trait BrowseService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ListContinueWatchingResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists Featured for the caller (ADR 0072): up to 5 Movies and Shows, heaviest first, those of
+    /// equal weight the most recently added first, each once. Suggested are their Continue Watching
+    /// entries, at 0.8 halving every 14 days since their Watch State changed, and the titles added
+    /// to a Library in the last 14 days, at 0.5 fading to nothing over them. A title suggested twice
+    /// keeps its heavier weight, and is listed in the Library that suggestion came from.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_featured<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListFeaturedRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListFeaturedResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1287,6 +1362,35 @@ impl<S: BrowseService> BrowseServiceExt for S {
             .with_spec(BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC)
             .route_view_idempotent(
                 BROWSE_SERVICE_SERVICE_NAME,
+                "ListFeatured",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListFeaturedRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListFeaturedRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_featured(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListFeaturedResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(BROWSE_SERVICE_LIST_FEATURED_SPEC)
+            .route_view_idempotent(
+                BROWSE_SERVICE_SERVICE_NAME,
                 "SearchLibraries",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -1532,6 +1636,12 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                         .with_spec(BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC),
                 )
             }
+            "ListFeatured" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(BROWSE_SERVICE_LIST_FEATURED_SPEC),
+                )
+            }
             "SearchLibraries" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
@@ -1740,6 +1850,28 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::ListContinueWatchingResponse,
+                        >(format)
+                })
+            }
+            "ListFeatured" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListFeaturedRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListFeaturedRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListFeaturedRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_featured(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListFeaturedResponse,
                         >(format)
                 })
             }
@@ -2312,6 +2444,51 @@ where
                 &self.transport,
                 &self.config,
                 BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListFeatured RPC. Sends a request to /nama.v1.BrowseService/ListFeatured.
+    pub async fn list_featured(
+        &self,
+        request: crate::messages::nama::v1::ListFeaturedRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListFeaturedResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_featured_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListFeatured RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_featured_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListFeaturedRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListFeaturedResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                BROWSE_SERVICE_LIST_FEATURED_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

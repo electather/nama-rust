@@ -6,6 +6,8 @@
 mod browsing;
 #[path = "playback/burn_in.rs"]
 mod burn_in;
+#[path = "playback/failing_ffmpeg.rs"]
+mod failing_ffmpeg;
 #[path = "support/http.rs"]
 mod http;
 #[path = "playback/keyframes.rs"]
@@ -89,14 +91,16 @@ impl Fixture {
         fx
     }
 
-    /// Fetches Alien's subtitles, so the Server caches them.
+    /// Fetches Alien's subtitles, so the Server caches them, then stops the plan reading Alien.
     async fn cache_subtitles(&self) {
         let version = *self.version_ids(ALIEN).await.first().unwrap();
+        let plan = self.plan(version).await.unwrap();
         let token = Some(self.server.admin_token.as_str());
-        for subtitle in self.plan(version).await.unwrap().subtitles {
+        for subtitle in plan.subtitles {
             assert_eq!(fetch(&self.server, &subtitle.url, token).await.status, 200);
         }
         assert_ne!(self.cached_subtitles(), Vec::<PathBuf>::new());
+        self.stop(plan.id).await;
     }
 
     /// What the Server's subtitle cache holds a folder for, as the Versions it caches.
@@ -439,11 +443,8 @@ impl Fixture {
     /// and a Movies Library holding Alien in 1080p and 2160p, and returns it with the ids of those
     /// Versions, which Chrome Remuxes and Transcodes.
     async fn alien_with_room_for_one_transcode(bin: &Path) -> (Self, [i64; 2]) {
-        let fx = Self::start_with_ffmpeg(
-            LibraryKind::LIBRARY_KIND_MOVIES,
-            ffmpeg_writing_nothing(bin, "libx264"),
-        )
-        .await;
+        let ffmpeg = ffmpeg_writing_nothing(bin, "libx264");
+        let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
         fx.write(ALIEN_1080P, b"video");
         fx.write(ALIEN_2160P, b"video");
         fx.scan_and_match().await;
@@ -1540,7 +1541,6 @@ async fn a_removed_versions_cached_subtitles_are_removed() {
     fx.cache_subtitles().await;
 
     fx.remove_file(ALIEN_1080P);
-
     fx.scan_and_probe().await;
 
     assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
@@ -1551,8 +1551,7 @@ async fn a_deleted_librarys_cached_subtitles_are_removed() {
     let fx = Fixture::subtitled_alien().await;
     fx.cache_subtitles().await;
 
-    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
-    libraries
+    LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
         .delete_library(DeleteLibraryRequest {
             id: fx.library,
             ..Default::default()

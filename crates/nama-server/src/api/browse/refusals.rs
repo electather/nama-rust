@@ -1,12 +1,11 @@
-//! How Browse's failures reach a client: the refusal naming the request field that named what
-//! Browse didn't find.
+//! What a client gets when Browse or Home rows find nothing or fail.
 
 use connectrpc::ConnectError;
 use nama_proto::nama::v1::RefusalReason;
 
 use crate::{
     api::{Refused, database_failed, refuse},
-    browse,
+    browse, home_rows,
     library::{LibraryKind, NotFound},
 };
 
@@ -83,5 +82,20 @@ pub(in crate::api) fn not_found(fields: Fields, err: &NotFound) -> Refused {
                 .field(fields.library)
                 .param("libraryKind", &kind)
         }
+    }
+}
+
+/// The Connect error a client gets when Home rows couldn't be read. Database failures are logged,
+/// not sent.
+pub(super) fn home_rows_refused(err: home_rows::Error) -> ConnectError {
+    match err {
+        home_rows::Error::PageTokenInvalid(_) => refuse(
+            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
+            err.to_string(),
+        )
+        .field("page.token")
+        .into(),
+        home_rows::Error::Database(err) => database_failed(err),
+        home_rows::Error::Libraries(err) => err.into(),
     }
 }

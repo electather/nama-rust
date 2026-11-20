@@ -14,6 +14,7 @@ import {
   type PageResponse,
   PageResponseSchema,
 } from "@/gen/nama/v1/page_pb";
+import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
 /**
  * How a paged list's infinite query pages: by `page.token`, holding at most 10 pages, so at most
@@ -48,7 +49,10 @@ export function usePaged<I extends DescMessage, O extends DescMessage>(
   method: DescMethodUnary<I, O>,
   input: MessageInitShape<I> & { page: MessageInitShape<typeof PageRequestSchema> },
 ) {
-  const query = useSuspenseInfiniteQuery(pagedQuery(method, input, useTransport()));
+  const query = useSuspenseInfiniteQuery({
+    ...pagedQuery(method, input, useTransport()),
+    staleTime: loaderStaleTime,
+  });
   const counted = totalSizeIn(query.data.pages[0]);
   const [totalSize, setTotalSize] = useState(counted);
   if (counted !== undefined && counted !== totalSize) {

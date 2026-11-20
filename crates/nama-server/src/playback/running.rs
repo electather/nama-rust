@@ -22,8 +22,9 @@
 //! most the time kept behind plus [`RUN_AHEAD_MS`] (ADR 0062); a file asked for again is written
 //! again.
 //!
-//! A Transcode on hardware that fails carries on in software from the first file it hadn't
-//! written, takes its software fallback's reasons and publishes `PlaybackChanged`.
+//! A plan whose first run stops before writing anything is never kept or told of. A Transcode on
+//! hardware that fails carries on in software from the first file it hadn't written and takes its
+//! software fallback's reasons, which `PlaybackChanged`, or `PlaybackStarted` if earlier, says.
 //!
 //! A plan is stopped, and its folder deleted, when its player says it stopped, [`STOP_UNUSED_AFTER`]
 //! after it was last asked for, or as the Server shuts down. A Direct Play is asked for through
@@ -125,6 +126,8 @@ pub(crate) enum StartError {
     Keyframes(Arc<ProbeError>),
     #[error("ffmpeg couldn't be started: {0}")]
     Run(#[from] io::Error),
+    #[error("ffmpeg stopped before writing a {0:?}'s first file")]
+    FailedOnServer(Method),
     /// The plan's folder couldn't be created in the segment folder, `folder`.
     #[error("the plan's folder couldn't be created in {}: {source}", folder.display())]
     SegmentFolder { folder: PathBuf, source: io::Error },
@@ -254,9 +257,9 @@ impl RunningPlans {
 
     /// The Transcodes running, every Device's own included: a player stops its old plan before
     /// asking for a new one.
-    // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
-    // Device planning in that window finds room and they can pass the cap together until
-    // Transcodes end; reserve room under the plans' lock if that ever matters.
+    // ponytail: the plan isn't kept until after probing, the folder, spawning ffmpeg and up to
+    // `START_WAIT` waiting for its first file, so Devices planning in that window can pass the cap
+    // together until Transcodes end; reserve room under the plans' lock if that ever matters.
     pub(super) fn running_transcodes(&self) -> RunningTranscodes {
         let plans = lock(&self.inner.plans);
         let transcodes: Vec<_> = (plans.values())
@@ -333,9 +336,9 @@ impl RunningPlans {
         let timeline = Timeline::new(listed.keyframes_ms, duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let file_start_ms = listed.file_start_ms;
-        let start = move |dir: &Path, from| {
+        let start = move |dir: &Path, from, stop| {
             let command = ffmpeg.remux(&path, &remux, dir, from, file_start_ms)?;
-            command.spawn().map(process::run)
+            command.spawn().map(|child| process::run(child, stop))
         };
         let runs = Runs {
             method: Method::Remux,
@@ -389,12 +392,13 @@ impl RunningPlans {
         let start = move |attempt: Transcode| -> Box<Start> {
             let (ffmpeg, subtitles) = (Arc::clone(&ffmpeg), subtitles.clone());
             let (path, cuts) = (path.clone(), cuts.clone());
-            Box::new(move |dir: &Path, from: Keyframe| {
+            Box::new(move |dir: &Path, from: Keyframe, stop| {
                 let cuts = cuts.get(from.n..).unwrap_or_default();
                 let from = FromCut { n: from.n, cuts };
                 // Asked each run, so a seek once the cache is filled skips reading the whole file.
                 let attempt = burning_in_from(&subtitles, file, &attempt);
-                (ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()).map(process::run)
+                let child = ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()?;
+                Ok(process::run(child, stop))
             })
         };
         // A plan has a fallback only when it Transcodes on hardware.
@@ -431,7 +435,8 @@ impl RunningPlans {
 
     /// Starts a plan playing `playback`, cut as `timeline` says, whose files `runs` starts
     /// ffmpeg writing from the segment playing at `start_ms`, going on with `fallback` once a run
-    /// on hardware fails, and returns the plan's id.
+    /// on hardware fails, and returns the plan's id once ffmpeg wrote its first file or is still
+    /// going after a wait. [`StartError::FailedOnServer`], its folder deleted, if it stopped first.
     #[expect(
         clippy::too_many_arguments,
         reason = "each is a different part of the plan, and `start_ms` only says where its first \
@@ -461,31 +466,58 @@ impl RunningPlans {
             hardware: fallback.hardware.clone(),
             fallback_reasons: fallback.reasons.clone(),
         });
-        runs.fallback = fallback.map(|FallbackRun { start, reasons, .. }| {
-            let events = self.inner.events.clone();
-            let changed = Playback {
-                reasons,
-                ..playback.clone()
-            };
-            Fallback {
-                start,
-                on_fall_back: Box::new(move || {
-                    let changed = PlaybackChanged {
-                        playback: changed.clone().into(),
-                        ..Default::default()
-                    };
-                    events.publish(vec![event(changed)]);
-                }),
-            }
+        runs.fallback = fallback.map(|FallbackRun { start, reasons, .. }| Fallback {
+            start,
+            on_fall_back: self.telling_fall_back(
+                id,
+                Playback {
+                    reasons,
+                    ..playback.clone()
+                },
+            ),
         });
         let keep_behind_ms = self.inner.settings.keep_behind_ms();
-        let running = Running::start(id, timeline, dir, start_ms, runs, keep_behind_ms).await?;
+        let started = Running::start(id, timeline, dir.clone(), start_ms, runs, keep_behind_ms);
+        let running = match started.await {
+            Ok(running) => running,
+            Err(err) => {
+                // No `Running` was built, so its `stop` won't delete the folder.
+                if let Err(delete) = tokio::fs::remove_dir_all(&dir).await {
+                    tracing::warn!(plan = id, "could not delete {}: {delete}", dir.display());
+                }
+                return Err(StartError::Run(err));
+            }
+        };
+        if running.failed_at_start().await {
+            running.stop().await;
+            return Err(StartError::FailedOnServer(running.method()));
+        }
         self.insert(id, playback, Some(running), on_hardware);
         Ok(id)
     }
 
+    /// What the plan `id` calls as it falls back to software, playing as `changed` from then: it
+    /// publishes `PlaybackChanged` once the plan is kept, as `PlaybackStarted` says it before.
+    fn telling_fall_back(&self, id: u64, changed: Playback) -> Box<dyn Fn() + Send + Sync> {
+        let inner = Arc::downgrade(&self.inner);
+        let changed = event(PlaybackChanged {
+            playback: changed.into(),
+            ..Default::default()
+        });
+        Box::new(move || {
+            let Some(inner) = inner.upgrade() else { return };
+            // Under the lock `insert` publishes under, so it can't come before `PlaybackStarted`.
+            // ponytail: a fallback landing just as the plan is kept is told by both; tell it once
+            // if an Observer ever minds.
+            let plans = lock(&inner.plans);
+            if plans.contains_key(&id) {
+                inner.events.publish(vec![changed.clone()]);
+            }
+        })
+    }
+
     /// Adds the plan `id` playing `playback`, with `hls` if it runs ffmpeg and `on_hardware` if
-    /// it Transcodes on hardware, and publishes its `PlaybackStarted`.
+    /// it Transcodes on hardware, and publishes its `PlaybackStarted`, as it plays now.
     fn insert(
         &self,
         id: u64,
@@ -493,10 +525,6 @@ impl RunningPlans {
         hls: Option<Arc<Running>>,
         on_hardware: Option<OnHardware>,
     ) {
-        let started = PlaybackStarted {
-            playback: playback.clone().into(),
-            ..Default::default()
-        };
         let to_device = (playback.version_id, playback.device_id);
         let plan = Plan {
             playback,
@@ -517,9 +545,13 @@ impl RunningPlans {
         {
             stopped.remove(&to_device);
         }
+        let started = PlaybackStarted {
+            playback: plan.playback_now().into(),
+            ..Default::default()
+        };
         plans.insert(id, Arc::new(plan));
-        drop((stopped, plans));
         self.inner.events.publish(vec![event(started)]);
+        drop((stopped, plans));
     }
 
     /// The plan `id`, if it's running for the Device `device`, marked asked for now, which keeps
@@ -760,26 +792,6 @@ fn playlist_url(plan: u64) -> String {
 /// Locks `mutex`, which no code panics while holding.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-#[cfg(test)]
-impl RunningPlans {
-    /// Plans on `db` publishing on `events`, with the default playback settings and their files
-    /// under `folder`, for a test that only asks what plays and ends it.
-    pub(crate) fn for_tests(
-        db: &Arc<crate::db::Database>,
-        events: EventBus,
-        folder: &Path,
-    ) -> Self {
-        let ffmpeg = Arc::new(Ffmpeg::default());
-        let settings =
-            crate::server_settings::Settings::new(Arc::clone(db), folder.join("transcodes"));
-        let subtitles = subtitles::Cache::new(folder);
-        let images = crate::images::ImageStore::new(folder, Arc::clone(db));
-        let probing = Probing::new(Arc::clone(db), Arc::clone(&ffmpeg), subtitles, images);
-        let contents = Contents::new(Arc::clone(db));
-        Self::new(settings.playback(), ffmpeg, contents, probing, events)
-    }
 }
 
 #[cfg(test)]
