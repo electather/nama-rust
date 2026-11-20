@@ -111,10 +111,9 @@ test("dolby Vision is named as such, and a Movie without 4K, HDR or SDH has no b
 test("a started Movie shows Resume with its progress and time left", async () => {
   openMovie({ watchState: { positionMs: 1_800_000n, durationMs: 6_120_000n } });
 
-  const resume = await screen.findByRole("link", { name: "Resume" });
+  const resume = await screen.findByRole("link", { name: "Resume, 1h 12m left" });
   expect(resume.getAttribute("href")).toBe("/libraries/1/movies/tmdb-496243/play?version=1");
-  expect(screen.getByRole("progressbar", { name: "Watched" })).toBeDefined();
-  expect(screen.getByText("1h 12m left")).toBeDefined();
+  expect(resume.textContent).toBe("1h 12m");
 });
 
 test("an unstarted Movie shows Play, and a played one too", async () => {
@@ -165,7 +164,7 @@ test("a Show's page shows its own overview and first air year, and no button uns
     screen.findByText("A missing child sets four families on a hunt."),
   ).resolves.toBeDefined();
   expect(screen.getByText("Show · Drama · 2017")).toBeDefined();
-  expect(screen.queryByRole("link", { name: "Resume" })).toBeNull();
+  expect(screen.queryByRole("link", { name: /^Resume/u })).toBeNull();
 });
 
 test("a Show's page resumes its most recently started Episode in Continue Watching", async () => {
@@ -178,11 +177,11 @@ test("a Show's page resumes its most recently started Episode in Continue Watchi
     episodeEntry(dark, 2n, 4),
   );
 
-  const resume = await screen.findByRole("link", { name: "Resume" });
+  const resume = await screen.findByRole("link", { name: "Resume, 33m left" });
   expect(resume.getAttribute("href")).toBe(
     "/libraries/2/shows/tmdb-70523/seasons/2/episodes/3/play",
   );
-  expect(screen.getByText("S2, E3 · 33m left")).toBeDefined();
+  expect(screen.getByText("S2, E3")).toBeDefined();
 });
 
 test("an overview longer than two lines opens with More, and closes with Less", async () => {

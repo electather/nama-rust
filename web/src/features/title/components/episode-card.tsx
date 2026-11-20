@@ -1,8 +1,8 @@
 import { DeleteEpisode } from "@/features/title/components/delete-episode";
 import { EpisodeLink } from "@/features/title/components/episode-link";
-import { useSetPlayed } from "@/features/title/data/use-set-played";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { PlayedIconButton } from "@/shared/components/watch-state/played-icon-button";
+import { useSetPlayed } from "@/shared/hooks/use-set-played";
 
 /**
  * An Episode by its Still, which plays its largest Version, with that Version's picture and
@@ -20,7 +20,7 @@ export function EpisodeCard({ libraryId, episode }: { libraryId: bigint; episode
         <div className="-ms-2 mt-1 flex">
           <PlayedIconButton
             played={episode.watchState?.played === true}
-            label={`Played: ${episode.title}`}
+            label={`Watched: ${episode.title}`}
             onToggle={(played) => {
               setPlayed({ libraryId, target: { case: "episodeId", value: episodeId }, played });
             }}

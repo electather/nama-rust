@@ -101,12 +101,3 @@ test("a Poster without a thumbhash shows only its image", async () => {
 
   expect(previewBehind(heatPoster)).toBeNull();
 });
-
-test("a Library's Backdrop offers a copy at each width and shows its thumbhash until it loads", async () => {
-  openApp("/", serverWithAMovie());
-
-  await screen.findByText("Films");
-
-  expect(srcSetOf(backdrop)).toBe(`${backdrop}?width=320 320w, ${backdrop}?width=640 640w`);
-  expect(previewBehind(backdrop)?.nextElementSibling?.getAttribute("src")).toBe(backdrop);
-});

@@ -1,9 +1,19 @@
-import { useQuery } from "@connectrpc/connect-query";
+import type { Transport } from "@connectrpc/connect";
+import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
-/** The Home rows Plugins give, once they have loaded. */
+/** Home's layout: the rows Plugins give, which the route's loader waits on before Home shows. */
+export function homeRowsQuery(transport: Transport) {
+  return {
+    ...createQueryOptions(BrowseService.method.listHomeRows, {}, { transport }),
+    staleTime: "static" as const,
+  };
+}
+
+/** The Home rows Plugins give, in order. */
 export function useHomeRows() {
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- Home never waits on a Plugin's rows
-  return useQuery(BrowseService.method.listHomeRows, {}).data?.rows;
+  return useSuspenseQuery(BrowseService.method.listHomeRows, {}, { staleTime: loaderStaleTime })
+    .data.rows;
 }

@@ -1,9 +1,9 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Ellipsis } from "lucide-react";
 
-import { useSetPlayed } from "@/features/title/data/use-set-played";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { SetPlayedRequestSchema } from "@/gen/nama/v1/watch_state_pb";
+import { useSetPlayed } from "@/shared/hooks/use-set-played";
 import { seasonName } from "@/shared/lib/title-facts";
 import { Button } from "@/shared/ui/button";
 import {
@@ -46,10 +46,10 @@ export function MarkPlayedMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={mark(season, !seasonPlayed)}>
-          Mark {seasonName(seasonNumber)} {seasonPlayed ? "unplayed" : "played"}
+          Mark {seasonName(seasonNumber)} as {seasonPlayed ? "unwatched" : "watched"}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={mark(show, true)}>Mark Show played</DropdownMenuItem>
-        <DropdownMenuItem onClick={mark(show, false)}>Mark Show unplayed</DropdownMenuItem>
+        <DropdownMenuItem onClick={mark(show, true)}>Mark Show as watched</DropdownMenuItem>
+        <DropdownMenuItem onClick={mark(show, false)}>Mark Show as unwatched</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

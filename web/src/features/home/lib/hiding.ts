@@ -2,7 +2,7 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 
 import type { SetHiddenFromContinueWatchingRequestSchema } from "@/gen/nama/v1/watch_state_pb";
 
-/** A card's title, keyed as the row lists it, and what hiding it from Continue Watching asks. */
+/** A card's title, keyed as the shelf lists it, and what removing it from Continue Watching asks. */
 export interface Hiding {
   key: string;
   title: string;

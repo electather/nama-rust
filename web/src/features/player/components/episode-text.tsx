@@ -5,7 +5,7 @@ function stateOf(episode: Episode, playing: boolean) {
   if (playing) {
     return "Playing";
   }
-  return episode.watchState?.played === true ? "Played" : undefined;
+  return episode.watchState?.played === true ? "Watched" : undefined;
 }
 
 /** An Episode row's number, length and state over its title. */

@@ -41,8 +41,14 @@ export function runtimeOf(minutes = 0, form: "long" | "short" = "long") {
 
 /** What's left of a started Movie or Episode, such as "1h 12m left", or nothing if unknown. */
 export function timeLeft(state: WatchState | undefined) {
+  const left = remainingOf(state);
+  return left === undefined ? undefined : `${left} left`;
+}
+
+/** How long a started Movie or Episode has left, such as "1h 12m", or nothing if unknown. */
+export function remainingOf(state: WatchState | undefined) {
   const minutes = state ? Math.ceil(Number(state.durationMs - state.positionMs) / 60_000) : 0;
-  return minutes > 0 ? `${runtimeOf(minutes, "short")} left` : undefined;
+  return minutes > 0 ? runtimeOf(minutes, "short") : undefined;
 }
 
 const gigabytes = new Intl.NumberFormat("en", {

@@ -1,40 +1,31 @@
-import { ContinueWatchingItem } from "@/features/home/components/continue-watching-item";
-import { HiddenNotice } from "@/features/home/components/hidden-notice";
-import { useContinueWatching } from "@/features/home/data/use-continue-watching";
-import { useHideFromContinueWatching } from "@/features/home/hooks/use-hide-from-continue-watching";
-import { entryCard } from "@/features/home/lib/continue-watching-cards";
-import { BackdropGrid } from "@/shared/components/backdrop-grid";
+import { Suspense, useId } from "react";
 
-/**
- * What you've started and not played, and the next Episode of each Show you're watching, most
- * recent first, each with a menu to hide it. Nothing at all when there's none and nothing to undo.
- */
+import { ContinueWatchingFrame } from "@/features/home/components/continue-watching-frame";
+import { ContinueWatchingShelf } from "@/features/home/components/continue-watching-shelf";
+import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
+import { backdropTile } from "@/features/home/lib/shelf-tiles";
+import { ErrorBoundary } from "@/shared/components/error-boundary";
+
+/** Continue Watching, loading on its own, its skeleton until then, or that it failed. */
 export function ContinueWatching() {
-  const entries = useContinueWatching();
-  const { lastHidden, hide, undo } = useHideFromContinueWatching();
-  const cards = entries.flatMap((entry) => entryCard(entry));
-  if (cards.length === 0 && !lastHidden) {
-    return null;
-  }
+  const headingId = useId();
+  const failed = (
+    <ContinueWatchingFrame headingId={headingId}>
+      <p className="text-muted-foreground">
+        Couldn’t load Continue Watching. Check that the Server is running.
+      </p>
+    </ContinueWatchingFrame>
+  );
+  const loading = (
+    <ContinueWatchingFrame headingId={headingId}>
+      <ShelfSkeleton tile={backdropTile} aspect="aspect-4/3" />
+    </ContinueWatchingFrame>
+  );
   return (
-    <section aria-labelledby="continue-watching" className="mt-10">
-      <h2 id="continue-watching" className="font-medium">
-        Continue Watching
-      </h2>
-      <HiddenNotice lastHidden={lastHidden} onUndo={undo} />
-      {cards.length > 0 && (
-        <BackdropGrid>
-          {cards.map((card) => (
-            <ContinueWatchingItem
-              key={card.hiding.key}
-              card={card}
-              onHide={() => {
-                hide(card.hiding);
-              }}
-            />
-          ))}
-        </BackdropGrid>
-      )}
-    </section>
+    <ErrorBoundary failed={failed}>
+      <Suspense fallback={loading}>
+        <ContinueWatchingShelf headingId={headingId} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
