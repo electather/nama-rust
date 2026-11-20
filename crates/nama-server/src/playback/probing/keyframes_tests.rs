@@ -576,13 +576,16 @@ async fn an_mp4_whose_video_starts_with_an_empty_edit_keeps_the_keyframes_a_whol
     });
 
     let kept = media.probe_written(alien).await;
+    let version = media.file_id(alien).await;
+    let planned = media.probing.keyframes(version).await.unwrap();
 
     let whole_file = media.whole_file_listing(alien).await;
     assert!(
         whole_file.keyframes_ms.first() >= Some(&2_000),
         "the video isn't delayed: {whole_file:?}"
     );
-    assert_eq!(kept, Some(Keyframes::Listed(whole_file)));
+    assert_eq!(kept, Some(Keyframes::Listed(whole_file.clone())));
+    assert_eq!(planned, whole_file);
     assert_eq!(probe_runs(bin.path()), 0);
 }
 
@@ -593,11 +596,18 @@ async fn an_mkv_whose_cues_are_corrupted_keeps_no_keyframes_when_probed_and_list
  {
     let bin = tempfile::tempdir().unwrap();
     let media = Fixture::with_ffmpeg(system_ffprobe_logging_listings(bin.path())).await;
-    let alien = "Alien (1979)/Alien (1979).mkv";
+    let (intact, alien) = (
+        "Alien (1979)/Alien (1979) - Intact.mkv",
+        "Alien (1979)/Alien (1979).mkv",
+    );
     let path = media.path(alien);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     ffmpeg::write_h264_with_5_1(&path, "aac").unwrap();
+    fs::copy(&path, media.path(intact)).unwrap();
     corrupt_cues(&path);
+    // The same file with its Cues whole keeps them, so a Probing that stopped reading Cues at
+    // all fails here rather than passing as one that falls back.
+    assert!(media.probe_written(intact).await.is_some());
 
     let kept = media.probe_written(alien).await;
     let version = media.file_id(alien).await;
