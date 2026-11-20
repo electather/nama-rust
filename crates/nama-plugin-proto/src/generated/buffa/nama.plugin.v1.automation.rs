@@ -20,6 +20,8 @@ pub enum Permission {
     PERMISSION_READ_USERS = 5i32,
     /// Who Requested each title: `list_requesters`.
     PERMISSION_READ_REQUESTS = 6i32,
+    /// Every User's Watchlist: `list_watchlist`.
+    PERMISSION_READ_WATCHLISTS = 7i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -43,6 +45,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_READ_REQUESTS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ReadRequests: Self = Self::PERMISSION_READ_REQUESTS;
+    ///Idiomatic alias for [`Self::PERMISSION_READ_WATCHLISTS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ReadWatchlists: Self = Self::PERMISSION_READ_WATCHLISTS;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -145,6 +150,7 @@ impl ::buffa::Enumeration for Permission {
             4i32 => ::core::option::Option::Some(Self::PERMISSION_DELETE_MEDIA),
             5i32 => ::core::option::Option::Some(Self::PERMISSION_READ_USERS),
             6i32 => ::core::option::Option::Some(Self::PERMISSION_READ_REQUESTS),
+            7i32 => ::core::option::Option::Some(Self::PERMISSION_READ_WATCHLISTS),
             _ => ::core::option::Option::None,
         }
     }
@@ -160,6 +166,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_DELETE_MEDIA => "PERMISSION_DELETE_MEDIA",
             Self::PERMISSION_READ_USERS => "PERMISSION_READ_USERS",
             Self::PERMISSION_READ_REQUESTS => "PERMISSION_READ_REQUESTS",
+            Self::PERMISSION_READ_WATCHLISTS => "PERMISSION_READ_WATCHLISTS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -183,6 +190,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_READ_REQUESTS" => {
                 ::core::option::Option::Some(Self::PERMISSION_READ_REQUESTS)
             }
+            "PERMISSION_READ_WATCHLISTS" => {
+                ::core::option::Option::Some(Self::PERMISSION_READ_WATCHLISTS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -195,6 +205,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_DELETE_MEDIA,
             Self::PERMISSION_READ_USERS,
             Self::PERMISSION_READ_REQUESTS,
+            Self::PERMISSION_READ_WATCHLISTS,
         ]
     }
 }
@@ -2414,6 +2425,34 @@ pub struct Title {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub added_at_ms: i64,
+    /// The Movie's genres, or the Episode's Show's, by name in the title source's language.
+    ///
+    /// Field 7: `genres`
+    #[serde(
+        rename = "genres",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The Movie's Content Rating, or the Episode's Show's, such as `PG-13` or `TV-MA`. Unset if
+    /// the title source gave none.
+    ///
+    /// Field 8: `content_rating`
+    #[serde(
+        rename = "contentRating",
+        alias = "content_rating",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
+    /// The id of the Episode's Show, picked as `title_ref.id` is. Unset for a Movie.
+    ///
+    /// Field 9: `show_id`
+    #[serde(
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub show_id: ::buffa::MessageField<TitleId, ::buffa::Inline<TitleId>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2427,6 +2466,9 @@ impl ::core::fmt::Debug for Title {
             .field("season_number", &self.season_number)
             .field("episode_number", &self.episode_number)
             .field("added_at_ms", &self.added_at_ms)
+            .field("genres", &self.genres)
+            .field("content_rating", &self.content_rating)
+            .field("show_id", &self.show_id)
             .finish()
     }
 }
@@ -2460,6 +2502,16 @@ impl Title {
     ///Sets [`Self::episode_number`] to `Some(value)`, consuming and returning `self`.
     pub fn with_episode_number(mut self, value: u32) -> Self {
         self.episode_number = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::content_rating`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_content_rating(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.content_rating = Some(value.into());
         self
     }
 }
@@ -2506,6 +2558,20 @@ impl ::buffa::Message for Title {
         if self.added_at_ms != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.added_at_ms) as u64;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2538,6 +2604,20 @@ impl ::buffa::Message for Title {
         }
         if self.added_at_ms != 0i64 {
             ::buffa::types::put_int64_field(6u32, self.added_at_ms, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(7u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(8u32, v, buf);
+        }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2607,6 +2687,40 @@ impl ::buffa::Message for Title {
                 )?;
                 self.added_at_ms = ::buffa::types::decode_int64(buf)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.genres.push(__elem);
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .content_rating
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2621,6 +2735,9 @@ impl ::buffa::Message for Title {
         self.season_number = ::core::option::Option::None;
         self.episode_number = ::core::option::Option::None;
         self.added_at_ms = 0i64;
+        self.genres.clear();
+        self.content_rating = ::core::option::Option::None;
+        self.show_id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2858,13 +2975,26 @@ pub struct WatchStatesAsked {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub titles: ::buffa::alloc::vec::Vec<TitleRef>,
+    /// Asks for this User's Watch States only. Unset, it asks for every User's.
+    ///
+    /// Field 2: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub user_id: ::core::option::Option<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for WatchStatesAsked {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("WatchStatesAsked").field("titles", &self.titles).finish()
+        f.debug_struct("WatchStatesAsked")
+            .field("titles", &self.titles)
+            .field("user_id", &self.user_id)
+            .finish()
     }
 }
 impl WatchStatesAsked {
@@ -2873,6 +3003,15 @@ impl WatchStatesAsked {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.WatchStatesAsked";
+}
+impl WatchStatesAsked {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::user_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_user_id(mut self, value: i64) -> Self {
+        self.user_id = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(WatchStatesAsked);
 impl ::buffa::MessageName for WatchStatesAsked {
@@ -2902,6 +3041,9 @@ impl ::buffa::Message for WatchStatesAsked {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.user_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2919,6 +3061,9 @@ impl ::buffa::Message for WatchStatesAsked {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if let Some(v) = self.user_id {
+            ::buffa::types::put_int64_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2945,6 +3090,15 @@ impl ::buffa::Message for WatchStatesAsked {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.titles.push(elem);
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2954,6 +3108,7 @@ impl ::buffa::Message for WatchStatesAsked {
     }
     fn clear(&mut self) {
         self.titles.clear();
+        self.user_id = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2986,7 +3141,8 @@ pub const __WATCH_STATES_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = 
     from_json: ::buffa::type_registry::any_from_json::<WatchStatesAsked>,
     is_wkt: false,
 };
-/// What `list_watch_states` answers: each title asked for with every User's Watch State of it.
+/// What `list_watch_states` answers: each title asked for with every User's Watch State of it, or
+/// only the User's that `WatchStatesAsked.user_id` names.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -4763,5 +4919,440 @@ pub const __DELETE_STARTED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
     type_url: "type.googleapis.com/nama.plugin.v1.DeleteStarted",
     to_json: ::buffa::type_registry::any_to_json::<DeleteStarted>,
     from_json: ::buffa::type_registry::any_from_json::<DeleteStarted>,
+    is_wkt: false,
+};
+/// What `list_watchlist` takes.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct WatchlistAsked {
+    /// Field 1: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for WatchlistAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("WatchlistAsked").field("user_id", &self.user_id).finish()
+    }
+}
+impl WatchlistAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.WatchlistAsked";
+}
+::buffa::impl_default_instance!(WatchlistAsked);
+impl ::buffa::MessageName for WatchlistAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "WatchlistAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.WatchlistAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.WatchlistAsked";
+}
+impl ::buffa::Message for WatchlistAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.user_id = 0i64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for WatchlistAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.WatchlistAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for WatchlistAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __WATCHLIST_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.WatchlistAsked",
+    to_json: ::buffa::type_registry::any_to_json::<WatchlistAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<WatchlistAsked>,
+    is_wkt: false,
+};
+/// What `list_watchlist` answers: the User's Watchlist, empty for a User with none or no such
+/// User.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Watchlist {
+    /// Field 1: `titles`
+    #[serde(
+        rename = "titles",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub titles: ::buffa::alloc::vec::Vec<WatchlistTitle>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Watchlist {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Watchlist").field("titles", &self.titles).finish()
+    }
+}
+impl Watchlist {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Watchlist";
+}
+::buffa::impl_default_instance!(Watchlist);
+impl ::buffa::MessageName for Watchlist {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Watchlist";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Watchlist";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Watchlist";
+}
+impl ::buffa::Message for Watchlist {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.titles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.titles {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.titles.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.titles.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Watchlist {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.Watchlist";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Watchlist {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __WATCHLIST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.Watchlist",
+    to_json: ::buffa::type_registry::any_to_json::<Watchlist>,
+    from_json: ::buffa::type_registry::any_from_json::<Watchlist>,
+    is_wkt: false,
+};
+/// A title on a Watchlist, by the id it was added under, whether or not a Library has it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct WatchlistTitle {
+    /// Field 1: `kind`
+    #[serde(
+        rename = "kind",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub kind: ::buffa::EnumValue<TitleKind>,
+    /// Field 2: `id`
+    #[serde(
+        rename = "id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub id: ::buffa::MessageField<TitleId, ::buffa::Inline<TitleId>>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for WatchlistTitle {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("WatchlistTitle")
+            .field("kind", &self.kind)
+            .field("id", &self.id)
+            .finish()
+    }
+}
+impl WatchlistTitle {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.WatchlistTitle";
+}
+::buffa::impl_default_instance!(WatchlistTitle);
+impl ::buffa::MessageName for WatchlistTitle {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "WatchlistTitle";
+    const FULL_NAME: &'static str = "nama.plugin.v1.WatchlistTitle";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.WatchlistTitle";
+}
+impl ::buffa::Message for WatchlistTitle {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.kind = ::buffa::EnumValue::from(0);
+        self.id = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for WatchlistTitle {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.WatchlistTitle";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for WatchlistTitle {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __WATCHLIST_TITLE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.WatchlistTitle",
+    to_json: ::buffa::type_registry::any_to_json::<WatchlistTitle>,
+    from_json: ::buffa::type_registry::any_from_json::<WatchlistTitle>,
     is_wkt: false,
 };

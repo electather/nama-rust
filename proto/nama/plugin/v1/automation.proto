@@ -3,6 +3,7 @@ syntax = "proto3";
 package nama.plugin.v1;
 
 import "nama/plugin/v1/request.proto";
+import "nama/plugin/v1/title_source.proto";
 
 // The Automation lane, where the Kernel ticks a Plugin, and the Kernel's functions, which any
 // Plugin asks the Kernel through.
@@ -21,6 +22,7 @@ import "nama/plugin/v1/request.proto";
 //   list_watch_states: WatchStatesAsked -> WatchStates    PERMISSION_READ_WATCH_STATES
 //   list_users:        UsersAsked       -> Users          PERMISSION_READ_USERS
 //   list_requesters:   RequestersAsked  -> Requesters     PERMISSION_READ_REQUESTS
+//   list_watchlist:    WatchlistAsked   -> Watchlist      PERMISSION_READ_WATCHLISTS
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
@@ -71,6 +73,8 @@ enum Permission {
   PERMISSION_READ_USERS = 5;
   // Who Requested each title: `list_requesters`.
   PERMISSION_READ_REQUESTS = 6;
+  // Every User's Watchlist: `list_watchlist`.
+  PERMISSION_READ_WATCHLISTS = 7;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
@@ -156,6 +160,13 @@ message Title {
   // the Unix epoch. A rescan or a new Match keeps it, even of a file changed in place. Items
   // stored before Servers recorded it have the time the Server upgraded.
   int64 added_at_ms = 6;
+  // The Movie's genres, or the Episode's Show's, by name in the title source's language.
+  repeated string genres = 7;
+  // The Movie's Content Rating, or the Episode's Show's, such as `PG-13` or `TV-MA`. Unset if
+  // the title source gave none.
+  optional string content_rating = 8;
+  // The id of the Episode's Show, picked as `title_ref.id` is. Unset for a Movie.
+  TitleId show_id = 9;
 }
 
 // Which Movie or Episode, in which Library.
@@ -176,9 +187,12 @@ enum TitleRefKind {
 // What `list_watch_states` takes.
 message WatchStatesAsked {
   repeated TitleRef titles = 1;
+  // Asks for this User's Watch States only. Unset, it asks for every User's.
+  optional int64 user_id = 2;
 }
 
-// What `list_watch_states` answers: each title asked for with every User's Watch State of it.
+// What `list_watch_states` answers: each title asked for with every User's Watch State of it, or
+// only the User's that `WatchStatesAsked.user_id` names.
 message WatchStates {
   repeated TitleWatchStates titles = 1;
 }
@@ -249,4 +263,21 @@ message DeleteAsked {
 message DeleteStarted {
   // The other titles that go with this delete, since a file of the title holds them too.
   repeated TitleRef taken_along = 1;
+}
+
+// What `list_watchlist` takes.
+message WatchlistAsked {
+  int64 user_id = 1;
+}
+
+// What `list_watchlist` answers: the User's Watchlist, empty for a User with none or no such
+// User.
+message Watchlist {
+  repeated WatchlistTitle titles = 1;
+}
+
+// A title on a Watchlist, by the id it was added under, whether or not a Library has it.
+message WatchlistTitle {
+  TitleKind kind = 1;
+  TitleId id = 2;
 }
