@@ -1,7 +1,8 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
-//! [`super::tracks`]), and decides what a failure to probe one means for trying it again. It also
-//! lists a Version's keyframes in the background when first asked for them, and keeps them, or
-//! that listing them failed, for its file as it is ([`Probing::keyframes`]).
+//! [`super::tracks`]), with a Matroska or MP4 file's keyframes when its index lists them, and
+//! decides what a failure to probe one means for trying it again. It lists any other Version's keyframes in the
+//! background when first asked for them, and keeps them, or that listing them failed, for its
+//! file as it is ([`Probing::keyframes`]).
 //!
 //! After a Library's files change, those without current Tracks, never probed or changed or read
 //! by an older probe version since, are probed in the background, a few at a time
@@ -10,6 +11,7 @@
 //! timeout, is tried again on the next few passes first. A Version can also be probed right away
 //! ([`Probing::current`]), which waits for a background probe of it rather than probe it twice.
 
+mod cues;
 mod ffprobe;
 mod mp4;
 
@@ -28,7 +30,6 @@ use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
-use self::ffprobe::Starts;
 use super::{
     sidecars::Sidecars,
     subtitles,
@@ -53,8 +54,9 @@ const PROBES_AT_ONCE: usize = 3;
 const WHOLE_FILE_READS_AT_ONCE: usize = 2;
 
 /// How long a plan waits for a Version's keyframes before it Transcodes instead, well short of
-/// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866).
-const LISTING_WAIT: Duration = Duration::from_secs(30);
+/// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866). Short,
+/// as reading a whole big file takes minutes, and a Matroska file's Cues usually spare it (#1122).
+const LISTING_WAIT: Duration = Duration::from_secs(5);
 
 /// Why probing a file failed.
 #[derive(Debug, thiserror::Error)]
@@ -215,11 +217,11 @@ impl Probing {
     }
 
     /// When the Version `version`'s file starts and each keyframe of its first video falls: as
-    /// kept for its file as it is now, or else listed in the background, which reads the whole
-    /// file, and kept. If something is listing them already, waits for that instead. Waits at
-    /// most [`LISTING_WAIT`] for a listing, then returns [`ProbeError::NotListedYet`] while it
-    /// carries on. They're kept only while the Version's Tracks were read from its file as it is
-    /// now.
+    /// kept for its file as it is now, by probing or an earlier listing, or else listed in the
+    /// background, which reads the whole file, and kept. If something is listing them already,
+    /// waits for that instead. Waits at most [`LISTING_WAIT`] for a listing, then returns
+    /// [`ProbeError::NotListedYet`] while it carries on. They're kept only while the Version's
+    /// Tracks were read from its file as it is now.
     pub(super) async fn keyframes(&self, version: i64) -> Result<ListedKeyframes, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
@@ -453,10 +455,17 @@ impl Probing {
         }
         match ffprobe::probe(&self.inner.ffmpeg, path).await {
             Ok((probe, starts)) => {
+                let indexed = match probe.container.as_str() {
+                    "matroska,webm" => cues::listed(path, starts.file_ms, probe.duration_ms).await,
+                    "mov,mp4,m4a,3gp,3g2,mj2" => mp4::listed(path, starts, probe.duration_ms).await,
+                    _ => None,
+                };
                 self.inner.tracks.store(file, probe.clone()).await?;
-                if let Some(listed) = indexed_keyframes(path, &probe, starts).await {
-                    let listed = Keyframes::Listed(listed);
-                    self.inner.tracks.store_keyframes(file, &listed).await?;
+                // Without a usable index, the first Remux lists them by reading the whole file.
+                if let Some(indexed) = indexed {
+                    (self.inner.tracks)
+                        .store_keyframes(file, &Keyframes::Listed(indexed))
+                        .await?;
                 }
                 Ok(probe)
             }
@@ -550,38 +559,16 @@ impl Probing {
     }
 }
 
-/// The keyframes of the file at `path`, which `probe` read and found `starts` so, as its
-/// container's index lists them, for an MP4, if they pass [`checked`]. `None` leaves them to a
-/// whole-file listing on the first Remux (ADR 0066).
-async fn indexed_keyframes(path: &str, probe: &Probe, starts: Starts) -> Option<ListedKeyframes> {
-    if probe.container != "mov,mp4,m4a,3gp,3g2,mj2" {
-        return None;
-    }
-    let path = path.to_owned();
-    let read = move || mp4::keyframes(&mut std::fs::File::open(path).ok()?);
-    let shown_at = tokio::task::spawn_blocking(read).await.ok()??;
-    checked(shown_at, starts, probe.duration_ms?)
-}
-
-/// The keyframes shown at `shown_at` in a file that `starts` so, measured from its start as a
-/// whole-file listing measures them, if they're in increasing order, the first where its video
-/// starts within a millisecond's rounding, and none past `duration_ms`.
-fn checked(shown_at: Vec<i64>, starts: Starts, duration_ms: i64) -> Option<ListedKeyframes> {
-    let file_start_ms = starts.file_ms;
-    let keyframes_ms: Vec<i64> = (shown_at.into_iter())
-        .map(|at| at - file_start_ms)
-        .collect();
-    // The video, not the file: an MP4's empty edit, as ffmpeg writes to line the video up with
-    // audio that starts first, delays its first keyframe past the file's start.
-    let video_start_ms = starts.video_ms? - file_start_ms;
-    let at_start = (keyframes_ms.first())
-        .is_some_and(|first| (video_start_ms..=video_start_ms + 1).contains(first));
-    let increasing = keyframes_ms.is_sorted_by(|earlier, later| earlier < later);
-    let within = keyframes_ms.last().is_some_and(|&last| last <= duration_ms);
-    (at_start && increasing && within).then_some(ListedKeyframes {
-        file_start_ms,
-        keyframes_ms,
-    })
+/// Whether `listed`, read from a container's index, is a list a whole-file listing could give:
+/// non-empty, increasing, the first at `first_ms` within rounding to the millisecond, and ending
+/// by `duration_ms`.
+fn plausible(listed: &ListedKeyframes, first_ms: i64, duration_ms: Option<i64>) -> bool {
+    let keyframes = &listed.keyframes_ms;
+    keyframes
+        .first()
+        .is_some_and(|first| (first - first_ms).abs() <= 1)
+        && keyframes.is_sorted_by(|earlier, later| earlier < later)
+        && (keyframes.last().zip(duration_ms)).is_some_and(|(last, duration)| *last <= duration)
 }
 
 /// What failing to probe the file at `path` with `err` means for trying it again.

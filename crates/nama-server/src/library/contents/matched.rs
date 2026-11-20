@@ -292,6 +292,33 @@ impl Contents {
         })
     }
 
+    /// What the Version `version` plays, as people name it: its Movie's title, or the Show's of
+    /// its first Episode with that Episode, such as "Dark S01E02", and while it isn't Matched the
+    /// name its file was found under. `None` if there is no such Version.
+    pub(crate) async fn version_title(&self, version: i64) -> Result<Option<String>, sqlx::Error> {
+        let row = sqlx::query!(
+            r#"SELECT CASE library_items.kind WHEN 'episode' THEN item_matches.show_title
+                                              ELSE item_matches.title END AS "matched?: String",
+                      library_items.title AS found, library_items.season, library_items.episode
+               FROM library_items
+               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+                                     AND item_matches.state = 'matched'
+               WHERE library_items.file_id = ?
+               ORDER BY library_items.season, library_items.episode
+               LIMIT 1"#,
+            version
+        )
+        .fetch_optional(self.db.reader())
+        .await?;
+        Ok(row.map(|row| {
+            let title = row.matched.unwrap_or(row.found);
+            match row.season.zip(row.episode) {
+                Some((season, episode)) => format!("{title} S{season:02}E{episode:02}"),
+                None => title,
+            }
+        }))
+    }
+
     /// The path of the Version `version` and the file stored there, or `None` unless the file
     /// holds an Item, Matched or not (ADR 0062), so a file whose name didn't parse is never served
     /// or probed.

@@ -3,9 +3,13 @@
 //! `mdat` costs no more than one before it.
 
 use std::{
+    fs::File,
     io::{Read, Seek, SeekFrom},
     ops::Range,
 };
+
+use super::{ffprobe::Starts, plausible};
+use crate::playback::tracks::ListedKeyframes;
 
 /// The most bytes read of any one box, generous next to a three-hour 60 fps video's `stts` or
 /// `ctts` of about 5 MB.
@@ -25,6 +29,29 @@ const NORMAL_RATE: u32 = 0x0001_0000;
 struct Mp4Box {
     kind: [u8; 4],
     contents: Range<u64>,
+}
+
+/// The keyframes the sample tables of the MP4 file at `path` list, as [`keyframes`] reads them,
+/// measured from the file's start that `starts` gives, if they're [`plausible`] from its video's
+/// start.
+pub(super) async fn listed(
+    path: &str,
+    starts: Starts,
+    duration_ms: Option<i64>,
+) -> Option<ListedKeyframes> {
+    let path = path.to_owned();
+    let read = move || keyframes(&mut File::open(path).ok()?);
+    let shown_at = tokio::task::spawn_blocking(read).await.ok()??;
+    let listed = ListedKeyframes {
+        file_start_ms: starts.file_ms,
+        keyframes_ms: (shown_at.into_iter())
+            .map(|at| at - starts.file_ms)
+            .collect(),
+    };
+    // From the video's start, not the file's: an empty edit, as ffmpeg writes to line the video up
+    // with audio that starts first, puts the first keyframe past the file's start.
+    let first_ms = starts.video_ms? - starts.file_ms;
+    plausible(&listed, first_ms, duration_ms).then_some(listed)
 }
 
 /// When each keyframe of the file's first video shows, in milliseconds, as ffmpeg times its

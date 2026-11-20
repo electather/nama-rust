@@ -5,12 +5,15 @@ use std::sync::Arc;
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
-    self as proto, GetAutoplayRequest, GetAutoplayResponse, GetTrackPreferencesRequest,
-    GetTrackPreferencesResponse, PickedTrackKind, PlanPlaybackRequest, PlanPlaybackResponse,
-    PlaybackService, RefusalReason, ReportTrackPickRequest, ReportTrackPickResponse,
-    SetAudioPreferenceRequest, SetAudioPreferenceResponse, SetAutoplayRequest, SetAutoplayResponse,
-    SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse, StopPlaybackRequest,
-    StopPlaybackResponse, SubtitleKind, UsersAudioPreference, UsersSubtitlePreference,
+    self as proto, GetAutoplayRequest, GetAutoplayResponse, GetSubtitleAppearanceRequest,
+    GetSubtitleAppearanceResponse, GetTrackPreferencesRequest, GetTrackPreferencesResponse,
+    PickedTrackKind, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, RefusalReason,
+    ReportTrackPickRequest, ReportTrackPickResponse, SetAudioPreferenceRequest,
+    SetAudioPreferenceResponse, SetAutoplayRequest, SetAutoplayResponse,
+    SetSubtitleBackgroundRequest, SetSubtitleBackgroundResponse, SetSubtitlePreferenceRequest,
+    SetSubtitlePreferenceResponse, SetSubtitleSizeRequest, SetSubtitleSizeResponse,
+    StopPlaybackRequest, StopPlaybackResponse, SubtitleKind, UsersAudioPreference,
+    UsersSubtitlePreference,
 };
 
 use crate::{
@@ -19,9 +22,10 @@ use crate::{
     playback::{
         self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, Method, NAMED_LIMITS,
         PickedLimit, Planned, Preferred, Probing, ProbingError, RunningPlans, StartError,
-        StartedPlan, SubtitlePreference, TrackKind, TrackPreferenceError, TrackPreferences,
-        is_autoplay_on, is_language, limit_to_proto, method_to_proto, reason_to_proto,
-        set_autoplay, track_to_proto,
+        StartedPlan, SubtitleAppearance, SubtitlePreference, TrackKind, TrackPreferenceError,
+        TrackPreferences, is_autoplay_on, is_language, limit_to_proto, method_to_proto,
+        reason_to_proto, set_autoplay, set_subtitle_background, set_subtitle_size,
+        subtitle_appearance_of, track_to_proto,
     },
     server_settings::{PlaybackLimit, PlaybackSettings},
 };
@@ -256,6 +260,62 @@ impl PlaybackService for PlaybackServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(SetAutoplayResponse::default())
+    }
+
+    async fn get_subtitle_appearance(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetSubtitleAppearanceRequest>,
+    ) -> ServiceResult<GetSubtitleAppearanceResponse> {
+        let SubtitleAppearance { size, background } =
+            subtitle_appearance_of(&self.db, caller(&ctx)?.user.id)
+                .await
+                .map_err(database_failed)?;
+        Response::ok(GetSubtitleAppearanceResponse {
+            size: size.into(),
+            background: background.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn set_subtitle_size(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetSubtitleSizeRequest>,
+    ) -> ServiceResult<SetSubtitleSizeResponse> {
+        let size = match request.to_owned_message().size {
+            EnumValue::Known(proto::SubtitleSize::Unspecified) | EnumValue::Unknown(_) => {
+                return Err(unknown_enum_value(
+                    "size",
+                    "the size must be one the Server knows",
+                ));
+            }
+            EnumValue::Known(size) => size,
+        };
+        set_subtitle_size(&self.db, caller(&ctx)?.user.id, size)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(SetSubtitleSizeResponse::default())
+    }
+
+    async fn set_subtitle_background(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetSubtitleBackgroundRequest>,
+    ) -> ServiceResult<SetSubtitleBackgroundResponse> {
+        let background = match request.to_owned_message().background {
+            EnumValue::Known(proto::SubtitleBackground::Unspecified) | EnumValue::Unknown(_) => {
+                return Err(unknown_enum_value(
+                    "background",
+                    "the background must be one the Server knows",
+                ));
+            }
+            EnumValue::Known(background) => background,
+        };
+        set_subtitle_background(&self.db, caller(&ctx)?.user.id, background)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(SetSubtitleBackgroundResponse::default())
     }
 }
 

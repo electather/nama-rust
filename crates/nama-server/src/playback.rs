@@ -25,6 +25,7 @@ mod probing;
 mod running;
 mod sidecars;
 mod steps;
+mod subtitle_appearance;
 mod subtitles;
 mod track_preferences;
 mod tracks;
@@ -33,8 +34,15 @@ pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
 pub(crate) use probing::{Error as ProbingError, Probing};
 use running::RunningTranscodes;
-pub(crate) use running::{RunningPlans, StartError, router as running_router, sweep_leftovers};
+pub(crate) use running::{
+    MessageTooLong, PlayNow, ReportedProgress, RunningPlans, STOP_MESSAGE_LENGTH, StartError,
+    router as running_router, sweep_leftovers,
+};
 pub(crate) use sidecars::{Sidecar, Sidecars, VersionSidecars, is_sidecar};
+pub(crate) use subtitle_appearance::{
+    SubtitleAppearance, of as subtitle_appearance_of, set_background as set_subtitle_background,
+    set_size as set_subtitle_size,
+};
 pub(crate) use subtitles::Cache as SubtitleCache;
 pub(crate) use track_preferences::{
     Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,

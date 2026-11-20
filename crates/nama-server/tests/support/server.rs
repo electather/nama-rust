@@ -631,7 +631,7 @@ impl TestServer {
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    async fn sign_in(&self, id: i64, name: &str) -> SignedIn {
+    pub(crate) async fn sign_in(&self, id: i64, name: &str) -> SignedIn {
         let token =
             SignInServiceClient::new(HttpClient::plaintext(), self.anonymous_client_config())
                 .sign_in(SignInRequest {

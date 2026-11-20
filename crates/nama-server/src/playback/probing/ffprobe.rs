@@ -27,7 +27,7 @@ const FONT_EXTENSIONS: &[&str] = &[".ttf", ".otf", ".ttc"];
 /// When a file ffprobe read starts, and when its first video does, in milliseconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Starts {
-    /// When the file starts, or 0 if it starts before 0.
+    /// When the file starts, as a keyframe listing has it.
     pub(super) file_ms: i64,
     /// When its first video other than cover art starts, if ffprobe says and it's not before 0.
     pub(super) video_ms: Option<i64>,
@@ -243,6 +243,7 @@ fn parse_probe(json: &[u8]) -> Result<(Probe, Starts), serde_json::Error> {
         .map(|(place, _)| place)
         .collect();
     let starts = Starts {
+        // A file starting before 0 counts from 0, as `file_start` has it.
         file_ms: (format.start_time.as_deref())
             .and_then(millis)
             .unwrap_or_default(),

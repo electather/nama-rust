@@ -1,14 +1,14 @@
 use std::{fs, time::Duration};
 
-use super::tests::Fixture;
+use super::tests::{Fixture, system_ffmpeg};
 #[cfg(unix)]
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
 use super::{
-    Error, Keyframes, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE,
-    ffprobe::WHOLE_FILE_TIMEOUT,
+    Error, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE, ffprobe::WHOLE_FILE_TIMEOUT,
 };
-use super::{ListedKeyframes, Starts, checked};
+use super::{Keyframes, ListedKeyframes, Probe, plausible};
+use crate::ffmpeg;
 #[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
 
@@ -415,49 +415,59 @@ async fn shutting_down_stops_a_listing_and_keeps_nothing() {
     assert!(kept.is_none(), "{kept:?}");
 }
 
+#[tokio::test]
+async fn a_version_read_by_an_older_probe_gets_its_keyframes_from_its_cues_when_probed_again() {
+    let media = Fixture::with_ffmpeg(system_ffmpeg()).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    let path = media.path(alien);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    ffmpeg::write_h264_with_5_1(&path, "aac").unwrap();
+    media.store(alien).await;
+    let file = media.stored(alien).await;
+    // As the probe version before stored it: Tracks, but no keyframes.
+    let tracks_only = Probe {
+        container: "matroska,webm".to_owned(),
+        duration_ms: Some(14_000),
+        bitrate: None,
+        tracks: vec![],
+        font_attachments: vec![],
+    };
+    media.tracks.store(file, tracks_only).await.unwrap();
+    media.tracks.read_by_older_probe(file.id).await;
+
+    media.probe_changed().await;
+
+    let cued = ListedKeyframes {
+        file_start_ms: 0,
+        // A keyframe every 2 seconds.
+        keyframes_ms: (0..7).map(|n| n * 2_000).collect(),
+    };
+    assert_eq!(
+        media.tracks.keyframes(file).await.unwrap(),
+        Some(Keyframes::Listed(cued))
+    );
+}
+
 #[test]
-fn index_keyframes_are_kept_only_from_the_videos_start_in_order_and_within_its_length() {
-    let video_at = |video_ms| Starts {
-        file_ms: 1000,
-        video_ms: Some(video_ms),
+fn index_keyframes_are_plausible_only_from_where_the_first_should_fall_in_order_and_by_the_end() {
+    let from_23 = |keyframes_ms: &[i64]| {
+        let listed = ListedKeyframes {
+            file_start_ms: 0,
+            keyframes_ms: keyframes_ms.to_vec(),
+        };
+        plausible(&listed, 23, Some(5000))
     };
 
-    assert_eq!(
-        checked(vec![1000, 3000], video_at(1000), 5000),
-        Some(ListedKeyframes {
-            file_start_ms: 1000,
-            keyframes_ms: vec![0, 2000],
-        })
-    );
-    assert_eq!(
-        checked(vec![1023, 3023], video_at(1023), 5000).map(|listed| listed.keyframes_ms),
-        Some(vec![23, 2023]),
-        "a video starting after the file"
-    );
-    let refused = [
-        (vec![], video_at(1000), "none"),
-        (
-            vec![1500, 3000],
-            video_at(1000),
-            "the first after the video's start",
-        ),
-        (
-            vec![1000, 3000],
-            video_at(1500),
-            "the first before the video's start",
-        ),
-        (vec![1000, 3000, 2000], video_at(1000), "out of order"),
-        (vec![1000, 7000], video_at(1000), "past the end"),
-        (
-            vec![1000, 3000],
-            Starts {
-                file_ms: 1000,
-                video_ms: None,
-            },
-            "no video start",
-        ),
+    assert!(from_23(&[23, 2023]));
+    assert!(from_23(&[24, 2024]), "within a millisecond's rounding");
+    let refused: [(&[i64], _); 5] = [
+        (&[], "none"),
+        (&[0, 2000], "the first before where it should fall"),
+        (&[100, 2023], "the first after"),
+        (&[23, 3023, 2023], "out of order"),
+        (&[23, 7023], "past the end"),
     ];
-    for (shown_at, starts, why) in refused {
-        assert_eq!(checked(shown_at, starts, 5000), None, "{why}");
+    for (keyframes_ms, why) in refused {
+        assert!(!from_23(keyframes_ms), "{why}");
     }
 }

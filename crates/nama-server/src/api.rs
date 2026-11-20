@@ -131,6 +131,7 @@ pub(crate) fn router(
             points: plugins.clone(),
             data_dir: config.data_dir.clone(),
             exports_diagnostics: config.otlp_endpoint.is_some(),
+            running: running.clone(),
         }))
         .add_service(Arc::new(SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
@@ -147,7 +148,10 @@ pub(crate) fn router(
             artwork: artwork.clone(),
             images: images.clone(),
         }))
-        .add_service(Arc::new(WatchStateServiceHandler { browse }))
+        .add_service(Arc::new(WatchStateServiceHandler {
+            browse,
+            running: running.clone(),
+        }))
         .add_service(Arc::new(PlaybackServiceHandler {
             probing,
             abilities,
@@ -261,6 +265,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC.procedure,     MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC.procedure,  MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC.procedure,     MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_LIST_PLAYS_SPEC.procedure,             ADMIN),
+    (proto::SERVER_SERVICE_STOP_PLAY_SPEC.procedure,              ADMIN),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -309,6 +315,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_GET_AUTOPLAY_SPEC.procedure,         Access::SignedIn),
     (proto::PLAYBACK_SERVICE_SET_AUTOPLAY_SPEC.procedure,         Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_GET_SUBTITLE_APPEARANCE_SPEC.procedure, Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SET_SUBTITLE_SIZE_SPEC.procedure,    Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SET_SUBTITLE_BACKGROUND_SPEC.procedure, Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
@@ -611,7 +620,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_TITLE_ID_MALFORMED
         | R::REFUSAL_REASON_TITLE_SOURCES_INVALID
         | R::REFUSAL_REASON_RECOGNISERS_INVALID
-        | R::REFUSAL_REASON_PERMISSION_NOT_REQUESTED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_PERMISSION_NOT_REQUESTED
+        | R::REFUSAL_REASON_MESSAGE_TOO_LONG => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD

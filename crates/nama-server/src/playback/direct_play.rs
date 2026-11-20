@@ -64,7 +64,7 @@ async fn serve(
         }
     };
     // Taken once the Version is known to be there, so asking for made-up ids keeps nothing.
-    let deleted = running.served(id);
+    let (deleted, stopped) = (running.served(id), running.stopped(id, device));
     // `ServeFile` answers `Range` (206 and `Content-Range`), sets `Accept-Ranges`, `ETag` and
     // `Last-Modified`, takes the `Content-Type` from the extension, and is 404 for a file gone
     // since the last scan.
@@ -72,8 +72,14 @@ async fn serve(
         Ok(response) => {
             let (parts, body) = response.into_response().into_parts();
             let sent = running.ask_direct_plays_while_sending(id, device, body.into_data_stream());
-            let cut_off = sent.take_until(deleted.cancelled_owned());
-            Response::from_parts(parts, Body::from_stream(cut_off))
+            let cut_off = async move {
+                tokio::select! {
+                    () = deleted.cancelled() => {}
+                    () = stopped.cancelled() => {}
+                }
+            };
+            let sent = sent.take_until(cut_off);
+            Response::from_parts(parts, Body::from_stream(sent))
         }
         Err(err) => {
             tracing::error!("could not serve {path}: {err}");
