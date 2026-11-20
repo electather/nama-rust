@@ -8,6 +8,7 @@ use std::{
     io::{BufReader, Read, Seek, SeekFrom},
 };
 
+use super::plausible;
 use crate::playback::tracks::ListedKeyframes;
 
 // Element ids, as the EBML and Matroska specifications number them.
@@ -87,16 +88,7 @@ pub(super) fn keyframes(
         file_start_ms,
         keyframes_ms,
     };
-    plausible(&listed, duration_ms).then_some(listed)
-}
-
-/// Whether `listed` is a list a whole-file listing could give: non-empty, increasing, starting at
-/// the file's start, within rounding to the millisecond, and ending by `duration_ms`.
-fn plausible(listed: &ListedKeyframes, duration_ms: Option<i64>) -> bool {
-    let keyframes = &listed.keyframes_ms;
-    keyframes.first().is_some_and(|first| first.abs() <= 1)
-        && keyframes.is_sorted_by(|earlier, later| earlier < later)
-        && (keyframes.last().zip(duration_ms)).is_some_and(|(last, duration)| *last <= duration)
+    plausible(&listed, 0, duration_ms).then_some(listed)
 }
 
 /// Where the data of `file`'s Segment starts, after its EBML header: what every `SeekPosition`
