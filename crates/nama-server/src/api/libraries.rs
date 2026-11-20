@@ -29,7 +29,7 @@ use crate::{
 };
 
 use super::{
-    ImageSources, ShownImages,
+    ImageSources, Refused, ShownImages,
     browse::{Fields, not_found},
     caller, database_failed, external_id_from_proto, external_id_to_proto, proto_number, refuse,
     required_id, title_kind_from_proto, unknown_enum_value,
@@ -574,9 +574,7 @@ impl From<LibraryError> for ConnectError {
                 refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message).field("title_sources")
             }
             // Its field is the request's, which `changing_failed` names.
-            LibraryError::RecognisersInvalid { plugin } => {
-                refuse(R::REFUSAL_REASON_RECOGNISERS_INVALID, message).param("pluginId", &plugin)
-            }
+            LibraryError::RecognisersInvalid { plugin } => recognisers_invalid(message, &plugin),
             LibraryError::Database(err) => return database_failed(err),
         };
         refused.into()
@@ -590,8 +588,12 @@ fn changing_failed(recognisers_field: &'static str) -> impl Fn(LibraryError) -> 
         let LibraryError::RecognisersInvalid { plugin } = &err else {
             return err.into();
         };
-        let reason = RefusalReason::REFUSAL_REASON_RECOGNISERS_INVALID;
-        let refused = refuse(reason, err.to_string()).field(recognisers_field);
-        refused.param("pluginId", plugin).into()
+        let refused = recognisers_invalid(err.to_string(), plugin);
+        refused.field(recognisers_field).into()
     }
+}
+
+/// Refuses a Recogniser order for naming `plugin`, leaving the field to the caller.
+fn recognisers_invalid(message: String, plugin: &str) -> Refused {
+    refuse(RefusalReason::REFUSAL_REASON_RECOGNISERS_INVALID, message).param("pluginId", &plugin)
 }
