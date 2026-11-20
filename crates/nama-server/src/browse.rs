@@ -18,7 +18,7 @@ use crate::{
         TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind, WatchStates,
     },
     page::{self, Page},
-    playback::{Probe, Sidecars, Track, Tracks},
+    playback::{Probe, StoredTracks, Track},
     scanner::read_only_folder,
 };
 
@@ -71,8 +71,7 @@ pub(crate) struct ListedShow {
 pub(crate) struct Browse {
     libraries: Libraries,
     contents: Contents,
-    tracks: Tracks,
-    sidecars: Sidecars,
+    tracks: StoredTracks,
     watch_states: WatchStates,
 }
 
@@ -81,8 +80,7 @@ impl Browse {
         Self {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(Arc::clone(&db)),
-            tracks: Tracks::new(Arc::clone(&db)),
-            sidecars: Sidecars::new(Arc::clone(&db)),
+            tracks: StoredTracks::new(Arc::clone(&db)),
             watch_states: WatchStates::new(db),
         }
     }
@@ -316,11 +314,7 @@ impl Browse {
         if files.is_empty() {
             return Ok(HashMap::new());
         }
-        let mut probes = self.tracks.of(&files).await?;
-        (self.sidecars)
-            .append_to(probes.iter_mut().map(|(&id, probe)| (id, probe)))
-            .await?;
-        Ok(probes)
+        self.tracks.of(&files).await
     }
 
     async fn library(&self, library: i64) -> Result<Library, Error> {
