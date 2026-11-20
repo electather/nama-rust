@@ -161,8 +161,12 @@ A setting a Plugin's Manifest declares for each User to set for themself, such a
 _Avoid_: user setting (confused with Settings preferences)
 
 **Automation lane**:
-Where a Plugin asks the Kernel rather than the Kernel asking it: the Kernel sends it Event batches and its Tick, and during those calls it calls the Kernel's few functions, each gated by a Plugin Permission the Admin granted, such as reading Watch State or deleting a title's media (ADR 0048).
-_Avoid_: automation API, scripting, host functions
+Where a Plugin acts on the Server on its own account rather than answering the Kernel: the Kernel sends it Event batches and its Tick, and it acts through Kernel functions (ADR 0048).
+_Avoid_: automation API, scripting
+
+**Kernel function**:
+One of the few things any Plugin may ask the Kernel for during any of its calls, each gated by a Plugin Permission the Admin granted, such as reading Watch State or deleting a title's media (ADR 0071).
+_Avoid_: host function, automation API
 
 **Tick**:
 The Kernel's call to an Automation Plugin on the schedule its Manifest sets, at most once a minute, carrying the Kernel's clock.
@@ -173,7 +177,7 @@ One thing a Plugin may ask the Kernel for, such as reading Watch State or deleti
 _Avoid_: scope, capability, Permission (alone, which is a User's)
 
 **Plugin Store**:
-The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through the Automation lane.
+The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through Kernel functions.
 _Avoid_: plugin database, KV, cache, plugin state
 
 **Plugin Log**:
