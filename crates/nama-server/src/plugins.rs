@@ -28,6 +28,7 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::PluginKind;
 use thiserror::Error;
 use tracing::{Instrument as _, Span, error, warn};
+use url::Url;
 
 use crate::{
     diagnostics,
@@ -54,7 +55,8 @@ pub struct Listed {
     pub id: PluginId,
     /// Whether it is Built-in or Installed.
     pub kind: PluginKind,
-    /// What it said about itself when the Server read it, without a logo the Server dropped, or
+    /// What it said about itself when the Server read it, without a logo, setup text, link or
+    /// licence the Server dropped, or
     /// why the Server refused it, in which case it can't be enabled.
     pub manifest: Result<Manifest, String>,
     /// Whether it has a settings check, which [`Registry::check_settings`] runs.
@@ -303,6 +305,65 @@ fn kept_logo(plugin: &PluginId, logo: &str) -> Option<String> {
     };
     warn!(plugin = %plugin, "dropped its logo: {why}");
     None
+}
+
+/// The most bytes a Manifest's homepage or source URL may have.
+const MAX_URL_BYTES: usize = 2 * 1024;
+/// The most bytes a Manifest's setup text may have.
+const MAX_SETUP_BYTES: usize = 4 * 1024;
+/// The most characters a Manifest's licence may have.
+const MAX_LICENSE_CHARS: usize = 128;
+
+/// Why a Manifest's text field is flawed, if it is.
+type Flaw = fn(&str) -> Option<String>;
+
+/// Empties each of `manifest`'s setup text, links and licence that is flawed, logging why, which
+/// leaves the Plugin otherwise as it was.
+fn drop_flawed_presentation(manifest: &mut Manifest) {
+    let checked: [(&str, &mut String, Flaw); 4] = [
+        ("setup_markdown", &mut manifest.setup_markdown, setup_flaw),
+        ("homepage_url", &mut manifest.homepage_url, url_flaw),
+        ("source_url", &mut manifest.source_url, url_flaw),
+        ("license", &mut manifest.license, license_flaw),
+    ];
+    // Empty is none, as protobuf sends a field left out.
+    for (field, value, flaw) in checked
+        .into_iter()
+        .filter(|(_, value, _)| !value.is_empty())
+    {
+        if let Some(why) = flaw(value) {
+            warn!(plugin = %manifest.id, "dropped its {field}: {why}");
+            value.clear();
+        }
+    }
+}
+
+fn setup_flaw(markdown: &str) -> Option<String> {
+    (markdown.len() > MAX_SETUP_BYTES).then(|| format!("it is over {MAX_SETUP_BYTES} bytes"))
+}
+
+/// Why `url` isn't an http or https URL a client may link to. Parsed as browsers do (WHATWG), so
+/// a scheme hidden behind spaces or tabs is still found.
+fn url_flaw(url: &str) -> Option<String> {
+    if url.len() > MAX_URL_BYTES {
+        return Some(format!("it is over {MAX_URL_BYTES} bytes"));
+    }
+    match Url::parse(url) {
+        Ok(url) if matches!(url.scheme(), "http" | "https") => None,
+        Ok(url) => Some(format!("its scheme is {}, not http or https", url.scheme())),
+        Err(err) => Some(format!("it isn't a URL: {err}")),
+    }
+}
+
+/// Why `license` isn't an SPDX expression, by its characters alone: whether its ids are SPDX's
+/// isn't checked, so a new licence needs no new Server.
+fn license_flaw(license: &str) -> Option<String> {
+    let allowed = |byte: u8| byte.is_ascii_alphanumeric() || b" .-+()".contains(&byte);
+    if !license.bytes().all(allowed) || !license.bytes().any(|byte| byte.is_ascii_alphanumeric()) {
+        return Some("it isn't an SPDX expression".to_owned());
+    }
+    (license.len() > MAX_LICENSE_CHARS)
+        .then(|| format!("it is over {MAX_LICENSE_CHARS} characters"))
 }
 
 /// `answer`, its error turned into a [`Failure`] once it is ready, for [`contain_call`] to await

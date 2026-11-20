@@ -114,6 +114,19 @@ pub struct Manifest {
     /// Kernel drops one over 64 KiB, with a DOCTYPE, or that isn't SVG, logging why; the Plugin
     /// is otherwise as it would be.
     pub logo_svg: Option<String>,
+    /// How to set the Plugin up, such as where to get an API key, as short Markdown that admins
+    /// see as text, never HTML. Empty if it gives none. The Kernel drops one over 4 KiB, logging
+    /// why.
+    pub setup_markdown: String,
+    /// The Plugin's homepage or docs. Empty if it gives none. The Kernel drops one that isn't an
+    /// http or https URL of at most 2 KiB, logging why.
+    pub homepage_url: String,
+    /// Where the Plugin's source lives, as [`Self::homepage_url`] is.
+    pub source_url: String,
+    /// The Plugin's licence as an SPDX expression, such as `MIT OR Apache-2.0`. Empty if it gives
+    /// none. The Kernel drops one over 128 characters or with characters besides ASCII letters,
+    /// digits, spaces and `.-+()`, logging why.
+    pub license: String,
     /// The Plugin Permissions it requests, which the Admin grants some or all of when enabling
     /// it; each [`Kernel`] function needs one.
     pub permissions: Vec<Permission>,
@@ -139,6 +152,10 @@ impl Manifest {
             personal_settings: SettingsSchema::default(),
             extension_points: Vec::new(),
             logo_svg: None,
+            setup_markdown: String::new(),
+            homepage_url: String::new(),
+            source_url: String::new(),
+            license: String::new(),
             permissions: Vec::new(),
             tick_every: None,
             title_source: None,

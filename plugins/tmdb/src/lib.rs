@@ -110,6 +110,10 @@ impl Plugin for Tmdb {
             personal_settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn TitleSource>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
+            setup_markdown: String::new(),
+            homepage_url: String::new(),
+            source_url: String::new(),
+            license: String::new(),
             permissions: Vec::new(),
             tick_every: None,
             title_source: Some(SourceManifest {
