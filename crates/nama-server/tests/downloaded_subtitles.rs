@@ -105,6 +105,41 @@ impl SubtitleSource for FakeSource {
     }
 }
 
+/// A subtitle source whose search panics, as a buggy Plugin's might.
+struct PanickingSource;
+
+impl Plugin for PanickingSource {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::provide::<dyn SubtitleSource>()],
+            ..Manifest::new(PluginId::from_static("panicking-subtitles"))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn SubtitleSource>(Priority::DEFAULT, Arc::new(Self));
+        Ok(())
+    }
+}
+
+impl SubtitleSource for PanickingSource {
+    #[expect(clippy::panic, reason = "it tests a source that panics")]
+    fn search<'a>(
+        &'a self,
+        _search: &'a SubtitleSearch,
+    ) -> BoxFuture<'a, Result<SubtitleResults, PluginError>> {
+        Box::pin(async { panic!("the source's search is broken") })
+    }
+
+    fn download<'a>(
+        &'a self,
+        _download: &'a SubtitleDownload,
+    ) -> BoxFuture<'a, Result<SubtitleFile, PluginError>> {
+        Box::pin(async { Err("it finds nothing to download".into()) })
+    }
+}
+
 /// A Server with the fake subtitle source enabled, holding Alien in 1080p, scanned and Matched,
 /// and that Version's id.
 struct Watching {
@@ -121,8 +156,13 @@ struct Watching {
 impl Watching {
     async fn start() -> Self {
         let source = FakeSource::default();
+        Self::start_with(source.clone(), Arc::new(source)).await
+    }
+
+    /// [`Self::start`] with `enabled` as the one subtitle source, keeping `source` to look at.
+    async fn start_with(source: FakeSource, enabled: Arc<dyn Plugin>) -> Self {
         let plugins = Registry::new();
-        plugins.enable(Arc::new(source.clone())).unwrap();
+        plugins.enable(enabled).unwrap();
         let path = std::env::var_os("PATH").unwrap_or_default();
         let ffmpeg = Ffmpeg::find(&Config::default(), &path);
         let builder = TestServer::builder().ffmpeg(ffmpeg).plugins(plugins);
@@ -221,13 +261,14 @@ impl Watching {
             .join(folder)
     }
 
-    /// Sets the mode of the Library's folder to `mode`.
+    /// Sets the mode of the Library's folder, and of the Movie's folder in it, to `mode`.
     #[cfg(unix)]
     fn set_folder_mode(&self, mode: u32) {
         use std::os::unix::fs::PermissionsExt;
-        let folder = self.fx.folder.join(ALIEN_1080P);
-        let folder = folder.parent().unwrap();
-        fs::set_permissions(folder, fs::Permissions::from_mode(mode)).unwrap();
+        let movie = self.fx.folder.join(ALIEN_1080P);
+        for folder in [movie.parent().unwrap(), &self.fx.folder] {
+            fs::set_permissions(folder, fs::Permissions::from_mode(mode)).unwrap();
+        }
     }
 }
 
@@ -289,6 +330,17 @@ async fn a_user_with_download_subtitles_finds_the_sources_subtitles_for_the_vers
 }
 
 #[tokio::test]
+async fn a_search_whose_every_source_panics_is_refused() {
+    let watching = Watching::start_with(FakeSource::default(), Arc::new(PanickingSource)).await;
+
+    assert_refused(
+        watching.search_as(&watching.playback()).await,
+        ErrorCode::Unavailable,
+        RefusalReason::REFUSAL_REASON_NO_SUBTITLE_SOURCE,
+    );
+}
+
+#[tokio::test]
 async fn a_downloaded_subtitle_is_the_versions_last_track_and_plays() {
     let watching = Watching::start().await;
 
@@ -308,7 +360,7 @@ async fn a_downloaded_subtitle_is_the_versions_last_track_and_plays() {
 
 #[cfg(unix)]
 #[tokio::test]
-async fn a_subtitle_downloads_for_a_version_in_a_read_only_folder() {
+async fn a_subtitle_downloads_for_a_version_in_a_read_only_library() {
     let watching = Watching::start().await;
     watching.set_folder_mode(0o555);
 

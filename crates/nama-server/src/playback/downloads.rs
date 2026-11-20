@@ -89,16 +89,24 @@ impl SubtitleDownloads {
                 })
         });
         let (mut found, mut failures, mut answered) = (Vec::new(), Vec::new(), false);
-        for Answer { plugin, result } in join_all(asked).await.into_iter().flatten() {
-            match result {
-                Ok(results) => {
+        for (source, answer) in sources.iter().zip(join_all(asked).await) {
+            match answer {
+                Some(Answer {
+                    plugin,
+                    result: Ok(results),
+                }) => {
                     answered = true;
                     found.extend(results.results.into_iter().map(|r| (plugin.clone(), r)));
                 }
-                Err(failure) => failures.push(failure.message),
+                Some(Answer {
+                    result: Err(failure),
+                    ..
+                }) => failures.push(failure.message),
+                // A source that panicked, and is disabled now, failed too.
+                None => failures.push(format!("{source} stopped working and was disabled")),
             }
         }
-        if !answered && !failures.is_empty() {
+        if !answered {
             return Err(Error::NoSource(failures.join("; ")));
         }
         Ok(found)
