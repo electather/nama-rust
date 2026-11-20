@@ -460,7 +460,7 @@ async fn a_plugins_logo_from_its_manifest_comes_through_list_and_get_plugin() {
 }
 
 #[tokio::test]
-async fn a_plugin_reaches_a_host_and_reads_its_answers_headers_once_a_url_setting_names_it_without_a_restart()
+async fn a_plugin_reaches_a_host_and_reads_its_answer_headers_once_a_url_setting_names_it_without_a_restart()
  {
     let log = Log::global();
     let server = http_server().await;

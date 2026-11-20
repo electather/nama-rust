@@ -975,7 +975,9 @@ impl Response {
 impl From<::extism_pdk::HttpResponse> for Response {
     fn from(response: ::extism_pdk::HttpResponse) -> Self {
         let status = response.status_code();
-        let headers = response.headers().clone().into_iter().collect();
+        let headers = (response.headers().iter())
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect();
         // Copied out and freed, so a large body isn't held twice for the rest of the call.
         let memory = response.into_memory();
         let body = memory.to_vec();
