@@ -8,6 +8,7 @@ mod surfaces;
 
 use std::{
     fs,
+    iter::successors,
     path::{Path, PathBuf},
 };
 
@@ -538,15 +539,17 @@ fn placement_problems_names_unplaced_twice_placed_and_gone_modules() {
     );
 }
 
-/// The test files among `paths`, crate-relative, that sit directly under `src/` beside a folder
-/// of their own in `folders`, the names of `src/`'s folders.
-fn stray_root_tests(paths: &[&str], folders: &[&str]) -> Vec<String> {
+/// A problem for each test file among `paths`, crate-relative, that sits at any depth under
+/// `src/` beside a folder of its own in `folders`, crate-relative folder paths.
+fn stray_tests(paths: &[&str], folders: &[&str]) -> Vec<String> {
     paths
         .iter()
+        .filter(|path| path.starts_with("src/"))
         .filter_map(|path| {
-            let stem = path.strip_prefix("src/")?.strip_suffix("_tests.rs")?;
-            (!stem.contains('/') && folders.contains(&stem)).then(|| {
-                format!("{path} sits beside src/{stem}/: move it to src/{stem}/{stem}_tests.rs")
+            let folder = path.strip_suffix("_tests.rs")?;
+            let (_, name) = folder.rsplit_once('/')?;
+            folders.contains(&folder).then(|| {
+                format!("{path} sits beside {folder}/: move it to {folder}/{name}_tests.rs")
             })
         })
         .collect()
@@ -554,35 +557,44 @@ fn stray_root_tests(paths: &[&str], folders: &[&str]) -> Vec<String> {
 
 /// The rule is "Unit tests sit beside their file" in `crates/nama-server/AGENTS.md`.
 #[test]
-fn an_area_roots_unit_tests_sit_in_its_folder() {
+fn a_file_with_a_folder_keeps_its_unit_tests_there() {
     let files = rust_files();
     let paths: Vec<&str> = files.iter().map(|file| file.path.as_str()).collect();
     let mut folders: Vec<&str> = paths
         .iter()
-        .filter_map(|path| path.strip_prefix("src/")?.split_once('/'))
-        .map(|(folder, _)| folder)
+        .flat_map(|path| successors(Some(*path), |path| Some(path.rsplit_once('/')?.0)).skip(1))
         .collect();
+    folders.sort_unstable();
     folders.dedup();
     assert!(
-        paths.contains(&"src/lib.rs") && folders.contains(&"library"),
-        "found no src/lib.rs or src/library/: the walk is checking nothing"
+        paths.contains(&"src/lib.rs") && folders.contains(&"src/playback/choices"),
+        "found no src/lib.rs or src/playback/choices/: the walk is checking nothing"
     );
-    let problems = stray_root_tests(&paths, &folders);
+    let problems = stray_tests(&paths, &folders);
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
 
 #[test]
-fn stray_root_tests_names_a_root_test_file_beside_its_folder() {
+fn stray_tests_names_a_test_file_beside_its_folder_at_any_depth() {
     let paths = [
         "src/scanner.rs",
         "src/scanner_tests.rs",
         "src/scanner/scanner_tests.rs",
         "src/db.rs",
         "src/db_tests.rs",
+        "src/playback/choices.rs",
+        "src/playback/choices_tests.rs",
+        "src/playback/choices/preferred_tests.rs",
+        "src/playback/autoplay_tests.rs",
     ];
+    let folders = ["src/scanner", "src/playback", "src/playback/choices"];
     assert_eq!(
-        stray_root_tests(&paths, &["scanner"]),
-        ["src/scanner_tests.rs sits beside src/scanner/: move it to src/scanner/scanner_tests.rs"]
+        stray_tests(&paths, &folders),
+        [
+            "src/scanner_tests.rs sits beside src/scanner/: move it to src/scanner/scanner_tests.rs",
+            "src/playback/choices_tests.rs sits beside src/playback/choices/: \
+             move it to src/playback/choices/choices_tests.rs",
+        ]
     );
 }
 

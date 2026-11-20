@@ -510,5 +510,5 @@ async fn cached(path: &Path) -> io::Result<Option<Vec<u8>>> {
 }
 
 #[cfg(test)]
-#[path = "subtitles_tests.rs"]
+#[path = "subtitles/subtitles_tests.rs"]
 mod tests;

@@ -679,7 +679,7 @@ impl Probing {
 }
 
 #[cfg(test)]
-#[path = "probing_tests.rs"]
+#[path = "probing/probing_tests.rs"]
 mod tests;
 
 #[cfg(test)]

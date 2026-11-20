@@ -713,5 +713,5 @@ fn invalid_qualities(err: QualitiesInvalid, plugin: &PluginId) -> ConnectError {
 }
 
 #[cfg(test)]
-#[path = "plugins_tests.rs"]
+#[path = "plugins/plugins_tests.rs"]
 mod tests;
