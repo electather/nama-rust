@@ -421,7 +421,7 @@ fn code(text: impl Display) -> String {
 }
 
 /// Seconds since the Unix epoch of a UTC `YYYY-MM-DDTHH:MM:SSZ` time, as GitHub writes them.
-fn unix_seconds(time: &str) -> Option<i64> {
+pub(crate) fn unix_seconds(time: &str) -> Option<i64> {
     let (date, clock) = time.strip_suffix('Z')?.split_once('T')?;
     let numbers = |text: &str, separator| -> Option<Vec<i64>> {
         text.split(separator)

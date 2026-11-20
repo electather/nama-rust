@@ -135,11 +135,11 @@ Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test`
 
 ### Flaky and slow tests
 
-CI runs nextest with its `ci` profile ([`.config/nextest.toml`](.config/nextest.toml)), and vitest with `CI` set, so a failed test is retried twice there; locally it isn't. The [`test-report`](.github/workflows/test-report.yml) workflow then records every test's result on the `test-history` branch, summarises the run's flaky and slow tests, and opens or updates a `needs-triage` issue per flaky test (ADR 0022). To ask the history your own questions:
+CI runs nextest with its `ci` profile ([`.config/nextest.toml`](.config/nextest.toml)), and vitest with `CI` set, so a failed test is retried twice there; locally it isn't. The [`test-report`](.github/workflows/test-report.yml) workflow then records every test's result on the ref `refs/ci/test-history`, summarises the run's flaky and slow tests, and opens or updates a `needs-triage` issue per flaky test (ADR 0022). It holds one file per day for the last 60 days, and isn't a branch so clones skip it (ADR 0073). To ask the history your own questions:
 
 ```sh
-git fetch origin test-history
-git show origin/test-history:2026-11.jsonl | jq -c 'select(.outcome != "pass")'
+git fetch origin refs/ci/test-history:refs/ci/test-history
+git show ci/test-history:2026-11-20.jsonl | jq -c 'select(.outcome != "pass")'
 ```
 
 ## License

@@ -1,6 +1,7 @@
-//! Turns one CI run's test reports into history lines, a job summary and flaky-test issue
-//! actions. `.github/workflows/test-report.yml` runs it and does the git and `gh` work around it.
+//! Turns one CI run's test reports into history lines, their copy for Grafana Cloud, a job summary
+//! and flaky-test issue actions. `.github/workflows/test-report.yml` runs it and does the git and `gh` work around it.
 
+mod otlp;
 mod report;
 mod results;
 
@@ -15,7 +16,8 @@ use serde::Serialize;
 
 use crate::report::{HistoryLine, Issue, Run};
 
-/// Reads the inputs, writes `history.jsonl`, `summary.md` and `issue-actions.jsonl` to `--out`.
+/// Reads the inputs, writes `history.jsonl`, `otlp-logs.json`, `summary.md` and
+/// `issue-actions.jsonl` to `--out`.
 #[derive(Debug, Parser)]
 struct Args {
     /// The CI run: the `workflow_run` object of the webhook payload, as JSON.
@@ -65,6 +67,10 @@ fn main() -> anyhow::Result<()> {
     let report = report::report(results, &run, &history, &issues)?;
 
     fs::write(args.out.join("history.jsonl"), json_lines(&report.lines)?)?;
+    fs::write(
+        args.out.join("otlp-logs.json"),
+        otlp::logs(&report.lines)?.to_string(),
+    )?;
     fs::write(args.out.join("summary.md"), report.summary)?;
     fs::write(
         args.out.join("issue-actions.jsonl"),

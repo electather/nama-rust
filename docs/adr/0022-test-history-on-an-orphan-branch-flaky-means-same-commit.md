@@ -1,6 +1,6 @@
 # Test history lives on an orphan branch, and flaky means passed and failed on one commit
 
-_Amended by [ADR 0073](0073-test-history-keeps-60-days-in-one-commit-and-grafana-gets-a-copy.md): the history is one file per day, holds only the last 60 days in a single commit, and a copy of each run goes to Grafana Cloud._
+_Amended by [ADR 0073](0073-test-history-keeps-60-days-in-one-commit-and-grafana-gets-a-copy.md): the history is one file per day, holds only the last 60 days in a single commit on the ref `refs/ci/test-history` rather than a branch, and a copy of each run goes to Grafana Cloud._
 
 Every CI run's test results go into a history that's kept forever, so flaky and slow tests show up across runs. A `workflow_run` workflow, `test-report`, reads the run's test reports as data and appends one JSON line per test to a month's file on the orphan branch `test-history`. Git and `jq` are all it takes to read it. The workflow alone holds the write token: CI stays read-only, as it must for Dependabot PRs, and PR code never runs next to write access.
 

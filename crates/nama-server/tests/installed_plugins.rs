@@ -191,7 +191,7 @@ async fn http_server() -> String {
             // A GET's head comes in one read, and its answer doesn't depend on it.
             let mut head = [0; 4096];
             let _read = stream.read(&mut head).await;
-            let reply = b"HTTP/1.1 204 No Content\r\nconnection: close\r\n\r\n";
+            let reply = b"HTTP/1.1 204 No Content\r\nconnection: close\r\nRetry-After: 120\r\n\r\n";
             let _written = stream.write_all(reply).await;
         }
     });
@@ -460,7 +460,8 @@ async fn a_plugins_logo_from_its_manifest_comes_through_list_and_get_plugin() {
 }
 
 #[tokio::test]
-async fn a_plugin_reaches_a_host_once_a_url_setting_names_it_without_a_restart() {
+async fn a_plugin_reaches_a_host_and_reads_its_answer_headers_once_a_url_setting_names_it_without_a_restart()
+ {
     let log = Log::global();
     let server = http_server().await;
     let started = Started::new().await;
@@ -482,14 +483,15 @@ async fn a_plugin_reaches_a_host_once_a_url_setting_names_it_without_a_restart()
     log.wait_for(&["observer failed", &refused], 1).await;
     assert!(started.listed("test-plugin").await.unwrap().enabled);
 
-    // Named on the Plugins page, the host is reachable at once.
+    // Named on the Plugins page, the host is reachable at once, and its answer's headers reach
+    // the Plugin.
     started
         .save_settings(&[("url", &server), ("fetch", &server)])
         .await
         .unwrap();
     started.scan(library).await;
-    log.wait_for(&[&format!("test-plugin fetched {server}: 204")], 1)
-        .await;
+    let fetched = format!("test-plugin fetched {server}: 204, Retry-After 120");
+    log.wait_for(&[&fetched], 1).await;
 
     // Without the URL setting, it is refused again.
     started.save_settings(&[("fetch", &server)]).await.unwrap();

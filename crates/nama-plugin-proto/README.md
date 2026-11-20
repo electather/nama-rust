@@ -71,7 +71,8 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `HomeRowService` 1.1.0 adds the optional `user_rows` export, taking `UserRowsAsked` with one User's Personal settings and returning that User's own `HomeRows`, and makes `shared_rows` optional. `nama_pdk::home_row_source!` now lists the exports it makes: `home_row_source!(Source, [shared_rows])`.
   `CONTRACT_VERSION` 0.5.1: `shared_rows` may run for 60 seconds rather than 5, on a compile of its own, so a refresh that hangs doesn't interrupt the Plugin's other calls.
   `subtitle_source.proto` adds `SubtitleSourceService` 1.0.0, a subtitle source whose required `subtitle_search` and `subtitle_download` exports search an outside service for a Version's subtitles and download one (ADR 0067).
-  `CONTRACT_VERSION` 0.5.2: any Plugin, whatever its `points`, may call the Kernel's functions its granted Permissions allow, which are versioned with `CONTRACT_VERSION` rather than `AutomationService`, now covering only `Tick` (ADR 0071).
+  `CONTRACT_VERSION` 0.5.2: a Plugin gets the headers of the responses to its HTTP requests.
+  `CONTRACT_VERSION` 0.5.3: any Plugin, whatever its `points`, may call the Kernel's functions its granted Permissions allow, which are versioned with `CONTRACT_VERSION` rather than `AutomationService`, now covering only `Tick` (ADR 0071).
 
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 
@@ -92,7 +93,7 @@ The Server sets this up in [`crates/nama-server/src/plugins/wasm/load.rs`](../na
 - **Three crashes in a row disable the Plugin.** Only an Extension Point's export crashes: when it runs past a limit or traps, not when it returns an error. Each Extension Point counts its own crashes, except that a Movie and a Show Fulfiller count as one.
 - **Settings as text.** `check_settings()`, `check_personal_settings()` and the Extension Points' exports find each setting in the Extism config under its key, as text: a bool as `true` or `false`, a number in decimal, a LIBRARIES setting's Library ids in decimal joined by `,` (empty for none). A setting holds what the admin set, or its Manifest default if the admin set nothing; one with neither is not in the config. `check_settings()` gets the settings being tested, which may be unsaved, or being saved; when an admin replaces Qualities, it gets the stored ones. `manifest()` gets no settings. Personal settings are never in the config; see above.
 - **HTTP to named hosts only.** A Plugin may send HTTP requests only to the hosts its Manifest's `allowed_hosts` names and the host of each of its URL settings: the saved settings for an Extension Point's exports and `check_personal_settings()`, the settings `check_settings()` is given for that call. `manifest()` may send none.
-- **No HTTP response headers.** The Kernel doesn't pass a response's headers to the Plugin: `compile_with_kernel` leaves Extism's `with_http_response_headers` off.
+- **HTTP response headers.** A Plugin gets the headers of each response to its own HTTP requests, such as `Retry-After` or `ratelimit-*` on a 429, so it can keep to an outside service's rate limits (ADR 0067): the Server turns on Extism's `with_http_response_headers`. A header sent more than once reaches it with its last value only, and one whose value isn't visible ASCII not at all. `nama_pdk::Response::header` reads one.
 
 ## Generated code is checked in
 

@@ -358,6 +358,7 @@ fn build(
     let builder = KERNEL_IMPORTS.iter().fold(
         PluginBuilder::new(manifest)
             .with_cache_config(cache_config)
+            .with_http_response_headers(true)
             .with_function_in_namespace("nama", "now", [], [ValType::I64], UserData::new(()), now)
             .with_function_in_namespace(
                 "nama",
