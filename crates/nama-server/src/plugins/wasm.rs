@@ -203,8 +203,9 @@ impl Running {
     }
 
     /// [`Self::call_blocking`], handing back why it failed for the Registry to log or the caller
-    /// to show, such as a Request's reason for being Failed: in the Plugin's own words, or
-    /// starting "it crashed: ". Counts its crashes as [`Self::count_crash`] does.
+    /// to show, such as a Request's reason for being Failed: a crash starts "it crashed: ", and
+    /// anything else, such as the Plugin's own words or a host function's refusal, doesn't.
+    /// Counts its crashes as [`Self::count_crash`] does.
     async fn call_counted(
         &self,
         name: &'static str,

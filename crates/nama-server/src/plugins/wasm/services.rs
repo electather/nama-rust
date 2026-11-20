@@ -75,7 +75,7 @@ impl Point {
     }
 }
 
-const fn provider(service: &'static str, name: &'static str, export: &'static str) -> Method {
+const fn required(service: &'static str, name: &'static str, export: &'static str) -> Method {
     Method {
         service,
         name,
@@ -85,37 +85,37 @@ const fn provider(service: &'static str, name: &'static str, export: &'static st
     }
 }
 
-/// [`provider`], for a method a Plugin built before it doesn't have.
+/// [`required`], for a method a Plugin built before it doesn't have.
 const fn optional(service: &'static str, name: &'static str, export: &'static str) -> Method {
     Method {
         optional: true,
-        ..provider(service, name, export)
+        ..required(service, name, export)
     }
 }
 
-pub(super) const MOVIE_FULFILL: Method = provider(services::MOVIE_FULFILLER, "Fulfill", "fulfill");
+pub(super) const MOVIE_FULFILL: Method = required(services::MOVIE_FULFILLER, "Fulfill", "fulfill");
 pub(super) const MOVIE_STOP_MONITORING: Method = optional(
     services::MOVIE_FULFILLER,
     "StopMonitoring",
     "stop_monitoring",
 );
 pub(super) const MOVIE_PROGRESS: Method =
-    provider(services::MOVIE_FULFILLER, "Progress", "progress");
-pub(super) const SHOW_FULFILL: Method = provider(services::SHOW_FULFILLER, "Fulfill", "fulfill");
+    required(services::MOVIE_FULFILLER, "Progress", "progress");
+pub(super) const SHOW_FULFILL: Method = required(services::SHOW_FULFILLER, "Fulfill", "fulfill");
 pub(super) const SHOW_STOP_MONITORING: Method = optional(
     services::SHOW_FULFILLER,
     "StopMonitoring",
     "stop_monitoring",
 );
-pub(super) const SHOW_PROGRESS: Method = provider(services::SHOW_FULFILLER, "Progress", "progress");
-pub(super) const SHOW_UNFOLLOW: Method = provider(services::SHOW_FULFILLER, "Unfollow", "unfollow");
-pub(super) const DELIVER: Method = provider(services::NOTIFIER, "Deliver", "deliver");
+pub(super) const SHOW_PROGRESS: Method = required(services::SHOW_FULFILLER, "Progress", "progress");
+pub(super) const SHOW_UNFOLLOW: Method = required(services::SHOW_FULFILLER, "Unfollow", "unfollow");
+pub(super) const DELIVER: Method = required(services::NOTIFIER, "Deliver", "deliver");
 pub(super) const START_CONNECTION: Method =
-    provider(services::CONNECTOR, "StartConnection", "start_connection");
+    required(services::CONNECTOR, "StartConnection", "start_connection");
 pub(super) const POLL_CONNECTION: Method =
-    provider(services::CONNECTOR, "PollConnection", "poll_connection");
+    required(services::CONNECTOR, "PollConnection", "poll_connection");
 pub(super) const OBSERVE_EVENTS: Method =
-    provider(services::EVENT_OBSERVER, "ObserveEvents", "observe_events");
+    required(services::EVENT_OBSERVER, "ObserveEvents", "observe_events");
 pub(super) const TITLE_SEARCH: Method = optional(services::TITLE_SOURCE, "Search", "title_search");
 pub(super) const TITLE_MOVIE: Method = optional(services::TITLE_SOURCE, "Movie", "title_movie");
 pub(super) const TITLE_SHOW: Method = optional(services::TITLE_SOURCE, "Show", "title_show");
@@ -136,14 +136,14 @@ pub(super) const RECOGNISE_FILE: Method =
     optional(services::RECOGNISER, "RecogniseFile", "recognise_file");
 pub(super) const TICK: Method = Method {
     limit: TICK_TIMEOUT,
-    ..provider(services::AUTOMATION, "Tick", "tick")
+    ..required(services::AUTOMATION, "Tick", "tick")
 };
 
-/// [`provider`], for a blob store method, which carries a whole object.
+/// [`required`], for a blob store method, which carries a whole object.
 const fn blob(name: &'static str, export: &'static str) -> Method {
     Method {
         limit: BLOB_TIMEOUT,
-        ..provider(services::BLOB_STORE, name, export)
+        ..required(services::BLOB_STORE, name, export)
     }
 }
 
@@ -154,12 +154,12 @@ pub(super) const BLOB_LIST: Method = blob("List", "blob_list");
 pub(super) const BLOB_EXISTS: Method = blob("Exists", "blob_exists");
 pub(super) const SHARED_ROWS: Method = Method {
     limit: HOME_ROWS_TIMEOUT,
-    ..provider(services::HOME_ROW, "SharedRows", "shared_rows")
+    ..required(services::HOME_ROW, "SharedRows", "shared_rows")
 };
 pub(super) const SUBTITLE_SEARCH: Method =
-    provider(services::SUBTITLE_SOURCE, "Search", "subtitle_search");
+    required(services::SUBTITLE_SOURCE, "Search", "subtitle_search");
 pub(super) const SUBTITLE_DOWNLOAD: Method =
-    provider(services::SUBTITLE_SOURCE, "Download", "subtitle_download");
+    required(services::SUBTITLE_SOURCE, "Download", "subtitle_download");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[

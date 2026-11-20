@@ -1,8 +1,6 @@
 use std::{
     collections::HashSet,
-    path::PathBuf,
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 use nama_plugin_api::{
@@ -17,7 +15,7 @@ use nama_plugin_api::{
 
 use super::super::{
     Installed,
-    listing::Found,
+    listing::{listing, until_failing},
     load::{load, write_cache_config},
 };
 use crate::{log_capture::CapturedLog, plugins::Registry};
@@ -238,9 +236,7 @@ async fn an_enabled_plugin_is_granted_only_what_its_manifest_requests_once_the_k
 #[tokio::test]
 async fn an_installed_automations_failed_tick_is_logged_once() {
     let data_dir = tempfile::tempdir().unwrap();
-    let registry = Registry::new();
-    let found = (PathBuf::from("test.wasm"), Ok(automation_plugin(&data_dir)));
-    registry.list_installed(Found(vec![found]));
+    let registry = listing(automation_plugin(&data_dir));
     registry.serve_kernel(Arc::new(|_, _| Arc::new(Fake::default())));
     let id = PluginId::from_static("test-plugin");
     let points = registry.extension_points();
@@ -248,16 +244,7 @@ async fn an_installed_automations_failed_tick_is_logged_once() {
     // The test's runtime has one thread, so the tick loop logs to it.
     let log = CapturedLog::start();
     registry.enable_by_id(&id, Settings::default()).unwrap();
-    // The tick runs on a blocking thread; the loop logs its failure as it is recorded.
-    for _ in 0..500 {
-        if points
-            .failing(&id, PointKey::provide::<dyn Automation>())
-            .is_some()
-        {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    until_failing(&points, &id, PointKey::provide::<dyn Automation>()).await;
     let logged = log.finish();
 
     let failed: Vec<&str> = logged
