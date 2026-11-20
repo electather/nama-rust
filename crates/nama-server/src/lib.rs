@@ -32,6 +32,7 @@ mod web;
 
 use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 
+use nama_plugin_api::PluginId;
 use tokio::net::TcpListener;
 
 use crate::{
@@ -45,7 +46,7 @@ use crate::{
     library::{Contents, CustomImages, LocalImages},
     playback::{PreviewFrames, Probing, RunningPlans, Segments, SubtitleCache},
     plugin_settings::PluginSettings,
-    plugins::{ExtensionPoints, PluginBlobs},
+    plugins::PluginBlobs,
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
@@ -145,7 +146,7 @@ pub fn serve(
     );
     let automation = Automation::serve(Arc::clone(&db), scanner.clone(), points);
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
-    let load_settings = load_settings(settings.clone(), images.clone(), plugins.extension_points());
+    let load_settings = load_settings(settings.clone(), images.clone(), plugins.clone());
     let app = api::router(
         config,
         db,
@@ -223,18 +224,22 @@ async fn fill_sort_titles(contents: &Contents) {
     }
 }
 
-/// Reads the Server settings, logging a failure and going on with the defaults, has `images`
-/// keep its originals in the store they name, then sweeps the segment files and uploads an earlier
-/// run left.
-async fn load_settings(settings: Settings, images: ImageStore, points: ExtensionPoints) {
+/// Reads the Server settings, logging a failure and going on with the defaults, drops the default
+/// Home layout's rows of Plugins uninstalled since, has `images` keep its originals in the store
+/// they name, then sweeps the segment files and uploads an earlier run left.
+async fn load_settings(settings: Settings, images: ImageStore, plugins: PluginSettings) {
     if let Err(err) = settings.load().await {
         tracing::error!(
             "reading the Server settings failed, so each is its default and notifications have \
              no links: {err}"
         );
     }
+    let installed = |plugin: &PluginId| plugins.has(plugin);
+    if let Err(err) = settings.forget_uninstalled(installed).await {
+        tracing::error!("could not drop uninstalled Plugins' rows from the Home layout: {err}");
+    }
     if let Some(plugin) = settings.now().image_store {
-        let blobs = PluginBlobs::new(points, plugin.clone());
+        let blobs = PluginBlobs::new(plugins.extension_points(), plugin.clone());
         // Kept anyway (ADR 0052): the images come back once the Plugin is enabled again.
         if !blobs.is_served() {
             tracing::warn!(

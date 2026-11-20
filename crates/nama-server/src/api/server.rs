@@ -8,27 +8,31 @@ use connectrpc::{
 };
 use nama_plugin_api::{PluginId, subtitle_source::SubtitleSource};
 use nama_proto::nama::v1::{
-    self as proto, FoundHardware, FoundProgram, GetImageSettingsRequest, GetImageSettingsResponse,
+    self as proto, FoundHardware, FoundProgram, GetDefaultHomeLayoutRequest,
+    GetDefaultHomeLayoutResponse, GetImageSettingsRequest, GetImageSettingsResponse,
     GetPlaybackSettingsRequest, GetPlaybackSettingsResponse, GetPlaybackStatusRequest,
     GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
     GetServerSettingsRequest, GetServerSettingsResponse,
-    HardwareAcceleration as HardwareAccelerationProto, ImageStoreSwitch, ListPlaysRequest,
-    ListPlaysResponse, Play, PlaybackMethod, RefusalReason, ServerService, ServerSettings,
-    StopPlayRequest, StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse,
-    ToneMapping, TranscodeHardware, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
+    HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow, ImageStoreSwitch,
+    ListPlaysRequest, ListPlaysResponse, Play, PlaybackMethod, RefusalReason, ServerService,
+    ServerSettings, SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse, StopPlayRequest,
+    StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse, ToneMapping,
+    TranscodeHardware, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
     UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
-    UpdateServerSettingsResponse,
+    UpdateServerSettingsResponse, home_layout_row::Row as LayoutRow,
 };
 
 use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
+    home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     playback::{
         MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto,
     },
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
-        self, HardwareChoice, ImageValues, Invalid, PickedGpu, PlaybackChange, PlaybackValues,
+        self, HardwareChoice, HomeLayout, HomeRowId, ImageValues, Invalid, PickedGpu, PlacedRow,
+        PlaybackChange, PlaybackValues,
     },
     users::Users,
 };
@@ -44,6 +48,8 @@ pub(super) struct ServerServiceHandler {
     pub(super) ffmpeg: Arc<Ffmpeg>,
     pub(super) images: ImageStore,
     pub(super) points: ExtensionPoints,
+    /// Lists the Home rows the default Home layout places.
+    pub(super) home_rows: HomeRows,
     /// Where local disk keeps the images.
     pub(super) data_dir: PathBuf,
     /// Whether the Server exports Diagnostics, so the web app records its own.
@@ -222,6 +228,38 @@ impl ServerService for ServerServiceHandler {
         })
     }
 
+    async fn get_default_home_layout(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetDefaultHomeLayoutRequest>,
+    ) -> ServiceResult<GetDefaultHomeLayoutResponse> {
+        Response::ok(GetDefaultHomeLayoutResponse {
+            layout: self.default_home_layout().await?.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn set_default_home_layout(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SetDefaultHomeLayoutRequest>,
+    ) -> ServiceResult<SetDefaultHomeLayoutResponse> {
+        let layout = request.to_owned_message().layout.into_option();
+        let layout = layout.ok_or_else(|| {
+            refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "the layout to save is missing",
+            )
+            .field("layout")
+        })?;
+        let layout = home_layout_from_proto(&layout)?;
+        (self.settings.set_default_home_layout(layout).await).map_err(database_failed)?;
+        Response::ok(SetDefaultHomeLayoutResponse {
+            layout: self.default_home_layout().await?.into(),
+            ..Default::default()
+        })
+    }
+
     async fn switch_image_store(
         &self,
         _ctx: RequestContext,
@@ -325,6 +363,23 @@ fn play_to_proto(play: PlayNow) -> Play {
 }
 
 impl ServerServiceHandler {
+    /// The default Home layout with every Home row Home could show now, as the API has it.
+    async fn default_home_layout(&self) -> Result<proto::HomeLayout, ConnectError> {
+        let placeable = self.home_rows.placeable().await.map_err(database_failed)?;
+        let rows = std::iter::once((HomeRowId::ContinueWatching, String::new()))
+            .chain(placeable)
+            .collect();
+        let layout = self.settings.now().default_home_layout;
+        let rows = layout.arrange(rows);
+        Ok(proto::HomeLayout {
+            featured_hidden: !layout.featured_shown,
+            rows: (rows.into_iter())
+                .map(|((id, heading), shown)| layout_row_to_proto(id, heading, shown))
+                .collect(),
+            ..Default::default()
+        })
+    }
+
     /// The image settings `values` as the API has them, with the store in use.
     fn image_settings_to_proto(&self, values: ImageValues) -> proto::ImageSettings {
         proto::ImageSettings {
@@ -335,6 +390,70 @@ impl ServerServiceHandler {
             ..Default::default()
         }
     }
+}
+
+/// A row of a Home layout, headed `heading` if a Plugin shares it, as the API has it.
+fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayoutRow {
+    let row = match id {
+        HomeRowId::ContinueWatching => {
+            LayoutRow::Kernel(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into())
+        }
+        HomeRowId::Shared { plugin, key } => LayoutRow::Plugin(Box::new(proto::PluginHomeRow {
+            plugin_id: plugin.to_string(),
+            key,
+            heading,
+            ..Default::default()
+        })),
+        HomeRowId::UsersOwn { plugin } => LayoutRow::PluginUsersRows(plugin.to_string()),
+    };
+    HomeLayoutRow {
+        row: Some(row),
+        hidden: !shown,
+        ..Default::default()
+    }
+}
+
+/// The Home layout `layout` asks for: refused when a row names none, or a Kernel row the Server
+/// doesn't know.
+fn home_layout_from_proto(layout: &proto::HomeLayout) -> Result<HomeLayout, ConnectError> {
+    let place = |placed: &HomeLayoutRow| {
+        let row = match &placed.row {
+            Some(LayoutRow::Kernel(kernel)) => match kernel.as_known() {
+                Some(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING) => {
+                    HomeRowId::ContinueWatching
+                }
+                _ => {
+                    return Err(unknown_enum_value(
+                        "layout.rows",
+                        "the Kernel row must be Continue Watching",
+                    ));
+                }
+            },
+            Some(LayoutRow::Plugin(row)) => HomeRowId::Shared {
+                plugin: PluginId::from(row.plugin_id.clone()),
+                key: row.key.clone(),
+            },
+            Some(LayoutRow::PluginUsersRows(plugin)) => HomeRowId::UsersOwn {
+                plugin: PluginId::from(plugin.clone()),
+            },
+            None => {
+                return Err(refuse(
+                    RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                    "each row of the layout must name a Home row",
+                )
+                .field("layout.rows")
+                .into());
+            }
+        };
+        Ok(PlacedRow {
+            row,
+            shown: !placed.hidden,
+        })
+    };
+    Ok(HomeLayout {
+        featured_shown: !layout.featured_hidden,
+        rows: layout.rows.iter().map(place).collect::<Result<_, _>>()?,
+    })
 }
 
 /// A switch to another image store as the API has it.

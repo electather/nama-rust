@@ -29,6 +29,7 @@ import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$s
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
 import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
+import { Route as MemberAdminAdminHomeRouteImport } from './routes/_member/_admin/admin/home'
 import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
 import { Route as MemberAdminAdminPlaybackRouteImport } from './routes/_member/_admin/admin/playback'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
@@ -142,6 +143,11 @@ const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => MemberAdminRoute,
 } as any)
+const MemberAdminAdminHomeRoute = MemberAdminAdminHomeRouteImport.update({
+  id: '/admin/home',
+  path: '/admin/home',
+  getParentRoute: () => MemberAdminRoute,
+} as any)
 const MemberAdminAdminNeedsAMatchRoute =
   MemberAdminAdminNeedsAMatchRouteImport.update({
     id: '/admin/needs-a-match',
@@ -251,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/code/': typeof MemberCodeIndexRoute
   '/requests/': typeof MemberRequestsIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
+  '/admin/home': typeof MemberAdminAdminHomeRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
@@ -283,6 +290,7 @@ export interface FileRoutesByTo {
   '/code': typeof MemberCodeIndexRoute
   '/requests': typeof MemberRequestsIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
+  '/admin/home': typeof MemberAdminAdminHomeRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
@@ -321,6 +329,7 @@ export interface FileRoutesById {
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_member/requests/': typeof MemberRequestsIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
+  '/_member/_admin/admin/home': typeof MemberAdminAdminHomeRoute
   '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/_member/_admin/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
@@ -357,6 +366,7 @@ export interface FileRouteTypes {
     | '/code/'
     | '/requests/'
     | '/sign-in/'
+    | '/admin/home'
     | '/admin/needs-a-match'
     | '/admin/playback'
     | '/admin/users'
@@ -389,6 +399,7 @@ export interface FileRouteTypes {
     | '/code'
     | '/requests'
     | '/sign-in'
+    | '/admin/home'
     | '/admin/needs-a-match'
     | '/admin/playback'
     | '/admin/users'
@@ -426,6 +437,7 @@ export interface FileRouteTypes {
     | '/_member/code/'
     | '/_member/requests/'
     | '/_signed-out/sign-in/'
+    | '/_member/_admin/admin/home'
     | '/_member/_admin/admin/needs-a-match'
     | '/_member/_admin/admin/playback'
     | '/_member/_admin/admin/users'
@@ -591,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminAdminIndexRouteImport
       parentRoute: typeof MemberAdminRoute
     }
+    '/_member/_admin/admin/home': {
+      id: '/_member/_admin/admin/home'
+      path: '/admin/home'
+      fullPath: '/admin/home'
+      preLoaderRoute: typeof MemberAdminAdminHomeRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
     '/_member/_admin/admin/needs-a-match': {
       id: '/_member/_admin/admin/needs-a-match'
       path: '/admin/needs-a-match'
@@ -700,6 +719,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface MemberAdminRouteChildren {
+  MemberAdminAdminHomeRoute: typeof MemberAdminAdminHomeRoute
   MemberAdminAdminNeedsAMatchRoute: typeof MemberAdminAdminNeedsAMatchRoute
   MemberAdminAdminPlaybackRoute: typeof MemberAdminAdminPlaybackRoute
   MemberAdminAdminUsersRoute: typeof MemberAdminAdminUsersRoute
@@ -711,6 +731,7 @@ interface MemberAdminRouteChildren {
 }
 
 const MemberAdminRouteChildren: MemberAdminRouteChildren = {
+  MemberAdminAdminHomeRoute: MemberAdminAdminHomeRoute,
   MemberAdminAdminNeedsAMatchRoute: MemberAdminAdminNeedsAMatchRoute,
   MemberAdminAdminPlaybackRoute: MemberAdminAdminPlaybackRoute,
   MemberAdminAdminUsersRoute: MemberAdminAdminUsersRoute,

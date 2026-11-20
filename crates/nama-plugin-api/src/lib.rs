@@ -43,6 +43,8 @@ use std::{
     time::Duration,
 };
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     automation::{Kernel, Permission},
     settings::{PersonalSettingsCheck, Settings, SettingsCheck, SettingsSchema},
@@ -57,7 +59,8 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type PluginError = Box<dyn Error + Send + Sync>;
 
 /// A Plugin's stable, unique name, such as `log-events`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct PluginId(Cow<'static, str>);
 
 impl PluginId {

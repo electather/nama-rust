@@ -3,7 +3,7 @@
 //! playback writes segment files to, how far behind playback it keeps them, the most Transcodes it
 //! runs at once, what they run on, and the default Playback Limit for remote playback; and whether
 //! Posters and Backdrops are resized, how much disk the resized copies take, and which store
-//! keeps the images.
+//! keeps the images; and the default Home layout.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
@@ -19,6 +19,7 @@ use nama_plugin_api::{
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use thiserror::Error;
+use tracing::warn;
 use url::Url;
 
 use crate::{
@@ -26,8 +27,10 @@ use crate::{
     ffmpeg::{Accel, Hardware},
 };
 
+mod home_layout;
 mod playback;
 
+pub(crate) use home_layout::{HomeLayout, HomeRowId, PlacedRow};
 pub(crate) use playback::{
     HardwareChoice, PickedGpu, PlaybackChange, PlaybackLimit, PlaybackSettings, PlaybackValues,
 };
@@ -54,6 +57,7 @@ pub(crate) struct Values {
     pub(crate) images: ImageValues,
     /// The Plugin keeping the image store's originals, or `None` for local disk.
     pub(crate) image_store: Option<PluginId>,
+    pub(crate) default_home_layout: HomeLayout,
 }
 
 /// One value of every image setting.
@@ -148,7 +152,7 @@ impl Settings {
         let stored = sqlx::query!(
             "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,
                     hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,
-                    resize_images, resized_cache_mib, image_store_plugin
+                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout
              FROM server_settings"
         )
         .fetch_optional(self.db.reader())
@@ -171,6 +175,13 @@ impl Settings {
                 resized_cache_mib: stored.resized_cache_mib.and_then(non_zero),
             },
             image_store: plugin_named(stored.image_store_plugin),
+            default_home_layout: (stored.default_home_layout)
+                .and_then(|json| {
+                    let read = serde_json::from_str(&json);
+                    read.inspect_err(|err| warn!("the default Home layout reads as none: {err}"))
+                        .ok()
+                })
+                .unwrap_or_default(),
         });
         *self.values.write().unwrap_or_else(PoisonError::into_inner) = values;
         Ok(())
@@ -394,6 +405,62 @@ impl Settings {
         .await
     }
 
+    /// Stores `layout` as the default Home layout and uses it from now on, keeping each row the
+    /// one it replaces places and `layout` doesn't, as an editor doesn't see a disabled Plugin's
+    /// rows (ADR 0077).
+    ///
+    /// # Errors
+    ///
+    /// If storing it fails.
+    pub(crate) async fn set_default_home_layout(&self, layout: HomeLayout) -> sqlx::Result<()> {
+        let values = Arc::clone(&self.values);
+        let merged = layout.clone();
+        self.store(
+            // Read on the writer, so a layout another save stored meanwhile is the one kept from.
+            move |tx| {
+                let before = &read(&values).default_home_layout;
+                let stored = to_json(&merged.keeping_unnamed(before));
+                Box::pin(async move { store_default_home_layout(tx, stored?).await })
+            },
+            move |values| {
+                values.default_home_layout = layout.keeping_unnamed(&values.default_home_layout);
+            },
+        )
+        .await
+    }
+
+    /// Drops the default Home layout's rows of each Plugin the Server no longer `has`, as it was
+    /// uninstalled (ADR 0077).
+    ///
+    /// # Errors
+    ///
+    /// If storing the layout without them fails.
+    pub(crate) async fn forget_uninstalled(
+        &self,
+        has: impl Fn(&PluginId) -> bool,
+    ) -> sqlx::Result<()> {
+        let gone: Vec<PluginId> = (read(&self.values).default_home_layout.rows.iter())
+            .filter_map(|placed| placed.row.plugin())
+            .filter(|plugin| !has(plugin))
+            .cloned()
+            .collect();
+        if gone.is_empty() {
+            return Ok(());
+        }
+        let values = Arc::clone(&self.values);
+        let forgotten = gone.clone();
+        self.store(
+            // Read on the writer, so a layout saved meanwhile loses only these rows.
+            move |tx| {
+                let mut layout = read(&values).default_home_layout.clone();
+                layout.forget(&forgotten);
+                Box::pin(async move { store_default_home_layout(tx, to_json(&layout)?).await })
+            },
+            move |values| values.default_home_layout.forget(&gone),
+        )
+        .await
+    }
+
     /// The GPU at the PCI address `id`, named as `passed` found it with `accel`, or else as
     /// stored with `accel`, so saving another setting keeps a pick whose GPU is gone.
     fn offered_gpu(
@@ -443,6 +510,25 @@ impl Settings {
             })
             .await
     }
+}
+
+/// Stores `layout`, the default Home layout as JSON.
+async fn store_default_home_layout(
+    tx: &mut Transaction<'_, Sqlite>,
+    layout: String,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "INSERT INTO server_settings (id, url, default_home_layout) VALUES (1, '', ?)
+         ON CONFLICT (id) DO UPDATE SET default_home_layout = excluded.default_home_layout",
+        layout
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+fn to_json(value: &impl serde::Serialize) -> sqlx::Result<String> {
+    serde_json::to_string(value).map_err(|err| sqlx::Error::Encode(err.into()))
 }
 
 /// Whether `url` may be the Server URL: empty, or an http or https URL as a URL setting takes,

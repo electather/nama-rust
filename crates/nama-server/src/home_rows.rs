@@ -23,11 +23,13 @@ use tokio::{
 use tracing::{error, warn};
 
 mod featured;
+mod placed;
 mod store;
 pub(crate) use featured::Suggested;
+use placed::placed_by;
 use store::{
     Refreshing, Scope, add_found, delete_rows, found_movie, found_show, from_json, lock,
-    replace_if_marked, set_stale_at, stale_after,
+    method_giving, replace_if_marked, set_stale_at, stale_after,
 };
 
 use crate::{
@@ -36,6 +38,7 @@ use crate::{
     page::{self, Page},
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
     requests::{self, Listed, Requests},
+    server_settings::HomeRowId,
     users::{User, personal_settings_of},
 };
 
@@ -152,7 +155,8 @@ impl HomeRows {
     /// with no title to show `reader` and one of `reader`'s whose key a shared row has. Starts a
     /// background refresh of each of these scopes whose rows are stale or never were refreshed,
     /// and lists what is stored meanwhile. Deletes the rows of a Plugin no longer giving them.
-    pub(crate) async fn list(&self, reader: &User) -> Result<Vec<(PluginId, Row)>, Error> {
+    /// Each row comes with what a Home layout places it by.
+    pub(crate) async fn list(&self, reader: &User) -> Result<Vec<(HomeRowId, Row)>, Error> {
         // Stored first, so rows a refresh stores meanwhile aren't taken for a disabled Plugin's.
         let stored = self.stored(reader.id).await?;
         let serving = self.points.providers::<dyn HomeRowSource>();
@@ -166,8 +170,8 @@ impl HomeRows {
         let mut keys = HashSet::new();
         let served: Vec<_> = (stored.into_iter())
             .filter(|((plugin, user), _)| !gone.contains(&(plugin.clone(), method_giving(*user))))
-            .map(|((plugin, _), row)| (plugin, row))
-            .filter(|(plugin, row)| keys.insert((plugin.clone(), row.key.clone())))
+            .filter(|((plugin, _), row)| keys.insert((plugin.clone(), row.key.clone())))
+            .map(|(scope, row)| (placed_by(scope, &row), row))
             .collect();
         let titles: Vec<Title> = (served.iter())
             .flat_map(|(_, row)| row.titles.iter().cloned())
@@ -730,14 +734,6 @@ fn personal(settings: BTreeMap<String, (String, bool)>) -> (Vec<(String, String)
         .map(|(key, (value, _))| (key, value))
         .collect();
     (values, secrets)
-}
-
-/// The method giving a Plugin's rows for `user`, or its shared rows for `None`.
-fn method_giving(user: Option<i64>) -> HomeRowMethod {
-    match user {
-        None => HomeRowMethod::Shared,
-        Some(_) => HomeRowMethod::User,
-    }
 }
 
 /// Whether `reader` may Request a title of each kind.
