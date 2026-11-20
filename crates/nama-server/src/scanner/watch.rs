@@ -19,7 +19,10 @@ use std::{
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher as _};
 use tokio::{sync::mpsc, time::Instant};
 
-use super::{Scanner, lock};
+use super::{
+    Scanner, lock,
+    walking::{holds_ignore_marker, is_ignore_marker},
+};
 
 /// The folders the [`Scanner`] watches: none until [`Scanner::watch`].
 #[derive(Debug, Default)]
@@ -213,11 +216,22 @@ fn send_changed_libraries(
     };
     for (folder, &library) in lock(folders).iter() {
         // The OS dropped events it had no room for, so any folder may have changed.
-        if event.need_rescan() || event.paths.iter().any(|path| path.starts_with(folder)) {
+        let scanned = |path: &PathBuf| path.starts_with(folder) && !ignored(folder, path);
+        if event.need_rescan() || event.paths.iter().any(scanned) {
             // It fails only once scanning when changed has stopped, at shutdown.
             let _: Result<(), _> = changes.send(library);
         }
     }
+}
+
+/// Whether `path`, in the watched `folder`, lies in a folder scans skip. A marker itself isn't,
+/// so adding or deleting one scans.
+fn ignored(folder: &Path, path: &Path) -> bool {
+    !is_ignore_marker(path)
+        && (path.ancestors().skip(1))
+            .take_while(|dir| dir.starts_with(folder))
+            // A marker that can't be checked is left to the scan, which keeps what's under it.
+            .any(|dir| holds_ignore_marker(dir).unwrap_or(false))
 }
 
 /// Sleeps until `deadline`, or forever without one.
@@ -240,3 +254,7 @@ impl Scanner {
         watched
     }
 }
+
+#[cfg(test)]
+#[path = "watch_tests.rs"]
+mod tests;

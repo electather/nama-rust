@@ -21,6 +21,7 @@ import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { WatchStateService, type WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { heldBack } from "@/test-held-back";
+import { continueWatchingRow, pluginRow } from "@/test-home-rows";
 import { layOutShelves } from "@/test-layout";
 
 beforeEach(layOutShelves);
@@ -44,7 +45,7 @@ function server(
   ];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
-      listHomeRows: () => ({}),
+      listHomeRows: () => ({ rows: [continueWatchingRow] }),
       listFeatured: () => ({}),
       ...browse,
     });
@@ -264,13 +265,12 @@ test("a Special without a Backdrop shows its Show's title on a plain card", asyn
 });
 
 test("continue Watching hides when there's nothing", async () => {
-  const picks = { pluginId: "lists", key: "picks", heading: "Picks" };
   const heat = { libraryId: 1n, id: { namespace: "tmdb", value: "949" }, title: "Heat" };
   openApp(
     "/",
     server({
       listContinueWatching: () => ({}),
-      listHomeRows: () => ({ rows: [picks] }),
+      listHomeRows: () => ({ rows: [continueWatchingRow, pluginRow("lists", "picks", "Picks")] }),
       listHomeRowTitles: () => ({ titles: [{ movieOrShow: { case: "movie", value: heat } }] }),
     }),
   );

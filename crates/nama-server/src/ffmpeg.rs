@@ -24,10 +24,13 @@ pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 #[cfg(test)]
 use self::hls::filter_value;
 pub(crate) use self::hls::{
-    BurnIn, FromCut, HlsRun, ImageSubtitle, Remux, RemuxAudio, TextSubtitle, ToneMapper, Transcode,
-    TranscodeAudio, VideoConversion, VideoLimit, hls_init, hls_playlist, hls_run_from,
+    AudioConversion, AudioEncoder, BurnIn, FromCut, HlsRun, ImageSubtitle, Remux, RemuxAudio,
+    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit, hls_init,
+    hls_playlist, hls_run_from,
 };
-use self::hls::{VideoArgs, aac, hls_output, map_audio, pgs_start_ms, seconds, video_args};
+use self::hls::{
+    VideoArgs, convert_audio, hls_output, map_audio, pgs_start_ms, seconds, video_args,
+};
 #[cfg(any(test, feature = "testing"))]
 pub use self::test_media::{
     FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_17_minutes_h264, write_1080p_h264,
@@ -355,7 +358,7 @@ impl Ffmpeg {
     }
 
     /// The run of ffmpeg that copies the first video of the file at `path`, and `remux`'s audio
-    /// Track if any, untouched into fMP4 in `dir`, but for converting that audio to AAC as `remux`
+    /// Track if any, untouched into fMP4 in `dir`, but for converting that audio as `remux`
     /// says, from the keyframe `from` to the end. It writes a file per keyframe of the file, listed
     /// or not, which [`hls_playlist`] lists with how long each lasts, and an init segment named by
     /// [`hls_init`] that's whole once its first file is. A run started at any keyframe cuts at the
@@ -389,9 +392,9 @@ impl Ffmpeg {
         let audio_start_ms = (remux.audio.is_some() && from.n > 0)
             .then(|| (from.ms - REMUX_AUDIO_BACK_MS).max(start_ms));
         let seek_ms = audio_start_ms.unwrap_or(start_ms);
-        let aac_channels = remux.audio.and_then(|audio| audio.aac_channels);
+        let conversion = remux.audio.and_then(|audio| audio.conversion);
         if seek_ms > 0 {
-            let cuts_copied_audio = audio_start_ms.is_some() && aac_channels.is_none();
+            let cuts_copied_audio = audio_start_ms.is_some() && conversion.is_none();
             if cuts_copied_audio && file_start_ms != 0 {
                 // `-copypriorss` drops packets by the input's `-ss` as a time in the file, not
                 // from its start as ffmpeg seeks by, so in one that starts late, such as an
@@ -425,15 +428,15 @@ impl Ffmpeg {
             // told. Only for HEVC: ffmpeg refuses the tag on any other codec.
             command.args(["-tag:v", "hvc1"]);
         }
-        aac(&mut command, aac_channels);
+        convert_audio(&mut command, conversion);
         if let Some(audio_start_ms) = audio_start_ms {
-            start_audio_at(&mut command, audio_start_ms, aac_channels.is_some());
+            start_audio_at(&mut command, audio_start_ms, conversion.is_some());
         }
         Ok(hls_output(command, &ffmpeg.version, dir, from.n))
     }
 
     /// The run of ffmpeg that converts the first video of the file at `path` to 8-bit H.264, and
-    /// its audio Track if any to AAC, as `transcode` says, into fMP4 in `dir`, from the cut `from`
+    /// its audio Track if any, as `transcode` says, into fMP4 in `dir`, from the cut `from`
     /// to the end. It cuts a file at each cut, which [`hls_playlist`] lists, and writes an init
     /// segment named by [`hls_init`] that's whole once the first file is. A run started at
     /// any cut writes the same files, so one can pick up where another stopped. Each file appears
@@ -508,10 +511,7 @@ impl Ffmpeg {
                 .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
                 .arg((2 * u64::from(bits_per_second)).to_string());
         }
-        aac(
-            &mut command,
-            transcode.audio.map(|audio| audio.aac_channels),
-        );
+        convert_audio(&mut command, transcode.audio.map(|audio| audio.conversion));
         command.args(["-output_ts_offset", &seconds(TRANSCODE_LATER_BY_MS)]);
         Ok(hls_output(command, &ffmpeg.version, dir, from.n))
     }
@@ -703,11 +703,13 @@ fn failed(output: &std::process::Output) -> ReadOutError {
 }
 
 /// Has a Remux's `command`, whose input seeks to `start_ms`, drop the audio from before it,
-/// which it's converting to AAC if `converted`.
+/// which it's converting if `converted`.
 fn start_audio_at(command: &mut tokio::process::Command, start_ms: i64, converted: bool) {
     if converted {
         // Under `-copyts` the input's `-ss` trims decoded audio without its `-itsoffset`, so
         // too early; this trims in the output's times.
+        // ponytail: AC-3 and E-AC-3 prime 256 samples, not AAC's 1024, so a restarted run of
+        // either drops about 18 ms more; trim by codec if that's heard.
         let start = seconds(start_ms + REMUX_LATER_BY_MS + AAC_PRIMING_MS);
         command.arg("-af").arg(format!("atrim=start={start}"));
     } else {

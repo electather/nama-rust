@@ -1936,11 +1936,12 @@ pub enum PlaybackReasonKind {
     /// The rest rule nothing out.
     ///
     /// The plan converts the audio to fewer channels because the Device says it plays fewer.
-    /// Params: `channels`, how many it converts to.
+    /// Params: `channels`, how many it converts to, and `codec`, the codec it converts to as ffprobe
+    /// names it (`eac3`, `ac3` or `aac`).
     PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS = 16i32,
-    /// The same, because the Device doesn't say how many it plays. Params: `channels`.
+    /// The same, because the Device doesn't say how many it plays. Params: `channels`, `codec`.
     PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN = 17i32,
-    /// The same, because that is the most the method makes. Params: `channels`.
+    /// The same, because that is the most the method makes. Params: `channels`, `codec`.
     PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED = 18i32,
     /// The plan Transcodes and tone-maps the picture to SDR. Params: `hdrFormat`.
     PLAYBACK_REASON_KIND_HDR_TONE_MAPPED = 19i32,

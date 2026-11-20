@@ -1,6 +1,6 @@
 use nama_proto::nama::v1::{PlaybackReasonKind as Kind, SubtitleFormat};
 
-use crate::ffmpeg::{BurnIn, ImageSubtitle, TextSubtitle};
+use crate::ffmpeg::{AudioEncoder, BurnIn, ImageSubtitle, TextSubtitle};
 use crate::playback::{
     DeviceDecoding, Facts, Method, Sidecar, Subtitle, build,
     tests::{
@@ -64,7 +64,10 @@ fn a_chosen_audio_track_the_device_cant_decode_is_converted_to_aac() {
 
     let plan = build(&mut facts);
 
-    assert_eq!(plan.playing, Some(remuxing(1, Some(2))));
+    assert_eq!(
+        plan.playing,
+        Some(remuxing(1, Some((AudioEncoder::Aac, 2))))
+    );
     assert_eq!(plan.tracks[1], audio("aac", false));
 }
 

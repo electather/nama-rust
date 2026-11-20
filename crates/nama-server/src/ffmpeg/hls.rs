@@ -45,8 +45,8 @@ pub(crate) struct Remux {
 pub(crate) struct RemuxAudio {
     /// Its place among the file's audio Tracks, counting from 0.
     pub(crate) track: usize,
-    /// The channels it's converted to AAC with, or `None` to copy it.
-    pub(crate) aac_channels: Option<i64>,
+    /// What it's converted to, or `None` to copy it.
+    pub(crate) conversion: Option<AudioConversion>,
 }
 
 /// What a Transcode converts.
@@ -63,8 +63,39 @@ pub(crate) struct Transcode {
 pub(crate) struct TranscodeAudio {
     /// Its place among the file's audio Tracks, counting from 0.
     pub(crate) track: usize,
-    /// The channels it's converted to AAC with.
-    pub(crate) aac_channels: i64,
+    /// What it's converted to.
+    pub(crate) conversion: AudioConversion,
+}
+
+/// What a Remux or Transcode converts the audio Track it plays to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AudioConversion {
+    /// The encoder it's converted with.
+    pub(crate) encoder: AudioEncoder,
+    /// The channels it's converted to, mixing down any more it has.
+    pub(crate) channels: i64,
+}
+
+/// The ffmpeg encoder a Remux or Transcode converts audio with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AudioEncoder {
+    /// AAC-LC, by ffmpeg's own encoder.
+    Aac,
+    /// AC-3, Dolby Digital.
+    Ac3,
+    /// E-AC-3, Dolby Digital Plus.
+    Eac3,
+}
+
+impl AudioEncoder {
+    /// Its name as both ffmpeg's encoder and ffprobe call it.
+    pub(crate) const fn ffmpeg_name(self) -> &'static str {
+        match self {
+            Self::Aac => "aac",
+            Self::Ac3 => "ac3",
+            Self::Eac3 => "eac3",
+        }
+    }
 }
 
 /// The cut a run of a Transcode starts at.
@@ -365,11 +396,14 @@ pub(super) fn map_audio(command: &mut tokio::process::Command, audio: Option<usi
     }
 }
 
-/// Has `command` convert its audio to AAC with `channels` channels, if given.
-pub(super) fn aac(command: &mut tokio::process::Command, channels: Option<i64>) {
-    if let Some(channels) = channels {
+/// Has `command` convert its audio as `conversion` says, if given.
+pub(super) fn convert_audio(
+    command: &mut tokio::process::Command,
+    conversion: Option<AudioConversion>,
+) {
+    if let Some(AudioConversion { encoder, channels }) = conversion {
         command
-            .args(["-c:a", "aac", "-ac"])
+            .args(["-c:a", encoder.ffmpeg_name(), "-ac"])
             .arg(channels.to_string());
     }
 }

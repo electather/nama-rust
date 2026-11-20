@@ -101,9 +101,10 @@ service BrowseService {
   rpc GetUnmatchedVersion(GetUnmatchedVersionRequest) returns (GetUnmatchedVersionResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Lists the Home rows Plugins give every User (ADR 0058): each enabled Plugin's, in Plugin id
-  // order, then in the order the Plugin gave them. A row with no title to show the caller, as
-  // `ListHomeRowTitles` shows them, is left out.
+  // Lists the caller's Home rows in the order Home shows them: the Kernel's first, then the rows
+  // Plugins give (ADR 0058), each enabled Plugin's in Plugin id order, then in the order the
+  // Plugin gave them. A Plugin row with no title to show the caller, as `ListHomeRowTitles` shows
+  // them, is left out. Featured isn't a Home row, so it's never listed.
   // Never waits on a Plugin: rows past their time to live are refreshed in the background, and
   // what was stored before is listed meanwhile, so a Plugin's first rows show on a later call.
   rpc ListHomeRows(ListHomeRowsRequest) returns (ListHomeRowsResponse) {
@@ -697,8 +698,25 @@ message ListHomeRowsResponse {
   repeated HomeRow rows = 1;
 }
 
-// A headed row of titles a Plugin gives for the home page. Its Plugin and key name it.
+// A headed row of titles on the home page, which the Kernel builds or a Plugin gives.
 message HomeRow {
+  reserved 1, 2, 3;
+  reserved "plugin_id", "key", "heading";
+  oneof kernel_or_plugin {
+    // Read through its own rpc, such as `ListContinueWatching`.
+    KernelHomeRow kernel = 4;
+    PluginHomeRow plugin = 5;
+  }
+}
+
+// A Home row the Kernel builds.
+enum KernelHomeRow {
+  KERNEL_HOME_ROW_UNSPECIFIED = 0;
+  KERNEL_HOME_ROW_CONTINUE_WATCHING = 1;
+}
+
+// A Home row a Plugin gives, whose titles `ListHomeRowTitles` lists. Its Plugin and key name it.
+message PluginHomeRow {
   // The Plugin that gives it.
   string plugin_id = 1;
   // What the Plugin tells it from its other rows by.
@@ -708,9 +726,9 @@ message HomeRow {
 }
 
 message ListHomeRowTitlesRequest {
-  // As `HomeRow.plugin_id`.
+  // As `PluginHomeRow.plugin_id`.
   string plugin_id = 1;
-  // As `HomeRow.key`.
+  // As `PluginHomeRow.key`.
   string key = 2;
   PageRequest page = 3;
 }

@@ -415,6 +415,50 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub tick_every_seconds: u32,
+    /// How to set the Plugin up, such as where to get an API key, as short Markdown an admin sees
+    /// above its settings. Optional. Clients render it as text, never as HTML (ADR 0058). A Server
+    /// drops one over 4 KiB, logging why, and still loads the Plugin.
+    ///
+    /// Field 19: `setup_markdown`
+    #[serde(
+        rename = "setupMarkdown",
+        alias = "setup_markdown",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub setup_markdown: ::buffa::alloc::string::String,
+    /// The Plugin's homepage or docs, an http or https URL. Optional. A Server drops one that isn't
+    /// such a URL or is over 2 KiB, logging why, and still loads the Plugin.
+    ///
+    /// Field 20: `homepage_url`
+    #[serde(
+        rename = "homepageUrl",
+        alias = "homepage_url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub homepage_url: ::buffa::alloc::string::String,
+    /// Where the Plugin's source lives, as `homepage_url` is.
+    ///
+    /// Field 21: `source_url`
+    #[serde(
+        rename = "sourceUrl",
+        alias = "source_url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub source_url: ::buffa::alloc::string::String,
+    /// The Plugin's licence as an SPDX expression, such as "MIT OR Apache-2.0". Optional. A Server
+    /// drops one over 128 characters or with characters besides ASCII letters, digits, spaces and
+    /// `.-+()`, logging why, and still loads the Plugin.
+    ///
+    /// Field 22: `license`
+    #[serde(
+        rename = "license",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub license: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -438,6 +482,10 @@ impl ::core::fmt::Debug for Manifest {
             .field("personal_settings", &self.personal_settings)
             .field("permissions", &self.permissions)
             .field("tick_every_seconds", &self.tick_every_seconds)
+            .field("setup_markdown", &self.setup_markdown)
+            .field("homepage_url", &self.homepage_url)
+            .field("source_url", &self.source_url)
+            .field("license", &self.license)
             .finish()
     }
 }
@@ -540,6 +588,20 @@ impl ::buffa::Message for Manifest {
                 += 2u64
                     + ::buffa::types::uint32_encoded_len(self.tick_every_seconds) as u64;
         }
+        if !self.setup_markdown.is_empty() {
+            size
+                += 2u64
+                    + ::buffa::types::string_encoded_len(&self.setup_markdown) as u64;
+        }
+        if !self.homepage_url.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.homepage_url) as u64;
+        }
+        if !self.source_url.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.source_url) as u64;
+        }
+        if !self.license.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.license) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -620,6 +682,18 @@ impl ::buffa::Message for Manifest {
         }
         if self.tick_every_seconds != 0u32 {
             ::buffa::types::put_uint32_field(18u32, self.tick_every_seconds, buf);
+        }
+        if !self.setup_markdown.is_empty() {
+            ::buffa::types::put_string_field(19u32, &self.setup_markdown, buf);
+        }
+        if !self.homepage_url.is_empty() {
+            ::buffa::types::put_string_field(20u32, &self.homepage_url, buf);
+        }
+        if !self.source_url.is_empty() {
+            ::buffa::types::put_string_field(21u32, &self.source_url, buf);
+        }
+        if !self.license.is_empty() {
+            ::buffa::types::put_string_field(22u32, &self.license, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -808,6 +882,34 @@ impl ::buffa::Message for Manifest {
                 )?;
                 self.tick_every_seconds = ::buffa::types::decode_uint32(buf)?;
             }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.setup_markdown, buf)?;
+            }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.homepage_url, buf)?;
+            }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.source_url, buf)?;
+            }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.license, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -832,6 +934,10 @@ impl ::buffa::Message for Manifest {
         self.personal_settings.clear();
         self.permissions.clear();
         self.tick_every_seconds = 0u32;
+        self.setup_markdown.clear();
+        self.homepage_url.clear();
+        self.source_url.clear();
+        self.license.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

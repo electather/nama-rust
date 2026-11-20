@@ -406,3 +406,110 @@ fn a_call_with_no_enablement_logs_nothing() {
 
     assert!(!logged.contains("test-plugin's clock reads"), "{logged}");
 }
+
+#[test]
+fn setup_text_links_and_a_licence_that_fit_are_kept_with_links_as_parsed() {
+    let mut package = Manifest {
+        setup_markdown: "Get an API key at **thetvdb.com**.".to_owned(),
+        homepage_url: "https://thetvdb.com/api-information".to_owned(),
+        // A browser would read this as a link relative to the page.
+        source_url: " https:github.com/example/tvdb".to_owned(),
+        license: "(MIT OR Apache-2.0) AND GPL-2.0+".to_owned(),
+        ..title_source("tvdb")
+    };
+
+    let manifest = judge(&mut package, &[]).unwrap();
+
+    assert_eq!(
+        [
+            manifest.setup_markdown,
+            manifest.homepage_url,
+            manifest.source_url,
+            manifest.license
+        ],
+        [
+            "Get an API key at **thetvdb.com**.",
+            "https://thetvdb.com/api-information",
+            "https://github.com/example/tvdb",
+            "(MIT OR Apache-2.0) AND GPL-2.0+",
+        ]
+    );
+}
+
+#[test]
+fn a_bad_setup_text_link_or_licence_is_dropped_saying_why_and_the_plugin_still_taken() {
+    use crate::log_capture::CapturedLog;
+
+    let url = |url: String| Manifest {
+        homepage_url: url,
+        ..title_source("tvdb")
+    };
+    let licensed = |license: String| Manifest {
+        license,
+        ..title_source("tvdb")
+    };
+    let dropped = [
+        (
+            url("javascript:alert(1)".to_owned()),
+            "homepage_url: its scheme is javascript",
+        ),
+        (
+            url(" FTP://example.com/".to_owned()),
+            "homepage_url: its scheme is ftp",
+        ),
+        (
+            url("example.com".to_owned()),
+            "homepage_url: it isn't a URL",
+        ),
+        (
+            url(format!("https://example.com/{}", "a".repeat(2 * 1024))),
+            "homepage_url: it is over 2048 bytes",
+        ),
+        (
+            url(format!("{}:x", "a".repeat(2 * 1024))),
+            "homepage_url: it is over 2048 bytes",
+        ),
+        (
+            Manifest {
+                source_url: "ftp://example.com/".to_owned(),
+                ..title_source("tvdb")
+            },
+            "source_url: its scheme is ftp",
+        ),
+        (
+            Manifest {
+                setup_markdown: "a".repeat(4 * 1024 + 1),
+                ..title_source("tvdb")
+            },
+            "setup_markdown: it is over 4096 bytes",
+        ),
+        (
+            licensed("MIT; rm -rf".to_owned()),
+            "license: it isn't an SPDX expression",
+        ),
+        (
+            licensed("   ".to_owned()),
+            "license: it isn't an SPDX expression",
+        ),
+        (
+            licensed("MIT ".repeat(33)),
+            "license: it is over 128 characters",
+        ),
+    ];
+
+    for (mut package, why) in dropped {
+        let log = CapturedLog::start();
+        let manifest = judge(&mut package, &[]).unwrap();
+        let logged = log.finish();
+
+        let kept = [
+            manifest.setup_markdown,
+            manifest.homepage_url,
+            manifest.source_url,
+            manifest.license,
+        ];
+        assert_eq!(kept, ["", "", "", ""], "{why}");
+        assert!(logged.contains("tvdb"), "{logged}");
+        assert!(logged.contains(&format!("dropped its {why}")), "{logged}");
+    }
+}

@@ -90,6 +90,19 @@ message Manifest {
   // How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
   // `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
   uint32 tick_every_seconds = 18;
+  // How to set the Plugin up, such as where to get an API key, as short Markdown an admin sees
+  // above its settings. Optional. Clients render it as text, never as HTML (ADR 0058). A Server
+  // drops one over 4 KiB, logging why, and still loads the Plugin.
+  string setup_markdown = 19;
+  // The Plugin's homepage or docs, an http or https URL. Optional. A Server drops one that isn't
+  // such a URL or is over 2 KiB, logging why, and still loads the Plugin.
+  string homepage_url = 20;
+  // Where the Plugin's source lives, as `homepage_url` is.
+  string source_url = 21;
+  // The Plugin's licence as an SPDX expression, such as "MIT OR Apache-2.0". Optional. A Server
+  // drops one over 128 characters or with characters besides ASCII letters, digits, spaces and
+  // `.-+()`, logging why, and still loads the Plugin.
+  string license = 22;
 }
 
 // An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the

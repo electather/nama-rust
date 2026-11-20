@@ -1846,21 +1846,22 @@ export const PlaybackReasonKind = {
 
   /**
    * The plan converts the audio to fewer channels because the Device says it plays fewer.
-   * Params: `channels`, how many it converts to.
+   * Params: `channels`, how many it converts to, and `codec`, the codec it converts to as ffprobe
+   * names it (`eac3`, `ac3` or `aac`).
    *
    * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS = 16;
    */
   DEVICE_PLAYS_FEWER_CHANNELS: 16,
 
   /**
-   * The same, because the Device doesn't say how many it plays. Params: `channels`.
+   * The same, because the Device doesn't say how many it plays. Params: `channels`, `codec`.
    *
    * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN = 17;
    */
   DEVICE_CHANNELS_UNKNOWN: 17,
 
   /**
-   * The same, because that is the most the method makes. Params: `channels`.
+   * The same, because that is the most the method makes. Params: `channels`, `codec`.
    *
    * @generated from enum value: PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED = 18;
    */

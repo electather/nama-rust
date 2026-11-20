@@ -125,6 +125,27 @@ pub struct ManifestView<'a> {
     ///
     /// Field 18: `tick_every_seconds`
     pub tick_every_seconds: u32,
+    /// How to set the Plugin up, such as where to get an API key, as short Markdown an admin sees
+    /// above its settings. Optional. Clients render it as text, never as HTML (ADR 0058). A Server
+    /// drops one over 4 KiB, logging why, and still loads the Plugin.
+    ///
+    /// Field 19: `setup_markdown`
+    pub setup_markdown: &'a str,
+    /// The Plugin's homepage or docs, an http or https URL. Optional. A Server drops one that isn't
+    /// such a URL or is over 2 KiB, logging why, and still loads the Plugin.
+    ///
+    /// Field 20: `homepage_url`
+    pub homepage_url: &'a str,
+    /// Where the Plugin's source lives, as `homepage_url` is.
+    ///
+    /// Field 21: `source_url`
+    pub source_url: &'a str,
+    /// The Plugin's licence as an SPDX expression, such as "MIT OR Apache-2.0". Optional. A Server
+    /// drops one over 128 characters or with characters besides ASCII letters, digits, spaces and
+    /// `.-+()`, logging why, and still loads the Plugin.
+    ///
+    /// Field 22: `license`
+    pub license: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -212,6 +233,34 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.tick_every_seconds = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.setup_markdown = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.homepage_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.source_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.license = ::buffa::types::borrow_str(&mut cur)?;
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -406,6 +455,10 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             permissions: self.permissions.to_vec(),
             tick_every_seconds: self.tick_every_seconds,
+            setup_markdown: self.setup_markdown.to_string(),
+            homepage_url: self.homepage_url.to_string(),
+            source_url: self.source_url.to_string(),
+            license: self.license.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -489,6 +542,20 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 += 2u64
                     + ::buffa::types::uint32_encoded_len(self.tick_every_seconds) as u64;
         }
+        if !self.setup_markdown.is_empty() {
+            size
+                += 2u64
+                    + ::buffa::types::string_encoded_len(&self.setup_markdown) as u64;
+        }
+        if !self.homepage_url.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.homepage_url) as u64;
+        }
+        if !self.source_url.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.source_url) as u64;
+        }
+        if !self.license.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.license) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -571,6 +638,18 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         if self.tick_every_seconds != 0u32 {
             ::buffa::types::put_uint32_field(18u32, self.tick_every_seconds, buf);
         }
+        if !self.setup_markdown.is_empty() {
+            ::buffa::types::put_string_field(19u32, &self.setup_markdown, buf);
+        }
+        if !self.homepage_url.is_empty() {
+            ::buffa::types::put_string_field(20u32, &self.homepage_url, buf);
+        }
+        if !self.source_url.is_empty() {
+            ::buffa::types::put_string_field(21u32, &self.source_url, buf);
+        }
+        if !self.license.is_empty() {
+            ::buffa::types::put_string_field(22u32, &self.license, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -651,6 +730,18 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
                     "tickEverySeconds",
                     &::buffa::json_helpers::ProtoJson(&self.tick_every_seconds),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.setup_markdown) {
+            __map.serialize_entry("setupMarkdown", self.setup_markdown)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.homepage_url) {
+            __map.serialize_entry("homepageUrl", self.homepage_url)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.source_url) {
+            __map.serialize_entry("sourceUrl", self.source_url)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.license) {
+            __map.serialize_entry("license", self.license)?;
         }
         __map.end()
     }
@@ -887,6 +978,39 @@ impl ManifestOwnedView {
     #[must_use]
     pub fn tick_every_seconds(&self) -> u32 {
         self.0.reborrow().tick_every_seconds
+    }
+    /// How to set the Plugin up, such as where to get an API key, as short Markdown an admin sees
+    /// above its settings. Optional. Clients render it as text, never as HTML (ADR 0058). A Server
+    /// drops one over 4 KiB, logging why, and still loads the Plugin.
+    ///
+    /// Field 19: `setup_markdown`
+    #[must_use]
+    pub fn setup_markdown(&self) -> &'_ str {
+        self.0.reborrow().setup_markdown
+    }
+    /// The Plugin's homepage or docs, an http or https URL. Optional. A Server drops one that isn't
+    /// such a URL or is over 2 KiB, logging why, and still loads the Plugin.
+    ///
+    /// Field 20: `homepage_url`
+    #[must_use]
+    pub fn homepage_url(&self) -> &'_ str {
+        self.0.reborrow().homepage_url
+    }
+    /// Where the Plugin's source lives, as `homepage_url` is.
+    ///
+    /// Field 21: `source_url`
+    #[must_use]
+    pub fn source_url(&self) -> &'_ str {
+        self.0.reborrow().source_url
+    }
+    /// The Plugin's licence as an SPDX expression, such as "MIT OR Apache-2.0". Optional. A Server
+    /// drops one over 128 characters or with characters besides ASCII letters, digits, spaces and
+    /// `.-+()`, logging why, and still loads the Plugin.
+    ///
+    /// Field 22: `license`
+    #[must_use]
+    pub fn license(&self) -> &'_ str {
+        self.0.reborrow().license
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>

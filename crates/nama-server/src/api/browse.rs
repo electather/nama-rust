@@ -13,7 +13,7 @@ use nama_proto::nama::v1::{
     ListHomeRowsRequest, ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse,
     ListShowsRequest, ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort,
     Permission, SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection,
-    WatchedFilter,
+    WatchedFilter, home_row::KernelOrPlugin,
 };
 
 use crate::{
@@ -347,14 +347,24 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListHomeRowsRequest>,
     ) -> ServiceResult<ListHomeRowsResponse> {
         let reader = &caller(&ctx)?.user;
-        let rows = self.home_rows.list(reader).await;
-        let rows = rows.map_err(home_rows_refused)?;
+        let plugin_rows = self.home_rows.list(reader).await;
+        let plugin_rows = plugin_rows.map_err(home_rows_refused)?;
+        let plugin_rows = plugin_rows.into_iter().map(|(plugin, row)| {
+            proto::PluginHomeRow {
+                plugin_id: plugin.as_str().to_owned(),
+                key: row.key,
+                heading: row.heading,
+                ..Default::default()
+            }
+            .into()
+        });
+        let continue_watching = proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING;
+        let rows =
+            std::iter::once(KernelOrPlugin::Kernel(continue_watching.into())).chain(plugin_rows);
         Response::ok(ListHomeRowsResponse {
-            rows: (rows.into_iter())
-                .map(|(plugin, row)| proto::HomeRow {
-                    plugin_id: plugin.as_str().to_owned(),
-                    key: row.key,
-                    heading: row.heading,
+            rows: rows
+                .map(|row| proto::HomeRow {
+                    kernel_or_plugin: Some(row),
                     ..Default::default()
                 })
                 .collect(),

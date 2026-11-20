@@ -28,7 +28,8 @@ export function usePlaybackPlan({
   watchState: WatchState | undefined;
 }) {
   // Where it stood on opening, until a method fails or the User chooses something else: a new plan
-  // would reload the `<video>`, so the refetches each Watch State report causes mustn't ask again.
+  // would reload the `<video>`, so the refetch the final report on a new plan causes mustn't ask
+  // again.
   const [asking, setAsking] = useState<Asking>(() => firstAsking(watchState));
   const { startPositionMs } = asking;
   const plan = usePlan(versionId, asking);

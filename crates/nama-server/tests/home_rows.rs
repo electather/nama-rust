@@ -33,10 +33,11 @@ use home_row_plugin::{PLUGIN, disable, enable, set_handle, text};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ExtensionPoint, ExtensionPointFailure, GetPluginRequest, HomeRowTitle,
-    LibraryKind, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest,
-    PageRequest, Permission, PluginServiceClient, RefusalReason, RequestState,
-    UpdatePluginSettingsRequest, home_row_title::MovieOrShow,
+    BrowseServiceClient, ExtensionPoint, ExtensionPointFailure, GetPluginRequest, HomeRow,
+    HomeRowTitle, KernelHomeRow, LibraryKind, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse,
+    ListHomeRowsRequest, PageRequest, Permission, PluginHomeRow, PluginServiceClient,
+    RefusalReason, RequestState, UpdatePluginSettingsRequest, home_row::KernelOrPlugin,
+    home_row_title::MovieOrShow,
 };
 use refused::assert_refused;
 use server::{
@@ -109,20 +110,24 @@ async fn rows_as(config: ClientConfig) -> Vec<(String, String, String)> {
     rows_from(&BrowseServiceClient::new(HttpClient::plaintext(), config)).await
 }
 
-/// The Home rows home lists `browse`'s caller now, as [`rows`] lists them.
+/// The Plugin rows home lists `browse`'s caller now, as [`rows`] lists them.
+async fn rows_from(browse: &BrowseServiceClient<HttpClient>) -> Vec<(String, String, String)> {
+    (all_rows_from(browse).await.into_iter())
+        .filter_map(|row| match row.kernel_or_plugin {
+            Some(KernelOrPlugin::Plugin(row)) => Some((row.plugin_id, row.key, row.heading)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Every Home row home lists `browse`'s caller now, the Kernel's and the Plugins'.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn rows_from(browse: &BrowseServiceClient<HttpClient>) -> Vec<(String, String, String)> {
-    let listed = browse
-        .list_home_rows(ListHomeRowsRequest::default())
-        .await
-        .unwrap()
-        .into_owned();
-    (listed.rows.into_iter())
-        .map(|row| (row.plugin_id, row.key, row.heading))
-        .collect()
+async fn all_rows_from(browse: &BrowseServiceClient<HttpClient>) -> Vec<HomeRow> {
+    let listed = browse.list_home_rows(ListHomeRowsRequest::default()).await;
+    listed.unwrap().into_owned().rows
 }
 
 /// Lists the Admin's Home rows until they are the rows `keys` name, since a refresh runs in the
@@ -279,6 +284,38 @@ async fn enabling_a_home_row_source_shows_its_rows_with_the_titles_on_the_server
         all_shown(&missing.titles),
         [format!("missing Movie {DUNE}")],
         "the id no title source has is dropped"
+    );
+}
+
+#[tokio::test]
+async fn home_lists_continue_watching_as_a_kernel_row_before_the_plugin_rows() {
+    let server = enabled("").await;
+    wait_for_rows(&server, &["picks", "again", "missing"]).await;
+
+    let kernel = |row: KernelHomeRow| HomeRow {
+        kernel_or_plugin: Some(KernelOrPlugin::Kernel(row.into())),
+        ..Default::default()
+    };
+    let plugin = |key: &str, heading: &str| HomeRow {
+        kernel_or_plugin: Some(
+            PluginHomeRow {
+                plugin_id: PLUGIN.to_owned(),
+                key: key.to_owned(),
+                heading: heading.to_owned(),
+                ..Default::default()
+            }
+            .into(),
+        ),
+        ..Default::default()
+    };
+    assert_eq!(
+        all_rows_from(&browse(&server)).await,
+        [
+            kernel(KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING),
+            plugin("picks", "Picks"),
+            plugin("again", "Alien again"),
+            plugin("missing", "Not on the Server"),
+        ]
     );
 }
 

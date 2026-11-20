@@ -8,7 +8,7 @@ use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
 use nama_proto::nama::v1::PluginKind;
 
-use super::{Registry, kept_logo, registry::Described, what_it_says};
+use super::{Registry, drop_flawed_presentation, kept_logo, registry::Described, what_it_says};
 
 fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
     vec![
@@ -39,6 +39,7 @@ impl Registry {
         };
         let logo = manifest.logo_svg.take();
         manifest.logo_svg = logo.and_then(|logo| kept_logo(&manifest.id, &logo));
+        drop_flawed_presentation(&mut manifest);
         let id = manifest.id.clone();
         let described = Described {
             kind: PluginKind::PLUGIN_KIND_BUILT_IN,

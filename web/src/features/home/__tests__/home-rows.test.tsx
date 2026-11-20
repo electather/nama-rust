@@ -5,6 +5,7 @@ import { BrowseService, type ListHomeRowTitlesRequest } from "@/gen/nama/v1/brow
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { RequestState } from "@/gen/nama/v1/request_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { type HomeRowInit, continueWatchingRow, pluginRow } from "@/test-home-rows";
 import { layOutShelves } from "@/test-layout";
 
 beforeEach(layOutShelves);
@@ -29,10 +30,28 @@ const arrival = {
   title: "Arrival",
   request: { id: 8n, state: RequestState.DECLINED },
 };
+const alien = {
+  libraryId: 1n,
+  movieOrEpisode: {
+    case: "movie",
+    value: {
+      id: { namespace: "tmdb", value: "348" },
+      title: "Alien",
+      watchState: { positionMs: 1n, durationMs: 60_000n },
+    },
+  },
+} as const;
 const severance = { id: { namespace: "tmdb", value: "95396" }, title: "Severance", year: 2022 };
 
-/** Home on a Server whose Plugins give the rows `picks`, `empty` and `shows`, in that order. */
-function openHome(asked: ListHomeRowTitlesRequest[] = []) {
+const picksRow = pluginRow("lists", "picks", "Picks");
+const emptyRow = pluginRow("lists", "empty", "Nothing here");
+const showsRow = pluginRow("trakt", "shows", "Trending Shows");
+
+/**
+ * Home on a Server that lists an empty Continue Watching, then the Plugin rows `picks`, `empty`
+ * and `shows`. Given `rows`, it lists those instead, with Alien in Continue Watching.
+ */
+function openHome(asked: ListHomeRowTitlesRequest[] = [], rows?: HomeRowInit[]) {
   const libraries = [
     { id: 1n, name: "Films", kind: LibraryKind.MOVIES },
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
@@ -40,14 +59,8 @@ function openHome(asked: ListHomeRowTitlesRequest[] = []) {
   const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
       listFeatured: () => ({}),
-      listContinueWatching: () => ({}),
-      listHomeRows: () => ({
-        rows: [
-          { pluginId: "lists", key: "picks", heading: "Picks" },
-          { pluginId: "lists", key: "empty", heading: "Nothing here" },
-          { pluginId: "trakt", key: "shows", heading: "Trending Shows" },
-        ],
-      }),
+      listContinueWatching: () => (rows ? { entries: [alien] } : {}),
+      listHomeRows: () => ({ rows: rows ?? [continueWatchingRow, picksRow, emptyRow, showsRow] }),
       listHomeRowTitles: (request) => {
         asked.push(request);
         if (request.key === "picks") {
@@ -122,7 +135,27 @@ test("home shows each Plugin's row in order, each poster opening its title", asy
   );
 });
 
-test("the first row loads at once, and each row below it only as you scroll near it", async () => {
+test("home draws Continue Watching where the Server lists it among the Plugins' rows", async () => {
+  scrollable().scrolled();
+  openHome([], [picksRow, continueWatchingRow, showsRow]);
+
+  await screen.findByRole("link", { name: "Dark" });
+  await screen.findByRole("link", { name: /Alien/u });
+  const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+  expect(headings).toStrictEqual(["Picks", "Continue Watching", "Trending Shows"]);
+});
+
+test("only the first Plugin row loads at once when Continue Watching sits below it", async () => {
+  scrollable();
+  const asked: ListHomeRowTitlesRequest[] = [];
+  openHome(asked, [picksRow, showsRow, continueWatchingRow]);
+
+  await screen.findByRole("link", { name: "Heat" });
+  await screen.findByRole("link", { name: /Alien/u });
+  expect(asked.map((request) => request.key)).toStrictEqual(["picks"]);
+});
+
+test("the first Plugin row loads at once, and each below it only as you scroll near", async () => {
   const { scrolled } = scrollable();
   const asked: ListHomeRowTitlesRequest[] = [];
   openHome(asked);
@@ -181,7 +214,7 @@ function aRowOfThirteen(asked: (string | undefined)[]) {
     router.service(BrowseService, {
       listFeatured: () => ({}),
       listContinueWatching: () => ({}),
-      listHomeRows: () => ({ rows: [{ pluginId: "lists", key: "picks", heading: "Picks" }] }),
+      listHomeRows: () => ({ rows: [picksRow] }),
       listHomeRowTitles: ({ page }) => {
         asked.push(page?.token);
         return page?.token === "" ? { titles, page: { nextToken: "12", totalSize: 13 } } : {};

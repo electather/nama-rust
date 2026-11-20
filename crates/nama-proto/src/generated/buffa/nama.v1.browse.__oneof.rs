@@ -165,6 +165,45 @@ pub mod featured_title {
         }
     }
 }
+pub mod home_row {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum KernelOrPlugin {
+        Kernel(::buffa::EnumValue<super::super::super::KernelHomeRow>),
+        Plugin(::buffa::alloc::boxed::Box<super::super::super::PluginHomeRow>),
+    }
+    impl ::buffa::Oneof for KernelOrPlugin {}
+    impl From<super::super::super::PluginHomeRow> for KernelOrPlugin {
+        fn from(v: super::super::super::PluginHomeRow) -> Self {
+            Self::Plugin(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::PluginHomeRow>
+    for ::core::option::Option<KernelOrPlugin> {
+        fn from(v: super::super::super::PluginHomeRow) -> Self {
+            Self::Some(KernelOrPlugin::from(v))
+        }
+    }
+    impl ::serde::Serialize for KernelOrPlugin {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Kernel(v) => {
+                    map.serialize_entry("kernel", v)?;
+                }
+                Self::Plugin(v) => {
+                    map.serialize_entry("plugin", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
 pub mod home_row_title {
     #[allow(unused_imports)]
     use super::*;
