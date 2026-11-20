@@ -321,7 +321,7 @@ async fn a_scan_asks_newly_listed_recognisers_about_unparsed_files_once() {
     let counting = Counting::default();
     let plugins = Registry::new();
     plugins.enable(Arc::new(counting.clone())).unwrap();
-    let media = Fixture::with_plugins(LibraryKind::Shows, plugins.extension_points()).await;
+    let media = Fixture::with_plugins(LibraryKind::Shows, plugins.clone()).await;
     media.write("Show - 2.mkv", 1);
     media.write("Show/Show - S01E01.mkv", 1);
     media.scan().await;
@@ -350,7 +350,7 @@ async fn a_scan_asks_newly_listed_recognisers_about_unparsed_files_once() {
 async fn a_scan_does_not_count_a_new_file_a_recogniser_failed_on_as_added() {
     let plugins = Registry::new();
     plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
-    let media = Fixture::with_plugins(LibraryKind::Shows, plugins.extension_points()).await;
+    let media = Fixture::with_plugins(LibraryKind::Shows, plugins.clone()).await;
     let libraries = &media.scanner.inner.libraries;
     let library = libraries.list().await.unwrap()[0].id;
     libraries

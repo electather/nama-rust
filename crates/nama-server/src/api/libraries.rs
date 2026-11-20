@@ -7,7 +7,6 @@ use std::{
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::{PluginId, PointKey, recogniser::Recogniser};
 use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
@@ -22,8 +21,7 @@ use nama_proto::nama::v1::{
 use crate::{
     library::{
         Contents, FolderProblem, Libraries, Library, LibraryError, LibraryKind, NewestBackdrop,
-        Order, Role, Slot, TitleSources, TitleTarget as Target, artwork_url, check_known,
-        default_title_sources,
+        Order, Role, Slot, TitleSources, TitleTarget as Target, artwork_url,
     },
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
@@ -51,7 +49,7 @@ pub(super) struct LibraryServiceHandler {
     pub(super) title_sources: TitleSources,
     /// Names the Plugins serving them.
     pub(super) plugins: ExtensionPoints,
-    /// Says which Plugins a Library may list as Recognisers, and what each title source keeps.
+    /// Says what each title source keeps.
     pub(super) plugin_settings: PluginSettings,
 }
 
@@ -69,33 +67,6 @@ impl LibraryServiceHandler {
             newest: (self.contents.newest_backdrops().await).map_err(database_failed)?,
             images: self.images.shown().await?,
         })
-    }
-
-    /// Refuses Recogniser `ids`, sent in the request field `field`, that name an id twice or of
-    /// no Plugin the Server has whose Manifest names the Recogniser point.
-    async fn check_recognisers(&self, ids: &[String], field: &str) -> Result<(), ConnectError> {
-        for (seen, id) in (1..).zip(ids) {
-            let repeated = ids.iter().take(seen).filter(|other| *other == id).count() > 1;
-            // A stored order is comma-separated.
-            if repeated || id.contains(',') || !self.is_recogniser(id).await? {
-                let message = format!("{id:?} is no Recogniser's Plugin, or is named twice");
-                let refused = refuse(RefusalReason::REFUSAL_REASON_RECOGNISERS_INVALID, message);
-                return Err(refused.field(field).param("pluginId", id).into());
-            }
-        }
-        Ok(())
-    }
-
-    /// Whether the Plugin `id`, enabled or not, says in its Manifest it serves the Recogniser
-    /// point.
-    async fn is_recogniser(&self, id: &str) -> Result<bool, ConnectError> {
-        let plugin = PluginId::from(id.to_owned());
-        let stored = (self.plugin_settings.get(&plugin).await).map_err(database_failed)?;
-        let point = PointKey::provide::<dyn Recogniser>();
-        Ok(stored.is_some_and(|stored| {
-            (stored.plugin.manifest)
-                .is_ok_and(|manifest| manifest.extension_points.contains(&point))
-        }))
     }
 }
 
@@ -131,19 +102,14 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<CreateLibraryResponse> {
         let request = request.to_owned_message();
         let kind = kind_from_proto(request.kind)?;
-        let mut title_sources = request.title_sources;
-        if title_sources.is_empty() {
-            title_sources = default_title_sources();
-        }
-        check_known(&title_sources, &[], &self.plugin_settings.title_sources())?;
-        (self.check_recognisers(&request.recogniser_ids, "recogniser_ids")).await?;
         let order = Order {
-            title_sources,
+            title_sources: request.title_sources,
             recognisers: Some(request.recogniser_ids),
         };
         let library = (self.scanner)
             .create_library(request.name, kind, request.folders, order)
-            .await?;
+            .await
+            .map_err(changing_failed("recogniser_ids"))?;
         let backdrops = self.backdrops().await?;
         Response::ok(CreateLibraryResponse {
             library: library_to_proto(library, &backdrops).into(),
@@ -202,25 +168,14 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, UpdateLibraryRequest>,
     ) -> ServiceResult<UpdateLibraryResponse> {
         let request = request.to_owned_message();
-        if !request.title_sources.is_empty() {
-            let stored = self.libraries.get(request.id).await?.title_sources;
-            let known = self.plugin_settings.title_sources();
-            check_known(&request.title_sources, &stored, &known)?;
-        }
-        let recognisers = request
-            .recogniser_order
-            .into_option()
-            .map(|order| order.ids);
-        if let Some(ids) = &recognisers {
-            self.check_recognisers(ids, "recogniser_order").await?;
-        }
         let order = Order {
             title_sources: request.title_sources,
-            recognisers,
+            recognisers: (request.recogniser_order.into_option()).map(|order| order.ids),
         };
         let library = (self.scanner)
             .update_library(request.id, request.name, request.folders, order)
-            .await?;
+            .await
+            .map_err(changing_failed("recogniser_order"))?;
         let backdrops = self.backdrops().await?;
         Response::ok(UpdateLibraryResponse {
             library: library_to_proto(library, &backdrops).into(),
@@ -618,8 +573,25 @@ impl From<LibraryError> for ConnectError {
             LibraryError::NoTitleSourceSearches => {
                 refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message).field("title_sources")
             }
+            // Its field is the request's, which `changing_failed` names.
+            LibraryError::RecognisersInvalid { plugin } => {
+                refuse(R::REFUSAL_REASON_RECOGNISERS_INVALID, message).param("pluginId", &plugin)
+            }
             LibraryError::Database(err) => return database_failed(err),
         };
         refused.into()
+    }
+}
+
+/// What a Library change failing tells the client, as [`From`] does, naming `recognisers_field`,
+/// the request field its Recogniser order came in, for a refused one.
+fn changing_failed(recognisers_field: &'static str) -> impl Fn(LibraryError) -> ConnectError {
+    move |err| {
+        let LibraryError::RecognisersInvalid { plugin } = &err else {
+            return err.into();
+        };
+        let reason = RefusalReason::REFUSAL_REASON_RECOGNISERS_INVALID;
+        let refused = refuse(reason, err.to_string()).field(recognisers_field);
+        refused.param("pluginId", plugin).into()
     }
 }

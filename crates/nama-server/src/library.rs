@@ -31,7 +31,7 @@ pub(crate) use custom_images::{
 };
 pub(crate) use libraries::{
     Error as LibraryError, FolderProblem, Kind as LibraryKind, Libraries, Library, Order,
-    check_known, check_title_sources, default_title_sources,
+    check_known, default_title_sources,
 };
 pub(crate) use local_images::{
     FoundImages, LocalImageUrls, LocalImages, router as local_images_router,

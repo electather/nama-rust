@@ -33,6 +33,7 @@ use crate::{
         fixture::{self, MatchedMovie, tmdb_movie},
     },
     playback::RunningPlans,
+    plugin_settings::PluginSettings,
     plugins::{ExtensionPoints, Registry},
     requests::Requests,
     scanner::Scanner,
@@ -49,7 +50,7 @@ fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
     let events = EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default());
     let scanner = Scanner::new(
         Arc::clone(db),
-        points.clone(),
+        PluginSettings::for_tests(Arc::clone(db), Registry::new()),
         Artwork::new(images.clone(), points.clone()),
         CustomImages::new(Arc::clone(db), images.clone()),
         LocalImages::new(Arc::clone(db), images),

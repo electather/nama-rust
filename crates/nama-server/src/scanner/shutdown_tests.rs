@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use super::tests::Fixture;
-use crate::{library::LibraryKind, plugins::ExtensionPoints};
+use crate::{library::LibraryKind, plugins::Registry};
 
 #[tokio::test]
 async fn shutting_down_waits_for_a_media_delete_already_started() {
-    let media = Fixture::with_plugins(LibraryKind::Movies, ExtensionPoints::default()).await;
+    let media = Fixture::with_plugins(LibraryKind::Movies, Registry::new()).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scan().await;
     let alien = media

@@ -46,6 +46,14 @@ fn recognisers(ids: &[&str]) -> Order {
     }
 }
 
+/// An [`Order`] for a new Library searching TMDB and asking the Recognisers `ids`.
+fn tmdb_and(ids: &[&str]) -> Order {
+    Order {
+        recognisers: Some(order(ids)),
+        ..sources(&["tmdb"])
+    }
+}
+
 #[tokio::test]
 async fn create_in_order_stores_and_returns_the_order() {
     let (_data, _media, libraries, folder) = setup().await;
@@ -121,7 +129,7 @@ async fn a_new_library_asks_no_recognisers() {
 async fn create_in_order_stores_and_returns_the_recognisers() {
     let (_data, _media, libraries, folder) = setup().await;
     let created = libraries
-        .create_in_order("Shows", Kind::Shows, vec![folder], recognisers(&["b", "a"]))
+        .create_in_order("Shows", Kind::Shows, vec![folder], tmdb_and(&["b", "a"]))
         .await
         .unwrap();
     assert_eq!(created.recognisers, order(&["b", "a"]));
@@ -133,12 +141,7 @@ async fn create_in_order_stores_and_returns_the_recognisers() {
 async fn update_without_recognisers_keeps_them_and_with_none_clears_them() {
     let (_data, _media, libraries, folder) = setup().await;
     let created = libraries
-        .create_in_order(
-            "Shows",
-            Kind::Shows,
-            vec![folder.clone()],
-            recognisers(&["a"]),
-        )
+        .create_in_order("Shows", Kind::Shows, vec![folder.clone()], tmdb_and(&["a"]))
         .await
         .unwrap();
 
