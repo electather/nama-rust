@@ -10,7 +10,7 @@
     },
     "ffmpeg": {
       "default": null,
-      "description": "The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`. A\nrelative path, such as `bin/ffmpeg`, counts from the folder the Server starts in.",
+      "description": "The ffmpeg to run, such as a container's own. Unset, the default, looks for `ffmpeg` on\n`PATH`. A bare name, such as `jellyfin-ffmpeg`, is looked up on `PATH`, and a path with a\nfolder in it, such as `bin/ffmpeg`, counts from the folder the Server starts in.",
       "type": [
         "string",
         "null"
@@ -18,7 +18,7 @@
     },
     "ffprobe": {
       "default": null,
-      "description": "The ffprobe to run. Unset, the default, looks for it on `PATH`. A relative path counts from\nthe folder the Server starts in.",
+      "description": "The ffprobe to run. Unset, the default, looks for `ffprobe` on `PATH`. A bare name is looked\nup on `PATH`, and a path with a folder in it, such as `./ffprobe`, counts from the folder\nthe Server starts in.",
       "type": [
         "string",
         "null"
