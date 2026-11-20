@@ -203,7 +203,7 @@ impl Browse {
     }
 
     /// The whole of [`Self::continue_watching`], without Tracks, each title with its recency.
-    async fn all_started(
+    pub(super) async fn all_started(
         &self,
         user: i64,
     ) -> Result<Vec<(Started<LibraryVersion>, Recency)>, Error> {
@@ -361,12 +361,12 @@ const fn is_started(state: WatchState) -> bool {
 }
 
 /// An Episode, with the User's latest Watch State of it and that state's row id.
-type WatchedEpisode<'a, V> = (&'a LibraryEpisode<V>, Option<(WatchState, i64)>);
+pub(super) type WatchedEpisode<'a, V> = (&'a LibraryEpisode<V>, Option<(WatchState, i64)>);
 
 /// A Show's entry in Continue Watching, from each of its Episodes in aired order: its most
 /// recently started Episode, with its state, or else its next Episode, without one. `None` if it
 /// has neither.
-fn show_entry<'a, V>(
+pub(super) fn show_entry<'a, V>(
     watched: &[WatchedEpisode<'a, V>],
 ) -> Option<(&'a LibraryEpisode<V>, Option<WatchState>)> {
     let started = (watched.iter())
@@ -380,7 +380,7 @@ fn show_entry<'a, V>(
 }
 
 /// Season 0, which isn't in aired order.
-const SPECIALS: i64 = 0;
+pub(super) const SPECIALS: i64 = 0;
 
 /// The first unplayed Episode of `watched`, in aired order, after the one that became played
 /// most recently (see [`unplayed_after`]).
@@ -412,7 +412,7 @@ fn unplayed_after<'a, V>(
 }
 
 /// Whether `episode` is in aired order, which Specials aren't.
-fn is_aired<V>(episode: &LibraryEpisode<V>) -> bool {
+pub(super) fn is_aired<V>(episode: &LibraryEpisode<V>) -> bool {
     episode.season != SPECIALS
 }
 

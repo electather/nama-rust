@@ -220,6 +220,9 @@ pub mod __buffa {
         reg.register_json_any(super::__CONTINUE_WATCHING_EPISODE_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_FEATURED_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_FEATURED_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FEATURED_TITLE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_LIBRARIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_LIBRARIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
@@ -1020,6 +1023,18 @@ pub use self::__buffa::view::ListContinueWatchingRequestOwnedView;
 pub use self::__buffa::view::ListContinueWatchingResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListFeaturedRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListFeaturedRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListFeaturedResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListFeaturedResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FeaturedTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::FeaturedTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SearchLibrariesRequestView;
 #[doc(inline)]

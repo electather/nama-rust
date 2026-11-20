@@ -8,17 +8,18 @@ use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
     GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
     GetUnmatchedVersionResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
-    ListEpisodesRequest, ListEpisodesResponse, ListGenresRequest, ListGenresResponse,
-    ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest, ListHomeRowsResponse,
-    ListMoviesRequest, ListMoviesResponse, ListShowsRequest, ListShowsResponse,
-    ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission, RefusalReason,
-    SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection, WatchedFilter,
+    ListEpisodesRequest, ListEpisodesResponse, ListFeaturedRequest, ListFeaturedResponse,
+    ListGenresRequest, ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse,
+    ListHomeRowsRequest, ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse,
+    ListShowsRequest, ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort,
+    Permission, SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection,
+    WatchedFilter,
 };
 
 use crate::{
-    browse::{Browse, Episode, ListedShow, Movie, Show, Started, Version},
+    browse::{Browse, Episode, ListedShow, Movie, Show, Started, Version, season_count},
     db::Database,
-    home_rows::{self, HomeRows, OnServer, RowTitle},
+    home_rows::{HomeRows, OnServer, RowTitle},
     library::{
         Artwork, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
         Slot, TitleKind, TitleSort, Unmatched, WatchState, Watched, artwork_url,
@@ -28,14 +29,17 @@ use crate::{
 };
 
 use super::{
-    ImageSources, ShownImages, caller, database_failed, external_id_to_proto, proto_number, refuse,
+    ImageSources, ShownImages, caller, database_failed, external_id_to_proto, proto_number,
     requests::{missing_movie_to_proto, missing_show_to_proto},
     required_id,
 };
 
 mod refusals;
+mod titles;
 
+use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
+use titles::{featured_to_proto, started_to_proto};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -306,6 +310,23 @@ impl BrowseService for BrowseServiceHandler {
         Response::ok(ListContinueWatchingResponse {
             entries,
             page: page.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_featured(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListFeaturedRequest>,
+    ) -> ServiceResult<ListFeaturedResponse> {
+        let user = caller(&ctx)?.user.id;
+        let featured = self.browse.featured(user).await;
+        let featured = featured.map_err(refused(Fields::NONE))?;
+        let images = self.images.shown().await?;
+        Response::ok(ListFeaturedResponse {
+            titles: (featured.into_iter())
+                .map(|title| featured_to_proto(title, &images))
+                .collect(),
             ..Default::default()
         })
     }
@@ -581,50 +602,6 @@ fn movie_to_proto(
     }
 }
 
-/// A Continue Watching entry as clients see it, with its images as `images` gives them, its Movie
-/// or Show `on_watchlist` or not.
-fn started_to_proto(
-    started: Started,
-    on_watchlist: bool,
-    images: &ShownImages,
-) -> proto::ContinueWatchingEntry {
-    let (library_id, movie_or_episode) = match started {
-        Started::Movie {
-            library,
-            movie,
-            state,
-        } => {
-            let movie = proto::Movie {
-                on_watchlist,
-                ..movie_to_proto(movie, Some(state), images)
-            };
-            (library, movie.into())
-        }
-        Started::Episode {
-            library,
-            show,
-            episode,
-            state,
-        } => {
-            let started_episode = proto::ContinueWatchingEpisode {
-                episode: episode_to_proto(episode, state, images).into(),
-                show: proto::Show {
-                    on_watchlist,
-                    ..show_to_proto(&show, images)
-                }
-                .into(),
-                ..Default::default()
-            };
-            (library, started_episode.into())
-        }
-    };
-    proto::ContinueWatchingEntry {
-        library_id,
-        movie_or_episode: Some(movie_or_episode),
-        ..Default::default()
-    }
-}
-
 fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
     // Stored positions and durations are never negative.
     let unsigned = |ms: i64| u64::try_from(ms).unwrap_or_default();
@@ -663,6 +640,7 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         content_rating: show.content_rating.clone(),
         overview: show.overview.clone(),
         first_air_date: show.first_air_date.clone(),
+        season_count: u32::try_from(season_count(show)).unwrap_or(u32::MAX),
         ..Default::default()
     }
 }
@@ -757,21 +735,6 @@ fn version_to_proto(version: &Version) -> proto::Version {
         size: u64::try_from(version.file.size).unwrap_or_default(),
         tracks: version.tracks.iter().map(track_to_proto).collect(),
         ..Default::default()
-    }
-}
-
-/// The Connect error a client gets when Home rows couldn't be read. Database failures are logged,
-/// not sent.
-fn home_rows_refused(err: home_rows::Error) -> ConnectError {
-    match err {
-        home_rows::Error::PageTokenInvalid(_) => refuse(
-            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
-            err.to_string(),
-        )
-        .field("page.token")
-        .into(),
-        home_rows::Error::Database(err) => database_failed(err),
-        home_rows::Error::Libraries(err) => err.into(),
     }
 }
 

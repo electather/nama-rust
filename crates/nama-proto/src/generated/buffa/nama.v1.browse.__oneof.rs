@@ -116,6 +116,55 @@ pub mod continue_watching_entry {
         }
     }
 }
+pub mod featured_title {
+    #[allow(unused_imports)]
+    use super::*;
+    /// It, as browsing describes it: a Movie with its Versions and the caller's Watch State.
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum MovieOrShow {
+        Movie(::buffa::alloc::boxed::Box<super::super::super::Movie>),
+        Show(::buffa::alloc::boxed::Box<super::super::super::Show>),
+    }
+    impl ::buffa::Oneof for MovieOrShow {}
+    impl From<super::super::super::Movie> for MovieOrShow {
+        fn from(v: super::super::super::Movie) -> Self {
+            Self::Movie(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::Movie> for ::core::option::Option<MovieOrShow> {
+        fn from(v: super::super::super::Movie) -> Self {
+            Self::Some(MovieOrShow::from(v))
+        }
+    }
+    impl From<super::super::super::Show> for MovieOrShow {
+        fn from(v: super::super::super::Show) -> Self {
+            Self::Show(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::Show> for ::core::option::Option<MovieOrShow> {
+        fn from(v: super::super::super::Show) -> Self {
+            Self::Some(MovieOrShow::from(v))
+        }
+    }
+    impl ::serde::Serialize for MovieOrShow {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Movie(v) => {
+                    map.serialize_entry("movie", &**v)?;
+                }
+                Self::Show(v) => {
+                    map.serialize_entry("show", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
 pub mod home_row_title {
     #[allow(unused_imports)]
     use super::*;
