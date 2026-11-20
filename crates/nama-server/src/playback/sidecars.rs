@@ -1,9 +1,11 @@
-//! Sidecars: the subtitle files beside each Version, and what their names say they hold.
+//! Sidecars: the subtitle files beside each Version, and what their names say they hold, and the
+//! subtitles Users downloaded for it, which play as sidecars do (ADR 0067).
 //!
-//! [`Sidecars`] owns `sidecar_subtitles` (see the area's `AGENTS.md`). A scan finds the files and
-//! says which Version each is beside; their rows go when the Version goes. Only their names and
-//! metadata are read, never the files. Readers of a Version's Tracks append them with
-//! [`Sidecars::append_to`] (see the area's `AGENTS.md`).
+//! [`Sidecars`] owns `sidecar_subtitles` and `downloaded_subtitles` (see the area's `AGENTS.md`).
+//! A scan finds the files and says which Version each is beside; `downloads.rs` keeps what a User
+//! downloads. Their rows go when the Version goes. Only the sidecars' names and metadata are read,
+//! never the files. Readers of a Version's Tracks append them with [`Sidecars::append_to`] (see the
+//! area's `AGENTS.md`).
 
 use std::{collections::HashMap, ffi::OsStr, path::Path, sync::Arc};
 
@@ -67,7 +69,8 @@ impl Sidecars {
     }
 
     /// Appends to the Tracks of each of `probes`, by Version id, the sidecars stored beside it, in
-    /// path order, after the file's own, so those keep their places.
+    /// path order, then its downloaded subtitles, in the order they were downloaded, after the
+    /// file's own, so those keep their places.
     pub(crate) async fn append_to(
         &self,
         probes: impl IntoIterator<Item = (i64, &mut Probe)>,
@@ -104,7 +107,68 @@ impl Sidecars {
                 probe.tracks.push(track);
             }
         }
+        let downloaded = sqlx::query!(
+            r#"SELECT version_id, path, size, modified_ns, codec, language, title, sdh AS "sdh: bool"
+               FROM downloaded_subtitles
+               WHERE version_id IN (SELECT value FROM json_each(?))
+               ORDER BY rowid"#,
+            versions
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        for row in downloaded {
+            let sidecar = Sidecar {
+                path: row.path,
+                size: row.size,
+                modified_ns: row.modified_ns,
+            };
+            let track = Track {
+                kind: subtitle(&row.codec, Some(sidecar)),
+                codec: row.codec,
+                language: Some(row.language),
+                title: Some(row.title),
+                default: false,
+                forced: false,
+                sdh: row.sdh,
+            };
+            if let Some(probe) = probes.get_mut(&row.version_id) {
+                probe.tracks.push(track);
+            }
+        }
         Ok(())
+    }
+
+    /// Keeps `track`, downloaded for the Version `version` and kept in `sidecar`, as its last
+    /// Track, unless that file is kept for it already.
+    pub(super) async fn keep_download(
+        &self,
+        version: i64,
+        sidecar: Sidecar,
+        track: Track,
+    ) -> Result<(), sqlx::Error> {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO downloaded_subtitles (version_id, path, size, modified_ns, codec,
+                                                           language, title, sdh)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                         ON CONFLICT (version_id, path) DO NOTHING",
+                        version,
+                        sidecar.path,
+                        sidecar.size,
+                        sidecar.modified_ns,
+                        track.codec,
+                        track.language,
+                        track.title,
+                        track.sdh,
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
+                })
+            })
+            .await
     }
 
     /// Replaces the stored sidecars of each Version in `found` with those found beside it, in
@@ -169,7 +233,7 @@ pub(crate) fn is_sidecar(path: &Path) -> bool {
 }
 
 /// The codec, as ffprobe names it, of a sidecar with the extension `extension`, if it is one.
-fn codec_of(extension: &str) -> Option<&'static str> {
+pub(super) fn codec_of(extension: &str) -> Option<&'static str> {
     match extension.to_ascii_lowercase().as_str() {
         "srt" => Some("subrip"),
         "vtt" => Some("webvtt"),
@@ -181,7 +245,7 @@ fn codec_of(extension: &str) -> Option<&'static str> {
 }
 
 /// The kind of Track a sidecar of `codec` is: only `.sup`'s is an image.
-fn subtitle(codec: &str, sidecar: Option<Sidecar>) -> TrackKind {
+pub(super) fn subtitle(codec: &str, sidecar: Option<Sidecar>) -> TrackKind {
     TrackKind::Subtitle {
         image: codec == "hdmv_pgs_subtitle",
         header: false,
@@ -235,7 +299,7 @@ fn track_named(stem: &str, name: &str) -> Option<Track> {
 
 /// Whether `tag` names a language: an ISO 639 code, or one joined by `-` to a region, such as
 /// `pt-BR` or `es-419`. Unlike a Preference's, `und` counts, as it does in a file's own Tracks.
-fn names_language(tag: &str) -> bool {
+pub(super) fn names_language(tag: &str) -> bool {
     let is_region = |region: &str| {
         (region.len() == 2 && region.bytes().all(|b| b.is_ascii_alphabetic()))
             || (region.len() == 3 && region.bytes().all(|b| b.is_ascii_digit()))

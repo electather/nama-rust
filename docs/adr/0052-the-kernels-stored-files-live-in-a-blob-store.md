@@ -1,6 +1,6 @@
 # The Kernel's stored files live in a blob store, on local disk or in a Plugin
 
-_Amended by [ADR 0067](0067-subtitles-come-from-a-plugins-source-and-live-in-the-blob-store.md): the subtitle source is a Provider-lane point after this one, and subtitles a User downloads count as the Kernel's stored files too, not media, kept under `subtitles/` and copied with the other folders when the store is switched._
+_Amended by [ADR 0067](0067-subtitles-come-from-a-plugins-source-and-live-in-the-blob-store.md): the subtitle source is a Provider-lane point after this one, and subtitles a User downloads count as the Kernel's stored files too, not media, kept under `downloaded-subtitles/` and copied with the other folders when the store is switched._
 
 ADR 0037 kept every stored image as a plain file in the data directory, behind the image store's own interface, and left storage out of the Extension Points until a second implementation showed what the contract needs. S3 and S3-compatible stores are that second one. A blob store is now the Extension Point for where the Kernel's own stored files live, `nama.plugin.v1.BlobStoreService` 1.0.0, behind the table-driven adapter (ADR 0043), with the Built-in `BlobStore` trait in `nama-plugin-api` mirroring it. It is the last Provider-lane point in the design.
 
