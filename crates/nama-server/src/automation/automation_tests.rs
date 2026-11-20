@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fs,
     path::Path,
     sync::Arc,
@@ -683,7 +683,7 @@ async fn list_requesters_gives_a_title_whose_only_requester_was_deleted_as_reque
 }
 
 #[tokio::test]
-async fn list_watchlist_gives_the_users_watchlist_in_the_order_it_was_added() {
+async fn list_watchlist_gives_that_users_watchlist_only() {
     let data = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
@@ -708,14 +708,14 @@ async fn list_watchlist_gives_the_users_watchlist_in_the_order_it_was_added() {
     };
     let listed: Watchlist = ask(&kernel, "list_watchlist", &asked).await.unwrap();
 
-    let listed: Vec<_> = (listed.titles.iter())
+    let listed: HashSet<_> = (listed.titles.iter())
         .map(|title| (title.kind, title.id.value.clone()))
         .collect();
     let show = contract::TitleKind::TITLE_KIND_SHOW.into();
     let movie = contract::TitleKind::TITLE_KIND_MOVIE.into();
-    let expected = [
+    let expected = HashSet::from([
         (show, DARK_TMDB_ID.to_string()),
         (movie, ALIEN_TMDB_ID.to_string()),
-    ];
+    ]);
     assert_eq!(listed, expected);
 }

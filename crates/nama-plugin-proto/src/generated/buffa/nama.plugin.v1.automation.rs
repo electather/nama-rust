@@ -5047,8 +5047,8 @@ pub const __WATCHLIST_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     from_json: ::buffa::type_registry::any_from_json::<WatchlistAsked>,
     is_wkt: false,
 };
-/// What `list_watchlist` answers: the User's Watchlist, the title added first first. Empty for a
-/// User with none, or no such User.
+/// What `list_watchlist` answers: the User's Watchlist, empty for a User with none or no such
+/// User.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

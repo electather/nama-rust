@@ -125,7 +125,7 @@ impl Contents {
                 added_at: row.newest_added_at,
                 genres: genres(row.genres.as_deref())?,
                 content_rating: row.content_rating,
-                // An Episode's listed id is its Show's.
+                // A Movie is listed under its own id, which isn't a Show's.
                 show_id: row
                     .listed_id
                     .as_deref()

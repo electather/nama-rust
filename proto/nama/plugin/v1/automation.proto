@@ -270,8 +270,8 @@ message WatchlistAsked {
   int64 user_id = 1;
 }
 
-// What `list_watchlist` answers: the User's Watchlist, the title added first first. Empty for a
-// User with none, or no such User.
+// What `list_watchlist` answers: the User's Watchlist, empty for a User with none or no such
+// User.
 message Watchlist {
   repeated WatchlistTitle titles = 1;
 }
