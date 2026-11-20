@@ -40,6 +40,8 @@ pub use failing::Failing;
 pub use points::ExtensionPoints;
 pub use registry::Registry;
 pub(crate) use retrying::{RETRIES, Retryable};
+#[cfg(test)]
+pub(crate) use wasm::KERNEL_IMPORTS;
 pub(crate) use wasm::read as read_installed;
 
 /// How long a Plugin's settings check may take before it counts as failed.

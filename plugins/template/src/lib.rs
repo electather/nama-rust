@@ -4,7 +4,7 @@
 
 use nama_pdk::{
     Manifest, Notification, Recipient,
-    extism_pdk::{Error, HttpRequest, Json, config, json::json},
+    extism_pdk::{Error, HttpRequest, Json, json::json},
     nama_plugin_proto::nama::plugin::v1::{
         Request, SettingField, SettingKind, event::Event, request::MovieOrSeason,
     },
@@ -65,7 +65,7 @@ impl nama_pdk::Notifier for Template {
         let Some((event, title)) = what_happened(&notification) else {
             return Ok(());
         };
-        let url = config::get(WEBHOOK_URL)?
+        let url = nama_pdk::setting(WEBHOOK_URL)?
             .ok_or_else(|| Error::msg("the setting webhook_url isn't set"))?;
         let request = HttpRequest::new(url)
             .with_method("POST")

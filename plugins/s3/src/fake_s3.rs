@@ -5,10 +5,9 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use hmac::{Hmac, KeyInit as _, Mac as _};
+use nama_pdk::{Response, extism_pdk::HttpRequest};
 use sha2::{Digest as _, Sha256};
 use url::Url;
-
-use super::{Answer, Call};
 
 /// The access key ID the fake knows.
 pub(super) const ACCESS_KEY_ID: &str = "AKIAFAKEFAKEFAKE";
@@ -44,17 +43,21 @@ impl FakeS3 {
         }
     }
 
-    /// S3's answer to `call`.
-    pub(super) fn answer(&mut self, call: Call) -> Answer {
-        let mut answer = self.answer_with_body(call.method, &call.url, call.body);
+    /// S3's answer to `request` with `body`.
+    pub(super) fn answer(&mut self, request: &HttpRequest, body: &[u8]) -> Response {
+        let method = request.method.as_deref().unwrap_or("GET");
+        let Ok(url) = Url::parse(&request.url) else {
+            return error(400, "InvalidURI");
+        };
+        let answered = self.answer_with_body(method, &url, body);
         // S3 answers a HEAD with no body, refusals included.
-        if call.method == "HEAD" {
-            answer.body.clear();
+        if method == "HEAD" {
+            return Response::new(answered.status_code(), Vec::new());
         }
-        answer
+        answered
     }
 
-    fn answer_with_body(&mut self, method: &str, url: &Url, body: Option<Vec<u8>>) -> Answer {
+    fn answer_with_body(&mut self, method: &str, url: &Url, body: &[u8]) -> Response {
         if let Err(code) = self.verify(method, url) {
             return error(403, code);
         }
@@ -65,18 +68,18 @@ impl FakeS3 {
         match (method, key.is_empty()) {
             ("GET", true) => self.list(url),
             ("PUT", false) => {
-                self.objects.insert(key, body.unwrap_or_default());
-                answer(200, Vec::new())
+                self.objects.insert(key, body.to_vec());
+                Response::new(200, Vec::new())
             }
             ("GET", false) => match self.objects.get(&key) {
-                Some(bytes) => answer(200, bytes.clone()),
+                Some(bytes) => Response::new(200, bytes.clone()),
                 None => error(404, "NoSuchKey"),
             },
-            ("HEAD", false) if self.objects.contains_key(&key) => answer(200, Vec::new()),
+            ("HEAD", false) if self.objects.contains_key(&key) => Response::new(200, Vec::new()),
             ("HEAD", false) => error(404, "NoSuchKey"),
             ("DELETE", false) => {
                 self.objects.remove(&key);
-                answer(204, Vec::new())
+                Response::new(204, Vec::new())
             }
             _ => error(405, "MethodNotAllowed"),
         }
@@ -148,7 +151,7 @@ impl FakeS3 {
     }
 
     /// A `ListObjectsV2` page, its continuation token the first key of the next page.
-    fn list(&self, url: &Url) -> Answer {
+    fn list(&self, url: &Url) -> Response {
         let param = |name: &str| {
             url.query_pairs()
                 .find(|(key, _)| key == name)
@@ -198,17 +201,13 @@ impl FakeS3 {
             xml += "<EncodingType>url</EncodingType>";
         }
         xml += "</ListBucketResult>";
-        answer(200, xml.into_bytes())
+        Response::new(200, xml.into_bytes())
     }
 }
 
-fn answer(status: u16, body: Vec<u8>) -> Answer {
-    Answer { status, body }
-}
-
 /// S3's refusal with `code`, in the XML body it gives one.
-fn error(status: u16, code: &str) -> Answer {
-    answer(
+fn error(status: u16, code: &str) -> Response {
+    Response::new(
         status,
         format!(
             r#"<?xml version="1.0" encoding="UTF-8"?><Error><Code>{code}</Code><Message>The fake S3 refused the request.</Message><RequestId>FAKE</RequestId></Error>"#

@@ -1,10 +1,10 @@
 # Sonarr responses for tests
 
 Responses from the Sonarr v4 API (served under `/api/v3`), served by the fake Sonarr in the
-Server's tests (`crates/nama-server/tests/support/fake_sonarr.rs`), so no test needs a Sonarr. They
-follow Sonarr's documented response shapes, trimmed to a realistic subset of fields, and were
-written by hand rather than captured, because the factory that built the Plugin had no Sonarr.
-When re-recording one, trim it the same way.
+Server's tests (`crates/nama-server/tests/support/fake_sonarr.rs`) and scripted in the Plugin's
+own, so no test needs a Sonarr. They follow Sonarr's documented response shapes, trimmed to a
+realistic subset of fields, and were written by hand rather than captured, because the factory
+that built the Plugin had no Sonarr. When re-recording one, trim it the same way.
 
 | File | Answers |
 |---|---|

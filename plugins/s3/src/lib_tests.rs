@@ -1,18 +1,15 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, UNIX_EPOCH},
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use nama_pdk::{
-    BLOB_MAX_BYTES,
-    extism_pdk::Error,
+    BLOB_MAX_BYTES, BlobStore, Response,
     nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
     services,
+    testing::{Kernel, with},
 };
 use url::Url;
 
 use super::{
-    Answer, Call, Store, check,
+    S3, check,
     fake_s3::{ACCESS_KEY_ID, BUCKET, FakeS3, REGION},
     manifest,
 };
@@ -32,20 +29,27 @@ fn settings(secret: &str) -> HashMap<&'static str, String> {
     ])
 }
 
-fn store_with(settings: &HashMap<&'static str, String>) -> Result<Store, Error> {
-    Store::new(
-        |key| Ok(settings.get(key).cloned()),
-        UNIX_EPOCH + Duration::from_hours(500_000),
-    )
+/// A Kernel holding `settings`, answering no request.
+fn configured(settings: &HashMap<&'static str, String>) -> Kernel {
+    (settings.iter()).fold(Kernel::new(), |kernel, (key, value)| {
+        kernel.setting(key, value)
+    })
 }
 
-fn store() -> Store {
-    store_with(&settings(SECRET)).unwrap()
+/// An empty bucket accepting [`SECRET`], shared with the Kernel that sends it requests.
+fn bucket() -> Rc<RefCell<FakeS3>> {
+    Rc::new(RefCell::new(FakeS3::new(SECRET)))
 }
 
-/// Sends a call to `fake`.
-fn to(fake: &mut FakeS3) -> impl FnOnce(Call) -> Result<Answer, Error> + '_ {
-    |call| Ok(fake.answer(call))
+/// A Kernel holding `settings`, whose requests `fake` answers.
+fn kernel(settings: &HashMap<&'static str, String>, fake: &Rc<RefCell<FakeS3>>) -> Kernel {
+    let fake = Rc::clone(fake);
+    configured(settings).http(move |request, body| Ok(fake.borrow_mut().answer(request, body)))
+}
+
+/// Calls the Plugin with the settings for [`SECRET`], against `fake`.
+fn s3<R>(fake: &Rc<RefCell<FakeS3>>, call: impl FnOnce() -> R) -> R {
+    with(&mut kernel(&settings(SECRET), fake), call)
 }
 
 #[test]
@@ -101,75 +105,91 @@ fn manifest_serves_the_blob_store_with_its_settings() {
 
 #[test]
 fn an_object_put_is_got_back_under_the_prefix() {
-    let mut fake = FakeS3::new(SECRET);
-    let store = store();
+    let fake = bucket();
 
-    store
-        .put("posters/1.jpg", b"poster".to_vec(), to(&mut fake))
-        .unwrap();
+    let (got, exists) = s3(&fake, || {
+        S3::put("posters/1.jpg".to_owned(), b"poster".to_vec())?;
+        Ok::<_, nama_pdk::extism_pdk::Error>((
+            S3::get("posters/1.jpg".to_owned())?,
+            S3::exists("posters/1.jpg".to_owned())?,
+        ))
+    })
+    .unwrap();
 
     assert_eq!(
-        fake.objects.get("nama/posters/1.jpg").map(Vec::as_slice),
+        fake.borrow()
+            .objects
+            .get("nama/posters/1.jpg")
+            .map(Vec::as_slice),
         Some(&b"poster"[..])
     );
-    let got = store.get("posters/1.jpg", to(&mut fake)).unwrap();
     assert_eq!(got.as_deref(), Some(&b"poster"[..]));
-    assert!(store.exists("posters/1.jpg", to(&mut fake)).unwrap());
+    assert!(exists);
 }
 
 #[test]
 fn a_put_replaces_the_object_at_its_key() {
-    let mut fake = FakeS3::new(SECRET);
-    let store = store();
+    let fake = bucket();
 
-    store.put("a", b"old".to_vec(), to(&mut fake)).unwrap();
-    store.put("a", b"new".to_vec(), to(&mut fake)).unwrap();
+    let got = s3(&fake, || {
+        S3::put("a".to_owned(), b"old".to_vec())?;
+        S3::put("a".to_owned(), b"new".to_vec())?;
+        S3::get("a".to_owned())
+    })
+    .unwrap();
 
-    let got = store.get("a", to(&mut fake)).unwrap();
     assert_eq!(got.as_deref(), Some(&b"new"[..]));
 }
 
 #[test]
 fn a_missing_key_is_not_found_and_deleting_it_succeeds() {
-    let mut fake = FakeS3::new(SECRET);
-    let store = store();
+    let fake = bucket();
 
-    assert_eq!(store.get("missing.jpg", to(&mut fake)).unwrap(), None);
-    assert!(!store.exists("missing.jpg", to(&mut fake)).unwrap());
-    store.delete("missing.jpg", to(&mut fake)).unwrap();
+    let (got, exists, deleted) = s3(&fake, || {
+        (
+            S3::get("missing.jpg".to_owned()).unwrap(),
+            S3::exists("missing.jpg".to_owned()).unwrap(),
+            S3::delete("missing.jpg".to_owned()),
+        )
+    });
+
+    assert_eq!(got, None);
+    assert!(!exists);
+    deleted.unwrap();
 }
 
 #[test]
 fn a_deleted_object_is_gone() {
-    let mut fake = FakeS3::new(SECRET);
-    let store = store();
-    store
-        .put("logo.svg", b"<svg/>".to_vec(), to(&mut fake))
-        .unwrap();
+    let fake = bucket();
 
-    store.delete("logo.svg", to(&mut fake)).unwrap();
+    let exists = s3(&fake, || {
+        S3::put("logo.svg".to_owned(), b"<svg/>".to_vec())?;
+        S3::delete("logo.svg".to_owned())?;
+        S3::exists("logo.svg".to_owned())
+    })
+    .unwrap();
 
-    assert!(fake.objects.is_empty());
-    assert!(!store.exists("logo.svg", to(&mut fake)).unwrap());
+    assert!(fake.borrow().objects.is_empty());
+    assert!(!exists);
 }
 
 #[test]
 fn a_listing_goes_over_pages_of_1000_keys_without_the_prefix() {
-    let mut fake = FakeS3::new(SECRET);
-    for n in 0..1001 {
-        fake.objects
-            .insert(format!("nama/posters/{n:04}.jpg"), Vec::new());
+    let fake = bucket();
+    {
+        let objects = &mut fake.borrow_mut().objects;
+        for n in 0..1001 {
+            objects.insert(format!("nama/posters/{n:04}.jpg"), Vec::new());
+        }
+        objects.insert("nama/backdrops/1.jpg".to_owned(), Vec::new());
+        objects.insert("other/posters/1.jpg".to_owned(), Vec::new());
     }
-    fake.objects
-        .insert("nama/backdrops/1.jpg".to_owned(), Vec::new());
-    fake.objects
-        .insert("other/posters/1.jpg".to_owned(), Vec::new());
-    let store = store();
 
-    let first = store.list("posters/", "", 1000, to(&mut fake)).unwrap();
-    let second = store
-        .list("posters/", &first.next_page_token, 1000, to(&mut fake))
-        .unwrap();
+    let (first, second) = s3(&fake, || {
+        let first = S3::list("posters/".to_owned(), String::new()).unwrap();
+        let second = S3::list("posters/".to_owned(), first.next_page_token.clone()).unwrap();
+        (first, second)
+    });
 
     assert_eq!(first.keys.len(), 1000);
     assert_eq!(first.keys[0], "posters/0000.jpg");
@@ -180,33 +200,33 @@ fn a_listing_goes_over_pages_of_1000_keys_without_the_prefix() {
 
 #[test]
 fn a_wrong_secret_is_refused_with_s3s_error_code() {
-    let mut fake = FakeS3::new(SECRET);
-    let store = store_with(&settings("not the secret")).unwrap();
+    let fake = bucket();
+    let mut kernel = kernel(&settings("not the secret"), &fake);
 
-    let put = store
-        .put("a.jpg", b"a".to_vec(), to(&mut fake))
-        .unwrap_err();
-    let got = store.get("a.jpg", to(&mut fake)).unwrap_err();
-    let checked = check(&store, to(&mut fake)).unwrap_err();
+    let refused = with(&mut kernel, || {
+        [
+            S3::put("a.jpg".to_owned(), b"a".to_vec()).unwrap_err(),
+            S3::get("a.jpg".to_owned()).unwrap_err(),
+            check().unwrap_err(),
+        ]
+    });
 
-    assert!(fake.objects.is_empty());
-    for err in [put, got, checked] {
+    assert!(fake.borrow().objects.is_empty());
+    for err in refused {
         assert!(err.to_string().contains("SignatureDoesNotMatch"), "{err}");
     }
 }
 
 #[test]
 fn checking_the_settings_lists_one_key() {
-    let mut fake = FakeS3::new(SECRET);
-    let mut asked = None;
+    let mut kernel = kernel(&settings(SECRET), &bucket());
 
-    check(&store(), |call| {
-        asked = Some(call.url.clone());
-        Ok(fake.answer(call))
-    })
-    .unwrap();
+    with(&mut kernel, check).unwrap();
 
-    let asked = asked.unwrap();
+    let [sent] = kernel.sent() else {
+        panic!("the check sent {} requests, not one", kernel.sent().len());
+    };
+    let asked = Url::parse(&sent.request.url).unwrap();
     let param = |name| asked.query_pairs().find(|(key, _)| key == name);
     assert_eq!(param("max-keys").unwrap().1, "1");
     assert_eq!(param("prefix").unwrap().1, "nama/");
@@ -247,48 +267,41 @@ fn virtual_hosted_addressing_puts_the_bucket_in_the_host() {
     let mut settings = settings(SECRET);
     settings.insert("endpoint", "https://s3.eu-west-1.amazonaws.com".to_owned());
     settings.remove("path_style");
-    let mut asked = None;
+    let mut kernel = configured(&settings).http(|_request, _body| Ok(Response::new(404, "")));
 
-    store_with(&settings)
-        .unwrap()
-        .exists("a.jpg", |call| {
-            asked = Some((call.method, call.url));
-            Ok(Answer {
-                status: 404,
-                body: Vec::new(),
-            })
-        })
-        .unwrap();
+    with(&mut kernel, || S3::exists("a.jpg".to_owned())).unwrap();
 
-    let (method, url) = asked.unwrap();
-    assert_eq!(method, "HEAD");
+    let asked = &kernel.sent()[0].request;
+    let url = Url::parse(&asked.url).unwrap();
+    assert_eq!(asked.method.as_deref(), Some("HEAD"));
     assert_eq!(url.host_str(), Some("media.s3.eu-west-1.amazonaws.com"));
     assert_eq!(url.path(), "/nama/a.jpg");
 }
 
 #[test]
 fn a_missing_bucket_is_an_error_not_a_missing_key() {
-    let mut fake = FakeS3::new(SECRET);
     let mut settings = settings(SECRET);
     settings.insert("bucket", "elsewhere".to_owned());
 
-    let err = store_with(&settings)
-        .unwrap()
-        .get("a.jpg", to(&mut fake))
-        .unwrap_err();
+    let err = with(&mut kernel(&settings, &bucket()), || {
+        S3::get("a.jpg".to_owned())
+    })
+    .unwrap_err();
 
     assert!(err.to_string().contains("NoSuchBucket"), "{err}");
 }
 
 #[test]
 fn an_object_over_the_cap_is_refused_without_a_request() {
-    let err = store()
-        .put("huge", vec![0; BLOB_MAX_BYTES + 1], |_| {
-            panic!("an object over the cap was sent")
-        })
-        .unwrap_err();
+    let mut kernel = configured(&settings(SECRET));
+
+    let err = with(&mut kernel, || {
+        S3::put("huge".to_owned(), vec![0; BLOB_MAX_BYTES + 1])
+    })
+    .unwrap_err();
 
     assert!(err.to_string().contains("20 MiB"), "{err}");
+    assert_eq!(kernel.sent(), []);
 }
 
 #[test]
@@ -306,11 +319,24 @@ fn settings_need_an_endpoint_a_bucket_and_both_halves_of_a_key_or_neither() {
             None => settings.remove(key),
         };
 
-        assert!(store_with(&settings).is_err(), "{key} {value:?}");
-    }
+        let checked = with(&mut configured(&settings), check);
 
+        assert!(checked.is_err(), "{key} {value:?}");
+    }
+}
+
+#[test]
+fn without_a_key_requests_go_unsigned() {
     let mut unsigned = settings(SECRET);
     unsigned.remove("access_key_id");
     unsigned.remove("secret_access_key");
-    assert!(store_with(&unsigned).unwrap().credentials.is_none());
+    let mut kernel = configured(&unsigned).http(|_request, _body| Ok(Response::new(404, "")));
+
+    with(&mut kernel, || S3::exists("a.jpg".to_owned())).unwrap();
+
+    let url = Url::parse(&kernel.sent()[0].request.url).unwrap();
+    assert!(
+        url.query_pairs().all(|(name, _)| name != "X-Amz-Signature"),
+        "{url}"
+    );
 }
