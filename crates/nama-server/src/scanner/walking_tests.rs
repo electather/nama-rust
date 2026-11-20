@@ -1,6 +1,7 @@
-use std::{ffi::OsStr, path::Path};
+use std::{ffi::OsStr, fs, path::Path};
 
 use super::*;
+use crate::scanner::tests::{Fixture, summary};
 
 #[test]
 fn a_sidecar_belongs_to_the_video_with_the_longest_stem_its_name_starts_with() {
@@ -180,4 +181,52 @@ fn an_episode_its_name_doesnt_give_takes_its_season_from_the_stored_items_and_a_
             ),
         ]
     );
+}
+
+#[tokio::test]
+async fn a_scan_skips_a_folder_holding_nomedia_or_ignore_and_all_below_it_until_the_marker_goes() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.write("Samples/Up (2009).mkv", 10);
+    media.write("Staging/Deep/Heat (1995).mkv", 10);
+    media.scan().await;
+
+    media.write("Samples/.nomedia", 0);
+    media.write("Staging/.ignore", 0);
+
+    assert_eq!(media.scan().await, summary(0, 0, 2, 1));
+    assert_eq!(media.paths().await, ["Alien (1979)/Alien (1979).mkv"]);
+
+    fs::remove_file(media.path("Samples/.nomedia")).unwrap();
+    fs::remove_file(media.path("Staging/.ignore")).unwrap();
+    assert_eq!(media.scan().await, summary(2, 0, 0, 1));
+}
+
+#[tokio::test]
+async fn a_marker_in_the_library_folder_removes_all_its_items_until_the_marker_is_deleted() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.scan().await;
+
+    media.write(".nomedia", 0);
+    assert_eq!(media.scan().await, summary(0, 0, 1, 0));
+    assert_eq!(media.paths().await, Vec::<String>::new());
+
+    fs::remove_file(media.path(".nomedia")).unwrap();
+    assert_eq!(media.scan().await, summary(1, 0, 0, 0));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_marker_that_cant_be_checked_skips_its_folder_but_keeps_whats_stored_under_it() {
+    let media = Fixture::new(LibraryKind::Movies).await;
+    media.write("Alien (1979)/Alien (1979).mkv", 10);
+    media.scan().await;
+
+    // A symlink to itself fails with ELOOP, not NotFound.
+    let marker = media.path("Alien (1979)/.nomedia");
+    std::os::unix::fs::symlink(&marker, &marker).unwrap();
+    media.write("Alien (1979)/Aliens (1986).mkv", 10);
+
+    assert_eq!(media.scan().await, summary(0, 0, 0, 1));
 }

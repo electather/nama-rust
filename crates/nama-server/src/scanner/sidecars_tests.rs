@@ -63,13 +63,7 @@ async fn a_scan_stores_the_sidecars_beside_a_version_with_what_their_names_say()
     let scanned = media.scan().await;
 
     assert_eq!(scanned, summary(1, 0, 0, 0));
-    let files: Vec<String> = media
-        .files()
-        .await
-        .into_iter()
-        .map(|(path, _)| path)
-        .collect();
-    assert_eq!(files, [VIDEO]);
+    assert_eq!(media.paths().await, [VIDEO]);
     let version = version(&media, VIDEO).await;
     let tracks: Vec<_> = (sidecars(&media, version).await.into_iter())
         .map(|(_, track)| (track.codec, track.language, track.forced))
