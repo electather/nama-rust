@@ -4,6 +4,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { KernelHomeRow, PluginHomeRow } from "./browse_pb";
+import { file_nama_v1_browse } from "./browse_pb";
 import type { Playback } from "./event_pb";
 import { file_nama_v1_event } from "./event_pb";
 import type { PlaybackLimit } from "./playback_pb";
@@ -14,7 +16,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSISChBMaXN0UGxheXNSZXF1ZXN0IjEKEUxpc3RQbGF5c1Jlc3BvbnNlEhwKBXBsYXlzGAEgAygLMg0ubmFtYS52MS5QbGF5IqwBCgRQbGF5EiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjaxINCgV0aXRsZRgCIAEoCRIYCgtwb3NpdGlvbl9tcxgDIAEoBEgAiAEBEhMKC2R1cmF0aW9uX21zGAQgASgEEjEKDXRyYW5zY29kZXNfb24YBSABKAsyGi5uYW1hLnYxLlRyYW5zY29kZUhhcmR3YXJlQg4KDF9wb3NpdGlvbl9tcyJaChFUcmFuc2NvZGVIYXJkd2FyZRIqCgNhcGkYASABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgCIAEoCzIMLm5hbWEudjEuR3B1IjMKD1N0b3BQbGF5UmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEEg8KB21lc3NhZ2UYAiABKAkiEgoQU3RvcFBsYXlSZXNwb25zZSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCKBAQoVR2V0U2VydmVySW5mb1Jlc3BvbnNlEgwKBG5hbWUYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIWCg5zZXR1cF9yZXF1aXJlZBgDIAEoCBIUCgxpbWFnZV93aWR0aHMYBCADKA0SGwoTZXhwb3J0c19kaWFnbm9zdGljcxgFIAEoCCIaChhHZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QiRgoZR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuU2VydmVyU2V0dGluZ3MiSAobVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0EikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJJChxVcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyIdCg5TZXJ2ZXJTZXR0aW5ncxILCgN1cmwYASABKAkiGgoYR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0IoUCChlHZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlEiUKBmZmbXBlZxgBIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEiYKB2ZmcHJvYmUYAiABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRIWCg5mZm1wZWdfcHJvYmxlbRgDIAEoCRIXCg9mZnByb2JlX3Byb2JsZW0YBCABKAkSKAoIaGFyZHdhcmUYBSADKAsyFi5uYW1hLnYxLkZvdW5kSGFyZHdhcmUSEwoLaGFzX2xpYngyNjQYBiABKAgSEgoKaGFzX3pzY2FsZRgHIAEoCBIVCg1jYW5fdHJhbnNjb2RlGAggASgIIqgBCg1Gb3VuZEhhcmR3YXJlEioKA2FwaRgBIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSEQoJdG9uZV9tYXBzGAIgASgIEioKDHRvbmVfbWFwcGluZxgDIAEoDjIULm5hbWEudjEuVG9uZU1hcHBpbmcSEQoJYXV0b21hdGljGAQgASgIIh8KA0dwdRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIi0KDEZvdW5kUHJvZ3JhbRIMCgRwYXRoGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiHAoaR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QiSgobR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIkwKHVVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIk0KHlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyKkAgoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIbCg5tYXhfdHJhbnNjb2RlcxgCIAEoDUgAiAEBEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgDIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBI8ChVoYXJkd2FyZV9hY2NlbGVyYXRpb24YBCABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgFIAEoCzIMLm5hbWEudjEuR3B1EiAKE2tlZXBfYmVoaW5kX21pbnV0ZXMYBiABKA1IAYgBAUIRCg9fbWF4X3RyYW5zY29kZXNCFgoUX2tlZXBfYmVoaW5kX21pbnV0ZXMiGQoXR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QicgoYR2V0SW1hZ2VTZXR0aW5nc1Jlc3BvbnNlEigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzEiwKCXN3aXRjaGluZxgCIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJGChpVcGRhdGVJbWFnZVNldHRpbmdzUmVxdWVzdBIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJHChtVcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2USKAoIc2V0dGluZ3MYASABKAsyFi5uYW1hLnYxLkltYWdlU2V0dGluZ3MidQoNSW1hZ2VTZXR0aW5ncxIVCg1yZXNpemVfaW1hZ2VzGAEgASgIEh4KEXJlc2l6ZWRfY2FjaGVfbWliGAIgASgNSACIAQESFwoPc3RvcmVfcGx1Z2luX2lkGAMgASgJQhQKEl9yZXNpemVkX2NhY2hlX21pYiIsChdTd2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkiSAoYU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEiwKCXN3aXRjaGluZxgBIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJYChBJbWFnZVN0b3JlU3dpdGNoEhQKDHRvX3BsdWdpbl9pZBgBIAEoCRIOCgZjb3BpZWQYAiABKA0SDQoFdG90YWwYAyABKA0SDwoHZmFpbHVyZRgEIAEoCSpzCgtUb25lTWFwcGluZxIcChhUT05FX01BUFBJTkdfVU5TUEVDSUZJRUQQABIVChFUT05FX01BUFBJTkdfTk9ORRABEhQKEFRPTkVfTUFQUElOR19HUFUQAhIZChVUT05FX01BUFBJTkdfU09GVFdBUkUQAyrlAQoUSGFyZHdhcmVBY2NlbGVyYXRpb24SJQohSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1VOU1BFQ0lGSUVEEAASHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX09GRhABEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9WQUFQSRACEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9RU1YQAxIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fTlZFTkMQBBImCiJIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVklERU9UT09MQk9YEAUylAgKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXAoQR2V0SW1hZ2VTZXR0aW5ncxIgLm5hbWEudjEuR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QaIS5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXNwb25zZSIDkAIBEmUKE1VwZGF0ZUltYWdlU2V0dGluZ3MSIy5uYW1hLnYxLlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACAhJXChBTd2l0Y2hJbWFnZVN0b3JlEiAubmFtYS52MS5Td2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBohLm5hbWEudjEuU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEkcKCUxpc3RQbGF5cxIZLm5hbWEudjEuTGlzdFBsYXlzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFBsYXlzUmVzcG9uc2UiA5ACARJECghTdG9wUGxheRIYLm5hbWEudjEuU3RvcFBsYXlSZXF1ZXN0GhkubmFtYS52MS5TdG9wUGxheVJlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_event, file_nama_v1_playback]);
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSISChBMaXN0UGxheXNSZXF1ZXN0IjEKEUxpc3RQbGF5c1Jlc3BvbnNlEhwKBXBsYXlzGAEgAygLMg0ubmFtYS52MS5QbGF5IqwBCgRQbGF5EiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjaxINCgV0aXRsZRgCIAEoCRIYCgtwb3NpdGlvbl9tcxgDIAEoBEgAiAEBEhMKC2R1cmF0aW9uX21zGAQgASgEEjEKDXRyYW5zY29kZXNfb24YBSABKAsyGi5uYW1hLnYxLlRyYW5zY29kZUhhcmR3YXJlQg4KDF9wb3NpdGlvbl9tcyJaChFUcmFuc2NvZGVIYXJkd2FyZRIqCgNhcGkYASABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgCIAEoCzIMLm5hbWEudjEuR3B1IjMKD1N0b3BQbGF5UmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEEg8KB21lc3NhZ2UYAiABKAkiEgoQU3RvcFBsYXlSZXNwb25zZSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCKBAQoVR2V0U2VydmVySW5mb1Jlc3BvbnNlEgwKBG5hbWUYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIWCg5zZXR1cF9yZXF1aXJlZBgDIAEoCBIUCgxpbWFnZV93aWR0aHMYBCADKA0SGwoTZXhwb3J0c19kaWFnbm9zdGljcxgFIAEoCCIaChhHZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QiRgoZR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuU2VydmVyU2V0dGluZ3MiSAobVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0EikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJJChxVcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyIdCg5TZXJ2ZXJTZXR0aW5ncxILCgN1cmwYASABKAkiGgoYR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0IoUCChlHZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlEiUKBmZmbXBlZxgBIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEiYKB2ZmcHJvYmUYAiABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRIWCg5mZm1wZWdfcHJvYmxlbRgDIAEoCRIXCg9mZnByb2JlX3Byb2JsZW0YBCABKAkSKAoIaGFyZHdhcmUYBSADKAsyFi5uYW1hLnYxLkZvdW5kSGFyZHdhcmUSEwoLaGFzX2xpYngyNjQYBiABKAgSEgoKaGFzX3pzY2FsZRgHIAEoCBIVCg1jYW5fdHJhbnNjb2RlGAggASgIIqgBCg1Gb3VuZEhhcmR3YXJlEioKA2FwaRgBIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSEQoJdG9uZV9tYXBzGAIgASgIEioKDHRvbmVfbWFwcGluZxgDIAEoDjIULm5hbWEudjEuVG9uZU1hcHBpbmcSEQoJYXV0b21hdGljGAQgASgIIh8KA0dwdRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIi0KDEZvdW5kUHJvZ3JhbRIMCgRwYXRoGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiHAoaR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QiSgobR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIkwKHVVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIk0KHlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyKkAgoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIbCg5tYXhfdHJhbnNjb2RlcxgCIAEoDUgAiAEBEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgDIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBI8ChVoYXJkd2FyZV9hY2NlbGVyYXRpb24YBCABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgFIAEoCzIMLm5hbWEudjEuR3B1EiAKE2tlZXBfYmVoaW5kX21pbnV0ZXMYBiABKA1IAYgBAUIRCg9fbWF4X3RyYW5zY29kZXNCFgoUX2tlZXBfYmVoaW5kX21pbnV0ZXMiGQoXR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QicgoYR2V0SW1hZ2VTZXR0aW5nc1Jlc3BvbnNlEigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzEiwKCXN3aXRjaGluZxgCIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJGChpVcGRhdGVJbWFnZVNldHRpbmdzUmVxdWVzdBIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJHChtVcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2USKAoIc2V0dGluZ3MYASABKAsyFi5uYW1hLnYxLkltYWdlU2V0dGluZ3MidQoNSW1hZ2VTZXR0aW5ncxIVCg1yZXNpemVfaW1hZ2VzGAEgASgIEh4KEXJlc2l6ZWRfY2FjaGVfbWliGAIgASgNSACIAQESFwoPc3RvcmVfcGx1Z2luX2lkGAMgASgJQhQKEl9yZXNpemVkX2NhY2hlX21pYiIsChdTd2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkiSAoYU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEiwKCXN3aXRjaGluZxgBIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJYChBJbWFnZVN0b3JlU3dpdGNoEhQKDHRvX3BsdWdpbl9pZBgBIAEoCRIOCgZjb3BpZWQYAiABKA0SDQoFdG90YWwYAyABKA0SDwoHZmFpbHVyZRgEIAEoCSIdChtHZXREZWZhdWx0SG9tZUxheW91dFJlcXVlc3QiQwocR2V0RGVmYXVsdEhvbWVMYXlvdXRSZXNwb25zZRIjCgZsYXlvdXQYASABKAsyEy5uYW1hLnYxLkhvbWVMYXlvdXQiQgobU2V0RGVmYXVsdEhvbWVMYXlvdXRSZXF1ZXN0EiMKBmxheW91dBgBIAEoCzITLm5hbWEudjEuSG9tZUxheW91dCJDChxTZXREZWZhdWx0SG9tZUxheW91dFJlc3BvbnNlEiMKBmxheW91dBgBIAEoCzITLm5hbWEudjEuSG9tZUxheW91dCJLCgpIb21lTGF5b3V0EhcKD2ZlYXR1cmVkX2hpZGRlbhgBIAEoCBIkCgRyb3dzGAIgAygLMhYubmFtYS52MS5Ib21lTGF5b3V0Um93IpcBCg1Ib21lTGF5b3V0Um93EigKBmtlcm5lbBgBIAEoDjIWLm5hbWEudjEuS2VybmVsSG9tZVJvd0gAEigKBnBsdWdpbhgCIAEoCzIWLm5hbWEudjEuUGx1Z2luSG9tZVJvd0gAEhsKEXBsdWdpbl91c2Vyc19yb3dzGAMgASgJSAASDgoGaGlkZGVuGAQgASgIQgUKA3JvdypzCgtUb25lTWFwcGluZxIcChhUT05FX01BUFBJTkdfVU5TUEVDSUZJRUQQABIVChFUT05FX01BUFBJTkdfTk9ORRABEhQKEFRPTkVfTUFQUElOR19HUFUQAhIZChVUT05FX01BUFBJTkdfU09GVFdBUkUQAyrlAQoUSGFyZHdhcmVBY2NlbGVyYXRpb24SJQohSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1VOU1BFQ0lGSUVEEAASHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX09GRhABEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9WQUFQSRACEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9RU1YQAxIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fTlZFTkMQBBImCiJIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVklERU9UT09MQk9YEAUy6AkKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXAoQR2V0SW1hZ2VTZXR0aW5ncxIgLm5hbWEudjEuR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QaIS5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXNwb25zZSIDkAIBEmUKE1VwZGF0ZUltYWdlU2V0dGluZ3MSIy5uYW1hLnYxLlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACAhJXChBTd2l0Y2hJbWFnZVN0b3JlEiAubmFtYS52MS5Td2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBohLm5hbWEudjEuU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEmgKFEdldERlZmF1bHRIb21lTGF5b3V0EiQubmFtYS52MS5HZXREZWZhdWx0SG9tZUxheW91dFJlcXVlc3QaJS5uYW1hLnYxLkdldERlZmF1bHRIb21lTGF5b3V0UmVzcG9uc2UiA5ACARJoChRTZXREZWZhdWx0SG9tZUxheW91dBIkLm5hbWEudjEuU2V0RGVmYXVsdEhvbWVMYXlvdXRSZXF1ZXN0GiUubmFtYS52MS5TZXREZWZhdWx0SG9tZUxheW91dFJlc3BvbnNlIgOQAgISRwoJTGlzdFBsYXlzEhkubmFtYS52MS5MaXN0UGxheXNSZXF1ZXN0GhoubmFtYS52MS5MaXN0UGxheXNSZXNwb25zZSIDkAIBEkQKCFN0b3BQbGF5EhgubmFtYS52MS5TdG9wUGxheVJlcXVlc3QaGS5uYW1hLnYxLlN0b3BQbGF5UmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse, file_nama_v1_event, file_nama_v1_playback]);
 
 /**
  * @generated from message nama.v1.ListPlaysRequest
@@ -861,6 +863,147 @@ export const ImageStoreSwitchSchema: GenMessage<ImageStoreSwitch> = /*@__PURE__*
   messageDesc(file_nama_v1_server, 30);
 
 /**
+ * @generated from message nama.v1.GetDefaultHomeLayoutRequest
+ */
+export type GetDefaultHomeLayoutRequest = Message<"nama.v1.GetDefaultHomeLayoutRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.GetDefaultHomeLayoutRequest.
+ * Use `create(GetDefaultHomeLayoutRequestSchema)` to create a new message.
+ */
+export const GetDefaultHomeLayoutRequestSchema: GenMessage<GetDefaultHomeLayoutRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 31);
+
+/**
+ * @generated from message nama.v1.GetDefaultHomeLayoutResponse
+ */
+export type GetDefaultHomeLayoutResponse = Message<"nama.v1.GetDefaultHomeLayoutResponse"> & {
+  /**
+   * @generated from field: nama.v1.HomeLayout layout = 1;
+   */
+  layout?: HomeLayout | undefined;
+};
+
+/**
+ * Describes the message nama.v1.GetDefaultHomeLayoutResponse.
+ * Use `create(GetDefaultHomeLayoutResponseSchema)` to create a new message.
+ */
+export const GetDefaultHomeLayoutResponseSchema: GenMessage<GetDefaultHomeLayoutResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 32);
+
+/**
+ * @generated from message nama.v1.SetDefaultHomeLayoutRequest
+ */
+export type SetDefaultHomeLayoutRequest = Message<"nama.v1.SetDefaultHomeLayoutRequest"> & {
+  /**
+   * Required: a request without it is refused, so leaving it out can't reset the layout.
+   *
+   * @generated from field: nama.v1.HomeLayout layout = 1;
+   */
+  layout?: HomeLayout | undefined;
+};
+
+/**
+ * Describes the message nama.v1.SetDefaultHomeLayoutRequest.
+ * Use `create(SetDefaultHomeLayoutRequestSchema)` to create a new message.
+ */
+export const SetDefaultHomeLayoutRequestSchema: GenMessage<SetDefaultHomeLayoutRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 33);
+
+/**
+ * @generated from message nama.v1.SetDefaultHomeLayoutResponse
+ */
+export type SetDefaultHomeLayoutResponse = Message<"nama.v1.SetDefaultHomeLayoutResponse"> & {
+  /**
+   * The layout as saved, as `GetDefaultHomeLayout` returns it.
+   *
+   * @generated from field: nama.v1.HomeLayout layout = 1;
+   */
+  layout?: HomeLayout | undefined;
+};
+
+/**
+ * Describes the message nama.v1.SetDefaultHomeLayoutResponse.
+ * Use `create(SetDefaultHomeLayoutResponseSchema)` to create a new message.
+ */
+export const SetDefaultHomeLayoutResponseSchema: GenMessage<SetDefaultHomeLayoutResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 34);
+
+/**
+ * The order of the Home rows, and which of them and whether Featured are shown. Featured is
+ * always at the top.
+ *
+ * @generated from message nama.v1.HomeLayout
+ */
+export type HomeLayout = Message<"nama.v1.HomeLayout"> & {
+  /**
+   * @generated from field: bool featured_hidden = 1;
+   */
+  featuredHidden: boolean;
+
+  /**
+   * In the order Home shows them.
+   *
+   * @generated from field: repeated nama.v1.HomeLayoutRow rows = 2;
+   */
+  rows: HomeLayoutRow[];
+};
+
+/**
+ * Describes the message nama.v1.HomeLayout.
+ * Use `create(HomeLayoutSchema)` to create a new message.
+ */
+export const HomeLayoutSchema: GenMessage<HomeLayout> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 35);
+
+/**
+ * One place in a Home layout.
+ *
+ * @generated from message nama.v1.HomeLayoutRow
+ */
+export type HomeLayoutRow = Message<"nama.v1.HomeLayoutRow"> & {
+  /**
+   * @generated from oneof nama.v1.HomeLayoutRow.row
+   */
+  row: {
+    /**
+     * @generated from field: nama.v1.KernelHomeRow kernel = 1;
+     */
+    value: KernelHomeRow;
+    case: "kernel";
+  } | {
+    /**
+     * A row the Plugin gives every User. `SetDefaultHomeLayout` reads only its Plugin id and key.
+     *
+     * @generated from field: nama.v1.PluginHomeRow plugin = 2;
+     */
+    value: PluginHomeRow;
+    case: "plugin";
+  } | {
+    /**
+     * The id of a Plugin whose rows for each User, built for them alone, go here.
+     *
+     * @generated from field: string plugin_users_rows = 3;
+     */
+    value: string;
+    case: "pluginUsersRows";
+  } | { case: undefined; value?: undefined };
+
+  /**
+   * @generated from field: bool hidden = 4;
+   */
+  hidden: boolean;
+};
+
+/**
+ * Describes the message nama.v1.HomeLayoutRow.
+ * Use `create(HomeLayoutRowSchema)` to create a new message.
+ */
+export const HomeLayoutRowSchema: GenMessage<HomeLayoutRow> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 36);
+
+/**
  * What tone-maps HDR to SDR in a Transcode.
  *
  * @generated from enum nama.v1.ToneMapping
@@ -1086,6 +1229,32 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof SwitchImageStoreRequestSchema;
     output: typeof SwitchImageStoreResponseSchema;
+  },
+  /**
+   * Returns the default Home layout every User's Home follows, with every Home row Home could
+   * show now in its order: each row it doesn't place yet, such as one from a Plugin enabled since
+   * it was set, at the end and shown. Needs `PERMISSION_MANAGE_SETTINGS`.
+   *
+   * @generated from rpc nama.v1.ServerService.GetDefaultHomeLayout
+   */
+  getDefaultHomeLayout: {
+    methodKind: "unary";
+    input: typeof GetDefaultHomeLayoutRequestSchema;
+    output: typeof GetDefaultHomeLayoutResponseSchema;
+  },
+  /**
+   * Replaces the default Home layout, which `BrowseService.ListHomeRows` and `ListFeatured`
+   * follow from then on. Needs `PERMISSION_MANAGE_SETTINGS`. A row naming none is refused with
+   * `REFUSAL_REASON_FIELD_REQUIRED`, and one with a Kernel row the Server doesn't know with
+   * `REFUSAL_REASON_UNKNOWN_ENUM_VALUE`, both naming `layout.rows`, and nothing changes. A row
+   * named twice keeps its first place.
+   *
+   * @generated from rpc nama.v1.ServerService.SetDefaultHomeLayout
+   */
+  setDefaultHomeLayout: {
+    methodKind: "unary";
+    input: typeof SetDefaultHomeLayoutRequestSchema;
+    output: typeof SetDefaultHomeLayoutResponseSchema;
   },
   /**
    * Lists every plan playing now, on every User's Device, oldest first. Needs `PERMISSION_ADMIN`.

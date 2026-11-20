@@ -70,6 +70,22 @@ pub type OwnedSwitchImageStoreRequestView = ::buffa::view::OwnedView<
 pub type OwnedSwitchImageStoreResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SwitchImageStoreResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetDefaultHomeLayoutRequestView<'static>>`.
+pub type OwnedGetDefaultHomeLayoutRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetDefaultHomeLayoutRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetDefaultHomeLayoutResponseView<'static>>`.
+pub type OwnedGetDefaultHomeLayoutResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetDefaultHomeLayoutResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetDefaultHomeLayoutRequestView<'static>>`.
+pub type OwnedSetDefaultHomeLayoutRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetDefaultHomeLayoutResponseView<'static>>`.
+pub type OwnedSetDefaultHomeLayoutResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ListPlaysRequestView<'static>>`.
 pub type OwnedListPlaysRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListPlaysRequestView<'static>,
@@ -392,6 +408,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetDefaultHomeLayoutResponse>
+for crate::messages::nama::v1::__buffa::view::GetDefaultHomeLayoutResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetDefaultHomeLayoutResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetDefaultHomeLayoutResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetDefaultHomeLayoutResponse>
+for crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetDefaultHomeLayoutResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPlaysResponse>
 for crate::messages::nama::v1::__buffa::view::ListPlaysResponseView<'_> {
     fn encode(
@@ -516,6 +600,18 @@ pub const SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC: ::connectrpc::Spec = ::connect
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetDefaultHomeLayout` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_GET_DEFAULT_HOME_LAYOUT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/GetDefaultHomeLayout",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetDefaultHomeLayout` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/SetDefaultHomeLayout",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Static [`Spec`](::connectrpc::Spec) for the `ListPlays` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const SERVER_SERVICE_LIST_PLAYS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.ServerService/ListPlays",
@@ -804,6 +900,58 @@ pub trait ServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SwitchImageStoreResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns the default Home layout every User's Home follows, with every Home row Home could
+    /// show now in its order: each row it doesn't place yet, such as one from a Plugin enabled since
+    /// it was set, at the end and shown. Needs `PERMISSION_MANAGE_SETTINGS`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_default_home_layout<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetDefaultHomeLayoutRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetDefaultHomeLayoutResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces the default Home layout, which `BrowseService.ListHomeRows` and `ListFeatured`
+    /// follow from then on. Needs `PERMISSION_MANAGE_SETTINGS`. A row naming none is refused with
+    /// `REFUSAL_REASON_FIELD_REQUIRED`, and one with a Kernel row the Server doesn't know with
+    /// `REFUSAL_REASON_UNKNOWN_ENUM_VALUE`, both naming `layout.rows`, and nothing changes. A row
+    /// named twice keeps its first place.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_default_home_layout<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetDefaultHomeLayoutRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetDefaultHomeLayoutResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1152,6 +1300,64 @@ impl<S: ServerService> ServerServiceExt for S {
             .with_spec(SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC)
             .route_view_idempotent(
                 SERVER_SERVICE_SERVICE_NAME,
+                "GetDefaultHomeLayout",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetDefaultHomeLayoutRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetDefaultHomeLayoutRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_default_home_layout(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetDefaultHomeLayoutResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_GET_DEFAULT_HOME_LAYOUT_SPEC)
+            .route_view(
+                SERVER_SERVICE_SERVICE_NAME,
+                "SetDefaultHomeLayout",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetDefaultHomeLayoutRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_default_home_layout(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetDefaultHomeLayoutResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC)
+            .route_view_idempotent(
+                SERVER_SERVICE_SERVICE_NAME,
                 "ListPlays",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -1314,6 +1520,18 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC),
+                )
+            }
+            "GetDefaultHomeLayout" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(SERVER_SERVICE_GET_DEFAULT_HOME_LAYOUT_SPEC),
+                )
+            }
+            "SetDefaultHomeLayout" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC),
                 )
             }
             "ListPlays" => {
@@ -1538,6 +1756,50 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SwitchImageStoreResponse,
+                        >(format)
+                })
+            }
+            "GetDefaultHomeLayout" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetDefaultHomeLayoutRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetDefaultHomeLayoutRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetDefaultHomeLayoutRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_default_home_layout(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::GetDefaultHomeLayoutResponse,
+                        >(format)
+                })
+            }
+            "SetDefaultHomeLayout" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetDefaultHomeLayoutRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetDefaultHomeLayoutRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_default_home_layout(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetDefaultHomeLayoutResponse,
                         >(format)
                 })
             }
@@ -2108,6 +2370,96 @@ where
                 &self.transport,
                 &self.config,
                 SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetDefaultHomeLayout RPC. Sends a request to /nama.v1.ServerService/GetDefaultHomeLayout.
+    pub async fn get_default_home_layout(
+        &self,
+        request: crate::messages::nama::v1::GetDefaultHomeLayoutRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetDefaultHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_default_home_layout_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetDefaultHomeLayout RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_default_home_layout_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetDefaultHomeLayoutRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetDefaultHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_GET_DEFAULT_HOME_LAYOUT_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetDefaultHomeLayout RPC. Sends a request to /nama.v1.ServerService/SetDefaultHomeLayout.
+    pub async fn set_default_home_layout(
+        &self,
+        request: crate::messages::nama::v1::SetDefaultHomeLayoutRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_default_home_layout_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetDefaultHomeLayout RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_default_home_layout_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetDefaultHomeLayoutRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

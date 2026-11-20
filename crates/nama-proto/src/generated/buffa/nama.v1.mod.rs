@@ -54,6 +54,7 @@ pub mod __buffa {
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
             include!("nama.v1.library.__view_oneof.rs");
+            include!("nama.v1.server.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
         }
     }
@@ -66,6 +67,7 @@ pub mod __buffa {
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
         include!("nama.v1.library.__oneof.rs");
+        include!("nama.v1.server.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
@@ -370,6 +372,12 @@ pub mod __buffa {
         reg.register_json_any(super::__SWITCH_IMAGE_STORE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SWITCH_IMAGE_STORE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_STORE_SWITCH_JSON_ANY);
+        reg.register_json_any(super::__GET_DEFAULT_HOME_LAYOUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_DEFAULT_HOME_LAYOUT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_DEFAULT_HOME_LAYOUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_DEFAULT_HOME_LAYOUT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__HOME_LAYOUT_JSON_ANY);
+        reg.register_json_any(super::__HOME_LAYOUT_ROW_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
@@ -1628,6 +1636,30 @@ pub use self::__buffa::view::SwitchImageStoreResponseOwnedView;
 pub use self::__buffa::view::ImageStoreSwitchView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageStoreSwitchOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetDefaultHomeLayoutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetDefaultHomeLayoutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetDefaultHomeLayoutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetDefaultHomeLayoutResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultHomeLayoutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultHomeLayoutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultHomeLayoutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultHomeLayoutResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeLayoutView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeLayoutOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeLayoutRowView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeLayoutRowOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserView;
 #[doc(inline)]

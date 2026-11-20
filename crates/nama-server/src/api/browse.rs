@@ -25,6 +25,7 @@ use crate::{
         Slot, TitleKind, TitleSort, Unmatched, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
+    server_settings::{HomeRowId, Settings},
     watchlist,
 };
 
@@ -46,6 +47,8 @@ use titles::{featured_to_proto, started_to_proto};
 pub(super) struct BrowseServiceHandler {
     pub(super) browse: Browse,
     pub(super) home_rows: HomeRows,
+    /// Holds the default Home layout, which orders and hides the Home rows and Featured.
+    pub(super) settings: Settings,
     /// Serves the posters of the missing titles Home rows show, which no Match stores.
     pub(super) artwork: Artwork,
     pub(super) images: ImageSources,
@@ -320,6 +323,9 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListFeaturedRequest>,
     ) -> ServiceResult<ListFeaturedResponse> {
         let user = caller(&ctx)?.user.id;
+        if !self.settings.now().default_home_layout.featured_shown {
+            return Response::ok(ListFeaturedResponse::default());
+        }
         let suggested = self.home_rows.featured(user).await;
         let suggested = suggested.map_err(home_rows_refused)?;
         let featured = self.browse.featured(user, &suggested).await;
@@ -349,21 +355,29 @@ impl BrowseService for BrowseServiceHandler {
         let reader = &caller(&ctx)?.user;
         let plugin_rows = self.home_rows.list(reader).await;
         let plugin_rows = plugin_rows.map_err(home_rows_refused)?;
-        let plugin_rows = plugin_rows.into_iter().map(|(plugin, row)| {
-            proto::PluginHomeRow {
-                plugin_id: plugin.as_str().to_owned(),
+        let plugin_rows = plugin_rows.into_iter().map(|(id, row)| {
+            let row = proto::PluginHomeRow {
+                plugin_id: id.plugin().map_or_default(ToString::to_string),
                 key: row.key,
                 heading: row.heading,
                 ..Default::default()
-            }
-            .into()
+            };
+            (id, row.into())
         });
         let continue_watching = proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING;
-        let rows =
-            std::iter::once(KernelOrPlugin::Kernel(continue_watching.into())).chain(plugin_rows);
+        let continue_watching = (
+            HomeRowId::ContinueWatching,
+            KernelOrPlugin::Kernel(continue_watching.into()),
+        );
+        let rows = std::iter::once(continue_watching)
+            .chain(plugin_rows)
+            .collect();
+        let layout = self.settings.now().default_home_layout;
+        let rows = layout.arrange(rows, |(id, _)| id.clone());
         Response::ok(ListHomeRowsResponse {
-            rows: rows
-                .map(|row| proto::HomeRow {
+            rows: (rows.into_iter())
+                .filter(|&(_, shown)| shown)
+                .map(|((_, row), _)| proto::HomeRow {
                     kernel_or_plugin: Some(row),
                     ..Default::default()
                 })

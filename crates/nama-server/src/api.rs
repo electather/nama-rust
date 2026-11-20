@@ -131,11 +131,12 @@ pub(crate) fn router(
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
-            settings,
+            settings: settings.clone(),
             abilities: abilities.clone(),
             ffmpeg,
             images: image_store.clone(),
             points: plugins.clone(),
+            home_rows: home_rows.clone(),
             data_dir: config.data_dir.clone(),
             exports_diagnostics: config.otlp_endpoint.is_some(),
             running: running.clone(),
@@ -152,6 +153,7 @@ pub(crate) fn router(
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
             home_rows,
+            settings: settings.clone(),
             artwork: artwork.clone(),
             images: images.clone(),
             db: Arc::clone(&db),
@@ -180,6 +182,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(PluginServiceHandler {
             plugin_settings: plugin_settings.clone(),
+            settings,
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
         }))
@@ -281,6 +284,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC.procedure,     MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC.procedure,  MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC.procedure,     MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_GET_DEFAULT_HOME_LAYOUT_SPEC.procedure, MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC.procedure, MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_LIST_PLAYS_SPEC.procedure,             ADMIN),
     (proto::SERVER_SERVICE_STOP_PLAY_SPEC.procedure,              ADMIN),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),

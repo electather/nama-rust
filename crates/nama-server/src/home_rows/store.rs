@@ -177,6 +177,14 @@ pub(super) fn found_show(library: i64, show: &LibraryShow) -> OnServer {
 /// A Plugin and whose of its rows: one User's, or its shared rows for `None`.
 pub(super) type Scope = (PluginId, Option<i64>);
 
+/// The method giving a Plugin's rows for `user`, or its shared rows for `None`.
+pub(super) fn method_giving(user: Option<i64>) -> HomeRowMethod {
+    match user {
+        None => HomeRowMethod::Shared,
+        Some(_) => HomeRowMethod::User,
+    }
+}
+
 /// A scope's place in [`HomeRows::refreshing`], given up when dropped, even by a refresh
 /// cancelled as its Plugin is disabled.
 pub(super) struct Refreshing {

@@ -24,6 +24,7 @@ use crate::{
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
+    server_settings,
 };
 
 use super::{database_failed, refuse};
@@ -38,6 +39,9 @@ use points::{extension_points_to_proto, failures};
 pub(super) struct PluginServiceHandler {
     /// Each Plugin with what is stored for it, which every change to one goes through.
     pub(super) plugin_settings: PluginSettings,
+    /// Holds the default Home layout, whose rows of a Plugin uninstalled go once a listing finds
+    /// it gone.
+    pub(super) settings: server_settings::Settings,
     /// The logos admins uploaded, shown in place of the Manifests'.
     pub(super) custom_images: CustomImages,
     /// The Manifests' logos, stored as their URLs are handed out.
@@ -64,6 +68,9 @@ impl PluginService for PluginServiceHandler {
         _request: ServiceRequest<'_, ListPluginsRequest>,
     ) -> ServiceResult<ListPluginsResponse> {
         let listed = self.plugin_settings.list().await.map_err(list_failed)?;
+        // Listing is when the Server finds a Package gone from `plugins/`.
+        let installed = |plugin: &PluginId| self.plugin_settings.has(plugin);
+        (self.settings.forget_uninstalled(installed).await).map_err(database_failed)?;
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut summaries = Vec::with_capacity(listed.len());
         for StoredPlugin {

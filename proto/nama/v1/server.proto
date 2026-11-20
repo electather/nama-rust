@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/browse.proto";
 import "nama/v1/event.proto";
 import "nama/v1/playback.proto";
 
@@ -62,6 +63,20 @@ service ServerService {
   // nothing, `REFUSAL_REASON_IMAGE_STORE_SWITCHING` while another switch runs, and
   // `REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK` for a store that fails its check.
   rpc SwitchImageStore(SwitchImageStoreRequest) returns (SwitchImageStoreResponse) {}
+  // Returns the default Home layout every User's Home follows, with every Home row Home could
+  // show now in its order: each row it doesn't place yet, such as one from a Plugin enabled since
+  // it was set, at the end and shown. Needs `PERMISSION_MANAGE_SETTINGS`.
+  rpc GetDefaultHomeLayout(GetDefaultHomeLayoutRequest) returns (GetDefaultHomeLayoutResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces the default Home layout, which `BrowseService.ListHomeRows` and `ListFeatured`
+  // follow from then on. Needs `PERMISSION_MANAGE_SETTINGS`. A row naming none is refused with
+  // `REFUSAL_REASON_FIELD_REQUIRED`, and one with a Kernel row the Server doesn't know with
+  // `REFUSAL_REASON_UNKNOWN_ENUM_VALUE`, both naming `layout.rows`, and nothing changes. A row
+  // named twice keeps its first place.
+  rpc SetDefaultHomeLayout(SetDefaultHomeLayoutRequest) returns (SetDefaultHomeLayoutResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Lists every plan playing now, on every User's Device, oldest first. Needs `PERMISSION_ADMIN`.
   // The Playback events follow each from here on, by plan id.
   rpc ListPlays(ListPlaysRequest) returns (ListPlaysResponse) {
@@ -358,4 +373,40 @@ message ImageStoreSwitch {
   uint32 total = 3;
   // Why the switch stopped, the old store still in use, or empty while it runs.
   string failure = 4;
+}
+
+message GetDefaultHomeLayoutRequest {}
+
+message GetDefaultHomeLayoutResponse {
+  HomeLayout layout = 1;
+}
+
+message SetDefaultHomeLayoutRequest {
+  // Required: a request without it is refused, so leaving it out can't reset the layout.
+  HomeLayout layout = 1;
+}
+
+message SetDefaultHomeLayoutResponse {
+  // The layout as saved, as `GetDefaultHomeLayout` returns it.
+  HomeLayout layout = 1;
+}
+
+// The order of the Home rows, and which of them and whether Featured are shown. Featured is
+// always at the top.
+message HomeLayout {
+  bool featured_hidden = 1;
+  // In the order Home shows them.
+  repeated HomeLayoutRow rows = 2;
+}
+
+// One place in a Home layout.
+message HomeLayoutRow {
+  oneof row {
+    KernelHomeRow kernel = 1;
+    // A row the Plugin gives every User. `SetDefaultHomeLayout` reads only its Plugin id and key.
+    PluginHomeRow plugin = 2;
+    // The id of a Plugin whose rows for each User, built for them alone, go here.
+    string plugin_users_rows = 3;
+  }
+  bool hidden = 4;
 }

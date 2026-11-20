@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id, key, heading FROM home_rows WHERE user_id IS NULL\n             ORDER BY plugin_id, position",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "plugin_id"
+          }
+        }
+      },
+      {
+        "name": "key",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "heading",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "heading"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b2c15cd37b20f95411366eb2ca07e88f3c23a7ae9c971a0d3de8f0e7e5cc5b0f"
+}
