@@ -379,3 +379,27 @@ async fn while_one_source_waits_the_version_stays_due_and_the_librarys_other_sou
     assert_eq!(fx.asked(), ["limited", "other", "other"]);
     assert_eq!(fx.segments.due().await.unwrap(), [fx.version]);
 }
+
+#[tokio::test]
+async fn a_wait_under_a_second_or_over_five_minutes_pauses_a_source_for_a_second_or_five_minutes() {
+    let source = Fake {
+        waits: Arc::new(Mutex::new(vec![Duration::from_hours(1), Duration::ZERO])),
+        ..fake("limited", Some(vec![]))
+    };
+    let fx = Fixture::new(vec![], &["limited"], vec![source]).await;
+
+    // Wide bounds: other lib tests may step the shared clock meanwhile.
+    let mut paused_for = Vec::new();
+    for _ in 0..2 {
+        let mut paused = HashMap::new();
+        let now = db::now_ms();
+        (fx.segments.ask(fx.version, &mut paused)).await.unwrap();
+        paused_for.push(paused[&PluginId::from_static("limited")] - now);
+    }
+
+    assert!((1_000..60_000).contains(&paused_for[0]), "{paused_for:?}");
+    assert!(
+        (300_000..360_000).contains(&paused_for[1]),
+        "{paused_for:?}"
+    );
+}

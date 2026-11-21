@@ -41,6 +41,13 @@ const ASK_AGAIN_AFTER: Duration = Duration::from_hours(30 * 24);
 /// that's down or limiting its rate isn't asked about every Version on every pass.
 const ASK_AGAIN_AFTER_FAILING: Duration = Duration::from_hours(1);
 
+/// The shortest a source's try-again pauses it, as the contract clamps an Installed Plugin's, so
+/// a Built-in's zero can't spin the loop.
+const SHORTEST_PAUSE: Duration = Duration::from_secs(1);
+
+/// The longest a source's try-again pauses it, as the contract clamps an Installed Plugin's.
+const LONGEST_PAUSE: Duration = Duration::from_mins(5);
+
 /// Until when, in [`db::now_ms`]'s milliseconds, each Segment source that said to try again is
 /// asked about no Version.
 type Paused = HashMap<PluginId, i64>;
@@ -318,8 +325,9 @@ impl Segments {
     /// `found` still lacks, until none is, skipping those `paused` and pausing those that say to
     /// try again. Asks none about a Version whose title has no ids, as Unmatched, since a source
     /// finds Segments by them.
-    // ponytail: a Version left waiting asks the Library's other sources again on the next pass;
-    // record which sources each ask reached if that costs a service too much.
+    // ponytail: a Version left waiting asks the Library's other sources again on the next pass,
+    // even one that failed for it; record which sources each ask reached if that costs a service
+    // too much.
     async fn ask_sources(
         &self,
         version: i64,
@@ -369,7 +377,7 @@ impl Segments {
                 .get(&plugin)
                 .is_some_and(|&until| until > db::now_ms())
             {
-                said = SourcesSaid::Waiting;
+                said = said.max(SourcesSaid::Waiting);
                 continue;
             }
             let search = &search;
@@ -384,8 +392,9 @@ impl Segments {
                 Some(Err(Failure {
                     kind: Some(wait), ..
                 })) => {
+                    let wait = wait.clamp(SHORTEST_PAUSE, LONGEST_PAUSE);
                     paused.insert(plugin, db::now_ms().saturating_add(millis(wait)));
-                    said = SourcesSaid::Waiting;
+                    said = said.max(SourcesSaid::Waiting);
                 }
                 // The Plugins page shows the failure; logged on every Version, it would flood.
                 Some(Err(Failure {
