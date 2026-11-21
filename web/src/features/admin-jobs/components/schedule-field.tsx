@@ -1,7 +1,7 @@
 import { NextRuns } from "@/features/admin-jobs/components/next-runs";
 import { useSchedulePreview } from "@/features/admin-jobs/data/use-schedule-preview";
-import { scheduleWords } from "@/features/admin-jobs/lib/schedule-words";
 import { FormField } from "@/shared/components/form-field/form-field";
+import { scheduleWords } from "@/shared/lib/schedule-words";
 
 /**
  * A Job's own cron schedule, empty for its Plugin's, with when it would next run or why the Server

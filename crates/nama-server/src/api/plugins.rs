@@ -510,6 +510,17 @@ fn plugin_to_proto(
         .flat_map(|manifest| &manifest.settings.fields)
         .map(|field| setting_to_proto(field, stored.get(&field.key)))
         .collect();
+    let jobs = plugin
+        .manifest
+        .iter()
+        .flat_map(|manifest| &manifest.jobs)
+        .map(|job| proto::PluginJob {
+            id: job.id.clone(),
+            name: job.name.clone(),
+            schedule: job.schedule.clone().unwrap_or_default(),
+            ..Default::default()
+        })
+        .collect();
     let [setup_markdown, homepage_url, source_url, license] =
         plugin.manifest.as_ref().map_or_default(|manifest| {
             [
@@ -526,6 +537,7 @@ fn plugin_to_proto(
         homepage_url,
         source_url,
         license,
+        jobs,
         summary: plugin_summary_to_proto(plugin, stored, granted, logo).into(),
         ..Default::default()
     }

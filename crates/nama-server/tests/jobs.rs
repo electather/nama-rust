@@ -19,9 +19,9 @@ use connectrpc::{ErrorCode, client::HttpClient};
 use jiff::{ToSpan as _, Zoned};
 use log::Log;
 use nama_proto::nama::v1::{
-    ConfigureJobRequest, DisablePluginRequest, EnablePluginRequest, Job, JobRunOutcome,
-    JobServiceClient, ListJobRunsRequest, ListJobsRequest, Permission, PreviewJobScheduleRequest,
-    RefusalReason, RunJobRequest,
+    ConfigureJobRequest, DisablePluginRequest, EnablePluginRequest, GetPluginRequest, Job,
+    JobRunOutcome, JobServiceClient, ListJobRunsRequest, ListJobsRequest, Permission, PluginJob,
+    PreviewJobScheduleRequest, RefusalReason, RunJobRequest,
 };
 use refused::assert_refused;
 use server::TestServer;
@@ -325,6 +325,36 @@ async fn a_schedule_that_doesnt_parse_one_for_a_job_without_one_or_an_unknown_jo
     assert_eq!(
         preview("every day").await.unwrap_err().code,
         ErrorCode::InvalidArgument
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_not_yet_enabled_shows_the_jobs_its_manifest_declares() {
+    let server = TestServer::builder().start().await;
+    server.install_test_plugin("jobs").await;
+
+    let plugin = server
+        .plugin_service()
+        .get_plugin(GetPluginRequest {
+            id: "test-plugin".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .plugin;
+    let jobs: Vec<(&str, &str, &str)> = plugin
+        .jobs
+        .iter()
+        .map(
+            |PluginJob {
+                 id, name, schedule, ..
+             }| (id.as_str(), name.as_str(), schedule.as_str()),
+        )
+        .collect();
+    assert_eq!(
+        jobs,
+        [("wait", "wait", "0 4 * * *"), ("on-ask", "on-ask", "")]
     );
 }
 
