@@ -113,7 +113,7 @@ export function useActionBar({
     groups,
     active,
     slow,
-    titleSourceUnavailable: search.titleSourceUnavailable,
+    note: search.note,
     handleClose: dialog.close,
     handleBack: back,
     pick: setPicked,

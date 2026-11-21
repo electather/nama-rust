@@ -702,7 +702,8 @@ impl ::serde::Serialize for SearchResponseOwnedView {
 /// query, then one holding each of its words whole (in both, the year it ends with aside), then
 /// one of that year, then the better fit, then the shorter title. The title source's batch holds
 /// none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
-/// A client lists every batch's results stably sorted by `status`.
+/// A Search source's batch holds none an earlier batch sent: by `status`, then in the source's
+/// order. A client lists every batch's results stably sorted by `status`.
 #[derive(Clone, Debug, Default)]
 pub struct HitsView<'a> {
     /// Field 1: `hits`
@@ -2041,6 +2042,11 @@ pub struct DoneView<'a> {
     ///
     /// Field 1: `title_source_unavailable`
     pub title_source_unavailable: bool,
+    /// The Plugin ids of the enabled Search sources that failed or took too long, which added no
+    /// batch, in the Admin's precedence of Plugins.
+    ///
+    /// Field 2: `failed_search_sources`
+    pub failed_search_sources: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DoneView<'a> {
@@ -2080,6 +2086,17 @@ impl<'a> ::buffa::MessageView<'a> for DoneView<'a> {
                 )?;
                 view.title_source_unavailable = ::buffa::types::decode_bool(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.failed_search_sources.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2103,6 +2120,11 @@ impl<'a> ::buffa::MessageView<'a> for DoneView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::Done {
             title_source_unavailable: self.title_source_unavailable,
+            failed_search_sources: self
+                .failed_search_sources
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2117,6 +2139,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DoneView<'a> {
         if self.title_source_unavailable {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.failed_search_sources {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2130,6 +2155,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DoneView<'a> {
         use ::buffa::Enumeration as _;
         if self.title_source_unavailable {
             ::buffa::types::put_bool_field(1u32, self.title_source_unavailable, buf);
+        }
+        for v in &self.failed_search_sources {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2158,6 +2186,9 @@ impl<'__a> ::serde::Serialize for DoneView<'__a> {
                     "titleSourceUnavailable",
                     &self.title_source_unavailable,
                 )?;
+        }
+        if !self.failed_search_sources.is_empty() {
+            __map.serialize_entry("failedSearchSources", &*self.failed_search_sources)?;
         }
         __map.end()
     }
@@ -2253,6 +2284,14 @@ impl DoneOwnedView {
     #[must_use]
     pub fn title_source_unavailable(&self) -> bool {
         self.0.reborrow().title_source_unavailable
+    }
+    /// The Plugin ids of the enabled Search sources that failed or took too long, which added no
+    /// batch, in the Admin's precedence of Plugins.
+    ///
+    /// Field 2: `failed_search_sources`
+    #[must_use]
+    pub fn failed_search_sources(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().failed_search_sources
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DoneView<'static>>> for DoneOwnedView {

@@ -36,6 +36,7 @@ mod lookup;
 mod progress;
 mod qualities;
 mod quality;
+mod search_sources;
 mod state;
 #[cfg(test)]
 mod testing;
@@ -51,6 +52,7 @@ pub(crate) use qualities::{
     PROFILE as QUALITY_PROFILE_FIELD, QUALITY_PROFILE, Refused as QualityRefused,
     check as check_qualities, list as list_qualities, replace as replace_qualities,
 };
+pub(crate) use search_sources::{SourceAnswer, Sourced, Unavailable};
 
 /// Why a Request couldn't be made, found or changed.
 #[derive(Debug, thiserror::Error)]

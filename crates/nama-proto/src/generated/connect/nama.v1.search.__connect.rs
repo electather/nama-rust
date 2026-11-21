@@ -111,8 +111,15 @@ pub trait SearchService: Send + Sync + 'static {
     /// `PERMISSION_REQUEST_TV` the Shows: for each kind, the first title source in the Admin's
     /// precedence to find any is asked for the query, as it is typed.
     ///
+    /// Each enabled Search source is asked too, with the query, the kind and the limit, never the
+    /// caller (ADR 0083). Its titles count only by an id this Server knows: one a Library has is
+    /// Available, one with an open Request the caller can see or a Followed Show is Requested, and
+    /// one of a kind the caller may request is Not on this Server if an enabled title source keeps
+    /// one of its ids' namespaces. The rest are dropped.
+    ///
     /// Streams the batch the Libraries found at once, then, for a caller who may request, the
-    /// title source's for each kind it answered, Movies first, then `Done`. Fails with
+    /// title source's for each kind it answered, Movies first, then a batch for each Search source
+    /// that answered, in the Admin's precedence of Plugins, then `Done`. Fails with
     /// `invalid_argument` if the query is blank (`REFUSAL_REASON_FIELD_REQUIRED`).
     ///
     /// `request` is borrowed from the request body and is valid for the

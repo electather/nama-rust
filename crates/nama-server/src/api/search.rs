@@ -11,7 +11,7 @@ use futures_util::{
     future::{self, OptionFuture},
     stream,
 };
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::{PluginId, metadata::ExternalId};
 use nama_proto::nama::v1::{
     self as proto, Done, Hits, RefusalReason, SearchRequest, SearchResponse, SearchService,
     TitleStatus, search_response::Part,
@@ -23,10 +23,12 @@ use crate::{
         Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, OnServer,
         Role, ShownImages, TitleImage, TitleKind,
     },
-    requests::{self, Requests, ShowToRequest, year_of},
+    requests::{self, Requests, ShowToRequest, SourceAnswer, Sourced, Unavailable, year_of},
+    users::User,
 };
 
 use super::{
+    browse::{Fields, refused},
     caller, database_failed, external_id_to_proto, proto_number, refuse,
     requests::{searched_show_to_proto, searched_to_proto},
     title_kind_from_proto,
@@ -39,6 +41,7 @@ const DEFAULT_LIMIT: usize = 20;
 const MAX_LIMIT: usize = 100;
 
 /// `nama.v1.SearchService`: finding titles, for any signed-in User.
+#[derive(Clone)]
 pub(super) struct SearchServiceHandler {
     pub(super) browse: Browse,
     pub(super) requests: Requests,
@@ -67,36 +70,223 @@ impl SearchService for SearchServiceHandler {
         let found = self.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
-        let movie_ids = library_ids(&found, TitleKind::Movie);
-        let show_ids = library_ids(&found, TitleKind::Show);
+        let sent = Sent {
+            movies: library_ids(&found, TitleKind::Movie),
+            shows: library_ids(&found, TitleKind::Show),
+        };
         let library = Hits {
             hits: (found.into_iter())
                 .map(|found| hit_to_proto(found, &images))
                 .collect(),
             ..Default::default()
         };
-        let (requests, query) = (self.requests.clone(), query.to_owned());
-        let after_library = async move {
-            let searches = |of| kind.is_none_or(|kind| kind == of);
-            let movies = OptionFuture::from(
-                searches(TitleKind::Movie)
-                    .then(|| requests.search_to_request(&viewer, &query, &movie_ids)),
-            );
-            let shows = OptionFuture::from(
-                searches(TitleKind::Show)
-                    .then(|| requests.search_shows_to_request(&viewer, &query, &show_ids)),
-            );
-            let (movies, shows) = future::join(movies, shows).await;
-            to_request_parts([
-                batch(movies, limit, |movie| movie_to_request_hit(movie, &images)),
-                batch(shows, limit, |show| show_to_request_hit(show, &images)),
-            ])
+        let searched = Searched {
+            viewer,
+            query: query.to_owned(),
+            kind,
+            limit,
         };
+        let handler = self.clone();
+        let after_library = async move { handler.after_library(searched, sent, images).await };
         let stream: ServiceStream<SearchResponse> = Box::pin(
             stream::once(future::ready(Ok(response(library))))
                 .chain(stream::once(after_library).flat_map(stream::iter)),
         );
         Response::ok(stream)
+    }
+}
+
+/// What a search asks, which every batch after the Libraries' answers.
+struct Searched {
+    viewer: User,
+    query: String,
+    kind: Option<TitleKind>,
+    limit: usize,
+}
+
+/// The ids of every title of each kind a batch sent, which a later batch leaves out. Kept apart by
+/// kind, since a title source may give a Movie and a Show one id.
+#[derive(Default)]
+struct Sent {
+    movies: HashSet<ExternalId>,
+    shows: HashSet<ExternalId>,
+}
+
+impl Sent {
+    fn add(&mut self, kind: TitleKind, ids: impl IntoIterator<Item = ExternalId>) {
+        let sent = match kind {
+            TitleKind::Movie => &mut self.movies,
+            TitleKind::Show => &mut self.shows,
+        };
+        sent.extend(ids);
+    }
+
+    fn has_any(&self, kind: TitleKind, ids: &[ExternalId]) -> bool {
+        let sent = match kind {
+            TitleKind::Movie => &self.movies,
+            TitleKind::Show => &self.shows,
+        };
+        ids.iter().any(|id| sent.contains(id))
+    }
+}
+
+impl SearchServiceHandler {
+    /// What the stream sends after the Libraries' batch: the title source's batch of each kind,
+    /// then each Search source's, then `Done`. A failure other than those `Done` names ends it
+    /// with its error, after the batches before it.
+    async fn after_library(
+        &self,
+        searched: Searched,
+        sent: Sent,
+        images: ShownImages,
+    ) -> Vec<Result<SearchResponse, ConnectError>> {
+        let mut batches = Vec::new();
+        let done = (self.batches_after_library(searched, sent, &images, &mut batches)).await;
+        let mut parts: Vec<_> = (batches.into_iter())
+            .map(|hits| Ok(response(hits)))
+            .collect();
+        parts.push(done.map(response));
+        parts
+    }
+
+    /// Adds the batches [`Self::after_library`] sends to `batches`, returning `Done`, which flags a
+    /// kind the title source couldn't search and names each Search source that failed.
+    async fn batches_after_library(
+        &self,
+        asked: Searched,
+        mut sent: Sent,
+        images: &ShownImages,
+        batches: &mut Vec<Hits>,
+    ) -> Result<Done, ConnectError> {
+        let Searched {
+            viewer,
+            query,
+            kind,
+            limit,
+        } = &asked;
+        let searches = |of| kind.is_none_or(|kind| kind == of);
+        let movies = OptionFuture::from(
+            searches(TitleKind::Movie)
+                .then(|| (self.requests).search_to_request(viewer, query, &sent.movies)),
+        );
+        let shows = OptionFuture::from(
+            searches(TitleKind::Show)
+                .then(|| (self.requests).search_shows_to_request(viewer, query, &sent.shows)),
+        );
+        let sources = self.requests.ask_search_sources(query, *kind, *limit);
+        let (movies, shows, sources) = future::join3(movies, shows, sources).await;
+        for found in first(movies.as_ref(), *limit) {
+            let ids = found.movie.ids.iter().chain([found.id.clone()]);
+            sent.add(TitleKind::Movie, ids);
+        }
+        for ShowToRequest { hit, .. } in first(shows.as_ref(), *limit) {
+            let ids = hit.candidate.ids.iter().chain([hit.id.clone()]);
+            sent.add(TitleKind::Show, ids);
+        }
+        let mut done = Done::default();
+        for answered in [
+            batch(movies, *limit, |movie| movie_to_request_hit(movie, images)),
+            batch(shows, *limit, |show| show_to_request_hit(show, images)),
+        ] {
+            match answered {
+                Ok(hits) => batches.extend(hits),
+                Err(requests::Error::Unavailable) => done.title_source_unavailable = true,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        for SourceAnswer { plugin, titles } in sources {
+            match titles {
+                Some(titles) => batches.push(
+                    (self.source_batch(viewer, &plugin, titles, &mut sent, *limit, images)).await?,
+                ),
+                None => done.failed_search_sources.push(plugin.to_string()),
+            }
+        }
+        Ok(done)
+    }
+
+    /// The batch of the titles the Search source `plugin` found, as `viewer` sees them (ADR 0083):
+    /// those no earlier batch in `sent` sent, by status, then in the source's order, at most
+    /// `limit`, each added to `sent`. One `viewer` may neither watch nor request is left out.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one batch of the stream, with what the stream keeps across its batches"
+    )]
+    async fn source_batch(
+        &self,
+        viewer: &User,
+        plugin: &PluginId,
+        titles: Vec<Sourced>,
+        sent: &mut Sent,
+        limit: usize,
+        images: &ShownImages,
+    ) -> Result<Hits, ConnectError> {
+        let (movie_namespaces, show_namespaces) = future::join(
+            self.requests
+                .requestable_namespaces(viewer, TitleKind::Movie),
+            self.requests
+                .requestable_namespaces(viewer, TitleKind::Show),
+        )
+        .await;
+        let mut in_batch = Sent::default();
+        let mut shown = Vec::new();
+        // ponytail: a Library lookup and a Request lookup per title, which a batch caps at 100.
+        for title in titles {
+            let (kind, ids) = (title.kind, title.ids.iter().collect::<Vec<_>>());
+            if sent.has_any(kind, &ids) || in_batch.has_any(kind, &ids) {
+                continue;
+            }
+            let requestable = match kind {
+                TitleKind::Movie => &movie_namespaces,
+                TitleKind::Show => &show_namespaces,
+            };
+            let hit = self.source_hit(viewer, plugin, title, ids, requestable, images);
+            if let Some((hit, known_by)) = hit.await? {
+                in_batch.add(kind, known_by.iter().cloned());
+                shown.push((hit, kind, known_by));
+            }
+        }
+        shown.sort_by_key(|(hit, ..)| hit.status.to_i32());
+        shown.truncate(limit);
+        for (_, kind, ids) in &shown {
+            sent.add(*kind, ids.iter().cloned());
+        }
+        Ok(Hits {
+            hits: shown.into_iter().map(|(hit, ..)| hit).collect(),
+            ..Default::default()
+        })
+    }
+
+    /// `title`, which the Search source `plugin` found by `ids`, as `viewer` sees it, with every id
+    /// it is known by: Available in the oldest Library with any of `ids`, shown as the Library has
+    /// it, or else as [`Requests::unavailable`] tells, shown as the source gave it. `None` if
+    /// `viewer` may neither watch nor request it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one title of a batch, with what its batch reads once"
+    )]
+    async fn source_hit(
+        &self,
+        viewer: &User,
+        plugin: &PluginId,
+        title: Sourced,
+        mut ids: Vec<ExternalId>,
+        requestable: &[String],
+        images: &ShownImages,
+    ) -> Result<Option<(proto::Hit, Vec<ExternalId>)>, ConnectError> {
+        let on_server = self.browse.in_libraries(title.kind, &ids).await;
+        if let Some(on_server) = on_server.map_err(refused(Fields::NONE))?.into_iter().next() {
+            let (id, known) = match &on_server {
+                OnServer::Movie(movie) => (&movie.id, &movie.ids),
+                OnServer::Show(show) => (&show.id, &show.ids),
+            };
+            ids.extend(known.iter().chain([id.clone()]));
+            let hit = available_hit(on_server, images);
+            return Ok(Some((hit, ids)));
+        }
+        let unavailable = self.requests.unavailable(viewer, &title, requestable).await;
+        let unavailable = unavailable.map_err(database_failed)?;
+        Ok(unavailable.map(|unavailable| (sourced_hit(plugin, title, unavailable, images), ids)))
     }
 }
 
@@ -143,8 +333,7 @@ fn hit_to_proto(found: Found, images: &ShownImages) -> proto::Hit {
     }
 }
 
-/// Every id of each title of `kind` in `found`, which the title source's batch of that kind
-/// leaves out. Kept apart by kind, since a title source may give a Movie and a Show one id.
+/// Every id of each title of `kind` in `found`, which the later batches of that kind leave out.
 fn library_ids(found: &[Found], kind: TitleKind) -> HashSet<ExternalId> {
     (found.iter())
         .filter_map(|found| match (found, kind) {
@@ -156,6 +345,19 @@ fn library_ids(found: &[Found], kind: TitleKind) -> HashSet<ExternalId> {
         })
         .flatten()
         .collect()
+}
+
+/// The first `limit` of what the title source's search of one kind `searched` found, which its
+/// batch sends; none if it wasn't asked or failed.
+fn first<T>(
+    searched: Option<&Result<Option<Vec<T>>, requests::Error>>,
+    limit: usize,
+) -> impl Iterator<Item = &T> {
+    let found = match searched {
+        Some(Ok(Some(found))) => found.as_slice(),
+        _ => &[],
+    };
+    found.iter().take(limit)
 }
 
 /// The first `limit` of what the title source's search of one kind `searched` found, ranked, as a
@@ -172,26 +374,69 @@ fn batch<T>(
     }))
 }
 
-/// What the stream sends after the Libraries' batch: each kind's `batches`, then `Done`, flagging
-/// a kind the title source couldn't search. A kind that failed otherwise ends it with its error,
-/// after the batches before it.
-fn to_request_parts(
-    batches: [Result<Option<Hits>, requests::Error>; 2],
-) -> Vec<Result<SearchResponse, ConnectError>> {
-    let mut parts = Vec::new();
-    let mut done = Done::default();
-    for searched in batches {
-        match searched {
-            Ok(hits) => parts.extend(hits.map(|hits| Ok(response(hits)))),
-            Err(requests::Error::Unavailable) => done.title_source_unavailable = true,
-            Err(error) => {
-                parts.push(Err(error.into()));
-                return parts;
-            }
-        }
+/// A title on the Server a Search source found, shown as the Library has it.
+fn available_hit(on_server: OnServer, images: &ShownImages) -> proto::Hit {
+    let title = match on_server {
+        OnServer::Movie(movie) => movie_hit(movie, images).into(),
+        OnServer::Show(show) => show_hit(show, images).into(),
+    };
+    proto::Hit {
+        title,
+        status: TitleStatus::TITLE_STATUS_AVAILABLE.into(),
+        ..Default::default()
     }
-    parts.push(Ok(response(done)));
-    parts
+}
+
+/// A title the Search source `plugin` found that no Library has, shown as the source gave it, its
+/// Poster through `plugin`, unless the title has a Custom Image.
+fn sourced_hit(
+    plugin: &PluginId,
+    title: Sourced,
+    unavailable: Unavailable,
+    images: &ShownImages,
+) -> proto::Hit {
+    let (status, id, request) = match unavailable {
+        Unavailable::Requested { id, request } => (
+            TitleStatus::TITLE_STATUS_REQUESTED,
+            id,
+            request.map(|request| *request),
+        ),
+        Unavailable::Requestable(id) => (TitleStatus::TITLE_STATUS_NOT_ON_THIS_SERVER, id, None),
+    };
+    let downloaded = (title.poster.as_deref()).map(|path| Downloaded::Offered { plugin, path });
+    let role = match title.kind {
+        TitleKind::Movie => TitleImage::Movie(Role::Poster),
+        TitleKind::Show => TitleImage::Show(Role::Poster),
+    };
+    let poster = images.of_title(&id, &title.ids, role, downloaded);
+    let (id, request) = (external_id_to_proto(&id).into(), request.into());
+    let shown = match title.kind {
+        TitleKind::Movie => proto::MovieHit {
+            id,
+            title: title.title,
+            year: title.year,
+            poster_url: poster.url,
+            poster_thumbhash: poster.thumbhash,
+            request,
+            ..Default::default()
+        }
+        .into(),
+        TitleKind::Show => proto::ShowHit {
+            id,
+            title: title.title,
+            year: title.year,
+            poster_url: poster.url,
+            poster_thumbhash: poster.thumbhash,
+            request,
+            ..Default::default()
+        }
+        .into(),
+    };
+    proto::Hit {
+        title: shown,
+        status: status.into(),
+        ..Default::default()
+    }
 }
 
 /// How close a title the title source found is to being on the Server.

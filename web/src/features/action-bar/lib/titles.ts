@@ -1,6 +1,6 @@
 import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
 import type { EpisodeHit, SearchResponse, TitleStatus } from "@/gen/nama/v1/search_pb";
-import { hitsIn, titleSourceUnavailable } from "@/shared/lib/search-hits";
+import { hitsIn, searchNote } from "@/shared/lib/search-hits";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
@@ -41,8 +41,8 @@ export interface Found {
   movies: FoundTitle[];
   shows: FoundTitle[];
   episodes: FoundTitle[];
-  /** Whether the titles to request couldn't be searched, so only this Server's are found. */
-  titleSourceUnavailable: boolean;
+  /** What is missing from the results, as `searchNote` says it, or "". */
+  note: string;
 }
 
 function movieFound(movie: MovieHit, status: TitleStatus): FoundTitle {
@@ -108,7 +108,7 @@ export function foundIn(responses: readonly SearchResponse[]): Found {
     episodes: titles.flatMap(({ title }) =>
       title.case === "episode" ? [episodeFound(title.value)] : [],
     ),
-    titleSourceUnavailable: titleSourceUnavailable(responses),
+    note: searchNote(responses),
   };
 }
 
