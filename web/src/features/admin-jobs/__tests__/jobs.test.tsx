@@ -1,9 +1,11 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
 
-import { JobRunOutcome, JobService } from "@/gen/nama/v1/job_pb";
+import { type ConfigureJobRequest, JobRunOutcome, JobService } from "@/gen/nama/v1/job_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { admin, fakeServer, openApp } from "@/test-app";
+import { refused } from "@/test-refusal";
 
 const HOUR = 3_600_000n;
 const DAY = 24n * HOUR;
@@ -28,6 +30,8 @@ const jobs = [
     name: "Forget Home rows",
     description: "Forgets the Home rows of Users who stopped visiting.",
     schedule: "0 4 * * *",
+    defaultSchedule: "0 4 * * *",
+    enabled: true,
     nextRunsAtMs: [START + DAY, START + 2n * DAY, START + 3n * DAY],
     lastRun: runs[0],
   },
@@ -37,12 +41,19 @@ const jobs = [
     id: "delete-expired",
     name: "Delete expired sign-ins",
     schedule: "10 4 * * *",
-    nextRunsAtMs: [START + DAY],
+    defaultSchedule: "10 4 * * *",
   },
-  { pluginId: "cleanup", pluginName: "Cleanup", id: "clean", name: "Clean up", schedule: "" },
+  {
+    pluginId: "cleanup",
+    pluginName: "Cleanup",
+    id: "clean",
+    name: "Clean up",
+    schedule: "",
+    enabled: true,
+  },
 ];
 
-function openJobs() {
+function openJobs(configured: Partial<ConfigureJobRequest>[] = []) {
   openApp(
     "/admin/jobs",
     fakeServer({ signedIn: admin }, {}, {}, (router) => {
@@ -53,6 +64,19 @@ function openJobs() {
             throw new ConnectError("the database is locked", Code.Internal);
           }
           return { runs: jobId === "forget-home-rows" ? runs : [] };
+        },
+        configureJob: ({ pluginId, jobId, enabled, schedule }) => {
+          configured.push({ pluginId, jobId, enabled, schedule });
+          return {};
+        },
+        previewJobSchedule: ({ schedule }) => {
+          if (schedule.split(" ").length !== 5) {
+            throw refused(Code.InvalidArgument, `the schedule "${schedule}" has 4 fields`, {
+              reason: RefusalReason.SCHEDULE_INVALID,
+              field: "schedule",
+            });
+          }
+          return { nextRunsAtMs: [START, START + HOUR, START + 2n * HOUR] };
         },
       });
     }),
@@ -70,7 +94,8 @@ describe("the Jobs page", () => {
     expect(screen.getByText("Every day at 04:10 Server time")).toBeDefined();
     expect(screen.getByText("Only when an Admin runs it")).toBeDefined();
     expect(screen.getByText(/^Next run .* · Last run /u)).toBeDefined();
-    expect(screen.getByText(/^Next run .* · Never run$/u)).toBeDefined();
+    expect(screen.queryByText(/^Next run .* · Never run$/u)).toBeNull();
+    expect(screen.getAllByText("Off")).toHaveLength(1);
     expect(screen.getByText("Failed")).toBeDefined();
     expect(screen.queryByRole("searchbox")).toBeNull();
   });
@@ -108,5 +133,76 @@ describe("the Jobs page", () => {
     const sheet = within(await screen.findByRole("dialog", { name: "Clean up" }));
     await expect(sheet.findByText(/^Couldn’t load its Runs/u)).resolves.toBeDefined();
     expect(screen.getByRole("link", { name: "Upkeep" })).toBeDefined();
+  });
+});
+
+/** Opens the Configure dialog of the Job named `name`. */
+async function configure(name: string) {
+  fireEvent.click(await screen.findByRole("button", { name: `Configure ${name}` }));
+  return within(await screen.findByRole("alertdialog", { name: `Configure ${name}` }));
+}
+
+describe("configuring a Job", () => {
+  test("turns it off and gives it a schedule of its own, previewing its next times", async () => {
+    const configured: Partial<ConfigureJobRequest>[] = [];
+    openJobs(configured);
+
+    const dialog = await configure("Forget Home rows");
+    const on = dialog.getByRole("switch", { name: "Enabled" });
+    expect(on.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(on);
+    const schedule = dialog.getByLabelText("Schedule");
+    expect(schedule.getAttribute("placeholder")).toBe("0 4 * * *");
+    fireEvent.change(schedule, { target: { value: "0 * * * *" } });
+    const next = await dialog.findByRole("list", { name: "Next runs" });
+    expect(within(next).getAllByRole("listitem")).toHaveLength(3);
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() => {
+      expect(configured).toStrictEqual([
+        { pluginId: "upkeep", jobId: "forget-home-rows", enabled: false, schedule: "0 * * * *" },
+      ]);
+    });
+  });
+
+  test("says why a schedule doesn't parse as it's typed", async () => {
+    openJobs();
+
+    const dialog = await configure("Forget Home rows");
+    fireEvent.change(dialog.getByLabelText("Schedule"), { target: { value: "0 4 * *" } });
+
+    await expect(dialog.findByText('The schedule "0 4 * *" has 4 fields.')).resolves.toBeDefined();
+    expect(dialog.getByLabelText("Schedule").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  test("reset to default saves it on, on its Plugin's schedule", async () => {
+    const configured: Partial<ConfigureJobRequest>[] = [];
+    openJobs(configured);
+
+    const dialog = await configure("Delete expired sign-ins");
+    expect(dialog.getByRole("switch", { name: "Enabled" }).getAttribute("aria-checked")).toBe(
+      "false",
+    );
+    fireEvent.click(dialog.getByRole("button", { name: "Reset to default" }));
+    expect(dialog.getByRole("switch", { name: "Enabled" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() => {
+      expect(configured).toStrictEqual([
+        { pluginId: "upkeep", jobId: "delete-expired", enabled: true, schedule: "" },
+      ]);
+    });
+  });
+
+  test("a Job without a schedule can't be given one", async () => {
+    openJobs();
+
+    const dialog = await configure("Clean up");
+
+    expect(dialog.getByRole("switch", { name: "Enabled" })).toBeDefined();
+    expect(dialog.queryByLabelText("Schedule")).toBeNull();
+    expect(dialog.getByText("It runs only when an Admin runs it.")).toBeDefined();
   });
 });
