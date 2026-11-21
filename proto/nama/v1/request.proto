@@ -659,7 +659,7 @@ message FoundMovie {
   repeated string genres = 15;
   // As `nama.v1.Movie.content_rating`, from the title source it was looked up in.
   optional string content_rating = 16;
-  // As `nama.v1.Movie.on_watchlist`, under `id` or any other id the title source gave it.
+  // As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
   bool on_watchlist = 17;
 }
 

@@ -1554,7 +1554,7 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
   contentRating?: string | undefined;
 
   /**
-   * As `nama.v1.Movie.on_watchlist`, under `id` or any other id the title source gave it.
+   * As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
    *
    * @generated from field: bool on_watchlist = 17;
    */

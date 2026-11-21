@@ -53,23 +53,6 @@ pub(super) struct RequestServiceHandler {
     pub(super) db: Arc<Database>,
 }
 
-impl RequestServiceHandler {
-    /// Whether the title of `kind` kept under `id`, and known by `ids` too, is on the User
-    /// `user`'s Watchlist.
-    async fn on_watchlist(
-        &self,
-        user: i64,
-        kind: TitleKind,
-        id: &ExternalId,
-        ids: &ExternalIds,
-    ) -> Result<bool, ConnectError> {
-        let mut ids = ids.clone();
-        ids.insert(id.clone());
-        let on = watchlist::has(&self.db, user, kind, &ids).await;
-        on.map_err(database_failed)
-    }
-}
-
 #[expect(
     refining_impl_trait,
     reason = "plain `async fn` returning the owned response is the form the generated trait \
@@ -277,9 +260,10 @@ impl RequestService for RequestServiceHandler {
                 err.into()
             }
         })?;
-        let on_watchlist =
-            self.on_watchlist(viewer.id, TitleKind::Movie, &found.id, &found.movie.ids);
-        let on_watchlist = on_watchlist.await?;
+        // By the id it was looked up by, which its page's Watchlist button removes it under, not
+        // the title source's other ids: `RemoveFromWatchlist` clears only the Matches' (#1292).
+        let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Movie, &id);
+        let on_watchlist = on_watchlist.await.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpMovieResponse {
             movie: looked_up_to_proto(found, on_watchlist, &images).into(),
@@ -324,9 +308,9 @@ impl RequestService for RequestServiceHandler {
                 err.into()
             }
         })?;
-        let on_watchlist =
-            self.on_watchlist(viewer.id, TitleKind::Show, &found.id, &found.show.ids);
-        let on_watchlist = on_watchlist.await?;
+        // As `look_up_movie`'s.
+        let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Show, &id);
+        let on_watchlist = on_watchlist.await.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpShowResponse {
             show: looked_up_show_to_proto(found, on_watchlist, &images).into(),

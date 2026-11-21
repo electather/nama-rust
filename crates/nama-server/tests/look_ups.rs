@@ -12,8 +12,8 @@ use connectrpc::{
     client::{ClientConfig, HttpClient},
 };
 use nama_proto::nama::v1::{
-    AddToWatchlistRequest, Permission, RefusalReason, RequestServiceClient, TitleKind,
-    WatchlistServiceClient,
+    AddToWatchlistRequest, Permission, RefusalReason, RemoveFromWatchlistRequest,
+    RequestServiceClient, TitleKind, WatchlistServiceClient,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
@@ -184,19 +184,17 @@ async fn a_looked_up_movie_and_show_have_their_score_original_language_genres_an
 }
 
 #[tokio::test]
-async fn a_looked_up_title_is_on_the_watchlist_of_whoever_added_it_under_any_of_its_ids() {
+async fn a_looked_up_title_is_on_the_watchlist_of_whoever_added_it_till_they_remove_it() {
     let fixture = Fixture::start().await;
     let grace = fixture.server.user("Grace", &NEW_USER).await;
     let ada = fixture.server.user("Ada", &NEW_USER).await;
     let watchlist = WatchlistServiceClient::new(HttpClient::plaintext(), grace.client_config());
-    let added = [
-        (TitleKind::TITLE_KIND_MOVIE, title_id("imdb", ALIEN_IMDB)),
-        (
-            TitleKind::TITLE_KIND_SHOW,
-            title_id("tvdb", &DARK_TVDB.to_string()),
-        ),
+    let (alien, dark) = (tmdb_id(ALIEN), title_id("tvdb", &DARK_TVDB.to_string()));
+    let titles = [
+        (TitleKind::TITLE_KIND_MOVIE, alien.clone()),
+        (TitleKind::TITLE_KIND_SHOW, dark.clone()),
     ];
-    for (kind, id) in added {
+    for (kind, id) in titles.clone() {
         let add = AddToWatchlistRequest {
             kind: kind.into(),
             id: id.into(),
@@ -204,14 +202,42 @@ async fn a_looked_up_title_is_on_the_watchlist_of_whoever_added_it_under_any_of_
         };
         watchlist.add_to_watchlist(add).await.unwrap();
     }
-
-    for (who, on_watchlist) in [(&grace, true), (&ada, false)] {
+    let on_watchlist = async |who| {
         let as_them = fixture.server.requests(who);
-        let alien = as_them.try_look_up_movie(tmdb_id(ALIEN)).await.unwrap();
-        let dark = as_them.try_look_up_show(tmdb_id(DARK)).await.unwrap();
-        assert_eq!(
-            (alien.on_watchlist, dark.on_watchlist),
-            (on_watchlist, on_watchlist)
-        );
+        let movie = as_them.try_look_up_movie(alien.clone()).await.unwrap();
+        let show = as_them.try_look_up_show(dark.clone()).await.unwrap();
+        (movie.on_watchlist, show.on_watchlist)
+    };
+    assert_eq!(on_watchlist(&grace).await, (true, true));
+    assert_eq!(on_watchlist(&ada).await, (false, false));
+
+    for (kind, id) in titles {
+        let remove = RemoveFromWatchlistRequest {
+            kind: kind.into(),
+            id: id.into(),
+            ..Default::default()
+        };
+        watchlist.remove_from_watchlist(remove).await.unwrap();
     }
+
+    assert_eq!(on_watchlist(&grace).await, (false, false));
+}
+
+#[tokio::test]
+async fn a_looked_up_title_no_match_ties_to_the_id_it_was_added_under_is_not_on_the_watchlist() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let watchlist = WatchlistServiceClient::new(HttpClient::plaintext(), grace.client_config());
+    let add = AddToWatchlistRequest {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        id: title_id("imdb", ALIEN_IMDB).into(),
+        ..Default::default()
+    };
+    watchlist.add_to_watchlist(add).await.unwrap();
+
+    let as_grace = fixture.server.requests(&grace);
+    let alien = as_grace.try_look_up_movie(tmdb_id(ALIEN)).await.unwrap();
+
+    // Its page's Remove would clear only `tmdb-348`, and leave it on.
+    assert!(!alien.on_watchlist);
 }

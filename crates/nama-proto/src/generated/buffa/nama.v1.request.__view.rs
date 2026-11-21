@@ -16341,7 +16341,7 @@ pub struct FoundMovieView<'a> {
     ///
     /// Field 16: `content_rating`
     pub content_rating: ::core::option::Option<&'a str>,
-    /// As `nama.v1.Movie.on_watchlist`, under `id` or any other id the title source gave it.
+    /// As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
     ///
     /// Field 17: `on_watchlist`
     pub on_watchlist: bool,
@@ -16997,7 +16997,7 @@ impl FoundMovieOwnedView {
     pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().content_rating
     }
-    /// As `nama.v1.Movie.on_watchlist`, under `id` or any other id the title source gave it.
+    /// As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
     ///
     /// Field 17: `on_watchlist`
     #[must_use]
