@@ -9,7 +9,8 @@ package nama.plugin.v1;
 service JobService {
   // The `run_job` export: runs one of the Plugin's Jobs. Required. The Kernel calls it when the
   // Job's schedule comes due, one Run at a time per Job, and allows it 60 seconds of the Plugin's
-  // own time. A Run that fails or runs past that is logged and counted toward the crashes in a row.
+  // own time. A Run that returns an error is logged; one that traps or runs past that is also
+  // counted toward the crashes in a row, as any export's is.
   rpc Run(RunJob) returns (JobRan);
 }
 
