@@ -30,7 +30,7 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) logo: Option<ImageRef>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
-    /// Its Score from the title source that made the Match, which keeps it once per title.
+    /// Its Score from the title source that made the Match, kept once per title.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
     /// When its first Version was added, in seconds since the Unix epoch.
@@ -400,18 +400,18 @@ impl Contents {
                               item_matches.backdrop, item_matches.backdrop_plugin,
                               item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
                               item_matches.logo, item_matches.logo_plugin, item_matches.genres,
-                              item_matches.content_rating, title_details.score AS "score?",
-                              title_details.original_language AS "original_language?",
-                              library_items.added_at, libraries.title_sources
+                              item_matches.content_rating, item_matches.original_language,
+                              title_scores.score AS "score?", library_items.added_at,
+                              libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
                        JOIN libraries ON libraries.id = library_files.library_id
-                       -- Keyed as `details::store` keys it.
-                       LEFT JOIN title_details
-                           ON title_details.plugin = item_matches.plugin
-                          AND title_details.kind = 'movie'
-                          AND (title_details.namespace, title_details.value) =
+                       -- Keyed as `scores::store` keys it.
+                       LEFT JOIN title_scores
+                           ON title_scores.plugin = item_matches.plugin
+                          AND title_scores.kind = 'movie'
+                          AND (title_scores.namespace, title_scores.value) =
                               (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed
                                WHERE keyed.item_id = item_matches.item_id
                                  AND keyed.scope = 'title'
@@ -512,18 +512,18 @@ impl Contents {
                               backdrop, backdrop_plugin, titled_backdrop, titled_backdrop_plugin,
                               logo, logo_plugin, still, genres,
                               content_rating, show_poster, show_poster_plugin, show_overview,
-                              show_first_air_date, metadata_version, title_details.score AS "score?",
-                              title_details.original_language AS "original_language?",
-                              library_items.added_at, libraries.title_sources
+                              show_first_air_date, metadata_version, item_matches.original_language,
+                              title_scores.score AS "score?", library_items.added_at,
+                              libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
                        JOIN libraries ON libraries.id = library_files.library_id
-                       -- Keyed as `details::store` keys it.
-                       LEFT JOIN title_details
-                           ON title_details.plugin = item_matches.plugin
-                          AND title_details.kind = 'show'
-                          AND (title_details.namespace, title_details.value) =
+                       -- Keyed as `scores::store` keys it.
+                       LEFT JOIN title_scores
+                           ON title_scores.plugin = item_matches.plugin
+                          AND title_scores.kind = 'show'
+                          AND (title_scores.namespace, title_scores.value) =
                               (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed
                                WHERE keyed.item_id = item_matches.item_id
                                  AND keyed.scope = 'show'

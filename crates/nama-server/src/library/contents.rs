@@ -11,7 +11,6 @@ use crate::db::Database;
 
 mod backdrops;
 mod decisions;
-mod details;
 mod files;
 #[cfg(test)]
 pub(crate) mod fixture;
@@ -23,6 +22,7 @@ mod match_images;
 mod matched;
 mod pages;
 mod pins;
+mod scores;
 mod search;
 mod sort_titles;
 #[cfg(test)]

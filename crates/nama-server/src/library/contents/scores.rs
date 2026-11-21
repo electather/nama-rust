@@ -1,13 +1,13 @@
-//! What a title source says of a whole Movie or Show, stored once per title in `title_details`
-//! rather than on each of its Matches (ADR 0081). [`Contents::movies`](super::Contents::movies)
-//! and [`Contents::shows`](super::Contents::shows) read it back by the same key.
+//! A title's Score, stored once per title in `title_scores` rather than on each of its Matches
+//! (ADR 0081). [`Contents::movies`](super::Contents::movies) and
+//! [`Contents::shows`](super::Contents::shows) read it back by the same key.
 
 use sqlx::SqliteConnection;
 
 use super::Metadata;
 
-/// Stores the Score and Original Language that `matched` gives its title, a Movie or an
-/// Episode's Show, in place of what the same title source said of it before.
+/// Stores the Score that `matched` gives its title, a Movie or an Episode's Show, in place of what
+/// the same title source gave it before.
 pub(super) async fn store(
     conn: &mut SqliteConnection,
     matched: &Metadata,
@@ -23,15 +23,13 @@ pub(super) async fn store(
     };
     let (plugin, namespace, value) = (matched.plugin.as_str(), id.namespace(), id.value());
     sqlx::query!(
-        "INSERT OR REPLACE INTO title_details
-             (plugin, kind, namespace, value, score, original_language)
-         VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO title_scores (plugin, kind, namespace, value, score)
+         VALUES (?, ?, ?, ?, ?)",
         plugin,
         kind,
         namespace,
         value,
         matched.score,
-        matched.original_language,
     )
     .execute(conn)
     .await?;
@@ -39,5 +37,5 @@ pub(super) async fn store(
 }
 
 #[cfg(test)]
-#[path = "details_tests.rs"]
+#[path = "scores_tests.rs"]
 mod tests;

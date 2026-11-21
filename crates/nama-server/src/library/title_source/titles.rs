@@ -267,7 +267,7 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         backdrop: movie.backdrop,
         genres: movie.genres,
         content_rating: movie.content_rating,
-        score: score(movie.score),
+        score: valid_score(movie.score),
         original_language: movie.original_language,
     })
 }
@@ -284,14 +284,14 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         seasons: show.seasons,
         genres: show.genres,
         content_rating: show.content_rating,
-        score: score(show.score),
+        score: valid_score(show.score),
         original_language: show.original_language,
     })
 }
 
 /// `score`, unless it's outside 0 to 10, where the Kernel stores none rather than failing the
 /// Match's write on it.
-fn score(score: Option<f64>) -> Option<f64> {
+fn valid_score(score: Option<f64>) -> Option<f64> {
     score.filter(|score| (0.0..=10.0).contains(score))
 }
 

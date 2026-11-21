@@ -24,13 +24,12 @@ fn dark_episode(episode: i64) -> Metadata {
         show_ids: ExternalIds::from_iter([ExternalId::tmdb(70_523), ExternalId::tvdb(334_824)]),
         show_title: Some("Dark".to_owned()),
         score: Some(8.4),
-        original_language: Some("de".to_owned()),
         ..tmdb_movie(0, "Episode")
     }
 }
 
 #[tokio::test]
-async fn a_shows_score_and_original_language_are_stored_once_not_on_each_episode() {
+async fn a_shows_score_is_stored_once_not_on_each_episode() {
     let fx = Fixture::new().await;
     for episode in 1..=2 {
         let path = format!("/media/Dark/Season 01/Dark - S01E0{episode}.mkv");
@@ -46,16 +45,12 @@ async fn a_shows_score_and_original_language_are_stored_once_not_on_each_episode
     }
 
     let shows = fx.contents.shows(fx.library, None).await.unwrap();
-    let stored: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM title_details")
+    let stored: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM title_scores")
         .fetch_one(fx.contents.db.reader())
         .await
         .unwrap();
 
-    assert_eq!(
-        (shows[0].score, shows[0].original_language.as_deref()),
-        (Some(8.4), Some("de"))
-    );
-    assert_eq!(stored, 1);
+    assert_eq!((shows[0].score, stored), (Some(8.4), 1));
 }
 
 #[tokio::test]

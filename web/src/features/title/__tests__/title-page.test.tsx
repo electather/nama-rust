@@ -71,7 +71,6 @@ test("a title nobody has voted on shows no Score, not 0", async () => {
 
   await expect(screen.findByRole("heading", { level: 1, name: "Parasite" })).resolves.toBeDefined();
   expect(screen.queryByText("Score")).toBeNull();
-  expect(screen.queryByText("Original audio")).toBeNull();
 });
 
 test("a title without a Title Logo shows its title as text", async () => {
