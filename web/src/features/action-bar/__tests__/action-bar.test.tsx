@@ -1,11 +1,17 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { rgbaToThumbHash, thumbHashToDataURL } from "thumbhash";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { TitleKind } from "@/gen/nama/v1/match_pb";
 import { type MovieHitSchema, RequestState } from "@/gen/nama/v1/request_pb";
-import { type SearchResponseSchema, SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
+import {
+  type EpisodeHitSchema,
+  type SearchResponseSchema,
+  SearchService,
+  TitleStatus,
+} from "@/gen/nama/v1/search_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { modKey } from "@/shared/lib/mod-key";
 import { admin, fakeServer, newUser, openApp } from "@/test-app";
@@ -175,6 +181,51 @@ test("an Episode found opens its Show at its Season", async () => {
   await waitFor(() => {
     expect(router.state.location.href).toBe("/libraries/2/shows/tmdb-2316?season=2");
   });
+});
+
+type EpisodeArt = Pick<
+  MessageInitShape<typeof EpisodeHitSchema>,
+  "stillUrl" | "stillThumbhash" | "showPosterUrl"
+>;
+
+/** The Dundies, called `title`, with `art`. */
+function episode(title: string, art: EpisodeArt) {
+  return { title: { case: "episode" as const, value: { ...theDundies.value, title, ...art } } };
+}
+
+/** The sources of the images the row `name` names leads with, back to front. */
+function artOf(name: RegExp) {
+  return Array.from(screen.getByRole("option", { name }).querySelectorAll("img"), (img) =>
+    img.getAttribute("src"),
+  );
+}
+
+test("an Episode found leads with its Still, else its Show's Poster, else its icon, and Recent keeps it", async () => {
+  const still = {
+    stillUrl: "/still.jpg",
+    stillThumbhash: rgbaToThumbHash(1, 1, new Uint8Array(4)),
+  };
+  const poster = { showPosterUrl: "/office.jpg" };
+  const batch = [
+    episode("Still", { ...still, ...poster }),
+    episode("Poster", poster),
+    episode("Neither", {}),
+  ];
+  openApp("/settings", serverToSearch(streams({ part: { case: "hits", value: { hits: batch } } })));
+  const field = await openActionBar();
+
+  type(field, "office");
+  await screen.findByRole("option", { name: /Still/u });
+
+  expect(artOf(/Still/u)).toStrictEqual([thumbHashToDataURL(still.stillThumbhash), "/still.jpg"]);
+  expect(artOf(/Poster/u)).toStrictEqual(["/office.jpg"]);
+  expect(artOf(/Neither/u)).toStrictEqual([]);
+  fireEvent.click(screen.getByRole("option", { name: /Still/u }));
+  cleanup();
+  openApp("/settings", serverToSearch(findsOffice));
+  await openActionBar();
+  // Recent, read back from storage, keeps the Still without its thumbhash.
+  expect(artOf(/Still/u)).toStrictEqual(["/still.jpg"]);
 });
 
 test("a search of one kind asks the Server for that kind, and Escape steps back out of it", async () => {

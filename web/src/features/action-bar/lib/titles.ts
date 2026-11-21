@@ -1,3 +1,4 @@
+import type { Still } from "@/features/action-bar/lib/rows";
 import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
 import type { EpisodeHit, SearchResponse } from "@/gen/nama/v1/search_pb";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
@@ -21,7 +22,10 @@ export interface FoundTitle {
   season?: number;
   label: string;
   hint: string;
+  /** A Movie's or Show's Poster, or an Episode's Show's. */
   poster?: string | undefined;
+  /** An Episode's Still. */
+  still?: Still | undefined;
 }
 
 /** What a search found, by kind, each in the order to list it. */
@@ -71,6 +75,11 @@ function episodeFound(episode: EpisodeHit): FoundTitle {
     season: episode.seasonNumber,
     label: `${episode.episodeNumber}. ${episode.title}`,
     hint: metadataLine(episode.showTitle, seasonName(episode.seasonNumber)),
+    poster: episode.showPosterUrl,
+    still:
+      episode.stillUrl === undefined
+        ? undefined
+        : { url: episode.stillUrl, thumbhash: episode.stillThumbhash },
   };
 }
 

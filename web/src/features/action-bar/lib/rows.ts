@@ -20,6 +20,12 @@ export type IconName =
   | "keyboard"
   | "retry";
 
+/** An Episode's Still, and its thumbhash. */
+export interface Still {
+  url: string;
+  thumbhash: Uint8Array | undefined;
+}
+
 /** One thing the action bar lists, and what picking it does. */
 export interface Row {
   /** Unique among the rows listed together, and without spaces: it ends a DOM id. */
@@ -30,6 +36,8 @@ export interface Row {
   icon?: IconName;
   /** A title's poster, or `null` for a title without one: its `icon` then fills the poster's box. */
   poster?: string | null;
+  /** An Episode's Still, which it leads with in place of its `poster`. */
+  still?: Still | undefined;
   /** What it is or is set to, in a pill beside the label. */
   badge?: string;
   /** A title's open Request, whose pill shows beside the label. */

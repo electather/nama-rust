@@ -56,6 +56,7 @@ function titleRows(
     hint: title.hint,
     icon: title.kind === "movie" ? "movie" : "show",
     poster: title.poster ?? null,
+    still: title.still,
     ...badgeOf(title),
     action: "Open",
     run: () => {
