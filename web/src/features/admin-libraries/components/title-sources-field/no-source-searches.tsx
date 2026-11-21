@@ -4,6 +4,7 @@ import { whyNoSourceSearches } from "@/features/admin-libraries/lib/title-source
 import type { TitleSource } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/shared/lib/permissions";
+import { textLink } from "@/shared/lib/text-link-classes";
 
 /**
  * Why the Library's Items wait to be Matched, if no source in `order` is running and searches:
@@ -17,10 +18,7 @@ export function NoSourceSearches({ order, listed }: { order: string[]; listed: T
     return null;
   }
   const plugins = may(signedIn.user, Permission.MANAGE_SETTINGS) ? (
-    <Link
-      to="/admin/plugins"
-      className="rounded-sm underline decoration-muted-foreground underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
+    <Link to="/admin/plugins" className={textLink}>
       Plugins
     </Link>
   ) : (
