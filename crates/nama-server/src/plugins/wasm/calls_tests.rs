@@ -19,8 +19,8 @@ use super::{
     CRASHES_BEFORE_DISABLING, Running,
     calls::Calls,
     load::{
-        BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, TICK_TIMEOUT, compile_with_kernel, load,
-        write_cache_config,
+        BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, JOB_TIMEOUT, TICK_TIMEOUT,
+        compile_with_kernel, load, write_cache_config,
     },
     plugin_log::PluginLog,
     services::{Method, OBSERVE_EVENTS, POINTS, TICK},
@@ -279,11 +279,13 @@ async fn disabling_a_plugin_while_its_tick_runs_ends_the_wasm_call_promptly() {
 }
 
 #[test]
-fn a_tick_a_blob_call_and_a_home_row_refresh_may_run_long_and_every_other_method_for_call_timeout()
-{
+fn a_tick_a_job_run_a_blob_call_and_a_home_row_refresh_may_run_long_and_every_other_method_for_call_timeout()
+ {
     for method in POINTS.iter().flat_map(|point| point.methods) {
         let limit = if method.export == TICK.export {
             TICK_TIMEOUT
+        } else if method.service == services::JOB {
+            JOB_TIMEOUT
         } else if method.service == services::BLOB_STORE {
             BLOB_TIMEOUT
         } else if method.service == services::HOME_ROW {

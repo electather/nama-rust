@@ -122,6 +122,7 @@ impl Plugin for Tmdb {
             license: env!("CARGO_PKG_LICENSE").to_owned(),
             permissions: Vec::new(),
             tick_every: None,
+            jobs: Vec::new(),
             title_source: Some(SourceManifest {
                 namespace: TMDB.to_owned(),
                 looks_up: client::looks_up(),

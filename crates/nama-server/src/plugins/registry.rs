@@ -21,7 +21,7 @@ use tracing::{Instrument as _, error, info};
 
 use super::{
     CheckError, CheckTimedOut, EnableError, ExtensionPoints, LastProvider, Listed,
-    SETTINGS_CHECK_TIMEOUT, contain_call, contain_sync, scope::Scope, secret_values, tick,
+    SETTINGS_CHECK_TIMEOUT, contain_call, contain_sync, jobs, scope::Scope, secret_values, tick,
     without_secrets,
 };
 /// Every Plugin enabled on this Server and everything they registered.
@@ -232,7 +232,7 @@ impl Registry {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
-        refuse_bad_personal_settings(manifest)?;
+        refuse_flawed(manifest)?;
         let schema = &manifest.settings;
         let settings = settings
             .resolve(schema)
@@ -281,6 +281,7 @@ impl Registry {
             let generation = state.next_generation;
             state.next_generation += 1;
             let scope = tick::scope(&self.points, manifest, &registrations);
+            jobs::schedule(&scope, &self.points, manifest, &registrations);
             state.plugins.insert(
                 id.clone(),
                 Enabled {
@@ -635,9 +636,11 @@ pub(super) fn personal_settings_refusal(manifest: &Manifest) -> Option<String> {
     })
 }
 
-/// Refuses `manifest` if [`personal_settings_refusal`] says why.
-fn refuse_bad_personal_settings(manifest: &Manifest) -> Result<(), EnableError> {
-    personal_settings_refusal(manifest).map_or(Ok(()), |reason| {
+/// Refuses `manifest` if [`personal_settings_refusal`] or [`jobs::refusal`] says why, as loading
+/// an Installed Plugin does.
+fn refuse_flawed(manifest: &Manifest) -> Result<(), EnableError> {
+    let refusal = personal_settings_refusal(manifest).or_else(|| jobs::refusal(manifest));
+    refusal.map_or(Ok(()), |reason| {
         Err(EnableError::Refused {
             plugin: manifest.id.clone(),
             reason,

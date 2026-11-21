@@ -5,6 +5,7 @@ syntax = "proto3";
 package nama.plugin.v1;
 
 import "nama/plugin/v1/automation.proto";
+import "nama/plugin/v1/job.proto";
 
 // What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
 // `manifest()` export, which takes no input.
@@ -103,6 +104,9 @@ message Manifest {
   // drops one over 128 characters or with characters besides ASCII letters, digits, spaces and
   // `.-+()`, logging why, and still loads the Plugin.
   string license = 22;
+  // The Jobs the Plugin's `JobService` runs, in the order admins see them. A Server refuses a
+  // Plugin whose `points` name `JobService` with none. Ignored unless `points` names `JobService`.
+  repeated Job jobs = 23;
 }
 
 // An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the

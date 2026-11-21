@@ -9,8 +9,9 @@ LABEL org.opencontainers.image.source=https://github.com/electather/nama-rust
 ADD --chmod=644 --checksum=sha256:a0cde241ae297fa6f0265c0bf15ce9eb9ee97c008904a59ab367a67d59532839 \
     https://repo.jellyfin.org/jellyfin_team.gpg.key /usr/share/keyrings/jellyfin.asc
 # jellyfin-ffmpeg bundles the Intel and AMD VA-API drivers, so VAAPI and QSV need only /dev/dri.
+# tzdata, which trixie-slim lacks, lets `TZ` set the zone a Job's schedule is read in (ADR 0079).
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends ca-certificates \
+    && apt-get install --yes --no-install-recommends ca-certificates tzdata \
     && printf 'Types: deb\nURIs: https://repo.jellyfin.org/debian\nSuites: trixie\nComponents: main\nSigned-By: /usr/share/keyrings/jellyfin.asc\n' \
         > /etc/apt/sources.list.d/jellyfin.sources \
     && apt-get update \

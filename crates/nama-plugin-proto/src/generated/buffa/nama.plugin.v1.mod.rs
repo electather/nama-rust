@@ -8,6 +8,7 @@ include!("nama.plugin.v1.connector.rs");
 include!("nama.plugin.v1.events.rs");
 include!("nama.plugin.v1.fulfiller.rs");
 include!("nama.plugin.v1.home_row.rs");
+include!("nama.plugin.v1.job.rs");
 include!("nama.plugin.v1.manifest.rs");
 include!("nama.plugin.v1.notifier.rs");
 include!("nama.plugin.v1.recogniser.rs");
@@ -38,6 +39,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.events.__view.rs");
         include!("nama.plugin.v1.fulfiller.__view.rs");
         include!("nama.plugin.v1.home_row.__view.rs");
+        include!("nama.plugin.v1.job.__view.rs");
         include!("nama.plugin.v1.manifest.__view.rs");
         include!("nama.plugin.v1.notifier.__view.rs");
         include!("nama.plugin.v1.recogniser.__view.rs");
@@ -179,6 +181,9 @@ pub mod __buffa {
         reg.register_json_any(super::__HOME_ROWS_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
+        reg.register_json_any(super::__JOB_JSON_ANY);
+        reg.register_json_any(super::__RUN_JOB_JSON_ANY);
+        reg.register_json_any(super::__JOB_RAN_JSON_ANY);
         reg.register_json_any(super::__MANIFEST_JSON_ANY);
         reg.register_json_any(super::__POINT_JSON_ANY);
         reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
@@ -654,6 +659,18 @@ pub use self::__buffa::view::HomeRowOwnedView;
 pub use self::__buffa::view::HomeRowTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::JobView;
+#[doc(inline)]
+pub use self::__buffa::view::JobOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::JobRanView;
+#[doc(inline)]
+pub use self::__buffa::view::JobRanOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ManifestView;
 #[doc(inline)]

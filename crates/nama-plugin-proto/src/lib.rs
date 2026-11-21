@@ -34,7 +34,7 @@ pub mod nama {
 /// It covers the Manifest, the messages the services share and what the Kernel gives a Plugin;
 /// each service has a version of its own, in [`SERVICES`]. It is not this crate's version;
 /// `AGENTS.md` says when it changes.
-pub const CONTRACT_VERSION: &str = "0.5.5";
+pub const CONTRACT_VERSION: &str = "0.5.6";
 
 /// The full names of the `nama.plugin.v1` services, the Extension Points an Installed Plugin can
 /// serve, as a Manifest's `Point.service` names them.
@@ -66,6 +66,9 @@ pub mod services {
     pub const SUBTITLE_SOURCE: &str = "nama.plugin.v1.SubtitleSourceService";
     /// A Segment source, which says where a Version's Intro, Recap and Credits are (ADR 0075).
     pub const SEGMENT_SOURCE: &str = "nama.plugin.v1.SegmentSourceService";
+    /// A runner of the Jobs its Plugin's Manifest declares, which the Kernel runs on their
+    /// schedules (ADR 0079).
+    pub const JOB: &str = "nama.plugin.v1.JobService";
 }
 
 /// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
@@ -83,6 +86,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::HOME_ROW, "1.4.0"),
     (services::SUBTITLE_SOURCE, "1.0.0"),
     (services::SEGMENT_SOURCE, "1.0.0"),
+    (services::JOB, "1.0.0"),
 ];
 
 /// The largest object a blob store holds, in bytes: the Kernel never puts a larger one, and a

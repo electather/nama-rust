@@ -44,7 +44,8 @@ mod exports {
     // settings, a `handle` and a `token`, and its logo. With the `unexported-connector` feature it
     // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
     // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
-    // requests the Store and Library Permissions, with `recogniser` it recognises files, with
+    // requests the Store and Library Permissions, with `jobs` it runs a Job daily at 04:00 and one
+    // with no schedule, with `recogniser` it recognises files, with
     // `home-rows` it gives Home rows and requests the Store and Read Watch States Permissions, with
     // `subtitle-source` it is a subtitle source that finds nothing, and with `panic` it panics
     // instead.
@@ -118,6 +119,12 @@ mod exports {
                 nama_pdk::Permission::PERMISSION_READ_LIBRARIES.into(),
             ],
             tick_every_seconds: 60,
+            ..manifest
+        };
+        #[cfg(feature = "jobs")]
+        let manifest = Manifest {
+            points: [manifest.points, vec![nama_pdk::point(services::JOB)]].concat(),
+            jobs: vec![job("wait", Some("0 4 * * *")), job("on-ask", None)],
             ..manifest
         };
         #[cfg(feature = "recogniser")]
@@ -389,6 +396,41 @@ mod exports {
 
     #[cfg(feature = "automation")]
     nama_pdk::automation!(TestAutomation);
+
+    #[cfg(feature = "jobs")]
+    fn job(id: &str, schedule: Option<&str>) -> nama_pdk::Job {
+        nama_pdk::Job {
+            id: id.to_owned(),
+            name: id.to_owned(),
+            schedule: schedule.map(str::to_owned),
+            ..nama_pdk::Job::default()
+        }
+    }
+
+    /// Runs its Jobs, logging when each starts, with the Kernel's clock, and ends. `wait` spins
+    /// until that clock reads a minute past its start, so a test brings its next firing due while
+    /// it runs.
+    #[cfg(feature = "jobs")]
+    struct TestJobs;
+
+    #[cfg(feature = "jobs")]
+    impl nama_pdk::JobRunner for TestJobs {
+        fn run(run: nama_pdk::RunJob) -> Result<(), Error> {
+            let job = &run.job_id;
+            nama_pdk::info!("test-plugin's Job {job} started at {}", run.now_ms);
+            if job == "wait" {
+                let started = UNIX_EPOCH
+                    + std::time::Duration::from_millis(run.now_ms.try_into().unwrap_or_default());
+                let until = started + std::time::Duration::from_secs(60);
+                while nama_pdk::now() < until {}
+            }
+            nama_pdk::info!("test-plugin's Job {job} ended");
+            Ok(())
+        }
+    }
+
+    #[cfg(feature = "jobs")]
+    nama_pdk::job_runner!(TestJobs);
 
     /// A Recogniser reading `<Show> - <n>.<ext>` as Episode n of the Show's Season 1, numbered
     /// from the start of the Show as anime often is. A `(<year>)` ending the Show's name is the

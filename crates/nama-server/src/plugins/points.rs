@@ -636,7 +636,7 @@ pub(super) enum Asked<R, K> {
 }
 
 impl<R, K> Asked<R, K> {
-    fn answered(self) -> Option<Answer<R, K>> {
+    pub(super) fn answered(self) -> Option<Answer<R, K>> {
         match self {
             Self::Answered(answer) => Some(answer),
             Self::Absent | Self::Panicked => None,

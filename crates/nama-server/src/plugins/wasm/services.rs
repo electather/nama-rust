@@ -11,6 +11,7 @@ use nama_plugin_api::{
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
     home_row::HomeRowSource,
+    job::JobRunner,
     metadata::TitleSource,
     notifier::Notifier,
     points::Events,
@@ -22,7 +23,7 @@ use nama_plugin_proto::services;
 
 use super::{
     Running,
-    load::{BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, TICK_TIMEOUT},
+    load::{BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, JOB_TIMEOUT, TICK_TIMEOUT},
 };
 
 /// The export that checks a Plugin's settings, if it has one. No service's: a Plugin of any has it.
@@ -138,6 +139,10 @@ pub(super) const RECOGNISE_FILE: Method =
 pub(super) const TICK: Method = Method {
     limit: TICK_TIMEOUT,
     ..required(services::AUTOMATION, "Tick", "tick")
+};
+pub(super) const RUN_JOB: Method = Method {
+    limit: JOB_TIMEOUT,
+    ..required(services::JOB, "Run", "run_job")
 };
 
 /// [`required`], for a blob store method, which carries a whole object.
@@ -292,6 +297,15 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn SegmentSource>,
         register: |registrar, running| {
             registrar.provide::<dyn SegmentSource>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        service: services::JOB,
+        crash_group: services::JOB,
+        methods: &[RUN_JOB],
+        key: PointKey::provide::<dyn JobRunner>,
+        register: |registrar, running| {
+            registrar.provide::<dyn JobRunner>(Priority::DEFAULT, Arc::new(running));
         },
     },
 ];

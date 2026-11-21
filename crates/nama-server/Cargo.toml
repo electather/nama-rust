@@ -37,6 +37,10 @@ icu_normalizer = { version = "2.4.0", default-features = false, features = ["com
 icu_properties = "2.4.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 isolang = { version = "2.4", default-features = false }
+# Reads a Job's schedule in the Server's time zone, from the system's time zone database, which
+# `docker/Dockerfile` installs. Without one, as on Windows, it reads UTC: the bundled database its
+# defaults add isn't vendored yet.
+jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }
 # Its defaults add `extraslow`, which pulls in two crates for speeds the Server never uses (ADR 0039).
 jixel = { version = "0.5.7", default-features = false, features = ["avx", "neon", "sse"] }
 nama-plugin-api = { version = "0.2.0", path = "../nama-plugin-api" }

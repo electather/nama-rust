@@ -459,6 +459,16 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub license: ::buffa::alloc::string::String,
+    /// The Jobs the Plugin's `JobService` runs, in the order admins see them. A Server refuses a
+    /// Plugin whose `points` name `JobService` with none. Ignored unless `points` names `JobService`.
+    ///
+    /// Field 23: `jobs`
+    #[serde(
+        rename = "jobs",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub jobs: ::buffa::alloc::vec::Vec<Job>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -486,6 +496,7 @@ impl ::core::fmt::Debug for Manifest {
             .field("homepage_url", &self.homepage_url)
             .field("source_url", &self.source_url)
             .field("license", &self.license)
+            .field("jobs", &self.jobs)
             .finish()
     }
 }
@@ -602,6 +613,14 @@ impl ::buffa::Message for Manifest {
         if !self.license.is_empty() {
             size += 2u64 + ::buffa::types::string_encoded_len(&self.license) as u64;
         }
+        for v in &self.jobs {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -694,6 +713,14 @@ impl ::buffa::Message for Manifest {
         }
         if !self.license.is_empty() {
             ::buffa::types::put_string_field(22u32, &self.license, buf);
+        }
+        for v in &self.jobs {
+            ::buffa::types::put_len_delimited_header(
+                23u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -910,6 +937,18 @@ impl ::buffa::Message for Manifest {
                 )?;
                 ::buffa::types::merge_string(&mut self.license, buf)?;
             }
+            23u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.jobs.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -938,6 +977,7 @@ impl ::buffa::Message for Manifest {
         self.homepage_url.clear();
         self.source_url.clear();
         self.license.clear();
+        self.jobs.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

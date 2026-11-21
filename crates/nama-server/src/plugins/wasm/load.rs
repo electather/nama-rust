@@ -17,6 +17,7 @@ use extism::{CompiledPlugin, CurrentPlugin, PluginBuilder, UserData, Val, ValTyp
 use nama_plugin_api::{
     Manifest, PluginId,
     automation::Kernel,
+    job::Job,
     metadata::{ExternalId, InvalidId, SourceManifest},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
@@ -36,7 +37,7 @@ use super::{
     services::{CHECK_SETTINGS, TITLE_SEARCH, known_exports},
 };
 use crate::plugins::{
-    contain_sync, drop_flawed_presentation, kept_logo, registry::personal_settings_refusal,
+    contain_sync, drop_flawed_presentation, jobs, kept_logo, registry::personal_settings_refusal,
 };
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
@@ -49,6 +50,11 @@ pub(super) const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 /// How long a tick may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`], since a tick
 /// may page through every title of a large Library and each title's Watch States.
 pub(super) const TICK_TIMEOUT: Duration = Duration::from_secs(60);
+
+// Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
+/// How long a Job's Run may run, of the Plugin's own time: as long as a tick, which Jobs replace
+/// (ADR 0079).
+pub(super) const JOB_TIMEOUT: Duration = TICK_TIMEOUT;
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How long a blob store call may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`],
@@ -262,6 +268,11 @@ fn manifest(
         permissions,
         tick_every: names(points, services::AUTOMATION)
             .then(|| Duration::from_secs(package.tick_every_seconds.into())),
+        jobs: if names(points, services::JOB) {
+            package.jobs.iter().map(job).collect()
+        } else {
+            Vec::new()
+        },
         title_source: names(points, services::TITLE_SOURCE).then(|| SourceManifest {
             namespace: package.title_namespace.clone(),
             looks_up: package.title_lookup_namespaces.clone(),
@@ -269,9 +280,22 @@ fn manifest(
         }),
     };
     drop_flawed_presentation(&mut manifest);
-    match personal_settings_refusal(&manifest) {
-        Some(reason) => Err(Refused::PersonalSettings(reason)),
+    if let Some(reason) = personal_settings_refusal(&manifest) {
+        return Err(Refused::PersonalSettings(reason));
+    }
+    match jobs::refusal(&manifest) {
+        Some(reason) => Err(Refused::Jobs(reason)),
         None => Ok(manifest),
+    }
+}
+
+/// `job` as the Kernel reads it.
+fn job(job: &wire::Job) -> Job {
+    Job {
+        id: job.id.clone(),
+        name: job.name.clone(),
+        description: job.description.clone(),
+        schedule: job.schedule.clone(),
     }
 }
 
