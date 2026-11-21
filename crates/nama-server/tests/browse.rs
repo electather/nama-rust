@@ -668,7 +668,8 @@ async fn a_movie_with_no_title_logo_or_rating_in_the_settings_country_has_neithe
 }
 
 #[tokio::test]
-async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_rating_and_score() {
+async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_content_rating_score_and_original_language()
+ {
     let fx = Fixture::shows().await;
 
     let got = fx.get_show(fx.library, DARK).await.unwrap();
