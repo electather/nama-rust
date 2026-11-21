@@ -14,7 +14,7 @@ use nama_plugin_proto::{
 };
 use tokio::sync::Notify;
 
-use crate::plugins::{Failure, Registry, jobs};
+use crate::plugins::{Registry, jobs};
 
 use super::{
     CRASHES_BEFORE_DISABLING, Running,
@@ -265,7 +265,12 @@ async fn disabling_a_plugin_while_its_job_runs_ends_the_wasm_call_promptly() {
     // Outside the Plugin's scope, so only the stop, not the scope's cancel, can end it.
     let running_job = tokio::spawn({
         let (points, id) = (registry.extension_points(), id.clone());
-        async move { jobs::run(&points, &id, "kernel").await }
+        async move {
+            jobs::run_recorded(&points, &id, "kernel")
+                .await
+                .answered()
+                .map(|it| it.result.map_err(|failure| failure.message))
+        }
     });
     tokio::time::sleep(SHORT).await;
 
@@ -276,13 +281,7 @@ async fn disabling_a_plugin_while_its_job_runs_ends_the_wasm_call_promptly() {
         .await
         .expect("the Run ran on past the disable")
         .unwrap();
-    assert_eq!(
-        ran,
-        Some(Err(Failure {
-            kind: (),
-            message: "the Plugin was disabled".to_owned()
-        }))
-    );
+    assert_eq!(ran, Some(Err("the Plugin was disabled".to_owned())));
 }
 
 #[test]

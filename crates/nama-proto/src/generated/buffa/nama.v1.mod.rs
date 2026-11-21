@@ -9,6 +9,7 @@ include!("nama.v1.watch_state.rs");
 include!("nama.v1.browse.rs");
 include!("nama.v1.playback.rs");
 include!("nama.v1.event.rs");
+include!("nama.v1.job.rs");
 include!("nama.v1.library.rs");
 include!("nama.v1.search.rs");
 include!("nama.v1.server.rs");
@@ -41,6 +42,7 @@ pub mod __buffa {
         include!("nama.v1.browse.__view.rs");
         include!("nama.v1.playback.__view.rs");
         include!("nama.v1.event.__view.rs");
+        include!("nama.v1.job.__view.rs");
         include!("nama.v1.library.__view.rs");
         include!("nama.v1.search.__view.rs");
         include!("nama.v1.server.__view.rs");
@@ -309,6 +311,12 @@ pub mod __buffa {
         reg.register_json_any(super::__ADMIN_STOP_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
+        reg.register_json_any(super::__LIST_JOBS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_JOBS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__JOB_JSON_ANY);
+        reg.register_json_any(super::__LIST_JOB_RUNS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_JOB_RUNS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__JOB_RUN_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__LAST_SCAN_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
@@ -1384,6 +1392,30 @@ pub use self::__buffa::view::PlaybackChangedOwnedView;
 pub use self::__buffa::view::PlaybackView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::JobView;
+#[doc(inline)]
+pub use self::__buffa::view::JobOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobRunsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobRunsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobRunsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobRunsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::JobRunView;
+#[doc(inline)]
+pub use self::__buffa::view::JobRunOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]

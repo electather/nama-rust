@@ -45,6 +45,7 @@ use crate::{
 mod browse;
 mod browser_spans;
 mod events;
+mod jobs;
 mod libraries;
 mod matches;
 mod playback;
@@ -56,20 +57,6 @@ mod sign_in;
 mod users;
 mod watch_states;
 mod watchlist;
-
-use browse::BrowseServiceHandler;
-use events::EventServiceHandler;
-use libraries::LibraryServiceHandler;
-use matches::MatchServiceHandler;
-use playback::PlaybackServiceHandler;
-use plugins::PluginServiceHandler;
-use requests::RequestServiceHandler;
-use search::SearchServiceHandler;
-use server::ServerServiceHandler;
-use sign_in::SignInServiceHandler;
-use users::UserServiceHandler;
-use watch_states::WatchStateServiceHandler;
-use watchlist::WatchlistServiceHandler;
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
 /// that identify the caller and refuse calls they may not make.
@@ -126,7 +113,7 @@ pub(crate) fn router(
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
-        .add_service(Arc::new(ServerServiceHandler {
+        .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
             settings: settings.clone(),
@@ -139,35 +126,35 @@ pub(crate) fn router(
             exports_diagnostics: config.otlp_endpoint.is_some(),
             running: running.clone(),
         }))
-        .add_service(Arc::new(SignInServiceHandler {
+        .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
         }))
-        .add_service(Arc::new(MatchServiceHandler {
+        .add_service(Arc::new(matches::MatchServiceHandler {
             matcher: scanner.matcher().clone(),
             metadata: TitleSources::new(plugins.clone()),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
         }))
-        .add_service(Arc::new(BrowseServiceHandler {
+        .add_service(Arc::new(browse::BrowseServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
             home_rows: home_rows.clone(),
             settings: settings.clone(),
             images: images.clone(),
             db: Arc::clone(&db),
         }))
-        .add_service(Arc::new(SearchServiceHandler {
+        .add_service(Arc::new(search::SearchServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
             requests: requests.clone(),
             images: images.clone(),
         }))
-        .add_service(Arc::new(WatchStateServiceHandler {
+        .add_service(Arc::new(watch_states::WatchStateServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
             running: running.clone(),
         }))
-        .add_service(Arc::new(WatchlistServiceHandler {
+        .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
         }))
-        .add_service(Arc::new(PlaybackServiceHandler {
+        .add_service(Arc::new(playback::PlaybackServiceHandler {
             plans: Plans::new(
                 probing,
                 abilities,
@@ -180,20 +167,24 @@ pub(crate) fn router(
             downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
             db: Arc::clone(&db),
         }))
-        .add_service(Arc::new(RequestServiceHandler {
+        .add_service(Arc::new(requests::RequestServiceHandler {
             requests,
             browse: Browse::new(Arc::clone(&db)),
             images: images.clone(),
             db: Arc::clone(&db),
         }))
-        .add_service(Arc::new(PluginServiceHandler {
+        .add_service(Arc::new(jobs::JobServiceHandler {
+            plugin_settings: plugin_settings.clone(),
+            db: Arc::clone(&db),
+        }))
+        .add_service(Arc::new(plugins::PluginServiceHandler {
             plugin_settings: plugin_settings.clone(),
             settings: settings.clone(),
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
             db: Arc::clone(&db),
         }))
-        .add_service(Arc::new(LibraryServiceHandler {
+        .add_service(Arc::new(libraries::LibraryServiceHandler {
             libraries: Libraries::new(Arc::clone(&db)),
             scanner,
             contents: Contents::new(Arc::clone(&db)),
@@ -202,11 +193,11 @@ pub(crate) fn router(
             plugins,
             plugin_settings: plugin_settings.clone(),
         }))
-        .add_service(Arc::new(EventServiceHandler {
+        .add_service(Arc::new(events::EventServiceHandler {
             events,
             users: users.clone(),
         }))
-        .add_service(Arc::new(UserServiceHandler {
+        .add_service(Arc::new(users::UserServiceHandler {
             users: users.clone(),
             connections,
             plugin_settings: plugin_settings.clone(),
@@ -411,6 +402,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_LIST_QUALITIES_SPEC.procedure,         MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC.procedure,      MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_LIST_PLUGIN_LOG_LINES_SPEC.procedure,  ADMIN),
+    (proto::JOB_SERVICE_LIST_JOBS_SPEC.procedure,                 ADMIN),
+    (proto::JOB_SERVICE_LIST_JOB_RUNS_SPEC.procedure,             ADMIN),
 ];
 
 /// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM job_runs WHERE plugin = ? AND job = ? AND id <= (\n                             SELECT id FROM job_runs WHERE plugin = ? AND job = ?\n                             ORDER BY id DESC LIMIT 1 OFFSET ?\n                         )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "e26a8876c0802b9e4d0824faaa71c2bc4442f1b82bc2fb269cd91438c2ae7e0e"
+}

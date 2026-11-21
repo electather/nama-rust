@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// The Jobs the enabled Plugins declare, which the Server runs on their schedules, and their Job
+// Runs (ADR 0079). Needs `PERMISSION_ADMIN`, and fails with `permission_denied` without it.
+service JobService {
+  // Lists the Jobs of every enabled Plugin, by Plugin id and then in the order its Manifest
+  // declares them. A disabled Plugin's Jobs aren't listed; their Runs are kept for when it's
+  // enabled again.
+  rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns a Job's Runs, newest first: its last 50, whatever their outcome. A Job that never ran,
+  // or that no Plugin declares, has none.
+  rpc ListJobRuns(ListJobRunsRequest) returns (ListJobRunsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListJobsRequest {}
+
+message ListJobsResponse {
+  repeated Job jobs = 1;
+}
+
+// A Job an enabled Plugin declares.
+message Job {
+  // The id of the Plugin declaring it, such as `upkeep`.
+  string plugin_id = 1;
+  // That Plugin's name.
+  string plugin_name = 2;
+  // Its id, unique within its Plugin, such as `forget-home-rows`.
+  string id = 3;
+  string name = 4;
+  // What it does.
+  string description = 5;
+  // Its standard 5-field cron schedule, such as `0 4 * * *`, read in the Server's time zone, or
+  // empty for a Job that runs only when an Admin starts it.
+  string schedule = 6;
+  // When its schedule next fires, soonest first, in milliseconds since the Unix epoch: up to 3,
+  // and none without a schedule.
+  repeated int64 next_runs_at_ms = 7;
+  // Its newest Run, which may still be running. Unset if it never ran.
+  JobRun last_run = 8;
+}
+
+message ListJobRunsRequest {
+  // The id of the Plugin declaring the Job, such as `upkeep`.
+  string plugin_id = 1;
+  // The Job's id, such as `forget-home-rows`.
+  string job_id = 2;
+}
+
+message ListJobRunsResponse {
+  // Newest first.
+  repeated JobRun runs = 1;
+}
+
+// One time the Server ran a Job.
+message JobRun {
+  // Unique among the Server's Job Runs; a later Run of a Job has a higher one.
+  int64 id = 1;
+  JobRunOutcome outcome = 2;
+  // When it started, in milliseconds since the Unix epoch.
+  int64 started_at_ms = 3;
+  // When it ended, in milliseconds since the Unix epoch. Unset while it runs, and for a Run the
+  // Server stopped during, whose end it doesn't know.
+  optional int64 ended_at_ms = 4;
+  // Why it failed, in the Plugin's words or saying it crashed, for `JOB_RUN_OUTCOME_FAILED`.
+  string error = 5;
+}
+
+// How a Job Run ended, or that it hasn't.
+enum JobRunOutcome {
+  JOB_RUN_OUTCOME_UNSPECIFIED = 0;
+  // It is still running.
+  JOB_RUN_OUTCOME_RUNNING = 1;
+  // The Plugin ran the Job to its end.
+  JOB_RUN_OUTCOME_SUCCEEDED = 2;
+  // The Plugin failed it, or crashed; `JobRun.error` says why.
+  JOB_RUN_OUTCOME_FAILED = 3;
+  // It ran past its time limit.
+  JOB_RUN_OUTCOME_TIMED_OUT = 4;
+  // The Server stopped, or the Plugin was disabled, before it ended.
+  JOB_RUN_OUTCOME_INTERRUPTED = 5;
+}
