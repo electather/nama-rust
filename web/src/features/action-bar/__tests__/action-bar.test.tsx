@@ -224,7 +224,7 @@ test("an Episode found leads with its Still, else its Show's Poster, else its ic
   cleanup();
   openApp("/settings", serverToSearch(findsOffice));
   await openActionBar();
-  // Recent, read back from storage, keeps the Still without its thumbhash.
+  // Recent comes back from storage as JSON, which a thumbhash's bytes don't survive.
   expect(artOf(/Still/u)).toStrictEqual(["/still.jpg"]);
 });
 

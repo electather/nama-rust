@@ -1,4 +1,4 @@
-import type { Still } from "@/features/action-bar/lib/rows";
+import type { StillArt } from "@/features/action-bar/lib/rows";
 import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
 import type { EpisodeHit, SearchResponse } from "@/gen/nama/v1/search_pb";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
@@ -25,7 +25,7 @@ export interface FoundTitle {
   /** A Movie's or Show's Poster, or an Episode's Show's. */
   poster?: string | undefined;
   /** An Episode's Still. */
-  still?: Still | undefined;
+  still?: StillArt | undefined;
 }
 
 /** What a search found, by kind, each in the order to list it. */

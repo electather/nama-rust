@@ -21,7 +21,7 @@ export type IconName =
   | "retry";
 
 /** An Episode's Still, and its thumbhash. */
-export interface Still {
+export interface StillArt {
   url: string;
   thumbhash: Uint8Array | undefined;
 }
@@ -37,7 +37,7 @@ export interface Row {
   /** A title's poster, or `null` for a title without one: its `icon` then fills the poster's box. */
   poster?: string | null;
   /** An Episode's Still, which it leads with in place of its `poster`. */
-  still?: Still | undefined;
+  still?: StillArt | undefined;
   /** What it is or is set to, in a pill beside the label. */
   badge?: string;
   /** A title's open Request, whose pill shows beside the label. */
