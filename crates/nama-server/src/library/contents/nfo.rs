@@ -189,16 +189,9 @@ async fn set_hints(conn: &mut SqliteConnection, changed: Vec<(i64, NfoHints)>) -
     for (item, hints) in changed {
         let title = (!hints.title.is_empty()).then(|| ids_json(&hints.title));
         let episode = (!hints.episode.is_empty()).then(|| ids_json(&hints.episode));
-        sqlx::query!(
-            "UPDATE library_items SET nfo_hints = ?, episode_nfo_hints = ? WHERE id = ?",
-            title,
-            episode,
-            item
-        )
-        .execute(&mut *conn)
-        .await?;
         // Kept when Matched to a title, and for an Episode an Episode, its new hints name, as on
-        // the first scan to read an `.nfo` the name already Matched by.
+        // the first scan to read an `.nfo` the name already Matched by. Run before the hints are
+        // stored: an Episode whose own `.nfo` is gone falls back to its name, so it isn't kept.
         sqlx::query!(
             "DELETE FROM item_matches
              WHERE item_id = ?1
@@ -221,14 +214,24 @@ async fn set_hints(conn: &mut SqliteConnection, changed: Vec<(i64, NfoHints)>) -
                        WHERE ids.item_id = ?1
                          AND ids.scope = CASE library_items.kind
                                              WHEN 'episode' THEN 'show' ELSE 'title' END)
-                   AND (?3 IS NULL OR EXISTS (
-                       SELECT 1 FROM item_match_ids AS ids
-                       JOIN json_each(?3) AS hint
-                         ON hint.value = ids.namespace || '-' || ids.value
-                       WHERE ids.item_id = ?1 AND ids.scope = 'title')))",
+                   AND ((?3 IS NULL
+                         AND (SELECT episode_nfo_hints FROM library_items WHERE id = ?1) IS NULL)
+                        OR EXISTS (
+                            SELECT 1 FROM item_match_ids AS ids
+                            JOIN json_each(?3) AS hint
+                              ON hint.value = ids.namespace || '-' || ids.value
+                            WHERE ids.item_id = ?1 AND ids.scope = 'title')))",
             item,
             title,
             episode
+        )
+        .execute(&mut *conn)
+        .await?;
+        sqlx::query!(
+            "UPDATE library_items SET nfo_hints = ?, episode_nfo_hints = ? WHERE id = ?",
+            title,
+            episode,
+            item
         )
         .execute(&mut *conn)
         .await?;

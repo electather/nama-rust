@@ -257,6 +257,42 @@ async fn adding_editing_or_deleting_an_nfo_matches_an_unchanged_video_again() {
 }
 
 #[tokio::test]
+async fn deleting_an_episodes_own_nfo_matches_it_again_by_its_name() {
+    const NFO: &str = "Kingdom/Season 01/Kingdom - S01E02.nfo";
+    let show = "tmdb-70523";
+    let source = ScriptedSource::new("tmdb", &SourcesAsked::default())
+        .with_show(&[show], "Dark", &[1, 2])
+        .with_season(show, 1, &[1, 2])
+        .with_season(show, 2, &[1])
+        .episode_id(show, 1, 2, "tmdb-1002")
+        .episode_id(show, 2, 1, "tmdb-2001");
+    let media = library(LibraryKind::Shows, source).await;
+    put(
+        &media,
+        "Kingdom/tvshow.nfo",
+        "<tvshow><uniqueid type=\"tmdb\">70523</uniqueid></tvshow>",
+    );
+    put(&media, "Kingdom/Season 01/Kingdom - S01E02.mkv", "video");
+    put(
+        &media,
+        NFO,
+        "<episodedetails><uniqueid type=\"tmdb\">2001</uniqueid></episodedetails>",
+    );
+    media.scan().await;
+    let episode = async || {
+        let files = media.contents.files(media.library).await.unwrap();
+        let recorded = files[0].items[0].recorded.clone().unwrap();
+        recorded.ids.get("tmdb")
+    };
+    assert_eq!(episode().await, Some(ExternalId::tmdb(2001)));
+
+    fs::remove_file(media.path(NFO)).unwrap();
+    media.scan().await;
+
+    assert_eq!(episode().await, Some(ExternalId::tmdb(1002)));
+}
+
+#[tokio::test]
 async fn an_nfo_naming_the_title_already_matched_keeps_the_match_without_asking_again() {
     let asked = SourcesAsked::default();
     let media = library(LibraryKind::Movies, movies(&asked)).await;
