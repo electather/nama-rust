@@ -10,7 +10,7 @@ use nama_pdk::{
 };
 
 /// The Crew jobs whose shared Person weighs [`KEY_CREW_WEIGHT`]: a Director, Creator or Writer,
-/// whom TMDB also credits as `Screenplay`.
+/// whom TMDB also lists under the job `Screenplay`.
 const KEY_JOBS: [&str; 4] = ["Director", "Creator", "Writer", "Screenplay"];
 const KEY_CREW_WEIGHT: f32 = 0.3;
 /// How many of the Cast, first billed, count; a shared one weighs up to [`CAST_WEIGHT`], less the
