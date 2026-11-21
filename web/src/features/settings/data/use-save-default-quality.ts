@@ -8,8 +8,12 @@ const movieQualitiesKey = createConnectQueryKey({
   schema: RequestService.method.listMovieQualities,
   cardinality: "finite",
 });
+const showQualitiesKey = createConnectQueryKey({
+  schema: RequestService.method.listShowQualities,
+  cardinality: "finite",
+});
 
-/** Saving a default Quality, then reading the defaults and the Request dialog's Qualities again. */
+/** Saving a default Quality, then reading the defaults and the Quality menus' Qualities again. */
 export function useSaveDefaultQuality() {
   const queryClient = useQueryClient();
   return useMutation(RequestService.method.setDefaultQuality, {
@@ -17,6 +21,7 @@ export function useSaveDefaultQuality() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: defaultsKey }),
         queryClient.invalidateQueries({ queryKey: movieQualitiesKey }),
+        queryClient.invalidateQueries({ queryKey: showQualitiesKey }),
       ]);
     },
   });
