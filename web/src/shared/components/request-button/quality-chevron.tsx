@@ -13,7 +13,12 @@ export function QualityChevron({
   ...props
 }: ComponentProps<typeof Button> & { what: string; variant: "default" | "ghost" }) {
   return (
-    <Button {...props} variant={variant} aria-label={`Request ${what} at a Quality`}>
+    <Button
+      {...props}
+      variant={variant}
+      size={variant === "default" ? "round" : "default"}
+      aria-label={`Request ${what} at a Quality`}
+    >
       <ChevronDown aria-hidden className="size-4" />
     </Button>
   );

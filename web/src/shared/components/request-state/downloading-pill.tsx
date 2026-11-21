@@ -5,14 +5,18 @@ import { overallPercent, slowestTimeLeft } from "@/shared/lib/download-progress"
 import { metadataLine } from "@/shared/lib/title-facts";
 import { ProgressPill } from "@/shared/ui/progress";
 
-/** "Downloading", filled to how far `downloads` have got, with how long the slowest has left. */
-export function DownloadingPill({ downloads }: { downloads: Download[] }) {
+/**
+ * "Downloading", filled to how far `downloads` have got, with how long the slowest has left;
+ * `large` beside a title's Play.
+ */
+export function DownloadingPill({ downloads, large }: { downloads: Download[]; large: boolean }) {
   return (
     <ProgressPill
       value={Math.floor(overallPercent(downloads))}
       label={metadataLine("Downloading", slowestTimeLeft(downloads))}
+      large={large}
     >
-      <CircleArrowDown aria-hidden className="size-3.5 shrink-0" />
+      <CircleArrowDown aria-hidden className={large ? "size-4.5 shrink-0" : "size-3.5 shrink-0"} />
     </ProgressPill>
   );
 }

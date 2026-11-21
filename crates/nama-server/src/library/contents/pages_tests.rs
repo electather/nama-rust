@@ -243,6 +243,21 @@ async fn a_genre_or_year_filter_keeps_only_titles_that_pass_and_counts_them() {
 }
 
 #[tokio::test]
+async fn the_genres_are_those_of_the_version_each_title_shows() {
+    let fx = Fixture::new().await;
+    let in_genre = |genre: &str| Metadata {
+        genres: vec![genre.to_owned()],
+        ..tmdb_movie(1, "Alien")
+    };
+    store_movie(&fx, "/a.mkv", in_genre("Horror")).await;
+    store_movie(&fx, "/b.mkv", in_genre("Western")).await;
+
+    let genres = fx.contents.genres(fx.library).await.unwrap();
+
+    assert_eq!(genres, ["Horror"]);
+}
+
+#[tokio::test]
 async fn the_watched_filter_reads_the_users_watch_states_rolling_a_show_up() {
     let fx = Fixture::new().await;
     store_movies(&fx, &[(1, "Alien"), (2, "Heat"), (3, "Scream")]).await;

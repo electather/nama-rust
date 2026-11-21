@@ -6,8 +6,11 @@ use sqlx::SqliteConnection;
 
 use super::{
     Caller, Error, NewDevice, Permissions, SignedIn, User, Users, checked_name,
-    codes::invite_token, hash_token, insert_device, insert_user, names::normalised, new_token,
-    passwords::set_password, rate_limits::Attempt,
+    codes::{invite_token, new_token},
+    hash_token, insert_device, insert_user,
+    names::normalised,
+    passwords::set_password,
+    rate_limits::Attempt,
 };
 use crate::db::now;
 

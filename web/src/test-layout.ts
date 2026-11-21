@@ -1,7 +1,7 @@
 import { vi } from "vite-plus/test";
 
 /**
- * Lays out Home's shelves as a browser would and happy-dom doesn't: each scrolling element
+ * Lays out rows that scroll sideways, such as Home's shelves and a Show's Episodes, as a browser would and happy-dom doesn't: each scrolling element
  * 1,400px wide and each tile 100px, so a virtual shelf shows its tiles. Without a ResizeObserver
  * the virtualizer reads these sizes straight off the elements. `vi.restoreAllMocks` and
  * `vi.unstubAllGlobals` undo it.

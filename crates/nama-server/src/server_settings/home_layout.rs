@@ -42,6 +42,12 @@ pub(crate) enum HomeRowId {
     UsersOwn {
         plugin: PluginId,
     },
+    /// One of the rows the Plugin gives one User for them alone, which the default places as
+    /// [`Self::UsersOwn`].
+    Own {
+        plugin: PluginId,
+        key: String,
+    },
 }
 
 impl HomeRowId {
@@ -49,7 +55,33 @@ impl HomeRowId {
     pub(crate) fn plugin(&self) -> Option<&PluginId> {
         match self {
             Self::ContinueWatching => None,
-            Self::Shared { plugin, .. } | Self::UsersOwn { plugin } => Some(plugin),
+            Self::Shared { plugin, .. } | Self::UsersOwn { plugin } | Self::Own { plugin, .. } => {
+                Some(plugin)
+            }
+        }
+    }
+
+    /// Whether a client naming this in a User's Home layout names `row`: the same row, or for
+    /// one of the User's own rows, its Plugin's row of the same key, as the API gives it.
+    pub(crate) fn names(&self, row: &Self) -> bool {
+        match (self, row) {
+            (
+                Self::Shared { plugin, key },
+                Self::Own {
+                    plugin: of,
+                    key: its,
+                },
+            ) => plugin == of && key == its,
+            _ => self == row,
+        }
+    }
+
+    /// Whether a layout placing this places `row`: the same row, or one User's own row of the
+    /// Plugin whose entry for them this is.
+    fn places(&self, row: &Self) -> bool {
+        match (self, row) {
+            (Self::UsersOwn { plugin }, Self::Own { plugin: of, .. }) => plugin == of,
+            _ => self == row,
         }
     }
 }
@@ -61,10 +93,7 @@ impl HomeLayout {
     pub(crate) fn arrange<T>(&self, rows: Vec<(HomeRowId, T)>) -> Vec<((HomeRowId, T), bool)> {
         let mut placed: Vec<_> = (rows.into_iter())
             .map(|row| {
-                let found = (self.rows.iter().enumerate()).find(|(_, placed)| placed.row == row.0);
-                let (place, shown) = found.map_or((self.rows.len(), true), |(place, placed)| {
-                    (place, placed.shown)
-                });
+                let (place, shown) = self.place_of(&row.0);
                 (place, row, shown)
             })
             .collect();
@@ -73,6 +102,19 @@ impl HomeLayout {
             .into_iter()
             .map(|(_, row, shown)| (row, shown))
             .collect()
+    }
+
+    /// Whether this layout shows `row`: as its first place does, or shown when it has none.
+    pub(crate) fn shows(&self, row: &HomeRowId) -> bool {
+        self.place_of(row).1
+    }
+
+    /// Where `row` first is in this layout, with whether it is shown there, or past the end, shown.
+    fn place_of(&self, row: &HomeRowId) -> (usize, bool) {
+        let found = (self.rows.iter().enumerate()).find(|(_, placed)| placed.row.places(row));
+        found.map_or((self.rows.len(), true), |(place, placed)| {
+            (place, placed.shown)
+        })
     }
 
     /// This layout with each row `before` places that it doesn't, such as a disabled Plugin's,

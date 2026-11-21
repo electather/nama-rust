@@ -244,15 +244,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, SetDefaultHomeLayoutRequest>,
     ) -> ServiceResult<SetDefaultHomeLayoutResponse> {
-        let layout = request.to_owned_message().layout.into_option();
-        let layout = layout.ok_or_else(|| {
-            refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                "the layout to save is missing",
-            )
-            .field("layout")
-        })?;
-        let layout = home_layout_from_proto(&layout)?;
+        let layout = home_layout_from_proto(request.to_owned_message().layout.into_option())?;
         (self.settings.set_default_home_layout(layout).await).map_err(database_failed)?;
         Response::ok(SetDefaultHomeLayoutResponse {
             layout: self.default_home_layout().await?.into(),
@@ -392,18 +384,20 @@ impl ServerServiceHandler {
     }
 }
 
-/// A row of a Home layout, headed `heading` if a Plugin shares it, as the API has it.
+/// A row of a Home layout, headed `heading` if a Plugin gives it, as the API has it.
 fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayoutRow {
     let row = match id {
         HomeRowId::ContinueWatching => {
             LayoutRow::Kernel(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into())
         }
-        HomeRowId::Shared { plugin, key } => LayoutRow::Plugin(Box::new(proto::PluginHomeRow {
-            plugin_id: plugin.to_string(),
-            key,
-            heading,
-            ..Default::default()
-        })),
+        HomeRowId::Shared { plugin, key } | HomeRowId::Own { plugin, key } => {
+            LayoutRow::Plugin(Box::new(proto::PluginHomeRow {
+                plugin_id: plugin.to_string(),
+                key,
+                heading,
+                ..Default::default()
+            }))
+        }
         HomeRowId::UsersOwn { plugin } => LayoutRow::PluginUsersRows(plugin.to_string()),
     };
     HomeLayoutRow {
@@ -413,9 +407,18 @@ fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayou
     }
 }
 
-/// The Home layout `layout` asks for: refused when a row names none, or a Kernel row the Server
-/// doesn't know.
-fn home_layout_from_proto(layout: &proto::HomeLayout) -> Result<HomeLayout, ConnectError> {
+/// The Home layout a save asks for in `layout`: refused when it's missing, or a row names none or
+/// a Kernel row the Server doesn't know.
+pub(super) fn home_layout_from_proto(
+    layout: Option<proto::HomeLayout>,
+) -> Result<HomeLayout, ConnectError> {
+    let layout = layout.ok_or_else(|| {
+        refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the layout to save is missing",
+        )
+        .field("layout")
+    })?;
     let place = |placed: &HomeLayoutRow| {
         let row = match &placed.row {
             Some(LayoutRow::Kernel(kernel)) => match kernel.as_known() {

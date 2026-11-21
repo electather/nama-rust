@@ -15,13 +15,29 @@ const TONES = {
   destructive: "bg-destructive/15 text-destructive",
 };
 
+const LARGE_QUIET = "bg-secondary text-foreground";
+
+const SIZES = {
+  default: { pill: "gap-1.5 px-2.5 py-0.5 text-sm", icon: "size-3.5" },
+  // Beside a title's Play, as tall as it.
+  large: { pill: "h-11 gap-2 ps-4.5 pe-5.5 text-base font-medium", icon: "size-4.5" },
+};
+
 /** A state as a labelled pill, with an icon so it never rests on colour alone. */
-export function StateLabel({ label, Icon, tone = "quiet" }: Shown & { tone?: keyof typeof TONES }) {
+export function StateLabel({
+  label,
+  Icon,
+  tone = "quiet",
+  large = false,
+}: Shown & { tone?: keyof typeof TONES; large?: boolean }) {
+  const size = large ? "large" : "default";
+  // Over a title's art a hairline would be lost, so a quiet large pill is filled instead.
+  const toneClasses = large && tone === "quiet" ? LARGE_QUIET : TONES[tone];
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm ${TONES[tone]}`}
+      className={`inline-flex shrink-0 items-center rounded-full ${SIZES[size].pill} ${toneClasses}`}
     >
-      <Icon aria-hidden className="size-3.5 shrink-0" />
+      <Icon aria-hidden className={`shrink-0 ${SIZES[size].icon}`} />
       {label}
     </span>
   );

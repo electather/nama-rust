@@ -46,7 +46,7 @@ mod exports {
     }
 
     /// Posts each notification for a User to the webhook they set.
-    struct Discord;
+    pub(super) struct Discord;
 
     impl Notifier for Discord {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {

@@ -21,5 +21,5 @@ If you can't fix it, output `<blocked>one-line reason</blocked>`. Otherwise outp
 </skill>
 
 <skill name="sandbox">
-!`cat .sandcastle/sandbox.md`
+{{SANDBOX}}
 </skill>

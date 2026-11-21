@@ -10,6 +10,13 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-20, #1462
+
+- `RPC_NO_DELETE`, `nama/v1/browse.proto`: `BrowseService.SearchLibraries`.
+- `MESSAGE_NO_DELETE`, `nama/v1/browse.proto`: `SearchLibrariesRequest`, `SearchLibrariesResponse` and `EpisodeInLibrary`.
+- The new `SearchService.Search` in `nama/v1/search.proto` searches the Libraries in its place (ADR 0080): it takes the query, a `TitleKind` to search only Movies or only Shows with their Episodes, and a `limit`, and streams one batch of `Hit`s, best first, then `Done`. A Movie is a `MovieHit` and a Show a `ShowHit`, which gains `library_id` (8); an Episode is an `EpisodeHit`, which holds what `EpisodeInLibrary` held. There are no pages, and a blank query is refused with `REFUSAL_REASON_FIELD_REQUIRED`.
+- A client built before is refused with `unimplemented` when it searches; it must regenerate and call `Search`. The web app is the only client.
+
 ## 2026-11-20, #1376
 
 - None that `buf breaking` reports: in `nama/v1/browse.proto`, `HomeRow.plugin_id` (1), `HomeRow.key` (2) and `HomeRow.heading` (3) are deleted with their numbers and names reserved.

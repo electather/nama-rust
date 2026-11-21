@@ -68,6 +68,33 @@ function DropdownMenuLinkItem({ className, ...props }: MenuPrimitive.LinkItem.Pr
   );
 }
 
+/** Items that belong together under a `DropdownMenuLabel`, such as a choice of Version. */
+function DropdownMenuGroup(props: MenuPrimitive.Group.Props) {
+  return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />;
+}
+
+/** Names the group it's in, in Label type, as a heading that can't be chosen. */
+function DropdownMenuLabel({ className, ...props }: MenuPrimitive.GroupLabel.Props) {
+  return (
+    <MenuPrimitive.GroupLabel
+      data-slot="dropdown-menu-label"
+      className={cn("px-2.5 pt-2 pb-1 text-xs text-muted-foreground", className)}
+      {...props}
+    />
+  );
+}
+
+/** A hairline between groups of items. */
+function DropdownMenuSeparator({ className, ...props }: MenuPrimitive.Separator.Props) {
+  return (
+    <MenuPrimitive.Separator
+      data-slot="dropdown-menu-separator"
+      className={cn("-mx-1 my-1 h-px bg-border", className)}
+      {...props}
+    />
+  );
+}
+
 /** Holds the radio items of which one is chosen at a time. */
 function DropdownMenuRadioGroup(props: MenuPrimitive.RadioGroup.Props) {
   return <MenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />;
@@ -117,9 +144,12 @@ export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuLinkItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 };

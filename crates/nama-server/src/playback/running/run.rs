@@ -18,16 +18,17 @@ use super::{
 };
 use crate::{
     db,
-    ffmpeg::{Keyframe, hls_init, hls_playlist, hls_run_from},
+    ffmpeg::{Keyframe, RefusedWrite, hls_init, hls_playlist, hls_run_from},
 };
-
-/// How ffmpeg's stderr says a write failed with ENOSPC. ffmpeg, not the Server, writes a plan's
-/// files, so its words are all the Server sees of it.
-const DISK_FULL: &str = "No space left on device";
 
 /// How long a new plan waits at most for its first file before it's answered, so one whose ffmpeg
 /// dies at start-up is never handed to a Device, while a slow but healthy start is.
+#[cfg(not(feature = "testing"))]
 const START_WAIT: Duration = Duration::from_secs(5);
+/// Tests' fake ffmpeg writes nothing, so each of their Transcodes waits this out. 2 s, not less,
+/// so a fake that dies at start-up still stops within it under CI's parallel load.
+#[cfg(feature = "testing")]
+const START_WAIT: Duration = Duration::from_secs(2);
 
 /// Starts a run writing a plan's files, from a keyframe on, to the folder it's given: one file
 /// per keyframe of the file, listed or not, which the playlist named by [`hls_playlist`] lists,
@@ -520,12 +521,15 @@ impl Running {
                     "ffmpeg failed ({status}): {}",
                     stderr.trim()
                 );
-                if stderr.contains(DISK_FULL) {
-                    self.warn_disk_full();
-                    // Software would write the same files to the same full folder.
-                    return false;
+                // ffmpeg, not the Server, writes a plan's files, so its words are all the Server
+                // sees of why the folder refused them.
+                match RefusedWrite::in_stderr(&stderr) {
+                    Some(RefusedWrite::Full) => self.warn_disk_full(),
+                    Some(RefusedWrite::ReadOnly) => {}
+                    None => return true,
                 }
-                true
+                // Software would write the same files to the same folder.
+                false
             }
             Outcome::Unwaited(err) => {
                 tracing::warn!(plan = self.id, "could not wait for ffmpeg: {err}");

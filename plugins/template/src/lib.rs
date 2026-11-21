@@ -122,9 +122,58 @@ fn title(request: &Request) -> String {
 
 #[cfg(test)]
 mod tests {
-    use nama_pdk::{nama_plugin_proto::nama::plugin::v1::SettingKind, services};
+    use nama_pdk::{
+        Notification, Notifier, Recipient, Response,
+        extism_pdk::json::{self, Value, json},
+        nama_plugin_proto::nama::plugin::v1::{
+            Event, Request, RequestCreated, RequestedMovie, SettingKind,
+        },
+        services,
+        testing::{Kernel, with},
+    };
 
-    use super::{WEBHOOK_URL, manifest};
+    use super::{Template, WEBHOOK_URL, manifest};
+
+    // Call your Extension Point method through `nama_pdk::testing`: the Kernel it installs holds
+    // your settings, answers your requests, and keeps what you sent.
+    #[test]
+    fn a_request_event_posts_its_name_and_title_to_the_webhook() {
+        let mut kernel = Kernel::new()
+            .setting(WEBHOOK_URL, "http://hooks.test/nama")
+            .http(|_request, _body| Ok(Response::new(204, "")));
+        let created = Notification {
+            event: Event {
+                event: Some(RequestCreated::default().into()),
+                ..Event::default()
+            }
+            .into(),
+            request: Request {
+                movie_or_season: RequestedMovie {
+                    title: "Dune".to_owned(),
+                    ..RequestedMovie::default()
+                }
+                .into(),
+                ..Request::default()
+            }
+            .into(),
+            ..Notification::default()
+        };
+
+        with(&mut kernel, || {
+            Template::deliver(created, Recipient::Channel(Box::default()))
+        })
+        .unwrap();
+
+        let [sent] = kernel.sent() else {
+            panic!(
+                "the webhook was sent {} posts, not one",
+                kernel.sent().len()
+            );
+        };
+        assert_eq!(sent.request.url, "http://hooks.test/nama");
+        let posted: Value = json::from_slice(&sent.body).unwrap();
+        assert_eq!(posted, json!({"event": "request_created", "title": "Dune"}));
+    }
 
     #[test]
     fn manifest_names_the_notifier_point_and_a_required_webhook_url_setting() {

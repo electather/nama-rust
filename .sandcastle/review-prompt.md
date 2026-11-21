@@ -41,5 +41,5 @@ Then output <promise>COMPLETE</promise>.
 </skill>
 
 <skill name="sandbox">
-!`cat .sandcastle/sandbox.md`
+{{SANDBOX}}
 </skill>
