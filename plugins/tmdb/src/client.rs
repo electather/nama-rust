@@ -164,7 +164,7 @@ impl Client {
     }
 
     /// The details of the Movie or Show at `path`, with `ratings`, the field its ratings by
-    /// country are appended as, and its recommendations.
+    /// country are appended as, and `recommendations`, its Similar titles.
     async fn title_details<T: DeserializeOwned>(
         &self,
         path: &str,

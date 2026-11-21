@@ -1,5 +1,5 @@
 //! Finding a title of a Library by any of its External IDs (ADR 0042), for Browse and for deleting
-//! media alike.
+//! media alike, and which Library has the titles some ids name, for Home rows and Similar titles.
 
 use std::collections::{HashMap, HashSet};
 
