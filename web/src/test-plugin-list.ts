@@ -4,13 +4,14 @@ import { ExtensionPoint, PluginKind, SettingKind } from "@/gen/nama/v1/plugin_pb
 export const tmdbLogo = "/media/plugin-logos/tmdb/v1";
 
 const text = (value: string) => ({ value: { case: "textValue" as const, value } });
+const texts = (...values: string[]) => ({ value: { case: "texts" as const, value: { values } } });
 
 /**
  * The Built-in Plugins of a fresh Server with a TMDB API key set, settings of every kind (log-events
- * missing its required Path), and the test Plugin, whose settings check offers choices, then an
- * Installed Plugin with a URL setting, one with a Libraries setting holding Movies and a Library
- * since deleted, and one the Server refused. TMDB, the test Plugin and the first Installed Plugin
- * name their Extension Points. Only TMDB has a logo.
+ * missing its required Path), and the test Plugin, whose settings check offers choices and whose
+ * Ratings hold a pick it no longer offers, then an Installed Plugin with a URL setting, one with a
+ * Libraries setting holding Movies and a Library since deleted, and one the Server refused. TMDB,
+ * the test Plugin and the first Installed Plugin name their Extension Points. Only TMDB has a logo.
  */
 export const plugins = [
   { id: "local-auth", version: "0.1.0", kind: PluginKind.BUILT_IN, enabled: true },
@@ -98,6 +99,18 @@ export const plugins = [
         kind: SettingKind.CHOICE,
         required: true,
         value: text("1"),
+      },
+      {
+        key: "ratings",
+        label: "Ratings",
+        description: "The ratings to keep.",
+        kind: SettingKind.CHOICES,
+        choices: [
+          { value: "g", label: "G" },
+          { value: "pg", label: "PG" },
+          { value: "r", label: "R" },
+        ],
+        value: texts("pg", "nc-17"),
       },
     ],
   },

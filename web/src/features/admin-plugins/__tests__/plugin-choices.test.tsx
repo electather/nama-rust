@@ -1,10 +1,11 @@
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import type {
-  TestPluginSettingsRequest,
-  UpdatePluginSettingsRequest,
+import {
+  SettingKind,
+  type TestPluginSettingsRequest,
+  type UpdatePluginSettingsRequest,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { input, openPlugin, plugin } from "@/test-plugins";
@@ -22,6 +23,19 @@ const profiles = {
       ],
     },
   },
+};
+
+/** A several-choices setting holding nothing, on a Plugin without a settings check. */
+const ratingsSetting = {
+  key: "ratings",
+  label: "Ratings",
+  description: "",
+  kind: SettingKind.CHOICES,
+  choices: [
+    { value: "g", label: "G" },
+    { value: "pg", label: "PG" },
+    { value: "r", label: "R" },
+  ],
 };
 
 /** The dropdown for the test Plugin's Profile. */
@@ -175,4 +189,128 @@ test("a save refused for a choice the Plugin doesn’t offer says so on that cho
     "Profile",
     "The Plugin doesn’t offer this choice now. Test the settings and pick again.",
   );
+});
+
+/** The test Plugin's Ratings. */
+async function ratings() {
+  const found = await plugin("test-choices");
+  return within(found.getByRole("group", { name: "Ratings" }));
+}
+
+/** The labels of the Ratings' choices, in order, and of those picked. */
+async function shown() {
+  const group = await ratings();
+  const boxes = group.getAllByRole<HTMLInputElement>("checkbox");
+  return {
+    offered: boxes.map((box) => box.labels?.[0]?.textContent),
+    picked: boxes.filter(({ checked }) => checked).map((box) => box.labels?.[0]?.textContent),
+  };
+}
+
+/** Ticks or unticks the Ratings labelled `labels`. */
+async function pick(...labels: string[]) {
+  const group = await ratings();
+  for (const name of labels) {
+    fireEvent.click(group.getByRole("checkbox", { name }));
+  }
+}
+
+/** The Ratings' values `request` saves, if it holds a several-choices value for them. */
+function savedRatings({ settings }: UpdatePluginSettingsRequest) {
+  const saved = settings["ratings"]?.value;
+  return saved?.case === "texts" ? saved.value.values : undefined;
+}
+
+/** Opens the test Plugin, keeping the Ratings' values each save sends in `sent`. */
+function openSaving(sent: unknown[]) {
+  openPlugin("test-choices", {
+    updatePluginSettings: (request) => {
+      sent.push(savedRatings(request));
+      return { plugin: { summary: { id: "test-choices", enabled: true } } };
+    },
+  });
+}
+
+test("a several-choices setting offers its Manifest’s choices before a test, held ones picked", async () => {
+  openPlugin("test-choices");
+
+  await expect(shown()).resolves.toStrictEqual({
+    offered: ["G", "PG", "R", "nc-17 (no longer offered)"],
+    picked: ["PG", "nc-17 (no longer offered)"],
+  });
+});
+
+/** A fake Server whose test Plugin holds the Ratings it was last sent, none at first. */
+function ratingsServer(): Parameters<typeof openPlugin>[1] {
+  let held: string[] = [];
+  const summary = { id: "test-choices", enabled: true };
+  return {
+    getPlugin: () => ({
+      plugin: {
+        summary,
+        settings: [
+          { ...ratingsSetting, value: { value: { case: "texts", value: { values: held } } } },
+        ],
+      },
+    }),
+    updatePluginSettings: (request) => {
+      held = savedRatings(request) ?? [];
+      return { plugin: { summary } };
+    },
+  };
+}
+
+test("several picked choices are saved, and show picked after a reload", async () => {
+  const server = ratingsServer();
+  openPlugin("test-choices", server);
+  await pick("G", "R");
+  await pressSave();
+  const found = await plugin("test-choices");
+  await found.findByText("Saved, and in use now.");
+  cleanup();
+
+  openPlugin("test-choices", server);
+
+  await expect(shown()).resolves.toStrictEqual({ offered: ["G", "PG", "R"], picked: ["G", "R"] });
+});
+
+test("unpicking every choice saves none picked, not the default", async () => {
+  const sent: unknown[] = [];
+  openSaving(sent);
+
+  await pick("PG", "nc-17 (no longer offered)");
+  await pressSave();
+
+  await waitFor(() => {
+    expect(sent).toStrictEqual([[]]);
+  });
+});
+
+test("a held choice no longer offered is saved until it’s unpicked", async () => {
+  const sent: unknown[] = [];
+  openSaving(sent);
+
+  await pick("G");
+  await pressSave();
+
+  await waitFor(() => {
+    expect(sent).toStrictEqual([["g", "pg", "nc-17"]]);
+  });
+});
+
+test("a passing test’s choices replace the Manifest’s, and a held one it drops is no longer offered", async () => {
+  openPlugin("test-choices", {
+    testPluginSettings: () => ({
+      choices: { ...profiles.choices, ratings: { choices: [{ value: "tv-14", label: "TV-14" }] } },
+    }),
+  });
+
+  await pressTest();
+
+  await waitFor(async () => {
+    await expect(shown()).resolves.toStrictEqual({
+      offered: ["TV-14", "pg (no longer offered)", "nc-17 (no longer offered)"],
+      picked: ["pg (no longer offered)", "nc-17 (no longer offered)"],
+    });
+  });
 });

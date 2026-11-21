@@ -35,8 +35,7 @@ export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
         <SettingInput
           key={setting.key}
           setting={setting}
-          // A passing test that offered nothing for a setting still unlocks it, empty.
-          choices={choices && (choices[setting.key]?.choices ?? [])}
+          offered={choices}
           error={errors[setting.key]}
           checksRequired={plugin.summary.enabled}
           forgettable

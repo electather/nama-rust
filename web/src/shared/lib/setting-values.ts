@@ -5,6 +5,7 @@ import {
   type Setting,
   SettingKind,
   type SettingValue,
+  TextsSchema,
 } from "@/gen/nama/v1/plugin_pb";
 import { formText } from "@/shared/lib/forms";
 
@@ -69,6 +70,11 @@ function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingVal
   }
   if (kind === SettingKind.LIBRARIES) {
     return librariesTyped(typed, key);
+  }
+  if (kind === SettingKind.CHOICES) {
+    // Sent even with none picked, which a blank would replace with the default.
+    const values = typed.getAll(key).filter((value) => typeof value === "string");
+    return { case: "texts", value: create(TextsSchema, { values }) };
   }
   return textTyped(typed, key, kind);
 }
