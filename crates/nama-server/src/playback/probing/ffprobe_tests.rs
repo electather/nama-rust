@@ -408,3 +408,52 @@ fn chapters_count_from_the_files_start_and_an_untitled_one_reads_titled_empty() 
         ]
     );
 }
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_file_whose_packets_cant_be_read_keeps_its_tracks_without_a_length() {
+    use crate::ffmpeg::{Ffmpeg, fake};
+
+    let bin = tempfile::tempdir().unwrap();
+    let script = r#"#!/bin/sh
+case "$*" in *packet=*) echo 'Invalid data found when processing input' >&2; exit 1 ;; esac
+echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'
+"#;
+    let ffmpeg = Ffmpeg {
+        ffprobe: Ok(fake::script(bin.path(), "ffprobe", script)),
+        ..Ffmpeg::default()
+    };
+
+    let (probe, _) = super::probe(&ffmpeg, "Alien (1979).mkv").await.unwrap();
+
+    assert_eq!((probe.tracks.len(), probe.duration_ms), (1, None));
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test(start_paused = true)]
+async fn a_whole_file_listing_past_its_timeout_times_out() {
+    use super::{ProbeError, WHOLE_FILE_TIMEOUT, keyframes};
+    use crate::ffmpeg::{Ffmpeg, Program, RunError, fake};
+
+    let bin = tempfile::tempdir().unwrap();
+    // `exec`, so the timeout's kill stops the sleep rather than leaving it orphaned.
+    let script = "#!/bin/sh\nexec sleep 3600\n";
+    let ffmpeg = Ffmpeg {
+        ffprobe: Ok(fake::script(bin.path(), "ffprobe", script)),
+        ..Ffmpeg::default()
+    };
+    let started = tokio::time::Instant::now();
+
+    let listed = keyframes(&ffmpeg, "Alien (1979).mkv").await;
+
+    assert!(
+        matches!(
+            listed,
+            Err(ProbeError::Run(RunError::TimedOut(Program::Ffprobe)))
+        ),
+        "{listed:?}"
+    );
+    assert!(started.elapsed() >= WHOLE_FILE_TIMEOUT);
+}

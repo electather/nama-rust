@@ -41,9 +41,9 @@ impl Fixture {
         Self::with_reader(FakeReader::unable()).await
     }
 
-    /// Reading files with `ffmpeg`'s ffprobe.
-    pub(super) async fn with_ffmpeg(ffmpeg: Ffmpeg) -> Self {
-        Self::with_reader(Arc::new(Ffprobe(Arc::new(ffmpeg)))).await
+    /// Reading files with the ffprobe on `PATH`.
+    pub(super) async fn with_system_ffmpeg() -> Self {
+        Self::with_reader(Arc::new(Ffprobe(Arc::new(system_ffmpeg())))).await
     }
 
     /// Reading files with `reader`.
@@ -193,7 +193,7 @@ async fn write_4k_with_5_1(media: &Fixture, relative: &str, transfer: &str) {
 
 #[tokio::test]
 async fn a_4k_hdr10_file_with_5_1_audio_is_probed_and_its_tracks_stored() {
-    let media = Fixture::with_ffmpeg(system_ffmpeg()).await;
+    let media = Fixture::with_system_ffmpeg().await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     write_4k_with_5_1(&media, alien, "smpte2084").await;
 
@@ -247,7 +247,7 @@ async fn a_4k_hdr10_file_with_5_1_audio_is_probed_and_its_tracks_stored() {
 
 #[tokio::test]
 async fn an_hlg_file_is_recorded_as_hlg_and_an_sdr_file_as_no_hdr() {
-    let media = Fixture::with_ffmpeg(system_ffmpeg()).await;
+    let media = Fixture::with_system_ffmpeg().await;
     let hlg = "Alien (1979)/Alien (1979).mkv";
     let sdr = "Heat (1995)/Heat (1995).mkv";
     write_4k_with_5_1(&media, hlg, "arib-std-b67").await;
@@ -301,19 +301,6 @@ async fn probing_a_file_holding_no_item_reports_no_such_version() {
     let probed = media.current(home_video).await;
 
     assert!(matches!(probed, Err(Error::NoSuchVersion(_))), "{probed:?}");
-}
-
-/// An ffprobe in `bin` that runs `script`, a shell script.
-#[cfg(unix)]
-pub(super) fn fake_ffprobe(bin: &std::path::Path, script: &str) -> Ffmpeg {
-    Ffmpeg {
-        ffprobe: Ok(ffmpeg::fake::script(
-            bin,
-            "ffprobe",
-            &format!("#!/bin/sh\n{script}\n"),
-        )),
-        ..Ffmpeg::default()
-    }
 }
 
 #[tokio::test]
@@ -383,27 +370,6 @@ async fn a_files_chapters_are_stored_in_order_with_an_untitled_one_titled_empty(
     assert_eq!(stored, Some(chapters_read()));
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
-#[tokio::test]
-async fn a_file_whose_packets_cant_be_read_keeps_its_tracks_without_a_length() {
-    let bin = tempfile::tempdir().unwrap();
-    let ffmpeg = fake_ffprobe(
-        bin.path(),
-        r#"case "$*" in *packet=*) echo 'Invalid data found when processing input' >&2; exit 1 ;; esac
-echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'"#,
-    );
-    let media = Fixture::with_ffmpeg(ffmpeg).await;
-    let alien = "Alien (1979)/Alien (1979).mkv";
-    media.write(alien, 10).await;
-    media.match_to_alien(alien).await;
-
-    let probe = media.current(alien).await.unwrap();
-
-    assert_eq!((probe.tracks.len(), probe.duration_ms), (1, None));
-    assert_eq!(media.probe(alien).await, Some(probe));
-}
-
 /// A reader that reads each file as one audio Track, holding each read until released.
 fn held_reader() -> Arc<FakeReader> {
     let reader = FakeReader::answering(|_| Ok(one_audio_track(2)));
@@ -422,19 +388,6 @@ async fn shutting_down_stops_the_probes() {
     let stopped = tokio::time::timeout(Duration::from_secs(5), media.probing.shutdown()).await;
 
     assert!(stopped.is_ok(), "shutting down waited for the read");
-}
-
-/// Waits until a fake ffprobe logging each run to `runs` has started.
-#[cfg(unix)]
-pub(super) async fn wait_for_probe(runs: &std::path::Path) {
-    let started = tokio::time::Instant::now();
-    while !runs.exists() {
-        assert!(
-            started.elapsed() < Duration::from_secs(5),
-            "the background probe never started"
-        );
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
 }
 
 #[tokio::test]
@@ -649,12 +602,6 @@ async fn probing_a_version_right_away_doesnt_wait_for_the_background_pass_to_rea
     current.await.unwrap().unwrap();
     media.probing.idle().await;
     assert_eq!(reader.probes(), PROBES_AT_ONCE + 1);
-}
-
-/// How many runs a fake ffprobe in `bin` logged, one line each to `bin/runs`.
-#[cfg(unix)]
-pub(super) fn probe_runs(bin: &std::path::Path) -> usize {
-    fs::read_to_string(bin.join("runs")).map_or(0, |runs| runs.lines().count())
 }
 
 #[tokio::test]
