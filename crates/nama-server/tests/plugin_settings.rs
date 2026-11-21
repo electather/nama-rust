@@ -2,6 +2,8 @@
 //! `[plugins.*]` tables on the first start) and changing them in ADR 0028's order, with fake
 //! Plugins and no HTTP; the submodules save settings over the API.
 
+#[path = "plugin_settings/builtin_grants.rs"]
+mod builtin_grants;
 #[path = "plugin_settings/clearing.rs"]
 mod clearing;
 #[path = "plugin_settings/flaky.rs"]

@@ -1,6 +1,7 @@
 //! Plugin Permissions over the API: those a Plugin's Manifest requests are listed, and an Admin
-//! grants some of them when enabling it, kept across a restart (ADR 0049), and they alone decide
-//! which Kernel functions any Plugin may call (ADR 0071).
+//! grants some of them when enabling it, kept across a restart (ADR 0049), while a Built-in holds
+//! them all (ADR 0079), and they alone decide which Kernel functions any Plugin may call (ADR
+//! 0071).
 
 #[path = "support/installed_test_plugin.rs"]
 #[expect(
@@ -24,8 +25,8 @@ use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};
 use log::Log;
 use nama_proto::nama::v1::{
-    EnablePluginRequest, ExtensionPoint, GetPluginRequest, LibraryKind, ListPluginsRequest,
-    PluginPermission, PluginServiceClient, PluginSummary, RefusalReason,
+    DisablePluginRequest, EnablePluginRequest, ExtensionPoint, GetPluginRequest, LibraryKind,
+    ListPluginsRequest, PluginPermission, PluginServiceClient, PluginSummary, RefusalReason,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -224,6 +225,36 @@ async fn enabling_again_with_none_clears_the_grants() {
     let summary = listed(&server).await;
     assert!(summary.enabled);
     assert_eq!(summary.granted_permissions, values(&[]));
+}
+
+#[tokio::test]
+async fn enabling_a_builtin_plugin_granting_none_still_grants_all_it_requests() {
+    let server = TestServer::builder()
+        .plugins(Registry::with_builtins())
+        .start()
+        .await;
+    let disable = DisablePluginRequest {
+        id: "upkeep".to_owned(),
+        ..Default::default()
+    };
+    client(&server).disable_plugin(disable).await.unwrap();
+
+    let enable = EnablePluginRequest {
+        id: "upkeep".to_owned(),
+        ..Default::default()
+    };
+    client(&server).enable_plugin(enable).await.unwrap();
+
+    let summaries = client(&server)
+        .list_plugins(ListPluginsRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .summaries;
+    let upkeep = summaries.iter().find(|it| it.id == "upkeep").unwrap();
+    assert!(upkeep.enabled);
+    assert_ne!(upkeep.requested_permissions, values(&[]));
+    assert_eq!(upkeep.granted_permissions, upkeep.requested_permissions);
 }
 
 #[tokio::test]

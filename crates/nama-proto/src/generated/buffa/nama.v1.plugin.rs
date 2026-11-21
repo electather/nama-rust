@@ -2002,9 +2002,10 @@ pub struct EnablePluginRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub id: ::buffa::alloc::string::String,
-    /// The Plugin Permissions the Admin grants it, replacing those granted before. Each must be one
-    /// its `requested_permissions` lists, or the call is refused with
-    /// `REFUSAL_REASON_PERMISSION_NOT_REQUESTED`. Empty grants none.
+    /// The Plugin Permissions the Admin grants an Installed Plugin, replacing those granted before.
+    /// Each must be one its `requested_permissions` lists, or the call is refused with
+    /// `REFUSAL_REASON_PERMISSION_NOT_REQUESTED`. Empty grants none. A Built-in Plugin ignores it and
+    /// holds every Plugin Permission it requests.
     ///
     /// Field 2: `granted_permissions`
     #[serde(
@@ -4495,7 +4496,8 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub custom_logo: bool,
-    /// The Plugin Permissions it asks for, which an Admin grants some or all of in `EnablePlugin`.
+    /// The Plugin Permissions it asks for, which an Admin grants an Installed Plugin some or all of
+    /// in `EnablePlugin`.
     ///
     /// Field 13: `requested_permissions`
     #[serde(
@@ -4507,7 +4509,8 @@ pub struct PluginSummary {
     pub requested_permissions: ::buffa::alloc::vec::Vec<
         ::buffa::EnumValue<PluginPermission>,
     >,
-    /// The Plugin Permissions an Admin granted it, kept across restarts until it is enabled again.
+    /// The Plugin Permissions it holds: for an Installed Plugin those an Admin granted, kept across
+    /// restarts until it is enabled again; for a Built-in Plugin always all it requests.
     ///
     /// Field 14: `granted_permissions`
     #[serde(
