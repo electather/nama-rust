@@ -56,3 +56,7 @@ impl Caller {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "sharing_tests.rs"]
+mod tests;
