@@ -639,8 +639,8 @@ fn plausible(listed: &ListedKeyframes, first_ms: i64, duration_ms: Option<i64>) 
 async fn failure(err: &ProbeError, read: Read, path: &str) -> ProbeFailure {
     match err {
         ProbeError::Run(err) => match ReadFailure::of(err, read, path).await {
-            // Nothing was read, so what's stored isn't known to be wrong, and a Server without
-            // ffprobe keeps it, as it never probes in the background.
+            // Says nothing about the file, so what's stored isn't known to be wrong, and a Server
+            // without ffprobe keeps it, as it never probes in the background.
             ReadFailure::NoProgram | ReadFailure::NotTheFile => ProbeFailure::Retried,
             // Counting it against the file would skip a whole Library after one bad pass, such
             // as during a package upgrade.
