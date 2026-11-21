@@ -1,6 +1,7 @@
 import type { Transport } from "@connectrpc/connect";
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 
+import { isRunning, RUNNING_POLL_MS } from "@/features/admin-jobs/lib/outcomes";
 import { JobService } from "@/gen/nama/v1/job_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
@@ -9,7 +10,17 @@ export function jobsQuery(transport: Transport) {
   return createQueryOptions(JobService.method.listJobs, {}, { transport });
 }
 
-/** The Jobs `jobsQuery` loads. */
+/** The Jobs `jobsQuery` loads, looked at again while any has a Run going. */
 export function useJobs() {
-  return useSuspenseQuery(JobService.method.listJobs, {}, { staleTime: loaderStaleTime }).data.jobs;
+  return useSuspenseQuery(
+    JobService.method.listJobs,
+    {},
+    {
+      staleTime: loaderStaleTime,
+      refetchInterval: (query) =>
+        query.state.data?.jobs.some((job) => isRunning(job.lastRun)) === true
+          ? RUNNING_POLL_MS
+          : false,
+    },
+  ).data.jobs;
 }
