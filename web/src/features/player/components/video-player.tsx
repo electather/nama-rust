@@ -16,7 +16,7 @@ import { useShortcuts } from "@/features/player/hooks/use-shortcuts";
 import { useVideo } from "@/features/player/hooks/use-video";
 import { useWatchState } from "@/features/player/hooks/use-watch-state";
 import { clickToToggle } from "@/features/player/lib/click-to-toggle";
-import { nextLink } from "@/features/player/lib/in-show";
+import { nextLink, previousLink } from "@/features/player/lib/in-show";
 import { captionsToggled, frameSeconds } from "@/features/player/lib/key-targets";
 import type { PlannedProps } from "@/features/player/lib/player-props";
 
@@ -46,11 +46,13 @@ export function VideoPlayer({
   const nextEpisode = useNextEpisode(autoplay, video, wake);
   const { onInput, playNext } = nextEpisode;
   const next = nextLink(inShow);
+  const previous = previousLink(inShow);
   useShortcuts(
     { videoRef, playerRef },
     {
       back,
       next,
+      previous,
       wake: onInput,
       captions: (element) => {
         planned.chooseSubtitle(element, captionsToggled(plan, planned.shownSubtitle));
@@ -58,7 +60,7 @@ export function VideoPlayer({
       frame: frameSeconds(tracks),
     },
   );
-  useMediaSession(videoRef, { title, artist, posterUrl }, next);
+  useMediaSession(videoRef, { title, artist, posterUrl }, { next, previous });
 
   return (
     <div

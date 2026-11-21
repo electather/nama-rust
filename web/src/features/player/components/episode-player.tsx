@@ -1,6 +1,7 @@
 import { DeletedWhilePlaying } from "@/features/player/components/deleted-while-playing";
 import { Player } from "@/features/player/components/player";
 import { useEpisodeAfter } from "@/features/player/data/use-episode-after";
+import { useEpisodeBefore } from "@/features/player/data/use-episode-before";
 import { useEpisodesToPlay } from "@/features/player/data/use-episodes-to-play";
 import { useAutoplayedEpisode } from "@/features/player/hooks/use-autoplayed-episode";
 import { useEpisodeHeading } from "@/features/player/hooks/use-episode-heading";
@@ -33,6 +34,7 @@ export function EpisodePlayer({
   const { libraryId, showId } = params;
   const next = useAutoplayedEpisode({ ...input, episodeNumber });
   const after = useEpisodeAfter({ ...input, episodeNumber });
+  const before = useEpisodeBefore({ ...input, episodeNumber });
   const lockScreen = useShowForLockScreen(input, episodeNumber);
   const heading = useEpisodeHeading(input, episodeNumber, episode?.title);
   // An Event removed it, or its whole Season, since the loader ran.
@@ -62,6 +64,7 @@ export function EpisodePlayer({
         season: input,
         episodeNumber,
         after,
+        before,
         link: (each) => playLink(each, { libraryId, showId }),
       }}
     />

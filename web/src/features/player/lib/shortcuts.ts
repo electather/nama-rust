@@ -21,6 +21,7 @@ interface ShortcutTarget {
   /** Goes back to the title page. */
   back: () => void;
   next: (() => void) | undefined;
+  previous: (() => void) | undefined;
   captions: () => void;
   /** How long one frame shows, in seconds. */
   frame: number;
@@ -100,6 +101,9 @@ const shortcuts: Record<string, Shortcut> = {
   },
   N: ({ next }) => {
     next?.();
+  },
+  P: ({ previous }) => {
+    previous?.();
   },
   // In full screen, Esc leaves full screen instead.
   Escape: ({ back }) => {

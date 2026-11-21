@@ -6,13 +6,14 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::metadata::ExternalIds;
 use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
-    GetNextEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
-    GetUnmatchedVersionResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
-    ListEpisodesRequest, ListEpisodesResponse, ListFeaturedRequest, ListFeaturedResponse,
-    ListGenresRequest, ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse,
-    ListHomeRowsRequest, ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse,
-    ListShowsRequest, ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort,
-    Permission, ShowSort, SortDirection, WatchedFilter, home_row::KernelOrPlugin,
+    GetNextEpisodeResponse, GetPreviousEpisodeRequest, GetPreviousEpisodeResponse, GetShowRequest,
+    GetShowResponse, GetUnmatchedVersionRequest, GetUnmatchedVersionResponse,
+    ListContinueWatchingRequest, ListContinueWatchingResponse, ListEpisodesRequest,
+    ListEpisodesResponse, ListFeaturedRequest, ListFeaturedResponse, ListGenresRequest,
+    ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest,
+    ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
+    ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission,
+    ShowSort, SortDirection, WatchedFilter, home_row::KernelOrPlugin,
 };
 
 use crate::{
@@ -42,7 +43,7 @@ mod titles;
 
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
-use titles::{featured_to_proto, started_to_proto};
+use titles::{episode_beside_to_proto, featured_to_proto, started_to_proto};
 pub(super) use titles::{roles_to_proto, trailers_to_proto};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
@@ -325,24 +326,31 @@ impl BrowseService for BrowseServiceHandler {
         let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
         let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
-        let numbers = (
-            i64::from(request.season_number),
-            i64::from(request.episode_number),
-        );
-        let next = self
-            .browse
+        let numbers = (request.season_number.into(), request.episode_number.into());
+        let next = (self.browse)
             .episode_after(user, request.library_id, &show, numbers)
-            .await
-            .map_err(refused(Fields {
-                title: "show_id",
-                season: "season_number",
-                episode: "episode_number",
-                ..Fields::LIBRARY
-            }))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+            .await;
         Response::ok(GetNextEpisodeResponse {
-            next: next
-                .map(|(episode, state)| episode_to_proto(episode, state, &images))
+            next: episode_beside_to_proto(next, &self.images).await?.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn get_previous_episode(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, GetPreviousEpisodeRequest>,
+    ) -> ServiceResult<GetPreviousEpisodeResponse> {
+        let user = caller(&ctx)?.user.id;
+        let request = request.to_owned_message();
+        let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
+        let numbers = (request.season_number.into(), request.episode_number.into());
+        let previous = (self.browse)
+            .episode_before(user, request.library_id, &show, numbers)
+            .await;
+        Response::ok(GetPreviousEpisodeResponse {
+            previous: episode_beside_to_proto(previous, &self.images)
+                .await?
                 .into(),
             ..Default::default()
         })

@@ -9,6 +9,8 @@ export interface ShortcutParts {
   back: LinkOptions;
   /** The next Episode Shift+N plays, when there is one. */
   next: LinkOptions | undefined;
+  /** The previous Episode Shift+P plays, when there is one. */
+  previous: LinkOptions | undefined;
   /** Called on every key, as input that shows the controls. */
   wake: () => void;
   captions: (video: HTMLVideoElement) => void;
@@ -25,7 +27,7 @@ export function useShortcuts(
     videoRef: RefObject<HTMLVideoElement | null>;
     playerRef: RefObject<HTMLDivElement | null>;
   },
-  { back, next, wake, captions, frame }: ShortcutParts,
+  { back, next, previous, wake, captions, frame }: ShortcutParts,
 ) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -43,11 +45,8 @@ export function useShortcuts(
         back: () => {
           void navigate(back);
         },
-        next:
-          next &&
-          (() => {
-            void navigate(next);
-          }),
+        next: opener(navigate, next),
+        previous: opener(navigate, previous),
         captions: () => {
           captions(video);
         },
@@ -58,5 +57,15 @@ export function useShortcuts(
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [videoRef, playerRef, back, next, wake, captions, frame, navigate]);
+  }, [videoRef, playerRef, back, next, previous, wake, captions, frame, navigate]);
+}
+
+/** What opens `link`, when there is one. */
+function opener(navigate: ReturnType<typeof useNavigate>, link: LinkOptions | undefined) {
+  return (
+    link &&
+    (() => {
+      void navigate(link);
+    })
+  );
 }
