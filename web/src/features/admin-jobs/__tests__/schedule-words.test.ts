@@ -4,16 +4,19 @@ import { scheduleWords } from "@/features/admin-jobs/lib/schedule-words";
 
 describe("a Job's schedule in words", () => {
   test.each([
-    ["0 4 * * *", "Every day at 04:00"],
-    ["10 4 * * *", "Every day at 04:10"],
-    ["30 3 * * 0", "Every Sunday at 03:30"],
-    ["30 3 * * 7", "Every Sunday at 03:30"],
-    ["0 5 * * mon", "Every Monday at 05:00"],
-    ["0 2 1 * *", "Every month on day 1 at 02:00"],
+    ["0 4 * * *", "Every day at 04:00 Server time"],
+    ["10 4 * * *", "Every day at 04:10 Server time"],
+    ["30 3 * * 0", "Every Sunday at 03:30 Server time"],
+    ["30 3 * * 7", "Every Sunday at 03:30 Server time"],
+    ["0 5 * * mon", "Every Monday at 05:00 Server time"],
+    ["0 4 * * 1-5", "Every Monday to Friday at 04:00 Server time"],
+    ["0 9 * * 6,0", "Every Saturday and Sunday at 09:00 Server time"],
+    ["0 2 1 * *", "Every month on day 1 at 02:00 Server time"],
     ["0 * * * *", "Every hour, on the hour"],
     ["15 * * * *", "Every hour, 15 minutes past"],
     ["*/15 * * * *", "Every 15 minutes"],
     ["* * * * *", "Every minute"],
+    ["*/1 * * * *", "Every minute"],
   ])("%s reads %s", (schedule, words) => {
     expect(scheduleWords(schedule)).toStrictEqual(words);
   });

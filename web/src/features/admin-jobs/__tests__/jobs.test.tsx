@@ -1,3 +1,4 @@
+import { Code, ConnectError } from "@connectrpc/connect";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vite-plus/test";
 
@@ -47,7 +48,12 @@ function openJobs() {
     fakeServer({ signedIn: admin }, {}, {}, (router) => {
       router.service(JobService, {
         listJobs: () => ({ jobs }),
-        listJobRuns: ({ jobId }) => ({ runs: jobId === "forget-home-rows" ? runs : [] }),
+        listJobRuns: ({ jobId }) => {
+          if (jobId === "clean") {
+            throw new ConnectError("the database is locked", Code.Internal);
+          }
+          return { runs: jobId === "forget-home-rows" ? runs : [] };
+        },
       });
     }),
   );
@@ -60,8 +66,8 @@ describe("the Jobs page", () => {
     const upkeep = await screen.findByRole("link", { name: "Upkeep" });
     expect(upkeep.getAttribute("href")).toBe("/admin/plugins/upkeep");
     expect(screen.getByRole("link", { name: "Cleanup" })).toBeDefined();
-    expect(screen.getByText("Every day at 04:00")).toBeDefined();
-    expect(screen.getByText("Every day at 04:10")).toBeDefined();
+    expect(screen.getByText("Every day at 04:00 Server time")).toBeDefined();
+    expect(screen.getByText("Every day at 04:10 Server time")).toBeDefined();
     expect(screen.getByText("Only when an Admin runs it")).toBeDefined();
     expect(screen.getByText(/^Next run .* · Last run /u)).toBeDefined();
     expect(screen.getByText(/^Next run .* · Never run$/u)).toBeDefined();
@@ -92,5 +98,15 @@ describe("the Jobs page", () => {
 
     const sheet = within(await screen.findByRole("dialog", { name: "Delete expired sign-ins" }));
     await expect(sheet.findByText("It hasn’t run yet.")).resolves.toBeDefined();
+  });
+
+  test("a Job whose Runs can't be read says so in its sheet, and the list stays", async () => {
+    openJobs();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Clean up" }));
+
+    const sheet = within(await screen.findByRole("dialog", { name: "Clean up" }));
+    await expect(sheet.findByText(/^Couldn’t load its Runs/u)).resolves.toBeDefined();
+    expect(screen.getByRole("link", { name: "Upkeep" })).toBeDefined();
   });
 });

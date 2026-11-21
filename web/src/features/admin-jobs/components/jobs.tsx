@@ -11,9 +11,9 @@ import { Page } from "@/shared/components/page";
 export function Jobs() {
   const jobs = useJobs();
   const sheet = useRef<HTMLDialogElement>(null);
-  const [open, setOpen] = useState<Job>();
+  const [openJob, setOpenJob] = useState<Job>();
   const show = (job: Job) => {
-    setOpen(job);
+    setOpenJob(job);
     sheet.current?.showModal();
   };
   return (
@@ -28,9 +28,9 @@ export function Jobs() {
       ))}
       <JobSheet
         ref={sheet}
-        job={open}
+        job={openJob}
         onClose={() => {
-          setOpen(undefined);
+          setOpenJob(undefined);
         }}
       />
     </Page>

@@ -1,6 +1,4 @@
-import { Suspense } from "react";
-
-import { JobRuns } from "@/features/admin-jobs/components/job-runs";
+import { JobRunsLoader } from "@/features/admin-jobs/components/job-runs-loader";
 import { JobSchedule } from "@/features/admin-jobs/components/job-schedule";
 import type { Job } from "@/gen/nama/v1/job_pb";
 import { CloseButton } from "@/shared/components/confirm-dialog/close-button";
@@ -19,9 +17,7 @@ export function JobSheetBody({
     <div className="flex flex-col gap-6 p-6">
       <CloseButton disabled={false} onClose={close} />
       <JobSchedule job={job} headingId={headingId} />
-      <Suspense fallback={<p className="text-muted-foreground">Loading its Runs…</p>}>
-        <JobRuns job={job} />
-      </Suspense>
+      <JobRunsLoader job={job} />
     </div>
   );
 }

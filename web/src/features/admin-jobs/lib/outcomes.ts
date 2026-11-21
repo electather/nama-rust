@@ -10,6 +10,6 @@ export const outcomes: Partial<
   [JobRunOutcome.RUNNING]: { label: "Running", Icon: LoaderCircle, tone: "quiet" },
   [JobRunOutcome.SUCCEEDED]: { label: "Succeeded", Icon: CircleCheck, tone: "quiet" },
   [JobRunOutcome.FAILED]: { label: "Failed", Icon: CircleX, tone: "destructive" },
-  [JobRunOutcome.TIMED_OUT]: { label: "Timed out", Icon: Timer, tone: "destructive" },
+  [JobRunOutcome.TIMED_OUT]: { label: "Timed out", Icon: Timer, tone: "warning" },
   [JobRunOutcome.INTERRUPTED]: { label: "Interrupted", Icon: CircleMinus, tone: "warning" },
 };

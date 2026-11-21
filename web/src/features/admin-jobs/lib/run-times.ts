@@ -22,25 +22,32 @@ export function endUnknown(outcome: JobRunOutcome) {
     : "Not known: the Server stopped during it";
 }
 
-const seconds = new Intl.NumberFormat(undefined, {
-  style: "unit",
-  unit: "second",
-  unitDisplay: "long",
-});
+/** Formats a count of one unit in words, such as "2 minutes". */
+const inUnit = (unit: "hour" | "minute" | "second") =>
+  new Intl.NumberFormat(undefined, { style: "unit", unit, unitDisplay: "long" });
 
-const minutes = new Intl.NumberFormat(undefined, {
-  style: "unit",
-  unit: "minute",
-  unitDisplay: "long",
-});
+const UNITS = [
+  { format: inUnit("hour"), seconds: 3600 },
+  { format: inUnit("minute"), seconds: 60 },
+  { format: inUnit("second"), seconds: 1 },
+];
 
-/** How long a Run that started at `startedAtMs` and ended at `endedAtMs` took. */
+/**
+ * How long a Run that started at `startedAtMs` and ended at `endedAtMs` took, in hours, minutes
+ * and seconds, each left out when 0.
+ */
 export function duration(startedAtMs: bigint, endedAtMs: bigint) {
-  const total = Math.round(Number(endedAtMs - startedAtMs) / 1000);
-  if (total < 1) {
+  let left = Math.round(Number(endedAtMs - startedAtMs) / 1000);
+  if (left < 1) {
     return "Under a second";
   }
-  const [whole, rest] = [Math.floor(total / 60), total % 60];
-  const inSeconds = seconds.format(rest);
-  return whole === 0 ? inSeconds : `${minutes.format(whole)} ${inSeconds}`;
+  const parts: string[] = [];
+  for (const { format, seconds } of UNITS) {
+    const count = Math.floor(left / seconds);
+    left %= seconds;
+    if (count > 0) {
+      parts.push(format.format(count));
+    }
+  }
+  return parts.join(" ");
 }
