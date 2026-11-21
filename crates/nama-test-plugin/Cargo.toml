@@ -22,14 +22,15 @@ contract-0-1 = []
 # Builds the Plugin naming no Extension Points, as one built before they became services reads,
 # so the Server refuses it.
 empty-points = []
-# Builds the Plugin naming the Automation Extension Point and requesting the Store and Library
-# Permissions; its tick calls the Kernel's functions.
+# Builds the Plugin naming the Job Extension Point and requesting the Store and Library
+# Permissions, with a Job `kernel` run every minute that calls the Kernel's functions.
 automation = []
 # Builds the Plugin naming the Job Extension Point, with a Job `wait` run daily at 04:00 that runs
 # until the Server's clock reads a minute past its start, and a Job `on-ask` with no schedule.
 jobs = []
-# Builds the Plugin as `automation` does, with a tick that loops until the Server interrupts it.
-looping-tick = ["automation"]
+# Builds the Plugin as `automation` does, with a Job `kernel` that loops until the Server
+# interrupts it.
+looping-job = ["automation"]
 # Builds the Plugin naming the Recogniser Extension Point and exporting `recognise_file`, which
 # reads `<Show> - <n>.<ext>`, or `<Show> (<year>) - <n>.<ext>`, as that Show's Season 1, Episode n.
 recogniser = []

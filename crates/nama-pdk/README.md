@@ -70,7 +70,6 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 | `NOTIFIER` | `Notifier`, `notifier!` | `deliver` | |
 | `CONNECTOR` | `Connector`, `connector!` | `start_connection`, `poll_connection` | |
 | `TITLE_SOURCE` | `TitleSource`, `title_source!` | | `search`, `movie`, `show`, `season`, `episode`, `image`, `artwork` |
-| `AUTOMATION` | `Automation`, `automation!` | `tick` | |
 | `RECOGNISER` | `Recogniser`, `recogniser!` | | `recognise_title`, `recognise_file` |
 | `BLOB_STORE` | `BlobStore`, `blob_store!` | `put`, `get`, `delete`, `list`, `exists` | |
 | `HOME_ROW` | `HomeRowSource`, `home_row_source!` | | `shared_rows`, `user_rows`, `user_featured` |
@@ -165,11 +164,11 @@ fn topic(recipient: &Recipient) -> Option<&str> {
 
 ## 6. Automation
 
-An Automation Plugin asks the Kernel rather than being asked: the Kernel calls its `tick` every `tick_every_seconds` its Manifest sets. During any of its calls, any Plugin, an Automation or not, may call the Kernel's functions in `nama_pdk::kernel` (ADR 0071): its own Store (`store_get`, `store_put`, `store_delete`, each for the Plugin alone or for one User), `libraries`, `titles` (every page of a Library's titles, or one page with `titles_page`), `watch_states` (every User's, or one User's), `users` (each User's id and display name), `requesters` (the ids of the Users who Requested each of some titles, and whether anything did) and `watchlist` (one User's Watchlist) to read, and `delete_media` to delete a title's media files as an Admin's delete does. A file holding two Episodes goes with either, so `delete_media` takes the other titles the Plugin agrees to lose in `also`: the Kernel refuses a delete that would take along an Episode `also` doesn't name, naming each, and answers the titles that went along. The Store keeps at most 10 000 entries per Plugin, and refuses a new key at that cap. Each function needs a Plugin Permission, which the Manifest requests in `permissions` and the Admin grants when enabling the Plugin. Every Kernel function may be refused: one whose Permission the Admin didn't grant fails with the Kernel's reason, in plain words, as its error, and a Plugin carries on without it where it can. The functions and their Permissions are listed in [`automation.proto`](../../proto/nama/plugin/v1/automation.proto).
+An Automation Plugin asks the Kernel rather than being asked: its Manifest declares Jobs in `jobs`, each with an optional `schedule`, a standard 5-field cron expression read in the Server's time zone, and the Kernel calls its `run_job` with the Job's id each time one comes due (ADR [0079](../../docs/adr/0079-plugins-declare-jobs-and-the-kernel-runs-them-on-cron.md)). During any of its calls, any Plugin, an Automation or not, may call the Kernel's functions in `nama_pdk::kernel` (ADR 0071): its own Store (`store_get`, `store_put`, `store_delete`, each for the Plugin alone or for one User), `libraries`, `titles` (every page of a Library's titles, or one page with `titles_page`), `watch_states` (every User's, or one User's), `users` (each User's id and display name), `requesters` (the ids of the Users who Requested each of some titles, and whether anything did) and `watchlist` (one User's Watchlist) to read, and `delete_media` to delete a title's media files as an Admin's delete does. A file holding two Episodes goes with either, so `delete_media` takes the other titles the Plugin agrees to lose in `also`: the Kernel refuses a delete that would take along an Episode `also` doesn't name, naming each, and answers the titles that went along. The Store keeps at most 10 000 entries per Plugin, and refuses a new key at that cap. Each function needs a Plugin Permission, which the Manifest requests in `permissions` and the Admin grants when enabling the Plugin. Every Kernel function may be refused: one whose Permission the Admin didn't grant fails with the Kernel's reason, in plain words, as its error, and a Plugin carries on without it where it can. The functions and their Permissions are listed in [`automation.proto`](../../proto/nama/plugin/v1/automation.proto).
 
 ```rust,no_run
 use nama_pdk::{
-    Automation, Buffa, FnResult, Manifest, Permission, Tick, extism_pdk, extism_pdk::Error,
+    Buffa, FnResult, Job, JobRunner, Manifest, Permission, RunJob, extism_pdk, extism_pdk::Error,
     kernel, plugin_fn, services,
 };
 
@@ -177,26 +176,32 @@ use nama_pdk::{
 pub fn manifest() -> FnResult<Buffa<Manifest>> {
     Ok(Buffa(Manifest {
         name: "Counter".to_owned(),
-        description: "Counts its ticks.".to_owned(),
-        points: vec![nama_pdk::point(services::AUTOMATION)],
+        description: "Counts the hours it has run.".to_owned(),
+        points: vec![nama_pdk::point(services::JOB)],
         permissions: vec![Permission::PERMISSION_STORE.into()],
-        tick_every_seconds: 3600,
+        jobs: vec![Job {
+            id: "count".to_owned(),
+            name: "Count".to_owned(),
+            description: "Adds one to the count.".to_owned(),
+            schedule: Some("0 * * * *".to_owned()),
+            ..Job::default()
+        }],
         ..nama_pdk::manifest("counter", env!("CARGO_PKG_VERSION"))
     }))
 }
 
 struct Counter;
 
-impl Automation for Counter {
-    fn tick(_tick: Tick) -> Result<(), Error> {
-        let count = kernel::store_get("ticks", None)?
+impl JobRunner for Counter {
+    fn run(_run: RunJob) -> Result<(), Error> {
+        let count = kernel::store_get("count", None)?
             .and_then(|bytes| bytes.try_into().ok())
             .map_or(0, u64::from_le_bytes);
-        kernel::store_put("ticks", None, &(count + 1).to_le_bytes())
+        kernel::store_put("count", None, &(count + 1).to_le_bytes())
     }
 }
 
-nama_pdk::automation!(Counter);
+nama_pdk::job_runner!(Counter);
 ```
 
 Off wasm32, as in a Plugin's unit tests, the test grants the Plugin each Kernel function and scripts what it answers (section 14).
@@ -371,21 +376,21 @@ Copy `target/wasm32-unknown-unknown/release/nama_plugin_hello.wasm` into `<data_
 
 A Plugin's native unit tests call its Extension Point methods, such as `fulfill`, `deliver` or `put`, the way the Kernel would, through `nama_pdk::testing` (ADR [0065](../../docs/adr/0065-a-plugin-tests-its-conversation-through-nama-pdk.md)). `testing::with(&mut kernel, || ...)` gives the call a `testing::Kernel` holding the Plugin's settings and a handler answering its HTTP requests, with headers through `Response::with_header` where a test needs them; afterwards `kernel.sent()` lists the requests it sent, in order, with their bodies. A request sent with no handler panics, so it can't reach the Plugin as an error it might retry or swallow, and a handler should panic too at one it didn't expect, as a queue does once it runs out; a handler answering `Err` is a host that can't be reached, and the request fails with the Plugin's own words for that. Those words come back to the Plugin, where the Server would end the call with them, so pass them up with `?` for the test to see what the Server would. The Kernel doesn't check the Manifest's allowed hosts, which the Server's own tests cover. `Kernel::store()` grants the Plugin its Store, kept in memory across the calls a test makes with the same `Kernel`. Each of the Kernel's other functions is granted the same way by the method that gives it its data: `libraries`, `titles` (paged as the Kernel pages them), `watch_states`, `users`, `requesters`, `watchlist`, and `delete_media`, whose handler answers each delete with the titles taken along or the Kernel's words refusing it; afterwards `kernel.deletes()` lists the deletes the Plugin asked for, in order. A function granted with no data answers empty, and one the test didn't grant is refused as the Server refuses it when the Admin didn't grant its Plugin Permission. `testing` is unstable while the 0.x versions last.
 
-A test of an Automation calls its `tick` the same way:
+A test of an Automation runs its Job the same way:
 
 ```rust
 use nama_pdk::{
-    Automation, Library, Tick, Title, TitleRef,
+    JobRunner, Library, RunJob, Title, TitleRef,
     extism_pdk::Error,
     kernel,
     testing::{Kernel, with},
 };
 
-/// An Automation deleting the media of every title in every Library.
+/// An Automation whose one Job deletes the media of every title in every Library.
 struct Purge;
 
-impl Automation for Purge {
-    fn tick(_tick: Tick) -> Result<(), Error> {
+impl JobRunner for Purge {
+    fn run(_run: RunJob) -> Result<(), Error> {
         for library in kernel::libraries()? {
             for title in kernel::titles(library.id)? {
                 kernel::delete_media(title.title_ref.into_option().unwrap_or_default(), &[])?;
@@ -401,7 +406,7 @@ let mut kernel = Kernel::new()
     .titles(1, [Title { title_ref: movie.clone().into(), ..Title::default() }])
     .delete_media(|_title, _also| Ok(Vec::new()));
 
-assert!(with(&mut kernel, || Purge::tick(Tick::default())).is_ok());
+assert!(with(&mut kernel, || Purge::run(RunJob::default())).is_ok());
 assert_eq!(kernel.deletes()[0].title, movie);
 ```
 

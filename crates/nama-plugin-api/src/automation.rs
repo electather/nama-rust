@@ -1,34 +1,16 @@
-//! Provide: the Automation lane, where a Plugin asks the Kernel (ADR 0048).
-//!
-//! The Kernel ticks an [`Automation`] on the schedule its [`Manifest`](crate::Manifest) sets in
-//! `tick_every`, and any Plugin may call the [`Kernel`] it finds in
-//! [`Registrar::kernel`](crate::Registrar::kernel) (ADR 0071). A Plugin provides one by
-//! registering it:
-//!
-//! ```ignore
-//! registrar.provide::<dyn Automation>(Priority::DEFAULT, Arc::new(my_automation));
-//! ```
+//! The Kernel's functions, which any Plugin may call through the [`Kernel`] it finds in
+//! [`Registrar::kernel`](crate::Registrar::kernel) (ADR 0048, ADR 0071).
 
 use std::{error::Error, fmt};
 
 pub use nama_plugin_proto::nama::plugin::v1::{
     DeleteAsked, DeleteStarted, Libraries, LibrariesAsked, Library, LibraryKind, Permission,
-    Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Tick, Title, TitleRef,
+    Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
     TitleRefKind, TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
     WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
 };
 
-use crate::{BoxFuture, PluginError};
-
-/// A Provider the Kernel ticks on the schedule its Plugin's Manifest sets.
-pub trait Automation: Send + Sync + 'static {
-    /// Does the Plugin's scheduled work. The Kernel logs a failure and counts it as an Observer's.
-    ///
-    /// # Errors
-    ///
-    /// When the work failed; the Kernel logs why.
-    fn tick<'a>(&'a self, tick: &'a Tick) -> BoxFuture<'a, Result<(), PluginError>>;
-}
+use crate::BoxFuture;
 
 /// Why the [`Kernel`] refused a function, in plain words, such as a Permission not granted.
 #[derive(Debug, Clone, PartialEq, Eq)]

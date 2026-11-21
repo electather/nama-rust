@@ -509,7 +509,7 @@ impl Caller {
 
     async fn list_requesters(self, asked: RequestersAsked) -> Result<Requesters, KernelRefused> {
         let mut titles = Vec::with_capacity(asked.titles.len());
-        // ponytail: a few queries per title; read a page's titles together if ticks get slow.
+        // ponytail: a few queries per title; read a page's titles together if Job Runs get slow.
         for title in asked.titles {
             let requesters = self.requesters(&title).await?;
             titles.push(TitleRequesters {

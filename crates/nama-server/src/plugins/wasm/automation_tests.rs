@@ -5,19 +5,17 @@ use std::{
 
 use buffa::Message;
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Registrar,
-    automation::{
-        Automation, Kernel, KernelRefused, Permission, StoreEntry, StoreKey, StoreValue, Tick,
-    },
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, Registrar,
+    automation::{Kernel, KernelRefused, Permission, StoreEntry, StoreKey, StoreValue},
+    job::{JobRunner, RunJob},
     settings::Settings,
 };
 
 use super::super::{
     Installed,
-    listing::{listing, until_failing},
     load::{load, write_cache_config},
 };
-use crate::{log_capture::CapturedLog, plugins::Registry};
+use crate::plugins::Registry;
 
 #[path = "../../../tests/support/test_plugin.rs"]
 mod test_plugin;
@@ -53,8 +51,8 @@ fn automation_plugin(data_dir: &tempfile::TempDir) -> Installed {
     load(test_plugin::build("automation"), &cache_config).unwrap()
 }
 
-/// `plugin`'s Automation, enabled with `kernel` if given.
-fn automation(plugin: &Installed, kernel: Option<Arc<dyn Kernel>>) -> Arc<dyn Automation> {
+/// `plugin`'s Job runner, enabled with `kernel` if given.
+fn job_runner(plugin: &Installed, kernel: Option<Arc<dyn Kernel>>) -> Arc<dyn JobRunner> {
     let mut registrar = Registrar::with_settings(Settings::default());
     if let Some(kernel) = kernel {
         registrar = registrar.with_kernel(kernel);
@@ -63,30 +61,38 @@ fn automation(plugin: &Installed, kernel: Option<Arc<dyn Kernel>>) -> Arc<dyn Au
     registrar
         .into_registrations()
         .iter()
-        .find_map(nama_plugin_api::Registration::provider::<dyn Automation>)
+        .find_map(nama_plugin_api::Registration::provider::<dyn JobRunner>)
         .unwrap()
 }
 
+/// The test Plugin's Job `kernel`, which calls the Kernel's functions.
+fn kernel_job() -> RunJob {
+    RunJob {
+        job_id: "kernel".to_owned(),
+        ..RunJob::default()
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
-async fn a_tick_reaches_the_kernels_store_and_gets_its_refusals_back_without_crashing() {
+async fn a_job_reaches_the_kernels_store_and_gets_its_refusals_back_without_crashing() {
     let data_dir = tempfile::tempdir().unwrap();
     let calls = Calls::default();
     let kernel = recording(Arc::clone(&calls));
-    let automation = automation(&automation_plugin(&data_dir), Some(kernel));
+    let runner = job_runner(&automation_plugin(&data_dir), Some(kernel));
 
     // A crash every time would disable the Plugin by the third.
     for _ in 0..3 {
-        let failed = automation.tick(&Tick::default()).await.unwrap_err();
+        let failed = runner.run(&kernel_job()).await.unwrap_err();
         assert!(failed.to_string().contains(NOT_GRANTED), "{failed}");
     }
 
     let put = StoreEntry {
-        key: "ticked".to_owned(),
+        key: "ran".to_owned(),
         value: b"yes".to_vec(),
         ..StoreEntry::default()
     };
     let get = StoreKey {
-        key: "ticked".to_owned(),
+        key: "ran".to_owned(),
         ..StoreKey::default()
     };
     assert_eq!(
@@ -103,8 +109,8 @@ async fn a_plugin_calling_the_kernel_loads_without_one_and_is_refused_by_it() {
     let data_dir = tempfile::tempdir().unwrap();
 
     let plugin = automation_plugin(&data_dir);
-    let failed = automation(&plugin, None)
-        .tick(&Tick::default())
+    let failed = job_runner(&plugin, None)
+        .run(&kernel_job())
         .await
         .unwrap_err();
 
@@ -169,31 +175,5 @@ async fn an_enabled_plugin_is_granted_only_what_its_manifest_requests_once_the_k
     assert_eq!(
         *made.lock().unwrap(),
         [(id, HashSet::from([Permission::PERMISSION_STORE]))]
-    );
-}
-
-#[tokio::test]
-async fn an_installed_automations_failed_tick_is_logged_once() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let registry = listing(automation_plugin(&data_dir));
-    let kernel = recording(Calls::default());
-    registry.serve_kernel(Arc::new(move |_, _| Arc::clone(&kernel)));
-    let id = PluginId::from_static("test-plugin");
-    let points = registry.extension_points();
-
-    // The test's runtime has one thread, so the tick loop logs to it.
-    let log = CapturedLog::start();
-    registry.enable_by_id(&id, Settings::default()).unwrap();
-    until_failing(&points, &id, PointKey::provide::<dyn Automation>()).await;
-    let logged = log.finish();
-
-    let failed: Vec<&str> = logged
-        .lines()
-        .filter(|line| line.contains(NOT_GRANTED))
-        .collect();
-    assert_eq!(failed.len(), 1, "{logged}");
-    assert!(
-        failed[0].contains("automation tick failed plugin=test-plugin"),
-        "{logged}"
     );
 }

@@ -60,16 +60,16 @@ fn a_title_sources_season_artwork_list_is_an_optional_row_calling_title_season_a
 }
 
 #[test]
-fn a_tick_is_a_required_row() {
-    let automation = POINTS
+fn a_job_run_is_a_required_row() {
+    let runner = POINTS
         .iter()
-        .find(|point| point.service == services::AUTOMATION)
+        .find(|point| point.service == services::JOB)
         .unwrap();
 
     assert!(matches!(
-        automation.methods,
+        runner.methods,
         [Method {
-            export: "tick",
+            export: "run_job",
             optional: false,
             ..
         }]

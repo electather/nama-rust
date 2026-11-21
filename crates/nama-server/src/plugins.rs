@@ -13,7 +13,6 @@ mod registry;
 mod scope;
 #[cfg(test)]
 mod scripted_fulfiller;
-mod tick;
 mod wasm;
 
 use std::{
