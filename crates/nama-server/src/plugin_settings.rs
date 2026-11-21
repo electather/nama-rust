@@ -93,7 +93,8 @@ pub struct StoredPlugin {
     pub plugin: Listed,
     /// What is stored for it, or for one never stored, what it starts as.
     pub stored: PluginConfig,
-    /// The Plugin Permissions an Admin granted it, kept beside its settings (ADR 0049).
+    /// The Plugin Permissions it holds, kept beside its settings: those an Admin granted an
+    /// Installed Plugin (ADR 0049), or all a Built-in one requests (ADR 0079).
     pub granted: HashSet<Permission>,
 }
 
@@ -508,9 +509,9 @@ impl PluginSettings {
     /// Enables the Plugin `id` with its stored settings, granted the Plugin Permissions `granted`
     /// in place of those granted before, then saves it as enabled with them, so a refused enable
     /// saves nothing (ADR 0028, 0049). One already running with other grants is enabled again with
-    /// these. A Built-in Plugin ignores `granted` and holds every Permission it requests (ADR
-    /// 0079). Enabling one already running saves it again, which is how a retry fixes a save that
-    /// failed.
+    /// these. A Built-in Plugin ignores `granted` and holds every Plugin Permission it requests
+    /// (ADR 0079). Enabling one already running saves it again, which is how a retry fixes a save
+    /// that failed.
     ///
     /// # Errors
     ///

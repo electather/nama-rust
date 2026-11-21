@@ -2005,7 +2005,7 @@ pub struct EnablePluginRequest {
     /// The Plugin Permissions the Admin grants an Installed Plugin, replacing those granted before.
     /// Each must be one its `requested_permissions` lists, or the call is refused with
     /// `REFUSAL_REASON_PERMISSION_NOT_REQUESTED`. Empty grants none. A Built-in Plugin ignores it and
-    /// holds every Permission it requests.
+    /// holds every Plugin Permission it requests.
     ///
     /// Field 2: `granted_permissions`
     #[serde(

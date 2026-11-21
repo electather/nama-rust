@@ -192,8 +192,8 @@ pub(super) fn builtin_grants(registry: &Registry, grants: &Grants) -> Grants {
         .filter(|plugin| plugin.kind == PluginKind::PLUGIN_KIND_BUILT_IN)
         .filter_map(|plugin| {
             let requested: HashSet<_> = plugin.manifest.ok()?.permissions.into_iter().collect();
-            let stored = grants.contains_key(plugin.id.as_str());
-            (stored || !requested.is_empty()).then(|| (plugin.id.to_string(), requested))
+            let has_row = grants.contains_key(plugin.id.as_str());
+            (has_row || !requested.is_empty()).then(|| (plugin.id.to_string(), requested))
         })
         .collect()
 }

@@ -156,7 +156,7 @@ async fn a_builtin_plugins_new_grants_keep_whether_it_is_enabled_and_its_setting
     );
 }
 
-/// [`registry`], listing `installed`, requesting two Permissions, as an Installed Plugin.
+/// [`registry`], listing `installed`, requesting two Plugin Permissions, as an Installed Plugin.
 fn with_installed() -> Registry {
     let registry = registry();
     registry.list_as_installed(vec![|| {
