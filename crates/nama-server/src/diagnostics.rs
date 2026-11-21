@@ -60,6 +60,9 @@ pub(crate) const PLUGIN_TARGET: &str = "nama::plugin";
 /// them (ADR 0061).
 pub(crate) const PLUGIN_SPAN: &str = "plugin";
 
+/// The name of the span under [`PLUGIN_TARGET`] a Job Run runs in, which [`job_run_span`] makes.
+const JOB_RUN_SPAN: &str = "job run";
+
 /// How a Built-in's own target starts, since its package is `nama-plugin-<folder>`
 /// (`plugins/AGENTS.md`).
 const BUILTIN_TARGET_PREFIX: &str = "nama_plugin_";
@@ -81,6 +84,8 @@ pub(crate) struct PluginLine {
     pub(crate) level: Level,
     /// Cut at [`MAX_PLUGIN_LINE_BYTES`]. An Installed Plugin's arrives with its secrets blanked.
     pub(crate) text: String,
+    /// The id of the Job Run it was written during, if any.
+    pub(crate) run: Option<i64>,
 }
 
 /// The layer that keeps each enabled Plugin's last Plugin Log lines for its Plugins page. Filter
@@ -111,6 +116,13 @@ pub(crate) fn keep_plugin_lines(plugin: &PluginId) {
 pub(crate) fn forget_plugin_lines(plugin: &PluginId) {
     let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
     kept.remove(plugin);
+}
+
+/// The span the Job Run `run` calls its Plugin in, so each line the Plugin writes in it carries
+/// `run` on stdout and among its kept lines. Under [`PLUGIN_TARGET`], so it isn't exported.
+pub(crate) fn job_run_span(run: i64) -> Span {
+    // `error`, as `plugin` spans are, so a level filter that keeps any line keeps the span.
+    tracing::error_span!(target: PLUGIN_TARGET, JOB_RUN_SPAN, job_run = run)
 }
 
 /// Adds `line` to `plugin`'s last lines, dropping its oldest past [`KEPT_PLUGIN_LINES`], if its
@@ -348,19 +360,37 @@ struct KeepPluginLines;
 /// The Built-in a [`PLUGIN_SPAN`] names, kept in its extensions.
 struct SpanPlugin(PluginId);
 
+/// The Job Run a [`JOB_RUN_SPAN`] names, kept in its extensions.
+struct SpanRun(i64);
+
 impl<S> Layer<S> for KeepPluginLines
 where
     S: Subscriber + for<'span> LookupSpan<'span>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let metadata = attrs.metadata();
-        if metadata.target() != PLUGIN_TARGET || metadata.name() != PLUGIN_SPAN {
+        if metadata.target() != PLUGIN_TARGET {
             return;
         }
-        let mut fields = LineFields::default();
-        attrs.record(&mut fields);
-        if let (Some(plugin), Some(span)) = (fields.plugin, ctx.span(id)) {
-            span.extensions_mut().insert(SpanPlugin(plugin));
+        let Some(span) = ctx.span(id) else {
+            return;
+        };
+        match metadata.name() {
+            PLUGIN_SPAN => {
+                let mut fields = LineFields::default();
+                attrs.record(&mut fields);
+                if let Some(plugin) = fields.plugin {
+                    span.extensions_mut().insert(SpanPlugin(plugin));
+                }
+            }
+            JOB_RUN_SPAN => {
+                let mut run = RunField::default();
+                attrs.record(&mut run);
+                if let RunField(Some(run)) = run {
+                    span.extensions_mut().insert(SpanRun(run));
+                }
+            }
+            _ => {}
         }
     }
 
@@ -380,7 +410,7 @@ where
             if !metadata.target().starts_with(BUILTIN_TARGET_PREFIX) {
                 return;
             }
-            let Some(plugin) = enclosing_plugin(event, &ctx) else {
+            let Some(plugin) = innermost(event, &ctx, |SpanPlugin(plugin)| plugin.clone()) else {
                 return;
             };
             event.record(&mut fields);
@@ -394,20 +424,34 @@ where
             at_ms: db::now_ms(),
             level: *metadata.level(),
             text,
+            run: innermost(event, &ctx, |&SpanRun(run)| run),
         };
         push_plugin_line(&plugin, line);
     }
 }
 
-/// The Built-in the innermost [`PLUGIN_SPAN`] around `event` names.
-fn enclosing_plugin<S>(event: &Event<'_>, ctx: &Context<'_, S>) -> Option<PluginId>
+/// What `read` reads of the innermost span around `event` that keeps a `T` in its extensions.
+fn innermost<S, T, R>(event: &Event<'_>, ctx: &Context<'_, S>, read: impl Fn(&T) -> R) -> Option<R>
 where
     S: Subscriber + for<'span> LookupSpan<'span>,
+    T: Send + Sync + 'static,
 {
-    ctx.event_scope(event)?.find_map(|span| {
-        let extensions = span.extensions();
-        (extensions.get::<SpanPlugin>()).map(|SpanPlugin(plugin)| plugin.clone())
-    })
+    ctx.event_scope(event)?
+        .find_map(|span| span.extensions().get::<T>().map(&read))
+}
+
+/// The `job_run` field of a [`JOB_RUN_SPAN`].
+#[derive(Default)]
+struct RunField(Option<i64>);
+
+impl Visit for RunField {
+    fn record_i64(&mut self, field: &Field, value: i64) {
+        if field.name() == "job_run" {
+            self.0 = Some(value);
+        }
+    }
+
+    fn record_debug(&mut self, _field: &Field, _value: &dyn fmt::Debug) {}
 }
 
 /// A line's fields as stdout shows them: its message, then each other field but `plugin`, which

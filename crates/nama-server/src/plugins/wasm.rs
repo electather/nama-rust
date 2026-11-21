@@ -34,6 +34,7 @@ use nama_plugin_proto::{
 use semver::{Version, VersionReq};
 use thiserror::Error;
 use tokio::task;
+use tracing::Span;
 
 use super::{CheckTimedOut, registry::Make, secret_values, without_secrets};
 
@@ -196,7 +197,10 @@ impl Running {
         limit: Duration,
     ) -> Result<Result<Vec<u8>, extism::Error>, task::JoinError> {
         let plugin = self.clone();
-        match task::spawn_blocking(move || plugin.call(name, input, limit)).await {
+        // So the lines it logs are in the caller's span, such as its Job Run's.
+        let span = Span::current();
+        let call = move || span.in_scope(|| plugin.call(name, input, limit));
+        match task::spawn_blocking(call).await {
             Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
             called => called,
         }

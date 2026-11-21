@@ -11,11 +11,12 @@ use nama_proto::nama::v1::{
 
 use crate::{
     db::Database,
+    diagnostics::{PluginLine, plugin_lines},
     plugin_settings::PluginSettings,
     plugins::{ExtensionPoints, JobRun, JobRunOutcome, ListedJob, RunRefused, job_runs, run_now},
 };
 
-use super::{caller, database_failed, refuse};
+use super::{caller, database_failed, plugins::plugin_line_to_proto, refuse};
 
 /// `nama.v1.JobService`: the Jobs of the enabled Plugins and their Runs, for Admins.
 pub(super) struct JobServiceHandler {
@@ -49,11 +50,12 @@ impl JobService for JobServiceHandler {
     ) -> ServiceResult<ListJobRunsResponse> {
         let plugin = PluginId::from(request.plugin_id.to_owned());
         let runs = job_runs(&self.db, &plugin, request.job_id).await;
+        let lines = plugin_lines(&plugin);
         Response::ok(ListJobRunsResponse {
             runs: runs
                 .map_err(database_failed)?
                 .into_iter()
-                .map(run_to_proto)
+                .map(|run| run_with_lines(run, &lines))
                 .collect(),
             ..Default::default()
         })
@@ -100,6 +102,16 @@ fn job_to_proto(listed: ListedJob) -> proto::Job {
         next_runs_at_ms: next_runs_ms,
         last_run: last_run.map(run_to_proto).into(),
         ..Default::default()
+    }
+}
+
+/// `run` with the Plugin Log lines written during it, oldest first, of its Plugin's kept `lines`,
+/// which are newest first.
+fn run_with_lines(run: JobRun, lines: &[PluginLine]) -> proto::JobRun {
+    let written = lines.iter().rev().filter(|line| line.run == Some(run.id));
+    proto::JobRun {
+        log_lines: written.cloned().map(plugin_line_to_proto).collect(),
+        ..run_to_proto(run)
     }
 }
 
