@@ -109,7 +109,8 @@ pub(crate) async fn list(
     db: &Database,
     user: i64,
 ) -> Result<Vec<(TitleKind, ExternalId)>, sqlx::Error> {
-    // A new row's rowid is one past the largest left, so it orders by when each was added.
+    // A new row's rowid is one past the largest left, so it orders by when each was added. A
+    // Backup's VACUUM INTO may renumber rowids, but copies the rows in rowid order.
     let rows = sqlx::query!(
         "SELECT kind, title_id FROM watchlist WHERE user_id = ? ORDER BY rowid DESC",
         user

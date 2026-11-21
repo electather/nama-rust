@@ -78,7 +78,8 @@ const PER_USER: [(&str, &str); 6] = [
 /// How long a User's row stays fresh. The Kernel asks again sooner once they play something.
 const USER_FRESH_FOR: Duration = Duration::from_hours(6);
 
-/// How long since a title was last played before Watch it again offers it.
+/// How long since the User last watched a title before Watch it again offers it: any change to
+/// its Watch State, or an Episode's, counts.
 const WATCH_AGAIN_AFTER: Duration = Duration::from_hours(365 * 24);
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
@@ -283,7 +284,6 @@ fn picked_rows<'a>(
     (offered.iter().copied()).filter(|(key, _)| picked.iter().any(|pick| pick == key))
 }
 
-/// The row `key` headed `heading`, of `titles`, fresh for `fresh_for`.
 fn row(
     key: &str,
     heading: &str,
@@ -421,7 +421,7 @@ impl History {
             .collect()
     }
 
-    /// The titles the User played through and last played over [`WATCH_AGAIN_AFTER`] ago, those
+    /// The titles the User played through and last watched over [`WATCH_AGAIN_AFTER`] ago, those
     /// of the genre they played most first.
     fn played_long_ago(&self) -> Result<Vec<HomeRowTitle>, Error> {
         let long_ago = nama_pdk::now() - WATCH_AGAIN_AFTER;
