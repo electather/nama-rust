@@ -9,13 +9,13 @@ use std::{cell::RefCell, collections::HashMap, fmt};
 use ::extism_pdk::{Error, HttpRequest};
 use buffa::{Message, MessageField};
 use nama_plugin_proto::nama::plugin::v1::{
-    DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
-    ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, KernelAnswer, Libraries,
-    LibrariesAsked, Library, MetadataRefreshed, RefreshMetadataAsked, Requesters, RequestersAsked,
-    SharingTitle, SharingTitles, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
-    TitleRequesters, TitleWatchStates, Titles, TitlesAsked, TitlesSharingAsked, User, Users,
-    UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
-    WatchlistTitle, kernel_answer,
+    BackUpAsked, BackedUp, DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
+    ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
+    KernelAnswer, Libraries, LibrariesAsked, Library, MetadataRefreshed, RefreshMetadataAsked,
+    Requesters, RequestersAsked, SharingTitle, SharingTitles, StoreEntry, StoreKey, StoreValue,
+    Stored, Title, TitleRef, TitleRequesters, TitleWatchStates, Titles, TitlesAsked,
+    TitlesSharingAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
+    Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
 };
 
 use crate::{Response, kernel::MAX_PAGE_SIZE};
@@ -41,6 +41,9 @@ type ForgetGonePluginsHandler = Box<dyn FnMut(u32) -> Result<Vec<String>, String
 /// that couldn't answer.
 type RefreshMetadataHandler = Box<dyn FnMut() -> Result<(u64, Vec<String>), String>>;
 
+/// Answers a Plugin's `back_up` with the Backup's file name and size in bytes.
+type BackUpHandler = Box<dyn FnMut() -> Result<(String, u64), String>>;
+
 /// What the Kernel gives a Plugin during a test: its settings, answers to its HTTP requests, and
 /// the Kernel functions the test granted.
 #[derive(Default)]
@@ -61,6 +64,7 @@ pub struct Kernel {
     delete_expired_sign_ins: Option<DeleteExpiredSignInsHandler>,
     forget_gone_plugins: Option<ForgetGonePluginsHandler>,
     refresh_metadata: Option<RefreshMetadataHandler>,
+    back_up: Option<BackUpHandler>,
     /// Each Library's titles, by its id, answered once `libraries` is granted.
     titles: HashMap<i64, Vec<Title>>,
     /// What `list_titles_sharing` answers once `libraries` is granted, and the asks it had.
@@ -263,6 +267,18 @@ impl Kernel {
         self
     }
 
+    /// The Kernel, the Admin having granted the Plugin Back up, answering each `kernel::back_up`
+    /// with `handler`. It answers the Backup's file name and size in bytes, or an `Err` holding
+    /// the Kernel's words refusing it, which reach the Plugin as the Kernel's.
+    #[must_use]
+    pub fn back_up(
+        mut self,
+        handler: impl FnMut() -> Result<(String, u64), String> + 'static,
+    ) -> Self {
+        self.back_up = Some(Box::new(handler));
+        self
+    }
+
     /// The HTTP requests the Plugin sent, in order.
     #[must_use]
     pub fn sent(&self) -> &[Sent] {
@@ -394,6 +410,7 @@ impl Kernel {
             "refresh_metadata" => typed(request, |_: RefreshMetadataAsked| {
                 self.answer_refresh_metadata()
             }),
+            "back_up" => typed(request, |_: BackUpAsked| self.answer_back_up()),
             _ => Err(Error::msg(format!("the Kernel has no function {name}"))),
         }
     }
@@ -582,6 +599,16 @@ impl Kernel {
             titles,
             unavailable_plugin_ids,
             ..MetadataRefreshed::default()
+        })
+    }
+
+    fn answer_back_up(&mut self) -> Result<BackedUp, String> {
+        let handler = granted(self.back_up.as_mut(), "Back up")?;
+        let (name, size_bytes) = handler()?;
+        Ok(BackedUp {
+            name,
+            size_bytes,
+            ..BackedUp::default()
         })
     }
 }
@@ -1046,6 +1073,25 @@ mod tests {
     }
 
     #[test]
+    fn granted_back_up_answers_the_handlers_file_name_and_size() {
+        let name = "nama-20261121T030000Z.tar";
+        let mut kernel = Kernel::new().back_up(|| Ok((name.to_owned(), 4096)));
+
+        let backed_up = with(&mut kernel, crate::kernel::back_up).unwrap();
+
+        assert_eq!(backed_up, (name.to_owned(), 4096));
+    }
+
+    #[test]
+    fn a_refused_back_up_reaches_the_plugin_in_the_handlers_words() {
+        let mut kernel = Kernel::new().back_up(|| Err("the Backup folder is full".to_owned()));
+
+        let refused = with(&mut kernel, || crate::kernel::back_up().unwrap_err());
+
+        assert_eq!(refused.to_string(), "the Backup folder is full");
+    }
+
+    #[test]
     fn each_function_not_granted_is_refused_naming_its_permission() {
         let refused = with(&mut Kernel::new(), || {
             [
@@ -1060,6 +1106,7 @@ mod tests {
                 crate::kernel::delete_expired_sign_ins().map(drop),
                 crate::kernel::forget_gone_plugins(30).map(drop),
                 crate::kernel::refresh_metadata().map(drop),
+                crate::kernel::back_up().map(drop),
             ]
             .map(|answered| answered.unwrap_err().to_string())
         });
@@ -1080,6 +1127,7 @@ mod tests {
                 "Delete expired sign-ins",
                 "Forget removed Plugins",
                 "Refresh metadata",
+                "Back up",
             ]
             .map(not_granted)
         );
