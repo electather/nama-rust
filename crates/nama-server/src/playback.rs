@@ -25,6 +25,7 @@ mod lasting;
 mod limits;
 mod preview_frames;
 mod probing;
+mod read_failures;
 mod running;
 mod sidecars;
 mod steps;

@@ -33,6 +33,9 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) logo: Option<ImageRef>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
+    /// Its Score from the title source that made the Match, kept once per title.
+    pub(crate) score: Option<f64>,
+    pub(crate) original_language: Option<String>,
     /// When its first Version was added, in seconds since the Unix epoch.
     pub(crate) added_at: i64,
     /// The files Matched to it, by path.
@@ -57,6 +60,8 @@ impl<V> Movie<V> {
             logo: self.logo,
             genres: self.genres,
             content_rating: self.content_rating,
+            score: self.score,
+            original_language: self.original_language,
             added_at: self.added_at,
             versions: self.versions.into_iter().map(version).collect(),
         }
@@ -122,6 +127,9 @@ pub(crate) struct Show<V = Version> {
     pub(crate) first_air_date: Option<String>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
+    /// As [`Movie::score`].
+    pub(crate) score: Option<f64>,
+    pub(crate) original_language: Option<String>,
     /// When its newest Episode was added, in seconds since the Unix epoch.
     pub(crate) added_at: i64,
     /// The Seasons the Library has Episodes of, by number.
@@ -401,11 +409,21 @@ impl Contents {
                               item_matches.backdrop, item_matches.backdrop_plugin,
                               item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
                               item_matches.logo, item_matches.logo_plugin, item_matches.genres,
-                              item_matches.content_rating, titles.added_at AS "added_at!: i64"
+                              item_matches.content_rating, item_matches.original_language,
+                              title_scores.score AS "score?", titles.added_at AS "added_at!: i64"
                        FROM titles
                        JOIN item_matches ON item_matches.item_id = titles.item_id
                        JOIN library_items ON library_items.id = titles.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
+                       -- Keyed as `scores::store` keys it.
+                       LEFT JOIN title_scores
+                           ON title_scores.plugin = item_matches.plugin
+                          AND title_scores.kind = 'movie'
+                          AND (title_scores.namespace, title_scores.value) =
+                              (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed
+                               WHERE keyed.item_id = item_matches.item_id
+                                 AND keyed.scope = 'title'
+                               ORDER BY keyed.namespace LIMIT 1)
                        WHERE ?2 IS NULL
                           OR titles.listed_id IN (
                               SELECT asked.listed_id FROM titles AS asked
@@ -458,6 +476,8 @@ impl Contents {
                     logo: ImageRef::stored(row.logo, row.logo_plugin),
                     genres: genres(row.genres.as_deref())?,
                     content_rating: row.content_rating,
+                    score: row.score,
+                    original_language: row.original_language,
                     added_at: row.added_at,
                     versions: vec![version],
                 }),
@@ -510,11 +530,21 @@ impl Contents {
                               item_matches.content_rating, item_matches.show_poster,
                               item_matches.show_poster_plugin, item_matches.show_overview,
                               item_matches.show_first_air_date, item_matches.metadata_version,
+                              item_matches.original_language, title_scores.score AS "score?",
                               titles.added_at AS "added_at!: i64"
                        FROM titles
                        JOIN item_matches ON item_matches.item_id = titles.item_id
                        JOIN library_items ON library_items.id = titles.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
+                       -- Keyed as `scores::store` keys it.
+                       LEFT JOIN title_scores
+                           ON title_scores.plugin = item_matches.plugin
+                          AND title_scores.kind = 'show'
+                          AND (title_scores.namespace, title_scores.value) =
+                              (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed
+                               WHERE keyed.item_id = item_matches.item_id
+                                 AND keyed.scope = 'show'
+                               ORDER BY keyed.namespace LIMIT 1)
                        WHERE ?2 IS NULL
                           OR titles.listed_id IN (
                               SELECT asked.listed_id FROM titles AS asked
@@ -559,6 +589,8 @@ impl Contents {
                     first_air_date: row.show_first_air_date,
                     genres: genres(row.genres.as_deref())?,
                     content_rating: row.content_rating,
+                    score: row.score,
+                    original_language: row.original_language,
                     added_at: row.added_at,
                     seasons: BTreeMap::new(),
                 });

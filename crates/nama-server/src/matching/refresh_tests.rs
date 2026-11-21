@@ -107,6 +107,10 @@ async fn a_show_stored_at_an_older_metadata_version_gets_its_own_details_on_the_
     assert_eq!(dark.first_air_date.as_deref(), Some("2017-12-01"));
     assert_eq!(dark.genres, ["Crime", "Drama", "Mystery"]);
     assert_eq!(dark.content_rating.as_deref(), Some("TV-MA"));
+    assert_eq!(
+        (dark.score, dark.original_language.as_deref()),
+        (Some(8.4), Some("de"))
+    );
     assert_eq!(media.searches(), searches);
 }
 

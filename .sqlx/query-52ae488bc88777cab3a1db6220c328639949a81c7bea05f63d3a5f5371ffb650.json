@@ -1,0 +1,311 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH titles AS (SELECT * FROM (SELECT library_id, item_id, kind, path, season, episode, own_id, listed_id,\n                      ROW_NUMBER() OVER title AS nth, MIN(item_id) OVER title AS title_item,\n                      MIN(added_at) OVER title AS first_added_at,\n                      MAX(added_at) OVER title AS newest_added_at,\n                      IIF(kind = 'movie', MIN(added_at) OVER title, MAX(added_at) OVER title)\n                          AS added_at\n               FROM (SELECT library_files.library_id, library_items.id AS item_id, library_items.kind,\n                      library_files.path, library_items.season, library_items.episode,\n                      library_items.added_at, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = 'title') AS own_id, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               JOIN libraries ON libraries.id = library_files.library_id\n               WHERE item_matches.state = 'matched'\n                 AND own_id IS NOT NULL AND listed_id IS NOT NULL\n                 AND (library_items.kind = 'movie'\n                      OR (library_items.season IS NOT NULL\n                          AND library_items.episode IS NOT NULL)))\n               WINDOW title AS (PARTITION BY library_id, listed_id\n                                ORDER BY season, episode, path\n                                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)) AS library_titles\n                                 WHERE library_id = ?1 AND kind = 'movie')\n                       SELECT titles.listed_id AS \"listed_id!: String\",\n                              library_files.id AS \"file!\", library_files.path,\n                              library_files.size, library_files.modified_ns,\n                              library_files.parser_version, item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", item_matches.title AS \"title!\",\n                              item_matches.original_title, item_matches.overview,\n                              item_matches.release_date, item_matches.runtime_minutes,\n                              item_matches.poster, item_matches.poster_plugin,\n                              item_matches.backdrop, item_matches.backdrop_plugin,\n                              item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,\n                              item_matches.logo, item_matches.logo_plugin, item_matches.genres,\n                              item_matches.content_rating, item_matches.original_language,\n                              title_scores.score AS \"score?\", titles.added_at AS \"added_at!: i64\"\n                       FROM titles\n                       JOIN item_matches ON item_matches.item_id = titles.item_id\n                       JOIN library_items ON library_items.id = titles.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       -- Keyed as `scores::store` keys it.\n                       LEFT JOIN title_scores\n                           ON title_scores.plugin = item_matches.plugin\n                          AND title_scores.kind = 'movie'\n                          AND (title_scores.namespace, title_scores.value) =\n                              (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed\n                               WHERE keyed.item_id = item_matches.item_id\n                                 AND keyed.scope = 'title'\n                               ORDER BY keyed.namespace LIMIT 1)\n                       WHERE ?2 IS NULL\n                          OR titles.listed_id IN (\n                              SELECT asked.listed_id FROM titles AS asked\n                              JOIN item_match_ids AS named\n                                ON named.item_id = asked.item_id AND named.scope = 'title'\n                              JOIN json_each(?2) AS only\n                                ON only.value = named.namespace || '-' || named.value)\n                       ORDER BY titles.listed_id, titles.nth",
+  "describe": {
+    "columns": [
+      {
+        "name": "listed_id!: String",
+        "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "file!",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "parser_version",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "parser_version"
+          }
+        }
+      },
+      {
+        "name": "plugin!",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "ids?: String",
+        "ordinal": 7,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "title!",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "original_title",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "original_title"
+          }
+        }
+      },
+      {
+        "name": "overview",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "overview"
+          }
+        }
+      },
+      {
+        "name": "release_date",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "release_date"
+          }
+        }
+      },
+      {
+        "name": "runtime_minutes",
+        "ordinal": 12,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "runtime_minutes"
+          }
+        }
+      },
+      {
+        "name": "poster",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster"
+          }
+        }
+      },
+      {
+        "name": "poster_plugin",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster_plugin"
+          }
+        }
+      },
+      {
+        "name": "backdrop",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop"
+          }
+        }
+      },
+      {
+        "name": "backdrop_plugin",
+        "ordinal": 16,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop_plugin"
+          }
+        }
+      },
+      {
+        "name": "titled_backdrop",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "titled_backdrop"
+          }
+        }
+      },
+      {
+        "name": "titled_backdrop_plugin",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "titled_backdrop_plugin"
+          }
+        }
+      },
+      {
+        "name": "logo",
+        "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "logo"
+          }
+        }
+      },
+      {
+        "name": "logo_plugin",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "logo_plugin"
+          }
+        }
+      },
+      {
+        "name": "genres",
+        "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "genres"
+          }
+        }
+      },
+      {
+        "name": "content_rating",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "content_rating"
+          }
+        }
+      },
+      {
+        "name": "original_language",
+        "ordinal": 23,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "original_language"
+          }
+        }
+      },
+      {
+        "name": "score?",
+        "ordinal": 24,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "title_scores",
+            "name": "score"
+          }
+        }
+      },
+      {
+        "name": "added_at!: i64",
+        "ordinal": 25,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "52ae488bc88777cab3a1db6220c328639949a81c7bea05f63d3a5f5371ffb650"
+}

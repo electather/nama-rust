@@ -117,6 +117,9 @@ pub(crate) struct MovieDetails {
     poster_path: Option<String>,
     backdrop_path: Option<String>,
     imdb_id: Option<String>,
+    original_language: Option<String>,
+    #[serde(flatten)]
+    votes: Votes,
     #[serde(default)]
     external_ids: WireIds,
     #[serde(default)]
@@ -145,6 +148,8 @@ impl MovieDetails {
                 (releases.release_dates.into_iter())
                     .find_map(|release| present(release.certification))
             }),
+            score: self.votes.score(),
+            original_language: original_language(self.original_language),
             ..Default::default()
         }
     }
@@ -168,6 +173,9 @@ pub(crate) struct ShowDetails {
     genres: Vec<Genre>,
     #[serde(default)]
     content_ratings: ContentRatings,
+    original_language: Option<String>,
+    #[serde(flatten)]
+    votes: Votes,
 }
 
 #[derive(Debug, Deserialize)]
@@ -190,8 +198,30 @@ impl ShowDetails {
             seasons: self.seasons.iter().map(|s| s.season_number).collect(),
             genres: genre_names(self.genres),
             content_rating: rated.and_then(|rated| present(rated.rating)),
+            score: self.votes.score(),
+            original_language: original_language(self.original_language),
             ..Default::default()
         }
+    }
+}
+
+/// The language a title was made in, which TMDB gives as `xx` when it has none, such as a silent film.
+fn original_language(code: Option<String>) -> Option<String> {
+    present(code).filter(|code| code != "xx")
+}
+
+/// A title's `vote_average` and `vote_count`.
+#[derive(Debug, Deserialize)]
+struct Votes {
+    vote_average: Option<f64>,
+    #[serde(default)]
+    vote_count: u32,
+}
+
+impl Votes {
+    /// The Score, which TMDB gives as 0.0 when nobody has voted.
+    fn score(&self) -> Option<f64> {
+        self.vote_average.filter(|_| self.vote_count > 0)
     }
 }
 

@@ -651,6 +651,10 @@ message FoundMovie {
   optional bytes poster_thumbhash = 10;
   // As `nama.v1.Movie.backdrop_thumbhash`.
   optional bytes backdrop_thumbhash = 11;
+  // As `nama.v1.Movie.score`, from the title source it was looked up in.
+  optional double score = 13;
+  // As `nama.v1.Movie.original_language`.
+  optional string original_language = 14;
 }
 
 message SearchMoviesRequest {
@@ -722,6 +726,10 @@ message FoundShow {
   optional bytes poster_thumbhash = 10;
   // As `nama.v1.Movie.backdrop_thumbhash`.
   optional bytes backdrop_thumbhash = 11;
+  // As `nama.v1.Movie.score`, from the title source it was looked up in.
+  optional double score = 13;
+  // As `nama.v1.Movie.original_language`.
+  optional string original_language = 14;
 }
 
 // A Season of a Show in the title source, and how close it is to being on the Server: in a
