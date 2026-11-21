@@ -194,8 +194,8 @@ pub(super) async fn set_enabled_granting(
 }
 
 /// Makes due the Versions of every Library listing the Plugin `plugin_id` as a Segment source, so
-/// enabling it reaches those asked while it was off (ADR 0075). A Plugin no Library lists as one
-/// makes nothing due.
+/// enabling it, or enabling it again with new settings, reaches those asked without it (ADR 0075).
+/// A Plugin no Library lists as one makes nothing due.
 async fn make_listing_libraries_due(
     conn: &mut SqliteConnection,
     plugin_id: &str,

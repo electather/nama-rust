@@ -469,7 +469,8 @@ fn millis(wait: Duration) -> i64 {
 /// Makes the Versions in the Libraries `libraries` due straight away, inside the caller's write,
 /// for a Segment source they newly ask (ADR 0075). They're asked only for the kinds they lack.
 // ponytail: asked on the loop's next pass, up to an hour later; notify the loop from both triggers
-// if Admins expect it sooner.
+// if Admins expect it sooner. An ask already running for one of them writes its 30-day wait back
+// over this; have `keep` skip that write if a missed source shows up.
 pub(crate) async fn make_segments_due(
     conn: &mut SqliteConnection,
     libraries: &[i64],
