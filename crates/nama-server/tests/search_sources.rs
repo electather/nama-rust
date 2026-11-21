@@ -507,3 +507,39 @@ async fn a_slow_search_source_doesnt_hold_back_the_title_sources_batch() {
         "{title_source:?}"
     );
 }
+
+#[tokio::test]
+async fn a_search_sources_title_the_title_source_sent_is_left_out_by_an_id_only_its_library_knows()
+{
+    let dreams = FakeSource::new(
+        "dreams",
+        Answer::Titles(vec![movie(&[("imdb", ALIEN_IMDB)], "Alien again")]),
+    );
+    let fx = start(&[&dreams]).await;
+    let ada = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+
+    // Alien's French title, which the Libraries' search doesn't index, so the title source's batch
+    // sends Alien by its TMDB id alone.
+    let parts = search(
+        &ada.client_config(),
+        "Le huitième passager",
+        TitleKind::TITLE_KIND_MOVIE,
+    )
+    .await
+    .unwrap();
+
+    let [
+        Part::Hits(_),
+        Part::Hits(to_request),
+        Part::Hits(from_dreams),
+        Part::Done(_),
+    ] = &parts[..]
+    else {
+        panic!("the Libraries', the title source's, the Search source's, then Done: {parts:?}");
+    };
+    assert!(
+        titles_and_statuses(to_request).contains(&("Alien", AVAILABLE.into())),
+        "{to_request:?}"
+    );
+    assert!(from_dreams.hits.is_empty(), "{from_dreams:?}");
+}

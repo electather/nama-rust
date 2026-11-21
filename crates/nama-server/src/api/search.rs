@@ -127,8 +127,11 @@ impl Sent {
         }
     }
 
-    fn has_any(&mut self, kind: TitleKind, ids: &[ExternalId]) -> bool {
-        let sent = self.of(kind);
+    fn has_any(&self, kind: TitleKind, ids: &[ExternalId]) -> bool {
+        let sent = match kind {
+            TitleKind::Movie => &self.movies,
+            TitleKind::Show => &self.shows,
+        };
         ids.iter().any(|id| sent.contains(id))
     }
 }
@@ -283,10 +286,16 @@ impl<'a> SourceBatches<'a> {
         // a source's first 100.
         for title in titles.into_iter().take(MAX_LIMIT) {
             let (kind, ids) = (title.kind, title.ids.iter().collect::<Vec<_>>());
-            if sent.has_any(kind, &ids) || in_batch.has_any(kind, &ids) {
+            let seen = |by: &[ExternalId]| sent.has_any(kind, by) || in_batch.has_any(kind, by);
+            if seen(&ids) {
                 continue;
             }
-            if let Some((hit, known_by)) = self.hit(plugin, title, ids).await? {
+            // Checked again by every id its Library knows it by, since an earlier batch may have
+            // sent it by one the source didn't give.
+            let Some((hit, known_by)) = self.hit(plugin, title, ids).await? else {
+                continue;
+            };
+            if !seen(&known_by) {
                 in_batch.of(kind).extend(known_by.iter().cloned());
                 shown.push((hit, kind, known_by));
             }
