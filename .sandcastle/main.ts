@@ -35,6 +35,9 @@ const WORKING = "agent-working"; // on while a loop has the issue; off when that
 const TRIAGE = "needs-triage";
 const DECISION = "needs-decision"; // triage's answer when only the maintainer can decide
 const MAIN_RED = "main-red"; // filed by the main monitor; built by mainLoop, not the implement loop
+// Xcode work (iOS, iPadOS, tvOS, macOS). Every sandbox is a Linux container, even on the MacBook, so no factory
+// builds it yet.
+const MACOS = "needs-macos";
 // TRIAGE=off: leave needs-triage issues to a person. ONLY_ISSUE (build just that one) doesn't triage either.
 const TRIAGING = process.env.TRIAGE !== "off" && !process.env.ONLY_ISSUE;
 const BASE = "main";
@@ -370,6 +373,7 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
     if (withPr.has(i.number)) continue; // the babysitter's, or a person's
     if (i.labels.some((l) => l.name === MAIN_RED)) continue; // mainLoop's
     if (!trustedAuthor(i.author.login)) waiting.push({ issue: i.number, queue: "build", why: `written by ${i.author.login}, not you: never built` });
+    else if (i.labels.some((l) => l.name === MACOS)) waiting.push({ issue: i.number, queue: "build", why: `${MACOS}: no factory sandbox runs Xcode` });
     else if (s.total > 0) waiting.push({ issue: i.number, queue: "build", why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
     else if (blockers.length) waiting.push({ issue: i.number, queue: "build", why: `blocked by ${blockers.join(", ")} (open)` });
     else ready.push({ number: i.number, title: i.title, parent: i.parent?.number, branch: `agent/issue-${i.number}` });
