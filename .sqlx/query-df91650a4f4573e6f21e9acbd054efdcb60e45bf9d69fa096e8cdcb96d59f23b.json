@@ -1,0 +1,71 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_id AS \"library!: i64\", listed_id AS \"listed_id!: String\",\n                              plugin AS \"plugin!: String\", backdrop AS \"backdrop!: String\",\n                              ids AS \"ids?: String\",\n                              -- Read only to pick the row: SQLite takes a bare column from the\n                              -- row MAX picks. Item ids are AUTOINCREMENT, so of titles added\n                              -- at once the higher `title_item` was stored last.\n                              MAX(printf('%020d%020d', added_at, title_item)) AS \"newest!: String\"\n                       FROM (SELECT library_titles.library_id, library_titles.listed_id,\n                                    library_titles.added_at, library_titles.title_item,\n                                    item_matches.backdrop_plugin AS plugin, item_matches.backdrop, (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = IIF(library_titles.kind = 'movie', 'title', 'show')) AS ids\n                             FROM (SELECT library_id, item_id, kind, path, season, episode, own_id, listed_id,\n                      ROW_NUMBER() OVER title AS nth, MIN(item_id) OVER title AS title_item,\n                      MIN(added_at) OVER title AS first_added_at,\n                      MAX(added_at) OVER title AS newest_added_at,\n                      IIF(kind = 'movie', MIN(added_at) OVER title, MAX(added_at) OVER title)\n                          AS added_at\n               FROM (SELECT library_files.library_id, library_items.id AS item_id, library_items.kind,\n                      library_files.path, library_items.season, library_items.episode,\n                      library_items.added_at, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = 'title') AS own_id, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               JOIN libraries ON libraries.id = library_files.library_id\n               WHERE item_matches.state = 'matched'\n                 AND library_items.kind = IIF(libraries.kind = 'movies', 'movie', 'episode')\n                 AND own_id IS NOT NULL AND listed_id IS NOT NULL\n                 AND (library_items.kind = 'movie'\n                      OR (library_items.season IS NOT NULL\n                          AND library_items.episode IS NOT NULL)))\n               WINDOW title AS (PARTITION BY library_id, listed_id\n                                ORDER BY season, episode, path\n                                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)) AS library_titles\n                             JOIN item_matches ON item_matches.item_id = library_titles.item_id\n                             WHERE library_titles.nth = 1 AND item_matches.backdrop IS NOT NULL)\n                       GROUP BY library_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "library!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "listed_id!: String",
+        "ordinal": 1,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "plugin!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop_plugin"
+          }
+        }
+      },
+      {
+        "name": "backdrop!: String",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop"
+          }
+        }
+      },
+      {
+        "name": "ids?: String",
+        "ordinal": 4,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "newest!: String",
+        "ordinal": 5,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      null,
+      true,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "df91650a4f4573e6f21e9acbd054efdcb60e45bf9d69fa096e8cdcb96d59f23b"
+}

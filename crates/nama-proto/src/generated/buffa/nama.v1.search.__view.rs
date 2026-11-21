@@ -697,10 +697,12 @@ impl ::serde::Serialize for SearchResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A batch of results, ordered on the Server: Movies and Shows before Episodes, then an exact
-/// title ("Title Year" counts as exact), then a title starting with the query, then one holding
-/// each of its words whole (in both, the year it ends with aside), then one of that year, then the
-/// better fit, then the shorter title.
+/// A batch of results, ordered on the Server. The Libraries' batch: Movies and Shows before
+/// Episodes, then an exact title ("Title Year" counts as exact), then a title starting with the
+/// query, then one holding each of its words whole (in both, the year it ends with aside), then
+/// one of that year, then the better fit, then the shorter title. The title source's batch holds
+/// none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
+/// A client lists every batch's results stably sorted by `status`.
 #[derive(Clone, Debug, Default)]
 pub struct HitsView<'a> {
     /// Field 1: `hits`
@@ -1910,6 +1912,11 @@ impl ::serde::Serialize for EpisodeHitOwnedView {
 /// Marks the end of what `Search` streams.
 #[derive(Clone, Debug, Default)]
 pub struct DoneView<'a> {
+    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
+    /// The results are then only those the Libraries have.
+    ///
+    /// Field 1: `title_source_unavailable`
+    pub title_source_unavailable: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DoneView<'a> {
@@ -1942,6 +1949,13 @@ impl<'a> ::buffa::MessageView<'a> for DoneView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.title_source_unavailable = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1964,6 +1978,7 @@ impl<'a> ::buffa::MessageView<'a> for DoneView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::Done {
+            title_source_unavailable: self.title_source_unavailable,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1975,6 +1990,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DoneView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if self.title_source_unavailable {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1986,6 +2004,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DoneView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if self.title_source_unavailable {
+            ::buffa::types::put_bool_field(1u32, self.title_source_unavailable, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -2007,6 +2028,13 @@ impl<'__a> ::serde::Serialize for DoneView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if self.title_source_unavailable {
+            __map
+                .serialize_entry(
+                    "titleSourceUnavailable",
+                    &self.title_source_unavailable,
+                )?;
+        }
         __map.end()
     }
 }
@@ -2093,6 +2121,14 @@ impl DoneOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
+    }
+    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
+    /// The results are then only those the Libraries have.
+    ///
+    /// Field 1: `title_source_unavailable`
+    #[must_use]
+    pub fn title_source_unavailable(&self) -> bool {
+        self.0.reborrow().title_source_unavailable
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DoneView<'static>>> for DoneOwnedView {

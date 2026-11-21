@@ -62,9 +62,13 @@ export function useActionBar({
     void navigate({ to });
   }
   function open(title: FoundTitle) {
-    remember(title);
     dialog.close();
     const { libraryId, titleId, season } = title;
+    if (libraryId === undefined) {
+      void navigate({ to: "/movies/$movieId", params: { movieId: titleId } });
+      return;
+    }
+    remember(title);
     void (title.kind === "movie"
       ? navigate({
           to: "/libraries/$libraryId/movies/$movieId",
@@ -104,6 +108,7 @@ export function useActionBar({
     groups,
     active,
     slow,
+    titleSourceUnavailable: search.titleSourceUnavailable,
     handleClose: dialog.close,
     handleBack: back,
     pick: setPicked,
