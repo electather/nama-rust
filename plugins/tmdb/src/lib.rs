@@ -121,7 +121,6 @@ impl Plugin for Tmdb {
             source_url: concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/main/plugins/tmdb").to_owned(),
             license: env!("CARGO_PKG_LICENSE").to_owned(),
             permissions: Vec::new(),
-            tick_every: None,
             jobs: Vec::new(),
             title_source: Some(SourceManifest {
                 namespace: TMDB.to_owned(),

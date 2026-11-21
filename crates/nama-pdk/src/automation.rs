@@ -1,64 +1,9 @@
-//! The Automation lane, where the Kernel ticks an Automation Plugin, and the Kernel's functions,
-//! which any Plugin may call.
+//! The Kernel's functions, which any Plugin may call.
 
-use extism_pdk::Error;
 pub use nama_plugin_proto::nama::plugin::v1::{
-    Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind, TitleRequesters,
+    Library, LibraryKind, Permission, Title, TitleRef, TitleRefKind, TitleRequesters,
     TitleWatchStates, Titles, User, WatchState, WatchlistTitle,
 };
-
-/// An Automation Plugin: the Kernel calls [`Automation::tick`] every `tick_every_seconds` its
-/// Manifest sets, and in it the Plugin may call the Kernel's functions in [`kernel`]. Its
-/// Manifest's `points` name [`services::AUTOMATION`](crate::services::AUTOMATION) and its
-/// `permissions` the Permissions those functions need, and [`automation!`](crate::automation!)
-/// exports it:
-///
-/// ```
-/// use nama_pdk::{Automation, Tick, extism_pdk::Error};
-///
-/// struct Cleanup;
-///
-/// impl Automation for Cleanup {
-///     fn tick(_tick: Tick) -> Result<(), Error> {
-///         for library in nama_pdk::kernel::libraries()? {
-///             let _titles = nama_pdk::kernel::titles(library.id)?;
-///         }
-///         Ok(())
-///     }
-/// }
-///
-/// nama_pdk::automation!(Cleanup);
-/// ```
-pub trait Automation {
-    /// Does the Plugin's scheduled work. `tick.now_ms` is the Kernel's clock.
-    ///
-    /// # Errors
-    ///
-    /// When the work failed, such as a Kernel function refused: the Kernel logs the error's
-    /// message and ticks again on schedule.
-    fn tick(tick: Tick) -> Result<(), Error>;
-}
-
-/// Exports an [`Automation`] as the Plugin's `tick`, taking the `nama.plugin.v1.Tick` the Kernel
-/// sends it and returning a `nama.plugin.v1.Ticked`.
-#[macro_export]
-macro_rules! automation {
-    ($automation:ty) => {
-        const _: () = {
-            // `plugin_fn` expands to paths starting with `extism_pdk`.
-            use $crate::{
-                Automation, Buffa, FnResult, Tick, extism_pdk,
-                nama_plugin_proto::nama::plugin::v1::Ticked, plugin_fn,
-            };
-
-            #[plugin_fn]
-            pub fn tick(Buffa(tick): Buffa<Tick>) -> FnResult<Buffa<Ticked>> {
-                <$automation as Automation>::tick(tick)?;
-                Ok(Buffa(Ticked::default()))
-            }
-        };
-    };
-}
 
 /// The Kernel's functions, which any Plugin, whatever its Manifest's `points`, may call during any
 /// of its calls (ADR 0071). Each needs a Plugin Permission the Manifest requests in `permissions`
@@ -321,19 +266,7 @@ mod tests {
     use buffa::Message;
     use nama_plugin_proto::nama::plugin::v1::{KernelAnswer, StoreValue, kernel_answer};
 
-    use super::{Automation, Tick, kernel};
-    use crate::extism_pdk::Error;
-
-    struct Ticker;
-
-    impl Automation for Ticker {
-        fn tick(_tick: Tick) -> Result<(), Error> {
-            Ok(())
-        }
-    }
-
-    // Links only if `automation!` expands to a well-formed `tick` export.
-    crate::automation!(Ticker);
+    use super::kernel;
 
     fn encoded(result: kernel_answer::Result) -> Vec<u8> {
         KernelAnswer {

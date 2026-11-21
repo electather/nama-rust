@@ -1,8 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc};
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    automation::{Automation, Tick},
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, Registrar,
     settings::{
         PersonalSettingsCheck, SettingField, SettingKind, SettingValue, Settings, SettingsSchema,
     },
@@ -89,30 +88,20 @@ async fn a_personal_settings_check_failure_shows_neither_the_plugins_nor_the_use
 
 const LOGGING: PluginId = PluginId::from_static("logging");
 
-/// A Plugin that logs with `tracing` as it registers, ticks and is dropped, as a Built-in does.
+/// A Plugin that logs with `tracing` as it registers and is dropped, as a Built-in does.
 struct Logging;
 
 impl Plugin for Logging {
     fn manifest(&self) -> Manifest {
         Manifest {
             version: "0.0.0".to_owned(),
-            extension_points: vec![PointKey::provide::<dyn Automation>()],
-            tick_every: Some(Duration::from_secs(60)),
             ..Manifest::new(LOGGING)
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+    fn register(&self, _: &mut Registrar) -> Result<(), PluginError> {
         info!("logging registered");
-        registrar.provide::<dyn Automation>(Priority::DEFAULT, Arc::new(Self));
         Ok(())
-    }
-}
-
-impl Automation for Logging {
-    fn tick<'a>(&'a self, _: &'a Tick) -> BoxFuture<'a, Result<(), PluginError>> {
-        info!("logging ticked");
-        Box::pin(async { Ok(()) })
     }
 }
 
@@ -122,24 +111,19 @@ impl Drop for Logging {
     }
 }
 
-/// What enabling [`Logging`], its tick at enable and disabling it log.
+/// What enabling [`Logging`] and disabling it log.
 async fn logged_by_logging(registry: &Registry) -> String {
     let log = CapturedLog::start();
-    registry.serve_kernel(Arc::new(|_, _| panic!("Logging never calls the Kernel")));
     registry.enable(Arc::new(Logging)).unwrap();
-    // Lets the tick at enable run on this test's runtime before disabling cancels it.
-    for _ in 0..10 {
-        tokio::task::yield_now().await;
-    }
     assert!(registry.disable(&LOGGING).await);
     log.finish()
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_builtins_lines_as_it_registers_ticks_and_drops_are_in_a_span_naming_it() {
+async fn a_builtins_lines_as_it_registers_and_drops_are_in_a_span_naming_it() {
     let logged = logged_by_logging(&Registry::new()).await;
 
-    for what in ["registered", "ticked", "dropped"] {
+    for what in ["registered", "dropped"] {
         let line = logged
             .lines()
             .find(|line| line.ends_with(&format!("logging {what}")))
@@ -160,7 +144,7 @@ async fn an_installed_plugins_lines_get_no_span_naming_it() {
 
     let logged = logged_by_logging(&registry).await;
 
-    assert!(logged.contains("logging ticked"), "{logged}");
+    assert!(logged.contains("logging registered"), "{logged}");
     assert!(!logged.contains(" plugin{"), "{logged}");
 }
 

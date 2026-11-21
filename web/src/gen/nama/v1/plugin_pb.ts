@@ -1132,8 +1132,8 @@ export const ExtensionPoint = {
   BLOB_STORE: 10,
 
   /**
-   * Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
-   * Admin granted it allow, such as Cleanup (ADR 0048).
+   * Runs Jobs on their schedules and asks the Server's Kernel functions, as far as the
+   * Permissions an Admin granted it allow, such as Cleanup (ADR 0079).
    *
    * @generated from enum value: EXTENSION_POINT_AUTOMATION = 11;
    */

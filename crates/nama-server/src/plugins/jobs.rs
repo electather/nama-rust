@@ -53,9 +53,9 @@ pub(super) fn refusal(manifest: &Manifest) -> Option<String> {
 }
 
 /// Starts in `scope` a loop firing each of `manifest`'s scheduled Jobs, if `registrations` provide
-/// a [`JobRunner`]. The Registry calls it under its lock, as it does `tick::scope`, so the loops
-/// are in the enablement's scope before a disable can find it. Starts nothing outside a Tokio
-/// runtime, where no task can run.
+/// a [`JobRunner`]. The Registry calls it under its lock, so the loops are in the enablement's
+/// scope before a disable can find it. Starts nothing outside a Tokio runtime, where no task can
+/// run.
 pub(super) fn schedule(
     scope: &Scope,
     points: &ExtensionPoints,
@@ -143,7 +143,7 @@ fn until_next_minute() -> Duration {
 
 /// Runs `plugin`'s Job `job` once, now: how the Run ended, or `None` if the Plugin runs no Jobs,
 /// such as one disabled since or one whose Run panicked, which disabled it.
-async fn run(
+pub(super) async fn run(
     points: &ExtensionPoints,
     plugin: &PluginId,
     job: &str,

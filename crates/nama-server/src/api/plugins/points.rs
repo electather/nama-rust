@@ -5,11 +5,11 @@ use buffa::EnumValue;
 use nama_plugin_api::{
     PluginId, PointKey,
     auth::Authenticator,
-    automation::Automation,
     blob_store::BlobStore,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
     home_row::HomeRowSource,
+    job::JobRunner,
     metadata::TitleSource,
     notifier::Notifier,
     points::{Events, ServerStarted},
@@ -103,7 +103,7 @@ fn public_points() -> [(PointKey, proto::ExtensionPoint); 14] {
             Public::EXTENSION_POINT_BLOB_STORE,
         ),
         (
-            PointKey::provide::<dyn Automation>(),
+            PointKey::provide::<dyn JobRunner>(),
             Public::EXTENSION_POINT_AUTOMATION,
         ),
         (
