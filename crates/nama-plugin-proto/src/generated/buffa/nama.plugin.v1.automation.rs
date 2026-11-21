@@ -25,10 +25,10 @@ pub enum Permission {
     /// Deleting the Home rows and Featured suggestions of Users who stopped opening home:
     /// `forget_home_rows`.
     PERMISSION_FORGET_HOME_ROWS = 8i32,
-    /// Deleting the Devices and Invites that have expired: `delete_expired_sign_ins`.
-    PERMISSION_DELETE_EXPIRED_SIGN_INS = 10i32,
     /// Deleting what Plugins the Server no longer has left behind: `forget_gone_plugins`.
     PERMISSION_FORGET_GONE_PLUGINS = 9i32,
+    /// Deleting the Devices and Invites that have expired: `delete_expired_sign_ins`.
+    PERMISSION_DELETE_EXPIRED_SIGN_INS = 10i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -58,12 +58,12 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_FORGET_HOME_ROWS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ForgetHomeRows: Self = Self::PERMISSION_FORGET_HOME_ROWS;
-    ///Idiomatic alias for [`Self::PERMISSION_DELETE_EXPIRED_SIGN_INS`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const DeleteExpiredSignIns: Self = Self::PERMISSION_DELETE_EXPIRED_SIGN_INS;
     ///Idiomatic alias for [`Self::PERMISSION_FORGET_GONE_PLUGINS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ForgetGonePlugins: Self = Self::PERMISSION_FORGET_GONE_PLUGINS;
+    ///Idiomatic alias for [`Self::PERMISSION_DELETE_EXPIRED_SIGN_INS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeleteExpiredSignIns: Self = Self::PERMISSION_DELETE_EXPIRED_SIGN_INS;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -168,10 +168,10 @@ impl ::buffa::Enumeration for Permission {
             6i32 => ::core::option::Option::Some(Self::PERMISSION_READ_REQUESTS),
             7i32 => ::core::option::Option::Some(Self::PERMISSION_READ_WATCHLISTS),
             8i32 => ::core::option::Option::Some(Self::PERMISSION_FORGET_HOME_ROWS),
+            9i32 => ::core::option::Option::Some(Self::PERMISSION_FORGET_GONE_PLUGINS),
             10i32 => {
                 ::core::option::Option::Some(Self::PERMISSION_DELETE_EXPIRED_SIGN_INS)
             }
-            9i32 => ::core::option::Option::Some(Self::PERMISSION_FORGET_GONE_PLUGINS),
             _ => ::core::option::Option::None,
         }
     }
@@ -189,10 +189,10 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_REQUESTS => "PERMISSION_READ_REQUESTS",
             Self::PERMISSION_READ_WATCHLISTS => "PERMISSION_READ_WATCHLISTS",
             Self::PERMISSION_FORGET_HOME_ROWS => "PERMISSION_FORGET_HOME_ROWS",
+            Self::PERMISSION_FORGET_GONE_PLUGINS => "PERMISSION_FORGET_GONE_PLUGINS",
             Self::PERMISSION_DELETE_EXPIRED_SIGN_INS => {
                 "PERMISSION_DELETE_EXPIRED_SIGN_INS"
             }
-            Self::PERMISSION_FORGET_GONE_PLUGINS => "PERMISSION_FORGET_GONE_PLUGINS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -222,11 +222,11 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_FORGET_HOME_ROWS" => {
                 ::core::option::Option::Some(Self::PERMISSION_FORGET_HOME_ROWS)
             }
-            "PERMISSION_DELETE_EXPIRED_SIGN_INS" => {
-                ::core::option::Option::Some(Self::PERMISSION_DELETE_EXPIRED_SIGN_INS)
-            }
             "PERMISSION_FORGET_GONE_PLUGINS" => {
                 ::core::option::Option::Some(Self::PERMISSION_FORGET_GONE_PLUGINS)
+            }
+            "PERMISSION_DELETE_EXPIRED_SIGN_INS" => {
+                ::core::option::Option::Some(Self::PERMISSION_DELETE_EXPIRED_SIGN_INS)
             }
             _ => ::core::option::Option::None,
         }
@@ -242,8 +242,8 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_REQUESTS,
             Self::PERMISSION_READ_WATCHLISTS,
             Self::PERMISSION_FORGET_HOME_ROWS,
-            Self::PERMISSION_DELETE_EXPIRED_SIGN_INS,
             Self::PERMISSION_FORGET_GONE_PLUGINS,
+            Self::PERMISSION_DELETE_EXPIRED_SIGN_INS,
         ]
     }
 }
