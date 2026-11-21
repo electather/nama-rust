@@ -3,7 +3,7 @@ import { type Query, type QueryCache, useQueryClient } from "@tanstack/react-que
 import { useCallback } from "react";
 
 import { planKey } from "@/features/player/data/use-plan";
-import { PlaybackPlanSchema } from "@/gen/nama/v1/playback_pb";
+import { PlanPlaybackResponseSchema } from "@/gen/nama/v1/playback_pb";
 
 /**
  * Drops the plan `planId` from the cache once nothing shows it, so the Version's next player asks
@@ -17,7 +17,7 @@ export function useForgetPlan() {
       const plans = cache.findAll({
         queryKey: planKey,
         predicate: ({ state: { data } }) =>
-          isMessage(data, PlaybackPlanSchema) && data.id === planId,
+          isMessage(data, PlanPlaybackResponseSchema) && data.plan?.id === planId,
       });
       for (const plan of plans) {
         removeOnceUnseen(cache, plan);

@@ -31,6 +31,7 @@ export function MoviePlayer({
       line={metadataLine(yearOf(movie.releaseDate), movie.contentRating)}
       versionId={id}
       tracks={tracks}
+      versions={movie.versions}
       watchState={movie.watchState}
       posterUrl={movie.posterUrl}
       backdropUrl={movie.backdropUrl}
