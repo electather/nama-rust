@@ -15,10 +15,11 @@ pub mod kernel {
     use buffa::Message;
     use extism_pdk::Error;
     use nama_plugin_proto::nama::plugin::v1::{
-        DeleteAsked, DeleteStarted, KernelAnswer, Libraries, LibrariesAsked, Library, Requesters,
-        RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
-        TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
-        WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
+        DeleteAsked, DeleteStarted, ForgetHomeRowsAsked, HomeRowsForgotten, KernelAnswer,
+        Libraries, LibrariesAsked, Library, Requesters, RequestersAsked, StoreEntry, StoreKey,
+        StoreValue, Stored, Title, TitleRef, TitleRequesters, TitleWatchStates, Titles,
+        TitlesAsked, User, Users, UsersAsked, WatchStates, WatchStatesAsked, Watchlist,
+        WatchlistAsked, WatchlistTitle, kernel_answer,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -194,6 +195,21 @@ pub mod kernel {
         Ok(call::<DeleteStarted>("delete_media", &asked)?.taken_along)
     }
 
+    /// Deletes each User's own Home rows and Featured suggestions, for each User who hasn't opened
+    /// home in at least `days` days, and answers how many Users had some. Needs
+    /// `PERMISSION_FORGET_HOME_ROWS`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused, such as for `days` of 0, or couldn't be called.
+    pub fn forget_home_rows(days: u32) -> Result<u32, Error> {
+        let asked = ForgetHomeRowsAsked {
+            days,
+            ..ForgetHomeRowsAsked::default()
+        };
+        Ok(call::<HomeRowsForgotten>("forget_home_rows", &asked)?.users)
+    }
+
     /// Calls the Kernel function `name` with `request` and decodes its answer.
     fn call<T: Message>(name: &str, request: &impl Message) -> Result<T, Error> {
         answer(name, &raw(name, &request.try_encode_to_vec()?)?)
@@ -230,6 +246,7 @@ pub mod kernel {
             safe fn list_requesters(request: u64) -> u64;
             safe fn list_watchlist(request: u64) -> u64;
             safe fn delete_media(request: u64) -> u64;
+            safe fn forget_home_rows(request: u64) -> u64;
         }
 
         let import: extern "C" fn(u64) -> u64 = match name {
@@ -243,6 +260,7 @@ pub mod kernel {
             "list_requesters" => list_requesters,
             "list_watchlist" => list_watchlist,
             "delete_media" => delete_media,
+            "forget_home_rows" => forget_home_rows,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };
         // Freed when dropped, once the Kernel has read it.

@@ -1085,6 +1085,263 @@ pub const __LIST_JOB_RUNS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
     from_json: ::buffa::type_registry::any_from_json::<ListJobRunsResponse>,
     is_wkt: false,
 };
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct RunJobRequest {
+    /// The id of the Plugin declaring the Job, such as `upkeep`.
+    ///
+    /// Field 1: `plugin_id`
+    #[serde(
+        rename = "pluginId",
+        alias = "plugin_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub plugin_id: ::buffa::alloc::string::String,
+    /// The Job's id, such as `forget-home-rows`.
+    ///
+    /// Field 2: `job_id`
+    #[serde(
+        rename = "jobId",
+        alias = "job_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub job_id: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RunJobRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RunJobRequest")
+            .field("plugin_id", &self.plugin_id)
+            .field("job_id", &self.job_id)
+            .finish()
+    }
+}
+impl RunJobRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RunJobRequest";
+}
+::buffa::impl_default_instance!(RunJobRequest);
+impl ::buffa::MessageName for RunJobRequest {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RunJobRequest";
+    const FULL_NAME: &'static str = "nama.v1.RunJobRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RunJobRequest";
+}
+impl ::buffa::Message for RunJobRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        if !self.job_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.job_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        if !self.job_id.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.job_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.plugin_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.job_id, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.plugin_id.clear();
+        self.job_id.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RunJobRequest {
+    const PROTO_FQN: &'static str = "nama.v1.RunJobRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for RunJobRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __RUN_JOB_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.RunJobRequest",
+    to_json: ::buffa::type_registry::any_to_json::<RunJobRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<RunJobRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct RunJobResponse {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RunJobResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RunJobResponse").finish()
+    }
+}
+impl RunJobResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RunJobResponse";
+}
+::buffa::impl_default_instance!(RunJobResponse);
+impl ::buffa::MessageName for RunJobResponse {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RunJobResponse";
+    const FULL_NAME: &'static str = "nama.v1.RunJobResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RunJobResponse";
+}
+impl ::buffa::Message for RunJobResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RunJobResponse {
+    const PROTO_FQN: &'static str = "nama.v1.RunJobResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for RunJobResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __RUN_JOB_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.RunJobResponse",
+    to_json: ::buffa::type_registry::any_to_json::<RunJobResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<RunJobResponse>,
+    is_wkt: false,
+};
 /// One time the Server ran a Job.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -1136,6 +1393,17 @@ pub struct JobRun {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub error: ::buffa::alloc::string::String,
+    /// The name of the Admin who started it with `RunJob`, as it was then, or empty for a Run its
+    /// schedule started.
+    ///
+    /// Field 6: `started_by`
+    #[serde(
+        rename = "startedBy",
+        alias = "started_by",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub started_by: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1148,6 +1416,7 @@ impl ::core::fmt::Debug for JobRun {
             .field("started_at_ms", &self.started_at_ms)
             .field("ended_at_ms", &self.ended_at_ms)
             .field("error", &self.error)
+            .field("started_by", &self.started_by)
             .finish()
     }
 }
@@ -1205,6 +1474,9 @@ impl ::buffa::Message for JobRun {
         if !self.error.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.error) as u64;
         }
+        if !self.started_by.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.started_by) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1232,6 +1504,9 @@ impl ::buffa::Message for JobRun {
         }
         if !self.error.is_empty() {
             ::buffa::types::put_string_field(5u32, &self.error, buf);
+        }
+        if !self.started_by.is_empty() {
+            ::buffa::types::put_string_field(6u32, &self.started_by, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1285,6 +1560,13 @@ impl ::buffa::Message for JobRun {
                 )?;
                 ::buffa::types::merge_string(&mut self.error, buf)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.started_by, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1298,6 +1580,7 @@ impl ::buffa::Message for JobRun {
         self.started_at_ms = 0i64;
         self.ended_at_ms = ::core::option::Option::None;
         self.error.clear();
+        self.started_by.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

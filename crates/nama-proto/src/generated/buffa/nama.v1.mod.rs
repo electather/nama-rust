@@ -317,6 +317,8 @@ pub mod __buffa {
         reg.register_json_any(super::__JOB_JSON_ANY);
         reg.register_json_any(super::__LIST_JOB_RUNS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_JOB_RUNS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__RUN_JOB_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RUN_JOB_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__JOB_RUN_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__LAST_SCAN_JSON_ANY);
@@ -1417,6 +1419,14 @@ pub use self::__buffa::view::ListJobRunsRequestOwnedView;
 pub use self::__buffa::view::ListJobRunsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListJobRunsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::JobRunView;
 #[doc(inline)]

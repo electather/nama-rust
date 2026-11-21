@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO job_runs (plugin, job, outcome, started_ms)\n                         VALUES (?, ?, 'running', ?) RETURNING id",
+  "query": "INSERT INTO job_runs (plugin, job, outcome, started_ms, started_by)\n                         VALUES (?, ?, 'running', ?, ?) RETURNING id",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 4
     },
     "nullable": [
       false
     ]
   },
-  "hash": "0b01ae02aa4e31bc5a60b6af2689db60286967162452513c50009932cd1370f3"
+  "hash": "b8952bb97931f28e77940570bd39eb37499b5004ffcb3e8084320839043df334"
 }
