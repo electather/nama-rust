@@ -5239,7 +5239,7 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -5247,7 +5247,7 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -5307,17 +5307,17 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(12u32, v, buf);
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
-                14u32,
+                13u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             ::buffa::types::put_len_delimited_header(
-                13u32,
+                14u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -5958,7 +5958,7 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -5966,7 +5966,7 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -6034,17 +6034,17 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(12u32, v, buf);
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
-                14u32,
+                13u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             ::buffa::types::put_len_delimited_header(
-                13u32,
+                14u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );

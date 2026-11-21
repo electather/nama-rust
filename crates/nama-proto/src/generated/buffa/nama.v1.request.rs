@@ -10009,7 +10009,7 @@ impl ::buffa::Message for FoundMovie {
         if self.on_watchlist {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -10017,7 +10017,7 @@ impl ::buffa::Message for FoundMovie {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -10093,17 +10093,17 @@ impl ::buffa::Message for FoundMovie {
         if self.on_watchlist {
             ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
-                19u32,
+                18u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             ::buffa::types::put_len_delimited_header(
-                18u32,
+                19u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -10289,18 +10289,6 @@ impl ::buffa::Message for FoundMovie {
                 )?;
                 self.on_watchlist = ::buffa::types::decode_bool(buf)?;
             }
-            19u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let mut elem = ::core::default::Default::default();
-                ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&elem),
-                )?;
-                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
-                self.similar.push(elem);
-            }
             18u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -10312,6 +10300,18 @@ impl ::buffa::Message for FoundMovie {
                 )?;
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.trailers.push(elem);
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -10337,8 +10337,8 @@ impl ::buffa::Message for FoundMovie {
         self.genres.clear();
         self.content_rating = ::core::option::Option::None;
         self.on_watchlist = false;
-        self.similar.clear();
         self.trailers.clear();
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -11541,7 +11541,7 @@ impl ::buffa::Message for FoundShow {
         if self.on_watchlist {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -11549,7 +11549,7 @@ impl ::buffa::Message for FoundShow {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -11635,17 +11635,17 @@ impl ::buffa::Message for FoundShow {
         if self.on_watchlist {
             ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
-                19u32,
+                18u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             ::buffa::types::put_len_delimited_header(
-                18u32,
+                19u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -11836,18 +11836,6 @@ impl ::buffa::Message for FoundShow {
                 )?;
                 self.on_watchlist = ::buffa::types::decode_bool(buf)?;
             }
-            19u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let mut elem = ::core::default::Default::default();
-                ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&elem),
-                )?;
-                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
-                self.similar.push(elem);
-            }
             18u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -11859,6 +11847,18 @@ impl ::buffa::Message for FoundShow {
                 )?;
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.trailers.push(elem);
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -11884,8 +11884,8 @@ impl ::buffa::Message for FoundShow {
         self.genres.clear();
         self.content_rating = ::core::option::Option::None;
         self.on_watchlist = false;
-        self.similar.clear();
         self.trailers.clear();
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

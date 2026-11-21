@@ -123,7 +123,6 @@ pub(crate) fn router(
         artwork: artwork.clone(),
         settings: image_settings.clone(),
     };
-    let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
@@ -150,19 +149,19 @@ pub(crate) fn router(
             libraries: Libraries::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(BrowseServiceHandler {
-            browse: browse.clone(),
+            browse: Browse::new(Arc::clone(&db)),
             home_rows: home_rows.clone(),
             settings: settings.clone(),
             images: images.clone(),
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(SearchServiceHandler {
-            browse: browse.clone(),
+            browse: Browse::new(Arc::clone(&db)),
             requests: requests.clone(),
             images: images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
-            browse: browse.clone(),
+            browse: Browse::new(Arc::clone(&db)),
             running: running.clone(),
         }))
         .add_service(Arc::new(WatchlistServiceHandler {
@@ -183,7 +182,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(RequestServiceHandler {
             requests,
-            browse,
+            browse: Browse::new(Arc::clone(&db)),
             images: images.clone(),
             db: Arc::clone(&db),
         }))

@@ -16704,7 +16704,7 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundMovieView<'a> {
         if self.on_watchlist {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -16712,7 +16712,7 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundMovieView<'a> {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -16789,17 +16789,17 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundMovieView<'a> {
         if self.on_watchlist {
             ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
-                19u32,
+                18u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             ::buffa::types::put_len_delimited_header(
-                18u32,
+                19u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -18991,7 +18991,7 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundShowView<'a> {
         if self.on_watchlist {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -18999,7 +18999,7 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundShowView<'a> {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -19086,17 +19086,17 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundShowView<'a> {
         if self.on_watchlist {
             ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
         }
-        for v in &self.similar {
+        for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
-                19u32,
+                18u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.trailers {
+        for v in &self.similar {
             ::buffa::types::put_len_delimited_header(
-                18u32,
+                19u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
