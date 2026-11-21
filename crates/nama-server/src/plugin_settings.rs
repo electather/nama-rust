@@ -27,6 +27,7 @@ use tracing::{Instrument as _, error, info, warn};
 use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
+    library::Contents,
     plugins::{
         CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, Registry,
         list_jobs, log_not_enabled, read_installed,
@@ -588,9 +589,20 @@ impl PluginSettings {
             // running, as a crash can anyway; the next start then refuses until an admin enables
             // one.
             this.registry.disable(&id).await;
+            this.forget_similar(&id).await;
             Ok(())
         })
         .await
+    }
+
+    /// Deletes the Similar titles the Plugin `id` answered, as disabling it does (ADR 0084), so
+    /// enabling it again shows them only as its titles refresh. Pages already leave out a disabled
+    /// Plugin's, so a failure is only logged.
+    async fn forget_similar(&self, id: &PluginId) {
+        let contents = Contents::new(Arc::clone(&self.db));
+        if let Err(err) = contents.forget_similar_from(id).await {
+            error!(plugin = %id, %err, "couldn't delete a disabled Plugin's Similar titles");
+        }
     }
 
     /// Enables the Plugin `id` again with `settings` and the Plugin Permissions `granted`, even if

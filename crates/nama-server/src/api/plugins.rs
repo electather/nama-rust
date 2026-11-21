@@ -24,7 +24,7 @@ use crate::{
     db::Database,
     diagnostics::{self, PluginLine},
     images::PluginLogos,
-    library::{Contents, CustomImageUrls, CustomImages, Slot},
+    library::{CustomImageUrls, CustomImages, Slot},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
@@ -188,14 +188,10 @@ impl PluginService for PluginServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DisablePluginRequest>,
     ) -> ServiceResult<DisablePluginResponse> {
-        let plugin = PluginId::from(request.id.to_owned());
-        (self.plugin_settings.disable(&plugin).await).map_err(change_refused)?;
-        // Its Similar titles go, and come back only as its titles refresh (ADR 0084). Pages
-        // already leave out a disabled Plugin's, so a failure here only leaves them stored.
-        let contents = Contents::new(Arc::clone(&self.db));
-        if let Err(err) = contents.forget_similar_from(&plugin).await {
-            tracing::error!(%plugin, %err, "couldn't delete a disabled Plugin's Similar titles");
-        }
+        self.plugin_settings
+            .disable(&PluginId::from(request.id.to_owned()))
+            .await
+            .map_err(change_refused)?;
         Response::ok(DisablePluginResponse::default())
     }
 
