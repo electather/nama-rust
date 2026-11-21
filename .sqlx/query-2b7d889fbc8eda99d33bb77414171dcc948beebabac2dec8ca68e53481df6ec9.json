@@ -1,11 +1,23 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                              library_files.modified_ns, library_files.parser_version,\n                              library_items.season AS \"season!\",\n                              library_items.episode AS \"episode!\",\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\",\n                              item_matches.title AS \"title!\",\n                              item_matches.show_title AS \"show_title!\",\n                              overview, release_date, runtime_minutes, poster, poster_plugin,\n                              backdrop, backdrop_plugin, titled_backdrop, titled_backdrop_plugin,\n                              logo, logo_plugin, still, genres,\n                              content_rating, show_poster, show_poster_plugin, show_overview,\n                              show_first_air_date, metadata_version, library_items.added_at,\n                              libraries.title_sources\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       WHERE library_files.library_id = ?1\n                         AND library_items.kind = 'episode'\n                         AND item_matches.state = 'matched'\n                         AND (?2 IS NULL\n                              OR EXISTS (SELECT 1 FROM item_match_ids AS named\n                                         JOIN json_each(?2) AS only\n                                           ON only.value = named.namespace || '-' || named.value\n                                         WHERE named.item_id = item_matches.item_id\n                                           AND named.scope = 'show'))\n                       ORDER BY library_items.season, library_items.episode, library_files.path",
+  "query": "WITH titles AS (SELECT * FROM (SELECT library_id, item_id, kind, path, season, episode, own_id, listed_id,\n                      ROW_NUMBER() OVER title AS nth, MIN(item_id) OVER title AS title_item,\n                      MIN(added_at) OVER title AS first_added_at,\n                      MAX(added_at) OVER title AS newest_added_at,\n                      IIF(kind = 'movie', MIN(added_at) OVER title, MAX(added_at) OVER title)\n                          AS added_at\n               FROM (SELECT library_files.library_id, library_items.id AS item_id, library_items.kind,\n                      library_files.path, library_items.season, library_items.episode,\n                      library_items.added_at, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = 'title') AS own_id, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               JOIN libraries ON libraries.id = library_files.library_id\n               WHERE item_matches.state = 'matched'\n                 AND own_id IS NOT NULL AND listed_id IS NOT NULL\n                 AND (library_items.kind = 'movie'\n                      OR (library_items.season IS NOT NULL\n                          AND library_items.episode IS NOT NULL)))\n               WINDOW title AS (PARTITION BY library_id, listed_id\n                                ORDER BY season, episode, path\n                                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)) AS library_titles\n                                 WHERE library_id = ?1 AND kind = 'episode')\n                       SELECT titles.listed_id AS \"listed_id!: String\",\n                              titles.own_id AS \"own_id!: String\",\n                              library_files.id AS \"file!\", library_files.path,\n                              library_files.size, library_files.modified_ns,\n                              library_files.parser_version, titles.season AS \"season!: i64\",\n                              titles.episode AS \"episode!: i64\",\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\",\n                              item_matches.title AS \"title!\",\n                              item_matches.show_title AS \"show_title!\",\n                              item_matches.overview, item_matches.release_date,\n                              item_matches.runtime_minutes, item_matches.poster,\n                              item_matches.poster_plugin, item_matches.backdrop,\n                              item_matches.backdrop_plugin, item_matches.titled_backdrop,\n                              item_matches.titled_backdrop_plugin, item_matches.logo,\n                              item_matches.logo_plugin, item_matches.still, item_matches.genres,\n                              item_matches.content_rating, item_matches.show_poster,\n                              item_matches.show_poster_plugin, item_matches.show_overview,\n                              item_matches.show_first_air_date, item_matches.metadata_version,\n                              titles.added_at AS \"added_at!: i64\"\n                       FROM titles\n                       JOIN item_matches ON item_matches.item_id = titles.item_id\n                       JOIN library_items ON library_items.id = titles.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       WHERE ?2 IS NULL\n                          OR titles.listed_id IN (\n                              SELECT asked.listed_id FROM titles AS asked\n                              JOIN item_match_ids AS named\n                                ON named.item_id = asked.item_id AND named.scope = 'show'\n                              JOIN json_each(?2) AS only\n                                ON only.value = named.namespace || '-' || named.value)\n                       ORDER BY titles.listed_id, titles.nth",
   "describe": {
     "columns": [
       {
-        "name": "file!",
+        "name": "listed_id!: String",
         "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "own_id!: String",
+        "ordinal": 1,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "file!",
+        "ordinal": 2,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -16,7 +28,7 @@
       },
       {
         "name": "path",
-        "ordinal": 1,
+        "ordinal": 3,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +39,7 @@
       },
       {
         "name": "size",
-        "ordinal": 2,
+        "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +50,7 @@
       },
       {
         "name": "modified_ns",
-        "ordinal": 3,
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +61,7 @@
       },
       {
         "name": "parser_version",
-        "ordinal": 4,
+        "ordinal": 6,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -59,8 +71,8 @@
         }
       },
       {
-        "name": "season!",
-        "ordinal": 5,
+        "name": "season!: i64",
+        "ordinal": 7,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -70,8 +82,8 @@
         }
       },
       {
-        "name": "episode!",
-        "ordinal": 6,
+        "name": "episode!: i64",
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,7 +94,7 @@
       },
       {
         "name": "plugin!",
-        "ordinal": 7,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,19 +105,19 @@
       },
       {
         "name": "ids?: String",
-        "ordinal": 8,
-        "type_info": "Text",
+        "ordinal": 10,
+        "type_info": "Null",
         "origin": "Expression"
       },
       {
         "name": "show_ids?: String",
-        "ordinal": 9,
-        "type_info": "Text",
+        "ordinal": 11,
+        "type_info": "Null",
         "origin": "Expression"
       },
       {
         "name": "title!",
-        "ordinal": 10,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -116,7 +128,7 @@
       },
       {
         "name": "show_title!",
-        "ordinal": 11,
+        "ordinal": 13,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -127,7 +139,7 @@
       },
       {
         "name": "overview",
-        "ordinal": 12,
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -138,7 +150,7 @@
       },
       {
         "name": "release_date",
-        "ordinal": 13,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -149,7 +161,7 @@
       },
       {
         "name": "runtime_minutes",
-        "ordinal": 14,
+        "ordinal": 16,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -160,7 +172,7 @@
       },
       {
         "name": "poster",
-        "ordinal": 15,
+        "ordinal": 17,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -171,7 +183,7 @@
       },
       {
         "name": "poster_plugin",
-        "ordinal": 16,
+        "ordinal": 18,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -182,7 +194,7 @@
       },
       {
         "name": "backdrop",
-        "ordinal": 17,
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -193,7 +205,7 @@
       },
       {
         "name": "backdrop_plugin",
-        "ordinal": 18,
+        "ordinal": 20,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -204,7 +216,7 @@
       },
       {
         "name": "titled_backdrop",
-        "ordinal": 19,
+        "ordinal": 21,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -215,7 +227,7 @@
       },
       {
         "name": "titled_backdrop_plugin",
-        "ordinal": 20,
+        "ordinal": 22,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -226,7 +238,7 @@
       },
       {
         "name": "logo",
-        "ordinal": 21,
+        "ordinal": 23,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -237,7 +249,7 @@
       },
       {
         "name": "logo_plugin",
-        "ordinal": 22,
+        "ordinal": 24,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -248,7 +260,7 @@
       },
       {
         "name": "still",
-        "ordinal": 23,
+        "ordinal": 25,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -259,7 +271,7 @@
       },
       {
         "name": "genres",
-        "ordinal": 24,
+        "ordinal": 26,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -270,7 +282,7 @@
       },
       {
         "name": "content_rating",
-        "ordinal": 25,
+        "ordinal": 27,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -281,7 +293,7 @@
       },
       {
         "name": "show_poster",
-        "ordinal": 26,
+        "ordinal": 28,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -292,7 +304,7 @@
       },
       {
         "name": "show_poster_plugin",
-        "ordinal": 27,
+        "ordinal": 29,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -303,7 +315,7 @@
       },
       {
         "name": "show_overview",
-        "ordinal": 28,
+        "ordinal": 30,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -314,7 +326,7 @@
       },
       {
         "name": "show_first_air_date",
-        "ordinal": 29,
+        "ordinal": 31,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -325,7 +337,7 @@
       },
       {
         "name": "metadata_version",
-        "ordinal": 30,
+        "ordinal": 32,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -335,66 +347,51 @@
         }
       },
       {
-        "name": "added_at",
-        "ordinal": 31,
-        "type_info": "Integer",
-        "origin": {
-          "Table": {
-            "table": "library_items",
-            "name": "added_at"
-          }
-        }
-      },
-      {
-        "name": "title_sources",
-        "ordinal": 32,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "libraries",
-            "name": "title_sources"
-          }
-        }
+        "name": "added_at!: i64",
+        "ordinal": 33,
+        "type_info": "Null",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Right": 2
     },
     "nullable": [
+      null,
+      null,
+      null,
       false,
       false,
       false,
       false,
+      true,
+      true,
+      true,
+      null,
+      null,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
       false,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      false,
-      false,
-      false
+      null
     ]
   },
-  "hash": "17af85dd55c782981ace7bc11bfab921f8b679d2f9c75101fcccda7b6df9aa86"
+  "hash": "2b7d889fbc8eda99d33bb77414171dcc948beebabac2dec8ca68e53481df6ec9"
 }

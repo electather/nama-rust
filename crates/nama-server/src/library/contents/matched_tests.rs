@@ -205,22 +205,6 @@ async fn a_movie_matched_only_to_a_made_up_id_is_listed_and_found_by_it() {
 }
 
 #[tokio::test]
-async fn two_files_matched_to_one_made_up_id_are_one_movie_with_two_versions() {
-    let fx = Fixture::new().await;
-    let anidb = made_up("anidb", "m-1");
-    let other = "/media/Alien (1979)/Alien (1979) - Director's Cut.mkv";
-    for path in [ALIEN, other] {
-        fx.store(path, 10, movie("Alien", 1979)).await;
-        match_movie(&fx, path, ExternalIds::from_iter([anidb.clone()])).await;
-    }
-
-    let movies = fx.contents.movies(fx.library, None).await.unwrap();
-    assert_eq!(movies.len(), 1);
-    assert_eq!(movies[0].id, anidb);
-    assert_eq!(movies[0].versions.len(), 2);
-}
-
-#[tokio::test]
 async fn a_movie_with_a_made_up_and_a_tmdb_id_is_identified_by_tmdb_and_found_by_either() {
     let fx = Fixture::new().await;
     let mal = made_up("mal", "42");
@@ -316,59 +300,30 @@ async fn sqlite_refuses_an_id_whose_namespace_is_not_lowercase_letters_and_digit
 }
 
 #[tokio::test]
-async fn a_library_lists_its_titles_under_the_id_of_its_first_title_source() {
+async fn movies_only_an_id_one_version_holds_returns_the_movie_with_both_versions() {
     let fx = Fixture::new().await;
-    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
-    match_movie(
-        &fx,
-        ALIEN,
-        ExternalIds::from_iter([ExternalId::tmdb(348), ExternalId::tvdb(1)]),
-    )
-    .await;
-    let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
-    let episode = Item::Episode {
-        show: "Firefly".to_owned(),
-        year: None,
-        hint: None,
-        season: 1,
-        episode: 2,
-    };
-    fx.store(path, 10, episode).await;
-    let metadata = super::super::Metadata {
-        ids: ExternalIds::from_iter([ExternalId::tmdb(1001), ExternalId::tvdb(297_989)]),
-        show_ids: ExternalIds::from_iter([ExternalId::tmdb(1437), ExternalId::tvdb(78874)]),
-        ..tmdb_movie(0, "The Train Job")
-    };
-    let item = fx.item(path).await;
-    fx.contents
-        .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+    // Sorts before `ALIEN`, so it is the first Version, whose Match lacks the asked id.
+    let cut = "/media/Alien (1979)/Alien (1979) - Director's Cut.mkv";
+    for path in [ALIEN, cut] {
+        fx.store(path, 10, movie("Alien", 1979)).await;
+    }
+    let asked = imdb("tt0078748");
+    match_movie(&fx, cut, ExternalIds::from_iter([ExternalId::tmdb(348)])).await;
+    let both = [ExternalId::tmdb(348), asked.clone()];
+    match_movie(&fx, ALIEN, ExternalIds::from_iter(both)).await;
+
+    let movies = fx
+        .contents
+        .movies(fx.library, Some(&[asked]))
         .await
         .unwrap();
-    let listed = async || {
-        let movies = fx.contents.movies(fx.library, None).await.unwrap();
-        let shows = fx.contents.shows(fx.library, None).await.unwrap();
-        let episode_id = shows[0].seasons[&1].episodes[0].id.clone();
-        (movies[0].id.clone(), shows[0].id.clone(), episode_id)
-    };
 
-    let listed_by_tmdb = (
-        ExternalId::tmdb(348),
-        ExternalId::tmdb(1437),
-        ExternalId::tmdb(1001),
-    );
-    assert_eq!(listed().await, listed_by_tmdb);
-
-    let order = vec!["tvdb".to_owned(), "tmdb".to_owned()];
-    fx.libraries
-        .set_title_sources(fx.library, order)
-        .await
-        .unwrap();
-    let after_reorder = (
-        ExternalId::tvdb(1),
-        ExternalId::tvdb(78874),
-        ExternalId::tvdb(297_989),
-    );
-    assert_eq!(listed().await, after_reorder);
+    assert_eq!(movies.len(), 1);
+    let paths: Vec<_> = (movies[0].versions.iter())
+        .map(|version| version.path.as_str())
+        .collect();
+    assert_eq!(paths, [cut, ALIEN]);
+    assert_eq!(movies[0].ids.get("imdb"), None, "the first Version's ids");
 }
 
 #[tokio::test]

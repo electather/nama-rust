@@ -136,13 +136,27 @@ async fn the_preferred_id_follows_the_librarys_title_sources_and_moves_when_they
         &[ExternalId::tmdb(348), ExternalId::tvdb(1)],
     )
     .await;
+    let firefly = [ExternalId::tmdb(1437), ExternalId::tvdb(78874)];
+    let episode = [ExternalId::tmdb(1001), ExternalId::tvdb(297_989)];
+    fx.episode("/s/Firefly S01E02.mkv", (1, 2), &episode, &firefly)
+        .await;
+    let ids = async || {
+        let movies = fx.listed_ids(fx.movies).await;
+        let shows = fx.places(fx.shows).await;
+        let episodes = shows.into_iter().map(|(listed, own, _, _)| (listed, own));
+        (movies, episodes.collect::<Vec<_>>())
+    };
 
-    let before = fx.listed_ids(fx.movies).await;
+    let before = ids().await;
     fx.order_titles_by(fx.movies, &["tvdb", "tmdb"]).await;
-    let after = fx.listed_ids(fx.movies).await;
+    fx.order_titles_by(fx.shows, &["tvdb", "tmdb"]).await;
+    let after = ids().await;
 
-    assert_eq!(before, ["tmdb-348"]);
-    assert_eq!(after, ["tvdb-1"]);
+    let text = |listed: &str, own: &str| (listed.to_owned(), own.to_owned());
+    assert_eq!(before.0, ["tmdb-348"]);
+    assert_eq!(before.1, [text("tmdb-1437", "tmdb-1001")]);
+    assert_eq!(after.0, ["tvdb-1"]);
+    assert_eq!(after.1, [text("tvdb-78874", "tvdb-297989")]);
 }
 
 #[tokio::test]
