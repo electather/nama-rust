@@ -18,9 +18,9 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
     db::Database,
-    home_rows::{HomeRows, OnServer, RowTitle},
+    home_rows::{HomeRows, RowTitle},
     library::{
-        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
+        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, OnServer, Role,
         ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
@@ -33,6 +33,7 @@ use super::{
     ImageSources, caller, database_failed, external_id_to_proto, proto_number,
     requests::{missing_movie_to_proto, missing_show_to_proto},
     required_id,
+    search::{movie_hits, show_hits},
 };
 
 mod refusals;
@@ -152,8 +153,14 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let on_watchlist = (self.on_watchlist(user.id, TitleKind::Movie, &movie.ids)).await?;
+        let similar = (self
+            .browse
+            .similar(request.library_id, TitleKind::Movie, &movie.ids))
+        .await;
+        let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(GetMovieResponse {
+            similar: movie_hits(similar, &images),
             movie: proto::Movie {
                 on_watchlist,
                 ..movie_to_proto(movie, state, &images)
@@ -233,6 +240,11 @@ impl BrowseService for BrowseServiceHandler {
         let on_watchlist = (self.on_watchlist(user, TitleKind::Show, &show.ids)).await?;
         let aired = self.browse.aired_episodes(&show).await;
         let aired_episode_count = aired.map_err(database_failed)?;
+        let similar = (self
+            .browse
+            .similar(request.library_id, TitleKind::Show, &show.ids))
+        .await;
+        let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         let seasons = (show.seasons.iter())
             .map(|(&number, season)| {
@@ -256,6 +268,7 @@ impl BrowseService for BrowseServiceHandler {
             .into(),
             seasons,
             aired_episode_count,
+            similar: show_hits(similar, &images),
             ..Default::default()
         })
     }

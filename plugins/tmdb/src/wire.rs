@@ -105,7 +105,7 @@ impl WireIds {
     }
 }
 
-/// `/movie/{id}?append_to_response=external_ids,release_dates`.
+/// `/movie/{id}?append_to_response=external_ids,release_dates,recommendations`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieDetails {
     id: i64,
@@ -126,6 +126,8 @@ pub(crate) struct MovieDetails {
     genres: Vec<Genre>,
     #[serde(default)]
     release_dates: ReleaseDates,
+    #[serde(default)]
+    recommendations: Recommendations,
 }
 
 impl MovieDetails {
@@ -150,12 +152,13 @@ impl MovieDetails {
             }),
             score: self.votes.score(),
             original_language: original_language(self.original_language),
+            similar: self.recommendations.ids(),
             ..Default::default()
         }
     }
 }
 
-/// `/tv/{id}?append_to_response=external_ids,content_ratings`.
+/// `/tv/{id}?append_to_response=external_ids,content_ratings,recommendations`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowDetails {
     id: i64,
@@ -176,6 +179,8 @@ pub(crate) struct ShowDetails {
     original_language: Option<String>,
     #[serde(flatten)]
     votes: Votes,
+    #[serde(default)]
+    recommendations: Recommendations,
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,8 +205,25 @@ impl ShowDetails {
             content_rating: rated.and_then(|rated| present(rated.rating)),
             score: self.votes.score(),
             original_language: original_language(self.original_language),
+            similar: self.recommendations.ids(),
             ..Default::default()
         }
+    }
+}
+
+/// `recommendations`, appended to a Movie's or Show's details: the first page of the titles of its
+/// kind TMDB recommends with it, most alike first.
+#[derive(Debug, Default, Deserialize)]
+struct Recommendations {
+    #[serde(default)]
+    results: Vec<FoundTitle>,
+}
+
+impl Recommendations {
+    fn ids(self) -> Vec<TitleId> {
+        (self.results.iter())
+            .map(|title| title_id(&ExternalId::tmdb(title.id)))
+            .collect()
     }
 }
 

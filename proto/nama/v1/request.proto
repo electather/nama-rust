@@ -649,6 +649,8 @@ message FoundMovie {
   optional string content_rating = 16;
   // As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
   bool on_watchlist = 17;
+  // As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+  repeated MovieHit similar = 18;
 }
 
 message LookUpMovieRequest {
@@ -724,6 +726,8 @@ message FoundShow {
   optional string content_rating = 16;
   // As `FoundMovie.on_watchlist`.
   bool on_watchlist = 17;
+  // As `FoundMovie.similar`, for the Show.
+  repeated ShowHit similar = 18;
 }
 
 // A Season of a Show in the title source, and how close it is to being on the Server: in a

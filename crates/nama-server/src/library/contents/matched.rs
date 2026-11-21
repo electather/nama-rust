@@ -415,7 +415,7 @@ impl Contents {
                        JOIN item_matches ON item_matches.item_id = titles.item_id
                        JOIN library_items ON library_items.id = titles.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
-                       -- Keyed as `scores::store` keys it.
+                       -- Keyed as `per_title::store` keys it.
                        LEFT JOIN title_scores
                            ON title_scores.plugin = item_matches.plugin
                           AND title_scores.kind = 'movie'
@@ -528,7 +528,7 @@ impl Contents {
                        JOIN item_matches ON item_matches.item_id = titles.item_id
                        JOIN library_items ON library_items.id = titles.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
-                       -- Keyed as `scores::store` keys it.
+                       -- Keyed as `per_title::store` keys it.
                        LEFT JOIN title_scores
                            ON title_scores.plugin = item_matches.plugin
                           AND title_scores.kind = 'show'

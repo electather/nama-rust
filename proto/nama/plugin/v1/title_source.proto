@@ -231,6 +231,9 @@ message Movie {
   optional double score = 11;
   // The ISO 639-1 code of the language it was made in, such as `ja`.
   optional string original_language = 12;
+  // Its Similar titles: the Movies this source says are like it, most alike first, each by one
+  // id. The Kernel keeps the first 20 and drops a malformed one.
+  repeated TitleId similar = 13;
 }
 
 // A Show's details.
@@ -259,6 +262,8 @@ message Show {
   optional double score = 11;
   // As `Movie.original_language`.
   optional string original_language = 12;
+  // As `Movie.similar`, the Shows this source says are like it.
+  repeated TitleId similar = 13;
 }
 
 // One Season of a Show, with its Episodes.

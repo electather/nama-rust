@@ -112,6 +112,32 @@ fn a_score_outside_0_to_10_is_dropped_not_stored() {
 }
 
 #[test]
+fn similar_titles_keep_the_first_20_well_formed_ids_in_order() {
+    let tmdb = |id: i64| wire::TitleId {
+        namespace: "tmdb".to_owned(),
+        value: id.to_string(),
+        ..Default::default()
+    };
+    let malformed = wire::TitleId {
+        namespace: "no such namespace!".to_owned(),
+        value: "1".to_owned(),
+        ..Default::default()
+    };
+    let given = std::iter::once(malformed)
+        .chain((1..=25).map(tmdb))
+        .collect();
+
+    let similar = movie(wire::Movie {
+        similar: given,
+        ..Default::default()
+    })
+    .unwrap()
+    .similar;
+
+    assert_eq!(similar, (1..=20).map(ExternalId::tmdb).collect::<Vec<_>>());
+}
+
+#[test]
 fn an_episode_keeps_its_numbers_and_still() {
     let aired = wire::Episode {
         ids: vec![id("tvdb", "349232")],

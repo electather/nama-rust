@@ -23,6 +23,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    browse::Browse,
     db::Database,
     library::{
         Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
@@ -36,7 +37,10 @@ use crate::{
 };
 
 use super::{
-    Refused, caller, database_failed, external_id_to_proto, refuse, required_id,
+    Refused,
+    browse::{Fields, refused},
+    caller, database_failed, external_id_to_proto, refuse, required_id,
+    search::{movie_hits, show_hits},
     title_kind_from_proto,
 };
 
@@ -46,6 +50,8 @@ use super::{
 /// [`Requests`] shows a User only their own Requests.
 pub(super) struct RequestServiceHandler {
     pub(super) requests: Requests,
+    /// Finds which of a looked-up title's Similar titles are in a Library.
+    pub(super) browse: Browse,
     /// The images found, or those the Server shows in their place, with their thumbhashes.
     pub(super) images: ImageSources,
     /// Holds the Watchlists that say whether a looked-up title is on the caller's.
@@ -245,9 +251,18 @@ impl RequestService for RequestServiceHandler {
         // the title source's other ids: `RemoveFromWatchlist` clears only the Matches' (#1292).
         let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Movie, &id);
         let on_watchlist = on_watchlist.await.map_err(database_failed)?;
+        let similar = (self
+            .browse
+            .in_libraries(TitleKind::Movie, &found.movie.similar))
+        .await;
+        let similar = similar.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpMovieResponse {
-            movie: looked_up_to_proto(found, on_watchlist, &images).into(),
+            movie: proto::FoundMovie {
+                similar: movie_hits(similar, &images),
+                ..looked_up_to_proto(found, on_watchlist, &images)
+            }
+            .into(),
             ..Default::default()
         })
     }
@@ -275,9 +290,18 @@ impl RequestService for RequestServiceHandler {
         // As `look_up_movie`'s.
         let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Show, &id);
         let on_watchlist = on_watchlist.await.map_err(database_failed)?;
+        let similar = (self
+            .browse
+            .in_libraries(TitleKind::Show, &found.show.similar))
+        .await;
+        let similar = similar.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpShowResponse {
-            show: looked_up_show_to_proto(found, on_watchlist, &images).into(),
+            show: proto::FoundShow {
+                similar: show_hits(similar, &images),
+                ..looked_up_show_to_proto(found, on_watchlist, &images)
+            }
+            .into(),
             ..Default::default()
         })
     }

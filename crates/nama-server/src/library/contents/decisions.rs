@@ -11,7 +11,7 @@ use sqlx::SqliteConnection;
 
 use super::{
     Contents, Item, ItemKind, ItemRow, Pin, air_dates, ids_from_json, ids_sql, parse_hint,
-    primary_id_in, scores, sort_titles::sort_title,
+    per_title, primary_id_in, sort_titles::sort_title,
 };
 use crate::{
     db::now,
@@ -219,6 +219,8 @@ pub(crate) struct Metadata {
     /// as is `original_language`.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
+    /// Its Similar titles, most alike first, kept once per title; for an Episode, its Show's.
+    pub(crate) similar: Vec<ExternalId>,
 }
 
 /// An image a Match stores: a path the title source of `plugin` serves.
@@ -582,7 +584,7 @@ pub(super) async fn insert_decisions(
             continue;
         }
         if let Decided::Matched(metadata) = &decision {
-            scores::store(&mut *conn, metadata).await?;
+            per_title::store(&mut *conn, metadata).await?;
         }
         insert_match_ids(&mut *conn, item, &row).await?;
     }

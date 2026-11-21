@@ -23,8 +23,8 @@ mod local_images;
 mod match_images;
 mod matched;
 mod pages;
+mod per_title;
 mod pins;
-mod scores;
 mod search;
 mod sort_titles;
 #[cfg(test)]

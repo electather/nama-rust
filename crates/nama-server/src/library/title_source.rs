@@ -600,6 +600,7 @@ impl Metadata {
             show_first_air_date: None,
             score: movie.score,
             original_language: movie.original_language,
+            similar: movie.similar,
         }
     }
 }

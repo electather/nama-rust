@@ -14,8 +14,8 @@ use crate::{
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, Stored,
-        TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, OnServer,
+        Stored, TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind,
         WatchStates,
     },
     page::{self, Page},
@@ -330,6 +330,37 @@ impl Browse {
             return Ok(HashMap::new());
         }
         self.tracks.of(&files).await
+    }
+
+    /// The Similar titles that the Match in `library` of the title of `kind` known by `ids`
+    /// stores, as [`Self::in_libraries`] finds them.
+    pub(crate) async fn similar(
+        &self,
+        library: i64,
+        kind: TitleKind,
+        ids: &ExternalIds,
+    ) -> Result<Vec<OnServer>, Error> {
+        let similar = self.contents.similar(library, kind, ids).await?;
+        self.in_libraries(kind, &similar).await
+    }
+
+    /// The titles of `kind` that `ids` name and a Library has, in the order of `ids`, each once,
+    /// in the oldest Library that has it, by any id it shares with one of `ids`. Every Library
+    /// counts, since every User may browse each one.
+    pub(crate) async fn in_libraries(
+        &self,
+        kind: TitleKind,
+        ids: &[ExternalId],
+    ) -> Result<Vec<OnServer>, Error> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let libraries = self.libraries.list().await.map_err(finding_failed)?;
+        let kind = match kind {
+            TitleKind::Movie => LibraryKind::Movies,
+            TitleKind::Show => LibraryKind::Shows,
+        };
+        Ok(OnServer::in_order_of(&self.contents, &libraries, kind, ids).await?)
     }
 
     async fn library(&self, library: i64) -> Result<Library, Error> {

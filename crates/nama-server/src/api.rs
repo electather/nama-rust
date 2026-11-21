@@ -163,7 +163,7 @@ pub(crate) fn router(
             images: images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
-            browse,
+            browse: browse.clone(),
             running: running.clone(),
         }))
         .add_service(Arc::new(WatchlistServiceHandler {
@@ -181,6 +181,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(RequestServiceHandler {
             requests,
+            browse,
             images: images.clone(),
             db: Arc::clone(&db),
         }))

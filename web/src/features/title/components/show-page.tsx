@@ -4,6 +4,7 @@ import { NotToldNotice } from "@/features/title/components/not-told-notice";
 import { ShowDetails } from "@/features/title/components/show-details";
 import { ShowEpisodes } from "@/features/title/components/show-episodes";
 import { ShowHero } from "@/features/title/components/show-hero";
+import { SimilarTitles } from "@/features/title/components/similar-titles";
 import { TitlePage } from "@/features/title/components/title-page";
 import { useContinueWatchingEntries } from "@/features/title/data/use-continue-watching-entries";
 import { useShow } from "@/features/title/data/use-show";
@@ -13,6 +14,7 @@ import { episodeToResume } from "@/features/title/lib/episode-to-resume";
 import { nextToWatch } from "@/features/title/lib/next-to-watch";
 import { openingSeason, seasonShown } from "@/features/title/lib/opening-season";
 import { rowSeasons } from "@/features/title/lib/row-seasons";
+import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { isGone } from "@/shared/hooks/browse";
 
@@ -20,7 +22,7 @@ import { isGone } from "@/shared/hooks/browse";
  * A Show of a Library: its top, with Play or Resume and what else may be done, every Episode in one
  * row under the name of the Season it's on, a menu that scrolls it to another, then its Details.
  * The row opens on the Season `asked`, if it has it, or else on the Season of the Episode Play
- * starts.
+ * starts. Then the Similar titles in a Library, and its Details.
  */
 export function ShowPage({
   libraryId,
@@ -65,6 +67,7 @@ export function ShowPage({
         current={season}
         onPick={pick}
       />
+      <SimilarTitles heading="Similar titles" titles={similarShows(data.similar)} />
       <ShowDetails
         libraryId={libraryId}
         show={data.show}

@@ -9778,6 +9778,15 @@ pub struct FoundMovie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub on_watchlist: bool,
+    /// As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+    ///
+    /// Field 18: `similar`
+    #[serde(
+        rename = "similar",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub similar: ::buffa::alloc::vec::Vec<MovieHit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -9801,6 +9810,7 @@ impl ::core::fmt::Debug for FoundMovie {
             .field("genres", &self.genres)
             .field("content_rating", &self.content_rating)
             .field("on_watchlist", &self.on_watchlist)
+            .field("similar", &self.similar)
             .finish()
     }
 }
@@ -9989,6 +9999,14 @@ impl ::buffa::Message for FoundMovie {
         if self.on_watchlist {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10056,6 +10074,14 @@ impl ::buffa::Message for FoundMovie {
         }
         if self.on_watchlist {
             ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
+        }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                18u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10237,6 +10263,18 @@ impl ::buffa::Message for FoundMovie {
                 )?;
                 self.on_watchlist = ::buffa::types::decode_bool(buf)?;
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10261,6 +10299,7 @@ impl ::buffa::Message for FoundMovie {
         self.genres.clear();
         self.content_rating = ::core::option::Option::None;
         self.on_watchlist = false;
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -11082,6 +11121,15 @@ pub struct FoundShow {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub on_watchlist: bool,
+    /// As `FoundMovie.similar`, for the Show.
+    ///
+    /// Field 18: `similar`
+    #[serde(
+        rename = "similar",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub similar: ::buffa::alloc::vec::Vec<ShowHit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -11105,6 +11153,7 @@ impl ::core::fmt::Debug for FoundShow {
             .field("genres", &self.genres)
             .field("content_rating", &self.content_rating)
             .field("on_watchlist", &self.on_watchlist)
+            .field("similar", &self.similar)
             .finish()
     }
 }
@@ -11289,6 +11338,14 @@ impl ::buffa::Message for FoundShow {
         if self.on_watchlist {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -11366,6 +11423,14 @@ impl ::buffa::Message for FoundShow {
         }
         if self.on_watchlist {
             ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
+        }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                18u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -11552,6 +11617,18 @@ impl ::buffa::Message for FoundShow {
                 )?;
                 self.on_watchlist = ::buffa::types::decode_bool(buf)?;
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -11576,6 +11653,7 @@ impl ::buffa::Message for FoundShow {
         self.genres.clear();
         self.content_rating = ::core::option::Option::None;
         self.on_watchlist = false;
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

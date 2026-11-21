@@ -112,6 +112,7 @@ fn office_episode(tmdb: i64, title: &str) -> Decided {
         show_first_air_date: None,
         score: None,
         original_language: None,
+        similar: Vec::new(),
     }))
 }
 

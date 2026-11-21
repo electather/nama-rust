@@ -2,11 +2,16 @@ import { notFound } from "@tanstack/react-router";
 
 import { MovieDetails } from "@/features/title/components/movie-details";
 import { MovieHero } from "@/features/title/components/movie-hero";
+import { SimilarTitles } from "@/features/title/components/similar-titles";
 import { TitlePage } from "@/features/title/components/title-page";
 import { useMovie } from "@/features/title/data/use-movie";
+import { similarMovies } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 
-/** A Movie of a Library: its top, with Play and what else may be done, then its Details. */
+/**
+ * A Movie of a Library: its top, with Play and what else may be done, the Similar titles in a
+ * Library, then its Details.
+ */
 export function MoviePage({
   libraryId,
   movieId,
@@ -16,12 +21,13 @@ export function MoviePage({
   movieId: ExternalId;
   params: { libraryId: string; movieId: string };
 }) {
-  const { movie, readOnlyFolder } = useMovie({ libraryId, movieId });
+  const { movie, readOnlyFolder, similar } = useMovie({ libraryId, movieId });
   if (!movie) {
     throw notFound();
   }
   return (
     <TitlePage hero={<MovieHero {...{ libraryId, movieId, movie, readOnlyFolder, params }} />}>
+      <SimilarTitles heading="Similar titles" titles={similarMovies(similar)} />
       <MovieDetails libraryId={libraryId} movie={movie} />
     </TitlePage>
   );

@@ -1,11 +1,13 @@
 //! Finding a title of a Library by any of its External IDs (ADR 0042), for Browse and for deleting
 //! media alike.
 
+use std::collections::{HashMap, HashSet};
+
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
-    Contents, Library, LibraryEpisode as Episode, LibraryKind as Kind, LibraryMovie as Movie,
-    LibrarySeason as Season, LibraryShow as Show,
+    Contents, FoundMovie, FoundShow, Library, LibraryEpisode as Episode, LibraryKind as Kind,
+    LibraryMovie as Movie, LibrarySeason as Season, LibraryShow as Show,
 };
 
 /// A title of a Library, which a User marks played or unplayed, or deletes.
@@ -101,6 +103,103 @@ impl Titles {
     }
 }
 
+/// A title on the Server, in the oldest Library that has it.
+#[derive(Debug, Clone)]
+pub(crate) enum OnServer {
+    Movie(FoundMovie),
+    Show(FoundShow),
+}
+
+impl OnServer {
+    /// The titles of `libraries`, oldest first, in its Libraries of `kind`, that have any of
+    /// `ids`, each under every one of its ids among `ids` and in the oldest Library that has it.
+    pub(crate) async fn find(
+        contents: &Contents,
+        libraries: &[Library],
+        kind: Kind,
+        ids: &[ExternalId],
+    ) -> Result<HashMap<ExternalId, Self>, sqlx::Error> {
+        let mut found = HashMap::new();
+        if ids.is_empty() {
+            return Ok(found);
+        }
+        for library in libraries.iter().filter(|library| library.kind == kind) {
+            let titles: Vec<Self> = match kind {
+                Kind::Movies => (contents.movies(library.id, Some(ids)).await?.iter())
+                    .map(|movie| Self::movie(library.id, movie))
+                    .collect(),
+                Kind::Shows => (contents.shows(library.id, Some(ids)).await?.iter())
+                    .map(|show| Self::show(library.id, show))
+                    .collect(),
+            };
+            for title in titles {
+                title.add_to(&mut found, ids);
+            }
+        }
+        Ok(found)
+    }
+
+    /// As [`Self::find`], but in the order of `ids`, a title named by two of them once, at the
+    /// first.
+    pub(crate) async fn in_order_of(
+        contents: &Contents,
+        libraries: &[Library],
+        kind: Kind,
+        ids: &[ExternalId],
+    ) -> Result<Vec<Self>, sqlx::Error> {
+        let mut found = Self::find(contents, libraries, kind, ids).await?;
+        let mut shown = HashSet::new();
+        Ok((ids.iter())
+            .filter_map(|id| found.remove(id))
+            .filter(|title| shown.insert(title.id().clone()))
+            .collect())
+    }
+
+    /// Adds it to `found` under each of its ids among `ids` that an older Library's title didn't
+    /// take.
+    fn add_to(&self, found: &mut HashMap<ExternalId, Self>, ids: &[ExternalId]) {
+        for id in self.ids().iter().filter(|id| ids.contains(id)) {
+            found.entry(id).or_insert_with(|| self.clone());
+        }
+    }
+
+    fn movie(library: i64, movie: &Movie) -> Self {
+        Self::Movie(FoundMovie {
+            library,
+            id: movie.id.clone(),
+            ids: movie.ids.clone(),
+            title: movie.title.clone(),
+            release_date: movie.release_date.clone(),
+            poster: movie.poster.clone(),
+        })
+    }
+
+    fn show(library: i64, show: &Show) -> Self {
+        Self::Show(FoundShow {
+            library,
+            id: show.id.clone(),
+            ids: show.ids.clone(),
+            title: show.title.clone(),
+            poster: show.poster().cloned(),
+        })
+    }
+
+    /// The id browsing finds it by in its Library.
+    fn id(&self) -> &ExternalId {
+        match self {
+            Self::Movie(movie) => &movie.id,
+            Self::Show(show) => &show.id,
+        }
+    }
+
+    fn ids(&self) -> &ExternalIds {
+        match self {
+            Self::Movie(movie) => &movie.ids,
+            Self::Show(show) => &show.ids,
+        }
+    }
+}
+
 /// Whether `id` is one of `ids`: any one identifies a title (ADR 0042).
 pub(crate) fn known_as(ids: &ExternalIds, id: &ExternalId) -> bool {
     ids.get(id.namespace()).as_ref() == Some(id)
@@ -142,3 +241,7 @@ pub(crate) fn named_episodes<'a>(
 pub(crate) fn episode_name<V>(show: &str, episode: &Episode<V>) -> String {
     format!("{show} S{:02}E{:02}", episode.season, episode.number)
 }
+
+#[cfg(test)]
+#[path = "titles_tests.rs"]
+mod tests;
