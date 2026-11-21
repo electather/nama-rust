@@ -182,6 +182,7 @@ pub(crate) fn router(
         .add_service(Arc::new(RequestServiceHandler {
             requests,
             images: images.clone(),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(PluginServiceHandler {
             plugin_settings: plugin_settings.clone(),

@@ -11,7 +11,10 @@ use connectrpc::{
     ErrorCode,
     client::{ClientConfig, HttpClient},
 };
-use nama_proto::nama::v1::{Permission, RefusalReason, RequestServiceClient};
+use nama_proto::nama::v1::{
+    AddToWatchlistRequest, Permission, RefusalReason, RequestServiceClient, TitleKind,
+    WatchlistServiceClient,
+};
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
 use server::{
@@ -19,6 +22,9 @@ use server::{
     requests::{Requester, title_id, tmdb_id},
     tmdb::{ALIEN, DARK, DARK_TVDB},
 };
+
+/// Alien's IMDb id, which TMDB gives beside its TMDB id.
+const ALIEN_IMDB: &str = "tt0078748";
 
 /// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
 const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
@@ -162,7 +168,7 @@ async fn looking_up_a_show_by_its_tvdb_id_finds_it_under_its_preferred_id() {
 }
 
 #[tokio::test]
-async fn a_looked_up_movie_and_show_have_their_score_and_original_language() {
+async fn a_looked_up_movie_and_show_have_their_score_original_language_genres_and_content_rating() {
     let fixture = Fixture::start().await;
     let grace = fixture.server.user("Grace", &NEW_USER).await;
     let as_grace = fixture.server.requests(&grace);
@@ -174,4 +180,41 @@ async fn a_looked_up_movie_and_show_have_their_score_and_original_language() {
     assert_eq!((alien.score, alien_language), (Some(8.2), Some("en")));
     let dark_language = dark.original_language.as_deref();
     assert_eq!((dark.score, dark_language), (Some(8.4), Some("de")));
+    assert_eq!(alien.genres, ["Horror", "Science Fiction"]);
+    assert_eq!(alien.content_rating.as_deref(), Some("R"));
+    assert_eq!(dark.genres, ["Crime", "Drama", "Mystery"]);
+    assert_eq!(dark.content_rating.as_deref(), Some("TV-MA"));
+}
+
+#[tokio::test]
+async fn a_looked_up_title_is_on_the_watchlist_of_whoever_added_it_under_any_of_its_ids() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let ada = fixture.server.user("Ada", &NEW_USER).await;
+    let watchlist = WatchlistServiceClient::new(HttpClient::plaintext(), grace.client_config());
+    let added = [
+        (TitleKind::TITLE_KIND_MOVIE, title_id("imdb", ALIEN_IMDB)),
+        (
+            TitleKind::TITLE_KIND_SHOW,
+            title_id("tvdb", &DARK_TVDB.to_string()),
+        ),
+    ];
+    for (kind, id) in added {
+        let add = AddToWatchlistRequest {
+            kind: kind.into(),
+            id: id.into(),
+            ..Default::default()
+        };
+        watchlist.add_to_watchlist(add).await.unwrap();
+    }
+
+    for (who, on_watchlist) in [(&grace, true), (&ada, false)] {
+        let as_them = fixture.server.requests(who);
+        let alien = as_them.try_look_up_movie(tmdb_id(ALIEN)).await.unwrap();
+        let dark = as_them.try_look_up_show(tmdb_id(DARK)).await.unwrap();
+        assert_eq!(
+            (alien.on_watchlist, dark.on_watchlist),
+            (on_watchlist, on_watchlist)
+        );
+    }
 }

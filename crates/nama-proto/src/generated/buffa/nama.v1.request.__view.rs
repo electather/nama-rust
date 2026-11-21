@@ -16333,6 +16333,18 @@ pub struct FoundMovieView<'a> {
     ///
     /// Field 14: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
+    /// As `nama.v1.Movie.genres`, from the title source it was looked up in.
+    ///
+    /// Field 15: `genres`
+    pub genres: ::buffa::RepeatedView<'a, &'a str>,
+    /// As `nama.v1.Movie.content_rating`, from the title source it was looked up in.
+    ///
+    /// Field 16: `content_rating`
+    pub content_rating: ::core::option::Option<&'a str>,
+    /// As `nama.v1.Movie.on_watchlist`, under any of the ids the title source gave it.
+    ///
+    /// Field 17: `on_watchlist`
+    pub on_watchlist: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for FoundMovieView<'a> {
@@ -16484,6 +16496,31 @@ impl<'a> ::buffa::MessageView<'a> for FoundMovieView<'a> {
                 )?;
                 view.original_language = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.content_rating = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.on_watchlist = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.genres.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -16535,6 +16572,9 @@ impl<'a> ::buffa::MessageView<'a> for FoundMovieView<'a> {
             backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
+            genres: self.genres.iter().map(|s| s.to_string()).collect(),
+            content_rating: self.content_rating.map(|s| s.to_string()),
+            on_watchlist: self.on_watchlist,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -16595,6 +16635,15 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundMovieView<'a> {
         if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.on_watchlist {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -16654,6 +16703,15 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundMovieView<'a> {
         }
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(14u32, v, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(15u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(16u32, v, buf);
+        }
+        if self.on_watchlist {
+            ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -16730,6 +16788,15 @@ impl<'__a> ::serde::Serialize for FoundMovieView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
+        }
+        if !self.genres.is_empty() {
+            __map.serialize_entry("genres", &*self.genres)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.content_rating {
+            __map.serialize_entry("contentRating", __v)?;
+        }
+        if self.on_watchlist {
+            __map.serialize_entry("onWatchlist", &self.on_watchlist)?;
         }
         __map.end()
     }
@@ -16915,6 +16982,27 @@ impl FoundMovieOwnedView {
     #[must_use]
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
+    }
+    /// As `nama.v1.Movie.genres`, from the title source it was looked up in.
+    ///
+    /// Field 15: `genres`
+    #[must_use]
+    pub fn genres(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().genres
+    }
+    /// As `nama.v1.Movie.content_rating`, from the title source it was looked up in.
+    ///
+    /// Field 16: `content_rating`
+    #[must_use]
+    pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().content_rating
+    }
+    /// As `nama.v1.Movie.on_watchlist`, under any of the ids the title source gave it.
+    ///
+    /// Field 17: `on_watchlist`
+    #[must_use]
+    pub fn on_watchlist(&self) -> bool {
+        self.0.reborrow().on_watchlist
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<FoundMovieView<'static>>>
@@ -18634,6 +18722,18 @@ pub struct FoundShowView<'a> {
     ///
     /// Field 14: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
+    /// As `FoundMovie.genres`.
+    ///
+    /// Field 15: `genres`
+    pub genres: ::buffa::RepeatedView<'a, &'a str>,
+    /// As `FoundMovie.content_rating`, such as `TV-MA`.
+    ///
+    /// Field 16: `content_rating`
+    pub content_rating: ::core::option::Option<&'a str>,
+    /// As `FoundMovie.on_watchlist`.
+    ///
+    /// Field 17: `on_watchlist`
+    pub on_watchlist: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for FoundShowView<'a> {
@@ -18792,6 +18892,20 @@ impl<'a> ::buffa::MessageView<'a> for FoundShowView<'a> {
                 )?;
                 view.original_language = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.content_rating = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.on_watchlist = ::buffa::types::decode_bool(&mut cur)?;
+            }
             7u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -18811,6 +18925,17 @@ impl<'a> ::buffa::MessageView<'a> for FoundShowView<'a> {
                             __sub_ctx,
                         )?,
                     );
+            }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.genres.push(__elem);
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -18875,6 +19000,9 @@ impl<'a> ::buffa::MessageView<'a> for FoundShowView<'a> {
             backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
+            genres: self.genres.iter().map(|s| s.to_string()).collect(),
+            content_rating: self.content_rating.map(|s| s.to_string()),
+            on_watchlist: self.on_watchlist,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -18945,6 +19073,15 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundShowView<'a> {
         if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.on_watchlist {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -19014,6 +19151,15 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundShowView<'a> {
         }
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(14u32, v, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(15u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(16u32, v, buf);
+        }
+        if self.on_watchlist {
+            ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -19088,6 +19234,15 @@ impl<'__a> ::serde::Serialize for FoundShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
+        }
+        if !self.genres.is_empty() {
+            __map.serialize_entry("genres", &*self.genres)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.content_rating {
+            __map.serialize_entry("contentRating", __v)?;
+        }
+        if self.on_watchlist {
+            __map.serialize_entry("onWatchlist", &self.on_watchlist)?;
         }
         __map.end()
     }
@@ -19283,6 +19438,27 @@ impl FoundShowOwnedView {
     #[must_use]
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
+    }
+    /// As `FoundMovie.genres`.
+    ///
+    /// Field 15: `genres`
+    #[must_use]
+    pub fn genres(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().genres
+    }
+    /// As `FoundMovie.content_rating`, such as `TV-MA`.
+    ///
+    /// Field 16: `content_rating`
+    #[must_use]
+    pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().content_rating
+    }
+    /// As `FoundMovie.on_watchlist`.
+    ///
+    /// Field 17: `on_watchlist`
+    #[must_use]
+    pub fn on_watchlist(&self) -> bool {
+        self.0.reborrow().on_watchlist
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<FoundShowView<'static>>>

@@ -1,9 +1,17 @@
-import { useMutation } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
+import { RequestService } from "@/gen/nama/v1/request_pb";
 import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
 import { browseKey } from "@/shared/hooks/browse";
+
+/** What says whether a title is on your Watchlist: every browse query, and the request pages'. */
+const watchlistKeys = [
+  browseKey,
+  createConnectQueryKey({ schema: RequestService.method.lookUpMovie, cardinality: "finite" }),
+  createConnectQueryKey({ schema: RequestService.method.lookUpShow, cardinality: "finite" }),
+];
 
 /** A title's place on your Watchlist, as `on_watchlist` says. */
 export interface OnWatchlist {
@@ -21,7 +29,11 @@ export function useToggleWatchlist({ kind, id, on }: OnWatchlist) {
   const queryClient = useQueryClient();
   const refetch = {
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: browseKey });
+      await Promise.all(
+        watchlistKeys.map(async (queryKey) => {
+          await queryClient.invalidateQueries({ queryKey });
+        }),
+      );
     },
   };
   const add = useMutation(WatchlistService.method.addToWatchlist, refetch);

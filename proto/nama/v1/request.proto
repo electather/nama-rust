@@ -655,6 +655,12 @@ message FoundMovie {
   optional double score = 13;
   // As `nama.v1.Movie.original_language`.
   optional string original_language = 14;
+  // As `nama.v1.Movie.genres`, from the title source it was looked up in.
+  repeated string genres = 15;
+  // As `nama.v1.Movie.content_rating`, from the title source it was looked up in.
+  optional string content_rating = 16;
+  // As `nama.v1.Movie.on_watchlist`, under any of the ids the title source gave it.
+  bool on_watchlist = 17;
 }
 
 message SearchMoviesRequest {
@@ -733,6 +739,12 @@ message FoundShow {
   optional double score = 13;
   // As `nama.v1.Movie.original_language`.
   optional string original_language = 14;
+  // As `FoundMovie.genres`.
+  repeated string genres = 15;
+  // As `FoundMovie.content_rating`, such as `TV-MA`.
+  optional string content_rating = 16;
+  // As `FoundMovie.on_watchlist`.
+  bool on_watchlist = 17;
 }
 
 // A Season of a Show in the title source, and how close it is to being on the Server: in a

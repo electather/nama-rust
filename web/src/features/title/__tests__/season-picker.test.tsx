@@ -297,12 +297,21 @@ test("a Show someone else follows shows its state, and Requesting the Whole Show
   expect(followed).toStrictEqual(["tmdb-70523"]);
 });
 
-test("a Show to Request shows its Score among its facts, and its Original audio in Details", async () => {
-  const { transport } = showServer({ ...dark, score: 8.4, originalLanguage: "de" });
+test("a Show to Request shows its Score, genres and Content Rating, its Watchlist state, and its Original audio in Details", async () => {
+  const { transport } = showServer({
+    ...dark,
+    score: 8.4,
+    originalLanguage: "de",
+    genres: ["Crime", "Drama"],
+    contentRating: "TV-MA",
+    onWatchlist: true,
+  });
   openApp("/shows/tmdb-70523", transport);
 
   const score = await screen.findByText("Score");
-  expect(score.closest("p")?.textContent).toBe("Score8.42017");
+  expect(score.closest("p")?.textContent).toBe("Score8.42017TV-MA");
+  expect(screen.getByText("Show · Crime · Drama")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Remove from your Watchlist" })).toBeDefined();
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("German");
 });

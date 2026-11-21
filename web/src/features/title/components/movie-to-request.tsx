@@ -17,7 +17,7 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
     throw notFound();
   }
   return (
-    <TitlePage hero={<MovieRequestHero movie={movie} you={you} />}>
+    <TitlePage hero={<MovieRequestHero movieId={movieId} movie={movie} you={you} />}>
       <TitleDetails
         groups={[
           { heading: "Information", facts: [["Released", movie.year?.toString()]] },
