@@ -75,6 +75,7 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 | `HOME_ROW` | `HomeRowSource`, `home_row_source!` | | `shared_rows`, `user_rows`, `user_featured` |
 | `SUBTITLE_SOURCE` | `SubtitleSource`, `subtitle_source!` | `search`, `download` | |
 | `SEGMENT_SOURCE` | `SegmentSource`, `segment_source!` | `search` | |
+| `SEARCH_SOURCE` | `SearchSource`, `search_source!` | `search` | |
 | `SIMILAR_SOURCE` | `SimilarSource`, `similar_source!` | `similar` | |
 | `JOB` | `JobRunner`, `job_runner!` | `run`; the Manifest's `jobs` declare at least one Job | |
 

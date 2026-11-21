@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{ExternalId, TitleMethod},
+    metadata::{ExternalId, ExternalIds, TitleMethod},
 };
 use nama_proto::nama::v1::{
     FollowedShow, FoundSeason, Permission, Request, RequestState, RequestedQuality,
@@ -363,10 +363,7 @@ impl Requests {
         ids.insert(hit.id.clone());
         let library = library_with_show(conn, &hit.id).await?;
         let request = self.visible_open_season_request(conn, viewer, &ids).await?;
-        let followed = match open_followed_show_by_any(conn, &ids).await? {
-            Some(id) => !(load_followed(conn, Some(id), viewer.whose_requests()).await?).is_empty(),
-            None => false,
-        };
+        let followed = sees_followed_show(conn, viewer, &ids).await?;
         Ok(ShowToRequest {
             hit,
             library,
@@ -403,6 +400,18 @@ impl Requests {
         }
         Ok(found)
     }
+}
+
+/// Whether the Show with any of `ids` has an open Followed Show `viewer` may see.
+pub(super) async fn sees_followed_show(
+    conn: &mut SqliteConnection,
+    viewer: &User,
+    ids: &ExternalIds,
+) -> Result<bool, sqlx::Error> {
+    Ok(match open_followed_show_by_any(conn, ids).await? {
+        Some(id) => !(load_followed(conn, Some(id), viewer.whose_requests()).await?).is_empty(),
+        None => false,
+    })
 }
 
 /// The year of a `YYYY-MM-DD` date.

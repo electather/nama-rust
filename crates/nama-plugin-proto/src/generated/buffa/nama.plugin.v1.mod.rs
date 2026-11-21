@@ -12,6 +12,7 @@ include!("nama.plugin.v1.job.rs");
 include!("nama.plugin.v1.manifest.rs");
 include!("nama.plugin.v1.notifier.rs");
 include!("nama.plugin.v1.recogniser.rs");
+include!("nama.plugin.v1.search_source.rs");
 include!("nama.plugin.v1.segment_source.rs");
 include!("nama.plugin.v1.similar_source.rs");
 include!("nama.plugin.v1.subtitle_source.rs");
@@ -44,6 +45,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.manifest.__view.rs");
         include!("nama.plugin.v1.notifier.__view.rs");
         include!("nama.plugin.v1.recogniser.__view.rs");
+        include!("nama.plugin.v1.search_source.__view.rs");
         include!("nama.plugin.v1.segment_source.__view.rs");
         include!("nama.plugin.v1.similar_source.__view.rs");
         include!("nama.plugin.v1.subtitle_source.__view.rs");
@@ -209,6 +211,9 @@ pub mod __buffa {
         reg.register_json_any(super::__FILE_RECOGNISED_JSON_ANY);
         reg.register_json_any(super::__RECOGNISED_MOVIE_JSON_ANY);
         reg.register_json_any(super::__RECOGNISED_EPISODES_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SOURCE_QUERY_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SOURCE_RESULTS_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SOURCE_TITLE_JSON_ANY);
         reg.register_json_any(super::__SEGMENT_SEARCH_JSON_ANY);
         reg.register_json_any(super::__SEGMENT_RESULTS_JSON_ANY);
         reg.register_json_any(super::__SEGMENT_RESULT_JSON_ANY);
@@ -770,6 +775,18 @@ pub use self::__buffa::view::RecognisedMovieOwnedView;
 pub use self::__buffa::view::RecognisedEpisodesView;
 #[doc(inline)]
 pub use self::__buffa::view::RecognisedEpisodesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSourceQueryView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSourceQueryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSourceResultsView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSourceResultsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSourceTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchSourceTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SegmentSearchView;
 #[doc(inline)]

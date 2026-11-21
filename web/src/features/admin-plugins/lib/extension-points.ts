@@ -10,6 +10,7 @@ import {
   Link,
   Rows3,
   ScanSearch,
+  Search,
   Server,
   Shapes,
   SkipForward,
@@ -35,6 +36,7 @@ export const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.HOME_ROW]: { label: "Home rows", Icon: Rows3 },
   [ExtensionPoint.SUBTITLE_SOURCE]: { label: "Subtitle source", Icon: Captions },
   [ExtensionPoint.SEGMENT_SOURCE]: { label: "Segment source", Icon: SkipForward },
+  [ExtensionPoint.SEARCH_SOURCE]: { label: "Search source", Icon: Search },
   [ExtensionPoint.SIMILAR_SOURCE]: { label: "Similar source", Icon: Shapes },
 };
 

@@ -31,6 +31,7 @@ mod log;
 mod notification_text;
 mod outside_service;
 mod recogniser;
+mod search_source;
 mod segment_source;
 mod similar_source;
 mod subtitle_source;
@@ -52,6 +53,7 @@ pub use recogniser::{
     FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
     TitleRecognised, TitleToRecognise,
 };
+pub use search_source::{SearchSource, SearchSourceQuery, SearchSourceResults, SearchSourceTitle};
 pub use segment_source::{
     SegmentKind, SegmentResult, SegmentResults, SegmentSearch, SegmentSource,
 };
