@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use nama_plugin_api::{
@@ -15,6 +16,7 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{PageRequest, PageResponse, Permission, Request};
 use serde::{Deserialize, Serialize};
+use sqlx::SqliteConnection;
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver},
     task::JoinHandle,
@@ -31,7 +33,7 @@ use refreshes::{Refreshes, Scope};
 use rows::Rows;
 
 use crate::{
-    db::Database,
+    db::{self, Database},
     library::{Contents, ImageRef, Libraries, LibraryError, LibraryKind, OnServer},
     page::{self, Page},
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
@@ -311,6 +313,36 @@ impl HomeRows {
         }
         Ok(found)
     }
+}
+
+/// Deletes the own Home rows and Featured suggestions of each User who hasn't opened home in at
+/// least `unvisited_for`, with their put-offs, so their next visit refreshes them as a stale one
+/// does. Answers how many Users had rows or suggestions.
+pub(crate) async fn forget_unvisited(
+    db: &Database,
+    unvisited_for: Duration,
+) -> Result<u32, sqlx::Error> {
+    let unvisited_for = i64::try_from(unvisited_for.as_secs()).unwrap_or(i64::MAX);
+    let before = db::now().saturating_sub(unvisited_for);
+    db.write(move |tx| {
+        Box::pin(async move {
+            let mut forgotten = 0;
+            for user in refreshes::take_unvisited(tx, before).await? {
+                forgotten += u32::from(forget_user(tx, user).await?);
+            }
+            Ok(forgotten)
+        })
+    })
+    .await
+}
+
+/// Deletes the User `user`'s own rows, suggestions and put-offs, and returns whether they had rows
+/// or suggestions.
+async fn forget_user(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
+    refreshes::forget_put_offs(conn, user).await?;
+    let had_rows = rows::delete_users_own(conn, user).await?;
+    let had_suggestions = featured::delete_users_own(conn, user).await?;
+    Ok(had_rows || had_suggestions)
 }
 
 impl Title {

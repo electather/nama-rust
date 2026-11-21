@@ -147,6 +147,17 @@ impl Adapter for Rows {
     }
 }
 
+/// Deletes the User `user`'s own rows, and returns whether they had any.
+pub(super) async fn delete_users_own(
+    conn: &mut SqliteConnection,
+    user: i64,
+) -> Result<bool, sqlx::Error> {
+    let deleted = sqlx::query!("DELETE FROM home_rows WHERE user_id = ?", user)
+        .execute(conn)
+        .await?;
+    Ok(deleted.rows_affected() > 0)
+}
+
 impl Rows {
     /// Every stored row `user` sees, in Plugin id order, then each Plugin's shared rows before
     /// `user`'s own, each in the Plugin's order, with its scope.

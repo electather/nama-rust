@@ -133,11 +133,14 @@ impl Started {
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
+    /// What is stored for each Plugin but Upkeep, which a start stores with its first grant.
     async fn stored(&self) -> BTreeMap<String, PluginConfig> {
-        plugin_settings::stored(self.server.db())
+        let mut stored = plugin_settings::stored(self.server.db())
             .await
             .unwrap()
-            .unwrap()
+            .unwrap();
+        stored.remove("upkeep");
+        stored
     }
 
     /// The Plugins a restart enables from what is stored, as `main` starts them.
@@ -267,7 +270,13 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     )))
     .unwrap();
     let mut expected = Vec::from_iter(bundled.iter().map(|id| (id.as_str(), Some(INSTALLED))));
-    let built_ins = ["local-auth", "log-events", test_choices::ID, "tmdb"];
+    let built_ins = [
+        "local-auth",
+        "log-events",
+        test_choices::ID,
+        "tmdb",
+        "upkeep",
+    ];
     expected.extend(built_ins.map(|id| (id, Some(BUILT_IN))));
     expected.sort_unstable_by_key(|(id, _)| *id);
     let kinds = listed.summaries.iter().map(|p| (&*p.id, p.kind.as_known()));
@@ -667,7 +676,8 @@ async fn a_plugins_enabled_state_survives_a_restart() {
         started.restart().await,
         [
             PluginId::from_static("local-auth"),
-            PluginId::from_static("log-events")
+            PluginId::from_static("log-events"),
+            PluginId::from_static("upkeep"),
         ]
     );
     // Disabling kept the settings it was enabled with.
@@ -690,10 +700,7 @@ async fn disabling_the_only_authenticator_is_refused_and_it_stays_enabled() {
     assert_eq!(refusal.field, "id");
     assert_eq!(refusal.params["pluginId"], "local-auth");
     assert!(started.provides::<dyn Authenticator>());
-    assert_eq!(
-        plugin_settings::stored(started.server.db()).await.unwrap(),
-        Some(BTreeMap::new())
-    );
+    assert_eq!(started.stored().await, BTreeMap::new());
 }
 
 #[tokio::test]
@@ -709,10 +716,7 @@ async fn enabling_a_plugin_missing_a_required_setting_is_refused_naming_it() {
     assert_eq!(refusal.field, "settings.api_key");
     assert_eq!(refusal.params["settingKey"], "api_key");
     assert!(!started.can_match());
-    assert_eq!(
-        plugin_settings::stored(started.server.db()).await.unwrap(),
-        Some(BTreeMap::new())
-    );
+    assert_eq!(started.stored().await, BTreeMap::new());
 }
 
 #[tokio::test]

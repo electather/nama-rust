@@ -139,6 +139,17 @@ impl Suggestions {
     }
 }
 
+/// Deletes what each Plugin suggested for the User `user`, and returns whether there was any.
+pub(super) async fn delete_users_own(
+    conn: &mut SqliteConnection,
+    user: i64,
+) -> Result<bool, sqlx::Error> {
+    let deleted = sqlx::query!("DELETE FROM featured_suggestions WHERE user_id = ?", user)
+        .execute(conn)
+        .await?;
+    Ok(deleted.rows_affected() > 0)
+}
+
 /// Adds each of `suggestions` to `suggested`, a title suggested twice at its heavier weight.
 fn add_heaviest(suggested: &mut Suggested, suggestions: Vec<Suggestion>) {
     for (title, weight) in suggestions {

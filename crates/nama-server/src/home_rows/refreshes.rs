@@ -1,7 +1,7 @@
 //! The lifecycle of an answer a Plugin gives ahead of time for a scope (ADR 0058, ADR 0072): put
 //! off before the Plugin is asked, refreshed in the background one at a time per scope, replaced
 //! in one write only while its put-off is still stored, and deleted once the Plugin stops giving
-//! it. Home rows and Featured suggestions are its two [`Adapter`]s.
+//! it or its User stops opening home. Home rows and Featured suggestions are its two [`Adapter`]s.
 
 use std::{
     collections::{BTreeSet, HashSet},
@@ -104,6 +104,7 @@ impl Refreshes {
         adapter: &A,
         reader: i64,
     ) -> Result<(), sqlx::Error> {
+        self.visited(reader).await?;
         let serving = self.points.providers::<dyn HomeRowSource>();
         for (method, user) in adapter.scopes(reader) {
             let fresh = self.fresh(method, user).await?;
@@ -117,6 +118,28 @@ impl Refreshes {
             }
         }
         Ok(())
+    }
+
+    /// Records that `reader` opened home now, which [`take_unvisited`] reads.
+    // ponytail: one write per visit to home; skip it while the stored visit is recent if visits
+    // ever queue behind the writer.
+    async fn visited(&self, reader: i64) -> Result<(), sqlx::Error> {
+        let now = db::now();
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO home_visits (user_id, visited_at) VALUES (?, ?)
+                         ON CONFLICT (user_id) DO UPDATE SET visited_at = excluded.visited_at",
+                        reader,
+                        now
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 
     /// Refreshes `scope` in the background, in its Plugin's scope, so disabling it cancels the
@@ -374,6 +397,35 @@ async fn delete_put_offs(
             .await?
         }
     };
+    Ok(())
+}
+
+/// Deletes the visits to home at or before `before`, in seconds since the Unix epoch, and returns
+/// whose they were.
+pub(super) async fn take_unvisited(
+    conn: &mut SqliteConnection,
+    before: i64,
+) -> Result<Vec<i64>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM home_visits WHERE visited_at <= ? RETURNING user_id",
+        before
+    )
+    .fetch_all(conn)
+    .await
+}
+
+/// Deletes the User `user`'s put-offs, so their next visit to home refreshes each of their scopes
+/// as one never refreshed.
+pub(super) async fn forget_put_offs(
+    conn: &mut SqliteConnection,
+    user: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM home_row_refreshes WHERE user_id = ?", user)
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query!("DELETE FROM featured_refreshes WHERE user_id = ?", user)
+        .execute(conn)
+        .await?;
     Ok(())
 }
 

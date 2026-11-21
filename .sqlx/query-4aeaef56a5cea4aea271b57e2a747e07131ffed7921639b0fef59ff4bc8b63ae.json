@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM home_row_refreshes WHERE user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "4aeaef56a5cea4aea271b57e2a747e07131ffed7921639b0fef59ff4bc8b63ae"
+}
