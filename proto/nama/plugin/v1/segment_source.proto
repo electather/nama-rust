@@ -12,7 +12,8 @@ import "nama/plugin/v1/title_source.proto";
 // The Kernel asks in the background after a Version is probed, never while it plays, and only for
 // the kinds its Chapter names and earlier sources in the Library's order left unknown. It asks a
 // Version still missing a kind again at most every 30 days, and one a source failed for sooner.
-// The outside service's rate limits are the Plugin's to keep: the Kernel doesn't count calls.
+// The outside service's rate limits are the Plugin's to keep: the Kernel doesn't count calls, but
+// waits out a `SegmentResults.retry_after_seconds` answer.
 service SegmentSourceService {
   // The `segment_search` export: where one Version's Segments are.
   rpc Search(SegmentSearch) returns (SegmentResults);
@@ -36,6 +37,10 @@ message SegmentSearch {
 message SegmentResults {
   // The Segments found, at most one of each kind: the Kernel ignores a second.
   repeated SegmentResult segments = 1;
+  // Set when the source can't answer yet, such as past its service's rate limit: the Kernel asks
+  // it about no Version for that many seconds, clamped to 1 to 300, then asks about this one
+  // again. When set, `segments` is ignored.
+  optional uint32 retry_after_seconds = 2;
 }
 
 // One stretch of the Version the player acts on.

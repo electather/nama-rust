@@ -43,6 +43,7 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use serde::{Deserialize, Serialize};
@@ -59,6 +60,20 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// Why a Plugin's handler or settings check failed.
 pub type PluginError = Box<dyn Error + Send + Sync>;
+
+/// The error a [`Fulfiller`](fulfiller::Fulfiller) or a
+/// [`SegmentSource`](segment_source::SegmentSource) returns when its service can't act yet, such
+/// as Sonarr still adding a Show or a rate limit reached: the Kernel asks again after this long.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TryAgainIn(pub Duration);
+
+impl fmt::Display for TryAgainIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "try again in {} seconds", self.0.as_secs())
+    }
+}
+
+impl Error for TryAgainIn {}
 
 /// A Plugin's stable, unique name, such as `log-events`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

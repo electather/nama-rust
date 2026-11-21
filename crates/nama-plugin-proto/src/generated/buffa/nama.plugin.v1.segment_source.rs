@@ -447,13 +447,28 @@ pub struct SegmentResults {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub segments: ::buffa::alloc::vec::Vec<SegmentResult>,
+    /// Set when the source can't answer yet, such as past its service's rate limit: the Kernel asks
+    /// it about no Version for that many seconds, clamped to 1 to 300, then asks about this one
+    /// again. When set, `segments` is ignored.
+    ///
+    /// Field 2: `retry_after_seconds`
+    #[serde(
+        rename = "retryAfterSeconds",
+        alias = "retry_after_seconds",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub retry_after_seconds: ::core::option::Option<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for SegmentResults {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SegmentResults").field("segments", &self.segments).finish()
+        f.debug_struct("SegmentResults")
+            .field("segments", &self.segments)
+            .field("retry_after_seconds", &self.retry_after_seconds)
+            .finish()
     }
 }
 impl SegmentResults {
@@ -462,6 +477,15 @@ impl SegmentResults {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.SegmentResults";
+}
+impl SegmentResults {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::retry_after_seconds`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_retry_after_seconds(mut self, value: u32) -> Self {
+        self.retry_after_seconds = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(SegmentResults);
 impl ::buffa::MessageName for SegmentResults {
@@ -491,6 +515,9 @@ impl ::buffa::Message for SegmentResults {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.retry_after_seconds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -508,6 +535,9 @@ impl ::buffa::Message for SegmentResults {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if let Some(v) = self.retry_after_seconds {
+            ::buffa::types::put_uint32_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -534,6 +564,15 @@ impl ::buffa::Message for SegmentResults {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.segments.push(elem);
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.retry_after_seconds = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -543,6 +582,7 @@ impl ::buffa::Message for SegmentResults {
     }
     fn clear(&mut self) {
         self.segments.clear();
+        self.retry_after_seconds = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

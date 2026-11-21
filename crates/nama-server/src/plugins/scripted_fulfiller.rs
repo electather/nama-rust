@@ -12,9 +12,9 @@ use std::{
 };
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, TryAgainIn,
     contract::Request,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows, StopMonitoring, TryAgainIn},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows, StopMonitoring},
 };
 use tokio::sync::Notify;
 

@@ -412,6 +412,12 @@ pub struct SegmentResultsView<'a> {
         'a,
         super::super::__buffa::view::SegmentResultView<'a>,
     >,
+    /// Set when the source can't answer yet, such as past its service's rate limit: the Kernel asks
+    /// it about no Version for that many seconds, clamped to 1 to 300, then asks about this one
+    /// again. When set, `segments` is ignored.
+    ///
+    /// Field 2: `retry_after_seconds`
+    pub retry_after_seconds: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SegmentResultsView<'a> {
@@ -444,6 +450,15 @@ impl<'a> ::buffa::MessageView<'a> for SegmentResultsView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.retry_after_seconds = Some(
+                    ::buffa::types::decode_uint32(&mut cur)?,
+                );
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -491,6 +506,7 @@ impl<'a> ::buffa::MessageView<'a> for SegmentResultsView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            retry_after_seconds: self.retry_after_seconds,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -510,6 +526,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SegmentResultsView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.retry_after_seconds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -528,6 +547,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SegmentResultsView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if let Some(v) = self.retry_after_seconds {
+            ::buffa::types::put_uint32_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -552,6 +574,13 @@ impl<'__a> ::serde::Serialize for SegmentResultsView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !self.segments.is_empty() {
             __map.serialize_entry("segments", &*self.segments)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.retry_after_seconds {
+            __map
+                .serialize_entry(
+                    "retryAfterSeconds",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
         }
         __map.end()
     }
@@ -654,6 +683,15 @@ impl SegmentResultsOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::SegmentResultView<'_>> {
         &self.0.reborrow().segments
+    }
+    /// Set when the source can't answer yet, such as past its service's rate limit: the Kernel asks
+    /// it about no Version for that many seconds, clamped to 1 to 300, then asks about this one
+    /// again. When set, `segments` is ignored.
+    ///
+    /// Field 2: `retry_after_seconds`
+    #[must_use]
+    pub fn retry_after_seconds(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().retry_after_seconds
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SegmentResultsView<'static>>>

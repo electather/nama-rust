@@ -88,7 +88,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::BLOB_STORE, "1.0.0"),
     (services::HOME_ROW, "1.4.0"),
     (services::SUBTITLE_SOURCE, "1.0.0"),
-    (services::SEGMENT_SOURCE, "1.0.0"),
+    (services::SEGMENT_SOURCE, "1.1.0"),
     (services::SIMILAR_SOURCE, "1.1.0"),
     (services::JOB, "1.0.0"),
     (services::SEARCH_SOURCE, "1.0.0"),

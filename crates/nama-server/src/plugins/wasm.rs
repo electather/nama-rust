@@ -15,9 +15,9 @@ use std::{
 
 use buffa::{DecodeError, Message};
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, Registrar,
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, Registrar, TryAgainIn,
     connector::{ConnectionStarted, Connector},
-    fulfiller::{Download, Fulfiller, Request, TryAgainIn},
+    fulfiller::{Download, Fulfiller, Request},
     job::{JobRunner, RunJob},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::{Events, ObservedEvents},
@@ -537,7 +537,8 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
     }
 }
 
-/// A Fulfiller's ask to be asked again, clamped to 1..=300 seconds as `fulfiller.proto` says.
+/// A Fulfiller's or Segment source's ask to be asked again, clamped to 1..=300 seconds as
+/// `fulfiller.proto` and `segment_source.proto` say.
 fn try_again(retry_after_seconds: Option<u32>) -> Option<TryAgainIn> {
     retry_after_seconds.map(|seconds| TryAgainIn(Duration::from_secs(seconds.clamp(1, 300).into())))
 }

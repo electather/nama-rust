@@ -2,17 +2,14 @@ use std::{collections::BTreeMap, error::Error, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, ObservePoint, Observer, Plugin, PluginError, PluginId, PointKey, Priority,
-    Registrar,
-    fulfiller::TryAgainIn,
+    Registrar, TryAgainIn,
     recogniser::Recogniser,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
 use crate::{
     log_capture::CapturedLog,
-    plugins::{
-        ExtensionPoints, Failing, FailureKind, ProviderError, Registry, fulfilling::Retryable,
-    },
+    plugins::{ExtensionPoints, Failing, FailureKind, ProviderError, Registry, Retryable},
 };
 
 const PLUGIN: PluginId = PluginId::from_static("flaky");
