@@ -145,7 +145,7 @@ fn pace(limit: usize) -> Result<(), Error> {
         .checked_sub(limit)
         .and_then(|older| sent.get(older));
     if let Some(&leaving) = leaving {
-        let leaves_in_ms = leaving + WINDOW_MS - now;
+        let leaves_in_ms = leaving.saturating_add(WINDOW_MS) - now;
         return Err(TryAgainIn(Duration::from_secs(leaves_in_ms.div_ceil(1000))).into());
     }
     sent.push(now);
