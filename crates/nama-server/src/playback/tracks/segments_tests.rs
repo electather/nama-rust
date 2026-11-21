@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     sync::{Arc, Mutex, PoisonError},
     time::Duration,
 };
@@ -15,7 +14,7 @@ use nama_plugin_api::{
 };
 use tempfile::TempDir;
 
-use super::{Segment, SegmentKind, Segments, keep, segments_of};
+use super::{Segment, SegmentKind, Segments, Waits, keep, segments_of};
 use crate::{
     db::{self, Database},
     library::{
@@ -142,13 +141,26 @@ impl Fixture {
 
     async fn ask(&self) {
         self.segments
-            .ask(self.version, &mut HashMap::new())
+            .ask(self.version, &mut Waits::default())
             .await
             .unwrap();
     }
 
     async fn stored(&self) -> Vec<Segment> {
         segments_of(&self.db, self.version).await.unwrap()
+    }
+
+    /// How long until the Version is due to be asked about again.
+    async fn due_in_ms(&self) -> i64 {
+        let due_ms = sqlx::query_scalar!(
+            "SELECT segments_due_ms FROM version_probes WHERE version_id = ?",
+            self.version
+        )
+        .fetch_one(self.db.reader())
+        .await
+        .unwrap()
+        .unwrap();
+        due_ms - db::now_ms()
     }
 
     fn asked(&self) -> Vec<&'static str> {
@@ -296,15 +308,7 @@ async fn a_version_a_source_failed_for_is_due_again_within_hours_not_days() {
     fx.ask().await;
 
     assert_eq!(fx.segments.due().await.unwrap(), Vec::<i64>::new());
-    let due_ms = sqlx::query_scalar!(
-        "SELECT segments_due_ms FROM version_probes WHERE version_id = ?",
-        fx.version
-    )
-    .fetch_one(fx.db.reader())
-    .await
-    .unwrap()
-    .unwrap();
-    let wait_ms = due_ms - db::now_ms();
+    let wait_ms = fx.due_in_ms().await;
     assert!((0..=3_600_000).contains(&wait_ms), "{wait_ms}");
 }
 
@@ -356,7 +360,7 @@ async fn a_version_a_source_said_to_try_again_for_is_asked_again_once_the_wait_i
     let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
     let fx = Fixture::new(vec![], &["limited"], vec![limited("limited", intro)]).await;
 
-    fx.segments.ask_due().await;
+    fx.segments.ask_due(&mut Waits::default()).await;
 
     assert_eq!(fx.asked(), ["limited", "limited"]);
     assert_eq!(
@@ -366,18 +370,34 @@ async fn a_version_a_source_said_to_try_again_for_is_asked_again_once_the_wait_i
 }
 
 #[tokio::test]
-async fn while_one_source_waits_the_version_stays_due_and_the_librarys_other_sources_are_asked() {
+async fn while_one_source_waits_the_version_stays_due_and_the_librarys_other_sources_are_asked_once()
+ {
     let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
     let fakes = vec![limited("limited", intro), fake("other", Some(vec![]))];
     let fx = Fixture::new(vec![], &["limited", "other"], fakes).await;
-    let mut paused = HashMap::new();
+    let mut waits = Waits::default();
 
     for _ in 0..2 {
-        (fx.segments.ask(fx.version, &mut paused)).await.unwrap();
+        (fx.segments.ask(fx.version, &mut waits)).await.unwrap();
     }
 
-    assert_eq!(fx.asked(), ["limited", "other", "other"]);
+    assert_eq!(fx.asked(), ["limited", "other"]);
     assert_eq!(fx.segments.due().await.unwrap(), [fx.version]);
+}
+
+#[tokio::test]
+async fn a_source_that_failed_is_not_asked_again_while_another_waits_and_the_version_waits_an_hour()
+{
+    let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
+    let fakes = vec![limited("limited", intro), fake("down", None)];
+    let fx = Fixture::new(vec![], &["limited", "down"], fakes).await;
+
+    fx.segments.ask_due(&mut Waits::default()).await;
+
+    assert_eq!(fx.asked(), ["limited", "down", "limited"]);
+    assert_eq!(fx.segments.due().await.unwrap(), Vec::<i64>::new());
+    let wait_ms = fx.due_in_ms().await;
+    assert!((0..=3_600_000).contains(&wait_ms), "{wait_ms}");
 }
 
 #[tokio::test]
@@ -391,10 +411,10 @@ async fn a_wait_under_a_second_or_over_five_minutes_pauses_a_source_for_a_second
     // Wide bounds: other lib tests may step the shared clock meanwhile.
     let mut paused_for = Vec::new();
     for _ in 0..2 {
-        let mut paused = HashMap::new();
+        let mut waits = Waits::default();
         let now = db::now_ms();
-        (fx.segments.ask(fx.version, &mut paused)).await.unwrap();
-        paused_for.push(paused[&PluginId::from_static("limited")] - now);
+        (fx.segments.ask(fx.version, &mut waits)).await.unwrap();
+        paused_for.push(waits.paused[&PluginId::from_static("limited")] - now);
     }
 
     assert!((1_000..60_000).contains(&paused_for[0]), "{paused_for:?}");
