@@ -26,12 +26,11 @@ export function useHomeLayoutChanges(saved: HomeLayout) {
   const setFeaturedShown = (shown: boolean) => {
     save.mutate({ layout: { featuredHidden: !shown } });
   };
-  // Names only the flipped row: a row the User leaves alone then keeps following the default,
-  // even one the default changed since this list was loaded (`UserService.SetHomeLayout`).
+  // Names only the flipped row, and leaves Featured unset: what the User leaves alone then keeps
+  // following the default, even where it changed since this list was loaded
+  // (`UserService.SetHomeLayout`).
   const setShown = (row: HomeLayoutRow, shown: boolean) => {
-    save.mutate({
-      layout: { featuredHidden: layout.featuredHidden, rows: [{ ...row, hidden: !shown }] },
-    });
+    save.mutate({ layout: { rows: [{ ...row, hidden: !shown }] } });
   };
   // A drop in place saves nothing, since the User's first order stops the default's moving theirs.
   const move = (from: number, before: number) => {
@@ -66,7 +65,7 @@ function saving(saved: HomeLayout, asked: HomeLayout): HomeLayout {
   const named = new Map(asked.rows.map((row) => [rowKey(row), row]));
   return {
     ...saved,
-    featuredHidden: asked.featuredHidden,
+    featuredHidden: asked.featuredHidden ?? saved.featuredHidden,
     rows: saved.rows.map((row) => named.get(rowKey(row)) ?? row),
   };
 }

@@ -103,3 +103,19 @@ async fn a_row_after_own_rows_a_user_has_none_of_goes_at_the_end() {
     let order = arranged(&db, ada, &default, rows).await;
     assert_eq!(order, [shared("picks"), watching, shared("unseen")]);
 }
+
+#[test]
+fn a_save_leaving_featured_unset_keeps_the_users_featured_flag() {
+    let hidden = UserHomeLayout {
+        featured_shown: Some(false),
+        ..UserHomeLayout::default()
+    };
+    let asked = AskedHomeLayout {
+        featured_shown: None,
+        rows: Vec::new(),
+    };
+
+    let saved = hidden.asking(&asked, &default_of([]));
+
+    assert_eq!(saved.featured_shown, Some(false));
+}

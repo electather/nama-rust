@@ -26,6 +26,13 @@ pub(crate) struct UserHomeLayout {
     order: Option<Vec<HomeRowId>>,
 }
 
+/// What a User asks to show when they save their Home layout.
+pub(crate) struct AskedHomeLayout {
+    /// `None` leaves Featured as it is.
+    pub(crate) featured_shown: Option<bool>,
+    pub(crate) rows: Vec<PlacedRow>,
+}
+
 impl UserHomeLayout {
     /// Whether this User sees Featured under `default`.
     pub(crate) fn shows_featured(&self, default: &HomeLayout) -> bool {
@@ -55,8 +62,9 @@ impl UserHomeLayout {
     /// This layout once the User asks for `asked` under `default`. A row or Featured they have a
     /// flag for keeps one, now as asked. One they haven't gets a flag only where `asked` differs
     /// from `default`, so what they leave as the default shows it follows the default. The rows
-    /// `asked` doesn't name, such as a disabled Plugin's, keep their flags.
-    fn asking(self, asked: &HomeLayout, default: &HomeLayout) -> Self {
+    /// `asked` doesn't name, such as a disabled Plugin's, and Featured if it doesn't ask for it,
+    /// keep their flags.
+    fn asking(self, asked: &AskedHomeLayout, default: &HomeLayout) -> Self {
         let flagged = |row: &HomeRowId| self.rows.iter().any(|own| own.row == *row);
         let named: Vec<PlacedRow> = (asked.rows.iter())
             .filter(|row| flagged(&row.row) || row.shown != default.shows(&row.row))
@@ -65,10 +73,14 @@ impl UserHomeLayout {
         let unnamed = (self.rows.iter())
             .filter(|own| !asked.rows.iter().any(|row| row.row == own.row))
             .cloned();
-        let featured_flagged = self.featured_shown.is_some();
+        let featured_shown = match asked.featured_shown {
+            None => self.featured_shown,
+            Some(shown) => {
+                (self.featured_shown.is_some() || shown != default.featured_shown).then_some(shown)
+            }
+        };
         Self {
-            featured_shown: (featured_flagged || asked.featured_shown != default.featured_shown)
-                .then_some(asked.featured_shown),
+            featured_shown,
             rows: named.into_iter().chain(unnamed).collect(),
             order: self.order,
         }
@@ -102,11 +114,11 @@ impl UserHomeLayout {
     pub(crate) async fn save(
         db: &Database,
         user: i64,
-        asked: &HomeLayout,
+        asked: AskedHomeLayout,
         seen: Vec<HomeRowId>,
         default: HomeLayout,
     ) -> Result<(), sqlx::Error> {
-        let asked = HomeLayout {
+        let asked = AskedHomeLayout {
             featured_shown: asked.featured_shown,
             rows: (seen.into_iter())
                 .filter_map(|row| {
