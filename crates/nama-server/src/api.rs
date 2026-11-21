@@ -173,6 +173,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(jobs::JobServiceHandler {
             plugin_settings: plugin_settings.clone(),
+            plugins: plugins.clone(),
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(plugins::PluginServiceHandler {
@@ -412,7 +413,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK
         | R::REFUSAL_REASON_FOLDER_OVERLAPS
         | R::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE
-        | R::REFUSAL_REASON_SERVER_URL_REQUIRED => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_SERVER_URL_REQUIRED
+        | R::REFUSAL_REASON_JOB_RUNNING => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -428,7 +430,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND
         | R::REFUSAL_REASON_PLUGIN_NOT_FOUND
         | R::REFUSAL_REASON_TITLE_NOT_FOUND
-        | R::REFUSAL_REASON_INVITE_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_INVITE_NOT_FOUND
+        | R::REFUSAL_REASON_JOB_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN
         | R::REFUSAL_REASON_LIBRARY_NAME_TAKEN
         | R::REFUSAL_REASON_FOLDER_TAKEN => ErrorCode::AlreadyExists,

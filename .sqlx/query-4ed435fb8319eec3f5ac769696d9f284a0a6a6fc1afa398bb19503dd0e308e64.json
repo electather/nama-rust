@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, plugin, job, outcome, started_ms, ended_ms, error FROM job_runs AS run\n         WHERE id = (SELECT MAX(id) FROM job_runs WHERE plugin = run.plugin AND job = run.job)",
+  "query": "SELECT id, outcome, started_ms, ended_ms, error, started_by FROM job_runs\n         WHERE plugin = ? AND job = ? ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -15,30 +15,8 @@
         }
       },
       {
-        "name": "plugin",
-        "ordinal": 1,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "job_runs",
-            "name": "plugin"
-          }
-        }
-      },
-      {
-        "name": "job",
-        "ordinal": 2,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "job_runs",
-            "name": "job"
-          }
-        }
-      },
-      {
         "name": "outcome",
-        "ordinal": 3,
+        "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +27,7 @@
       },
       {
         "name": "started_ms",
-        "ordinal": 4,
+        "ordinal": 2,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,7 +38,7 @@
       },
       {
         "name": "ended_ms",
-        "ordinal": 5,
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -71,7 +49,7 @@
       },
       {
         "name": "error",
-        "ordinal": 6,
+        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -79,20 +57,30 @@
             "name": "error"
           }
         }
+      },
+      {
+        "name": "started_by",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "started_by"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 2
     },
     "nullable": [
       false,
       false,
       false,
-      false,
-      false,
+      true,
       true,
       true
     ]
   },
-  "hash": "63931d08433b4630a01bc75349444fafc99f37a7763e9ce54b37414641a9f43b"
+  "hash": "4ed435fb8319eec3f5ac769696d9f284a0a6a6fc1afa398bb19503dd0e308e64"
 }
