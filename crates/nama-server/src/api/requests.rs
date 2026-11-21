@@ -26,7 +26,7 @@ use crate::{
     db::Database,
     library::{
         Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
-        TitleKind,
+        TitleKind, Trailer,
     },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
@@ -491,6 +491,7 @@ fn looked_up_to_proto(
         genres: movie.genres,
         content_rating: movie.content_rating,
         on_watchlist,
+        trailers: trailers_to_proto(movie.trailers),
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,
@@ -557,6 +558,7 @@ fn looked_up_show_to_proto(
         genres: show.genres,
         content_rating: show.content_rating,
         on_watchlist,
+        trailers: trailers_to_proto(show.trailers),
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,
@@ -566,6 +568,17 @@ fn looked_up_show_to_proto(
         quality: quality.into(),
         ..Default::default()
     }
+}
+
+/// A title's Trailers, as clients see them.
+pub(super) fn trailers_to_proto(trailers: Vec<Trailer>) -> Vec<proto::Trailer> {
+    (trailers.into_iter())
+        .map(|trailer| proto::Trailer {
+            name: trailer.name,
+            url: trailer.url,
+            ..Default::default()
+        })
+        .collect()
 }
 
 const MOVIE_POSTER: TitleImage = TitleImage::Movie(Role::Poster);
