@@ -44,7 +44,7 @@ use crate::{
 };
 
 /// The most rows of one answer home shows: a Plugin's shared rows, or its rows for one User.
-const MAX_ROWS: usize = 3;
+const MAX_ROWS: usize = 20;
 /// The most titles one row holds.
 const MAX_TITLES: usize = 200;
 /// The longest heading, in characters.

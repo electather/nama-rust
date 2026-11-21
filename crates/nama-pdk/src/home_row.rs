@@ -6,13 +6,13 @@ pub use nama_plugin_proto::nama::plugin::v1::{
     UserRowsAsked,
 };
 
-/// A Home row source (ADR 0058). Its Manifest's `points` name
+/// A Home row source (ADR 0058, ADR 0091). Its Manifest's `points` name
 /// [`services::HOME_ROW`](crate::services::HOME_ROW). Every method is optional, and only those
 /// [`home_row_source!`](crate::home_row_source!) lists are exported; the Server asks only for
 /// those, so a source giving only shared rows is never asked for a User's.
 ///
 /// The Server asks ahead of time and stores the answer, so home never waits on the Plugin. It
-/// keeps the first 3 rows of each answer, the first 200 titles of each and 40 characters of each
+/// keeps the first 20 rows of each answer, the first 200 titles of each and 40 characters of each
 /// heading, clamps each time to live to between 15 minutes and 1 week, and shows only the titles
 /// on the Server:
 ///
