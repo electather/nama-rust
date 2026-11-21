@@ -60,6 +60,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC.procedure,     MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_GET_DEFAULT_HOME_LAYOUT_SPEC.procedure, MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC.procedure, MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_GET_BACKUPS_SPEC.procedure,            ADMIN),
+    (proto::SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC.procedure, ADMIN),
     (proto::SERVER_SERVICE_LIST_PLAYS_SPEC.procedure,             ADMIN),
     (proto::SERVER_SERVICE_STOP_PLAY_SPEC.procedure,              ADMIN),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),

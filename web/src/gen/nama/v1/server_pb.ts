@@ -16,7 +16,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSISChBMaXN0UGxheXNSZXF1ZXN0IjEKEUxpc3RQbGF5c1Jlc3BvbnNlEhwKBXBsYXlzGAEgAygLMg0ubmFtYS52MS5QbGF5IqwBCgRQbGF5EiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjaxINCgV0aXRsZRgCIAEoCRIYCgtwb3NpdGlvbl9tcxgDIAEoBEgAiAEBEhMKC2R1cmF0aW9uX21zGAQgASgEEjEKDXRyYW5zY29kZXNfb24YBSABKAsyGi5uYW1hLnYxLlRyYW5zY29kZUhhcmR3YXJlQg4KDF9wb3NpdGlvbl9tcyJaChFUcmFuc2NvZGVIYXJkd2FyZRIqCgNhcGkYASABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgCIAEoCzIMLm5hbWEudjEuR3B1IjMKD1N0b3BQbGF5UmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEEg8KB21lc3NhZ2UYAiABKAkiEgoQU3RvcFBsYXlSZXNwb25zZSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCKbAQoVR2V0U2VydmVySW5mb1Jlc3BvbnNlEgwKBG5hbWUYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIWCg5zZXR1cF9yZXF1aXJlZBgDIAEoCBIUCgxpbWFnZV93aWR0aHMYBCADKA0SGwoTZXhwb3J0c19kaWFnbm9zdGljcxgFIAEoCEoECAYQB1ISc2VhcmNoZXNfc3VidGl0bGVzIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QihQIKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCRIoCghoYXJkd2FyZRgFIAMoCzIWLm5hbWEudjEuRm91bmRIYXJkd2FyZRITCgtoYXNfbGlieDI2NBgGIAEoCBISCgpoYXNfenNjYWxlGAcgASgIEhUKDWNhbl90cmFuc2NvZGUYCCABKAgiqAEKDUZvdW5kSGFyZHdhcmUSKgoDYXBpGAEgASgOMh0ubmFtYS52MS5IYXJkd2FyZUFjY2VsZXJhdGlvbhIZCgNncHUYBSABKAsyDC5uYW1hLnYxLkdwdRIRCgl0b25lX21hcHMYAiABKAgSKgoMdG9uZV9tYXBwaW5nGAMgASgOMhQubmFtYS52MS5Ub25lTWFwcGluZxIRCglhdXRvbWF0aWMYBCABKAgiHwoDR3B1EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkiLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCSIcChpHZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdCJKChtHZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTAodVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QSKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTQoeVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIqQCChBQbGF5YmFja1NldHRpbmdzEhYKDnNlZ21lbnRfZm9sZGVyGAEgASgJEhsKDm1heF90cmFuc2NvZGVzGAIgASgNSACIAQESNQoVcmVtb3RlX3BsYXliYWNrX2xpbWl0GAMgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjwKFWhhcmR3YXJlX2FjY2VsZXJhdGlvbhgEIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSIAoTa2VlcF9iZWhpbmRfbWludXRlcxgGIAEoDUgBiAEBQhEKD19tYXhfdHJhbnNjb2Rlc0IWChRfa2VlcF9iZWhpbmRfbWludXRlcyIZChdHZXRJbWFnZVNldHRpbmdzUmVxdWVzdCJyChhHZXRJbWFnZVNldHRpbmdzUmVzcG9uc2USKAoIc2V0dGluZ3MYASABKAsyFi5uYW1hLnYxLkltYWdlU2V0dGluZ3MSLAoJc3dpdGNoaW5nGAIgASgLMhkubmFtYS52MS5JbWFnZVN0b3JlU3dpdGNoIkYKGlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0EigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzIkcKG1VwZGF0ZUltYWdlU2V0dGluZ3NSZXNwb25zZRIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJ1Cg1JbWFnZVNldHRpbmdzEhUKDXJlc2l6ZV9pbWFnZXMYASABKAgSHgoRcmVzaXplZF9jYWNoZV9taWIYAiABKA1IAIgBARIXCg9zdG9yZV9wbHVnaW5faWQYAyABKAlCFAoSX3Jlc2l6ZWRfY2FjaGVfbWliIiwKF1N3aXRjaEltYWdlU3RvcmVSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSJIChhTd2l0Y2hJbWFnZVN0b3JlUmVzcG9uc2USLAoJc3dpdGNoaW5nGAEgASgLMhkubmFtYS52MS5JbWFnZVN0b3JlU3dpdGNoIlgKEEltYWdlU3RvcmVTd2l0Y2gSFAoMdG9fcGx1Z2luX2lkGAEgASgJEg4KBmNvcGllZBgCIAEoDRINCgV0b3RhbBgDIAEoDRIPCgdmYWlsdXJlGAQgASgJIh0KG0dldERlZmF1bHRIb21lTGF5b3V0UmVxdWVzdCJDChxHZXREZWZhdWx0SG9tZUxheW91dFJlc3BvbnNlEiMKBmxheW91dBgBIAEoCzITLm5hbWEudjEuSG9tZUxheW91dCJCChtTZXREZWZhdWx0SG9tZUxheW91dFJlcXVlc3QSIwoGbGF5b3V0GAEgASgLMhMubmFtYS52MS5Ib21lTGF5b3V0IkMKHFNldERlZmF1bHRIb21lTGF5b3V0UmVzcG9uc2USIwoGbGF5b3V0GAEgASgLMhMubmFtYS52MS5Ib21lTGF5b3V0ImQKCkhvbWVMYXlvdXQSHAoPZmVhdHVyZWRfaGlkZGVuGAEgASgISACIAQESJAoEcm93cxgCIAMoCzIWLm5hbWEudjEuSG9tZUxheW91dFJvd0ISChBfZmVhdHVyZWRfaGlkZGVuIpcBCg1Ib21lTGF5b3V0Um93EigKBmtlcm5lbBgBIAEoDjIWLm5hbWEudjEuS2VybmVsSG9tZVJvd0gAEigKBnBsdWdpbhgCIAEoCzIWLm5hbWEudjEuUGx1Z2luSG9tZVJvd0gAEhsKEXBsdWdpbl91c2Vyc19yb3dzGAMgASgJSAASDgoGaGlkZGVuGAQgASgIQgUKA3JvdypzCgtUb25lTWFwcGluZxIcChhUT05FX01BUFBJTkdfVU5TUEVDSUZJRUQQABIVChFUT05FX01BUFBJTkdfTk9ORRABEhQKEFRPTkVfTUFQUElOR19HUFUQAhIZChVUT05FX01BUFBJTkdfU09GVFdBUkUQAyrlAQoUSGFyZHdhcmVBY2NlbGVyYXRpb24SJQohSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1VOU1BFQ0lGSUVEEAASHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX09GRhABEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9WQUFQSRACEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9RU1YQAxIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fTlZFTkMQBBImCiJIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVklERU9UT09MQk9YEAUy6AkKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXAoQR2V0SW1hZ2VTZXR0aW5ncxIgLm5hbWEudjEuR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QaIS5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXNwb25zZSIDkAIBEmUKE1VwZGF0ZUltYWdlU2V0dGluZ3MSIy5uYW1hLnYxLlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACAhJXChBTd2l0Y2hJbWFnZVN0b3JlEiAubmFtYS52MS5Td2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBohLm5hbWEudjEuU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEmgKFEdldERlZmF1bHRIb21lTGF5b3V0EiQubmFtYS52MS5HZXREZWZhdWx0SG9tZUxheW91dFJlcXVlc3QaJS5uYW1hLnYxLkdldERlZmF1bHRIb21lTGF5b3V0UmVzcG9uc2UiA5ACARJoChRTZXREZWZhdWx0SG9tZUxheW91dBIkLm5hbWEudjEuU2V0RGVmYXVsdEhvbWVMYXlvdXRSZXF1ZXN0GiUubmFtYS52MS5TZXREZWZhdWx0SG9tZUxheW91dFJlc3BvbnNlIgOQAgISRwoJTGlzdFBsYXlzEhkubmFtYS52MS5MaXN0UGxheXNSZXF1ZXN0GhoubmFtYS52MS5MaXN0UGxheXNSZXNwb25zZSIDkAIBEkQKCFN0b3BQbGF5EhgubmFtYS52MS5TdG9wUGxheVJlcXVlc3QaGS5uYW1hLnYxLlN0b3BQbGF5UmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse, file_nama_v1_event, file_nama_v1_playback]);
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSISChBMaXN0UGxheXNSZXF1ZXN0IjEKEUxpc3RQbGF5c1Jlc3BvbnNlEhwKBXBsYXlzGAEgAygLMg0ubmFtYS52MS5QbGF5IqwBCgRQbGF5EiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjaxINCgV0aXRsZRgCIAEoCRIYCgtwb3NpdGlvbl9tcxgDIAEoBEgAiAEBEhMKC2R1cmF0aW9uX21zGAQgASgEEjEKDXRyYW5zY29kZXNfb24YBSABKAsyGi5uYW1hLnYxLlRyYW5zY29kZUhhcmR3YXJlQg4KDF9wb3NpdGlvbl9tcyJaChFUcmFuc2NvZGVIYXJkd2FyZRIqCgNhcGkYASABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgCIAEoCzIMLm5hbWEudjEuR3B1IjMKD1N0b3BQbGF5UmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEEg8KB21lc3NhZ2UYAiABKAkiEgoQU3RvcFBsYXlSZXNwb25zZSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCKbAQoVR2V0U2VydmVySW5mb1Jlc3BvbnNlEgwKBG5hbWUYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIWCg5zZXR1cF9yZXF1aXJlZBgDIAEoCBIUCgxpbWFnZV93aWR0aHMYBCADKA0SGwoTZXhwb3J0c19kaWFnbm9zdGljcxgFIAEoCEoECAYQB1ISc2VhcmNoZXNfc3VidGl0bGVzIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QihQIKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCRIoCghoYXJkd2FyZRgFIAMoCzIWLm5hbWEudjEuRm91bmRIYXJkd2FyZRITCgtoYXNfbGlieDI2NBgGIAEoCBISCgpoYXNfenNjYWxlGAcgASgIEhUKDWNhbl90cmFuc2NvZGUYCCABKAgiqAEKDUZvdW5kSGFyZHdhcmUSKgoDYXBpGAEgASgOMh0ubmFtYS52MS5IYXJkd2FyZUFjY2VsZXJhdGlvbhIZCgNncHUYBSABKAsyDC5uYW1hLnYxLkdwdRIRCgl0b25lX21hcHMYAiABKAgSKgoMdG9uZV9tYXBwaW5nGAMgASgOMhQubmFtYS52MS5Ub25lTWFwcGluZxIRCglhdXRvbWF0aWMYBCABKAgiHwoDR3B1EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkiLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCSIcChpHZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdCJKChtHZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTAodVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QSKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTQoeVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIqQCChBQbGF5YmFja1NldHRpbmdzEhYKDnNlZ21lbnRfZm9sZGVyGAEgASgJEhsKDm1heF90cmFuc2NvZGVzGAIgASgNSACIAQESNQoVcmVtb3RlX3BsYXliYWNrX2xpbWl0GAMgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjwKFWhhcmR3YXJlX2FjY2VsZXJhdGlvbhgEIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSIAoTa2VlcF9iZWhpbmRfbWludXRlcxgGIAEoDUgBiAEBQhEKD19tYXhfdHJhbnNjb2Rlc0IWChRfa2VlcF9iZWhpbmRfbWludXRlcyIZChdHZXRJbWFnZVNldHRpbmdzUmVxdWVzdCJyChhHZXRJbWFnZVNldHRpbmdzUmVzcG9uc2USKAoIc2V0dGluZ3MYASABKAsyFi5uYW1hLnYxLkltYWdlU2V0dGluZ3MSLAoJc3dpdGNoaW5nGAIgASgLMhkubmFtYS52MS5JbWFnZVN0b3JlU3dpdGNoIkYKGlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0EigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzIkcKG1VwZGF0ZUltYWdlU2V0dGluZ3NSZXNwb25zZRIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJ1Cg1JbWFnZVNldHRpbmdzEhUKDXJlc2l6ZV9pbWFnZXMYASABKAgSHgoRcmVzaXplZF9jYWNoZV9taWIYAiABKA1IAIgBARIXCg9zdG9yZV9wbHVnaW5faWQYAyABKAlCFAoSX3Jlc2l6ZWRfY2FjaGVfbWliIiwKF1N3aXRjaEltYWdlU3RvcmVSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSJIChhTd2l0Y2hJbWFnZVN0b3JlUmVzcG9uc2USLAoJc3dpdGNoaW5nGAEgASgLMhkubmFtYS52MS5JbWFnZVN0b3JlU3dpdGNoIlgKEEltYWdlU3RvcmVTd2l0Y2gSFAoMdG9fcGx1Z2luX2lkGAEgASgJEg4KBmNvcGllZBgCIAEoDRINCgV0b3RhbBgDIAEoDRIPCgdmYWlsdXJlGAQgASgJIhMKEUdldEJhY2t1cHNSZXF1ZXN0InEKEkdldEJhY2t1cHNSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuQmFja3VwU2V0dGluZ3MSDgoGZm9sZGVyGAIgASgJEiAKB2JhY2t1cHMYAyADKAsyDy5uYW1hLnYxLkJhY2t1cCJCCgZCYWNrdXASDAoEbmFtZRgBIAEoCRISCgpzaXplX2J5dGVzGAIgASgEEhYKDm1vZGlmaWVkX2F0X21zGAMgASgDIkgKG1VwZGF0ZUJhY2t1cFNldHRpbmdzUmVxdWVzdBIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuQmFja3VwU2V0dGluZ3MiSQocVXBkYXRlQmFja3VwU2V0dGluZ3NSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuQmFja3VwU2V0dGluZ3MiPAoOQmFja3VwU2V0dGluZ3MSDgoGZm9sZGVyGAEgASgJEhEKBGtlZXAYAiABKA1IAIgBAUIHCgVfa2VlcCIdChtHZXREZWZhdWx0SG9tZUxheW91dFJlcXVlc3QiQwocR2V0RGVmYXVsdEhvbWVMYXlvdXRSZXNwb25zZRIjCgZsYXlvdXQYASABKAsyEy5uYW1hLnYxLkhvbWVMYXlvdXQiQgobU2V0RGVmYXVsdEhvbWVMYXlvdXRSZXF1ZXN0EiMKBmxheW91dBgBIAEoCzITLm5hbWEudjEuSG9tZUxheW91dCJDChxTZXREZWZhdWx0SG9tZUxheW91dFJlc3BvbnNlEiMKBmxheW91dBgBIAEoCzITLm5hbWEudjEuSG9tZUxheW91dCJkCgpIb21lTGF5b3V0EhwKD2ZlYXR1cmVkX2hpZGRlbhgBIAEoCEgAiAEBEiQKBHJvd3MYAiADKAsyFi5uYW1hLnYxLkhvbWVMYXlvdXRSb3dCEgoQX2ZlYXR1cmVkX2hpZGRlbiKXAQoNSG9tZUxheW91dFJvdxIoCgZrZXJuZWwYASABKA4yFi5uYW1hLnYxLktlcm5lbEhvbWVSb3dIABIoCgZwbHVnaW4YAiABKAsyFi5uYW1hLnYxLlBsdWdpbkhvbWVSb3dIABIbChFwbHVnaW5fdXNlcnNfcm93cxgDIAEoCUgAEg4KBmhpZGRlbhgEIAEoCEIFCgNyb3cqcwoLVG9uZU1hcHBpbmcSHAoYVE9ORV9NQVBQSU5HX1VOU1BFQ0lGSUVEEAASFQoRVE9ORV9NQVBQSU5HX05PTkUQARIUChBUT05FX01BUFBJTkdfR1BVEAISGQoVVE9ORV9NQVBQSU5HX1NPRlRXQVJFEAMq5QEKFEhhcmR3YXJlQWNjZWxlcmF0aW9uEiUKIUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9VTlNQRUNJRklFRBAAEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9PRkYQARIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVkFBUEkQAhIdChlIQVJEV0FSRV9BQ0NFTEVSQVRJT05fUVNWEAMSHwobSEFSRFdBUkVfQUNDRUxFUkFUSU9OX05WRU5DEAQSJgoiSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1ZJREVPVE9PTEJPWBAFMp4LCg1TZXJ2ZXJTZXJ2aWNlElMKDUdldFNlcnZlckluZm8SHS5uYW1hLnYxLkdldFNlcnZlckluZm9SZXF1ZXN0Gh4ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVzcG9uc2UiA5ACARJfChFHZXRTZXJ2ZXJTZXR0aW5ncxIhLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXF1ZXN0GiIubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgESaAoUVXBkYXRlU2VydmVyU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAICEl8KEUdldFBsYXliYWNrU3RhdHVzEiEubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QaIi5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2UiA5ACARJlChNHZXRQbGF5YmFja1NldHRpbmdzEiMubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdBokLm5hbWEudjEuR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgESbgoWVXBkYXRlUGxheWJhY2tTZXR0aW5ncxImLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QaJy5uYW1hLnYxLlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZSIDkAICElwKEEdldEltYWdlU2V0dGluZ3MSIC5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXF1ZXN0GiEubmFtYS52MS5HZXRJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACARJlChNVcGRhdGVJbWFnZVNldHRpbmdzEiMubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVxdWVzdBokLm5hbWEudjEuVXBkYXRlSW1hZ2VTZXR0aW5nc1Jlc3BvbnNlIgOQAgISVwoQU3dpdGNoSW1hZ2VTdG9yZRIgLm5hbWEudjEuU3dpdGNoSW1hZ2VTdG9yZVJlcXVlc3QaIS5uYW1hLnYxLlN3aXRjaEltYWdlU3RvcmVSZXNwb25zZRJoChRHZXREZWZhdWx0SG9tZUxheW91dBIkLm5hbWEudjEuR2V0RGVmYXVsdEhvbWVMYXlvdXRSZXF1ZXN0GiUubmFtYS52MS5HZXREZWZhdWx0SG9tZUxheW91dFJlc3BvbnNlIgOQAgESaAoUU2V0RGVmYXVsdEhvbWVMYXlvdXQSJC5uYW1hLnYxLlNldERlZmF1bHRIb21lTGF5b3V0UmVxdWVzdBolLm5hbWEudjEuU2V0RGVmYXVsdEhvbWVMYXlvdXRSZXNwb25zZSIDkAICEkoKCkdldEJhY2t1cHMSGi5uYW1hLnYxLkdldEJhY2t1cHNSZXF1ZXN0GhsubmFtYS52MS5HZXRCYWNrdXBzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVCYWNrdXBTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlQmFja3VwU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVCYWNrdXBTZXR0aW5nc1Jlc3BvbnNlIgOQAgISRwoJTGlzdFBsYXlzEhkubmFtYS52MS5MaXN0UGxheXNSZXF1ZXN0GhoubmFtYS52MS5MaXN0UGxheXNSZXNwb25zZSIDkAIBEkQKCFN0b3BQbGF5EhgubmFtYS52MS5TdG9wUGxheVJlcXVlc3QaGS5uYW1hLnYxLlN0b3BQbGF5UmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse, file_nama_v1_event, file_nama_v1_playback]);
 
 /**
  * @generated from message nama.v1.ListPlaysRequest
@@ -863,6 +863,158 @@ export const ImageStoreSwitchSchema: GenMessage<ImageStoreSwitch> = /*@__PURE__*
   messageDesc(file_nama_v1_server, 30);
 
 /**
+ * @generated from message nama.v1.GetBackupsRequest
+ */
+export type GetBackupsRequest = Message<"nama.v1.GetBackupsRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.GetBackupsRequest.
+ * Use `create(GetBackupsRequestSchema)` to create a new message.
+ */
+export const GetBackupsRequestSchema: GenMessage<GetBackupsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 31);
+
+/**
+ * @generated from message nama.v1.GetBackupsResponse
+ */
+export type GetBackupsResponse = Message<"nama.v1.GetBackupsResponse"> & {
+  /**
+   * @generated from field: nama.v1.BackupSettings settings = 1;
+   */
+  settings?: BackupSettings | undefined;
+
+  /**
+   * The folder Backups are written to: `settings.folder`, or `backups` in the Server's data
+   * folder while that is empty.
+   *
+   * @generated from field: string folder = 2;
+   */
+  folder: string;
+
+  /**
+   * Every `.tar` file in `folder`, newest first: the Server's own and any other, such as one
+   * `nama-server backup` wrote there. Empty while the folder doesn't exist.
+   *
+   * @generated from field: repeated nama.v1.Backup backups = 3;
+   */
+  backups: Backup[];
+};
+
+/**
+ * Describes the message nama.v1.GetBackupsResponse.
+ * Use `create(GetBackupsResponseSchema)` to create a new message.
+ */
+export const GetBackupsResponseSchema: GenMessage<GetBackupsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 32);
+
+/**
+ * A `.tar` file in the Backup folder.
+ *
+ * @generated from message nama.v1.Backup
+ */
+export type Backup = Message<"nama.v1.Backup"> & {
+  /**
+   * Its file name, such as `nama-20261121T030000Z.tar`.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Its size, in bytes.
+   *
+   * @generated from field: uint64 size_bytes = 2;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * When it was last written, in milliseconds since the Unix epoch.
+   *
+   * @generated from field: int64 modified_at_ms = 3;
+   */
+  modifiedAtMs: bigint;
+};
+
+/**
+ * Describes the message nama.v1.Backup.
+ * Use `create(BackupSchema)` to create a new message.
+ */
+export const BackupSchema: GenMessage<Backup> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 33);
+
+/**
+ * @generated from message nama.v1.UpdateBackupSettingsRequest
+ */
+export type UpdateBackupSettingsRequest = Message<"nama.v1.UpdateBackupSettingsRequest"> & {
+  /**
+   * Required: a request without it is refused, so leaving it out can't reset every setting.
+   *
+   * @generated from field: nama.v1.BackupSettings settings = 1;
+   */
+  settings?: BackupSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdateBackupSettingsRequest.
+ * Use `create(UpdateBackupSettingsRequestSchema)` to create a new message.
+ */
+export const UpdateBackupSettingsRequestSchema: GenMessage<UpdateBackupSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 34);
+
+/**
+ * @generated from message nama.v1.UpdateBackupSettingsResponse
+ */
+export type UpdateBackupSettingsResponse = Message<"nama.v1.UpdateBackupSettingsResponse"> & {
+  /**
+   * The settings as saved.
+   *
+   * @generated from field: nama.v1.BackupSettings settings = 1;
+   */
+  settings?: BackupSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdateBackupSettingsResponse.
+ * Use `create(UpdateBackupSettingsResponseSchema)` to create a new message.
+ */
+export const UpdateBackupSettingsResponseSchema: GenMessage<UpdateBackupSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 35);
+
+/**
+ * What an admin sets about the Server's Backups. A Backup holds every Plugin's settings, API keys
+ * included, so the folder is as secret as the data folder.
+ *
+ * @generated from message nama.v1.BackupSettings
+ */
+export type BackupSettings = Message<"nama.v1.BackupSettings"> & {
+  /**
+   * The folder Backups are written to, an absolute path such as a mounted share's, for copies off
+   * the machine. Empty, the default, for `backups` in the Server's data folder. Saving one creates
+   * it and checks the Server can write a file there.
+   *
+   * @generated from field: string folder = 1;
+   */
+  folder: string;
+
+  /**
+   * How many of the Backups the Server wrote, named `nama-<UTC time>.tar`, are kept, at least 1:
+   * after each new one, the oldest beyond it are deleted. Other files in the folder are never
+   * deleted. Unset for the default, 7.
+   *
+   * @generated from field: optional uint32 keep = 2;
+   */
+  keep?: number | undefined;
+};
+
+/**
+ * Describes the message nama.v1.BackupSettings.
+ * Use `create(BackupSettingsSchema)` to create a new message.
+ */
+export const BackupSettingsSchema: GenMessage<BackupSettings> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 36);
+
+/**
  * @generated from message nama.v1.GetDefaultHomeLayoutRequest
  */
 export type GetDefaultHomeLayoutRequest = Message<"nama.v1.GetDefaultHomeLayoutRequest"> & {
@@ -873,7 +1025,7 @@ export type GetDefaultHomeLayoutRequest = Message<"nama.v1.GetDefaultHomeLayoutR
  * Use `create(GetDefaultHomeLayoutRequestSchema)` to create a new message.
  */
 export const GetDefaultHomeLayoutRequestSchema: GenMessage<GetDefaultHomeLayoutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 31);
+  messageDesc(file_nama_v1_server, 37);
 
 /**
  * @generated from message nama.v1.GetDefaultHomeLayoutResponse
@@ -890,7 +1042,7 @@ export type GetDefaultHomeLayoutResponse = Message<"nama.v1.GetDefaultHomeLayout
  * Use `create(GetDefaultHomeLayoutResponseSchema)` to create a new message.
  */
 export const GetDefaultHomeLayoutResponseSchema: GenMessage<GetDefaultHomeLayoutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 32);
+  messageDesc(file_nama_v1_server, 38);
 
 /**
  * @generated from message nama.v1.SetDefaultHomeLayoutRequest
@@ -909,7 +1061,7 @@ export type SetDefaultHomeLayoutRequest = Message<"nama.v1.SetDefaultHomeLayoutR
  * Use `create(SetDefaultHomeLayoutRequestSchema)` to create a new message.
  */
 export const SetDefaultHomeLayoutRequestSchema: GenMessage<SetDefaultHomeLayoutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 33);
+  messageDesc(file_nama_v1_server, 39);
 
 /**
  * @generated from message nama.v1.SetDefaultHomeLayoutResponse
@@ -928,7 +1080,7 @@ export type SetDefaultHomeLayoutResponse = Message<"nama.v1.SetDefaultHomeLayout
  * Use `create(SetDefaultHomeLayoutResponseSchema)` to create a new message.
  */
 export const SetDefaultHomeLayoutResponseSchema: GenMessage<SetDefaultHomeLayoutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 34);
+  messageDesc(file_nama_v1_server, 40);
 
 /**
  * The order of the Home rows, and which of them and whether Featured are shown. Featured is
@@ -958,7 +1110,7 @@ export type HomeLayout = Message<"nama.v1.HomeLayout"> & {
  * Use `create(HomeLayoutSchema)` to create a new message.
  */
 export const HomeLayoutSchema: GenMessage<HomeLayout> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 35);
+  messageDesc(file_nama_v1_server, 41);
 
 /**
  * One place in a Home layout.
@@ -1005,7 +1157,7 @@ export type HomeLayoutRow = Message<"nama.v1.HomeLayoutRow"> & {
  * Use `create(HomeLayoutRowSchema)` to create a new message.
  */
 export const HomeLayoutRowSchema: GenMessage<HomeLayoutRow> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 36);
+  messageDesc(file_nama_v1_server, 42);
 
 /**
  * What tone-maps HDR to SDR in a Transcode.
@@ -1261,6 +1413,32 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof SetDefaultHomeLayoutRequestSchema;
     output: typeof SetDefaultHomeLayoutResponseSchema;
+  },
+  /**
+   * Returns where the Server writes its Backups, how many it keeps, and the `.tar` files in that
+   * folder. Needs `PERMISSION_ADMIN`. Upkeep's `back-up` Job writes them (`JobService.RunJob`
+   * backs up now); `nama-server restore`, run with the Server stopped, restores one (ADR 0068).
+   *
+   * @generated from rpc nama.v1.ServerService.GetBackups
+   */
+  getBackups: {
+    methodKind: "unary";
+    input: typeof GetBackupsRequestSchema;
+    output: typeof GetBackupsResponseSchema;
+  },
+  /**
+   * Replaces where the Server writes its Backups and how many it keeps, from the next Backup.
+   * Needs `PERMISSION_ADMIN`. A `folder` that isn't an absolute path is refused with
+   * `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE`, a `keep` of 0 with `REFUSAL_REASON_FIELD_REQUIRED`, and
+   * a `folder` the Server can't create or write a file in with
+   * `REFUSAL_REASON_FOLDER_NOT_WRITABLE`, each naming it, and nothing changes.
+   *
+   * @generated from rpc nama.v1.ServerService.UpdateBackupSettings
+   */
+  updateBackupSettings: {
+    methodKind: "unary";
+    input: typeof UpdateBackupSettingsRequestSchema;
+    output: typeof UpdateBackupSettingsResponseSchema;
   },
   /**
    * Lists every plan playing now, on every User's Device, oldest first. Needs `PERMISSION_ADMIN`.

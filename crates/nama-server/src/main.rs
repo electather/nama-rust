@@ -172,18 +172,16 @@ async fn back_up_or_restore(config_file: Option<PathBuf>, command: Command) -> E
     let Some(config) = load_config(config_file.as_deref()) else {
         return ExitCode::FAILURE;
     };
-    // The file a Server started the same way reads, which a restore writes even if it's missing.
-    let config_file = config_file.unwrap_or_else(|| PathBuf::from(config::DEFAULT_FILE));
     let (done, path, outcome) = match command {
         Command::Backup { path } => (
-            backup::write(&config.data_dir, &config_file, &path).await,
+            backup::write(&config.data_dir, &config.file, &path).await,
             path,
             "wrote the backup",
         ),
         Command::Restore { path } => {
-            let restored = backup::restore(&config.data_dir, &config_file, &path).await;
+            let restored = backup::restore(&config.data_dir, &config.file, &path).await;
             if restored.is_ok() {
-                warn_if_data_dir_moved(&config.data_dir, &config_file);
+                warn_if_data_dir_moved(&config.data_dir, &config.file);
             }
             (
                 restored,
@@ -222,19 +220,21 @@ fn warn_if_data_dir_moved(restored_into: &Path, config_file: &Path) {
 /// Loads the config, warning about each key in the file it ignores. Returns `None`, having logged
 /// why, if it can't.
 fn load_config(file: Option<&Path>) -> Option<Config> {
-    let (config, unknown_keys) = match Config::load(file) {
+    let (mut config, unknown_keys) = match Config::load(file) {
         Ok(loaded) => loaded,
         Err(err) => {
             error!("could not load config: {err}");
             return None;
         }
     };
-    let file = file.unwrap_or_else(|| Path::new(config::DEFAULT_FILE));
+    if let Some(file) = file {
+        file.clone_into(&mut config.file);
+    }
     // Only an unknown key's name is logged: its value may be a secret written in the wrong place.
     for key in unknown_keys {
         warn!(
             key,
-            file = %file.display(),
+            file = %config.file.display(),
             "ignoring a config key the Server doesn't know; the file's `#:schema` line lets an editor check it"
         );
     }

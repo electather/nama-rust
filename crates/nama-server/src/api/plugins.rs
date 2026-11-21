@@ -593,6 +593,7 @@ fn permission_to_proto(permission: Permission) -> proto::PluginPermission {
         }
         Permission::PERMISSION_FORGET_GONE_PLUGINS => Public::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS,
         Permission::PERMISSION_REFRESH_METADATA => Public::PLUGIN_PERMISSION_REFRESH_METADATA,
+        Permission::PERMISSION_BACK_UP => Public::PLUGIN_PERMISSION_BACK_UP,
     }
 }
 
@@ -625,6 +626,7 @@ fn permission_from_proto(
         Some(Public::PLUGIN_PERMISSION_REFRESH_METADATA) => {
             Ok(Permission::PERMISSION_REFRESH_METADATA)
         }
+        Some(Public::PLUGIN_PERMISSION_BACK_UP) => Ok(Permission::PERMISSION_BACK_UP),
         Some(Public::PLUGIN_PERMISSION_UNSPECIFIED) | None => Err(super::unknown_enum_value(
             GRANTED_PERMISSIONS,
             "each granted Plugin Permission must be one this Server knows",

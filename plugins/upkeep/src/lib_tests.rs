@@ -7,15 +7,16 @@ use buffa::Message;
 use nama_plugin_api::{
     BoxFuture, Plugin, Registrar, Registration,
     automation::{
-        ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten,
-        HomeRowsForgotten, Kernel, KernelRefused, MetadataRefreshed, RefreshMetadataAsked,
+        BackUpAsked, BackedUp, ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
+        GonePluginsForgotten, HomeRowsForgotten, Kernel, KernelRefused, MetadataRefreshed,
+        Permission, RefreshMetadataAsked,
     },
     job::{JobRunner, RunJob},
     settings::{SettingValue, Settings},
 };
 
 use super::{
-    DELETE_EXPIRED_SIGN_INS, FORGET_GONE_PLUGINS, FORGET_HOME_ROWS, GONE_PLUGINS_DAYS,
+    BACK_UP, DELETE_EXPIRED_SIGN_INS, FORGET_GONE_PLUGINS, FORGET_HOME_ROWS, GONE_PLUGINS_DAYS,
     HOME_ROWS_DAYS, REFRESH_METADATA, Upkeep,
 };
 
@@ -67,6 +68,15 @@ fn enabled(settings: Settings) -> (Arc<dyn JobRunner>, Asked) {
                     ..MetadataRefreshed::default()
                 };
                 (0, refreshed.encode_to_vec())
+            }
+            "back_up" => {
+                BackUpAsked::decode_from_slice(&request).unwrap();
+                let backed_up = BackedUp {
+                    name: "nama-20261121T030000Z.tar".to_owned(),
+                    size_bytes: 4096,
+                    ..BackedUp::default()
+                };
+                (0, backed_up.encode_to_vec())
             }
             other => panic!("Upkeep called {other}"),
         };
@@ -149,6 +159,23 @@ async fn refreshing_metadata_asks_the_kernel_once() {
 }
 
 #[tokio::test]
+async fn backing_up_asks_the_kernel_once() {
+    let (runner, asked) = enabled(Settings::default());
+
+    runner.run(&run(BACK_UP)).await.unwrap();
+
+    assert_eq!(*asked.lock().unwrap(), [("back_up".to_owned(), 0)]);
+}
+
+#[test]
+fn it_requests_the_back_up_permission() {
+    assert!(
+        (Upkeep.manifest().permissions).contains(&Permission::PERMISSION_BACK_UP),
+        "the Back up Job needs it"
+    );
+}
+
+#[tokio::test]
 async fn a_job_upkeep_doesnt_declare_fails_without_asking_the_kernel() {
     let (runner, asked) = enabled(Settings::default());
 
@@ -159,7 +186,7 @@ async fn a_job_upkeep_doesnt_declare_fails_without_asking_the_kernel() {
 }
 
 #[test]
-fn it_runs_home_rows_and_expired_sign_ins_daily_and_the_others_on_sunday_mornings() {
+fn it_backs_up_runs_home_rows_and_expired_sign_ins_daily_and_the_others_on_sunday_mornings() {
     let manifest = Upkeep.manifest();
 
     let jobs: Vec<_> = (manifest.jobs.iter())
@@ -168,6 +195,7 @@ fn it_runs_home_rows_and_expired_sign_ins_daily_and_the_others_on_sunday_morning
     assert_eq!(
         jobs,
         [
+            (BACK_UP, Some("0 3 * * *")),
             (FORGET_HOME_ROWS, Some("0 4 * * *")),
             (DELETE_EXPIRED_SIGN_INS, Some("10 4 * * *")),
             (FORGET_GONE_PLUGINS, Some("20 4 * * 0")),

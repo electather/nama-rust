@@ -8,21 +8,23 @@ use connectrpc::{
 };
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
-    self as proto, FoundHardware, FoundProgram, GetDefaultHomeLayoutRequest,
-    GetDefaultHomeLayoutResponse, GetImageSettingsRequest, GetImageSettingsResponse,
-    GetPlaybackSettingsRequest, GetPlaybackSettingsResponse, GetPlaybackStatusRequest,
-    GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
-    GetServerSettingsRequest, GetServerSettingsResponse,
-    HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow, ImageStoreSwitch,
-    ListPlaysRequest, ListPlaysResponse, Play, PlaybackMethod, RefusalReason, ServerService,
-    ServerSettings, SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse, StopPlayRequest,
-    StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse, ToneMapping,
-    TranscodeHardware, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
-    UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
-    UpdateServerSettingsResponse, home_layout_row::Row as LayoutRow,
+    self as proto, BackupSettings, FoundHardware, FoundProgram, GetBackupsRequest,
+    GetBackupsResponse, GetDefaultHomeLayoutRequest, GetDefaultHomeLayoutResponse,
+    GetImageSettingsRequest, GetImageSettingsResponse, GetPlaybackSettingsRequest,
+    GetPlaybackSettingsResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
+    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
+    GetServerSettingsResponse, HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow,
+    ImageStoreSwitch, ListPlaysRequest, ListPlaysResponse, Play, PlaybackMethod, RefusalReason,
+    ServerService, ServerSettings, SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse,
+    StopPlayRequest, StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse,
+    ToneMapping, TranscodeHardware, UpdateBackupSettingsRequest, UpdateBackupSettingsResponse,
+    UpdateImageSettingsRequest, UpdateImageSettingsResponse, UpdatePlaybackSettingsRequest,
+    UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
+    home_layout_row::Row as LayoutRow,
 };
 
 use crate::{
+    backup::Backups,
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
@@ -31,8 +33,8 @@ use crate::{
     },
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
-        self, HardwareChoice, HomeLayout, HomeRowId, ImageValues, Invalid, PickedGpu, PlacedRow,
-        PlaybackChange, PlaybackValues,
+        self, BackupValues, HardwareChoice, HomeLayout, HomeRowId, ImageValues, Invalid, PickedGpu,
+        PlacedRow, PlaybackChange, PlaybackValues,
     },
     users::Users,
 };
@@ -52,6 +54,7 @@ pub(super) struct ServerServiceHandler {
     pub(super) home_rows: HomeRows,
     /// Where local disk keeps the images.
     pub(super) data_dir: PathBuf,
+    pub(super) backups: Backups,
     /// Whether the Server exports Diagnostics, so the web app records its own.
     pub(super) exports_diagnostics: bool,
     pub(super) running: RunningPlans,
@@ -223,6 +226,47 @@ impl ServerService for ServerServiceHandler {
             .map_err(settings_change_failed)?;
         Response::ok(UpdateImageSettingsResponse {
             settings: self.image_settings_to_proto(stored).into(),
+            ..Default::default()
+        })
+    }
+
+    async fn get_backups(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetBackupsRequest>,
+    ) -> ServiceResult<GetBackupsResponse> {
+        let listed = self.backups.list().await.map_err(|err| {
+            tracing::error!("listing the Backups failed: {err}");
+            ConnectError::internal("the Server couldn't read the Backup folder")
+        })?;
+        let backups = (listed.into_iter())
+            .map(|listed| proto::Backup {
+                name: listed.name,
+                size_bytes: listed.size,
+                modified_at_ms: listed.modified_ms,
+                ..Default::default()
+            })
+            .collect();
+        Response::ok(GetBackupsResponse {
+            settings: backup_settings_to_proto(self.settings.now().backups).into(),
+            folder: self.backups.folder().display().to_string(),
+            backups,
+            ..Default::default()
+        })
+    }
+
+    async fn update_backup_settings(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, UpdateBackupSettingsRequest>,
+    ) -> ServiceResult<UpdateBackupSettingsResponse> {
+        let settings = required_settings(&request.settings)?;
+        let stored = (self.settings)
+            .change_backups(settings.folder, settings.keep)
+            .await
+            .map_err(settings_change_failed)?;
+        Response::ok(UpdateBackupSettingsResponse {
+            settings: backup_settings_to_proto(stored).into(),
             ..Default::default()
         })
     }
@@ -518,6 +562,15 @@ fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettin
     }
 }
 
+/// The Backup settings as the API has them.
+fn backup_settings_to_proto(settings: BackupValues) -> BackupSettings {
+    BackupSettings {
+        folder: settings.folder,
+        keep: settings.kept.map(NonZeroU32::get),
+        ..Default::default()
+    }
+}
+
 /// The `settings` message an update carries.
 ///
 /// # Errors
@@ -583,6 +636,24 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
         )
         .field("settings.gpu")
         .param("gpuId", &id),
+        Refused(Invalid::BackupFolderNotAbsolute { folder }) => refuse(
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+            "the Backup folder must be an absolute path, such as /mnt/backups/nama",
+        )
+        .field("settings.folder")
+        .param("folder", &folder),
+        Refused(Invalid::BackupFolderNotWritable { folder }) => refuse(
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_WRITABLE,
+            "the Server can't create the Backup folder or write files in it",
+        )
+        .field("settings.folder")
+        .param("folder", &folder),
+        Refused(Invalid::NoBackupsKept) => refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "at least 1 Backup must be kept",
+        )
+        .field("settings.keep")
+        .param("minKeep", &1),
     }
     .into()
 }

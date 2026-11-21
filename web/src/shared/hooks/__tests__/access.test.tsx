@@ -218,7 +218,16 @@ test.each([
     name: "Admin",
     permission: Permission.ADMIN,
     landing: "/admin/libraries",
-    pages: ["Libraries", "Needs a Match", "Users", "Plugins", "Home", "Playback", "Jobs"],
+    pages: [
+      "Libraries",
+      "Needs a Match",
+      "Users",
+      "Plugins",
+      "Home",
+      "Playback",
+      "Jobs",
+      "Backups",
+    ],
   },
 ])(
   "with only the $name Permission, Admin opens on $landing and lists only the pages it allows",

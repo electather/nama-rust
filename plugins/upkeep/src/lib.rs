@@ -1,5 +1,5 @@
-//! A Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again, and
-//! fetch Matched titles' metadata again, each through one Kernel function (ADR 0079).
+//! A Built-in Plugin whose Jobs back the Server up, delete what it keeps that nobody will read
+//! again, and fetch Matched titles' metadata again, each through one Kernel function (ADR 0079).
 
 use std::sync::Arc;
 
@@ -7,15 +7,17 @@ use buffa::Message;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::{
-        ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
-        GonePluginsForgotten, HomeRowsForgotten, Kernel, MetadataRefreshed, Permission,
-        RefreshMetadataAsked,
+        BackUpAsked, BackedUp, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
+        ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, Kernel, MetadataRefreshed,
+        Permission, RefreshMetadataAsked,
     },
     job::{Job, JobRunner, RunJob},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use tracing::info;
 
+/// The Job writing a Backup of the Server.
+const BACK_UP: &str = "back-up";
 /// The Job forgetting the Home rows of Users who stopped opening home.
 const FORGET_HOME_ROWS: &str = "forget-home-rows";
 /// The setting holding how many days without opening home a User's rows are kept.
@@ -44,8 +46,8 @@ impl Plugin for Upkeep {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Upkeep".to_owned(),
-            description: "Deletes what the Server keeps that nobody will read again, and keeps \
-                          Matched titles' metadata current."
+            description: "Backs the Server up, deletes what it keeps that nobody will read again, \
+                          and keeps Matched titles' metadata current."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema {
@@ -74,46 +76,9 @@ impl Plugin for Upkeep {
                 Permission::PERMISSION_FORGET_GONE_PLUGINS,
                 Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS,
                 Permission::PERMISSION_REFRESH_METADATA,
+                Permission::PERMISSION_BACK_UP,
             ],
-            jobs: vec![
-                Job {
-                    id: FORGET_HOME_ROWS.to_owned(),
-                    name: "Forget unread Home rows".to_owned(),
-                    description: "Deletes the Home rows and Featured suggestions of Users who \
-                                  haven't opened home in the days set. They get fresh ones when \
-                                  they come back."
-                        .to_owned(),
-                    schedule: Some("0 4 * * *".to_owned()),
-                },
-                Job {
-                    id: DELETE_EXPIRED_SIGN_INS.to_owned(),
-                    name: "Delete expired sign-ins".to_owned(),
-                    description: "Deletes the Devices and Invites that have expired, which no \
-                                  longer work."
-                        .to_owned(),
-                    schedule: Some("10 4 * * *".to_owned()),
-                },
-                Job {
-                    id: FORGET_GONE_PLUGINS.to_owned(),
-                    name: "Forget removed Plugins".to_owned(),
-                    description: "Deletes the settings, Plugin Store entries, Personal settings \
-                                  and Plugin Connections of each Plugin the Server hasn't had for \
-                                  the days set. A disabled Plugin is kept."
-                        .to_owned(),
-                    // After the daily Jobs, so they don't all run at once.
-                    schedule: Some("20 4 * * 0".to_owned()),
-                },
-                Job {
-                    id: REFRESH_METADATA.to_owned(),
-                    name: "Refresh metadata".to_owned(),
-                    description: "Fetches every Matched title again from its title source, so \
-                                  Scores, Roles, Trailers, Similar titles and new Episodes stay \
-                                  current. It never changes which title an Item is Matched to, \
-                                  and a title it can't fetch keeps what it had until the next run."
-                        .to_owned(),
-                    schedule: Some("30 4 * * 0".to_owned()),
-                },
-            ],
+            jobs: jobs(),
             ..Manifest::new(Self::ID)
         }
     }
@@ -131,6 +96,59 @@ impl Plugin for Upkeep {
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, Arc::new(jobs));
         Ok(())
     }
+}
+
+/// The Jobs Upkeep declares, each with its default schedule.
+fn jobs() -> Vec<Job> {
+    vec![
+        Job {
+            id: BACK_UP.to_owned(),
+            name: "Back up".to_owned(),
+            description: "Writes a Backup of the Server into the Backup folder, then \
+                          deletes the oldest it wrote beyond the count kept, both set on \
+                          the Backups page. A Backup that fails deletes none."
+                .to_owned(),
+            // Before the 04:00 Jobs, so the Backup holds what they'd delete.
+            schedule: Some("0 3 * * *".to_owned()),
+        },
+        Job {
+            id: FORGET_HOME_ROWS.to_owned(),
+            name: "Forget unread Home rows".to_owned(),
+            description: "Deletes the Home rows and Featured suggestions of Users who \
+                          haven't opened home in the days set. They get fresh ones when \
+                          they come back."
+                .to_owned(),
+            schedule: Some("0 4 * * *".to_owned()),
+        },
+        Job {
+            id: DELETE_EXPIRED_SIGN_INS.to_owned(),
+            name: "Delete expired sign-ins".to_owned(),
+            description: "Deletes the Devices and Invites that have expired, which no \
+                          longer work."
+                .to_owned(),
+            schedule: Some("10 4 * * *".to_owned()),
+        },
+        Job {
+            id: FORGET_GONE_PLUGINS.to_owned(),
+            name: "Forget removed Plugins".to_owned(),
+            description: "Deletes the settings, Plugin Store entries, Personal settings \
+                          and Plugin Connections of each Plugin the Server hasn't had for \
+                          the days set. A disabled Plugin is kept."
+                .to_owned(),
+            // After the daily Jobs, so they don't all run at once.
+            schedule: Some("20 4 * * 0".to_owned()),
+        },
+        Job {
+            id: REFRESH_METADATA.to_owned(),
+            name: "Refresh metadata".to_owned(),
+            description: "Fetches every Matched title again from its title source, so \
+                          Scores, Roles, Trailers, Similar titles and new Episodes stay \
+                          current. It never changes which title an Item is Matched to, \
+                          and a title it can't fetch keeps what it had until the next run."
+                .to_owned(),
+            schedule: Some("30 4 * * 0".to_owned()),
+        },
+    ]
 }
 
 /// A setting of how many days something is kept, from 1 day to 10 years.
@@ -166,6 +184,7 @@ impl JobRunner for Jobs {
     fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
             match run.job_id.as_str() {
+                BACK_UP => self.back_up().await,
                 FORGET_HOME_ROWS => self.forget_home_rows().await,
                 DELETE_EXPIRED_SIGN_INS => self.delete_expired_sign_ins().await,
                 FORGET_GONE_PLUGINS => self.forget_gone_plugins().await,
@@ -177,6 +196,18 @@ impl JobRunner for Jobs {
 }
 
 impl Jobs {
+    async fn back_up(&self) -> Result<(), PluginError> {
+        let asked = BackUpAsked::default().encode_to_vec();
+        let answer = self.kernel.call("back_up", asked).await?;
+        let backed_up = BackedUp::decode_from_slice(&answer)?;
+        info!(
+            name = backed_up.name,
+            bytes = backed_up.size_bytes,
+            "wrote a Backup"
+        );
+        Ok(())
+    }
+
     async fn forget_home_rows(&self) -> Result<(), PluginError> {
         let asked = ForgetHomeRowsAsked {
             days: self.home_rows_days,

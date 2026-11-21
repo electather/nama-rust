@@ -28,6 +28,10 @@ _Avoid_: base URL, public URL
 The logs, errors and timings a Server and its web app record about how they ran. They stay with the Server, go only where its admin sends them, and reach Nama's developers only if the admin shares them.
 _Avoid_: telemetry, crash reports, monitoring
 
+**Backup**:
+One `.tar` file holding a copy of a Server's database, its config file and, while the image store is local disk, its Custom Images, from which `nama-server restore` puts the Server back (ADR 0068). It holds every Plugin's settings, keys included. Upkeep writes one daily into the Backup folder and keeps the newest few; an Admin also writes one with `nama-server backup`.
+_Avoid_: snapshot, dump, export
+
 **Usage Analytics**:
 Named events recording that a feature was used, such as a Request made or playback started, with no titles or names in them. A Server sends them to Nama's developers only if its admin shares them, separately from Diagnostics.
 _Avoid_: tracking, telemetry, metrics
@@ -204,7 +208,7 @@ _Avoid_: plugin output, plugin console
 An Automation that deletes a Requested title once each of its Requesters has watched it and a set number of days have passed, or hasn't watched it within a longer set number of days. A title nobody Requested is kept.
 
 **Upkeep**:
-The Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again: Home rows of Users who stopped opening home, expired sign-ins and Invites, and what a removed Plugin left behind. Each threshold is one of its settings. Another Job fetches every Matched title's metadata again each week, so it doesn't go stale.
+The Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again: Home rows of Users who stopped opening home, expired sign-ins and Invites, and what a removed Plugin left behind. Each threshold is one of its settings. Another Job fetches every Matched title's metadata again each week, so it doesn't go stale, and another writes a Backup every day, keeping the newest as the Backups page sets.
 _Avoid_: maintenance, housekeeping, garbage collection
 
 ## Media

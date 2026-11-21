@@ -3,7 +3,7 @@
 //! playback writes segment files to, how far behind playback it keeps them, the most Transcodes it
 //! runs at once, what they run on, and the default Playback Limit for remote playback; and whether
 //! Posters and Backdrops are resized, how much disk the resized copies take, and which store
-//! keeps the images; and the default Home layout.
+//! keeps the images; the default Home layout; and where Backups go and how many are kept.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
@@ -58,6 +58,16 @@ pub(crate) struct Values {
     /// The Plugin keeping the image store's originals, or `None` for local disk.
     pub(crate) image_store: Option<PluginId>,
     pub(crate) default_home_layout: HomeLayout,
+    pub(crate) backups: BackupValues,
+}
+
+/// One value of every Backup setting.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct BackupValues {
+    /// The folder Backups are written to, an absolute path, or `""` for the default.
+    pub(crate) folder: String,
+    /// How many of the Server's own Backups are kept, or `None` for the default.
+    pub(crate) kept: Option<NonZeroU32>,
 }
 
 /// One value of every image setting.
@@ -129,6 +139,24 @@ pub(crate) enum Invalid {
         /// Its PCI address, as asked.
         id: String,
     },
+    /// The Backup folder isn't empty or absolute: a relative one would depend on where the Server
+    /// was started.
+    #[error("the Backup folder {folder} isn't an absolute path")]
+    BackupFolderNotAbsolute {
+        /// As trimmed.
+        folder: String,
+    },
+    /// The Backup folder can't be created, or a file can't be written in it, so every Backup
+    /// would fail.
+    #[error("the Backup folder {folder} can't be created or written to")]
+    BackupFolderNotWritable {
+        /// As trimmed.
+        folder: String,
+    },
+    /// The count of Backups kept is 0, which would delete each Backup as it's written; a client
+    /// asks for the default by leaving it out.
+    #[error("at least 1 Backup must be kept")]
+    NoBackupsKept,
 }
 
 impl Settings {
@@ -152,7 +180,8 @@ impl Settings {
         let stored = sqlx::query!(
             "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,
                     hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,
-                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout
+                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout,
+                    backup_folder, backups_kept
              FROM server_settings"
         )
         .fetch_optional(self.db.reader())
@@ -182,6 +211,10 @@ impl Settings {
                         .ok()
                 })
                 .unwrap_or_default(),
+            backups: BackupValues {
+                folder: stored.backup_folder,
+                kept: stored.backups_kept.and_then(non_zero),
+            },
         });
         *self.values.write().unwrap_or_else(PoisonError::into_inner) = values;
         Ok(())
@@ -377,6 +410,57 @@ impl Settings {
         Ok(images)
     }
 
+    /// Stores where Backups go, `folder` trimmed, and how many are `kept`, `None` for the default,
+    /// and uses them from the next Backup.
+    ///
+    /// # Errors
+    ///
+    /// [`Invalid::BackupFolderNotAbsolute`], [`Invalid::NoBackupsKept`] or
+    /// [`Invalid::BackupFolderNotWritable`], in that order, or if storing them fails. A folder
+    /// given is created before it's stored, even if storing then fails.
+    pub(crate) async fn change_backups(
+        &self,
+        folder: &str,
+        kept: Option<u32>,
+    ) -> Result<BackupValues, ChangeError> {
+        let folder = folder.trim().to_owned();
+        if !(folder.is_empty() || Path::new(&folder).is_absolute()) {
+            return Err(Invalid::BackupFolderNotAbsolute { folder }.into());
+        }
+        let kept = match kept {
+            Some(kept) => Some(NonZeroU32::new(kept).ok_or(Invalid::NoBackupsKept)?),
+            None => None,
+        };
+        if !folder.is_empty() && writable(Path::new(&folder)).await.is_err() {
+            return Err(Invalid::BackupFolderNotWritable { folder }.into());
+        }
+        let backups = BackupValues { folder, kept };
+        let stored_folder = backups.folder.clone();
+        let stored_kept = kept.map(NonZeroU32::get);
+        let in_use = backups.clone();
+        self.store(
+            move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO server_settings (id, url, backup_folder, backups_kept)
+                         VALUES (1, '', ?, ?)
+                         ON CONFLICT (id) DO UPDATE SET
+                             backup_folder = excluded.backup_folder,
+                             backups_kept = excluded.backups_kept",
+                        stored_folder,
+                        stored_kept
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok(())
+                })
+            },
+            move |values| values.backups = in_use,
+        )
+        .await?;
+        Ok(backups)
+    }
+
     /// Stores `plugin` as the one keeping the image store's originals, `None` for local disk. Only
     /// a switch of the image store, once it has copied them, calls it.
     ///
@@ -562,7 +646,8 @@ fn plugin_named(stored: String) -> Option<PluginId> {
     (!stored.is_empty()).then(|| PluginId::from(stored))
 }
 
-/// Creates `folder`, then writes and deletes a file in it, as a plan starting there would.
+/// Creates `folder`, then writes and deletes a file in it, as a plan or a Backup starting there
+/// would.
 async fn writable(folder: &Path) -> std::io::Result<()> {
     // Not `nama-plan-…`: startup deletes those as a stopped plan's leftovers.
     // ponytail: two saves of one folder at once can delete each other's file and be refused; name

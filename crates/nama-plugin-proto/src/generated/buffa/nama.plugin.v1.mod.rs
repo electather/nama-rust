@@ -139,6 +139,8 @@ pub mod __buffa {
         reg.register_json_any(super::__GONE_PLUGINS_FORGOTTEN_JSON_ANY);
         reg.register_json_any(super::__REFRESH_METADATA_ASKED_JSON_ANY);
         reg.register_json_any(super::__METADATA_REFRESHED_JSON_ANY);
+        reg.register_json_any(super::__BACK_UP_ASKED_JSON_ANY);
+        reg.register_json_any(super::__BACKED_UP_JSON_ANY);
         reg.register_json_any(super::__TITLES_SHARING_ASKED_JSON_ANY);
         reg.register_json_any(super::__SHARING_TITLES_JSON_ANY);
         reg.register_json_any(super::__SHARING_TITLE_JSON_ANY);
@@ -495,6 +497,14 @@ pub use self::__buffa::view::RefreshMetadataAskedOwnedView;
 pub use self::__buffa::view::MetadataRefreshedView;
 #[doc(inline)]
 pub use self::__buffa::view::MetadataRefreshedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BackUpAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::BackUpAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BackedUpView;
+#[doc(inline)]
+pub use self::__buffa::view::BackedUpOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::TitlesSharingAskedView;
 #[doc(inline)]

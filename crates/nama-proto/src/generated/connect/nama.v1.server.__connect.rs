@@ -86,6 +86,22 @@ pub type OwnedSetDefaultHomeLayoutRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetDefaultHomeLayoutResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetDefaultHomeLayoutResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetBackupsRequestView<'static>>`.
+pub type OwnedGetBackupsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetBackupsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetBackupsResponseView<'static>>`.
+pub type OwnedGetBackupsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetBackupsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<UpdateBackupSettingsRequestView<'static>>`.
+pub type OwnedUpdateBackupSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<UpdateBackupSettingsResponseView<'static>>`.
+pub type OwnedUpdateBackupSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ListPlaysRequestView<'static>>`.
 pub type OwnedListPlaysRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListPlaysRequestView<'static>,
@@ -476,6 +492,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetBackupsResponse>
+for crate::messages::nama::v1::__buffa::view::GetBackupsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetBackupsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetBackupsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UpdateBackupSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UpdateBackupSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPlaysResponse>
 for crate::messages::nama::v1::__buffa::view::ListPlaysResponseView<'_> {
     fn encode(
@@ -609,6 +693,18 @@ pub const SERVER_SERVICE_GET_DEFAULT_HOME_LAYOUT_SPEC: ::connectrpc::Spec = ::co
 /// Static [`Spec`](::connectrpc::Spec) for the `SetDefaultHomeLayout` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.ServerService/SetDefaultHomeLayout",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetBackups` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_GET_BACKUPS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/GetBackups",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `UpdateBackupSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/UpdateBackupSettings",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -954,6 +1050,58 @@ pub trait ServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetDefaultHomeLayoutResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns where the Server writes its Backups, how many it keeps, and the `.tar` files in that
+    /// folder. Needs `PERMISSION_ADMIN`. Upkeep's `back-up` Job writes them (`JobService.RunJob`
+    /// backs up now); `nama-server restore`, run with the Server stopped, restores one (ADR 0068).
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_backups<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetBackupsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetBackupsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces where the Server writes its Backups and how many it keeps, from the next Backup.
+    /// Needs `PERMISSION_ADMIN`. A `folder` that isn't an absolute path is refused with
+    /// `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE`, a `keep` of 0 with `REFUSAL_REASON_FIELD_REQUIRED`, and
+    /// a `folder` the Server can't create or write a file in with
+    /// `REFUSAL_REASON_FOLDER_NOT_WRITABLE`, each naming it, and nothing changes.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn update_backup_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::UpdateBackupSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::UpdateBackupSettingsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1360,6 +1508,64 @@ impl<S: ServerService> ServerServiceExt for S {
             .with_spec(SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC)
             .route_view_idempotent(
                 SERVER_SERVICE_SERVICE_NAME,
+                "GetBackups",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetBackupsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetBackupsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_backups(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetBackupsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_GET_BACKUPS_SPEC)
+            .route_view(
+                SERVER_SERVICE_SERVICE_NAME,
+                "UpdateBackupSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::UpdateBackupSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.update_backup_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::UpdateBackupSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC)
+            .route_view_idempotent(
+                SERVER_SERVICE_SERVICE_NAME,
                 "ListPlays",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -1534,6 +1740,18 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC),
+                )
+            }
+            "GetBackups" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(SERVER_SERVICE_GET_BACKUPS_SPEC),
+                )
+            }
+            "UpdateBackupSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC),
                 )
             }
             "ListPlays" => {
@@ -1802,6 +2020,48 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SetDefaultHomeLayoutResponse,
+                        >(format)
+                })
+            }
+            "GetBackups" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetBackupsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetBackupsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetBackupsRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_backups(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::GetBackupsResponse>(format)
+                })
+            }
+            "UpdateBackupSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::UpdateBackupSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::UpdateBackupSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.update_backup_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::UpdateBackupSettingsResponse,
                         >(format)
                 })
             }
@@ -2462,6 +2722,92 @@ where
                 &self.transport,
                 &self.config,
                 SERVER_SERVICE_SET_DEFAULT_HOME_LAYOUT_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetBackups RPC. Sends a request to /nama.v1.ServerService/GetBackups.
+    pub async fn get_backups(
+        &self,
+        request: crate::messages::nama::v1::GetBackupsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetBackupsResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_backups_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetBackups RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_backups_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetBackupsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetBackupsResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_GET_BACKUPS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the UpdateBackupSettings RPC. Sends a request to /nama.v1.ServerService/UpdateBackupSettings.
+    pub async fn update_backup_settings(
+        &self,
+        request: crate::messages::nama::v1::UpdateBackupSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.update_backup_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the UpdateBackupSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn update_backup_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::UpdateBackupSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

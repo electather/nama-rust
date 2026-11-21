@@ -397,6 +397,12 @@ pub mod __buffa {
         reg.register_json_any(super::__SWITCH_IMAGE_STORE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SWITCH_IMAGE_STORE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_STORE_SWITCH_JSON_ANY);
+        reg.register_json_any(super::__GET_BACKUPS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_BACKUPS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__BACKUP_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_BACKUP_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_BACKUP_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__BACKUP_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__GET_DEFAULT_HOME_LAYOUT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_DEFAULT_HOME_LAYOUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_DEFAULT_HOME_LAYOUT_REQUEST_JSON_ANY);
@@ -1745,6 +1751,30 @@ pub use self::__buffa::view::SwitchImageStoreResponseOwnedView;
 pub use self::__buffa::view::ImageStoreSwitchView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageStoreSwitchOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBackupsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBackupsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBackupsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBackupsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BackupView;
+#[doc(inline)]
+pub use self::__buffa::view::BackupOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateBackupSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateBackupSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateBackupSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateBackupSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BackupSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::BackupSettingsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetDefaultHomeLayoutRequestView;
 #[doc(inline)]

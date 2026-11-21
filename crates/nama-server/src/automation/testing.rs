@@ -15,6 +15,7 @@ use nama_plugin_api::{
 
 use super::Automation;
 use crate::{
+    backup::Backups,
     connections,
     db::{self, Database},
     events::EventBus,
@@ -29,7 +30,7 @@ use crate::{
     plugins::Registry,
     requests::Requests,
     scanner::Scanner,
-    server_settings::ServerUrl,
+    server_settings::{ServerUrl, Settings},
     users::{self, Permissions, User, Users},
 };
 
@@ -57,7 +58,9 @@ pub(super) fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
         Requests::new(Arc::clone(db), events, points.clone()),
     );
     let users = Users::new(Arc::clone(db), points);
-    Automation::serve(Arc::clone(db), scanner, plugins, users)
+    let settings = Settings::new(Arc::clone(db), data.join("transcodes"));
+    let backups = Backups::new(data, &data.join("nama.toml"), settings);
+    Automation::serve(Arc::clone(db), scanner, plugins, users, backups)
 }
 
 /// The Kernel's functions for the cleanup Plugin on `db`, granted only `permission`, and the
