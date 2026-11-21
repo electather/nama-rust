@@ -1,7 +1,7 @@
-import { levels } from "@/features/admin-plugins/lib/log-levels";
 import type { PluginLogLine } from "@/gen/nama/v1/plugin_pb";
+import { levels } from "@/shared/lib/log-levels";
 
-/** One line the Plugin logged, with when and at what level. */
+/** One line a Plugin logged, with when and at what level. */
 export function LogLine({ line }: { line: PluginLogLine }) {
   const at = new Date(Number(line.atMs));
   return (

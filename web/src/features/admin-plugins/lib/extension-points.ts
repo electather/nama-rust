@@ -10,6 +10,7 @@ import {
   Link,
   Rows3,
   ScanSearch,
+  Search,
   Server,
   SkipForward,
   Tv,
@@ -34,6 +35,7 @@ export const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.HOME_ROW]: { label: "Home rows", Icon: Rows3 },
   [ExtensionPoint.SUBTITLE_SOURCE]: { label: "Subtitle source", Icon: Captions },
   [ExtensionPoint.SEGMENT_SOURCE]: { label: "Segment source", Icon: SkipForward },
+  [ExtensionPoint.SEARCH_SOURCE]: { label: "Search source", Icon: Search },
 };
 
 /** What a point's failing calls leave undone, for the points where that isn't plain. */

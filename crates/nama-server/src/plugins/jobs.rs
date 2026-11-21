@@ -16,13 +16,16 @@ use nama_plugin_api::{
 use nama_plugin_proto::services;
 use tokio::{runtime::Handle, task::JoinHandle};
 use tokio_util::task::TaskTracker;
-use tracing::{info, warn};
+use tracing::{Instrument as _, Span, info, warn};
 
 use super::{
     Answer, ExtensionPoints, Failure, FailureKind, Listed, ProviderError, cron::Cron,
     points::Asked, scope::Scope, wasm::TimedOut,
 };
-use crate::db::{self, Database};
+use crate::{
+    db::{self, Database},
+    diagnostics::job_run_span,
+};
 
 /// How many of a Job's Runs are kept, whatever their outcome, so its history stays bounded.
 const RUNS_KEPT: i64 = 50;
@@ -364,6 +367,7 @@ impl Run {
             .ask_one(&plugin, |runner: Arc<dyn JobRunner>| async move {
                 runner.run(run).await.map_err(RunError)
             })
+            .instrument(recording.span())
             .await;
         recording.close(outcome(&asked)).await;
         drop(claim);
@@ -489,6 +493,14 @@ impl Recording {
                 Self(None)
             }
         }
+    }
+
+    /// The span the Run calls its Plugin in, so the Plugin's lines carry the Run's id. None for a
+    /// Run that isn't recorded, whose id no one could look up.
+    fn span(&self) -> Span {
+        self.0
+            .as_ref()
+            .map_or_else(Span::none, |&(_, id)| job_run_span(id))
     }
 
     async fn close(mut self, outcome: JobRunOutcome) {

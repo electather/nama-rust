@@ -14,5 +14,5 @@ Requests and Followed Shows: Users asking for what isn't on the Server (ADR 0012
 
 ### Neighbours
 
-- Uses: `library` (`Contents`, `Metadata`, `library_with_movie`, `library_with_show`, `matched_episodes`, `TitleSources`), `events`, `plugins` (`ExtensionPoints`, `Answer`, and asking a Fulfiller), `users` and `db`.
+- Uses: `library` (`Contents`, `Metadata`, `library_with_movie`, `library_with_show`, `matched_episodes`, `TitleSources`), `events`, `plugins` (`ExtensionPoints`, `Answer`, and asking a Fulfiller and the Search sources), `users` and `db`.
 - Used by: the `api` parts for Requests, Search and Plugins, `automation` (`who_requested`), `scanner` (deleting media, `RequestTitle`), `browse` (`RequestTitle`), `home_rows` (`listed_movie`, `listed_show`, `open_movie_request`), `plugin_settings` (`list_qualities`, `check_qualities`, `replace_qualities`), startup in `lib.rs` and the `library` part `contents` (the ADR 0012 call).
