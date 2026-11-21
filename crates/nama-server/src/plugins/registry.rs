@@ -60,9 +60,6 @@ pub(super) struct State {
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
     pub(super) as_installed: Vec<fn() -> Arc<dyn Plugin>>,
-    /// Whether a Plugin enabled now ticks only through `Registry::tick_now`, never on its
-    /// schedule. Only `Registry::tick_only_on_demand`, in tests, sets it.
-    on_demand: bool,
 }
 
 pub(super) type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
@@ -283,7 +280,7 @@ impl Registry {
             }
             let generation = state.next_generation;
             state.next_generation += 1;
-            let scope = tick::scope(&self.points, manifest, &registrations, state.on_demand);
+            let scope = tick::scope(&self.points, manifest, &registrations);
             state.plugins.insert(
                 id.clone(),
                 Enabled {
@@ -507,31 +504,6 @@ impl Registry {
     /// Plugin in it is disabled or not yet enabled.
     pub fn set_provider_precedence<T: ?Sized + 'static>(&self, plugins: Vec<PluginId>) {
         self.write(|state| state.precedence.insert(PointKey::provide::<T>(), plugins));
-    }
-
-    /// Testing only: ticks the Plugin `id`'s Automation once, now, as its schedule would, since
-    /// ticks come at least `MIN_TICK_EVERY` apart.
-    ///
-    /// # Errors
-    ///
-    /// The tick's failure message; that the Plugin isn't enabled or provides no Automation; or
-    /// that its tick panicked, which disabled it as any panic does.
-    #[cfg(feature = "testing")]
-    pub async fn tick_now(&self, id: &PluginId) -> Result<(), String> {
-        match tick::once(&self.points, id).await {
-            tick::Ticked::Ran(result) => result.map_err(|failure| failure.message),
-            tick::Ticked::NoAutomation => {
-                Err(format!("{id} isn't enabled or provides no Automation"))
-            }
-            tick::Ticked::Panicked => Err(format!("{id}'s tick panicked, so it is disabled")),
-        }
-    }
-
-    /// Testing only: Plugins enabled from now on tick only through [`Registry::tick_now`], never
-    /// on their schedule, so a test's ticks are the only ones and none races them.
-    #[cfg(feature = "testing")]
-    pub fn tick_only_on_demand(&self) {
-        self.write(|state| state.on_demand = true);
     }
 
     /// The id of each Installed Plugin disabled from now on because it crashed, for the Server to

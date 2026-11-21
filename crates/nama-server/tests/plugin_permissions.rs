@@ -18,16 +18,18 @@ mod server;
 #[path = "support/test_plugin.rs"]
 mod test_plugin;
 
+use std::time::{Duration, Instant};
+
 use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};
 use log::Log;
 use nama_proto::nama::v1::{
-    EnablePluginRequest, ExtensionPoint, ListPluginsRequest, PluginPermission, PluginServiceClient,
-    PluginSummary, RefusalReason,
+    EnablePluginRequest, ExtensionPoint, GetPluginRequest, LibraryKind, ListPluginsRequest,
+    PluginPermission, PluginServiceClient, PluginSummary, RefusalReason,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
-use server::TestServer;
+use server::{TestServer, WAIT};
 
 const STORE: PluginPermission = PluginPermission::PLUGIN_PERMISSION_STORE;
 const READ_LIBRARIES: PluginPermission = PluginPermission::PLUGIN_PERMISSION_READ_LIBRARIES;
@@ -63,6 +65,36 @@ async fn listed(server: &TestServer) -> PluginSummary {
         .into_iter()
         .find(|summary| summary.id == "test-plugin")
         .unwrap()
+}
+
+/// Why the test Plugin's last tick failed, as `GetPlugin` shows it, once one has.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn tick_failure(server: &TestServer) -> String {
+    let request = GetPluginRequest {
+        id: "test-plugin".to_owned(),
+        ..Default::default()
+    };
+    let automation = EnumValue::from(ExtensionPoint::EXTENSION_POINT_AUTOMATION);
+    let waiting = Instant::now();
+    loop {
+        let got = client(server).get_plugin(request.clone()).await.unwrap();
+        let plugin = got.into_owned().plugin.into_option().unwrap();
+        if let Some(failure) = plugin
+            .failures
+            .into_iter()
+            .find(|it| it.point == automation)
+        {
+            return failure.last_error;
+        }
+        assert!(
+            waiting.elapsed() < WAIT,
+            "the test Plugin's tick never failed"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 }
 
 fn enable_granting(granted: &[PluginPermission]) -> EnablePluginRequest {
@@ -181,12 +213,18 @@ async fn enabling_again_with_none_clears_the_grants() {
 
 #[tokio::test]
 async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
+    let log = Log::global();
     let server = with_test_plugin("automation").await;
+    // The log is the binary's, and only this test's Server has a Library for its Plugin to see.
+    server
+        .create_library(LibraryKind::LIBRARY_KIND_MOVIES, &[])
+        .await;
     client(&server)
         .enable_plugin(enable_granting(&[STORE]))
         .await
         .unwrap();
-    let refused = server.tick("test-plugin").await.unwrap_err();
+    // Waiting for the tick at enable to fail also keeps enabling again from cancelling it.
+    let refused = tick_failure(&server).await;
     assert!(
         refused.contains("Read Libraries Permission"),
         "the tick failed for another reason: {refused}"
@@ -197,7 +235,7 @@ async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
         .await
         .unwrap();
 
-    server.tick("test-plugin").await.unwrap();
+    log.wait_for(&["test-plugin sees 1 Libraries"], 1).await;
 }
 
 #[tokio::test]

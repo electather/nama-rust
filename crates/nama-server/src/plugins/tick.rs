@@ -13,21 +13,17 @@ use tracing::warn;
 use super::{ExtensionPoints, Failure, points::Asked, scope::Scope};
 
 /// A new scope for an enablement of `manifest`'s Plugin, ticking its Automation every
-/// `tick_every` if it has one and `registrations` provide one, unless its Registry is set to tick
-/// on demand. The first tick comes once the Kernel serves: at once for a Plugin enabled after
-/// that, so an Admin enabling it sees it act without waiting an interval and tests need no wait,
-/// and once serving starts for one enabled at startup, whose tick the Kernel would otherwise
-/// refuse.
+/// `tick_every` if it has one and `registrations` provide one. The first tick comes once the
+/// Kernel serves: at once for a Plugin enabled after that, so an Admin enabling it sees it act
+/// without waiting an interval and tests need no wait, and once serving starts for one enabled at
+/// startup, whose tick the Kernel would otherwise refuse.
 ///
 /// The Registry calls it under its lock, so the loop is in the enablement's scope before a
-/// disable can find it, and passes `on_demand` from the state it holds: reading it through
-/// the Registry would retake that lock. Starts nothing outside a Tokio runtime, where no task can
-/// run.
+/// disable can find it. Starts nothing outside a Tokio runtime, where no task can run.
 pub(super) fn scope(
     points: &ExtensionPoints,
     manifest: &Manifest,
     registrations: &[Registration],
-    on_demand: bool,
 ) -> Scope {
     let scope = Scope::default();
     let automation = PointKey::provide::<dyn Automation>();
@@ -35,7 +31,7 @@ pub(super) fn scope(
     // `interval` panics on zero; a Built-in's Manifest isn't checked as an Installed one's is.
     if let Some(every) = manifest
         .tick_every
-        .filter(|every| !on_demand && ticks && !every.is_zero())
+        .filter(|every| ticks && !every.is_zero())
         && tokio::runtime::Handle::try_current().is_ok()
     {
         scope.spawn(ticking(points.clone(), manifest.id.clone(), every));

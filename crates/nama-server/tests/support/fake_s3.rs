@@ -45,7 +45,7 @@ const REGION: &str = "eu-west-1";
 const ACCESS_KEY_ID: &str = "AKIAFAKEFAKEFAKE";
 
 /// The secret access key the fake knows.
-pub(crate) const SECRET: &str = "fake-s3-secret-for-tests-only";
+const SECRET: &str = "fake-s3-secret-for-tests-only";
 
 /// What the Plugin is set to put before every key, so the fake also sees that it does.
 const PREFIX: &str = "nama/";
@@ -107,9 +107,8 @@ impl FakeS3 {
         }
     }
 
-    /// The S3 Plugin's settings for this fake, path-style, signing with the secret access key
-    /// `secret`, which the fake accepts only if it is its own.
-    pub(crate) fn settings(&self, secret: &str) -> Vec<(String, SettingValue)> {
+    /// The S3 Plugin's settings for this fake, path-style, signing with [`SECRET`].
+    fn settings(&self) -> Vec<(String, SettingValue)> {
         let text = |text: &str| setting_value::Value::TextValue(text.to_owned());
         [
             ("endpoint", text(&format!("http://{}", self.addr))),
@@ -117,7 +116,7 @@ impl FakeS3 {
             ("bucket", text(BUCKET)),
             ("prefix", text(PREFIX)),
             ("access_key_id", text(ACCESS_KEY_ID)),
-            ("secret_access_key", text(secret)),
+            ("secret_access_key", text(SECRET)),
             ("path_style", setting_value::Value::BoolValue(true)),
         ]
         .into_iter()
@@ -141,7 +140,7 @@ impl FakeS3 {
         plugins
             .update_plugin_settings(UpdatePluginSettingsRequest {
                 id: S3.to_owned(),
-                settings: self.settings(SECRET).into_iter().collect(),
+                settings: self.settings().into_iter().collect(),
                 ..Default::default()
             })
             .await
