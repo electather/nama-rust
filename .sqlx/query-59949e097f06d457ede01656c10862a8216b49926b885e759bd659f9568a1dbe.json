@@ -1,0 +1,69 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH asked AS (SELECT kind, people, genres,\n                                     IIF(kind = 'movie', 'title', 'show') AS scope\n                              FROM (SELECT ? AS kind, ? AS people, ? AS genres)),\n               -- Each title once, by its per-title key, with one Item Matched to it through the\n               -- Plugin that keyed it: a row outlives its Matches, and another source's Match\n               -- isn't this one's title.\n               titles AS (\n                 SELECT details.plugin, details.namespace, details.value,\n                        (SELECT item_matches.item_id\n                         FROM item_match_ids\n                         JOIN item_matches ON item_matches.item_id = item_match_ids.item_id\n                         JOIN library_items ON library_items.id = item_matches.item_id\n                         WHERE item_match_ids.scope = asked.scope\n                           AND item_match_ids.namespace = details.namespace\n                           AND item_match_ids.value = details.value\n                           AND item_matches.state = 'matched'\n                           AND item_matches.plugin = details.plugin\n                           AND library_items.kind = IIF(asked.kind = 'movie', 'movie', 'episode')\n                         LIMIT 1) AS item_id\n                 FROM title_details AS details, asked\n                 WHERE details.kind = asked.kind),\n               sharing AS (\n                 SELECT titles.plugin, titles.namespace, titles.value, item_matches.item_id,\n                        item_matches.genres,\n                        (SELECT COUNT(DISTINCT roles.person_namespace || '-' || roles.person_value)\n                         FROM title_roles AS roles\n                         WHERE roles.plugin = titles.plugin AND roles.kind = asked.kind\n                           AND roles.namespace = titles.namespace AND roles.value = titles.value\n                           AND roles.person_namespace || '-' || roles.person_value\n                               IN (SELECT value FROM json_each(asked.people))) AS people,\n                        (SELECT COUNT(*) FROM json_each(coalesce(item_matches.genres, '[]')) AS genre\n                         WHERE genre.value IN (SELECT value FROM json_each(asked.genres)))\n                            AS shared_genres\n                 FROM titles\n                 JOIN item_matches ON item_matches.item_id = titles.item_id, asked)\n               SELECT sharing.plugin AS \"plugin!\", sharing.namespace AS \"namespace!\",\n                      sharing.value AS \"value!\", sharing.genres,\n                      (SELECT json_group_object(ids.namespace, ids.value) FROM item_match_ids AS ids\n                       WHERE ids.item_id = sharing.item_id AND ids.scope = asked.scope) AS \"ids: String\"\n               FROM sharing, asked\n               WHERE sharing.people > 0 OR sharing.shared_genres > 0\n               ORDER BY sharing.people DESC, sharing.shared_genres DESC,\n                        sharing.plugin, sharing.namespace, sharing.value\n               LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_details",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "namespace!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_details",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "name": "value!",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_details",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "name": "genres",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "genres"
+          }
+        }
+      },
+      {
+        "name": "ids: String",
+        "ordinal": 4,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "59949e097f06d457ede01656c10862a8216b49926b885e759bd659f9568a1dbe"
+}

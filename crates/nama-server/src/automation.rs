@@ -1,6 +1,7 @@
 //! Automation: the Kernel's functions any Plugin calls (ADR 0048, ADR 0071), each by name, with
 //! the Plugin Permission it needs checked before its request is read.
 
+mod sharing;
 mod store;
 #[cfg(test)]
 mod testing;
@@ -177,6 +178,11 @@ const FUNCTIONS: &[Function] = &[
         name: "refresh_metadata",
         needs: Permission::PERMISSION_REFRESH_METADATA,
         answer: |caller, request| typed(caller, request, Caller::refresh_metadata),
+    },
+    Function {
+        name: "list_titles_sharing",
+        needs: Permission::PERMISSION_READ_LIBRARIES,
+        answer: |caller, request| typed(caller, request, Caller::list_titles_sharing),
     },
 ];
 

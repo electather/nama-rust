@@ -4919,6 +4919,222 @@ pub const __ROLE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_
     from_json: ::buffa::type_registry::any_from_json::<Role>,
     is_wkt: false,
 };
+/// A Person's Role in a Movie or Show as the Kernel stored it (ADR 0081), as a Similar source is
+/// asked with and `list_titles_sharing` answers.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct TitleRole {
+    /// The Person's External ID in the title source that gave the Role, such as `tmdb` `500`.
+    ///
+    /// Field 1: `person`
+    #[serde(
+        rename = "person",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub person: ::buffa::MessageField<TitleId, ::buffa::Inline<TitleId>>,
+    /// Crew rather than Cast.
+    ///
+    /// Field 2: `crew`
+    #[serde(
+        rename = "crew",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub crew: bool,
+    /// The character they play, or the job they did in English, such as `Director`. Empty if the
+    /// source doesn't say.
+    ///
+    /// Field 3: `part`
+    #[serde(
+        rename = "part",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub part: ::buffa::alloc::string::String,
+    /// Its place in the billing order of the Cast, or of the Crew, from 0.
+    ///
+    /// Field 4: `billed`
+    #[serde(
+        rename = "billed",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub billed: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for TitleRole {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("TitleRole")
+            .field("person", &self.person)
+            .field("crew", &self.crew)
+            .field("part", &self.part)
+            .field("billed", &self.billed)
+            .finish()
+    }
+}
+impl TitleRole {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.TitleRole";
+}
+::buffa::impl_default_instance!(TitleRole);
+impl ::buffa::MessageName for TitleRole {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "TitleRole";
+    const FULL_NAME: &'static str = "nama.plugin.v1.TitleRole";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.TitleRole";
+}
+impl ::buffa::Message for TitleRole {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.person.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.person.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.crew {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.part.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.part) as u64;
+        }
+        if self.billed != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.billed) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.person.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.person.write_to(__cache, buf);
+        }
+        if self.crew {
+            ::buffa::types::put_bool_field(2u32, self.crew, buf);
+        }
+        if !self.part.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.part, buf);
+        }
+        if self.billed != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.billed, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.person.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.crew = ::buffa::types::decode_bool(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.part, buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.billed = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.person = ::buffa::MessageField::none();
+        self.crew = false;
+        self.part.clear();
+        self.billed = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for TitleRole {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.TitleRole";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for TitleRole {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __TITLE_ROLE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.TitleRole",
+    to_json: ::buffa::type_registry::any_to_json::<TitleRole>,
+    from_json: ::buffa::type_registry::any_from_json::<TitleRole>,
+    is_wkt: false,
+};
 /// One Season of a Show, with its Episodes.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]

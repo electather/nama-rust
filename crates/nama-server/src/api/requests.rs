@@ -253,7 +253,10 @@ impl RequestService for RequestServiceHandler {
         // the title source's other ids: `RemoveFromWatchlist` clears only the Matches' (#1292).
         let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Movie, &id);
         let on_watchlist = on_watchlist.await.map_err(database_failed)?;
-        let answers = self.similar.ask(TitleKind::Movie, &found.movie.ids).await;
+        let movie = &found.movie;
+        let answers = (self.similar)
+            .ask(TitleKind::Movie, &movie.ids, &movie.genres, &movie.roles)
+            .await;
         let similar = (self.browse)
             .similar_in_libraries(TitleKind::Movie, &answers)
             .await;
@@ -292,7 +295,10 @@ impl RequestService for RequestServiceHandler {
         // As `look_up_movie`'s.
         let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Show, &id);
         let on_watchlist = on_watchlist.await.map_err(database_failed)?;
-        let answers = self.similar.ask(TitleKind::Show, &found.show.ids).await;
+        let show = &found.show;
+        let answers = (self.similar)
+            .ask(TitleKind::Show, &show.ids, &show.genres, &show.roles)
+            .await;
         let similar = (self.browse)
             .similar_in_libraries(TitleKind::Show, &answers)
             .await;

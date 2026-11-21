@@ -51,7 +51,7 @@ pub(crate) use similar_sources::{
 pub(crate) use title_source::scripted;
 pub(crate) use title_source::{
     Candidate, Episode as SourceEpisode, Roles, SearchQuery, Season as SourceSeason,
-    Show as SourceShow, Source, TitleKind, TitleSources, Trailer, Unanswered,
+    Show as SourceShow, Source, TitleKind, TitleSources, Trailer, Unanswered, title_roles,
 };
 pub(crate) use titles::{
     NotFound, OnServer, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,

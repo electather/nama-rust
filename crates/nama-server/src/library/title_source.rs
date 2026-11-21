@@ -15,6 +15,7 @@ use nama_plugin_api::{
 pub(crate) mod scripted;
 mod titles;
 
+pub(crate) use titles::title_roles;
 pub(crate) use titles::{
     Artwork, ArtworkKind, Candidate, Episode, Image, Movie, Role, Roles, SearchQuery, Season, Show,
     TitleKind, Trailer,

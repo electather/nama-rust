@@ -7,9 +7,10 @@ pub use nama_plugin_proto::nama::plugin::v1::{
     DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
     ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, Libraries, LibrariesAsked,
     Library, LibraryKind, MetadataRefreshed, Permission, RefreshMetadataAsked, Requesters,
-    RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind,
-    TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState,
-    WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
+    RequestersAsked, SharingTitle, SharingTitles, StoreEntry, StoreKey, StoreValue, Stored, Title,
+    TitleRef, TitleRefKind, TitleRequesters, TitleRole, TitleWatchStates, Titles, TitlesAsked,
+    TitlesSharingAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
+    Watchlist, WatchlistAsked, WatchlistTitle,
 };
 
 use crate::BoxFuture;

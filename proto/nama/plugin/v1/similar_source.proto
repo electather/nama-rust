@@ -23,6 +23,11 @@ message SimilarAsked {
   TitleKind kind = 1;
   // Its External IDs, at most one per namespace.
   repeated TitleId ids = 2;
+  // Its genres' names, as its title source gave them, about to be stored or, for a title not on
+  // the Server, just fetched.
+  repeated string genres = 3;
+  // Its Cast, then its Crew, each in billing order, from the same answer as `genres`.
+  repeated TitleRole roles = 4;
 }
 
 // What the `similar_titles` export returns. Empty means the source knows none, which isn't a

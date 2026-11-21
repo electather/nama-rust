@@ -27,6 +27,7 @@ import "nama/plugin/v1/title_source.proto";
 //                      PERMISSION_DELETE_EXPIRED_SIGN_INS
 //   forget_gone_plugins: ForgetGonePluginsAsked -> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
 //   refresh_metadata:  RefreshMetadataAsked -> MetadataRefreshed  PERMISSION_REFRESH_METADATA
+//   list_titles_sharing: TitlesSharingAsked -> SharingTitles  PERMISSION_READ_LIBRARIES
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
 // Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -47,7 +48,7 @@ enum Permission {
   PERMISSION_UNSPECIFIED = 0;
   // The Plugin's own Store: `store_get`, `store_put` and `store_delete`.
   PERMISSION_STORE = 1;
-  // Libraries and their titles: `list_libraries` and `list_titles`.
+  // Libraries and their titles: `list_libraries`, `list_titles` and `list_titles_sharing`.
   PERMISSION_READ_LIBRARIES = 2;
   // Every User's Watch State: `list_watch_states`.
   PERMISSION_READ_WATCH_STATES = 3;
@@ -325,4 +326,33 @@ message MetadataRefreshed {
   uint64 titles = 1;
   // The id of each Plugin that couldn't answer, whose titles it left as they were.
   repeated string unavailable_plugin_ids = 2;
+}
+
+// What `list_titles_sharing` takes: Persons and genres to find the Movies or Shows sharing them.
+message TitlesSharingAsked {
+  TitleKind kind = 1;
+  // The Persons, by the External IDs their Roles have.
+  repeated TitleId people = 2;
+  // Genres' names, as title sources give them.
+  repeated string genres = 3;
+  // The most titles to answer, at most 1000. 0 asks for 1000.
+  uint32 limit = 4;
+}
+
+// What `list_titles_sharing` answers: the Movies or Shows of the kind asked, from every Library,
+// each once, that share at least one of the Persons or genres asked, those sharing the most
+// Persons first, then the most genres. The order only narrows the Library down: a Plugin weighs
+// the titles itself.
+message SharingTitles {
+  repeated SharingTitle titles = 1;
+}
+
+// A Movie or Show `list_titles_sharing` answers.
+message SharingTitle {
+  // Its External IDs, at most one per namespace.
+  repeated TitleId ids = 1;
+  // Its genres' names.
+  repeated string genres = 2;
+  // Every Role it has, its Cast and then its Crew, each in billing order.
+  repeated TitleRole roles = 3;
 }

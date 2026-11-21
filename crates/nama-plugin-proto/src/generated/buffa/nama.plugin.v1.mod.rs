@@ -100,6 +100,7 @@ pub mod __buffa {
         reg.register_json_any(super::__SHOW_JSON_ANY);
         reg.register_json_any(super::__TRAILER_JSON_ANY);
         reg.register_json_any(super::__ROLE_JSON_ANY);
+        reg.register_json_any(super::__TITLE_ROLE_JSON_ANY);
         reg.register_json_any(super::__SEASON_JSON_ANY);
         reg.register_json_any(super::__EPISODE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_JSON_ANY);
@@ -138,6 +139,9 @@ pub mod __buffa {
         reg.register_json_any(super::__GONE_PLUGINS_FORGOTTEN_JSON_ANY);
         reg.register_json_any(super::__REFRESH_METADATA_ASKED_JSON_ANY);
         reg.register_json_any(super::__METADATA_REFRESHED_JSON_ANY);
+        reg.register_json_any(super::__TITLES_SHARING_ASKED_JSON_ANY);
+        reg.register_json_any(super::__SHARING_TITLES_JSON_ANY);
+        reg.register_json_any(super::__SHARING_TITLE_JSON_ANY);
         reg.register_json_any(super::__BLOB_TO_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_KEY_JSON_ANY);
@@ -336,6 +340,10 @@ pub use self::__buffa::view::RoleView;
 #[doc(inline)]
 pub use self::__buffa::view::RoleOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::TitleRoleView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleRoleOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::SeasonView;
 #[doc(inline)]
 pub use self::__buffa::view::SeasonOwnedView;
@@ -487,6 +495,18 @@ pub use self::__buffa::view::RefreshMetadataAskedOwnedView;
 pub use self::__buffa::view::MetadataRefreshedView;
 #[doc(inline)]
 pub use self::__buffa::view::MetadataRefreshedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitlesSharingAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitlesSharingAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SharingTitlesView;
+#[doc(inline)]
+pub use self::__buffa::view::SharingTitlesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SharingTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::SharingTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::BlobToPutView;
 #[doc(inline)]

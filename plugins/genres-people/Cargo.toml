@@ -1,0 +1,17 @@
+[package]
+name = "nama-plugin-genres-people"
+version = "0.1.0"
+description = "Installed Plugin suggesting Similar titles from the Libraries by shared Persons and genres, bundled in the Server"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nama-pdk = { version = "0.3.0", path = "../../crates/nama-pdk" }
+
+[lints]
+workspace = true
