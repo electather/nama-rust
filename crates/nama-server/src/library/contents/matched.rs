@@ -33,10 +33,10 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) logo: Option<ImageRef>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
-    /// Its Score from the title source that made the Match, kept once per title, as are its
-    /// Trailers.
+    /// Its Score from the title source that made the Match, kept once per title.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
+    /// Its Trailers from that title source, kept once per title beside its Score.
     pub(crate) trailers: Vec<Trailer>,
     /// Its `added_at` in `library_titles`, in seconds since the Unix epoch.
     pub(crate) added_at: i64,

@@ -292,7 +292,7 @@ async fn a_title_has_its_score_and_original_language() {
 }
 
 #[tokio::test]
-async fn a_title_has_only_its_trailers_official_first_and_at_most_5() {
+async fn a_title_has_only_its_trailers_on_youtube_or_vimeo_official_first_and_at_most_5() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
     let keys = |trailers: &[Trailer]| -> Vec<String> {
@@ -317,7 +317,8 @@ async fn a_title_has_only_its_trailers_official_first_and_at_most_5() {
         (alien.trailers[0].official, alien.trailers[1].official),
         (true, false)
     );
-    // Dark's sixth Trailer, its only unofficial one, is cut.
+    // Dark's Trailer on Dailymotion is dropped before its 5 are kept, so its sixth, its only
+    // unofficial one, is cut.
     assert_eq!(
         keys(&dark.trailers),
         [

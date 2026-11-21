@@ -5,7 +5,7 @@ import type { Trailer } from "@/gen/nama/v1/request_pb";
 
 /**
  * A title's Trailers, each a link out to where it is hosted. Nothing is embedded or previewed, so
- * the page tells the host nothing until a User opens one (ADR 0081).
+ * the page tells the host nothing until a User opens one (GLOSSARY.md, "Trailer").
  */
 export function TitleTrailers({ trailers }: { trailers: Trailer[] }) {
   const heading = useId();

@@ -115,7 +115,7 @@ pub(crate) struct Show {
     pub(crate) trailers: Vec<Trailer>,
 }
 
-/// A Trailer, as a link to where it is hosted: Nama never embeds or plays one (ADR 0081).
+/// A Trailer, as a link to where it is hosted: Nama never embeds or plays one (`GLOSSARY.md`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Trailer {
     /// What it is called, such as `Official Trailer`.

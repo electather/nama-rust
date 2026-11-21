@@ -254,10 +254,13 @@ const MAX_TRAILERS: usize = 5;
 
 impl Videos {
     /// The Trailers among the videos, official first, else in TMDB's order, which drops
-    /// Featurettes, Clips, Teasers and the like.
+    /// Featurettes, Clips, Teasers and the like. Only a site the contract names counts, so one the
+    /// Kernel would drop doesn't take the place of one it keeps.
     fn trailers(self) -> Vec<Trailer> {
         let mut trailers: Vec<Video> = (self.results.into_iter())
-            .filter(|video| video.kind == "Trailer")
+            .filter(|video| {
+                video.kind == "Trailer" && matches!(video.site.as_str(), "YouTube" | "Vimeo")
+            })
             .collect();
         trailers.sort_by_key(|video| !video.official);
         (trailers.into_iter().take(MAX_TRAILERS))
