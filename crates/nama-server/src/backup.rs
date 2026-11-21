@@ -164,14 +164,15 @@ fn list(folder: &Path) -> io::Result<Vec<Listed>> {
     let mut listed = Vec::new();
     for entry in entries {
         let entry = entry?;
-        let meta = entry.metadata()?;
-        let is_tar = |name: &String| {
-            let extension = Path::new(name).extension();
-            extension.is_some_and(|extension| extension.eq_ignore_ascii_case("tar"))
-        };
-        let Some(name) = entry.file_name().into_string().ok().filter(is_tar) else {
+        let Some(name) = entry
+            .file_name()
+            .into_string()
+            .ok()
+            .filter(|name| is_tar(name))
+        else {
             continue;
         };
+        let meta = entry.metadata()?;
         if !meta.is_file() {
             continue;
         }
@@ -187,6 +188,11 @@ fn list(folder: &Path) -> io::Result<Vec<Listed>> {
     }
     listed.sort_by(|a, b| b.modified_ms.cmp(&a.modified_ms).then(b.name.cmp(&a.name)));
     Ok(listed)
+}
+
+/// Whether `name` is a `.tar` file's, whatever its case.
+fn is_tar(name: &str) -> bool {
+    (Path::new(name).extension()).is_some_and(|extension| extension.eq_ignore_ascii_case("tar"))
 }
 
 /// Deletes the oldest of the Backups the Server wrote in `folder` beyond the newest `kept`.

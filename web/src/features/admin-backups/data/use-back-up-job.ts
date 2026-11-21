@@ -1,12 +1,10 @@
-import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { backupsKey } from "@/features/admin-backups/data/use-backups";
 import { BACK_UP_JOB, UPKEEP } from "@/features/admin-backups/lib/back-up-job";
-import { isRunning, RUNNING_POLL_MS } from "@/features/admin-jobs/lib/outcomes";
-import { JobService } from "@/gen/nama/v1/job_pb";
-import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
+import { useJobs } from "@/features/admin-jobs/data/use-jobs";
+import { isRunning } from "@/features/admin-jobs/lib/outcomes";
 
 /**
  * Upkeep's Back up Job, looked at again while it runs, or `undefined` while Upkeep is disabled.
@@ -14,26 +12,17 @@ import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
  */
 export function useBackUpJob() {
   const queryClient = useQueryClient();
-  const job = useSuspenseQuery(
-    JobService.method.listJobs,
-    {},
-    {
-      staleTime: loaderStaleTime,
-      refetchInterval: (query) =>
-        isRunning(query.state.data?.jobs.find(isBackUp)?.lastRun) ? RUNNING_POLL_MS : false,
-    },
-  ).data.jobs.find(isBackUp);
+  const job = useJobs().find(({ pluginId, id }) => pluginId === UPKEEP && id === BACK_UP_JOB);
+  const runId = job?.lastRun?.id;
   const running = isRunning(job?.lastRun);
-  const wasRunning = useRef(running);
+  // A Backup of a small Server can end before the Jobs are first fetched again, so a new Run
+  // that has already ended counts as one ending.
+  const seen = useRef({ runId, running });
   useEffect(() => {
-    if (wasRunning.current && !running) {
+    if (!running && (seen.current.running || seen.current.runId !== runId)) {
       void queryClient.invalidateQueries({ queryKey: backupsKey });
     }
-    wasRunning.current = running;
-  }, [running, queryClient]);
+    seen.current = { runId, running };
+  }, [runId, running, queryClient]);
   return job;
-}
-
-function isBackUp(job: { pluginId: string; id: string }) {
-  return job.pluginId === UPKEEP && job.id === BACK_UP_JOB;
 }

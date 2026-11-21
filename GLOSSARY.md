@@ -29,7 +29,7 @@ The logs, errors and timings a Server and its web app record about how they ran.
 _Avoid_: telemetry, crash reports, monitoring
 
 **Backup**:
-One `.tar` file holding a copy of a Server's database, its config file and, while the image store is local disk, its Custom Images, from which `nama-server restore` puts the Server back (ADR 0068). It holds every Plugin's settings, keys included. Upkeep writes one daily into the Backup folder and keeps the newest few; an Admin also writes one with `nama-server backup`.
+One `.tar` file holding a copy of a Server's database, its config file and, while the image store is local disk, its Custom Images, from which `nama-server restore` puts the Server back (ADR 0068). It holds every Plugin's settings, keys included. Upkeep writes one daily into the Backup folder and keeps the newest few; an Admin also writes one with "Back up now" on the Backups page, or with `nama-server backup`.
 _Avoid_: snapshot, dump, export
 
 **Usage Analytics**:
