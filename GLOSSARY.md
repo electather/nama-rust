@@ -189,7 +189,7 @@ One time the Kernel runs a Job: when it started and ended, what started it, and 
 _Avoid_: execution, invocation, Tick
 
 **Plugin Permission**:
-One thing a Plugin may ask the Kernel for, such as reading Watch State or deleting media. Its Manifest requests some, and an Admin grants some or all of them when enabling it, except that a Built-in Plugin is granted all it requests when the Server first has it (ADR 0079); the grants survive restarts, and an Admin may revoke them. Not a User's Permission: it says what the Plugin itself may do, whoever it acts for (ADR 0049).
+One thing a Plugin may ask the Kernel for, such as reading Watch State or deleting media. Its Manifest requests some. An Admin grants an Installed Plugin some or all of them when enabling it, and the grants survive restarts until an Admin changes them; a Built-in Plugin always holds all it requests (ADR 0079). Not a User's Permission: it says what the Plugin itself may do, whoever it acts for (ADR 0049).
 _Avoid_: scope, capability, Permission (alone, which is a User's)
 
 **Plugin Store**:

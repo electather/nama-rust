@@ -17,11 +17,11 @@ pub mod kernel {
     use nama_plugin_proto::nama::plugin::v1::{
         DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
         ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
-        KernelAnswer, Libraries, LibrariesAsked, Library, Requesters, RequestersAsked,
-        SharingTitle, SharingTitles, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleId,
-        TitleKind, TitleRef, TitleRequesters, TitleWatchStates, Titles, TitlesAsked,
-        TitlesSharingAsked, User, Users, UsersAsked, WatchStates, WatchStatesAsked, Watchlist,
-        WatchlistAsked, WatchlistTitle, kernel_answer,
+        KernelAnswer, Libraries, LibrariesAsked, Library, MetadataRefreshed, RefreshMetadataAsked,
+        Requesters, RequestersAsked, SharingTitle, SharingTitles, StoreEntry, StoreKey, StoreValue,
+        Stored, Title, TitleId, TitleKind, TitleRef, TitleRequesters, TitleWatchStates, Titles,
+        TitlesAsked, TitlesSharingAsked, User, Users, UsersAsked, WatchStates, WatchStatesAsked,
+        Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -266,6 +266,21 @@ pub mod kernel {
         Ok(call::<SharingTitles>("list_titles_sharing", &asked)?.titles)
     }
 
+    /// Fetches every Matched title of every Library again from its title source, by the ids its
+    /// Match has, whatever its metadata version, and stores what it got, as
+    /// `(titles, unavailable_plugin_ids)`: how many titles it stored, and the id of each Plugin
+    /// that couldn't answer, whose titles keep what they had. It never searches or changes a
+    /// Match. Needs `PERMISSION_REFRESH_METADATA`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused or couldn't be called.
+    pub fn refresh_metadata() -> Result<(u64, Vec<String>), Error> {
+        let refreshed =
+            call::<MetadataRefreshed>("refresh_metadata", &RefreshMetadataAsked::default())?;
+        Ok((refreshed.titles, refreshed.unavailable_plugin_ids))
+    }
+
     /// Calls the Kernel function `name` with `request` and decodes its answer.
     fn call<T: Message>(name: &str, request: &impl Message) -> Result<T, Error> {
         answer(name, &raw(name, &request.try_encode_to_vec()?)?)
@@ -306,6 +321,7 @@ pub mod kernel {
             safe fn delete_expired_sign_ins(request: u64) -> u64;
             safe fn forget_gone_plugins(request: u64) -> u64;
             safe fn list_titles_sharing(request: u64) -> u64;
+            safe fn refresh_metadata(request: u64) -> u64;
         }
 
         let import: extern "C" fn(u64) -> u64 = match name {
@@ -323,6 +339,7 @@ pub mod kernel {
             "delete_expired_sign_ins" => delete_expired_sign_ins,
             "forget_gone_plugins" => forget_gone_plugins,
             "list_titles_sharing" => list_titles_sharing,
+            "refresh_metadata" => refresh_metadata,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };
         // Freed when dropped, once the Kernel has read it.
