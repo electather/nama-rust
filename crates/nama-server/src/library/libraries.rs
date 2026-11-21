@@ -13,7 +13,7 @@ use super::{
     folders::{FolderProblem, check_folders, ensure_folders_free, insert_folders},
     last_scans::{self, LastScan},
 };
-use crate::{db::Database, users::name_key};
+use crate::{db::Database, playback::make_segments_due, users::name_key};
 
 /// The kind of media a Library holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
@@ -374,6 +374,22 @@ impl Libraries {
             .await
     }
 
+    /// The Libraries whose Segment sources include the Plugin `plugin`, read inside the caller's
+    /// write.
+    pub(crate) async fn listing_segment_source(
+        conn: &mut SqliteConnection,
+        plugin: &str,
+    ) -> Result<Vec<i64>, sqlx::Error> {
+        // `segment_sources` is comma-separated, so commas around both match whole ids only.
+        sqlx::query_scalar!(
+            r#"SELECT id AS "id!" FROM libraries
+               WHERE instr(',' || segment_sources || ',', ',' || ? || ',') > 0"#,
+            plugin
+        )
+        .fetch_all(conn)
+        .await
+    }
+
     /// Records `read`; whether it differs from the last scan's.
     async fn record_recognisers_read(
         conn: &mut SqliteConnection,
@@ -499,6 +515,11 @@ async fn update(
     let segment_sources = match segment_sources {
         Some(segment_sources) => {
             set_segment_sources(conn, id, segment_sources.join(",")).await?;
+            // Only a source it didn't ask before can find more; a reorder or removal can't.
+            let asked = split_ids(&row.segment_sources);
+            if segment_sources.iter().any(|source| !asked.contains(source)) {
+                make_segments_due(conn, &[id]).await?;
+            }
             segment_sources
         }
         None => split_ids(&row.segment_sources),

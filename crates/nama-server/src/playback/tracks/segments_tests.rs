@@ -18,10 +18,11 @@ use super::{Segment, SegmentKind, Segments, Waits, keep, segments_of};
 use crate::{
     db::{self, Database},
     library::{
-        Contents, Libraries, Stored,
+        Contents, Libraries, Order, Stored,
         fixture::{MatchedMovie, tmdb_movie},
     },
     playback::{Chapter, Probe, Tracks},
+    plugin_settings::PluginSettings,
     plugins::Registry,
 };
 
@@ -104,6 +105,7 @@ fn chapter(start_ms: i64, title: &str) -> Chapter {
 struct Fixture {
     segments: Segments,
     db: Arc<Database>,
+    library: i64,
     version: i64,
     asked: Asked,
     plugins: Registry,
@@ -133,6 +135,7 @@ impl Fixture {
             segments: Segments::new(Arc::clone(&db), plugins.extension_points()),
             plugins,
             db,
+            library: alien.library,
             version: alien.version,
             asked,
             _dirs: (data, media),
@@ -144,6 +147,25 @@ impl Fixture {
             .ask(self.version, &mut Waits::default())
             .await
             .unwrap();
+    }
+
+    /// Has the Library list the Segment sources `listed`, as an Admin editing it does.
+    async fn list(&self, listed: &[&str]) {
+        let libraries = Libraries::new(Arc::clone(&self.db));
+        let library = libraries.get(self.library).await.unwrap();
+        let order = Order {
+            title_sources: vec![],
+            recognisers: None,
+            segment_sources: Some(listed.iter().map(|&id| id.to_owned()).collect()),
+            preview_frames: None,
+        };
+        (libraries.update(self.library, &library.name, library.folders, order))
+            .await
+            .unwrap();
+    }
+
+    async fn is_due(&self) -> bool {
+        self.segments.due().await.unwrap().contains(&self.version)
     }
 
     async fn stored(&self) -> Vec<Segment> {
@@ -434,4 +456,43 @@ async fn a_wait_under_a_second_or_over_five_minutes_pauses_a_source_for_a_second
         (300_000..360_000).contains(&paused_for[1]),
         "{paused_for:?}"
     );
+}
+
+#[tokio::test]
+async fn a_source_added_to_the_librarys_order_makes_a_version_asked_already_due() {
+    let fakes = vec![fake("first", Some(vec![])), fake("added", Some(vec![]))];
+    let fx = Fixture::new(vec![], &["first"], fakes).await;
+    fx.ask().await;
+    assert!(!fx.is_due().await);
+
+    fx.list(&["first", "added"]).await;
+
+    assert!(fx.is_due().await);
+}
+
+#[tokio::test]
+async fn enabling_a_plugin_the_library_lists_makes_a_version_asked_already_due() {
+    let fx = Fixture::new(vec![], &["late"], vec![]).await;
+    fx.ask().await;
+    assert!(!fx.is_due().await);
+    let late = fake("late", Some(vec![]));
+    fx.plugins.describe_builtin(move || Arc::new(late.clone()));
+
+    PluginSettings::for_tests(Arc::clone(&fx.db), fx.plugins.clone())
+        .enable(&PluginId::from_static("late"))
+        .await
+        .unwrap();
+
+    assert!(fx.is_due().await);
+}
+
+#[tokio::test]
+async fn reordering_the_librarys_sources_leaves_a_version_asked_already_waiting() {
+    let fakes = vec![fake("first", Some(vec![])), fake("second", Some(vec![]))];
+    let fx = Fixture::new(vec![], &["first", "second"], fakes).await;
+    fx.ask().await;
+
+    fx.list(&["second", "first"]).await;
+
+    assert!(!fx.is_due().await);
 }

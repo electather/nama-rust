@@ -649,6 +649,16 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         &["requests", "make_seasons_available"],
         "ADR 0012: the Library makes Requests Available inside its own write",
     ),
+    (
+        Importers::File("src/library/libraries.rs"),
+        &["playback", "make_segments_due"],
+        "ADR 0075: a Segment source added to a Library makes its Versions due inside its write",
+    ),
+    (
+        Importers::TestCode,
+        &["plugin_settings", "PluginSettings"],
+        "the Segments tests enable a Plugin as an Admin does, to check it makes Versions due",
+    ),
 ];
 
 #[test]

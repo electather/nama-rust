@@ -170,6 +170,21 @@ impl Contents {
         .await?;
         Ok(())
     }
+
+    /// The Versions in the Libraries `libraries`, read inside the caller's write.
+    pub(crate) async fn versions_in(
+        conn: &mut SqliteConnection,
+        libraries: &[i64],
+    ) -> Result<Vec<i64>, sqlx::Error> {
+        let libraries = serde_json::Value::from(libraries).to_string();
+        sqlx::query_scalar!(
+            "SELECT id FROM library_files
+             WHERE library_id IN (SELECT value FROM json_each(?))",
+            libraries
+        )
+        .fetch_all(conn)
+        .await
+    }
 }
 
 async fn apply(
