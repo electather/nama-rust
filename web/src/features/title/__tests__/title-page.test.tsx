@@ -9,6 +9,7 @@ import {
   HdrFormat,
   type MovieSchema,
   type ShowSchema,
+  type VersionSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
@@ -49,8 +50,101 @@ test("a Movie's page shows its Title Logo with its genres, year, runtime and Con
   expect(within(heading).getByRole("img").getAttribute("src")).toBe(
     "/media/artwork/tmdb/%2Fparasite-logo.png",
   );
-  expect(screen.getByText("Movie · Thriller · Drama · 2019 · 2h 13m")).toBeDefined();
-  expect(screen.getByText("R")).toBeDefined();
+  expect(screen.getByText("Movie · Thriller · Drama")).toBeDefined();
+  expect(screen.getByText("2019 · 2h 13m").closest("p")?.textContent).toBe("2019 · 2h 13mR");
+});
+
+/** The Details fact named `term`, as its value reads. */
+function detail(term: string) {
+  return screen.getByText(term, { selector: "dt" }).nextElementSibling?.textContent;
+}
+
+test("a Movie's page shows its Score among its facts, and its Original audio in Details", async () => {
+  openMovie({ releaseDate: "2019-05-30", score: 8.5, originalLanguage: "ko" });
+
+  const score = await screen.findByText("Score");
+  expect(score.closest("p")?.textContent).toBe("Score8.52019");
+  expect(detail("Original audio")).toBe("Korean");
+});
+
+const parasiteCast = [
+  { name: "Song Kang-ho", part: "Kim Ki-taek", headshotUrl: "/media/artwork/tmdb/%2Fsong.jpg" },
+  { name: "Lee Sun-kyun", part: "Park Dong-ik" },
+  { name: "Cho Yeo-jeong", part: "Choi Yeon-kyo" },
+  { name: "Choi Woo-shik", part: "Kim Ki-woo" },
+];
+
+test("a Movie's page shows who stars in it, its Cast & Crew, and who directed it", async () => {
+  openMovie({
+    cast: parasiteCast,
+    crew: [
+      { name: "Bong Joon-ho", part: "Director" },
+      { name: "Bong Joon-ho", part: "Screenplay" },
+    ],
+  });
+
+  await expect(
+    screen.findByText("Starring Song Kang-ho, Lee Sun-kyun, Cho Yeo-jeong"),
+  ).resolves.toBeDefined();
+  const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
+  expect(row.getAllByRole("listitem").map((role) => role.textContent)).toStrictEqual([
+    "Song Kang-hoKim Ki-taek",
+    "Lee Sun-kyunPark Dong-ik",
+    "Cho Yeo-jeongChoi Yeon-kyo",
+    "Choi Woo-shikKim Ki-woo",
+    "Bong Joon-hoDirector",
+    "Bong Joon-hoScreenplay",
+  ]);
+  // Its name is beside it, so the headshot is presentational.
+  const headshot = row.getAllByRole("listitem")[0]?.querySelector("img");
+  expect(headshot?.getAttribute("src")).toBe("/media/artwork/tmdb/%2Fsong.jpg");
+  expect(detail("Directed by")).toBe("Bong Joon-ho");
+});
+
+test("a title without Roles shows no Starring, Cast & Crew or Directed by", async () => {
+  openMovie({});
+
+  await expect(screen.findByRole("heading", { level: 1, name: "Parasite" })).resolves.toBeDefined();
+  expect(screen.queryByText(/^Starring/u)).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Cast & Crew" })).toBeNull();
+  expect(screen.queryByText("Directed by")).toBeNull();
+});
+
+test("a title nobody has voted on shows no Score, not 0", async () => {
+  openMovie({ releaseDate: "2019-05-30" });
+
+  await expect(screen.findByRole("heading", { level: 1, name: "Parasite" })).resolves.toBeDefined();
+  expect(screen.queryByText("Score")).toBeNull();
+});
+
+test("a Movie's page links each Trailer out to a new tab, and loads nothing from its host", async () => {
+  const youtube = "https://www.youtube.com/watch?v=isOGD_7hNIY";
+  const vimeo = "https://vimeo.com/123456789";
+  openMovie({
+    trailers: [
+      { name: "Official Trailer", url: youtube },
+      { name: "Teaser", url: vimeo },
+    ],
+  });
+
+  const row = await screen.findByRole("region", { name: "Trailers" });
+  const links = within(row).getAllByRole("link");
+  expect(links.map((link) => link.getAttribute("href"))).toStrictEqual([youtube, vimeo]);
+  expect(
+    links.map((link) => [link.getAttribute("target"), link.getAttribute("rel")]),
+  ).toStrictEqual([
+    ["_blank", "noopener noreferrer"],
+    ["_blank", "noopener noreferrer"],
+  ]);
+  expect(within(row).getByRole("link", { name: /^Official Trailer/u })).toBe(links[0]);
+  expect(document.querySelector("iframe, video, [src*='youtube'], [src*='vimeo']")).toBeNull();
+});
+
+test("a title without Trailers has no Trailers row", async () => {
+  openMovie({});
+
+  await expect(screen.findByRole("heading", { level: 1, name: "Parasite" })).resolves.toBeDefined();
+  expect(screen.queryByRole("region", { name: "Trailers" })).toBeNull();
 });
 
 test("a title without a Title Logo shows its title as text", async () => {
@@ -108,6 +202,26 @@ test("dolby Vision is named as such, and a Movie without 4K, HDR or SDH has no b
   expect(screen.queryByText(/^(?:4K|HDR|SDH)$/u)).toBeNull();
 });
 
+/** A Version with an English Dolby Atmos 7.1 Track and an English Audio Description one. */
+const atmosAndAudioDescription: MessageInitShape<typeof VersionSchema> = {
+  id: 1n,
+  tracks: [
+    { language: "eng", kind: { case: "audio", value: { channels: 8, atmos: true } } },
+    { language: "eng", kind: { case: "audio", value: { channels: 2, audioDescription: true } } },
+  ],
+};
+
+/** How Languages lists `atmosAndAudioDescription`'s audio. */
+const atmosAndAudioDescriptionReads =
+  "English (7.1, Dolby Atmos), English (Stereo, Audio Description)";
+
+test("a Movie with Atmos audio shows Atmos, and marks Dolby Atmos and Audio Description under Languages", async () => {
+  openMovie({ versions: [atmosAndAudioDescription] });
+
+  await expect(screen.findByText("Atmos")).resolves.toBeDefined();
+  expect(detail("Audio")).toBe(atmosAndAudioDescriptionReads);
+});
+
 test("a started Movie shows Resume with its progress and time left", async () => {
   openMovie({ watchState: { positionMs: 1_800_000n, durationMs: 6_120_000n } });
 
@@ -132,6 +246,14 @@ function openDark(...entries: MessageInitShape<typeof ContinueWatchingEntrySchem
     overview: "A missing child sets four families on a hunt.",
     firstAirDate: "2017-12-01",
     genres: ["Drama"],
+    score: 8.4,
+    originalLanguage: "de",
+    cast: [{ name: "Louis Hofmann", part: "Jonas Kahnwald" }],
+    crew: [
+      { name: "Baran bo Odar", part: "Creator" },
+      { name: "Jantje Friese", part: "Creator" },
+    ],
+    trailers: [{ name: "Final Trailer", url: "https://www.youtube.com/watch?v=darkFinal01" }],
   };
   const transport = server({
     getShow: () => ({ show, seasons: [{ number: 1 }] }),
@@ -157,14 +279,65 @@ function episodeEntry(
   } as const;
 }
 
-test("a Show's page shows its own overview and first air year, and no button unstarted", async () => {
+test("a Show's page shows its own overview, first air year, Score, Original audio and Trailers, and no Play without Episodes", async () => {
   openDark();
 
   await expect(
     screen.findByText("A missing child sets four families on a hunt."),
   ).resolves.toBeDefined();
-  expect(screen.getByText("Show · Drama · 2017")).toBeDefined();
-  expect(screen.queryByRole("link", { name: /^Resume/u })).toBeNull();
+  expect(screen.getByText("Show · Drama")).toBeDefined();
+  // In its facts, and as Released in its Details.
+  expect(screen.getAllByText("2017")).toHaveLength(2);
+  expect(screen.getByText("Score").parentElement?.textContent).toBe("Score8.4");
+  expect(detail("Original audio")).toBe("German");
+  expect(screen.getByRole("link", { name: /^Final Trailer/u }).getAttribute("href")).toBe(
+    "https://www.youtube.com/watch?v=darkFinal01",
+  );
+  expect(screen.queryByRole("link", { name: /^(?:Resume|Play)/u })).toBeNull();
+});
+
+test("a Show's page shows who stars in it, its Cast & Crew, and who created it", async () => {
+  openDark();
+
+  await expect(screen.findByText("Starring Louis Hofmann")).resolves.toBeDefined();
+  const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
+  expect(row.getAllByRole("listitem")).toHaveLength(3);
+  expect(detail("Created by")).toBe("Baran bo Odar, Jantje Friese");
+});
+
+test("a Show's Details count its Episodes here, Specials aside, of those aired", async () => {
+  const episodes = [
+    { seasonNumber: 0, episodeNumber: 1 },
+    { seasonNumber: 1, episodeNumber: 1 },
+    { seasonNumber: 1, episodeNumber: 2 },
+  ];
+  const transport = server({
+    getShow: () => ({
+      show: { ...dark, seasonCount: 1 },
+      seasons: [{ number: 0 }, { number: 1 }],
+      airedEpisodeCount: 10,
+    }),
+    listEpisodes: ({ seasonNumber }) => ({
+      episodes: episodes.filter((episode) => episode.seasonNumber === seasonNumber),
+    }),
+  });
+  openApp("/libraries/2/shows/tmdb-70523", transport);
+
+  await screen.findByRole("heading", { level: 1, name: "Dark" });
+  expect(detail("Episodes")).toBe("2 of 10, in 1 Season");
+});
+
+test("a Show whose Episode has Atmos audio shows Atmos, and marks both Tracks under Languages", async () => {
+  const episode = { seasonNumber: 1, episodeNumber: 1, versions: [atmosAndAudioDescription] };
+  const transport = server({
+    getShow: () => ({ show: dark, seasons: [{ number: 1 }] }),
+    listEpisodes: () => ({ episodes: [episode] }),
+    listContinueWatching: () => ({ entries: [] }),
+  });
+  openApp("/libraries/2/shows/tmdb-70523", transport);
+
+  await expect(screen.findByText("Atmos")).resolves.toBeDefined();
+  expect(detail("Audio")).toBe(atmosAndAudioDescriptionReads);
 });
 
 test("a Show's page resumes its most recently started Episode in Continue Watching", async () => {
@@ -177,11 +350,12 @@ test("a Show's page resumes its most recently started Episode in Continue Watchi
     episodeEntry(dark, 2n, 4),
   );
 
-  const resume = await screen.findByRole("link", { name: "Resume, 33m left" });
+  const resume = await screen.findByRole("link", {
+    name: "Resume Season 2, Episode 3, 33m left",
+  });
   expect(resume.getAttribute("href")).toBe(
     "/libraries/2/shows/tmdb-70523/seasons/2/episodes/3/play",
   );
-  expect(screen.getByText("S2, E3")).toBeDefined();
 });
 
 test("an overview longer than two lines opens with More, and closes with Less", async () => {

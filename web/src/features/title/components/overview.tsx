@@ -36,7 +36,7 @@ export function Overview({ text }: { text: string }) {
     [open],
   );
   return (
-    <div className="mt-6 max-w-prose">
+    <div>
       <p
         ref={measure}
         className="text-pretty data-clamped:line-clamp-2"
@@ -47,7 +47,7 @@ export function Overview({ text }: { text: string }) {
       {clamped && (
         // Pulled out by the button's own padding, so its text lines up with the overview's. It
         // stays once open, so keyboard focus isn't dropped.
-        <div className="-ms-4">
+        <div className="-ms-2.5">
           <Button
             variant="ghost"
             aria-expanded={open}

@@ -1,24 +1,27 @@
-import { useQuery } from "@connectrpc/connect-query";
-import { keepPreviousData } from "@tanstack/react-query";
+import { useTransport } from "@connectrpc/connect-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { foundIn } from "@/features/action-bar/lib/titles";
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import type { TitleKind } from "@/gen/nama/v1/match_pb";
+import { searchQuery } from "@/shared/hooks/search-query";
 
 /**
- * What a search of the signed-in User's Libraries for `words` finds, and nothing for no words. The
- * last answer stays while the next one loads.
+ * What a search for `words` of `kind` finds, in the signed-in User's Libraries and to request, and
+ * nothing for no words. The last answer stays while the next one loads, and a new search aborts the last.
  */
-export function useFound(words: string) {
+export function useFound(words: string, kind: TitleKind) {
+  const transport = useTransport();
   const asked = words !== "";
-  // ponytail: the first page only, which holds the best fits. Page on when a search needs more.
   // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the list keeps its last results, and offers Retry as one of its rows, while it searches
-  const query = useQuery(
-    BrowseService.method.searchLibraries,
-    { query: words, page: { token: "" } },
-    { enabled: asked, placeholderData: keepPreviousData, staleTime: 30_000 },
-  );
+  const query = useQuery({
+    ...searchQuery(words, kind, transport),
+    enabled: asked,
+    placeholderData: keepPreviousData,
+  });
+  const found = asked && query.data ? foundIn(query.data) : undefined;
   return {
-    found: asked && query.data ? foundIn(query.data) : undefined,
+    found,
+    titleSourceUnavailable: found?.titleSourceUnavailable === true,
     // A search that isn't asked for neither fetches nor fails.
     searching: query.isFetching,
     failed: query.isError,

@@ -3,9 +3,7 @@
 //! and bundles it in its binary.
 
 use nama_pdk::{
-    Manifest,
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
-    services,
+    Manifest, SettingField, SettingKind, services, setting_default, setting_field, setting_value,
 };
 
 const API_URL: &str = "api_url";
@@ -19,7 +17,8 @@ const WEBHOOK: &str = "webhook";
 )]
 mod exports {
     use nama_pdk::{
-        Buffa, FnResult, Manifest, Notification, Notifier, Recipient, RecipientGone, Response,
+        Buffa, FnResult, Manifest, Notification, Notifier, OutsideService, Recipient,
+        RecipientGone, Response,
         extism_pdk::{self, Error, HttpRequest, Json},
         nama_plugin_proto::nama::plugin::v1::{
             PersonalSettingsCheck, PersonalSettingsChecked, UserRecipient,
@@ -29,6 +28,8 @@ mod exports {
     use serde::{Deserialize, Serialize};
 
     use super::{API_URL, WEBHOOK};
+
+    const DISCORD: OutsideService = OutsideService::new("Discord").reader(discords_words);
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
@@ -46,7 +47,7 @@ mod exports {
     }
 
     /// Posts each notification for a User to the webhook they set.
-    struct Discord;
+    pub(super) struct Discord;
 
     impl Notifier for Discord {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
@@ -71,35 +72,26 @@ mod exports {
             return Ok(());
         };
         let webhook = super::webhook(user.personal_settings.get(WEBHOOK).map(String::as_str))?;
-        let api_url = nama_pdk::setting(API_URL)?
-            .ok_or_else(|| Error::msg(format!("the setting {API_URL} isn't set")))?;
+        let api_url = nama_pdk::required_setting(API_URL)?;
         let url = format!("{}/api/webhooks/{webhook}", api_url.trim_end_matches('/'));
         let request = HttpRequest::new(url)
             .with_method("POST")
             .with_header("Content-Type", "application/json");
-        // Not naming the URL, which holds the webhook's token.
-        let response = nama_pdk::http_request(
-            &request,
-            Some(Json(Message { content: &text })),
-            "Discord didn't answer",
-        )?;
-        match response.status_code() {
-            200..300 => Ok(()),
-            // Discord's "Unknown Webhook": the User deleted it.
-            404 => Err(RecipientGone.into()),
-            _ => Err(refused(&response)),
+        let response = DISCORD.send(&request, Some(Json(Message { content: &text })))?;
+        // Discord's "Unknown Webhook": the User deleted it.
+        if response.status_code() == 404 {
+            return Err(RecipientGone.into());
         }
+        DISCORD.accepted(response)?;
+        Ok(())
     }
 
-    /// Why Discord refused a message: its status, and its own words if it gave any.
-    fn refused(response: &Response) -> Error {
-        let status = response.status_code();
-        match response.json::<Refusal>() {
-            Ok(Refusal { message }) => Error::msg(format!(
-                "Discord failed with HTTP status {status}: {message}"
-            )),
-            Err(_) => Error::msg(format!("Discord failed with HTTP status {status}")),
-        }
+    /// Discord's own words in a refusal: the `message` of its error body.
+    fn discords_words(response: &Response) -> Option<String> {
+        response
+            .json::<Refusal>()
+            .ok()
+            .map(|refusal| refusal.message)
     }
 
     /// What a webhook takes. Plain text, so a title needs no escaping.
@@ -117,27 +109,16 @@ mod exports {
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
-    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
-        ..SettingField::default()
-    };
     Manifest {
         logo_svg: include_str!("../logo.svg").to_owned(),
         // No Connector: a User reaches Discord through their Personal settings.
         points: vec![nama_pdk::point(services::NOTIFIER)],
         allowed_hosts: vec!["discord.com".to_owned()],
         settings: vec![SettingField {
-            default_value: SettingValue {
-                value: Some(setting_value::Value::TextValue(
-                    "https://discord.com".to_owned(),
-                )),
-                ..SettingValue::default()
-            }
-            .into(),
-            ..setting(
+            default_value: setting_default(setting_value::Value::TextValue(
+                "https://discord.com".to_owned(),
+            )),
+            ..setting_field(
                 API_URL,
                 "Discord URL",
                 "Where Discord is. Change it only for a proxy or a test.",
@@ -146,7 +127,7 @@ fn manifest() -> Manifest {
         }],
         personal_settings: vec![SettingField {
             required: true,
-            ..setting(
+            ..setting_field(
                 WEBHOOK,
                 "Webhook URL",
                 "A Discord channel's webhook: in the channel's settings, open Integrations, \

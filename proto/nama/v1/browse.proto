@@ -77,18 +77,6 @@ service BrowseService {
   rpc ListFeatured(ListFeaturedRequest) returns (ListFeaturedResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Searches every Library for the Movies, Shows and Episodes whose titles have each word of the
-  // query, ignoring case, accents and the marks that join words, so "amelie" finds Amélie and
-  // "spiderman" finds Spider-Man. Each word matches the start of a word, so a client can search
-  // as the User types. A last word of four digits after others is a year, which keeps only those
-  // released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
-  // Show counts as of every year one of its Episodes aired. A Show is found by its own title,
-  // and an Episode by its own, not its Show's. Lists a page of what it found, best fit first.
-  // Fails with `invalid_argument` if `page.token` isn't one an earlier call for the same query
-  // returned.
-  rpc SearchLibraries(SearchLibrariesRequest) returns (SearchLibrariesResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-  }
   // Lists a page of a Library's Unmatched Items, the one found most recently first, each by what
   // its file's name was parsed as and the Version to play it by. Playing one keeps no Watch State
   // (ADR 0013). Fails with `not_found` if there is no such Library, and with `invalid_argument` if
@@ -171,6 +159,17 @@ message Movie {
   optional string titled_backdrop_url = 19;
   // As `poster_thumbhash`, for the titled backdrop.
   optional bytes titled_backdrop_thumbhash = 20;
+  // Its Score, from 0 to 10, as the title source it is Matched to averages it. Unset, not 0, if
+  // nobody has voted or that source has none.
+  optional double score = 21;
+  // The ISO 639-1 code of the language it was made in, such as `ja`, as its title source has it.
+  optional string original_language = 22;
+  // Its Trailers, as the title source it is Matched to gives them, at most 5.
+  repeated Trailer trailers = 23;
+  // Its Cast, in billing order, from the title source it is Matched to.
+  repeated Role cast = 24;
+  // Its Crew, in billing order, from that source. Its directors have the job `Director`.
+  repeated Role crew = 25;
 }
 
 // One file a Movie or Episode is available in.
@@ -254,6 +253,10 @@ enum BaseLayer {
 message AudioTrack {
   // How many, such as 6 for 5.1. 0 when the file doesn't say.
   uint32 channels = 1;
+  // Whether its profile says it carries Dolby Atmos, as TrueHD and E-AC-3 (JOC) can.
+  bool atmos = 2;
+  // Whether the file marks it as Audio Description, for the visually impaired.
+  bool audio_description = 3;
 }
 
 // A subtitle Track's own facts.
@@ -344,6 +347,9 @@ message GetMovieResponse {
   // last scanned the Library, if there is one, in which case deleting the Movie is refused. Set
   // only for a caller with `PERMISSION_DELETE_MEDIA`.
   optional string read_only_folder = 2;
+  // Its Similar titles that are in a Library, most alike first, each with `library_id` set to
+  // the oldest Library it is in. Its title source names them, and one in no Library is left out.
+  repeated MovieHit similar = 3;
 }
 
 // A Show some items of a Library are Matched to Episodes of.
@@ -384,6 +390,16 @@ message Show {
   optional string titled_backdrop_url = 16;
   // As `Movie.titled_backdrop_thumbhash`.
   optional bytes titled_backdrop_thumbhash = 17;
+  // As `Movie.score`.
+  optional double score = 18;
+  // As `Movie.original_language`.
+  optional string original_language = 19;
+  // As `Movie.trailers`.
+  repeated Trailer trailers = 20;
+  // As `Movie.cast`, over the Show's whole run.
+  repeated Role cast = 21;
+  // As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
+  repeated Role crew = 22;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.
@@ -500,6 +516,11 @@ message GetShowResponse {
   Show show = 1;
   // The Seasons the Library has Episodes of, by number.
   repeated Season seasons = 2;
+  // How many of the Show's Episodes, Specials aside, have aired by today, by the air dates its
+  // title source gave when the Show was last fetched. 0 if it gave none.
+  uint32 aired_episode_count = 3;
+  // As `GetMovieResponse.similar`, for the Show.
+  repeated ShowHit similar = 4;
 }
 
 message ListEpisodesRequest {
@@ -589,26 +610,7 @@ message FeaturedTitle {
   optional Episode next_episode = 4;
 }
 
-message SearchLibrariesRequest {
-  // The words to search for. One without letters or digits finds nothing.
-  string query = 1;
-  // The page of what it found to list. Movies, Shows and Episodes share one order, best fit
-  // first, so a page holds `size` of them together.
-  PageRequest page = 2;
-}
-
-// A page of what `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in
-// two Libraries is found in each.
-message SearchLibrariesResponse {
-  repeated MovieInLibrary movies = 1;
-  repeated ShowInLibrary shows = 2;
-  repeated EpisodeInLibrary episodes = 3;
-  // The rest of what it found: the next page's token, and on the first page how many Movies,
-  // Shows and Episodes it found in all.
-  PageResponse page = 4;
-}
-
-// A Movie a search found, with what a client needs to show it and open it with `GetMovie`.
+// A Movie in a Library, with what a client needs to show it and open it with `GetMovie`.
 message MovieInLibrary {
   // The Library it is in.
   int64 library_id = 1;
@@ -623,7 +625,7 @@ message MovieInLibrary {
   optional bytes poster_thumbhash = 6;
 }
 
-// A Show a search found, with what a client needs to show it and open it with `GetShow`.
+// A Show in a Library, with what a client needs to show it and open it with `GetShow`.
 message ShowInLibrary {
   // The Library it is in.
   int64 library_id = 1;
@@ -634,21 +636,6 @@ message ShowInLibrary {
   optional string poster_url = 4;
   // As `Movie.poster_thumbhash`.
   optional bytes poster_thumbhash = 5;
-}
-
-// An Episode a search found, with what a client needs to show it and open its Season with
-// `ListEpisodes`.
-message EpisodeInLibrary {
-  // The Library it is in.
-  int64 library_id = 1;
-  // As `ListEpisodes` gives it.
-  ExternalId id = 2;
-  // Its Show's id, as `ListShows` gives it.
-  ExternalId show_id = 3;
-  string show_title = 4;
-  uint32 season_number = 5;
-  uint32 episode_number = 6;
-  string title = 7;
 }
 
 message ListUnmatchedRequest {

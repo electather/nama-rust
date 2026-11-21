@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { requestsKey } from "@/shared/hooks/requests-key";
+import { searchKey } from "@/shared/hooks/search-query";
 import { refusalOf } from "@/shared/lib/forms";
 
 /**
@@ -12,7 +13,10 @@ export function useReadBackAsked() {
   const queryClient = useQueryClient();
   // Waits for the Requests to be read back, so the button stays busy until the change shows.
   const readBack = async () => {
-    await queryClient.invalidateQueries({ queryKey: requestsKey });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: requestsKey }),
+      queryClient.invalidateQueries({ queryKey: searchKey }),
+    ]);
   };
   return {
     onSuccess: readBack,

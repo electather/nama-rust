@@ -29,7 +29,7 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-nama-pdk = "0.2.0"
+nama-pdk = "0.3.0"
 ```
 
 Depend on nothing else from Nama: the contract is all a Plugin may see.
@@ -117,7 +117,25 @@ A Notifier is handed each notification with its `Recipient`: `Channel`, the chan
 
 ## 5. Settings
 
-The Manifest's `settings` lists what an admin fills in, each a `SettingField` of a `SettingKind`. A Plugin reads a setting with `nama_pdk::setting(key)`, as text; what it holds when is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). A Libraries setting holds Library ids an admin picked from the Server's list; read it with `nama_pdk::setting_library_ids(key)`, and skip an id the Kernel no longer lists, since a Library may be deleted after the setting is saved.
+The Manifest's `settings` lists what an admin fills in, each a `SettingField` of a `SettingKind`. `nama_pdk::setting_field` builds one from its key, label, description and kind, optional and with no default; set `required`, `default_value` (built with `nama_pdk::setting_default`), `min_value` or `max_value` with struct update syntax:
+
+```rust
+use nama_pdk::{SettingField, SettingKind, setting_value::Value};
+
+let settings = vec![
+    SettingField {
+        required: true,
+        ..nama_pdk::setting_field("url", "URL", "Where the service answers.", SettingKind::SETTING_KIND_URL)
+    },
+    SettingField {
+        default_value: nama_pdk::setting_default(Value::IntegerValue(30)),
+        min_value: Some(1),
+        ..nama_pdk::setting_field("timeout", "Timeout", "Seconds to wait.", SettingKind::SETTING_KIND_INTEGER)
+    },
+];
+```
+
+A Plugin reads a setting with `nama_pdk::setting(key)`, as text, or `None` when it isn't set or is blank (empty or only whitespace); any other value comes back untrimmed, so a Plugin trims where whitespace can't belong. What it holds when is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). A setting the Plugin can't work without is read with `nama_pdk::required_setting(key)`, which fails with "the setting {key} isn't set" when it is unset or blank, before any request is sent. A Libraries setting holds Library ids an admin picked from the Server's list; read it with `nama_pdk::setting_library_ids(key)`, and skip an id the Kernel no longer lists, since a Library may be deleted after the setting is saved.
 
 A Plugin with a Choice setting, such as a quality profile, exports `check_settings()`, which the Server calls when an admin tests the settings, saves them with a Choice setting they set, or replaces a Fulfiller's Qualities with a non-empty list; a failing check refuses that save or replace, and a slow one holds it up. It checks them against the outside service and offers each Choice setting's values, built with `nama_pdk::checked_settings`:
 
@@ -147,7 +165,7 @@ fn topic(recipient: &Recipient) -> Option<&str> {
 
 ## 6. Automation
 
-An Automation Plugin asks the Kernel rather than being asked: the Kernel calls its `tick` every `tick_every_seconds` its Manifest sets. During any of its calls, any Plugin, an Automation or not, may call the Kernel's functions in `nama_pdk::kernel` (ADR 0071): its own Store (`store_get`, `store_put`, `store_delete`, each for the Plugin alone or for one User), `libraries`, `titles` (every page of a Library's titles, or one page with `titles_page`), `watch_states` (every User's, or one User's), `users` (each User's id and display name) and `watchlist` (one User's Watchlist) to read, and `delete_media` to delete a title's media files as an Admin's delete does. A file holding two Episodes goes with either, so `delete_media` takes the other titles the Plugin agrees to lose in `also`: the Kernel refuses a delete that would take along an Episode `also` doesn't name, naming each, and answers the titles that went along. The Store keeps at most 10 000 entries per Plugin, and refuses a new key at that cap. Each function needs a Plugin Permission, which the Manifest requests in `permissions` and the Admin grants when enabling the Plugin. Every Kernel function may be refused: one whose Permission the Admin didn't grant fails with the Kernel's reason, in plain words, as its error, and a Plugin carries on without it where it can. The functions and their Permissions are listed in [`automation.proto`](../../proto/nama/plugin/v1/automation.proto).
+An Automation Plugin asks the Kernel rather than being asked: the Kernel calls its `tick` every `tick_every_seconds` its Manifest sets. During any of its calls, any Plugin, an Automation or not, may call the Kernel's functions in `nama_pdk::kernel` (ADR 0071): its own Store (`store_get`, `store_put`, `store_delete`, each for the Plugin alone or for one User), `libraries`, `titles` (every page of a Library's titles, or one page with `titles_page`), `watch_states` (every User's, or one User's), `users` (each User's id and display name), `requesters` (the ids of the Users who Requested each of some titles, and whether anything did) and `watchlist` (one User's Watchlist) to read, and `delete_media` to delete a title's media files as an Admin's delete does. A file holding two Episodes goes with either, so `delete_media` takes the other titles the Plugin agrees to lose in `also`: the Kernel refuses a delete that would take along an Episode `also` doesn't name, naming each, and answers the titles that went along. The Store keeps at most 10 000 entries per Plugin, and refuses a new key at that cap. Each function needs a Plugin Permission, which the Manifest requests in `permissions` and the Admin grants when enabling the Plugin. Every Kernel function may be refused: one whose Permission the Admin didn't grant fails with the Kernel's reason, in plain words, as its error, and a Plugin carries on without it where it can. The functions and their Permissions are listed in [`automation.proto`](../../proto/nama/plugin/v1/automation.proto).
 
 ```rust,no_run
 use nama_pdk::{
@@ -275,7 +293,30 @@ nama_pdk::blob_store!(Bucket);
 
 ## 9. HTTP
 
-Send requests with `nama_pdk::http_request`, which takes the error the call fails with when nothing answers and answers a `nama_pdk::Response`. `nama_pdk::extism_pdk` has no `config` or `http`, so settings and requests always go through `nama-pdk`, which a test can stand in for (section 14). Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
+Describe the outside service once, as an `OutsideService` constant: its name as the subject of a sentence, the name of its credential if a 401 means it was refused, a reader that picks the service's own error message from a refusal, its message field alone and never the whole body, and a `retry_after` that picks the seconds to wait from a refusal without a `Retry-After` header, such as Telegram's `parameters.retry_after`. `send` sends a request, failing with "{name} didn't answer" when nothing answers; `accepted` gives back a 2xx response and turns any other into a refusal (section 11), and `found` does the same except that a 404 gives `None`. Match the statuses that mean something to your Plugin before handing the rest to them:
+
+```rust
+use nama_pdk::{OutsideService, RecipientGone, Response, extism_pdk::{Error, HttpRequest}};
+
+/// Discord's own words: the `message` field of its JSON error.
+fn message(response: &Response) -> Option<String> {
+    let error: std::collections::HashMap<String, String> = response.json().ok()?;
+    error.get("message").cloned()
+}
+
+const DISCORD: OutsideService = OutsideService::new("Discord").reader(message);
+
+fn post(url: &str, text: &str) -> Result<(), Error> {
+    let request = HttpRequest::new(url).with_method("POST");
+    let response = DISCORD.send(&request, Some(text))?;
+    match response.status_code() {
+        404 => Err(RecipientGone.into()),
+        _ => Ok(DISCORD.accepted(response).map(drop)?),
+    }
+}
+```
+
+For anything else, `nama_pdk::http_request` sends a request, taking the error the call fails with when nothing answers, and answers a `nama_pdk::Response`. `nama_pdk::extism_pdk` has no `config` or `http`, so settings and requests always go through `nama-pdk`, which a test can stand in for (section 14). Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
 
 A response carries its status, headers and body. `Response::header` reads a header whatever case it is asked in, such as `Retry-After` on a 429, so a Plugin keeps to an outside service's rate limits. A test (section 14) answers with headers through `Response::with_header`.
 
@@ -286,6 +327,26 @@ Each call has a memory and a time limit, and three crashes in a row disable the 
 ## 11. Errors
 
 An export's error is its message to people. `manifest()`'s gets the Plugin refused and `check_settings()`'s is shown to the admin testing, saving settings or replacing Qualities, and the trait docs' `# Errors` say where each point's goes, such as `fulfill`'s, which becomes the reason a Request shows as Failed. Write it as a sentence an admin can act on. A panic reaches the Server with its message, not as a bare trap.
+
+An `OutsideService` words a refusal the same way in every Plugin, taking the first that fits, and never quotes a URL, header, query, body or setting value:
+
+| Response | Wording |
+|---|---|
+| 401, with a credential named | "{name} refused the {credential}" |
+| 429 | "{name} is limiting this Server's requests; try again in {n} s", or "…; try again in a few seconds" when neither `Retry-After` nor the service's `retry_after` gives whole seconds |
+| the reader finds words | "{name} said: {words}" |
+| anything else | "{name} failed with HTTP status {status}" |
+
+The refusal is a `nama_pdk::Refusal`, which keeps the status and the seconds to wait, so a Plugin that learns what a status meant only later reads them back from the `Error`:
+
+```rust
+use nama_pdk::{Refusal, extism_pdk::Error};
+
+/// Whether `error` says the bot was blocked, which Telegram answers with a 403.
+fn blocked(error: &Error) -> bool {
+    error.downcast_ref::<Refusal>().is_some_and(|refusal| refusal.status() == 403)
+}
+```
 
 ## 12. Logging
 
@@ -346,25 +407,30 @@ assert_eq!(kernel.deletes()[0].title, movie);
 
 ```rust
 use nama_pdk::{
-    Response,
+    OutsideService, Response,
     extism_pdk::{Error, HttpRequest},
     testing::{Kernel, with},
 };
 
+const SERVICE: OutsideService = OutsideService::new("the service");
+
 /// What the Plugin does in a call: ask the service at its `url` setting how it is.
 fn status() -> Result<u16, Error> {
-    let url = nama_pdk::setting("url")?.unwrap_or_default();
-    let request = HttpRequest::new(format!("{url}/status"));
-    let response = nama_pdk::http_request(&request, None::<String>, "the service didn't answer")?;
-    Ok(response.status_code())
+    let url = nama_pdk::required_setting("url")?;
+    let response = SERVICE.send(&HttpRequest::new(format!("{url}/status")), None::<String>)?;
+    Ok(SERVICE.accepted(response)?.status_code())
 }
 
 let mut kernel = Kernel::new()
     .setting("url", "http://service.test")
     .http(|_request, _body| Ok(Response::new(503, "")));
 
-assert_eq!(with(&mut kernel, status).ok(), Some(503));
+let failed = with(&mut kernel, status).map_err(|error| error.to_string());
+assert_eq!(failed, Err("the service failed with HTTP status 503".to_owned()));
 assert_eq!(kernel.sent()[0].request.url, "http://service.test/status");
+
+let unset = with(&mut Kernel::new().setting("url", " "), status).map_err(|error| error.to_string());
+assert_eq!(unset, Err("the setting url isn't set".to_owned()));
 ```
 
 A handler is any closure, so a queue of answers is one that takes the next from a `Vec`, and an in-process fake of the service, such as S3's in [`plugins/s3/src/fake_s3.rs`](../../plugins/s3/src/fake_s3.rs), plugs in as one.

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
@@ -97,6 +97,7 @@ impl Plugin for Logging {
         Manifest {
             version: "0.0.0".to_owned(),
             extension_points: vec![PointKey::provide::<dyn Automation>()],
+            tick_every: Some(Duration::from_secs(60)),
             ..Manifest::new(LOGGING)
         }
     }
@@ -121,16 +122,20 @@ impl Drop for Logging {
     }
 }
 
-/// What enabling, ticking and disabling [`Logging`] logs.
+/// What enabling [`Logging`], its tick at enable and disabling it log.
 async fn logged_by_logging(registry: &Registry) -> String {
     let log = CapturedLog::start();
+    registry.serve_kernel(Arc::new(|_, _| panic!("Logging never calls the Kernel")));
     registry.enable(Arc::new(Logging)).unwrap();
-    registry.tick_now(&LOGGING).await.unwrap();
+    // Lets the tick at enable run on this test's runtime before disabling cancels it.
+    for _ in 0..10 {
+        tokio::task::yield_now().await;
+    }
     assert!(registry.disable(&LOGGING).await);
     log.finish()
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_builtins_lines_as_it_registers_ticks_and_drops_are_in_a_span_naming_it() {
     let logged = logged_by_logging(&Registry::new()).await;
 
@@ -143,7 +148,7 @@ async fn a_builtins_lines_as_it_registers_ticks_and_drops_are_in_a_span_naming_i
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn an_installed_plugins_lines_get_no_span_naming_it() {
     let registry = Registry::new();
     let as_installed = Described {

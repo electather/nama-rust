@@ -162,7 +162,7 @@ impl ShownImages {
     }
 
     /// The downloaded image, for those that have no Custom Image or image beside the media: the
-    /// titled Backdrop, the Title Logo and an Episode's Still (#1339).
+    /// titled Backdrop, the Title Logo, an Episode's Still (#1339) and a Role's headshot.
     pub(crate) fn downloaded(&self, downloaded: Option<Downloaded<'_>>) -> ShownImage {
         let url = downloaded.map(|downloaded| match downloaded {
             Downloaded::Stored { plugin, path } => artwork::url(plugin, path),

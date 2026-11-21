@@ -1,10 +1,14 @@
 //! An in-process stand-in for MDBList's API, so the tests need no network and no API key. It
 //! serves its lists by id or by owner and name, refusing a request without [`VALID_KEY`].
 
-use nama_pdk::extism_pdk::json::{self, Value, json};
+use nama_pdk::{
+    Response,
+    extism_pdk::{
+        HttpRequest,
+        json::{self, Value, json},
+    },
+};
 use url::Url;
-
-use super::Answer;
 
 /// The API key the fake takes.
 pub(super) const VALID_KEY: &str = "fake-api-key";
@@ -38,14 +42,14 @@ impl FakeList {
 #[derive(Default)]
 pub(super) struct FakeMdbList {
     pub(super) lists: Vec<FakeList>,
-    /// Every URL it was asked for, in order.
-    pub(super) asked: Vec<Url>,
 }
 
 impl FakeMdbList {
-    /// MDBList's answer to a GET of `url`.
-    pub(super) fn answer(&mut self, url: &Url) -> Answer {
-        self.asked.push(url.clone());
+    /// MDBList's answer to a GET of `request`'s URL.
+    pub(super) fn answer(&self, request: &HttpRequest) -> Response {
+        let Ok(url) = Url::parse(&request.url) else {
+            return answer(400, &json!({ "error": "Invalid URL" }));
+        };
         let key = url.query_pairs().find(|(name, _)| name == "apikey");
         if url.host_str() != Some("api.mdblist.com") || key.is_none_or(|(_, key)| key != VALID_KEY)
         {
@@ -66,7 +70,7 @@ impl FakeMdbList {
         match list {
             None => answer(404, &json!({ "error": "List not found" })),
             Some(list) if list.private => answer(403, &json!({ "error": "List is private" })),
-            Some(list) if items => answer(200, &page(list, url)),
+            Some(list) if items => answer(200, &page(list, &url)),
             Some(list) => answer(
                 200,
                 &json!([{ "id": list.id, "name": list.name, "slug": list.slug }]),
@@ -100,9 +104,6 @@ fn page(list: &FakeList, url: &Url) -> Value {
     json!({ "movies": of("movie"), "shows": of("show") })
 }
 
-fn answer(status: u16, body: &Value) -> Answer {
-    Answer {
-        status,
-        body: json::to_vec(body).unwrap_or_default(),
-    }
+fn answer(status: u16, body: &Value) -> Response {
+    Response::new(status, json::to_vec(body).unwrap_or_default())
 }

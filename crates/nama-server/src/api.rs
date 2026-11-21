@@ -29,7 +29,7 @@ use crate::{
         TitleSources, artwork_router, custom_images_router, local_images_router,
     },
     playback::{
-        PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
+        Plans, PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
         preview_frames_router, running_router,
     },
     plugin_settings::PluginSettings,
@@ -50,6 +50,7 @@ mod matches;
 mod playback;
 mod plugins;
 mod requests;
+mod search;
 mod server;
 mod sign_in;
 mod users;
@@ -63,6 +64,7 @@ use matches::MatchServiceHandler;
 use playback::PlaybackServiceHandler;
 use plugins::PluginServiceHandler;
 use requests::RequestServiceHandler;
+use search::SearchServiceHandler;
 use server::ServerServiceHandler;
 use sign_in::SignInServiceHandler;
 use users::UserServiceHandler;
@@ -121,9 +123,7 @@ pub(crate) fn router(
         artwork: artwork.clone(),
         settings: image_settings.clone(),
     };
-    let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
-    let playback = settings.playback();
     let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
@@ -149,38 +149,49 @@ pub(crate) fn router(
             libraries: Libraries::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(BrowseServiceHandler {
-            browse: browse.clone(),
-            home_rows,
+            browse: Browse::new(Arc::clone(&db)),
+            home_rows: home_rows.clone(),
             settings: settings.clone(),
             images: images.clone(),
             db: Arc::clone(&db),
         }))
+        .add_service(Arc::new(SearchServiceHandler {
+            browse: Browse::new(Arc::clone(&db)),
+            requests: requests.clone(),
+            images: images.clone(),
+        }))
         .add_service(Arc::new(WatchStateServiceHandler {
-            browse,
+            browse: Browse::new(Arc::clone(&db)),
             running: running.clone(),
         }))
         .add_service(Arc::new(WatchlistServiceHandler {
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
-            probing,
-            abilities,
-            running,
-            settings: playback,
+            plans: Plans::new(
+                probing,
+                abilities,
+                running,
+                settings.playback(),
+                preview_frames,
+                Arc::clone(&db),
+            ),
             preferences: TrackPreferences::new(Arc::clone(&db)),
             downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
-            preview_frames,
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(RequestServiceHandler {
             requests,
+            browse: Browse::new(Arc::clone(&db)),
             images: images.clone(),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(PluginServiceHandler {
             plugin_settings: plugin_settings.clone(),
-            settings,
+            settings: settings.clone(),
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(Arc::clone(&db)),
@@ -203,6 +214,8 @@ pub(crate) fn router(
             plugin_logos: plugin_logos.clone(),
             db,
             server_url,
+            home_rows,
+            settings,
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);
@@ -319,9 +332,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_LIST_FEATURED_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROWS_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC.procedure,   Access::SignedIn),
-    (proto::BROWSE_SERVICE_SEARCH_LIBRARIES_SPEC.procedure,       Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_UNMATCHED_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_UNMATCHED_VERSION_SPEC.procedure,  Access::SignedIn),
+    (proto::SEARCH_SERVICE_SEARCH_SPEC.procedure,                 Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
@@ -363,17 +376,19 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_GET_HOME_LAYOUT_SPEC.procedure,          Access::SignedIn),
+    (proto::USER_SERVICE_SET_HOME_LAYOUT_SPEC.procedure,          Access::SignedIn),
+    (proto::USER_SERVICE_REORDER_HOME_ROWS_SPEC.procedure,        Access::SignedIn),
+    (proto::USER_SERVICE_RESET_HOME_LAYOUT_SPEC.procedure,        Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
     (proto::REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC.procedure, MANAGE_REQUESTS),
-    (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC.procedure,  REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LIST_DEFAULT_QUALITIES_SPEC.procedure, Access::SignedIn),
     (proto::REQUEST_SERVICE_SET_DEFAULT_QUALITY_SPEC.procedure,   Access::SignedIn),
-    (proto::REQUEST_SERVICE_SEARCH_SHOWS_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC.procedure,   REQUEST_TV),
     (proto::REQUEST_SERVICE_LOOK_UP_SHOW_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),

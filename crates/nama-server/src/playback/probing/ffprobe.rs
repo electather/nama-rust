@@ -1,13 +1,14 @@
-//! Running ffprobe on a stored file and reading what it prints, private to Probing
-//! (the area's `AGENTS.md`, "One owner for probing").
+//! What Probing reads a stored file with, and its ffprobe adapter, which runs ffprobe on the file
+//! and reads what it prints, private to Probing (the area's `AGENTS.md`, "One owner for probing").
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, fmt::Debug, sync::Arc, time::Duration};
 
+use futures_util::future::BoxFuture;
 use serde::Deserialize;
 
 use super::ProbeError;
 use crate::{
-    ffmpeg::Ffmpeg,
+    ffmpeg::{Ffmpeg, Priority, Program, RunError},
     playback::tracks::{BaseLayer, Chapter, Hdr, ListedKeyframes, Probe, Track, TrackKind},
 };
 
@@ -23,6 +24,40 @@ const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_sub
 
 /// The ends of the file names of fonts, for an attachment whose MIME type doesn't say it's one.
 const FONT_EXTENSIONS: &[&str] = &[".ttf", ".otf", ".ttc"];
+
+/// What reads a stored file for Probing: [`Ffprobe`] on the Server, and an in-memory one in tests.
+/// A read Probing drops, as at shutdown, stops.
+pub(super) trait Reader: Debug + Send + Sync {
+    /// Whether it can read files at all; a Server without ffprobe can't.
+    fn can_read(&self) -> bool;
+
+    /// The file at `path`'s facts and when it starts, as [`probe`] reads them.
+    fn probe(&self, path: String) -> BoxFuture<'static, Result<(Probe, Starts), ProbeError>>;
+
+    /// When the file at `path` starts and each keyframe of its first video falls, as [`keyframes`]
+    /// lists them by reading it whole.
+    fn keyframes(&self, path: String) -> BoxFuture<'static, Result<ListedKeyframes, ProbeError>>;
+}
+
+/// Reads files with the Server's ffprobe.
+#[derive(Debug)]
+pub(super) struct Ffprobe(pub(super) Arc<Ffmpeg>);
+
+impl Reader for Ffprobe {
+    fn can_read(&self) -> bool {
+        self.0.can_probe()
+    }
+
+    fn probe(&self, path: String) -> BoxFuture<'static, Result<(Probe, Starts), ProbeError>> {
+        let ffmpeg = Arc::clone(&self.0);
+        Box::pin(async move { probe(&ffmpeg, &path).await })
+    }
+
+    fn keyframes(&self, path: String) -> BoxFuture<'static, Result<ListedKeyframes, ProbeError>> {
+        let ffmpeg = Arc::clone(&self.0);
+        Box::pin(async move { keyframes(&ffmpeg, &path).await })
+    }
+}
 
 /// When a file ffprobe read starts, and when its first video does, in milliseconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,7 +85,7 @@ pub(super) async fn probe(ffmpeg: &Ffmpeg, path: &str) -> Result<(Probe, Starts)
         probe.duration_ms = match video_end(ffmpeg, path).await {
             // Its Tracks were read, so a packet it can't read, as in a damaged file, leaves
             // only its length unknown rather than failing the probe for good.
-            Err(ProbeError::Failed(_)) => None,
+            Err(ProbeError::Run(RunError::Failed(..))) => None,
             end => end?,
         };
     }
@@ -98,22 +133,10 @@ async fn run(
     path: &str,
     timeout: Duration,
 ) -> Result<Vec<u8>, ProbeError> {
-    let Ok(ffprobe) = &ffmpeg.ffprobe else {
-        return Err(ProbeError::Unavailable);
-    };
-    let output = tokio::process::Command::new(&ffprobe.path)
-        .args(["-v", "error"])
-        .args(args)
-        .arg(path)
-        // A probe given up on, or cancelled at shutdown, stops ffprobe too.
-        .kill_on_drop(true)
-        .output();
-    let output = tokio::time::timeout(timeout, output).await??;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ProbeError::Failed(stderr.trim().to_owned()));
-    }
-    Ok(output.stdout)
+    let args = [args, &[path]].concat();
+    Ok(ffmpeg
+        .run(Program::Ffprobe, &args, timeout, Priority::Normal)
+        .await?)
 }
 
 /// The file's start and keyframes in what `ffprobe -show_entries
@@ -217,6 +240,8 @@ struct ProbedStream {
     #[serde(default)]
     side_data_list: Vec<ProbedSideData>,
     channels: Option<i64>,
+    /// Such as `"Dolby TrueHD + Dolby Atmos"`, as libavcodec names an audio codec's profiles.
+    profile: Option<String>,
     /// How many bytes of codec header the file carries for it, such as VobSub's `.idx`.
     extradata_size: Option<i64>,
     nb_frames: Option<String>,
@@ -322,6 +347,12 @@ fn track(mut stream: ProbedStream) -> Option<Track> {
         },
         "audio" => TrackKind::Audio {
             channels: stream.channels,
+            // ponytail: DTS:X is object-based too; read its profile once a file needs it.
+            atmos: stream
+                .profile
+                .as_deref()
+                .is_some_and(|p| p.contains("Atmos")),
+            audio_description: flag("visual_impaired"),
         },
         "subtitle" => TrackKind::Subtitle {
             image: IMAGE_SUBTITLES.contains(&stream.codec_name.as_str()),

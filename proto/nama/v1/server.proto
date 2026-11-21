@@ -159,10 +159,9 @@ message GetServerInfoResponse {
   // while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
   // too often with HTTP 429.
   bool exports_diagnostics = 5;
-  // Whether a subtitle source is enabled, so `PlaybackService.SearchSubtitles` can find any
-  // (ADR 0067). A client offers that search only then, and only to a User with
-  // `PERMISSION_DOWNLOAD_SUBTITLES`.
-  bool searches_subtitles = 6;
+  // Anyone could read this before sign-in; `PlaybackPlan.can_search_subtitles` says it instead.
+  reserved 6;
+  reserved "searches_subtitles";
 }
 
 message GetServerSettingsRequest {}
@@ -400,7 +399,9 @@ message SetDefaultHomeLayoutResponse {
 // The order of the Home rows, and which of them and whether Featured are shown. Featured is
 // always at the top.
 message HomeLayout {
-  bool featured_hidden = 1;
+  // Always set in a response. Unset in `UserService.SetHomeLayout` leaves the caller's Featured as
+  // it is; unset in `SetDefaultHomeLayout` shows it.
+  optional bool featured_hidden = 1;
   // In the order Home shows them.
   repeated HomeLayoutRow rows = 2;
 }
@@ -409,7 +410,8 @@ message HomeLayout {
 message HomeLayoutRow {
   oneof row {
     KernelHomeRow kernel = 1;
-    // A row the Plugin gives every User. `SetDefaultHomeLayout` reads only its Plugin id and key.
+    // A row the Plugin gives every User or, in a User's own layout, one it gives them alone.
+    // Saving a layout reads only its Plugin id and key.
     PluginHomeRow plugin = 2;
     // The id of a Plugin whose rows for each User, built for them alone, go here.
     string plugin_users_rows = 3;

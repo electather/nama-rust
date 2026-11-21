@@ -30,9 +30,9 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{
     AudioCodec, Container, DeleteMediaRequest, DeviceDecoding, DownloadSubtitleRequest,
-    FoundSubtitle, GetServerInfoRequest, LibraryKind, LibraryServiceClient, MediaToDelete,
-    Permission, PlanPlaybackRequest, PlaybackPlan, PlaybackServiceClient, RefusalReason,
-    SearchSubtitlesRequest, ServerServiceClient, VideoCodec, media_to_delete,
+    FoundSubtitle, LibraryKind, LibraryServiceClient, MediaToDelete, Permission,
+    PlanPlaybackRequest, PlaybackPlan, PlaybackServiceClient, RefusalReason,
+    SearchSubtitlesRequest, VideoCodec, media_to_delete,
 };
 use nama_server::{
     config::Config,
@@ -271,30 +271,6 @@ impl Watching {
             fs::set_permissions(folder, fs::Permissions::from_mode(mode)).unwrap();
         }
     }
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn searches_subtitles(server: &TestServer) -> bool {
-    ServerServiceClient::new(HttpClient::plaintext(), server.anonymous_client_config())
-        .get_server_info(GetServerInfoRequest::default())
-        .await
-        .unwrap()
-        .into_owned()
-        .searches_subtitles
-}
-
-#[tokio::test]
-async fn the_server_says_whether_a_subtitle_source_is_enabled() {
-    let plugins = Registry::new();
-    plugins.enable(Arc::new(FakeSource::default())).unwrap();
-    let with_source = TestServer::builder().plugins(plugins).start().await;
-    let without = TestServer::builder().start().await;
-
-    assert!(searches_subtitles(&with_source).await);
-    assert!(!searches_subtitles(&without).await);
 }
 
 #[tokio::test]

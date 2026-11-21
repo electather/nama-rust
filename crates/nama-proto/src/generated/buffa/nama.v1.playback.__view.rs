@@ -9607,6 +9607,12 @@ pub struct PlaybackPlanView<'a> {
         'a,
         super::super::__buffa::view::SegmentView<'a>,
     >,
+    /// Whether at least one enabled Plugin serves `EXTENSION_POINT_SUBTITLE_SOURCE`, so
+    /// `SearchSubtitles` won't refuse with `REFUSAL_REASON_NO_SUBTITLE_SOURCE` for lack of one. It
+    /// says nothing of `PERMISSION_DOWNLOAD_SUBTITLES`. Set on every plan, also one that can't play.
+    ///
+    /// Field 18: `can_search_subtitles`
+    pub can_search_subtitles: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
@@ -9712,6 +9718,13 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                         );
                     }
                 }
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.can_search_subtitles = ::buffa::types::decode_bool(&mut cur)?;
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -9941,6 +9954,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            can_search_subtitles: self.can_search_subtitles,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -10050,6 +10064,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             size
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if self.can_search_subtitles {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -10170,6 +10187,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        if self.can_search_subtitles {
+            ::buffa::types::put_bool_field(18u32, self.can_search_subtitles, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -10261,6 +10281,9 @@ impl<'__a> ::serde::Serialize for PlaybackPlanView<'__a> {
         }
         if !self.segments.is_empty() {
             __map.serialize_entry("segments", &*self.segments)?;
+        }
+        if self.can_search_subtitles {
+            __map.serialize_entry("canSearchSubtitles", &self.can_search_subtitles)?;
         }
         __map.end()
     }
@@ -10510,6 +10533,15 @@ impl PlaybackPlanOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::SegmentView<'_>> {
         &self.0.reborrow().segments
+    }
+    /// Whether at least one enabled Plugin serves `EXTENSION_POINT_SUBTITLE_SOURCE`, so
+    /// `SearchSubtitles` won't refuse with `REFUSAL_REASON_NO_SUBTITLE_SOURCE` for lack of one. It
+    /// says nothing of `PERMISSION_DOWNLOAD_SUBTITLES`. Set on every plan, also one that can't play.
+    ///
+    /// Field 18: `can_search_subtitles`
+    #[must_use]
+    pub fn can_search_subtitles(&self) -> bool {
+        self.0.reborrow().can_search_subtitles
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackPlanView<'static>>>

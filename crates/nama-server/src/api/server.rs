@@ -6,7 +6,7 @@ use buffa::{EnumValue, MessageFieldView};
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult,
 };
-use nama_plugin_api::{PluginId, subtitle_source::SubtitleSource};
+use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     self as proto, FoundHardware, FoundProgram, GetDefaultHomeLayoutRequest,
     GetDefaultHomeLayoutResponse, GetImageSettingsRequest, GetImageSettingsResponse,
@@ -75,7 +75,6 @@ impl ServerService for ServerServiceHandler {
             setup_required,
             image_widths: images::WIDTHS.to_vec(),
             exports_diagnostics: self.exports_diagnostics,
-            searches_subtitles: !self.points.providers::<dyn SubtitleSource>().is_empty(),
             ..Default::default()
         })
     }
@@ -244,15 +243,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, SetDefaultHomeLayoutRequest>,
     ) -> ServiceResult<SetDefaultHomeLayoutResponse> {
-        let layout = request.to_owned_message().layout.into_option();
-        let layout = layout.ok_or_else(|| {
-            refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                "the layout to save is missing",
-            )
-            .field("layout")
-        })?;
-        let layout = home_layout_from_proto(&layout)?;
+        let layout = home_layout_from_proto(request.to_owned_message().layout.into_option())?;
         (self.settings.set_default_home_layout(layout).await).map_err(database_failed)?;
         Response::ok(SetDefaultHomeLayoutResponse {
             layout: self.default_home_layout().await?.into(),
@@ -372,7 +363,7 @@ impl ServerServiceHandler {
         let layout = self.settings.now().default_home_layout;
         let rows = layout.arrange(rows);
         Ok(proto::HomeLayout {
-            featured_hidden: !layout.featured_shown,
+            featured_hidden: Some(!layout.featured_shown),
             rows: (rows.into_iter())
                 .map(|((id, heading), shown)| layout_row_to_proto(id, heading, shown))
                 .collect(),
@@ -392,18 +383,20 @@ impl ServerServiceHandler {
     }
 }
 
-/// A row of a Home layout, headed `heading` if a Plugin shares it, as the API has it.
+/// A row of a Home layout, headed `heading` if a Plugin gives it, as the API has it.
 fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayoutRow {
     let row = match id {
         HomeRowId::ContinueWatching => {
             LayoutRow::Kernel(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into())
         }
-        HomeRowId::Shared { plugin, key } => LayoutRow::Plugin(Box::new(proto::PluginHomeRow {
-            plugin_id: plugin.to_string(),
-            key,
-            heading,
-            ..Default::default()
-        })),
+        HomeRowId::Shared { plugin, key } | HomeRowId::Own { plugin, key } => {
+            LayoutRow::Plugin(Box::new(proto::PluginHomeRow {
+                plugin_id: plugin.to_string(),
+                key,
+                heading,
+                ..Default::default()
+            }))
+        }
         HomeRowId::UsersOwn { plugin } => LayoutRow::PluginUsersRows(plugin.to_string()),
     };
     HomeLayoutRow {
@@ -413,46 +406,63 @@ fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayou
     }
 }
 
-/// The Home layout `layout` asks for: refused when a row names none, or a Kernel row the Server
-/// doesn't know.
-fn home_layout_from_proto(layout: &proto::HomeLayout) -> Result<HomeLayout, ConnectError> {
-    let place = |placed: &HomeLayoutRow| {
-        let row = match &placed.row {
-            Some(LayoutRow::Kernel(kernel)) => match kernel.as_known() {
-                Some(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING) => {
-                    HomeRowId::ContinueWatching
-                }
-                _ => {
-                    return Err(unknown_enum_value(
-                        "layout.rows",
-                        "the Kernel row must be Continue Watching",
-                    ));
-                }
-            },
-            Some(LayoutRow::Plugin(row)) => HomeRowId::Shared {
-                plugin: PluginId::from(row.plugin_id.clone()),
-                key: row.key.clone(),
-            },
-            Some(LayoutRow::PluginUsersRows(plugin)) => HomeRowId::UsersOwn {
-                plugin: PluginId::from(plugin.clone()),
-            },
-            None => {
-                return Err(refuse(
-                    RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                    "each row of the layout must name a Home row",
-                )
-                .field("layout.rows")
-                .into());
-            }
-        };
+/// The Home layout a save asks for in `layout`, Featured shown when it's unset: refused when
+/// `layout` is missing, or a row names none or a Kernel row the Server doesn't know.
+pub(super) fn home_layout_from_proto(
+    layout: Option<proto::HomeLayout>,
+) -> Result<HomeLayout, ConnectError> {
+    let layout = layout.ok_or_else(|| {
+        refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the layout to save is missing",
+        )
+        .field("layout")
+    })?;
+    let place = |placed: &HomeLayoutRow| -> Result<_, ConnectError> {
         Ok(PlacedRow {
-            row,
+            row: home_row_from_proto(placed, "layout.rows")?,
             shown: !placed.hidden,
         })
     };
     Ok(HomeLayout {
-        featured_shown: !layout.featured_hidden,
+        featured_shown: !layout.featured_hidden.unwrap_or_default(),
         rows: layout.rows.iter().map(place).collect::<Result<_, _>>()?,
+    })
+}
+
+/// The Home row `placed` names, refused as the request's `field` if it names none the Kernel
+/// knows.
+pub(super) fn home_row_from_proto(
+    placed: &HomeLayoutRow,
+    field: &str,
+) -> Result<HomeRowId, ConnectError> {
+    Ok(match &placed.row {
+        Some(LayoutRow::Kernel(kernel)) => match kernel.as_known() {
+            Some(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING) => {
+                HomeRowId::ContinueWatching
+            }
+            _ => {
+                return Err(unknown_enum_value(
+                    field,
+                    "the Kernel row must be Continue Watching",
+                ));
+            }
+        },
+        Some(LayoutRow::Plugin(row)) => HomeRowId::Shared {
+            plugin: PluginId::from(row.plugin_id.clone()),
+            key: row.key.clone(),
+        },
+        Some(LayoutRow::PluginUsersRows(plugin)) => HomeRowId::UsersOwn {
+            plugin: PluginId::from(plugin.clone()),
+        },
+        None => {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "each row must name a Home row",
+            )
+            .field(field)
+            .into());
+        }
     })
 }
 

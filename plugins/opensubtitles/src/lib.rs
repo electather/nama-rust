@@ -5,15 +5,14 @@
 use std::fmt;
 
 use nama_pdk::{
-    CheckedSettings, Manifest, Permission, Response, SubtitleDownload, SubtitleFile,
-    SubtitleResult, SubtitleResults, SubtitleSearch, SubtitleSource, TitleKind,
+    CheckedSettings, Manifest, OutsideService, Permission, Response, SettingField, SettingKind,
+    SubtitleDownload, SubtitleFile, SubtitleResult, SubtitleResults, SubtitleSearch,
+    SubtitleSource, TitleKind,
     extism_pdk::{
         Error, HttpRequest, Json,
         json::{self, json},
     },
-    kernel,
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind},
-    services,
+    kernel, required_setting, services, setting_field,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use url::Url;
@@ -24,6 +23,12 @@ const API_URL: &str = "https://api.opensubtitles.com/api/v1/";
 const API_KEY: &str = "api_key";
 const USERNAME: &str = "username";
 const PASSWORD: &str = "password";
+
+/// OpenSubtitles' API, whose 401 means the login.
+const API: OutsideService = OutsideService::new("OpenSubtitles").credential("username or password");
+
+/// The host a download link points at, whose statuses mean nothing of the API's.
+const FILE_HOST: OutsideService = OutsideService::new("OpenSubtitles");
 
 /// The Plugin-wide Store entry keeping the last [`LoggedIn`].
 const LOGIN_KEY: &str = "login";
@@ -64,12 +69,8 @@ const SETUP: &str = "\
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
         required: true,
-        ..SettingField::default()
+        ..setting_field(key, label, description, kind)
     };
     Manifest {
         name: "OpenSubtitles.com".to_owned(),
@@ -120,7 +121,7 @@ impl SubtitleSource for OpenSubtitles {
     fn search(search: SubtitleSearch) -> Result<SubtitleResults, Error> {
         let mut url = Url::parse(API_URL)?.join("subtitles")?;
         url.query_pairs_mut().extend_pairs(query(&search));
-        let found: Found = answered(send(&request(url.as_str())?, None)?)?;
+        let found: Found = answered(API.send(&request(url.as_str())?, None::<String>)?)?;
         Ok(SubtitleResults {
             results: found
                 .data
@@ -136,12 +137,8 @@ impl SubtitleSource for OpenSubtitles {
             Error::msg(format!("{:?} isn't an OpenSubtitles file id", download.id))
         })?;
         let link = link(file_id)?;
-        // The link is on a file host, not the API, so its statuses don't mean what `accepted`
-        // reads them as, such as a 403 meaning a wrong API key.
-        let fetched = send(&HttpRequest::new(&link.link), None)?;
-        if !(200..300).contains(&fetched.status_code()) {
-            return Err(Refused::Status(fetched.status_code()).into());
-        }
+        let fetched = FILE_HOST.send(&HttpRequest::new(&link.link), None::<String>)?;
+        let fetched = FILE_HOST.accepted(fetched)?;
         Ok(SubtitleFile {
             // OpenSubtitles converts to `srt` unless asked for another format.
             format: (link.file_name.rsplit_once('.'))
@@ -269,11 +266,11 @@ struct Link {
 /// still takes its token, else with a fresh one the Store then keeps. OpenSubtitles limits logins
 /// tighter than other calls, and its 401 is the only sign a token expired.
 fn link(file_id: u64) -> Result<Link, Error> {
-    let username = setting(USERNAME)?;
+    let username = required_setting(USERNAME)?;
     if let Some(kept) = kept_login().filter(|kept| kept.username == username) {
-        match accepted(ask_link(&kept, file_id)?) {
-            Err(Refused::Login) => {}
-            answer => return parsed(&answer?),
+        let answer = ask_link(&kept, file_id)?;
+        if answer.status_code() != 401 {
+            return answered(answer);
         }
     }
     let login = login()?;
@@ -304,7 +301,7 @@ fn ask_link(login: &LoggedIn, file_id: u64) -> Result<Response, Error> {
     } = login;
     let request = post(&format!("https://{base_url}/api/v1/download"))?
         .with_header("Authorization", format!("Bearer {token}"));
-    send(&request, Some(json!({ "file_id": file_id })))
+    API.send(&request, Some(Json(json!({ "file_id": file_id }))))
 }
 
 /// What a login answers: the token a download needs, and the API host to send it to, kept with
@@ -320,9 +317,10 @@ struct LoggedIn {
 
 /// Logs in to the settings' account.
 fn login() -> Result<LoggedIn, Error> {
-    let username = setting(USERNAME)?;
-    let body = json!({ "username": username, "password": setting(PASSWORD)? });
-    let logged_in: LoggedIn = answered(send(&post(&format!("{API_URL}login"))?, Some(body))?)?;
+    let username = required_setting(USERNAME)?;
+    let body = json!({ "username": username, "password": required_setting(PASSWORD)? });
+    let sent = API.send(&post(&format!("{API_URL}login"))?, Some(Json(body)))?;
+    let logged_in: LoggedIn = answered(sent)?;
     Ok(LoggedIn {
         username,
         ..logged_in
@@ -332,7 +330,7 @@ fn login() -> Result<LoggedIn, Error> {
 /// A request to OpenSubtitles' API at `url`, with the headers it wants on every one.
 fn request(url: &str) -> Result<HttpRequest, Error> {
     Ok(HttpRequest::new(url)
-        .with_header("Api-Key", setting(API_KEY)?)
+        .with_header("Api-Key", required_setting(API_KEY)?)
         // OpenSubtitles asks every app to name itself and its version.
         .with_header("User-Agent", concat!("Nama v", env!("CARGO_PKG_VERSION")))
         .with_header("Accept", "application/json"))
@@ -345,24 +343,12 @@ fn post(url: &str) -> Result<HttpRequest, Error> {
         .with_header("Content-Type", "application/json"))
 }
 
-fn send(request: &HttpRequest, body: Option<json::Value>) -> Result<Response, Error> {
-    nama_pdk::http_request(request, body.map(Json), "OpenSubtitles didn't answer")
-}
-
 /// What OpenSubtitles answered with `response`, read as JSON.
 ///
 /// # Errors
 /// If OpenSubtitles refused the request, or answered with something unexpected.
 fn answered<T: DeserializeOwned>(response: Response) -> Result<T, Error> {
-    parsed(&accepted(response)?)
-}
-
-/// `response` read as JSON.
-///
-/// # Errors
-/// If OpenSubtitles answered with something unexpected.
-fn parsed<T: DeserializeOwned>(response: &Response) -> Result<T, Error> {
-    response.json().map_err(|err| {
+    accepted(response)?.json().map_err(|err| {
         Error::msg(format!(
             "OpenSubtitles answered with something unexpected: {err}"
         ))
@@ -370,56 +356,36 @@ fn parsed<T: DeserializeOwned>(response: &Response) -> Result<T, Error> {
 }
 
 /// `response` if OpenSubtitles took the request, else why it refused.
-fn accepted(response: Response) -> Result<Response, Refused> {
+fn accepted(response: Response) -> Result<Response, Error> {
     #[derive(Deserialize)]
     struct Quota {
         reset_time: Option<String>,
     }
-    Err(match response.status_code() {
-        200..300 => return Ok(response),
-        401 => Refused::Login,
-        403 => Refused::ApiKey,
-        406 => Refused::Quota {
+    match response.status_code() {
+        403 => Err(Refused::ApiKey.into()),
+        406 => Err(Refused::Quota {
             renews_in: (response.json::<Quota>().ok()).and_then(|quota| quota.reset_time),
-        },
-        429 => Refused::RateLimit {
-            // OpenSubtitles gives seconds, though HTTP allows a date too.
-            retry_after: response
-                .header("Retry-After")
-                .and_then(|after| after.parse().ok()),
-        },
-        status => Refused::Status(status),
-    })
+        }
+        .into()),
+        _ => Ok(API.accepted(response)?),
+    }
 }
 
-/// Why OpenSubtitles refused a request, which the Plugins page shows as the call's failure.
+/// The refusals only OpenSubtitles means, which the Plugins page shows as the call's failure;
+/// every other status is the kit's refusal.
 #[derive(Debug, PartialEq, Eq)]
 enum Refused {
     /// The API key is wrong.
     ApiKey,
-    /// The username or password is wrong, or a kept login's token expired.
-    Login,
-    /// The Server sent more requests than OpenSubtitles takes, until the seconds it gives pass.
-    RateLimit { retry_after: Option<u64> },
     /// The account has downloaded all it may today, until it renews in the time OpenSubtitles
     /// gives, such as `3 hours and 12 minutes`.
     Quota { renews_in: Option<String> },
-    /// Any other HTTP status.
-    Status(u16),
 }
 
 impl fmt::Display for Refused {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ApiKey => write!(f, "OpenSubtitles refused the API key"),
-            Self::Login => write!(f, "OpenSubtitles refused the username or password"),
-            Self::RateLimit { retry_after } => {
-                write!(f, "OpenSubtitles is limiting this Server's requests; ")?;
-                match retry_after {
-                    Some(seconds) => write!(f, "try again in {seconds} s"),
-                    None => write!(f, "try again in a few seconds"),
-                }
-            }
             Self::Quota { renews_in } => {
                 write!(
                     f,
@@ -430,20 +396,11 @@ impl fmt::Display for Refused {
                     None => Ok(()),
                 }
             }
-            Self::Status(status) => write!(
-                f,
-                "OpenSubtitles refused the request with HTTP status {status}"
-            ),
         }
     }
 }
 
 impl std::error::Error for Refused {}
-
-/// The setting `key`, which the Server sets before every call.
-fn setting(key: &str) -> Result<String, Error> {
-    nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
-}
 
 #[cfg(test)]
 #[path = "lib_tests.rs"]

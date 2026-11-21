@@ -1,6 +1,6 @@
 //! Users asking for Movies and Seasons of Shows: `nama.v1.RequestService`.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
@@ -18,23 +18,29 @@ use nama_proto::nama::v1::{
     DeclineRequestRequest, DeclineRequestResponse, GetRequestRequest, GetRequestResponse,
     ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest, LookUpMovieResponse,
     LookUpShowRequest, LookUpShowResponse, RefusalReason, RequestService, RequestState,
-    RetryRequestRequest, RetryRequestResponse, SearchMoviesRequest, SearchMoviesResponse,
-    SearchShowsRequest, SearchShowsResponse, WithdrawFollowedShowRequest,
+    RetryRequestRequest, RetryRequestResponse, WithdrawFollowedShowRequest,
     WithdrawFollowedShowResponse, WithdrawRequestRequest, WithdrawRequestResponse,
 };
 
 use crate::{
+    browse::Browse,
+    db::Database,
     library::{
         Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
+        TitleKind,
     },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
         QualityRefused, Requests, year_of,
     },
+    watchlist,
 };
 
 use super::{
-    Refused, caller, database_failed, external_id_to_proto, refuse, required_id,
+    Refused,
+    browse::{Fields, refused, roles_to_proto, trailers_to_proto},
+    caller, database_failed, external_id_to_proto, refuse, required_id,
+    search::{movie_hits, show_hits},
     title_kind_from_proto,
 };
 
@@ -44,8 +50,12 @@ use super::{
 /// [`Requests`] shows a User only their own Requests.
 pub(super) struct RequestServiceHandler {
     pub(super) requests: Requests,
+    /// Finds which of a looked-up title's Similar titles are in a Library.
+    pub(super) browse: Browse,
     /// The images found, or those the Server shows in their place, with their thumbhashes.
     pub(super) images: ImageSources,
+    /// Holds the Watchlists that say whether a looked-up title is on the caller's.
+    pub(super) db: Arc<Database>,
 }
 
 #[expect(
@@ -155,24 +165,6 @@ impl RequestService for RequestServiceHandler {
         })
     }
 
-    async fn search_movies(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, SearchMoviesRequest>,
-    ) -> ServiceResult<SearchMoviesResponse> {
-        let viewer = &caller(&ctx)?.user;
-        let title = searched_title(request.to_owned_message().title)?;
-        let found = self.requests.search(viewer, title).await?;
-        let images = self.images.shown().await.map_err(database_failed)?;
-        Response::ok(SearchMoviesResponse {
-            movies: found
-                .into_iter()
-                .map(|found| searched_to_proto(found, &images))
-                .collect(),
-            ..Default::default()
-        })
-    }
-
     async fn list_movie_qualities(
         &self,
         ctx: RequestContext,
@@ -255,26 +247,22 @@ impl RequestService for RequestServiceHandler {
                 err.into()
             }
         })?;
+        // By the id it was looked up by, which its page's Watchlist button removes it under, not
+        // the title source's other ids: `RemoveFromWatchlist` clears only the Matches' (#1292).
+        let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Movie, &id);
+        let on_watchlist = on_watchlist.await.map_err(database_failed)?;
+        let similar = (self
+            .browse
+            .in_libraries(TitleKind::Movie, &found.movie.similar))
+        .await;
+        let similar = similar.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpMovieResponse {
-            movie: looked_up_to_proto(found, &images).into(),
-            ..Default::default()
-        })
-    }
-
-    async fn search_shows(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, SearchShowsRequest>,
-    ) -> ServiceResult<SearchShowsResponse> {
-        let title = searched_title(request.to_owned_message().title)?;
-        let found = self.requests.search_shows(title).await?;
-        let images = self.images.shown().await.map_err(database_failed)?;
-        Response::ok(SearchShowsResponse {
-            shows: found
-                .into_iter()
-                .map(|found| searched_show_to_proto(found, &images))
-                .collect(),
+            movie: proto::FoundMovie {
+                similar: movie_hits(similar, &images),
+                ..looked_up_to_proto(found, on_watchlist, &images)
+            }
+            .into(),
             ..Default::default()
         })
     }
@@ -299,9 +287,21 @@ impl RequestService for RequestServiceHandler {
                 err.into()
             }
         })?;
+        // As `look_up_movie`'s.
+        let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Show, &id);
+        let on_watchlist = on_watchlist.await.map_err(database_failed)?;
+        let similar = (self
+            .browse
+            .in_libraries(TitleKind::Show, &found.show.similar))
+        .await;
+        let similar = similar.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpShowResponse {
-            show: looked_up_show_to_proto(found, &images).into(),
+            show: proto::FoundShow {
+                similar: show_hits(similar, &images),
+                ..looked_up_show_to_proto(found, on_watchlist, &images)
+            }
+            .into(),
             ..Default::default()
         })
     }
@@ -458,7 +458,7 @@ impl RequestService for RequestServiceHandler {
 }
 
 /// A Movie a search found, as clients see it, with its poster offered to them.
-fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
+pub(super) fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
     let Found {
         id,
         plugin,
@@ -484,9 +484,13 @@ fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -> proto::Mo
     }
 }
 
-/// A Movie looked up, as clients see it, with its images offered to them, each under the Plugin
-/// whose artwork list had it.
-fn looked_up_to_proto(found: Found<Metadata>, images: &ShownImages) -> proto::FoundMovie {
+/// A Movie looked up, as clients see it, `on_watchlist` or not, with its images offered to them,
+/// each under the Plugin whose artwork list had it.
+fn looked_up_to_proto(
+    found: Found<Metadata>,
+    on_watchlist: bool,
+    images: &ShownImages,
+) -> proto::FoundMovie {
     let Found {
         id,
         movie,
@@ -500,12 +504,21 @@ fn looked_up_to_proto(found: Found<Metadata>, images: &ShownImages) -> proto::Fo
     };
     let poster = shown(Role::Poster, movie.poster.as_ref());
     let backdrop = shown(Role::Backdrop, movie.backdrop.as_ref());
+    let (cast, crew) = roles_to_proto(movie.roles, offered_by(&movie.plugin, images));
     proto::FoundMovie {
         id: external_id_to_proto(&id).into(),
         title: movie.title,
         year: movie.release_date.as_deref().and_then(year_of),
         overview: movie.overview,
         runtime_minutes: movie.runtime_minutes,
+        score: movie.score,
+        original_language: movie.original_language,
+        cast,
+        crew,
+        genres: movie.genres,
+        content_rating: movie.content_rating,
+        on_watchlist,
+        trailers: trailers_to_proto(movie.trailers),
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,
@@ -517,7 +530,7 @@ fn looked_up_to_proto(found: Found<Metadata>, images: &ShownImages) -> proto::Fo
 }
 
 /// A Show a search found, as clients see it, with its poster offered to them.
-fn searched_show_to_proto(hit: Hit, images: &ShownImages) -> proto::ShowHit {
+pub(super) fn searched_show_to_proto(hit: Hit, images: &ShownImages) -> proto::ShowHit {
     let Hit {
         id,
         plugin,
@@ -539,8 +552,12 @@ fn searched_show_to_proto(hit: Hit, images: &ShownImages) -> proto::ShowHit {
     }
 }
 
-/// A Show looked up, as clients see it, with its images offered to them.
-fn looked_up_show_to_proto(found: FoundShow, images: &ShownImages) -> proto::FoundShow {
+/// A Show looked up, as clients see it, `on_watchlist` or not, with its images offered to them.
+fn looked_up_show_to_proto(
+    found: FoundShow,
+    on_watchlist: bool,
+    images: &ShownImages,
+) -> proto::FoundShow {
     let FoundShow {
         id,
         plugin,
@@ -558,11 +575,20 @@ fn looked_up_show_to_proto(found: FoundShow, images: &ShownImages) -> proto::Fou
     };
     let poster = shown(Role::Poster, show.poster.as_deref());
     let backdrop = shown(Role::Backdrop, show.backdrop.as_deref());
+    let (cast, crew) = roles_to_proto(show.roles, offered_by(&plugin, images));
     proto::FoundShow {
         id: external_id_to_proto(&id).into(),
         title: show.title,
         year: show.first_air_date.as_deref().and_then(year_of),
         overview: show.overview,
+        score: show.score,
+        original_language: show.original_language,
+        cast,
+        crew,
+        genres: show.genres,
+        content_rating: show.content_rating,
+        on_watchlist,
+        trailers: trailers_to_proto(show.trailers),
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,
@@ -571,6 +597,19 @@ fn looked_up_show_to_proto(found: FoundShow, images: &ShownImages) -> proto::Fou
         followed_show: followed_show.into(),
         quality: quality.into(),
         ..Default::default()
+    }
+}
+
+/// Where clients fetch an image the title source of `plugin` answered with, offered to them by its
+/// path.
+fn offered_by<'a>(
+    plugin: &'a PluginId,
+    images: &'a ShownImages,
+) -> impl Fn(&str) -> Option<String> + 'a {
+    move |path| {
+        images
+            .downloaded(Some(Downloaded::Offered { plugin, path }))
+            .url
     }
 }
 
@@ -609,19 +648,6 @@ pub(super) fn missing_show_to_proto(show: Listed, images: &ShownImages) -> proto
         poster_thumbhash: poster.thumbhash,
         ..Default::default()
     }
-}
-
-/// `title`, unless it is blank, which a search for titles refuses.
-fn searched_title(title: String) -> Result<String, ConnectError> {
-    if title.trim().is_empty() {
-        return Err(refuse(
-            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-            "the title to search for must not be blank",
-        )
-        .field("title")
-        .into());
-    }
-    Ok(title)
 }
 
 /// The refusal of a Quality a User named, in the field they named it in.

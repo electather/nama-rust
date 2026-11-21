@@ -1,6 +1,6 @@
 //! Custom Images: a Poster or Backdrop an admin uploads for a Movie, Show or Season, which
 //! everyone then sees in its place until it is removed (ADR 0036), over a real socket with the
-//! TMDB Plugin enabled against a fake TMDB.
+//! TMDB Plugin enabled against a fake TMDB, and a search-only title source of this file's own.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -13,20 +13,29 @@ mod http;
 #[path = "support/server.rs"]
 mod server;
 
-use std::fs;
+use std::{fs, future, sync::Arc};
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
 use custom_images::image;
 use http::{Reply, fetch};
 use image::ImageFormat;
+use nama_plugin_api::{
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    contract::{Candidate, SearchQuery, SearchResults, TitleId},
+    metadata::{MetadataError, SourceManifest, TitleMethod, TitleSource},
+};
 use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
     ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest, ReportProgressRequest,
-    RequestServiceClient, SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show,
-    TitleKind, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
+    SetMatchRequest, Show, TitleKind, WatchStateServiceClient,
+    continue_watching_entry::MovieOrEpisode,
 };
-use server::tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, THE_OFFICE};
+use nama_server::plugins::Registry;
+use server::{
+    TestServer, search,
+    tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, THE_OFFICE},
+};
 
 /// Its id hint Matches it to the US The Office, which a search alone ties with the UK one.
 const THE_OFFICE_PILOT: &str = "The Office {tmdb-2316}/Season 01/The Office - S01E01.mkv";
@@ -107,10 +116,6 @@ impl Fixture {
             .unwrap()
             .into_owned()
             .entries
-    }
-
-    fn requests(&self) -> RequestServiceClient<HttpClient> {
-        RequestServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 }
 
@@ -570,7 +575,8 @@ async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_on_its_pa
 }
 
 /// The fake TMDB gives a search hit only its tmdb id, so this proves the hit's own id; the path
-/// through a hit's other ids is proved in `tests/tvdb.rs`, whose TVDB hits carry several.
+/// through a hit's other ids is proved by
+/// [`a_custom_poster_kept_under_another_id_of_a_search_hit_shows_on_the_hit`].
 #[tokio::test]
 async fn a_custom_poster_kept_under_a_search_hits_id_shows_on_the_hit() {
     let fx = Fixture::alien().await;
@@ -585,26 +591,9 @@ async fn a_custom_poster_kept_under_a_search_hits_id_shows_on_the_hit() {
         assert_eq!(uploaded.status, 204, "{path}");
     }
 
-    let movies = fx
-        .requests()
-        .search_movies(SearchMoviesRequest {
-            title: "Alien".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .movies;
-    let shows = fx
-        .requests()
-        .search_shows(SearchShowsRequest {
-            title: "The Office".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .shows;
+    let as_admin = fx.server.client_config();
+    let movies = search::movies(&as_admin, "Alien").await;
+    let shows = search::shows(&as_admin, "The Office").await;
 
     let alien = movies.iter().find(|it| *it.id == tmdb_id(ALIEN)).unwrap();
     let office = (shows.iter())
@@ -619,4 +608,93 @@ async fn a_custom_poster_kept_under_a_search_hits_id_shows_on_the_hit() {
         )),
         "{poster}"
     );
+}
+
+/// The namespace and Plugin id of [`OfficeHits`].
+const OFFICE_HITS: &str = "officehits";
+
+/// A title source that only searches, finding The Office under an id of its own and its TMDB id,
+/// since the fake TMDB's hits carry one id each.
+struct OfficeHits;
+
+impl TitleSource for OfficeHits {
+    fn namespace(&self) -> &str {
+        OFFICE_HITS
+    }
+
+    fn search<'a>(
+        &'a self,
+        _query: &'a SearchQuery,
+    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
+        let id = |namespace: &str, value: String| TitleId {
+            namespace: namespace.to_owned(),
+            value,
+            ..Default::default()
+        };
+        let own = id(OFFICE_HITS, "1".to_owned());
+        let hit = Candidate {
+            id: own.clone().into(),
+            ids: vec![own, id("tmdb", THE_OFFICE.to_string())],
+            title: "The Office".to_owned(),
+            ..Default::default()
+        };
+        Box::pin(future::ready(Ok(SearchResults {
+            candidates: vec![hit],
+            ..Default::default()
+        })))
+    }
+
+    fn answers(&self, method: TitleMethod) -> bool {
+        method == TitleMethod::Search
+    }
+}
+
+impl Plugin for OfficeHits {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
+            title_source: Some(SourceManifest {
+                namespace: OFFICE_HITS.to_owned(),
+                looks_up: Vec::new(),
+                searches: true,
+            }),
+            ..Manifest::new(PluginId::from_static(OFFICE_HITS))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(Self));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_custom_poster_kept_under_another_id_of_a_search_hit_shows_on_the_hit() {
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(OfficeHits)).unwrap();
+    // A search belongs to no Library, so it asks in Admin precedence.
+    plugins.set_provider_precedence::<dyn TitleSource>(vec![
+        PluginId::from_static(OFFICE_HITS),
+        PluginId::from_static("tmdb"),
+    ]);
+    let fx = Fixture::start_on(
+        LibraryKind::LIBRARY_KIND_SHOWS,
+        TestServer::builder().plugins(plugins),
+    )
+    .await;
+    fx.write(THE_OFFICE_PILOT, b"video");
+    fx.scan_and_match().await;
+    let path = format!("/custom-images/show/tmdb-{THE_OFFICE}/poster");
+    let uploaded = fx.upload(&path, &image(ImageFormat::Png, 2, 3)).await;
+    assert_eq!(uploaded.status, 204);
+
+    // A word the Library's title lacks, so the hit comes from the title source.
+    let found = search::shows(&fx.server.client_config(), "Bureau").await;
+
+    let [hit] = found.as_slice() else {
+        panic!("{found:?}");
+    };
+    assert_eq!(hit.id.namespace, OFFICE_HITS);
+    let poster = hit.poster_url.clone().unwrap();
+    assert!(poster.starts_with(&format!("/media{path}/")), "{poster}");
 }

@@ -1,0 +1,24 @@
+/* The Movie and Show artboards' tokens for title pages (`src/features/title/`), imported by `styles.css`. */
+
+/* The scrim under a title page's top (`src/features/title/components/title-hero.tsx`): from the
+   page up to clear art above its middle, so the copy at the bottom keeps 4.5:1 however bright the
+   Backdrop (DESIGN.md, "The Legible Over Art Rule"), darker at the start, where the copy sits, and
+   under the app bar. */
+@utility title-scrim {
+  --title-start: to right;
+  background:
+    linear-gradient(
+      to top,
+      var(--background) 0%,
+      color-mix(in oklab, var(--background) 90%, transparent) 16%,
+      var(--scrim) 40%,
+      transparent 72%
+    ),
+    linear-gradient(var(--title-start), var(--scrim) 0%, transparent 60%),
+    linear-gradient(to bottom, var(--scrim) 0%, transparent 18%);
+
+  /* The copy sits at the start, so the side band follows it in a right-to-left language. */
+  &:dir(rtl) {
+    --title-start: to left;
+  }
+}

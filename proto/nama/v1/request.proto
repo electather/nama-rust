@@ -86,23 +86,11 @@ service RequestService {
   rpc CountPendingRequests(CountPendingRequestsRequest) returns (CountPendingRequestsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Searches the title source for Movies to ask for, best fit first. Unlike
-  // `MatchService.SearchTitles`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
-  // `invalid_argument` if the title is blank, and `unavailable` if no title source is
-  // enabled, or one failed.
-  rpc SearchMovies(SearchMoviesRequest) returns (SearchMoviesResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-  }
   // Returns one Movie from the title source, for its page when no Library has it. Needs
   // `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no title source has a Movie with the
   // id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
   // title source is enabled, or one failed.
   rpc LookUpMovie(LookUpMovieRequest) returns (LookUpMovieResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-  }
-  // Searches the title source for Shows to ask for Seasons of, best fit first. Needs
-  // `PERMISSION_REQUEST_TV`. Fails as `SearchMovies` does.
-  rpc SearchShows(SearchShowsRequest) returns (SearchShowsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Returns one Show from the title source with each of its Seasons, for picking which to ask
@@ -616,8 +604,8 @@ message MovieHit {
   optional int32 year = 3;
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 6;
-  // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-  // by `id`.
+  // The oldest Library the Movie is Matched in, if any, or for `SearchService.Search`'s Library
+  // batch the one it was found in. `BrowseService.GetMovie` opens it there, by `id`.
   optional int64 library_id = 8;
   // The Movie's open Request, if it has one the caller may see.
   Request request = 9;
@@ -651,15 +639,33 @@ message FoundMovie {
   optional bytes poster_thumbhash = 10;
   // As `nama.v1.Movie.backdrop_thumbhash`.
   optional bytes backdrop_thumbhash = 11;
+  // As `nama.v1.Movie.score`, from the title source it was looked up in.
+  optional double score = 13;
+  // As `nama.v1.Movie.original_language`.
+  optional string original_language = 14;
+  // As `nama.v1.Movie.genres`, from the title source it was looked up in.
+  repeated string genres = 15;
+  // As `nama.v1.Movie.content_rating`, from the title source it was looked up in.
+  optional string content_rating = 16;
+  // As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
+  bool on_watchlist = 17;
+  // As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+  repeated MovieHit similar = 21;
+  // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
+  repeated Trailer trailers = 18;
+  // As `nama.v1.Movie.cast`, from the title source it was looked up in.
+  repeated Role cast = 19;
+  // As `nama.v1.Movie.crew`, from the title source it was looked up in.
+  repeated Role crew = 20;
 }
 
-message SearchMoviesRequest {
-  // Must not be blank.
-  string title = 1;
-}
-
-message SearchMoviesResponse {
-  repeated MovieHit movies = 1;
+// A video advertising a Movie or Show, as a link to where it is hosted. A client only links to
+// it, so showing a title tells the host nothing until a User opens one.
+message Trailer {
+  // What it is called, such as `Official Trailer`.
+  string name = 1;
+  // Where it is hosted: a `https` URL on YouTube or Vimeo.
+  string url = 2;
 }
 
 message LookUpMovieRequest {
@@ -686,8 +692,14 @@ message ShowHit {
   optional int32 year = 3;
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;
+  // The oldest Library with an Episode of it Matched, if any, or for `SearchService.Search`'s
+  // Library batch the one it was found in. `BrowseService.GetShow` opens it there, by `id`.
+  optional int64 library_id = 8;
   // As `nama.v1.Movie.poster_thumbhash`.
   optional bytes poster_thumbhash = 10;
+  // For `SearchService.Search`'s title-source batch, the open Request for its earliest Season
+  // with one the caller may see, if any.
+  Request request = 13;
 }
 
 // A Show looked up in the title source, whose Seasons `CreateSeasonRequests` asks for.
@@ -719,6 +731,36 @@ message FoundShow {
   optional bytes poster_thumbhash = 10;
   // As `nama.v1.Movie.backdrop_thumbhash`.
   optional bytes backdrop_thumbhash = 11;
+  // As `nama.v1.Movie.score`, from the title source it was looked up in.
+  optional double score = 13;
+  // As `nama.v1.Movie.original_language`.
+  optional string original_language = 14;
+  // As `nama.v1.Show.cast`, from the title source it was looked up in.
+  repeated Role cast = 19;
+  // As `nama.v1.Show.crew`, from the title source it was looked up in.
+  repeated Role crew = 20;
+  // As `FoundMovie.genres`.
+  repeated string genres = 15;
+  // As `FoundMovie.content_rating`, such as `TV-MA`.
+  optional string content_rating = 16;
+  // As `FoundMovie.on_watchlist`.
+  bool on_watchlist = 17;
+  // As `FoundMovie.similar`, for the Show.
+  repeated ShowHit similar = 21;
+  // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
+  repeated Trailer trailers = 18;
+}
+
+// A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew). A
+// Person has no page.
+message Role {
+  // The Person's name.
+  string name = 1;
+  // The character they play, or the job they did, in English, such as `Director` or `Creator`.
+  // Empty if the title source doesn't say.
+  string part = 2;
+  // Their headshot's URL on this Server. Only the first 15 of the Cast have one, if any.
+  optional string headshot_url = 3;
 }
 
 // A Season of a Show in the title source, and how close it is to being on the Server: in a
@@ -733,15 +775,6 @@ message FoundSeason {
   bool in_library = 3;
   // The Season's open Request, if it has one the caller may see.
   Request request = 4;
-}
-
-message SearchShowsRequest {
-  // Must not be blank.
-  string title = 1;
-}
-
-message SearchShowsResponse {
-  repeated ShowHit shows = 1;
 }
 
 message LookUpShowRequest {

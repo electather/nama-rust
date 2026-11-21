@@ -22,8 +22,9 @@
 //!   lists have none. An Episode takes its Season's own poster first.
 //! - An Episode Matches once its Show does and the Show's Season, fetched from the source that gave
 //!   the Show, lists it. Each Show is looked up once per pass, and each of its Seasons fetched
-//!   once. An Episode keeps its own ids and its Show's; Watch State keys Episodes by the Show's ids
-//!   plus Season and Episode numbers (ADR 0008).
+//!   once: every one but the Specials, even without an Episode here, for its air dates. An Episode
+//!   keeps its own ids and its Show's; Watch State keys Episodes by the Show's ids plus Season and
+//!   Episode numbers (ADR 0008).
 //!
 //! Matching stores why it left an item Unmatched, so an admin knows how to fix it: more than one
 //! title fits about as well (and which), none does, its ID hint names none, or, for an Episode,
@@ -164,12 +165,12 @@ struct Outdated {
     shows: BTreeMap<(PluginId, ExternalId), Vec<PendingEpisode>>,
 }
 
-/// What looking items up found for each, with the Seasons fetched to find Episodes in, by every
-/// id of their Show, which Season Requests follow.
+/// What looking items up found for each, with the Seasons fetched with their Show, by the Plugin
+/// that gave them and every id of their Show, which Season Requests and air dates follow.
 #[derive(Debug, Default)]
 struct Outcomes {
     items: Vec<(i64, Result<Metadata, Miss>)>,
-    seasons: Vec<(ExternalIds, SourceSeason)>,
+    seasons: Vec<(PluginId, ExternalIds, SourceSeason)>,
 }
 
 impl Outcomes {
@@ -294,6 +295,11 @@ impl Metadata {
                 .or_else(|| ImageRef::of(plugin, show.poster.as_ref())),
             show_overview: show.overview.clone(),
             show_first_air_date: show.first_air_date.clone(),
+            score: show.score,
+            original_language: show.original_language.clone(),
+            similar: show.similar.clone(),
+            trailers: show.trailers.clone(),
+            roles: show.roles.clone(),
         }
     }
 }
@@ -644,6 +650,10 @@ impl Matcher {
     ) -> Outcomes {
         let FoundShow { source, id, show } = found;
         let mut by_season: BTreeMap<i64, Vec<&PendingEpisode>> = BTreeMap::new();
+        // Every Season but the Specials is fetched, for how many of the Show's Episodes aired.
+        for &number in show.seasons.iter().filter(|&&number| number > 0) {
+            by_season.entry(number.into()).or_default();
+        }
         for pending in episodes {
             by_season.entry(pending.season).or_default().push(pending);
         }
@@ -654,6 +664,8 @@ impl Matcher {
         let in_show = |season: &SourceSeason, episode: &SourceEpisode| {
             Metadata::episode(&source.plugin, (show, picked), season, episode)
         };
+        let show_ids = (Some(show.ids.clone()).filter(|ids| !ids.is_empty()))
+            .unwrap_or_else(|| ExternalIds::from_iter([id.clone()]));
         for (number, in_season) in by_season {
             let season = sources::season(&self.metadata, found, number).await;
             outcomes.items.extend(in_season.into_iter().map(|pending| {
@@ -669,9 +681,7 @@ impl Matcher {
                 (pending.item, outcome)
             }));
             if let Ok(season) = season {
-                let show_ids = (Some(show.ids.clone()).filter(|ids| !ids.is_empty()))
-                    .unwrap_or_else(|| ExternalIds::from_iter([id.clone()]));
-                outcomes.seasons.push((show_ids, season));
+                (outcomes.seasons).push((source.plugin.clone(), show_ids.clone(), season));
             }
         }
         outcomes

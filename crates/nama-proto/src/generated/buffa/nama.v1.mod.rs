@@ -10,6 +10,7 @@ include!("nama.v1.browse.rs");
 include!("nama.v1.playback.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
+include!("nama.v1.search.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
 include!("nama.v1.user.rs");
@@ -41,6 +42,7 @@ pub mod __buffa {
         include!("nama.v1.playback.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
+        include!("nama.v1.search.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
         include!("nama.v1.user.__view.rs");
@@ -54,6 +56,7 @@ pub mod __buffa {
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
             include!("nama.v1.library.__view_oneof.rs");
+            include!("nama.v1.search.__view_oneof.rs");
             include!("nama.v1.server.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
         }
@@ -67,6 +70,7 @@ pub mod __buffa {
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
         include!("nama.v1.library.__oneof.rs");
+        include!("nama.v1.search.__oneof.rs");
         include!("nama.v1.server.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
     }
@@ -167,15 +171,13 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TRAILER_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SHOW_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_SHOW_JSON_ANY);
+        reg.register_json_any(super::__ROLE_JSON_ANY);
         reg.register_json_any(super::__FOUND_SEASON_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_SHOWS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_SHOWS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WATCH_STATE_JSON_ANY);
@@ -225,11 +227,8 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_FEATURED_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_FEATURED_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FEATURED_TITLE_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_LIBRARIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_LIBRARIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
-        reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__LIST_UNMATCHED_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_UNMATCHED_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNMATCHED_ITEM_SUMMARY_JSON_ANY);
@@ -344,6 +343,12 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_ARTWORK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_ARTWORK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__TITLE_SOURCE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__HITS_JSON_ANY);
+        reg.register_json_any(super::__HIT_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_HIT_JSON_ANY);
+        reg.register_json_any(super::__DONE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLAYS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLAYS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAY_JSON_ANY);
@@ -449,6 +454,14 @@ pub mod __buffa {
         reg.register_json_any(super::__NOTIFICATION_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__SET_NOTIFICATION_PREFERENCE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_NOTIFICATION_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_HOME_LAYOUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_HOME_LAYOUT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_HOME_LAYOUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_HOME_LAYOUT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REORDER_HOME_ROWS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REORDER_HOME_ROWS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__RESET_HOME_LAYOUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RESET_HOME_LAYOUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__ADD_TO_WATCHLIST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__ADD_TO_WATCHLIST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_REQUEST_JSON_ANY);
@@ -836,13 +849,9 @@ pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMoviesRequestView;
+pub use self::__buffa::view::TrailerView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMoviesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchMoviesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchMoviesResponseOwnedView;
+pub use self::__buffa::view::TrailerOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpMovieRequestView;
 #[doc(inline)]
@@ -860,17 +869,13 @@ pub use self::__buffa::view::FoundShowView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundShowOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::RoleView;
+#[doc(inline)]
+pub use self::__buffa::view::RoleOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::FoundSeasonView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundSeasonOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchShowsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchShowsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchShowsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchShowsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpShowRequestView;
 #[doc(inline)]
@@ -1052,14 +1057,6 @@ pub use self::__buffa::view::FeaturedTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::FeaturedTitleOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchLibrariesResponseOwnedView;
-#[doc(inline)]
 pub use self::__buffa::view::MovieInLibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::MovieInLibraryOwnedView;
@@ -1067,10 +1064,6 @@ pub use self::__buffa::view::MovieInLibraryOwnedView;
 pub use self::__buffa::view::ShowInLibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::ShowInLibraryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeInLibraryView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeInLibraryOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListUnmatchedRequestView;
 #[doc(inline)]
@@ -1528,6 +1521,30 @@ pub use self::__buffa::view::TitleSourceView;
 #[doc(inline)]
 pub use self::__buffa::view::TitleSourceOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::SearchRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HitsView;
+#[doc(inline)]
+pub use self::__buffa::view::HitsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HitView;
+#[doc(inline)]
+pub use self::__buffa::view::HitOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeHitView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeHitOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DoneView;
+#[doc(inline)]
+pub use self::__buffa::view::DoneOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ListPlaysRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPlaysRequestOwnedView;
@@ -1947,6 +1964,38 @@ pub use self::__buffa::view::SetNotificationPreferenceRequestOwnedView;
 pub use self::__buffa::view::SetNotificationPreferenceResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetNotificationPreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetHomeLayoutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetHomeLayoutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetHomeLayoutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetHomeLayoutResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHomeLayoutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHomeLayoutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHomeLayoutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHomeLayoutResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReorderHomeRowsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReorderHomeRowsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReorderHomeRowsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReorderHomeRowsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetHomeLayoutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetHomeLayoutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetHomeLayoutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetHomeLayoutResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::AddToWatchlistRequestView;
 #[doc(inline)]

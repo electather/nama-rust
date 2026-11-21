@@ -1,5 +1,5 @@
 import { type MessageInitShape, create, fromJson } from "@bufbuild/protobuf";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import {
@@ -11,6 +11,7 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
@@ -30,6 +31,14 @@ function server(request: Request, permissions: Permission[] = newUser, retried: 
   const movie = create(FoundMovieSchema, {
     id: { namespace: "tmdb", value: "438631" },
     title: "Dune",
+    year: 2021,
+    score: 7.8,
+    originalLanguage: "en",
+    cast: [{ name: "Timothée Chalamet", part: "Paul Atreides" }],
+    crew: [{ name: "Denis Villeneuve", part: "Director" }],
+    genres: ["Science Fiction", "Adventure"],
+    contentRating: "PG-13",
+    trailers: [{ name: "Official Trailer", url: "https://www.youtube.com/watch?v=n9xhJrPXop4" }],
     request,
   });
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
@@ -173,4 +182,54 @@ test("a Request manager retries a Failed Season from its row", async () => {
   });
   expect(season2.getAttribute("aria-describedby")).not.toBeNull();
   expect(screen.getByRole("checkbox", { description: "Failed" })).toBe(season2);
+});
+
+test("a Movie to Request shows its Score, genres and Content Rating, its Original audio in Details, and its Trailers", async () => {
+  openApp("/movies/tmdb-438631", server({}));
+
+  const score = await screen.findByText("Score");
+  expect(score.closest("p")?.textContent).toBe("Score7.82021PG-13");
+  expect(screen.getByText("Movie · Science Fiction · Adventure")).toBeDefined();
+  const audio = screen.getByText("Original audio", { selector: "dt" });
+  expect(audio.nextElementSibling?.textContent).toBe("English");
+  expect(screen.getByRole("link", { name: /^Official Trailer/u }).getAttribute("href")).toBe(
+    "https://www.youtube.com/watch?v=n9xhJrPXop4",
+  );
+});
+
+test("a Movie to Request shows who stars in it, its Cast & Crew, and who directed it", async () => {
+  openApp("/movies/tmdb-438631", server({}));
+
+  await expect(screen.findByText("Starring Timothée Chalamet")).resolves.toBeDefined();
+  const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
+  expect(row.getAllByRole("listitem")).toHaveLength(2);
+  const directed = screen.getByText("Directed by", { selector: "dt" });
+  expect(directed.nextElementSibling?.textContent).toBe("Denis Villeneuve");
+});
+
+test("a Movie to Request goes on your Watchlist with its button, then shows it's on it", async () => {
+  const dune = create(FoundMovieSchema, {
+    id: { namespace: "tmdb", value: "438631" },
+    title: "Dune",
+  });
+  const added: (string | undefined)[] = [];
+  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
+    router.service(RequestService, {
+      listRequests: () => ({}),
+      lookUpMovie: () => ({ movie: dune }),
+    });
+    router.service(WatchlistService, {
+      addToWatchlist: ({ id }) => {
+        added.push(id?.value);
+        dune.onWatchlist = true;
+        return {};
+      },
+    });
+  });
+  openApp("/movies/tmdb-438631", transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Add to your Watchlist" }));
+
+  await screen.findByRole("button", { name: "Remove from your Watchlist" });
+  expect(added).toStrictEqual(["438631"]);
 });

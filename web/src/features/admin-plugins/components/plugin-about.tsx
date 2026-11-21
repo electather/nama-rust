@@ -1,7 +1,7 @@
-import { ExternalLink } from "@/features/admin-plugins/components/external-link";
 import { SetupSteps } from "@/features/admin-plugins/components/setup-steps";
 import { webUrl } from "@/features/admin-plugins/lib/setup-markdown";
 import type { Plugin } from "@/gen/nama/v1/plugin_pb";
+import { ExternalTextLink } from "@/shared/components/external-text-link";
 
 /**
  * The About section of a Plugin's page: how to set it up, then its links and licence. A Plugin that
@@ -29,9 +29,9 @@ export function PluginAbout({
       {hasFooter && (
         <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {links.map(({ name, href }) => (
-            <ExternalLink key={name} href={href}>
+            <ExternalTextLink key={name} href={href}>
               {name}
-            </ExternalLink>
+            </ExternalTextLink>
           ))}
           {plugin.license !== "" && <span>{plugin.license} licence</span>}
         </p>

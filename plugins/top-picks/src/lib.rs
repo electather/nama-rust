@@ -7,12 +7,9 @@ use std::collections::{HashMap, HashSet};
 
 use nama_pdk::{
     FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowSource, HomeRowTitle, HomeRows,
-    Manifest, Permission, Title, TitleId, TitleKind, TitleRefKind, TitleWatchStates,
-    UserFeaturedAsked, UserRowsAsked, WatchlistTitle,
-    extism_pdk::Error,
-    kernel,
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
-    services,
+    Manifest, Permission, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind,
+    TitleWatchStates, UserFeaturedAsked, UserRowsAsked, WatchlistTitle, extism_pdk::Error, kernel,
+    services, setting_value,
 };
 
 const FAMILY_RATINGS: &str = "family_ratings";
@@ -48,20 +45,16 @@ mod exports {
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let family_ratings = SettingField {
-        key: FAMILY_RATINGS.to_owned(),
-        label: "Family Content Ratings".to_owned(),
-        description: "The Content Ratings Family night shows, separated by commas. A title \
-                      without one isn't shown."
-            .to_owned(),
-        kind: SettingKind::SETTING_KIND_TEXT.into(),
-        default_value: SettingValue {
-            value: Some(setting_value::Value::TextValue(
-                DEFAULT_FAMILY_RATINGS.to_owned(),
-            )),
-            ..SettingValue::default()
-        }
-        .into(),
-        ..SettingField::default()
+        default_value: nama_pdk::setting_default(setting_value::Value::TextValue(
+            DEFAULT_FAMILY_RATINGS.to_owned(),
+        )),
+        ..nama_pdk::setting_field(
+            FAMILY_RATINGS,
+            "Family Content Ratings",
+            "The Content Ratings Family night shows, separated by commas. A title without one \
+             isn't shown.",
+            SettingKind::SETTING_KIND_TEXT,
+        )
     };
     Manifest {
         name: "Top Picks".to_owned(),

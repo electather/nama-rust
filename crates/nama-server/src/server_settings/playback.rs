@@ -58,7 +58,7 @@ pub(crate) struct PlaybackValues {
     /// The folder segment files go to as the admin set it, or `""` for the default.
     pub(crate) segment_folder: String,
     /// The most Transcodes at once, or `None` for the default, which depends on what they run on
-    /// (`playback::plan`).
+    /// (`playback::Plans::plan`).
     pub(crate) max_transcodes: Option<NonZeroU32>,
     /// How many minutes behind playback a running plan keeps its files, or `None` for
     /// [`DEFAULT_KEEP_BEHIND_MINUTES`].

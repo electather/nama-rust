@@ -221,6 +221,9 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
       ISSUE_TITLE: issue.title,
       BRANCH: branchOf(issue),
       PARENT: issue.parent ? `#${issue.parent}` : "none",
+      // Read here, not with `!cat` in the prompt: that runs in the issue's worktree, and a branch cut before the
+      // file existed crashed on it (#1391).
+      SANDBOX: readFileSync(".sandcastle/sandbox.md", "utf8").trim(),
       ...extra,
     },
     maxIterations: 3,

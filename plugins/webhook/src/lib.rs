@@ -7,16 +7,17 @@ use std::fmt::Write as _;
 
 use hmac::{Hmac, KeyInit as _, Mac as _, digest::InvalidLength};
 use nama_pdk::{
-    Manifest, Notification,
+    Manifest, Notification, OutsideService, SettingField, SettingKind,
     extism_pdk::json,
-    nama_plugin_proto::nama::plugin::v1::{Event, Request, SettingField, SettingKind},
-    services,
+    nama_plugin_proto::nama::plugin::v1::{Event, Request},
+    services, setting_field,
 };
 use serde::Serialize;
 use sha2::Sha256;
 
 const URL: &str = "url";
 const SECRET: &str = "secret";
+const WEBHOOK: OutsideService = OutsideService::new("the webhook");
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -31,7 +32,7 @@ mod exports {
         plugin_fn,
     };
 
-    use super::{SECRET, URL};
+    use super::{SECRET, URL, WEBHOOK};
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
@@ -39,7 +40,7 @@ mod exports {
     }
 
     /// Posts each notification for the channel to the webhook.
-    struct Webhook;
+    pub(super) struct Webhook;
 
     impl Notifier for Webhook {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
@@ -62,35 +63,21 @@ mod exports {
         let Some(text) = nama_pdk::what_happened(notification) else {
             return Ok(());
         };
-        let url = nama_pdk::setting(URL)?
-            .ok_or_else(|| Error::msg(format!("the setting {URL} isn't set")))?;
+        let url = nama_pdk::required_setting(URL)?;
         let body = super::body(notification, &text)?;
         let mut request = HttpRequest::new(url)
             .with_method("POST")
             .with_header("Content-Type", "application/json");
-        if let Some(secret) = nama_pdk::setting(SECRET)?.filter(|secret| !secret.is_empty()) {
+        if let Some(secret) = nama_pdk::setting(SECRET)? {
             request = request.with_header("X-Nama-Signature", super::signature(&secret, &body)?);
         }
-        // Not naming the URL, which may hold a token.
-        let response = nama_pdk::http_request(&request, Some(body), "the webhook didn't answer")?;
-        match response.status_code() {
-            200..300 => Ok(()),
-            status => Err(Error::msg(format!(
-                "the webhook failed with HTTP status {status}"
-            ))),
-        }
+        WEBHOOK.accepted(WEBHOOK.send(&request, Some(body))?)?;
+        Ok(())
     }
 }
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
-    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
-        ..SettingField::default()
-    };
     Manifest {
         logo_svg: include_str!("../logo.svg").to_owned(),
         // No `allowed_hosts`: the Server allows the host of the URL setting.
@@ -98,14 +85,14 @@ fn manifest() -> Manifest {
         settings: vec![
             SettingField {
                 required: true,
-                ..setting(
+                ..setting_field(
                     URL,
                     "Webhook URL",
                     "Where every Request event is POSTed as JSON.",
                     SettingKind::SETTING_KIND_URL,
                 )
             },
-            setting(
+            setting_field(
                 SECRET,
                 "Signing key",
                 "Signs each body: the X-Nama-Signature header is sha256= and the hex \

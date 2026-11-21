@@ -6,6 +6,7 @@ import { BrowseService, type MovieSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, type ListArtworkResponseSchema } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { openMenu, pickFromMenu } from "@/test-menu";
 
 afterEach(() => {
   cleanup();
@@ -45,7 +46,7 @@ function openAlien(
 }
 
 async function openEditImages() {
-  fireEvent.click(await screen.findByRole("button", { name: "Edit images" }));
+  await pickFromMenu("More actions", "Edit images");
   return screen.findByRole("dialog", { name: "Images of Alien" });
 }
 
@@ -60,13 +61,15 @@ function uploadPoster(dialog: HTMLElement) {
 
 test("only a User with Manage Libraries sees Edit images", async () => {
   openAlien(newUser, () => ({}));
-  await screen.findByRole("link", { name: "Play" });
-  expect(screen.queryByRole("button", { name: "Edit images" })).toBeNull();
+  await openMenu("More actions");
+  await screen.findByRole("menuitem", { name: "Mark as watched" });
+  expect(screen.queryByRole("menuitem", { name: "Edit images" })).toBeNull();
   cleanup();
 
   openAlien(managesLibraries, () => ({}));
 
-  await expect(screen.findByRole("button", { name: "Edit images" })).resolves.toBeDefined();
+  await openMenu("More actions");
+  await expect(screen.findByRole("menuitem", { name: "Edit images" })).resolves.toBeDefined();
 });
 
 test("an uploaded Poster goes to the Movie's path and shows without a reload", async () => {
@@ -161,7 +164,7 @@ test.each([
   expect(alert.textContent).toBe(message);
 });
 
-test("a Show's page edits the Show's images and the Season shown's Poster", async () => {
+test("a Show's page edits the Show's images and the Poster of the Season the row is on", async () => {
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
   const transport = fakeServer({ signedIn: managesLibraries, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
@@ -173,7 +176,7 @@ test("a Show's page edits the Show's images and the Season shown's Poster", asyn
     .spyOn(globalThis, "fetch")
     .mockResolvedValue(new Response(null, { status: 204 }));
   openApp("/libraries/2/shows/tmdb-70523?season=2", transport);
-  fireEvent.click(await screen.findByRole("button", { name: "Edit images" }));
+  await pickFromMenu("More actions", "Edit images");
   const dialog = await screen.findByRole("dialog", { name: "Images of Dark" });
 
   for (const label of ["Upload a Poster", "Upload a Backdrop", "Upload a Season 2 Poster"]) {
@@ -222,7 +225,7 @@ async function openDarkSeason2(seasonPosters: string[]) {
     },
   );
   openApp("/libraries/2/shows/tmdb-70523?season=2", transport);
-  fireEvent.click(await screen.findByRole("button", { name: "Edit images" }));
+  await pickFromMenu("More actions", "Edit images");
   return screen.findByRole("dialog", { name: "Images of Dark" });
 }
 

@@ -7,6 +7,7 @@ import type { ListUnmatchedItemsResponse } from "@/gen/nama/v1/match_pb";
 import { browseKey } from "@/shared/hooks/browse";
 import { requestsKey } from "@/shared/hooks/requests-key";
 import { SCANS, scanQuery } from "@/shared/hooks/scan-query";
+import { searchKey } from "@/shared/hooks/search-query";
 import { unmatchedKey } from "@/shared/hooks/unmatched-key";
 
 /** Updates or invalidates the queries the subscription's `response` is about. */
@@ -132,5 +133,6 @@ const requestEvents = new Set<Event["event"]["case"]>([
 function refreshRequests({ event }: Event, queryClient: QueryClient) {
   if (requestEvents.has(event.case)) {
     void queryClient.invalidateQueries({ queryKey: requestsKey });
+    void queryClient.invalidateQueries({ queryKey: searchKey });
   }
 }

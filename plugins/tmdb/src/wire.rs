@@ -1,7 +1,9 @@
 //! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the contract's messages.
 
 use nama_plugin_api::{
-    contract::{Artwork, ArtworkKind, Candidate, Episode, Movie, Season, Show, TitleId},
+    contract::{
+        Artwork, ArtworkKind, Candidate, Episode, Movie, Role, Season, Show, TitleId, Trailer,
+    },
     metadata::{ExternalId, IMDB},
 };
 use serde::Deserialize;
@@ -105,7 +107,7 @@ impl WireIds {
     }
 }
 
-/// `/movie/{id}?append_to_response=external_ids,release_dates`.
+/// `/movie/{id}?append_to_response=external_ids,release_dates,credits,videos,recommendations`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieDetails {
     id: i64,
@@ -117,12 +119,21 @@ pub(crate) struct MovieDetails {
     poster_path: Option<String>,
     backdrop_path: Option<String>,
     imdb_id: Option<String>,
+    original_language: Option<String>,
+    #[serde(flatten)]
+    votes: Votes,
     #[serde(default)]
     external_ids: WireIds,
     #[serde(default)]
     genres: Vec<Genre>,
     #[serde(default)]
     release_dates: ReleaseDates,
+    #[serde(default)]
+    credits: Credits,
+    #[serde(default)]
+    videos: Videos,
+    #[serde(default)]
+    recommendations: Recommendations,
 }
 
 impl MovieDetails {
@@ -145,12 +156,25 @@ impl MovieDetails {
                 (releases.release_dates.into_iter())
                     .find_map(|release| present(release.certification))
             }),
+            score: self.votes.score(),
+            original_language: original_language(self.original_language),
+            trailers: self.videos.trailers(),
+            similar: self.recommendations.ids(),
+            cast: self.credits.cast.into_iter().map(Role::from).collect(),
+            crew: (self.credits.crew.into_iter())
+                .filter(|person| CREW_JOBS.contains(&person.job.as_str()))
+                .map(Role::from)
+                .collect(),
             ..Default::default()
         }
     }
 }
 
-/// `/tv/{id}?append_to_response=external_ids,content_ratings`.
+/// The jobs of a title's Crew the Plugin gives, of the hundreds TMDB lists. A Show's creators come
+/// first, as `Creator`.
+const CREW_JOBS: [&str; 3] = ["Director", "Screenplay", "Writer"];
+
+/// `/tv/{id}?append_to_response=external_ids,content_ratings,aggregate_credits,videos,recommendations`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowDetails {
     id: i64,
@@ -168,6 +192,17 @@ pub(crate) struct ShowDetails {
     genres: Vec<Genre>,
     #[serde(default)]
     content_ratings: ContentRatings,
+    original_language: Option<String>,
+    #[serde(flatten)]
+    votes: Votes,
+    #[serde(default)]
+    created_by: Vec<Person>,
+    #[serde(default)]
+    aggregate_credits: AggregateCredits,
+    #[serde(default)]
+    videos: Videos,
+    #[serde(default)]
+    recommendations: Recommendations,
 }
 
 #[derive(Debug, Deserialize)]
@@ -190,8 +225,214 @@ impl ShowDetails {
             seasons: self.seasons.iter().map(|s| s.season_number).collect(),
             genres: genre_names(self.genres),
             content_rating: rated.and_then(|rated| present(rated.rating)),
+            score: self.votes.score(),
+            original_language: original_language(self.original_language),
+            trailers: self.videos.trailers(),
+            similar: self.recommendations.ids(),
+            cast: (self.aggregate_credits.cast.into_iter())
+                .map(Role::from)
+                .collect(),
+            crew: (self.created_by.into_iter())
+                .map(|person| person.role("Creator".to_owned()))
+                .chain(
+                    self.aggregate_credits
+                        .crew
+                        .into_iter()
+                        .flat_map(ShowCrewMember::roles),
+                )
+                .collect(),
             ..Default::default()
         }
+    }
+}
+
+/// `credits`, appended to a Movie's details, each list in billing order.
+#[derive(Debug, Default, Deserialize)]
+struct Credits {
+    #[serde(default)]
+    cast: Vec<CastMember>,
+    #[serde(default)]
+    crew: Vec<CrewMember>,
+}
+
+/// `aggregate_credits`, appended to a Show's details: its Cast and Crew over its whole run, in
+/// billing order, without one Episode's guest stars.
+#[derive(Debug, Default, Deserialize)]
+struct AggregateCredits {
+    #[serde(default)]
+    cast: Vec<ShowCastMember>,
+    #[serde(default)]
+    crew: Vec<ShowCrewMember>,
+}
+
+/// A Person as TMDB lists them in a title's credits.
+#[derive(Debug, Clone, Deserialize)]
+struct Person {
+    id: i64,
+    name: String,
+    profile_path: Option<String>,
+}
+
+impl Person {
+    fn role(self, part: String) -> Role {
+        Role {
+            person: Some(title_id(&ExternalId::tmdb(self.id))).into(),
+            name: self.name,
+            part,
+            headshot: present(self.profile_path),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct CastMember {
+    #[serde(flatten)]
+    person: Person,
+    character: Option<String>,
+}
+
+impl From<CastMember> for Role {
+    fn from(cast: CastMember) -> Self {
+        cast.person.role(cast.character.unwrap_or_default())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct CrewMember {
+    #[serde(flatten)]
+    person: Person,
+    job: String,
+}
+
+impl From<CrewMember> for Role {
+    fn from(crew: CrewMember) -> Self {
+        crew.person.role(crew.job)
+    }
+}
+
+/// A Show's Cast member, with each character they played; the Plugin gives the first.
+#[derive(Debug, Deserialize)]
+struct ShowCastMember {
+    #[serde(flatten)]
+    person: Person,
+    #[serde(default)]
+    roles: Vec<Character>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Character {
+    character: String,
+}
+
+/// A Show's Crew member, with each job they did over its run.
+#[derive(Debug, Deserialize)]
+struct ShowCrewMember {
+    #[serde(flatten)]
+    person: Person,
+    #[serde(default)]
+    jobs: Vec<Job>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Job {
+    job: String,
+}
+
+impl ShowCrewMember {
+    /// A Role for each of their jobs among [`CREW_JOBS`].
+    fn roles(self) -> impl Iterator<Item = Role> {
+        let person = self.person;
+        (self.jobs.into_iter())
+            .filter(|job| CREW_JOBS.contains(&job.job.as_str()))
+            .map(move |job| person.clone().role(job.job))
+    }
+}
+
+impl From<ShowCastMember> for Role {
+    fn from(cast: ShowCastMember) -> Self {
+        let character = cast.roles.into_iter().next().map(|role| role.character);
+        cast.person.role(character.unwrap_or_default())
+    }
+}
+
+/// `recommendations`, appended to a Movie's or Show's details: the first page of the titles of its
+/// kind TMDB recommends with it, most alike first.
+#[derive(Debug, Default, Deserialize)]
+struct Recommendations {
+    #[serde(default)]
+    results: Vec<FoundTitle>,
+}
+
+impl Recommendations {
+    fn ids(self) -> Vec<TitleId> {
+        (self.results.iter())
+            .map(|title| title_id(&ExternalId::tmdb(title.id)))
+            .collect()
+    }
+}
+
+/// The language a title was made in, which TMDB gives as `xx` when it has none, such as a silent film.
+fn original_language(code: Option<String>) -> Option<String> {
+    present(code).filter(|code| code != "xx")
+}
+
+/// A title's `vote_average` and `vote_count`.
+#[derive(Debug, Deserialize)]
+struct Votes {
+    vote_average: Option<f64>,
+    #[serde(default)]
+    vote_count: u32,
+}
+
+impl Votes {
+    /// The Score, which TMDB gives as 0.0 when nobody has voted.
+    fn score(&self) -> Option<f64> {
+        self.vote_average.filter(|_| self.vote_count > 0)
+    }
+}
+
+/// `videos`, appended to a title's details.
+#[derive(Debug, Default, Deserialize)]
+struct Videos {
+    #[serde(default)]
+    results: Vec<Video>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Video {
+    site: String,
+    key: String,
+    name: String,
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(default)]
+    official: bool,
+}
+
+/// How many Trailers a title keeps: more is a wall of near-identical links.
+const MAX_TRAILERS: usize = 5;
+
+impl Videos {
+    /// The Trailers among the videos, official first, else in TMDB's order, which drops
+    /// Featurettes, Clips, Teasers and the like. Only a site the contract names counts, so one the
+    /// Kernel would drop doesn't take the place of one it keeps.
+    fn trailers(self) -> Vec<Trailer> {
+        let mut trailers: Vec<Video> = (self.results.into_iter())
+            .filter(|video| {
+                video.kind == "Trailer" && matches!(video.site.as_str(), "YouTube" | "Vimeo")
+            })
+            .collect();
+        trailers.sort_by_key(|video| !video.official);
+        (trailers.into_iter().take(MAX_TRAILERS))
+            .map(|video| Trailer {
+                site: video.site,
+                key: video.key,
+                name: video.name,
+                official: video.official,
+                ..Default::default()
+            })
+            .collect()
     }
 }
 

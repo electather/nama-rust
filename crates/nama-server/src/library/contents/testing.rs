@@ -7,6 +7,7 @@ use tempfile::TempDir;
 
 use super::{
     Change, Contents, Item, ItemKind, ItemRow, decisions::MatchState, ids_from_json, ids_sql,
+    library_titles,
 };
 use crate::{
     db::Database,
@@ -125,6 +126,42 @@ impl Contents {
     }
 }
 
+/// A row of `library_titles`, as tests read it back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct TitleRow {
+    pub(super) listed_id: String,
+    pub(super) own_id: String,
+    pub(super) item: i64,
+    pub(super) nth: i64,
+    pub(super) title_item: i64,
+    /// The title's, not the Item's.
+    pub(super) added_at: i64,
+}
+
+impl Contents {
+    /// The rows of `library_titles` for the Library `library`, by title, then place in it.
+    pub(super) async fn library_titles(&self, library: i64) -> Vec<TitleRow> {
+        macro_rules! select {
+            (($($titles:tt)+)) => {
+                sqlx::query_as!(
+                    TitleRow,
+                    r#"SELECT listed_id AS "listed_id!: String", own_id AS "own_id!: String",
+                              item_id AS "item!", nth AS "nth!: i64",
+                              title_item AS "title_item!: i64", added_at AS "added_at!: i64"
+                       FROM "#
+                        + $($titles)+
+                        + r#" WHERE library_id = ? ORDER BY listed_id, nth"#,
+                    library
+                )
+            };
+        }
+        library_titles!(select)
+            .fetch_all(self.db.reader())
+            .await
+            .unwrap()
+    }
+}
+
 impl Contents {
     /// Marks the files of the Library `library` as read by the name parser before the current
     /// one, as after a version bump.
@@ -192,7 +229,7 @@ impl Contents {
 
 pub(super) const ALIEN: &str = "/media/Alien (1979)/Alien (1979).mkv";
 
-/// A Movies Library with nothing stored yet.
+/// A Movies Library, or a Shows one, with nothing stored yet.
 pub(super) struct Fixture {
     pub(super) contents: Contents,
     pub(super) libraries: Libraries,
@@ -203,17 +240,21 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) async fn new() -> Self {
+        Self::of(Kind::Movies).await
+    }
+
+    pub(super) async fn shows() -> Self {
+        Self::of(Kind::Shows).await
+    }
+
+    async fn of(kind: Kind) -> Self {
         let data = tempfile::tempdir().unwrap();
         let folder = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
         let libraries = Libraries::new(Arc::clone(&db));
         let root = folder.path().canonicalize().unwrap();
         let library = libraries
-            .create(
-                "Movies",
-                Kind::Movies,
-                vec![root.to_str().unwrap().to_owned()],
-            )
+            .create("Titles", kind, vec![root.to_str().unwrap().to_owned()])
             .await
             .unwrap()
             .id;

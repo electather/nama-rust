@@ -11,8 +11,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use nama_plugin_api::{
     Plugin, Registrar,
     contract::{
-        ArtworkAsked, ArtworkKind, Candidate, EpisodeAsked, ImageAsked, SearchQuery, SeasonAsked,
-        TitleAsked, TitleId, TitleKind,
+        ArtworkAsked, ArtworkKind, Candidate, EpisodeAsked, ImageAsked, Role, SearchQuery,
+        SeasonAsked, TitleAsked, TitleId, TitleKind, Trailer,
     },
     metadata::{ExternalId, ExternalIds, IMDB, MetadataError, TMDB, TVDB, TitleSource},
     settings::{SettingKind, SettingValue, Settings},
@@ -269,6 +269,164 @@ async fn a_show_has_its_genres_and_content_rating_in_the_settings_country() {
 
     assert_eq!(show.genres, ["Crime", "Drama", "Mystery"]);
     assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));
+}
+
+#[tokio::test]
+async fn a_title_has_its_score_and_original_language() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let alien = alien.movie.unwrap();
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+    let dark = dark.show.unwrap();
+
+    assert_eq!(
+        (alien.score, alien.original_language.as_deref()),
+        (Some(8.2), Some("en"))
+    );
+    assert_eq!(
+        (dark.score, dark.original_language.as_deref()),
+        (Some(8.4), Some("de"))
+    );
+}
+
+/// Each of `roles` as its Person's id, name and part.
+fn parts(roles: &[Role]) -> Vec<(String, &str, &str)> {
+    (roles.iter())
+        .map(|role| {
+            (
+                role.person.value.clone(),
+                role.name.as_str(),
+                role.part.as_str(),
+            )
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn a_movie_has_its_cast_in_billing_order_and_its_directors_and_writers() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let alien = alien.movie.unwrap();
+
+    assert_eq!(
+        parts(&alien.cast),
+        [
+            ("4139".to_owned(), "Tom Skerritt", "Dallas"),
+            ("10205".to_owned(), "Sigourney Weaver", "Ellen Ripley"),
+        ]
+    );
+    assert_eq!(alien.cast[1].person.namespace, TMDB);
+    assert_eq!(alien.cast[1].headshot.as_deref(), Some("/weaver.jpg"));
+    assert_eq!(
+        parts(&alien.crew),
+        [
+            ("578".to_owned(), "Ridley Scott", "Director"),
+            ("1726".to_owned(), "Dan O'Bannon", "Screenplay"),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_show_has_its_whole_runs_cast_and_crew_with_its_creators_first() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+    let dark = dark.show.unwrap();
+
+    assert_eq!(
+        parts(&dark.cast),
+        [
+            ("1452101".to_owned(), "Louis Hofmann", "Jonas Kahnwald"),
+            ("1452102".to_owned(), "Lisa Vicari", "Martha Nielsen"),
+        ]
+    );
+    assert_eq!(
+        parts(&dark.crew),
+        [
+            ("1191428".to_owned(), "Baran bo Odar", "Creator"),
+            ("1191429".to_owned(), "Jantje Friese", "Creator"),
+            ("1191428".to_owned(), "Baran bo Odar", "Director"),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_title_has_its_recommendations_as_similar_titles_in_order() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+
+    let similar = |ids: &[TitleId]| -> Vec<ExternalId> {
+        (ids.iter())
+            .map(|id| ExternalId::new(&id.namespace, id.value.clone()).unwrap())
+            .collect()
+    };
+    assert_eq!(
+        similar(&alien.movie.unwrap().similar),
+        [ExternalId::tmdb(679), ExternalId::tmdb(949)]
+    );
+    assert_eq!(
+        similar(&dark.show.unwrap().similar),
+        [ExternalId::tmdb(66732), ExternalId::tmdb(2316)]
+    );
+}
+
+#[tokio::test]
+async fn a_title_has_only_its_trailers_on_youtube_or_vimeo_official_first_and_at_most_5() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+    let keys = |trailers: &[Trailer]| -> Vec<String> {
+        trailers.iter().map(|trailer| trailer.key.clone()).collect()
+    };
+
+    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let alien = alien.movie.unwrap();
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+    let dark = dark.show.unwrap();
+
+    // Alien's Featurette, Clip and Teaser are dropped.
+    assert_eq!(keys(&alien.trailers), ["LjLamj-b0I8", "fanTrail01"]);
+    assert_eq!(
+        (
+            alien.trailers[0].site.as_str(),
+            alien.trailers[0].name.as_str()
+        ),
+        ("YouTube", "Official Trailer")
+    );
+    assert_eq!(
+        (alien.trailers[0].official, alien.trailers[1].official),
+        (true, false)
+    );
+    // Dark's Trailer on Dailymotion is dropped before its 5 are kept, so its sixth, its only
+    // unofficial one, is cut.
+    assert_eq!(
+        keys(&dark.trailers),
+        [
+            "darkS1trail",
+            "darkS2trail",
+            "darkS3trail",
+            "darkFinal01",
+            "123456789"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_title_nobody_has_voted_on_has_no_score() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    // TMDB answers 0.0 with no votes.
+    let show = tmdb.show(&asked(&ExternalId::tmdb(900_001))).await.unwrap();
+
+    assert_eq!(show.show.unwrap().score, None);
 }
 
 #[tokio::test]

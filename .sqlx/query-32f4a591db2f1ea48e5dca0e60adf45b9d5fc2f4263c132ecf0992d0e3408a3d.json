@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO episode_air_dates\n                 (plugin, namespace, value, season, episode, air_date)\n             VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "32f4a591db2f1ea48e5dca0e60adf45b9d5fc2f4263c132ecf0992d0e3408a3d"
+}

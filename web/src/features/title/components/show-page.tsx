@@ -1,75 +1,84 @@
 import { notFound } from "@tanstack/react-router";
 
-import { DeleteFromShow } from "@/features/title/components/delete-from-show";
-import { EditImages } from "@/features/title/components/edit-images";
-import { MarkPlayedMenu } from "@/features/title/components/mark-played-menu";
-import { SeasonShown } from "@/features/title/components/season-shown";
-import { Seasons } from "@/features/title/components/seasons";
-import { ShowIntro } from "@/features/title/components/show-intro";
+import { CastAndCrew } from "@/features/title/components/cast-and-crew";
+import { NotToldNotice } from "@/features/title/components/not-told-notice";
+import { ShowDetails } from "@/features/title/components/show-details";
+import { ShowEpisodes } from "@/features/title/components/show-episodes";
+import { ShowHero } from "@/features/title/components/show-hero";
+import { SimilarTitles } from "@/features/title/components/similar-titles";
 import { TitlePage } from "@/features/title/components/title-page";
-import { useEpisodes } from "@/features/title/data/use-episodes";
+import { TitleTrailers } from "@/features/title/components/title-trailers";
+import { useContinueWatchingEntries } from "@/features/title/data/use-continue-watching-entries";
 import { useShow } from "@/features/title/data/use-show";
-import { showImages } from "@/features/title/lib/title-images";
+import { useShowEpisodes } from "@/features/title/data/use-show-episodes";
+import { useSeasonRow } from "@/features/title/hooks/use-season-row";
+import { episodeToResume } from "@/features/title/lib/episode-to-resume";
+import { nextToWatch } from "@/features/title/lib/next-to-watch";
+import { openingSeason, seasonShown } from "@/features/title/lib/opening-season";
+import { rowSeasons } from "@/features/title/lib/row-seasons";
+import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { isGone } from "@/shared/hooks/browse";
 
 /**
- * A Show of a Library: its Title Logo over its backdrop, its intro, the Season shown with its
- * Episodes, and what may be done to the Show.
+ * A Show of a Library: its top, with Play or Resume and what else may be done, every Episode in one
+ * row under the name of the Season it's on, a menu that scrolls it to another, its Trailers, then
+ * its Details.
+ * The row opens on the Season `asked`, if it has it, or else on the Season of the Episode Play
+ * starts. Then the Similar titles in a Library.
  */
 export function ShowPage({
   libraryId,
   showId,
-  seasonNumber,
+  asked,
 }: {
   libraryId: bigint;
   showId: ExternalId;
-  seasonNumber: number;
+  asked: number | undefined;
 }) {
   const show = { libraryId, showId };
   const { data, error } = useShow(show);
-  const season = useEpisodes({ ...show, seasonNumber });
+  const seasons = rowSeasons(data.seasons);
+  const episodes = useShowEpisodes(show, seasons);
+  const entries = useContinueWatchingEntries();
+  const toPlay = episodeToResume(entries, libraryId, showId) ?? nextToWatch(episodes);
+  const {
+    row,
+    scroller,
+    season: rowSeason,
+    opening,
+    pick,
+  } = useSeasonRow(openingSeason(seasons, asked, toPlay), episodes);
+  const season = seasonShown(seasons, rowSeason, toPlay);
   if (!data.show || isGone(error)) {
     throw notFound();
   }
   return (
     <TitlePage
-      title={data.show.title}
-      logoUrl={data.show.titleLogoUrl}
-      backdropUrl={data.show.backdropUrl}
-      backdropThumbhash={data.show.backdropThumbhash}
-    >
-      <ShowIntro {...show} show={data.show} />
-      {/* Ends with the menu even when there are no Season links before it. */}
-      <div className="mt-8 flex items-start justify-end gap-2">
-        <Seasons seasons={data.seasons} current={seasonNumber} />
-        <MarkPlayedMenu
-          {...show}
-          seasonNumber={seasonNumber}
-          seasonPlayed={
-            season.episodes.length > 0 &&
-            season.episodes.every(({ watchState }) => watchState?.played === true)
-          }
-        />
-      </div>
-      <SeasonShown {...show} seasons={data.seasons} current={seasonNumber} />
-      {/* Out of the way below the Episodes, and pulled out by the buttons' own padding. */}
-      <div className="-ms-4 mt-6 flex max-w-3xl flex-wrap gap-2 empty:hidden">
-        <EditImages
-          title={data.show.title}
-          {...showImages(
-            showId,
-            data.show,
-            data.seasons.find(({ number }) => number === seasonNumber),
-          )}
-        />
-        <DeleteFromShow
-          {...show}
-          title={data.show.title}
+      hero={
+        <ShowHero
+          {...{ libraryId, showId, episodes, toPlay }}
+          show={data.show}
           seasons={data.seasons}
-          current={seasonNumber}
+          seasonNumber={season}
         />
-      </div>
+      }
+    >
+      <NotToldNotice />
+      <ShowEpisodes
+        {...{ libraryId, seasons, episodes, row, scroller, opening }}
+        current={season}
+        onPick={pick}
+      />
+      <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
+      <TitleTrailers trailers={data.show.trailers} />
+      <SimilarTitles heading="Similar titles" titles={similarShows(data.similar)} />
+      <ShowDetails
+        libraryId={libraryId}
+        show={data.show}
+        episodes={episodes}
+        aired={data.airedEpisodeCount}
+      />
     </TitlePage>
   );
 }

@@ -10,6 +10,8 @@ mod http;
 mod next_episode;
 #[path = "support/refused.rs"]
 mod refused;
+#[path = "browse/roles.rs"]
+mod roles;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
@@ -26,10 +28,10 @@ use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, Episode, ExternalId,
     GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, Movie,
-    ProbingFinished, RefusalReason, ReportProgressRequest, SearchLibrariesRequest,
-    SearchLibrariesResponse, Season, SetMatchRequest, SetPlayedRequest, ShowSeason, ShowSummary,
-    Track, Version, VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry,
-    event, set_played_request::Target,
+    ProbingFinished, RefusalReason, ReportProgressRequest, Season, SetMatchRequest,
+    SetPlayedRequest, ShowHit, ShowSeason, ShowSummary, TitleKind, Track, Trailer, Version,
+    VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, event, hit,
+    search_response, set_played_request::Target,
 };
 use nama_server::{
     config::Config,
@@ -38,7 +40,8 @@ use nama_server::{
 use refused::assert_refused;
 use server::{
     SignedIn,
-    tmdb::{ALIEN, DARK, DUNE, HEAT, THE_OFFICE as THE_OFFICE_US},
+    search::search,
+    tmdb::{ALIEN, DARK, HEAT, THE_OFFICE as THE_OFFICE_US},
 };
 
 /// TMDB finds nothing for this file, so it is Unmatched.
@@ -64,12 +67,6 @@ const BEGINNINGS_AND_ENDINGS: i64 = 1_803_405;
 
 /// Both the US and the UK Office fit, so this is Unmatched.
 const THE_OFFICE: &str = "The Office/Season 01/The Office - S01E01.mkv";
-
-/// The Office (US) by an ID hint, since TMDB's search fits the UK one too.
-const THE_OFFICE_US_S01E02: &str = "The Office {tmdb-2316}/Season 01/The Office - S01E02.mkv";
-
-/// TMDB Matches it to the 2021 Dune.
-const DUNE_2021: &str = "Dune (2021)/Dune (2021).mkv";
 
 /// Two hours, in milliseconds: the length a test's player reports.
 const TWO_HOURS: u64 = 7_200_000;
@@ -113,16 +110,21 @@ impl Fixture {
         Viewer::new(self.server.client_config())
     }
 
-    /// The Admin's search of every Library for `query`.
-    async fn search(&self, query: &str) -> SearchLibrariesResponse {
-        self.browse
-            .search_libraries(SearchLibrariesRequest {
-                query: query.to_owned(),
-                ..Default::default()
+    /// The Shows the Admin's search of every Library for `query` finds, best first.
+    async fn search_shows(&self, query: &str) -> Vec<ShowHit> {
+        let all = TitleKind::TITLE_KIND_UNSPECIFIED;
+        let parts = search(&self.server.client_config(), query, all).await;
+        (parts.unwrap().into_iter())
+            .filter_map(|part| match part {
+                search_response::Part::Hits(hits) => Some(hits.hits),
+                search_response::Part::Done(_) => None,
             })
-            .await
-            .unwrap()
-            .into_owned()
+            .flatten()
+            .filter_map(|hit| match hit.title {
+                Some(hit::Title::Show(show)) => Some(*show),
+                _ => None,
+            })
+            .collect()
     }
 
     async fn list_movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
@@ -596,7 +598,7 @@ async fn a_show_with_specials_is_shown_by_its_own_poster() {
 async fn a_search_shows_a_show_by_the_poster_its_library_shows() {
     let fx = Fixture::dark_with_specials().await;
 
-    let found = fx.search("dark").await.shows;
+    let found = fx.search_shows("dark").await;
 
     let listed = fx.list_shows(fx.library).await.unwrap();
     let posters: Vec<_> = (found.iter())
@@ -619,7 +621,7 @@ async fn a_show_is_shown_by_its_own_poster_in_its_library_page_continue_watching
     let listed = fx.list_shows(fx.library).await.unwrap();
     let got = fx.get_show(fx.library, DARK).await.unwrap();
     let started = viewer.continue_watching().await;
-    let found = fx.search("dark").await.shows;
+    let found = fx.search_shows("dark").await;
 
     let Some(continue_watching_entry::MovieOrEpisode::Episode(continued)) =
         &started[0].movie_or_episode
@@ -636,7 +638,7 @@ async fn a_show_is_shown_by_its_own_poster_in_its_library_page_continue_watching
 }
 
 #[tokio::test]
-async fn a_movie_has_its_title_logo_genres_and_content_rating() {
+async fn a_movie_has_its_title_logo_genres_content_rating_score_and_original_language() {
     let fx = Fixture::alien().await;
 
     let listed = fx.list_movies(fx.library).await.unwrap();
@@ -649,6 +651,8 @@ async fn a_movie_has_its_title_logo_genres_and_content_rating() {
         );
         assert_eq!(movie.genres, ["Horror", "Science Fiction"]);
         assert_eq!(movie.content_rating.as_deref(), Some("R"));
+        let language = movie.original_language.as_deref();
+        assert_eq!((movie.score, language), (Some(8.2), Some("en")));
     }
 }
 
@@ -666,7 +670,8 @@ async fn a_movie_with_no_title_logo_or_rating_in_the_settings_country_has_neithe
 }
 
 #[tokio::test]
-async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_and_content_rating() {
+async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_content_rating_score_and_original_language()
+ {
     let fx = Fixture::shows().await;
 
     let got = fx.get_show(fx.library, DARK).await.unwrap();
@@ -684,6 +689,50 @@ async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_and_conten
     );
     assert_eq!(show.genres, ["Crime", "Drama", "Mystery"]);
     assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));
+    let language = show.original_language.as_deref();
+    assert_eq!((show.score, language), (Some(8.4), Some("de")));
+}
+
+#[tokio::test]
+async fn a_movie_and_a_show_have_only_their_trailers_as_links_out() {
+    let movies = Fixture::alien().await;
+    let shows = Fixture::shows().await;
+    let urls = |trailers: &[Trailer]| -> Vec<String> {
+        trailers.iter().map(|trailer| trailer.url.clone()).collect()
+    };
+
+    let alien = movies.get_movie(movies.library, ALIEN).await.unwrap();
+    let dark = shows.get_show(shows.library, DARK).await.unwrap();
+    let dark = dark.show.into_option().unwrap();
+
+    assert_eq!(
+        urls(&alien.trailers),
+        [
+            "https://www.youtube.com/watch?v=LjLamj-b0I8",
+            "https://www.youtube.com/watch?v=fanTrail01"
+        ]
+    );
+    assert_eq!(alien.trailers[0].name, "Official Trailer");
+    assert_eq!(
+        urls(&dark.trailers),
+        [
+            "https://www.youtube.com/watch?v=darkS1trail",
+            "https://www.youtube.com/watch?v=darkS2trail",
+            "https://www.youtube.com/watch?v=darkS3trail",
+            "https://www.youtube.com/watch?v=darkFinal01",
+            "https://vimeo.com/123456789"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_show_counts_its_aired_episodes_without_its_specials_or_those_yet_to_air() {
+    let fx = Fixture::shows().await;
+
+    let got = fx.get_show(fx.library, DARK).await.unwrap();
+
+    // Season 1's three, Season 2's one and the first of Season 3's two.
+    assert_eq!(got.aired_episode_count, 5);
 }
 
 #[tokio::test]
@@ -1642,50 +1691,4 @@ async fn marking_a_movie_of_a_shows_library_or_a_show_of_a_movies_library_is_inv
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert_eq!(refusal.field, "target");
-}
-
-#[tokio::test]
-async fn a_search_finds_a_show_by_its_title_and_an_episode_with_its_show_and_season() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
-    fx.write(THE_OFFICE_US_S01E02, b"video");
-    fx.scan_and_match().await;
-
-    let office = fx.search("office").await;
-    let diversity = fx.search("diversity").await;
-
-    let shows: Vec<_> = (office.shows.iter())
-        .map(|show| (show.library_id, &*show.id, show.title.as_str()))
-        .collect();
-    assert_eq!(shows, [(fx.library, &tmdb_id(THE_OFFICE_US), "The Office")]);
-    let episodes: Vec<_> = (diversity.episodes.iter())
-        .map(|episode| {
-            let numbers = (episode.season_number, episode.episode_number);
-            (
-                episode.library_id,
-                &*episode.show_id,
-                episode.show_title.as_str(),
-                numbers,
-            )
-        })
-        .collect();
-    let office_us = tmdb_id(THE_OFFICE_US);
-    assert_eq!(episodes, [(fx.library, &office_us, "The Office", (1, 2))]);
-    assert_eq!(diversity.episodes[0].title, "Diversity Day");
-}
-
-#[tokio::test]
-async fn a_movie_a_scan_matches_is_found_right_after_it_and_not_once_its_file_is_removed() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-    fx.write(DUNE_2021, b"video");
-    fx.scan_and_match().await;
-
-    let found = fx.search("dune 2021").await.movies;
-
-    let movies: Vec<_> = (found.iter())
-        .map(|movie| (movie.library_id, &*movie.id, movie.title.as_str()))
-        .collect();
-    assert_eq!(movies, [(fx.library, &tmdb_id(DUNE), "Dune")]);
-    fx.remove_file(DUNE_2021);
-    fx.scan_and_match().await;
-    assert_eq!(fx.search("dune").await.movies, []);
 }

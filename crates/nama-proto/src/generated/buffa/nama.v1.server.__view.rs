@@ -2044,12 +2044,6 @@ pub struct GetServerInfoResponseView<'a> {
     ///
     /// Field 5: `exports_diagnostics`
     pub exports_diagnostics: bool,
-    /// Whether a subtitle source is enabled, so `PlaybackService.SearchSubtitles` can find any
-    /// (ADR 0067). A client offers that search only then, and only to a User with
-    /// `PERMISSION_DOWNLOAD_SUBTITLES`.
-    ///
-    /// Field 6: `searches_subtitles`
-    pub searches_subtitles: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
@@ -2110,13 +2104,6 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
                 )?;
                 view.exports_diagnostics = ::buffa::types::decode_bool(&mut cur)?;
             }
-            6u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.searches_subtitles = ::buffa::types::decode_bool(&mut cur)?;
-            }
             4u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
@@ -2169,7 +2156,6 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
             setup_required: self.setup_required,
             image_widths: self.image_widths.to_vec(),
             exports_diagnostics: self.exports_diagnostics,
-            searches_subtitles: self.searches_subtitles,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2199,9 +2185,6 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         if self.exports_diagnostics {
-            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
-        }
-        if self.searches_subtitles {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -2237,9 +2220,6 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
         }
         if self.exports_diagnostics {
             ::buffa::types::put_bool_field(5u32, self.exports_diagnostics, buf);
-        }
-        if self.searches_subtitles {
-            ::buffa::types::put_bool_field(6u32, self.searches_subtitles, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2280,9 +2260,6 @@ impl<'__a> ::serde::Serialize for GetServerInfoResponseView<'__a> {
         }
         if self.exports_diagnostics {
             __map.serialize_entry("exportsDiagnostics", &self.exports_diagnostics)?;
-        }
-        if self.searches_subtitles {
-            __map.serialize_entry("searchesSubtitles", &self.searches_subtitles)?;
         }
         __map.end()
     }
@@ -2424,15 +2401,6 @@ impl GetServerInfoResponseOwnedView {
     #[must_use]
     pub fn exports_diagnostics(&self) -> bool {
         self.0.reborrow().exports_diagnostics
-    }
-    /// Whether a subtitle source is enabled, so `PlaybackService.SearchSubtitles` can find any
-    /// (ADR 0067). A client offers that search only then, and only to a User with
-    /// `PERMISSION_DOWNLOAD_SUBTITLES`.
-    ///
-    /// Field 6: `searches_subtitles`
-    #[must_use]
-    pub fn searches_subtitles(&self) -> bool {
-        self.0.reborrow().searches_subtitles
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetServerInfoResponseView<'static>>>
@@ -10807,8 +10775,11 @@ impl ::serde::Serialize for SetDefaultHomeLayoutResponseOwnedView {
 /// always at the top.
 #[derive(Clone, Debug, Default)]
 pub struct HomeLayoutView<'a> {
+    /// Always set in a response. Unset in `UserService.SetHomeLayout` leaves the caller's Featured as
+    /// it is; unset in `SetDefaultHomeLayout` shows it.
+    ///
     /// Field 1: `featured_hidden`
-    pub featured_hidden: bool,
+    pub featured_hidden: ::core::option::Option<bool>,
     /// In the order Home shows them.
     ///
     /// Field 2: `rows`
@@ -10853,7 +10824,7 @@ impl<'a> ::buffa::MessageView<'a> for HomeLayoutView<'a> {
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                view.featured_hidden = ::buffa::types::decode_bool(&mut cur)?;
+                view.featured_hidden = Some(::buffa::types::decode_bool(&mut cur)?);
             }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -10914,7 +10885,7 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeLayoutView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.featured_hidden {
+        if self.featured_hidden.is_some() {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         for v in &self.rows {
@@ -10936,8 +10907,8 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeLayoutView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.featured_hidden {
-            ::buffa::types::put_bool_field(1u32, self.featured_hidden, buf);
+        if let Some(v) = self.featured_hidden {
+            ::buffa::types::put_bool_field(1u32, v, buf);
         }
         for v in &self.rows {
             ::buffa::types::put_len_delimited_header(
@@ -10968,8 +10939,8 @@ impl<'__a> ::serde::Serialize for HomeLayoutView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if self.featured_hidden {
-            __map.serialize_entry("featuredHidden", &self.featured_hidden)?;
+        if let ::core::option::Option::Some(__v) = self.featured_hidden {
+            __map.serialize_entry("featuredHidden", &__v)?;
         }
         if !self.rows.is_empty() {
             __map.serialize_entry("rows", &*self.rows)?;
@@ -11065,9 +11036,12 @@ impl HomeLayoutOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// Always set in a response. Unset in `UserService.SetHomeLayout` leaves the caller's Featured as
+    /// it is; unset in `SetDefaultHomeLayout` shows it.
+    ///
     /// Field 1: `featured_hidden`
     #[must_use]
-    pub fn featured_hidden(&self) -> bool {
+    pub fn featured_hidden(&self) -> ::core::option::Option<bool> {
         self.0.reborrow().featured_hidden
     }
     /// In the order Home shows them.

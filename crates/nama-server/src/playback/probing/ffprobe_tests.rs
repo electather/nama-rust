@@ -67,7 +67,11 @@ fn ffprobe_output_reads_as_tracks_without_cover_art_and_its_attachment_as_a_font
                         "truehd",
                         Some("eng"),
                         true,
-                        TrackKind::Audio { channels: Some(8) },
+                        TrackKind::Audio {
+                            channels: Some(8),
+                            atmos: false,
+                            audio_description: false
+                        },
                     )
                 },
                 Track {
@@ -380,5 +384,119 @@ fn the_video_starts_where_its_first_stream_other_than_cover_art_does() {
             file_ms: 0,
             video_ms: Some(23),
         }
+    );
+}
+
+#[test]
+fn chapters_count_from_the_files_start_and_an_untitled_one_reads_titled_empty() {
+    let json = r#"{
+            "format": {"format_name": "matroska,webm", "start_time": "1.500000"},
+            "chapters": [
+                {"start_time": "1.500000", "tags": {"title": "Opening"}},
+                {"start_time": "601.750000"},
+                {"start_time": "3001.500000", "tags": {"title": "Credits"}}
+            ]
+        }"#;
+
+    let (probe, _) = parse_probe(json.as_bytes()).unwrap();
+
+    let chapters: Vec<_> = (probe.chapters.into_iter())
+        .map(|chapter| (chapter.start_ms, chapter.title))
+        .collect();
+    assert_eq!(
+        chapters,
+        [
+            (0, "Opening".to_owned()),
+            (600_250, String::new()),
+            (3_000_000, "Credits".to_owned()),
+        ]
+    );
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_file_whose_packets_cant_be_read_keeps_its_tracks_without_a_length() {
+    use crate::ffmpeg::{Ffmpeg, fake};
+
+    let bin = tempfile::tempdir().unwrap();
+    let script = r#"#!/bin/sh
+case "$*" in *packet=*) echo 'Invalid data found when processing input' >&2; exit 1 ;; esac
+echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'
+"#;
+    let ffmpeg = Ffmpeg {
+        ffprobe: Ok(fake::script(bin.path(), "ffprobe", script)),
+        ..Ffmpeg::default()
+    };
+
+    let (probe, _) = super::probe(&ffmpeg, "Alien (1979).mkv").await.unwrap();
+
+    assert_eq!((probe.tracks.len(), probe.duration_ms), (1, None));
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test(start_paused = true)]
+async fn a_whole_file_listing_past_its_timeout_times_out() {
+    use super::{ProbeError, WHOLE_FILE_TIMEOUT, keyframes};
+    use crate::ffmpeg::{Ffmpeg, Program, RunError, fake};
+
+    let bin = tempfile::tempdir().unwrap();
+    // `exec`, so the timeout's kill stops the sleep rather than leaving it orphaned.
+    let script = "#!/bin/sh\nexec sleep 3600\n";
+    let ffmpeg = Ffmpeg {
+        ffprobe: Ok(fake::script(bin.path(), "ffprobe", script)),
+        ..Ffmpeg::default()
+    };
+    let started = tokio::time::Instant::now();
+
+    let listed = keyframes(&ffmpeg, "Alien (1979).mkv").await;
+
+    assert!(
+        matches!(
+            listed,
+            Err(ProbeError::Run(RunError::TimedOut(Program::Ffprobe)))
+        ),
+        "{listed:?}"
+    );
+    assert!(started.elapsed() >= WHOLE_FILE_TIMEOUT);
+}
+
+#[test]
+fn audio_is_atmos_when_its_profile_names_it_and_audio_description_when_flagged_so() {
+    // ffprobe 7.0's profile names, from libavcodec's `profiles.c`.
+    let json = r#"{
+            "streams": [
+                {"codec_name": "truehd", "codec_type": "audio", "channels": 8,
+                 "profile": "Dolby TrueHD + Dolby Atmos"},
+                {"codec_name": "eac3", "codec_type": "audio", "channels": 6,
+                 "profile": "Dolby Digital Plus + Dolby Atmos"},
+                {"codec_name": "eac3", "codec_type": "audio", "channels": 6},
+                {"codec_name": "eac3", "codec_type": "audio", "channels": 2,
+                 "disposition": {"visual_impaired": 1}}
+            ],
+            "format": {"format_name": "matroska,webm"}
+        }"#;
+
+    let (probe, _) = parse_probe(json.as_bytes()).unwrap();
+
+    let audio: Vec<_> = (probe.tracks.iter())
+        .map(|track| match track.kind {
+            TrackKind::Audio {
+                atmos,
+                audio_description,
+                ..
+            } => (track.codec.as_str(), atmos, audio_description),
+            TrackKind::Video { .. } | TrackKind::Subtitle { .. } => panic!("not audio: {track:?}"),
+        })
+        .collect();
+    assert_eq!(
+        audio,
+        [
+            ("truehd", true, false),
+            ("eac3", true, false),
+            ("eac3", false, false),
+            ("eac3", false, true),
+        ]
     );
 }

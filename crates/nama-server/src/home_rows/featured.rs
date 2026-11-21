@@ -1,25 +1,21 @@
 //! The titles Plugins suggest for one User's Featured through `user_featured` (ADR 0072): stored
-//! per Plugin and User, and refreshed in the background as that User's own Home rows are, so
-//! `ListFeatured` never waits on a Plugin.
+//! per Plugin and User, and kept fresh by `Refreshes` as Home rows are, so `ListFeatured` never
+//! waits on a Plugin.
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
-    PluginError, PluginId,
+    PluginId,
     contract::{FeaturedSuggestions, UserFeaturedAsked},
     home_row::{HomeRowMethod, HomeRowSource},
     metadata::ExternalId,
 };
-use tracing::warn;
+use sqlx::SqliteConnection;
 
 use super::{
-    Error, HomeRows, Kind, MAX_TTL, MIN_TTL, Title, personal,
-    store::{Refreshing, from_json, stale_after, to_json},
-};
-use crate::{
-    db,
-    plugins::{Answer, Failure, without_secrets},
-    users::personal_settings_of,
+    Error, HomeRows, Kind, Title, answered, from_json,
+    refreshes::{Adapter, MIN_TTL, Scope},
+    to_json,
 };
 
 /// The most suggestions of one answer the Kernel keeps.
@@ -38,232 +34,108 @@ impl HomeRows {
     /// were never refreshed, and deletes every User's suggestions from a Plugin no longer giving
     /// them.
     pub(crate) async fn featured(&self, user: i64) -> Result<Suggested, Error> {
-        let stored = self.stored_suggestions(user).await?;
-        let now = db::now();
-        for plugin in self.points.providers::<dyn HomeRowSource>() {
-            if stored
-                .get(&plugin)
-                .is_none_or(|(stale_at, _)| *stale_at <= now)
-            {
-                self.refresh_featured(&plugin, user).await;
-            }
-        }
+        let adapter = Suggestions(self.clone());
+        let stored = adapter.stored(user).await?;
+        self.refreshes.refresh_stale(&adapter, user).await?;
         // ponytail: deleted on the next listing, as Home rows are; see `HomeRows::list`.
-        self.forget_featured_of_plugins_no_longer_giving_it()
-            .await?;
+        self.refreshes.forget(&adapter).await?;
         let mut suggested = Suggested::new();
-        for (plugin, (_, suggestions)) in stored {
-            if self.gives(&plugin, HomeRowMethod::Featured).await {
+        for (plugin, suggestions) in stored {
+            if self.refreshes.gives(&plugin, HomeRowMethod::Featured).await {
                 add_heaviest(&mut suggested, suggestions);
             }
         }
         Ok(suggested)
     }
+}
 
-    /// Refreshes the Plugin `plugin`'s suggestions for the User `user` in the background, in the
-    /// Plugin's scope, as [`HomeRows::refresh`] does rows. Does nothing if it isn't an enabled
-    /// Home row source giving them, or they're already being refreshed.
-    async fn refresh_featured(&self, plugin: &PluginId, user: i64) {
-        if !self.gives(plugin, HomeRowMethod::Featured).await {
-            return;
-        }
-        let scope = (plugin.clone(), Some(user));
-        let Some(refreshing) = Refreshing::start(&self.refreshing_featured, scope) else {
-            return;
-        };
-        let this = self.clone();
-        let id = plugin.clone();
-        self.points.spawn_in(plugin, async move {
-            this.refresh_featured_now(&id, user).await;
-            drop(refreshing);
-        });
+/// The Featured suggestions Plugins give each User.
+#[derive(Debug, Clone)]
+pub(super) struct Suggestions(pub(super) HomeRows);
+
+impl Adapter for Suggestions {
+    type Kept = Vec<Suggestion>;
+    const NOUN: &'static str = "Featured suggestions";
+
+    fn methods(&self) -> &'static [HomeRowMethod] {
+        &[HomeRowMethod::Featured]
     }
 
-    async fn refresh_featured_now(&self, plugin: &PluginId, user: i64) {
-        // Put off before the Plugin is asked, as `refresh_now` puts off rows, and for the same
-        // reasons: the triggers on `personal_settings` and `watch_states` delete it.
-        if let Err(err) = self.put_off_featured(plugin, user).await {
-            warn!(plugin = %plugin, user, "could not put off refreshing the Plugin's Featured suggestions: {err}");
-            return;
-        }
-        let settings = match personal_settings_of(&self.db, user, plugin).await {
-            Ok(settings) => settings,
-            Err(err) => {
-                warn!(plugin = %plugin, user, "could not read Personal settings to refresh Featured suggestions: {err}");
-                return;
-            }
+    fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)> {
+        vec![(HomeRowMethod::Featured, Some(reader))]
+    }
+
+    async fn ask(&self, scope: &Scope) -> Option<(Vec<Suggestion>, Duration)> {
+        let user = scope.user?;
+        let ask = |source: Arc<dyn HomeRowSource>, settings: Vec<(String, String)>| async move {
+            let asked = UserFeaturedAsked {
+                personal_settings: settings.into_iter().collect(),
+                user_id: user,
+                ..UserFeaturedAsked::default()
+            };
+            source.user_featured(&asked).await
         };
-        let (settings, secrets) = personal(settings);
-        let asked = UserFeaturedAsked {
-            personal_settings: settings.into_iter().collect(),
-            user_id: user,
-            ..UserFeaturedAsked::default()
-        };
-        let answer: Option<Answer<FeaturedSuggestions>> = (self.points)
-            .ask(plugin, |source: Arc<dyn HomeRowSource>| {
-                let (asked, secrets) = (&asked, &secrets);
-                async move {
-                    let answer = source.user_featured(asked).await;
-                    answer
-                        .map_err(|err| PluginError::from(without_secrets(err.to_string(), secrets)))
-                }
-            })
+        let answer = (self.0)
+            .ask_for_user(&scope.plugin, user, Self::NOUN, ask)
             .await;
-        let Some(answer) = answer else {
-            return;
-        };
-        let given = match answer.result {
-            Ok(given) => given,
-            Err(Failure { message, .. }) => {
-                warn!(plugin = %plugin, user, error = message, "refreshing the Plugin's Featured suggestions failed");
-                return;
-            }
-        };
-        let (suggestions, fresh_for) = kept_suggestions(&given);
-        if let Err(err) = self
-            .replace_suggestions(plugin, user, suggestions, fresh_for)
-            .await
-        {
-            warn!(plugin = %plugin, user, "could not store the Plugin's Featured suggestions: {err}");
-        }
+        Some(kept_suggestions(&answered(answer, scope, Self::NOUN)?))
     }
 
-    /// Each Plugin's suggestions for the User `user`, with when they go stale: at once if a change
-    /// deleted their put-off.
-    async fn stored_suggestions(
+    async fn store(
         &self,
-        user: i64,
-    ) -> Result<HashMap<PluginId, (i64, Vec<Suggestion>)>, sqlx::Error> {
+        conn: &mut SqliteConnection,
+        scope: &Scope,
+        kept: Vec<Suggestion>,
+    ) -> Result<(), sqlx::Error> {
+        let (plugin, user) = (scope.plugin.as_str(), scope.user);
+        let suggestions = to_json(&kept)?;
+        sqlx::query!(
+            "INSERT INTO featured_suggestions (plugin_id, user_id, suggestions) VALUES (?, ?, ?)
+             ON CONFLICT (plugin_id, user_id) DO UPDATE SET suggestions = excluded.suggestions",
+            plugin,
+            user,
+            suggestions
+        )
+        .execute(conn)
+        .await?;
+        Ok(())
+    }
+
+    async fn delete(
+        &self,
+        conn: &mut SqliteConnection,
+        plugin: &str,
+        _method: HomeRowMethod,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "DELETE FROM featured_suggestions WHERE plugin_id = ?",
+            plugin
+        )
+        .execute(conn)
+        .await?;
+        Ok(())
+    }
+
+    async fn plugins(&self, _method: HomeRowMethod) -> Result<Vec<PluginId>, sqlx::Error> {
+        let plugins = sqlx::query_scalar!("SELECT DISTINCT plugin_id FROM featured_suggestions")
+            .fetch_all(self.0.db.reader())
+            .await?;
+        Ok(plugins.into_iter().map(PluginId::from).collect())
+    }
+}
+
+impl Suggestions {
+    /// Each Plugin's suggestions for the User `user`.
+    async fn stored(&self, user: i64) -> Result<HashMap<PluginId, Vec<Suggestion>>, sqlx::Error> {
         let rows = sqlx::query!(
-            r#"SELECT s.plugin_id, s.suggestions, coalesce(r.stale_at, 0) AS "stale_at!: i64"
-               FROM featured_suggestions s
-               LEFT JOIN featured_refreshes r ON r.plugin_id = s.plugin_id AND r.user_id = s.user_id
-               WHERE s.user_id = ?"#,
+            "SELECT plugin_id, suggestions FROM featured_suggestions WHERE user_id = ?",
             user
         )
-        .fetch_all(self.db.reader())
+        .fetch_all(self.0.db.reader())
         .await?;
         Ok((rows.into_iter())
-            .map(|row| {
-                let suggestions = from_json(&row.suggestions);
-                (PluginId::from(row.plugin_id), (row.stale_at, suggestions))
-            })
+            .map(|row| (PluginId::from(row.plugin_id), from_json(&row.suggestions)))
             .collect())
-    }
-
-    /// Keeps the Plugin `plugin`'s suggestions for the User `user` as they are, none before its
-    /// first refresh, and refreshes them no sooner than [`MIN_TTL`] from now.
-    async fn put_off_featured(&self, plugin: &PluginId, user: i64) -> Result<(), sqlx::Error> {
-        let plugin = plugin.as_str().to_owned();
-        let stale_at = stale_after(MIN_TTL);
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    // An empty row until the first answer, so `featured` sees the put-off and a
-                    // failing Plugin isn't asked again on every visit.
-                    sqlx::query!(
-                        "INSERT INTO featured_suggestions (plugin_id, user_id, suggestions)
-                         VALUES (?, ?, '[]') ON CONFLICT (plugin_id, user_id) DO NOTHING",
-                        plugin,
-                        user
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    sqlx::query!(
-                        "INSERT INTO featured_refreshes (plugin_id, user_id, stale_at) VALUES (?, ?, ?)
-                         ON CONFLICT (plugin_id, user_id) DO UPDATE SET stale_at = excluded.stale_at",
-                        plugin,
-                        user,
-                        stale_at
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    Ok(())
-                })
-            })
-            .await
-    }
-
-    /// Replaces the Plugin `plugin`'s suggestions for the User `user` with `suggestions`, fresh
-    /// for `fresh_for`. Stores nothing once the put-off its refresh started with is gone, as the
-    /// User changed their Personal settings, or their Watch State for a Plugin reading it,
-    /// meanwhile.
-    async fn replace_suggestions(
-        &self,
-        plugin: &PluginId,
-        user: i64,
-        suggestions: Vec<Suggestion>,
-        fresh_for: Duration,
-    ) -> Result<(), sqlx::Error> {
-        let plugin = plugin.as_str().to_owned();
-        let suggestions = to_json(&suggestions)?;
-        let stale_at = stale_after(fresh_for);
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    // Upserts from the put-off, so it stores nothing once that is gone.
-                    sqlx::query!(
-                        "INSERT INTO featured_suggestions (plugin_id, user_id, suggestions)
-                         SELECT plugin_id, user_id, ?1 FROM featured_refreshes
-                         WHERE plugin_id = ?2 AND user_id = ?3
-                         ON CONFLICT (plugin_id, user_id) DO UPDATE SET suggestions = excluded.suggestions",
-                        suggestions,
-                        plugin,
-                        user
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    sqlx::query!(
-                        "UPDATE featured_refreshes SET stale_at = ? WHERE plugin_id = ? AND user_id = ?",
-                        stale_at,
-                        plugin,
-                        user
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    Ok(())
-                })
-            })
-            .await
-    }
-
-    /// Deletes every User's suggestions, and their put-offs, from each Plugin no longer giving
-    /// them, as it is disabled or its version stopped serving `user_featured`.
-    async fn forget_featured_of_plugins_no_longer_giving_it(&self) -> Result<(), sqlx::Error> {
-        let plugins = sqlx::query_scalar!("SELECT DISTINCT plugin_id FROM featured_suggestions")
-            .fetch_all(self.db.reader())
-            .await?;
-        let mut gone = Vec::new();
-        for plugin in plugins.into_iter().map(PluginId::from) {
-            if !self.gives(&plugin, HomeRowMethod::Featured).await {
-                gone.push(plugin.as_str().to_owned());
-            }
-        }
-        if gone.is_empty() {
-            return Ok(());
-        }
-        let gone = to_json(&gone)?;
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "DELETE FROM featured_suggestions
-                         WHERE plugin_id IN (SELECT value FROM json_each(?))",
-                        gone
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    sqlx::query!(
-                        "DELETE FROM featured_refreshes
-                         WHERE plugin_id IN (SELECT value FROM json_each(?))",
-                        gone
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    Ok(())
-                })
-            })
-            .await
     }
 }
 
@@ -279,7 +151,7 @@ fn add_heaviest(suggested: &mut Suggested, suggestions: Vec<Suggestion>) {
 
 /// What of `given` the Kernel keeps (ADR 0072): of its first [`MAX_SUGGESTIONS`] suggestions,
 /// those it can read, each weight clamped to between 0.0 and 1.0; and how long they stay fresh,
-/// its time to live clamped to between [`MIN_TTL`] and [`MAX_TTL`], or [`MIN_TTL`] for none.
+/// its time to live, or [`MIN_TTL`] for none.
 fn kept_suggestions(given: &FeaturedSuggestions) -> (Vec<Suggestion>, Duration) {
     let suggestions: Vec<Suggestion> = (given.suggestions.iter().take(MAX_SUGGESTIONS))
         .filter(|suggestion| !suggestion.weight.is_nan())
@@ -293,7 +165,7 @@ fn kept_suggestions(given: &FeaturedSuggestions) -> (Vec<Suggestion>, Duration) 
     let fresh_for = if suggestions.is_empty() {
         MIN_TTL
     } else {
-        Duration::from_secs(u64::from(given.ttl_seconds)).clamp(MIN_TTL, MAX_TTL)
+        Duration::from_secs(u64::from(given.ttl_seconds))
     };
     (suggestions, fresh_for)
 }

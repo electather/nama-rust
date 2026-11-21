@@ -81,6 +81,22 @@ pub(crate) async fn has(
     .await
 }
 
+/// Whether the title of `kind` with the id `id` is on the User `user`'s Watchlist, under `id` or
+/// any other id the Server's Matches give it: just the ids [`remove`] clears, so a title this
+/// finds, `remove` with `id` takes off.
+pub(crate) async fn has_matched(
+    db: &Database,
+    user: i64,
+    kind: TitleKind,
+    id: &ExternalId,
+) -> Result<bool, sqlx::Error> {
+    let ids = {
+        let mut conn = db.reader().acquire().await?;
+        ExternalIds::from_iter(matched_ids(&mut conn, kind, id).await?)
+    };
+    has(db, user, kind, &ids).await
+}
+
 /// `ids` as the JSON array of their text form that `json_each` reads.
 fn json_ids(ids: impl IntoIterator<Item = ExternalId>) -> String {
     let ids: Vec<String> = ids.into_iter().map(|id| id.to_string()).collect();

@@ -17,12 +17,12 @@ use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
     ApproveSignInCodeRequest, CreateLibraryRequest, LibraryKind, LibraryServiceClient,
     ListLibrariesRequest, Permission, PollSignInCodeRequest, RefusalReason, ScanLibraryRequest,
-    SessionDelivery, SignInServiceClient, StartSignInCodeRequest,
+    SessionDelivery, SignInServiceClient, StartSignInCodeRequest, TitleKind,
 };
 use nama_server::db::Database;
 use refused::{assert_refused, refusal_of};
 use serde_json::{Value, json};
-use server::{PASSWORD, TestServer, subscribe};
+use server::{PASSWORD, TestServer, search::search, subscribe};
 
 /// Every RPC that deletes media, which needs `PERMISSION_DELETE_MEDIA`.
 const DELETE_MEDIA: [&str; 2] = [
@@ -110,8 +110,7 @@ const MANAGE_REQUESTS: [&str; 9] = [
 ];
 
 /// Every RPC for Requesting a Movie, which needs `PERMISSION_REQUEST_MOVIE`.
-const REQUEST_MOVIE: [&str; 4] = [
-    "/nama.v1.RequestService/SearchMovies",
+const REQUEST_MOVIE: [&str; 3] = [
     "/nama.v1.RequestService/LookUpMovie",
     "/nama.v1.RequestService/ListMovieQualities",
     "/nama.v1.RequestService/CreateRequest",
@@ -119,8 +118,7 @@ const REQUEST_MOVIE: [&str; 4] = [
 
 /// Every RPC for Requesting Seasons of a Show or Following it, which needs
 /// `PERMISSION_REQUEST_TV`.
-const REQUEST_TV: [&str; 5] = [
-    "/nama.v1.RequestService/SearchShows",
+const REQUEST_TV: [&str; 4] = [
     "/nama.v1.RequestService/LookUpShow",
     "/nama.v1.RequestService/ListShowQualities",
     "/nama.v1.RequestService/CreateSeasonRequests",
@@ -129,7 +127,7 @@ const REQUEST_TV: [&str; 5] = [
 
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, and for
 /// playing it, which any signed-in User may call.
-const BROWSE: [&str; 9] = [
+const BROWSE: [&str; 8] = [
     "/nama.v1.LibraryService/ListLibraries",
     "/nama.v1.BrowseService/ListMovies",
     "/nama.v1.BrowseService/GetMovie",
@@ -137,7 +135,6 @@ const BROWSE: [&str; 9] = [
     "/nama.v1.BrowseService/GetShow",
     "/nama.v1.BrowseService/ListEpisodes",
     "/nama.v1.BrowseService/ListContinueWatching",
-    "/nama.v1.BrowseService/SearchLibraries",
     "/nama.v1.PlaybackService/PlanPlayback",
 ];
 
@@ -459,6 +456,17 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
         .map(|_| ());
     assert_refused(
         subscribed,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+    );
+    let searched = search(
+        &server.anonymous_client_config(),
+        "alien",
+        TitleKind::TITLE_KIND_UNSPECIFIED,
+    )
+    .await;
+    assert_refused(
+        searched,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
     );

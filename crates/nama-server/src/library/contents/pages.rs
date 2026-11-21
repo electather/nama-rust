@@ -3,16 +3,16 @@
 use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::PageResponse;
 
-use super::{Contents, listed_id_sql, parse_hint};
+use super::{Contents, library_titles, parse_hint};
 use crate::page::Page;
 
-/// What a page of a Library's Movies or Shows is sorted by, tie-broken by the title's first Item.
+/// What a page of a Library's Movies or Shows is sorted by, tie-broken by its `title_item` in
+/// `library_titles`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TitleSort {
     /// By sort title (`sort_titles.rs`).
     Title,
-    /// By when it was added: a Movie when its first Version was, a Show when its newest Episode
-    /// was.
+    /// By when it was added, as `library_titles` has it.
     Added,
     /// By release date, or first air date, those without one first.
     Released,
@@ -74,66 +74,46 @@ impl Contents {
         });
         let (after_key, after_id) = page.after.clone().unzip();
         let limit = page.limit();
-        // ponytail: each page groups and filters the whole Library's Matches in SQL, which a page
-        // of a 25,000-Episode Library does in tens of milliseconds; store titles as rows of their
-        // own if that grows.
+        // ponytail: whole-Library read, grouped by `library_titles`.
         macro_rules! select {
-            ($listed_id:literal) => {
+            (($($titles:tt)+)) => {
                 sqlx::query!(
                     r#"WITH started (title_id, played) AS MATERIALIZED (
                            SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
                            FROM json_each(?2)),
                        items AS (
-                           SELECT library_items.id, library_items.added_at, library_items.season,
-                                  library_items.episode, library_files.path,
-                                  item_matches.sort_title, item_matches.genres,
-                                  library_items.kind,
-                                  IIF(library_items.kind = 'movie', item_matches.release_date,
-                                      item_matches.show_first_air_date) AS released, "#
-                        + $listed_id
-                        + r#" AS listed_id,
+                           SELECT library_titles.*,
                                   (SELECT MAX(started.played) FROM item_match_ids AS own
                                    JOIN started ON started.title_id = own.namespace || '-' || own.value
-                                   WHERE own.item_id = item_matches.item_id AND own.scope = 'title')
-                                      AS played
-                           FROM item_matches
-                           JOIN library_items ON library_items.id = item_matches.item_id
-                           JOIN library_files ON library_files.id = library_items.file_id
-                           JOIN libraries ON libraries.id = library_files.library_id
-                           WHERE library_files.library_id = ?1
-                             AND library_items.kind = IIF(libraries.kind = 'movies', 'movie',
-                                                          'episode')
-                             AND item_matches.state = 'matched'
-                             AND EXISTS (SELECT 1 FROM item_match_ids AS own
-                                         WHERE own.item_id = item_matches.item_id
-                                           AND own.scope = 'title')),
+                                   WHERE own.item_id = library_titles.item_id
+                                     AND own.scope = 'title') AS played
+                           FROM "#
+                        + $($titles)+
+                        + r#" AS library_titles
+                           WHERE library_titles.library_id = ?1),
                        titles AS (
-                           SELECT listed_id, sort_title, released, genres,
-                                  ROW_NUMBER() OVER title AS nth,
-                                  MIN(id) OVER title AS id,
-                                  IIF(kind = 'movie', MIN(added_at) OVER title,
-                                      MAX(added_at) OVER title) AS added_at,
+                           SELECT item_id, listed_id, title_item, kind, added_at, nth,
                                   CASE WHEN TOTAL(played) OVER title = COUNT(*) OVER title
                                            THEN 'played'
                                        WHEN COUNT(played) OVER title > 0 THEN 'started'
                                        ELSE 'not_started' END AS watched
                            FROM items
-                           WHERE listed_id IS NOT NULL
-                           WINDOW title AS (PARTITION BY listed_id
-                                            ORDER BY season, episode, path
-                                            ROWS BETWEEN UNBOUNDED PRECEDING
-                                                     AND UNBOUNDED FOLLOWING)),
+                           WINDOW title AS (PARTITION BY listed_id)),
                        listed AS (
-                           SELECT listed_id, id,
+                           SELECT listed_id, title_item AS id,
                                   -- Text for every sort, so one token type holds any key; the
                                   -- padding orders times as numbers.
                                   CASE ?3 WHEN 'added' THEN printf('%020d', added_at)
                                           WHEN 'released' THEN coalesce(released, '')
                                           ELSE coalesce(sort_title, '') END AS sort_key
-                           FROM titles
-                           WHERE nth = 1
-                             AND (?4 IS NULL
-                                  OR EXISTS (SELECT 1 FROM json_each(titles.genres) AS genre
+                           FROM (SELECT titles.*, item_matches.sort_title, item_matches.genres,
+                                        IIF(titles.kind = 'movie', item_matches.release_date,
+                                            item_matches.show_first_air_date) AS released
+                                 FROM titles
+                                 JOIN item_matches ON item_matches.item_id = titles.item_id
+                                 WHERE titles.nth = 1) AS shown
+                           WHERE (?4 IS NULL
+                                  OR EXISTS (SELECT 1 FROM json_each(shown.genres) AS genre
                                              WHERE genre.value IN (SELECT value
                                                                    FROM json_each(?4))))
                              AND (?5 IS NULL OR CAST(substr(released, 1, 4) AS INTEGER) >= ?5)
@@ -161,7 +141,7 @@ impl Contents {
                 )
             };
         }
-        let mut rows = listed_id_sql!(select).fetch_all(self.db.reader()).await?;
+        let mut rows = library_titles!(select).fetch_all(self.db.reader()).await?;
         // Every row holds the count of those the page's WHERE lets through: on the first page,
         // every title the listing keeps.
         let total = rows.first().map_or(0, |row| row.total);
@@ -175,20 +155,26 @@ impl Contents {
 }
 
 impl Contents {
-    /// The genres of the Matched titles of the Library `library`, by name.
+    /// The genres of the titles the Library `library` lists, by name: those of the Match each
+    /// title shows the metadata of, so every genre keeps a title in a page filtered by it.
     pub(crate) async fn genres(&self, library: i64) -> Result<Vec<String>, sqlx::Error> {
-        sqlx::query_scalar!(
-            r#"SELECT DISTINCT CAST(genre.value AS TEXT) AS "genre!: String"
-               FROM item_matches
-               JOIN library_items ON library_items.id = item_matches.item_id
-               JOIN library_files ON library_files.id = library_items.file_id
-               JOIN json_each(item_matches.genres) AS genre
-               WHERE library_files.library_id = ? AND item_matches.state = 'matched'
-               ORDER BY genre.value"#,
-            library
-        )
-        .fetch_all(self.db.reader())
-        .await
+        // ponytail: whole-Library read, grouped by `library_titles`.
+        macro_rules! select {
+            (($($titles:tt)+)) => {
+                sqlx::query_scalar!(
+                    r#"SELECT DISTINCT CAST(genre.value AS TEXT) AS "genre!: String"
+                       FROM "#
+                        + $($titles)+
+                        + r#" AS library_titles
+                       JOIN item_matches ON item_matches.item_id = library_titles.item_id
+                       JOIN json_each(item_matches.genres) AS genre
+                       WHERE library_titles.library_id = ? AND library_titles.nth = 1
+                       ORDER BY genre.value"#,
+                    library
+                )
+            };
+        }
+        library_titles!(select).fetch_all(self.db.reader()).await
     }
 }
 

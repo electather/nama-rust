@@ -4,6 +4,8 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use nama_plugin_api::{
     contract as wire,
     metadata::{ExternalId, ExternalIds, MetadataError},
@@ -52,7 +54,7 @@ pub(crate) struct Candidate {
 }
 
 /// A Movie's details.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Movie {
     /// Its ids.
     pub(crate) ids: ExternalIds,
@@ -74,10 +76,20 @@ pub(crate) struct Movie {
     pub(crate) genres: Vec<String>,
     /// Its Content Rating in the source's country, such as `R`.
     pub(crate) content_rating: Option<String>,
+    /// Its Score, from 0 to 10, as the source averages it.
+    pub(crate) score: Option<f64>,
+    /// The ISO 639-1 code of the language it was made in, such as `ja`.
+    pub(crate) original_language: Option<String>,
+    /// Its Similar titles, Movies, most alike first.
+    pub(crate) similar: Vec<ExternalId>,
+    /// Its Trailers, at most [`MAX_TRAILERS`], in the order to show them.
+    pub(crate) trailers: Vec<Trailer>,
+    /// Its Cast and Crew.
+    pub(crate) roles: Roles,
 }
 
 /// A Show's details.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Show {
     /// Its ids.
     pub(crate) ids: ExternalIds,
@@ -99,7 +111,56 @@ pub(crate) struct Show {
     pub(crate) genres: Vec<String>,
     /// As [`Movie::content_rating`], such as `TV-MA`.
     pub(crate) content_rating: Option<String>,
+    /// As [`Movie::score`].
+    pub(crate) score: Option<f64>,
+    /// As [`Movie::original_language`].
+    pub(crate) original_language: Option<String>,
+    /// As [`Movie::similar`], Shows.
+    pub(crate) similar: Vec<ExternalId>,
+    /// As [`Movie::trailers`].
+    pub(crate) trailers: Vec<Trailer>,
+    /// Its Roles over its whole run.
+    pub(crate) roles: Roles,
 }
+
+/// A Trailer, as a link to where it is hosted: Nama never embeds or plays one (`GLOSSARY.md`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Trailer {
+    /// What it is called, such as `Official Trailer`.
+    pub(crate) name: String,
+    /// Its `https` URL on `YouTube` or Vimeo.
+    pub(crate) url: String,
+}
+
+/// How many Trailers a title keeps, whatever its source sends.
+const MAX_TRAILERS: usize = 5;
+
+/// A title's Roles, each list in billing order (ADR 0081).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Roles {
+    pub(crate) cast: Vec<Role>,
+    pub(crate) crew: Vec<Role>,
+}
+
+/// A Person's part in a title: a character they play (Cast) or a job they did (Crew).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Role {
+    /// The Person's External ID.
+    pub(crate) person: ExternalId,
+    /// The Person's name.
+    pub(crate) name: String,
+    /// The character, or the job in English, such as `Director`; empty if the source doesn't say.
+    pub(crate) part: String,
+    /// The headshot's path, to pass to the title source's `image`. Only the first [`HEADSHOTS`]
+    /// of the Cast keep one.
+    pub(crate) headshot: Option<String>,
+}
+
+/// How many of the Cast, and of the Crew, the Kernel keeps of the hundreds a source may list.
+const MAX_ROLES: usize = 50;
+
+/// How many of the Cast, billed first, keep a headshot: those a title page shows.
+const HEADSHOTS: usize = 15;
 
 /// One Season of a Show, with its Episodes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -259,6 +320,11 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         backdrop: movie.backdrop,
         genres: movie.genres,
         content_rating: movie.content_rating,
+        score: valid_score(movie.score),
+        original_language: movie.original_language,
+        similar: similar(&movie.similar),
+        trailers: trailers(movie.trailers),
+        roles: roles(movie.cast, movie.crew),
     })
 }
 
@@ -274,7 +340,87 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         seasons: show.seasons,
         genres: show.genres,
         content_rating: show.content_rating,
+        score: valid_score(show.score),
+        original_language: show.original_language,
+        similar: similar(&show.similar),
+        trailers: trailers(show.trailers),
+        roles: roles(show.cast, show.crew),
     })
+}
+
+/// `score`, unless it's outside 0 to 10, where the Kernel stores none rather than failing the
+/// Match's write on it.
+fn valid_score(score: Option<f64>) -> Option<f64> {
+    score.filter(|score| (0.0..=10.0).contains(score))
+}
+
+/// The most Similar titles the Kernel keeps of one title, about a row of posters.
+const MAX_SIMILAR: usize = 20;
+
+/// The first [`MAX_SIMILAR`] well-formed ids of `given`. A malformed one is dropped rather than
+/// failing the title, which is whole without them.
+fn similar(given: &[wire::TitleId]) -> Vec<ExternalId> {
+    (given.iter())
+        .filter_map(|id| ExternalId::new(&id.namespace, id.value.clone()).ok())
+        .take(MAX_SIMILAR)
+        .collect()
+}
+
+/// The Roles the Kernel keeps of `cast` and `crew`: at most [`MAX_ROLES`] of each, the Crew
+/// without headshots.
+fn roles(cast: Vec<wire::Role>, crew: Vec<wire::Role>) -> Roles {
+    let kept = |roles: Vec<wire::Role>| roles.into_iter().filter_map(role).take(MAX_ROLES);
+    Roles {
+        cast: (kept(cast).enumerate())
+            .map(|(billed, role)| Role {
+                headshot: role.headshot.filter(|_| billed < HEADSHOTS),
+                ..role
+            })
+            .collect(),
+        crew: kept(crew)
+            .map(|role| Role {
+                headshot: None,
+                ..role
+            })
+            .collect(),
+    }
+}
+
+/// `role`, unless its Person has no valid id: one bad Role is dropped rather than failing the
+/// title.
+fn role(role: wire::Role) -> Option<Role> {
+    Some(Role {
+        person: external_id(role.person.as_option()?).ok()?,
+        name: role.name,
+        part: role.part,
+        headshot: role.headshot,
+    })
+}
+
+/// The first [`MAX_TRAILERS`] of `trailers` the Kernel can link to.
+fn trailers(trailers: Vec<wire::Trailer>) -> Vec<Trailer> {
+    (trailers.into_iter().filter_map(trailer))
+        .take(MAX_TRAILERS)
+        .collect()
+}
+
+/// `trailer` as a link to its site, unless the Kernel doesn't link to that site or its key could
+/// make the link point anywhere else.
+fn trailer(trailer: wire::Trailer) -> Option<Trailer> {
+    let key = trailer.key;
+    let safe = !key.is_empty()
+        && (key.bytes()).all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_');
+    let url = match trailer.site.as_str() {
+        "YouTube" if safe => format!("https://www.youtube.com/watch?v={key}"),
+        "Vimeo" if safe => format!("https://vimeo.com/{key}"),
+        _ => return None,
+    };
+    let name = if trailer.name.trim().is_empty() {
+        "Trailer".to_owned()
+    } else {
+        trailer.name
+    };
+    Some(Trailer { name, url })
 }
 
 pub(super) fn season(season: wire::Season) -> Result<Season, MetadataError> {

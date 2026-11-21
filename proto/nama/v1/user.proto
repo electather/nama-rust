@@ -3,12 +3,13 @@ syntax = "proto3";
 package nama.v1;
 
 import "nama/v1/plugin.proto";
+import "nama/v1/server.proto";
 import "nama/v1/sign_in.proto";
 
-// Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings and
-// notification preferences. Every RPC but `ListDevices`, `RevokeDevice`, `ChangePassword`, the
-// Plugin Connection ones, the Personal settings ones and the notification preference ones needs
-// `PERMISSION_MANAGE_USERS`,
+// Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings,
+// notification preferences and Home layouts. Every RPC but `ListDevices`, `RevokeDevice`,
+// `ChangePassword`, the Plugin Connection ones, the Personal settings ones, the notification
+// preference ones and the Home layout ones needs `PERMISSION_MANAGE_USERS`,
 // and fails with `permission_denied` without it.
 // Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 // User with it, grant it, put it in the default Permissions or create a User while they hold it, or
@@ -136,6 +137,35 @@ service UserService {
   // `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `NOTIFICATION_KIND_UNSPECIFIED` or a value the Server
   // doesn't know.
   rpc SetNotificationPreference(SetNotificationPreferenceRequest) returns (SetNotificationPreferenceResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // The caller's own Home layout: every Home row they could see now, shown or hidden, in the order
+  // `BrowseService.ListHomeRows` lists the shown ones, and whether Featured is shown. Each of their
+  // own rows from a Plugin is listed on its own, as a `plugin` row.
+  rpc GetHomeLayout(GetHomeLayoutRequest) returns (GetHomeLayoutResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Saves which Home rows, and whether Featured, the caller shows. Only the flags count, not the
+  // order, which `ReorderHomeRows` saves. A row or Featured the caller hasn't set apart from the
+  // default Home layout follows the default while it's saved as the default shows it. Once they
+  // show or hide one otherwise, it keeps their flag, whatever the default does, until
+  // `ResetHomeLayout`. A row the caller can't see now, such as a disabled Plugin's, keeps its flag.
+  // Rows are named as `GetHomeLayout` names them, and one it doesn't list is ignored. A request
+  // without a layout is refused with `REFUSAL_REASON_FIELD_REQUIRED` naming `layout`.
+  rpc SetHomeLayout(SetHomeLayoutRequest) returns (SetHomeLayoutResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Saves the caller's order of their Home rows. Until they first do, their Home follows the
+  // default Home layout's order; from then on it no longer moves their rows (ADR 0077). A row the
+  // order doesn't place, such as a newly enabled Plugin's, goes after those it does. Rows are named
+  // as `GetHomeLayout` names them; only which row each names counts, and one it doesn't list is
+  // ignored.
+  rpc ReorderHomeRows(ReorderHomeRowsRequest) returns (ReorderHomeRowsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Forgets the caller's Home layout, its order and flags, so their Home follows the default Home
+  // layout again.
+  rpc ResetHomeLayout(ResetHomeLayoutRequest) returns (ResetHomeLayoutResponse) {
     option idempotency_level = IDEMPOTENT;
   }
 }
@@ -404,3 +434,33 @@ message SetNotificationPreferenceRequest {
 }
 
 message SetNotificationPreferenceResponse {}
+
+message GetHomeLayoutRequest {}
+
+message GetHomeLayoutResponse {
+  HomeLayout layout = 1;
+}
+
+message SetHomeLayoutRequest {
+  // Required: a request without it is refused, so leaving it out can't reset the layout.
+  HomeLayout layout = 1;
+}
+
+message SetHomeLayoutResponse {
+  // The layout as saved, as `GetHomeLayout` returns it.
+  HomeLayout layout = 1;
+}
+
+message ReorderHomeRowsRequest {
+  // Every Home row the caller sees, in the order their Home shows them.
+  repeated HomeLayoutRow rows = 1;
+}
+
+message ReorderHomeRowsResponse {
+  // The layout as saved, as `GetHomeLayout` returns it.
+  HomeLayout layout = 1;
+}
+
+message ResetHomeLayoutRequest {}
+
+message ResetHomeLayoutResponse {}

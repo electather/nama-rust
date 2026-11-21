@@ -1,8 +1,10 @@
 //! A plan whose ffmpeg stops before writing anything is dropped before the Device hears of it,
 //! and the Server plans the next method in the same request (#1126).
 
+#[cfg(unix)]
 use super::*;
 
+#[cfg(unix)]
 const FAILED_ON_SERVER: PlaybackReasonKind =
     PlaybackReasonKind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER;
 
@@ -34,6 +36,7 @@ async fn alien_with_a_failing_remux(bin: &Path, transcode: &str) -> (Fixture, [i
 }
 
 /// The methods `plan`'s reasons say failed on the Server, in order.
+#[cfg(unix)]
 fn failed_on_server(plan: &PlaybackPlan) -> Vec<&str> {
     (plan.reasons.iter())
         .filter(|reason| reason.kind == FAILED_ON_SERVER)

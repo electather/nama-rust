@@ -14,9 +14,11 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
+import { SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { eventFeed, fakeServer, fill, newUser, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { searchFinding } from "@/test-search";
 
 afterEach(cleanup);
 
@@ -35,13 +37,15 @@ function showServer(
   const state =
     events === undefined ? { signedIn: permissions } : { signedIn: permissions, events };
   const transport = fakeServer(state, {}, {}, (router) => {
+    router.service(SearchService, {
+      search: searchFinding(() => {
+        const { id, title, year, posterUrl } = show;
+        const hit = { id, title, year, posterUrl };
+        return [[{ title: { case: "show", value: hit }, status: TitleStatus.NOT_ON_THIS_SERVER }]];
+      }),
+    });
     router.service(RequestService, {
       listRequests: () => ({}),
-      searchMovies: () => ({}),
-      searchShows: () => {
-        const { id, title, year, posterUrl } = show;
-        return { shows: [{ id, title, year, posterUrl }] };
-      },
       lookUpShow: () => ({ show }),
       createSeasonRequests: ({ seasonNumbers }) => {
         if (seasonNumbers.length === 0) {
@@ -295,4 +299,41 @@ test("a Show someone else follows shows its state, and Requesting the Whole Show
     expect(checkbox("Whole Show").disabled).toBe(true);
   });
   expect(followed).toStrictEqual(["tmdb-70523"]);
+});
+
+test("a Show to Request shows its Score, genres and Content Rating, its Watchlist state, its Original audio in Details, and its Trailers", async () => {
+  const trailers = [{ name: "Final Trailer", url: "https://www.youtube.com/watch?v=darkFinal01" }];
+  const { transport } = showServer({
+    ...dark,
+    score: 8.4,
+    originalLanguage: "de",
+    genres: ["Crime", "Drama"],
+    contentRating: "TV-MA",
+    onWatchlist: true,
+    trailers,
+  });
+  openApp("/shows/tmdb-70523", transport);
+
+  const score = await screen.findByText("Score");
+  expect(score.closest("p")?.textContent).toBe("Score8.42017TV-MA");
+  expect(screen.getByText("Show · Crime · Drama")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Remove from your Watchlist" })).toBeDefined();
+  const audio = screen.getByText("Original audio", { selector: "dt" });
+  expect(audio.nextElementSibling?.textContent).toBe("German");
+  expect(screen.getByRole("link", { name: /^Final Trailer/u }).getAttribute("href")).toBe(
+    trailers[0]?.url,
+  );
+});
+
+test("a Show to Request shows who stars in it, its Cast & Crew, and who created it", async () => {
+  const cast = [{ name: "Louis Hofmann", part: "Jonas Kahnwald" }];
+  const crew = [{ name: "Baran bo Odar", part: "Creator" }];
+  const { transport } = showServer({ ...dark, cast, crew });
+  openApp("/shows/tmdb-70523", transport);
+
+  await expect(screen.findByText("Starring Louis Hofmann")).resolves.toBeDefined();
+  const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
+  expect(row.getAllByRole("listitem")).toHaveLength(2);
+  const created = screen.getByText("Created by", { selector: "dt" });
+  expect(created.nextElementSibling?.textContent).toBe("Baran bo Odar");
 });

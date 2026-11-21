@@ -42,6 +42,12 @@ pub(crate) enum HomeRowId {
     UsersOwn {
         plugin: PluginId,
     },
+    /// One of the rows the Plugin gives one User for them alone, which the default places as
+    /// [`Self::UsersOwn`].
+    Own {
+        plugin: PluginId,
+        key: String,
+    },
 }
 
 impl HomeRowId {
@@ -49,7 +55,33 @@ impl HomeRowId {
     pub(crate) fn plugin(&self) -> Option<&PluginId> {
         match self {
             Self::ContinueWatching => None,
-            Self::Shared { plugin, .. } | Self::UsersOwn { plugin } => Some(plugin),
+            Self::Shared { plugin, .. } | Self::UsersOwn { plugin } | Self::Own { plugin, .. } => {
+                Some(plugin)
+            }
+        }
+    }
+
+    /// Whether a client naming this in a User's Home layout names `row`: the same row, or for
+    /// one of the User's own rows, its Plugin's row of the same key, as the API gives it.
+    pub(crate) fn names(&self, row: &Self) -> bool {
+        match (self, row) {
+            (
+                Self::Shared { plugin, key },
+                Self::Own {
+                    plugin: of,
+                    key: its,
+                },
+            ) => plugin == of && key == its,
+            _ => self == row,
+        }
+    }
+
+    /// Whether a layout placing this places `row`: the same row, or one User's own row of the
+    /// Plugin whose entry for them this is.
+    pub(crate) fn places(&self, row: &Self) -> bool {
+        match (self, row) {
+            (Self::UsersOwn { plugin }, Self::Own { plugin: of, .. }) => plugin == of,
+            _ => self == row,
         }
     }
 }
@@ -61,10 +93,7 @@ impl HomeLayout {
     pub(crate) fn arrange<T>(&self, rows: Vec<(HomeRowId, T)>) -> Vec<((HomeRowId, T), bool)> {
         let mut placed: Vec<_> = (rows.into_iter())
             .map(|row| {
-                let found = (self.rows.iter().enumerate()).find(|(_, placed)| placed.row == row.0);
-                let (place, shown) = found.map_or((self.rows.len(), true), |(place, placed)| {
-                    (place, placed.shown)
-                });
+                let (place, shown) = self.place_of(&row.0);
                 (place, row, shown)
             })
             .collect();
@@ -75,18 +104,24 @@ impl HomeLayout {
             .collect()
     }
 
+    /// Whether this layout shows `row`: as its first place does, or shown when it has none.
+    pub(crate) fn shows(&self, row: &HomeRowId) -> bool {
+        self.place_of(row).1
+    }
+
+    /// Where `row` first is in this layout, with whether it is shown there, or past the end, shown.
+    fn place_of(&self, row: &HomeRowId) -> (usize, bool) {
+        let found = (self.rows.iter().enumerate()).find(|(_, placed)| placed.row.places(row));
+        found.map_or((self.rows.len(), true), |(place, placed)| {
+            (place, placed.shown)
+        })
+    }
+
     /// This layout with each row `before` places that it doesn't, such as a disabled Plugin's,
-    /// which the editor didn't see: each after the row it followed in `before`, or first.
+    /// which the editor didn't see, where [`keep_unnamed`] puts it.
     pub(super) fn keeping_unnamed(mut self, before: &Self) -> Self {
-        let mut at = 0;
-        for placed in &before.rows {
-            if let Some(place) = self.rows.iter().position(|named| named.row == placed.row) {
-                at = place + 1;
-            } else {
-                self.rows.insert(at, placed.clone());
-                at += 1;
-            }
-        }
+        let same = |named: &PlacedRow, placed: &PlacedRow| named.row == placed.row;
+        keep_unnamed(&mut self.rows, &before.rows, same, |_| true);
         self
     }
 
@@ -98,5 +133,30 @@ impl HomeLayout {
                 .plugin()
                 .is_none_or(|plugin| !gone.contains(plugin))
         });
+    }
+}
+
+/// Puts each of `before` that `rows` has no `same` of and that `keeps`, such as a disabled Plugin's
+/// row the editor didn't see, back into `rows`: right after the last of `rows` that is `same` as
+/// the row it followed in `before`, first if it followed none, or last if that row is gone,
+/// neither in `rows` nor kept.
+pub(crate) fn keep_unnamed<T: Clone>(
+    rows: &mut Vec<T>,
+    before: &[T],
+    same: impl Fn(&T, &T) -> bool,
+    keeps: impl Fn(&T) -> bool,
+) {
+    // `None` once the row the next one followed is gone, so it goes last.
+    let mut insert_at = Some(0);
+    for placed in before {
+        if let Some(place) = rows.iter().rposition(|named| same(named, placed)) {
+            insert_at = Some(place + 1);
+        } else if keeps(placed) {
+            let at = insert_at.unwrap_or(rows.len());
+            rows.insert(at, placed.clone());
+            insert_at = Some(at + 1);
+        } else {
+            insert_at = None;
+        }
     }
 }

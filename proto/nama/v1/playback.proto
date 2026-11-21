@@ -491,6 +491,10 @@ message PlaybackPlan {
   // The Version's Segments, at most one of each kind, earliest first. Empty until the Server has
   // found any, in the background after it probes the Version.
   repeated Segment segments = 17;
+  // Whether at least one enabled Plugin serves `EXTENSION_POINT_SUBTITLE_SOURCE`, so
+  // `SearchSubtitles` won't refuse with `REFUSAL_REASON_NO_SUBTITLE_SOURCE` for lack of one. It
+  // says nothing of `PERMISSION_DOWNLOAD_SUBTITLES`. Set on every plan, also one that can't play.
+  bool can_search_subtitles = 18;
 }
 
 // A stretch of the Version a plan plays that the player acts on.

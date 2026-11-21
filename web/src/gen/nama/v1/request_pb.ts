@@ -18,7 +18,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/request.proto.
  */
 export const file_nama_v1_request: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEihAUKB1JlcXVlc3QSCgoCaWQYASABKAMSKAoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllSAASKgoGc2Vhc29uGAcgASgLMhgubmFtYS52MS5SZXF1ZXN0ZWRTZWFzb25IABIkCgVzdGF0ZRgDIAEoDjIVLm5hbWEudjEuUmVxdWVzdFN0YXRlEiYKCnJlcXVlc3RlcnMYBCADKAsyEi5uYW1hLnYxLlJlcXVlc3RlchISCgpjcmVhdGVkX2F0GAUgASgDEhsKDmRlY2xpbmVfcmVhc29uGAYgASgJSAGIAQESGwoOZmFpbHVyZV9yZWFzb24YCCABKAlIAogBARIdChBmb2xsb3dlZF9zaG93X2lkGAkgASgDSAOIAQESJAoJZG93bmxvYWRzGAogAygLMhEubmFtYS52MS5Eb3dubG9hZBIqCgdxdWFsaXR5GAsgASgLMhkubmFtYS52MS5SZXF1ZXN0ZWRRdWFsaXR5Ei8KDHF1YWxpdHlfdXNlZBgMIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVkUXVhbGl0eRIuCg5xdWFsaXR5X2NoYW5nZRgNIAEoCzIWLm5hbWEudjEuUXVhbGl0eUNoYW5nZRIgChNmdWxmaWxsZXJfcGx1Z2luX2lkGA4gASgJSASIAQESIQoHZmFpbHVyZRgPIAEoCzIQLm5hbWEudjEuUmVmdXNhbEIRCg9tb3ZpZV9vcl9zZWFzb25CEQoPX2RlY2xpbmVfcmVhc29uQhEKD19mYWlsdXJlX3JlYXNvbkITChFfZm9sbG93ZWRfc2hvd19pZEIWChRfZnVsZmlsbGVyX3BsdWdpbl9pZCJ5Cg1RdWFsaXR5Q2hhbmdlEhcKCmNoYW5nZWRfYnkYASABKAlIAIgBARIaCg1wcmV2aW91c19uYW1lGAIgASgJSAGIAQESEgoKY2hhbmdlZF9hdBgDIAEoA0INCgtfY2hhbmdlZF9ieUIQCg5fcHJldmlvdXNfbmFtZSJAChBSZXF1ZXN0ZWRRdWFsaXR5EgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSEgoKcHJvZmlsZV9pZBgDIAEoCSLZAQoIRG93bmxvYWQSDQoFdGl0bGUYASABKAkSDwoHcGVyY2VudBgCIAEoAhIXCgpzaXplX2J5dGVzGAMgASgESACIAQESGAoLZXRhX3NlY29uZHMYBCABKARIAYgBARInCgZzdGF0dXMYBSABKA4yFy5uYW1hLnYxLkRvd25sb2FkU3RhdHVzEh0KEGF0dGVudGlvbl9yZWFzb24YBiABKAlIAogBAUINCgtfc2l6ZV9ieXRlc0IOCgxfZXRhX3NlY29uZHNCEwoRX2F0dGVudGlvbl9yZWFzb24ipgIKDEZvbGxvd2VkU2hvdxIKCgJpZBgBIAEoAxIkCgdzaG93X2lkGAkgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhIKCnNob3dfdGl0bGUYAyABKAkSJAoFc3RhdGUYBCABKA4yFS5uYW1hLnYxLlJlcXVlc3RTdGF0ZRImCgpyZXF1ZXN0ZXJzGAUgAygLMhIubmFtYS52MS5SZXF1ZXN0ZXISEgoKY3JlYXRlZF9hdBgGIAEoAxIbCg5kZWNsaW5lX3JlYXNvbhgHIAEoCUgAiAEBEioKB3F1YWxpdHkYCCABKAsyGS5uYW1hLnYxLlJlcXVlc3RlZFF1YWxpdHlCEQoPX2RlY2xpbmVfcmVhc29uSgQIAhADUgxzaG93X3RtZGJfaWQinQEKDlJlcXVlc3RlZE1vdmllEh8KAmlkGAQgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEiAKA2lkcxgFIAMoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlSgQIARACUgd0bWRiX2lkIukBCg9SZXF1ZXN0ZWRTZWFzb24SJAoHc2hvd19pZBgHIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIlCghzaG93X2lkcxgIIAMoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNEhIKCnNob3dfdGl0bGUYAyABKAkSFQoIYWlyX2RhdGUYBCABKAlIAIgBAUILCglfYWlyX2RhdGVKBAgBEAJKBAgFEAZKBAgGEAdSDHNob3dfdG1kYl9pZFIMc2hvd19pbWRiX2lkUgxzaG93X3R2ZGJfaWQiQAoJUmVxdWVzdGVyEg8KB3VzZXJfaWQYASABKAMSDAoEbmFtZRgCIAEoCRIUCgxyZXF1ZXN0ZWRfYXQYAyABKAMidAoUQ3JlYXRlUmVxdWVzdFJlcXVlc3QSJQoIbW92aWVfaWQYAyABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFAoHcXVhbGl0eRgCIAEoA0gAiAEBQgoKCF9xdWFsaXR5SgQIARACUg1tb3ZpZV90bWRiX2lkIjoKFUNyZWF0ZVJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IpEBChtDcmVhdGVTZWFzb25SZXF1ZXN0c1JlcXVlc3QSJAoHc2hvd19pZBgEIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIWCg5zZWFzb25fbnVtYmVycxgCIAMoDRIUCgdxdWFsaXR5GAMgASgDSACIAQFCCgoIX3F1YWxpdHlKBAgBEAJSDHNob3dfdG1kYl9pZCJCChxDcmVhdGVTZWFzb25SZXF1ZXN0c1Jlc3BvbnNlEiIKCHJlcXVlc3RzGAEgAygLMhAubmFtYS52MS5SZXF1ZXN0IpEBChNMaXN0UmVxdWVzdHNSZXF1ZXN0EiYKBmZpbHRlchgEIAEoCzIWLm5hbWEudjEuUmVxdWVzdEZpbHRlchIiCgRwYWdlGAUgASgLMhQubmFtYS52MS5QYWdlUmVxdWVzdEoECAEQAkoECAIQA0oECAMQBFIFc3RhdGVSCXBhZ2Vfc2l6ZVIKcGFnZV90b2tlbiI1Cg1SZXF1ZXN0RmlsdGVyEiQKBXN0YXRlGAEgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUidwoZQ3JlYXRlRm9sbG93ZWRTaG93UmVxdWVzdBIkCgdzaG93X2lkGAMgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhQKB3F1YWxpdHkYAiABKANIAIgBAUIKCghfcXVhbGl0eUoECAEQAlIMc2hvd190bWRiX2lkIm4KGkNyZWF0ZUZvbGxvd2VkU2hvd1Jlc3BvbnNlEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIiCghyZXF1ZXN0cxgCIAMoCzIQLm5hbWEudjEuUmVxdWVzdCKlAQoUTGlzdFJlcXVlc3RzUmVzcG9uc2USIgoIcmVxdWVzdHMYASADKAsyEC5uYW1hLnYxLlJlcXVlc3QSLQoOZm9sbG93ZWRfc2hvd3MYAiADKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIjCgRwYWdlGAQgASgLMhUubmFtYS52MS5QYWdlUmVzcG9uc2VKBAgDEARSD25leHRfcGFnZV90b2tlbiIbChlMaXN0TW92aWVRdWFsaXRpZXNSZXF1ZXN0InUKGkxpc3RNb3ZpZVF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eRIdChBwZXJzb25hbF9kZWZhdWx0GAIgASgDSACIAQFCEwoRX3BlcnNvbmFsX2RlZmF1bHQiGgoYTGlzdFNob3dRdWFsaXRpZXNSZXF1ZXN0InQKGUxpc3RTaG93UXVhbGl0aWVzUmVzcG9uc2USIwoJcXVhbGl0aWVzGAEgAygLMhAubmFtYS52MS5RdWFsaXR5Eh0KEHBlcnNvbmFsX2RlZmF1bHQYAiABKANIAIgBAUITChFfcGVyc29uYWxfZGVmYXVsdCIdChtMaXN0RGVmYXVsdFF1YWxpdGllc1JlcXVlc3QiSQocTGlzdERlZmF1bHRRdWFsaXRpZXNSZXNwb25zZRIpCghkZWZhdWx0cxgBIAMoCzIXLm5hbWEudjEuRGVmYXVsdFF1YWxpdHkilgEKDkRlZmF1bHRRdWFsaXR5EhEKCXBsdWdpbl9pZBgBIAEoCRIqCglmdWxmaWxsZXIYAiABKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50EiMKCXF1YWxpdGllcxgDIAMoCzIQLm5hbWEudjEuUXVhbGl0eRIUCgdxdWFsaXR5GAQgASgDSACIAQFCCgoIX3F1YWxpdHkiTwoYU2V0RGVmYXVsdFF1YWxpdHlSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRIUCgdxdWFsaXR5GAIgASgDSACIAQFCCgoIX3F1YWxpdHkiGwoZU2V0RGVmYXVsdFF1YWxpdHlSZXNwb25zZSIfChFHZXRSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI3ChJHZXRSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIdChtDb3VudFBlbmRpbmdSZXF1ZXN0c1JlcXVlc3QiLQocQ291bnRQZW5kaW5nUmVxdWVzdHNSZXNwb25zZRINCgVjb3VudBgBIAEoDSJLChVBcHByb3ZlUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMSFwoKcXVhbGl0eV9pZBgCIAEoA0gAiAEBQg0KC19xdWFsaXR5X2lkIjsKFkFwcHJvdmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIzChVEZWNsaW5lUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMSDgoGcmVhc29uGAIgASgJIjsKFkRlY2xpbmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIiChRDYW5jZWxSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyIXChVDYW5jZWxSZXF1ZXN0UmVzcG9uc2UiSQoTUmV0cnlSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAxIXCgpxdWFsaXR5X2lkGAIgASgDSACIAQFCDQoLX3F1YWxpdHlfaWQiOQoUUmV0cnlSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIkChZXaXRoZHJhd1JlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIhkKF1dpdGhkcmF3UmVxdWVzdFJlc3BvbnNlIlAKGkFwcHJvdmVGb2xsb3dlZFNob3dSZXF1ZXN0EgoKAmlkGAEgASgDEhcKCnF1YWxpdHlfaWQYAiABKANIAIgBAUINCgtfcXVhbGl0eV9pZCJLChtBcHByb3ZlRm9sbG93ZWRTaG93UmVzcG9uc2USLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IjgKGkRlY2xpbmVGb2xsb3dlZFNob3dSZXF1ZXN0EgoKAmlkGAEgASgDEg4KBnJlYXNvbhgCIAEoCSJLChtEZWNsaW5lRm9sbG93ZWRTaG93UmVzcG9uc2USLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IicKGUNhbmNlbEZvbGxvd2VkU2hvd1JlcXVlc3QSCgoCaWQYASABKAMiHAoaQ2FuY2VsRm9sbG93ZWRTaG93UmVzcG9uc2UiKQobV2l0aGRyYXdGb2xsb3dlZFNob3dSZXF1ZXN0EgoKAmlkGAEgASgDIh4KHFdpdGhkcmF3Rm9sbG93ZWRTaG93UmVzcG9uc2UiPwobTGlzdE9mZmVyZWRRdWFsaXRpZXNSZXF1ZXN0EiAKBGtpbmQYASABKA4yEi5uYW1hLnYxLlRpdGxlS2luZCJDChxMaXN0T2ZmZXJlZFF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eSKMAgoITW92aWVIaXQSHwoCaWQYDCABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIAYgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAKIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIdChBwb3N0ZXJfdGh1bWJoYXNoGAogASgMSAOIAQFCBwoFX3llYXJCDQoLX3Bvc3Rlcl91cmxCDQoLX2xpYnJhcnlfaWRCEwoRX3Bvc3Rlcl90aHVtYmhhc2hKBAgBEAJSB3RtZGJfaWQiyAMKCkZvdW5kTW92aWUSHwoCaWQYDCABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBEhUKCG92ZXJ2aWV3GAQgASgJSAGIAQESHAoPcnVudGltZV9taW51dGVzGAUgASgNSAKIAQESFwoKcG9zdGVyX3VybBgGIAEoCUgDiAEBEhkKDGJhY2tkcm9wX3VybBgHIAEoCUgEiAEBEhcKCmxpYnJhcnlfaWQYCCABKANIBYgBARIhCgdyZXF1ZXN0GAkgASgLMhAubmFtYS52MS5SZXF1ZXN0Eh0KEHBvc3Rlcl90aHVtYmhhc2gYCiABKAxIBogBARIfChJiYWNrZHJvcF90aHVtYmhhc2gYCyABKAxIB4gBAUIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkQhMKEV9wb3N0ZXJfdGh1bWJoYXNoQhUKE19iYWNrZHJvcF90aHVtYmhhc2hKBAgBEAJSB3RtZGJfaWQiJAoTU2VhcmNoTW92aWVzUmVxdWVzdBINCgV0aXRsZRgBIAEoCSI5ChRTZWFyY2hNb3ZpZXNSZXNwb25zZRIhCgZtb3ZpZXMYASADKAsyES5uYW1hLnYxLk1vdmllSGl0IlAKEkxvb2tVcE1vdmllUmVxdWVzdBIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEoECAEQAlINbW92aWVfdG1kYl9pZCI5ChNMb29rVXBNb3ZpZVJlc3BvbnNlEiIKBW1vdmllGAEgASgLMhMubmFtYS52MS5Gb3VuZE1vdmllIsABCgdTaG93SGl0Eh8KAmlkGAwgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIXCgpwb3N0ZXJfdXJsGAUgASgJSAGIAQESHQoQcG9zdGVyX3RodW1iaGFzaBgKIAEoDEgCiAEBQgcKBV95ZWFyQg0KC19wb3N0ZXJfdXJsQhMKEV9wb3N0ZXJfdGh1bWJoYXNoSgQIARACUgd0bWRiX2lkIssDCglGb3VuZFNob3cSHwoCaWQYDCABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBEhUKCG92ZXJ2aWV3GAQgASgJSAGIAQESFwoKcG9zdGVyX3VybBgFIAEoCUgCiAEBEhkKDGJhY2tkcm9wX3VybBgGIAEoCUgDiAEBEiUKB3NlYXNvbnMYByADKAsyFC5uYW1hLnYxLkZvdW5kU2Vhc29uEiwKDWZvbGxvd2VkX3Nob3cYCCABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIqCgdxdWFsaXR5GAkgASgLMhkubmFtYS52MS5SZXF1ZXN0ZWRRdWFsaXR5Eh0KEHBvc3Rlcl90aHVtYmhhc2gYCiABKAxIBIgBARIfChJiYWNrZHJvcF90aHVtYmhhc2gYCyABKAxIBYgBAUIHCgVfeWVhckILCglfb3ZlcnZpZXdCDQoLX3Bvc3Rlcl91cmxCDwoNX2JhY2tkcm9wX3VybEITChFfcG9zdGVyX3RodW1iaGFzaEIVChNfYmFja2Ryb3BfdGh1bWJoYXNoSgQIARACUgd0bWRiX2lkIn8KC0ZvdW5kU2Vhc29uEhUKDXNlYXNvbl9udW1iZXIYASABKA0SFQoIYWlyX2RhdGUYAiABKAlIAIgBARISCgppbl9saWJyYXJ5GAMgASgIEiEKB3JlcXVlc3QYBCABKAsyEC5uYW1hLnYxLlJlcXVlc3RCCwoJX2Fpcl9kYXRlIiMKElNlYXJjaFNob3dzUmVxdWVzdBINCgV0aXRsZRgBIAEoCSI2ChNTZWFyY2hTaG93c1Jlc3BvbnNlEh8KBXNob3dzGAEgAygLMhAubmFtYS52MS5TaG93SGl0Ik0KEUxvb2tVcFNob3dSZXF1ZXN0EiQKB3Nob3dfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRKBAgBEAJSDHNob3dfdG1kYl9pZCI2ChJMb29rVXBTaG93UmVzcG9uc2USIAoEc2hvdxgBIAEoCzISLm5hbWEudjEuRm91bmRTaG93KvwBCgxSZXF1ZXN0U3RhdGUSHQoZUkVRVUVTVF9TVEFURV9VTlNQRUNJRklFRBAAEhkKFVJFUVVFU1RfU1RBVEVfUEVORElORxABEhoKFlJFUVVFU1RfU1RBVEVfQVBQUk9WRUQQAhIaChZSRVFVRVNUX1NUQVRFX0RFQ0xJTkVEEAMSHAoYUkVRVUVTVF9TVEFURV9QUk9DRVNTSU5HEAQSJQohUkVRVUVTVF9TVEFURV9QQVJUSUFMTFlfQVZBSUxBQkxFEAUSGwoXUkVRVUVTVF9TVEFURV9BVkFJTEFCTEUQBhIYChRSRVFVRVNUX1NUQVRFX0ZBSUxFRBAHKrIBCg5Eb3dubG9hZFN0YXR1cxIfChtET1dOTE9BRF9TVEFUVVNfVU5TUEVDSUZJRUQQABIaChZET1dOTE9BRF9TVEFUVVNfUVVFVUVEEAESHwobRE9XTkxPQURfU1RBVFVTX0RPV05MT0FESU5HEAISHQoZRE9XTkxPQURfU1RBVFVTX0lNUE9SVElORxADEiMKH0RPV05MT0FEX1NUQVRVU19ORUVEU19BVFRFTlRJT04QBDKDEQoOUmVxdWVzdFNlcnZpY2USTgoNQ3JlYXRlUmVxdWVzdBIdLm5hbWEudjEuQ3JlYXRlUmVxdWVzdFJlcXVlc3QaHi5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXNwb25zZRJiChJMaXN0TW92aWVRdWFsaXRpZXMSIi5uYW1hLnYxLkxpc3RNb3ZpZVF1YWxpdGllc1JlcXVlc3QaIy5uYW1hLnYxLkxpc3RNb3ZpZVF1YWxpdGllc1Jlc3BvbnNlIgOQAgESaAoUTGlzdERlZmF1bHRRdWFsaXRpZXMSJC5uYW1hLnYxLkxpc3REZWZhdWx0UXVhbGl0aWVzUmVxdWVzdBolLm5hbWEudjEuTGlzdERlZmF1bHRRdWFsaXRpZXNSZXNwb25zZSIDkAIBEl8KEVNldERlZmF1bHRRdWFsaXR5EiEubmFtYS52MS5TZXREZWZhdWx0UXVhbGl0eVJlcXVlc3QaIi5uYW1hLnYxLlNldERlZmF1bHRRdWFsaXR5UmVzcG9uc2UiA5ACAhJjChRDcmVhdGVTZWFzb25SZXF1ZXN0cxIkLm5hbWEudjEuQ3JlYXRlU2Vhc29uUmVxdWVzdHNSZXF1ZXN0GiUubmFtYS52MS5DcmVhdGVTZWFzb25SZXF1ZXN0c1Jlc3BvbnNlEl8KEUxpc3RTaG93UXVhbGl0aWVzEiEubmFtYS52MS5MaXN0U2hvd1F1YWxpdGllc1JlcXVlc3QaIi5uYW1hLnYxLkxpc3RTaG93UXVhbGl0aWVzUmVzcG9uc2UiA5ACARJdChJDcmVhdGVGb2xsb3dlZFNob3cSIi5uYW1hLnYxLkNyZWF0ZUZvbGxvd2VkU2hvd1JlcXVlc3QaIy5uYW1hLnYxLkNyZWF0ZUZvbGxvd2VkU2hvd1Jlc3BvbnNlElAKDExpc3RSZXF1ZXN0cxIcLm5hbWEudjEuTGlzdFJlcXVlc3RzUmVxdWVzdBodLm5hbWEudjEuTGlzdFJlcXVlc3RzUmVzcG9uc2UiA5ACARJKCgpHZXRSZXF1ZXN0EhoubmFtYS52MS5HZXRSZXF1ZXN0UmVxdWVzdBobLm5hbWEudjEuR2V0UmVxdWVzdFJlc3BvbnNlIgOQAgESaAoUQ291bnRQZW5kaW5nUmVxdWVzdHMSJC5uYW1hLnYxLkNvdW50UGVuZGluZ1JlcXVlc3RzUmVxdWVzdBolLm5hbWEudjEuQ291bnRQZW5kaW5nUmVxdWVzdHNSZXNwb25zZSIDkAIBElAKDFNlYXJjaE1vdmllcxIcLm5hbWEudjEuU2VhcmNoTW92aWVzUmVxdWVzdBodLm5hbWEudjEuU2VhcmNoTW92aWVzUmVzcG9uc2UiA5ACARJNCgtMb29rVXBNb3ZpZRIbLm5hbWEudjEuTG9va1VwTW92aWVSZXF1ZXN0GhwubmFtYS52MS5Mb29rVXBNb3ZpZVJlc3BvbnNlIgOQAgESTQoLU2VhcmNoU2hvd3MSGy5uYW1hLnYxLlNlYXJjaFNob3dzUmVxdWVzdBocLm5hbWEudjEuU2VhcmNoU2hvd3NSZXNwb25zZSIDkAIBEkoKCkxvb2tVcFNob3cSGi5uYW1hLnYxLkxvb2tVcFNob3dSZXF1ZXN0GhsubmFtYS52MS5Mb29rVXBTaG93UmVzcG9uc2UiA5ACARJRCg5BcHByb3ZlUmVxdWVzdBIeLm5hbWEudjEuQXBwcm92ZVJlcXVlc3RSZXF1ZXN0Gh8ubmFtYS52MS5BcHByb3ZlUmVxdWVzdFJlc3BvbnNlElEKDkRlY2xpbmVSZXF1ZXN0Eh4ubmFtYS52MS5EZWNsaW5lUmVxdWVzdFJlcXVlc3QaHy5uYW1hLnYxLkRlY2xpbmVSZXF1ZXN0UmVzcG9uc2USTgoNQ2FuY2VsUmVxdWVzdBIdLm5hbWEudjEuQ2FuY2VsUmVxdWVzdFJlcXVlc3QaHi5uYW1hLnYxLkNhbmNlbFJlcXVlc3RSZXNwb25zZRJLCgxSZXRyeVJlcXVlc3QSHC5uYW1hLnYxLlJldHJ5UmVxdWVzdFJlcXVlc3QaHS5uYW1hLnYxLlJldHJ5UmVxdWVzdFJlc3BvbnNlElQKD1dpdGhkcmF3UmVxdWVzdBIfLm5hbWEudjEuV2l0aGRyYXdSZXF1ZXN0UmVxdWVzdBogLm5hbWEudjEuV2l0aGRyYXdSZXF1ZXN0UmVzcG9uc2USYAoTQXBwcm92ZUZvbGxvd2VkU2hvdxIjLm5hbWEudjEuQXBwcm92ZUZvbGxvd2VkU2hvd1JlcXVlc3QaJC5uYW1hLnYxLkFwcHJvdmVGb2xsb3dlZFNob3dSZXNwb25zZRJgChNEZWNsaW5lRm9sbG93ZWRTaG93EiMubmFtYS52MS5EZWNsaW5lRm9sbG93ZWRTaG93UmVxdWVzdBokLm5hbWEudjEuRGVjbGluZUZvbGxvd2VkU2hvd1Jlc3BvbnNlEl0KEkNhbmNlbEZvbGxvd2VkU2hvdxIiLm5hbWEudjEuQ2FuY2VsRm9sbG93ZWRTaG93UmVxdWVzdBojLm5hbWEudjEuQ2FuY2VsRm9sbG93ZWRTaG93UmVzcG9uc2USYwoUV2l0aGRyYXdGb2xsb3dlZFNob3cSJC5uYW1hLnYxLldpdGhkcmF3Rm9sbG93ZWRTaG93UmVxdWVzdBolLm5hbWEudjEuV2l0aGRyYXdGb2xsb3dlZFNob3dSZXNwb25zZRJoChRMaXN0T2ZmZXJlZFF1YWxpdGllcxIkLm5hbWEudjEuTGlzdE9mZmVyZWRRdWFsaXRpZXNSZXF1ZXN0GiUubmFtYS52MS5MaXN0T2ZmZXJlZFF1YWxpdGllc1Jlc3BvbnNlIgOQAgFiBnByb3RvMw", [file_nama_v1_match, file_nama_v1_page, file_nama_v1_plugin, file_nama_v1_refusal]);
+  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEihAUKB1JlcXVlc3QSCgoCaWQYASABKAMSKAoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllSAASKgoGc2Vhc29uGAcgASgLMhgubmFtYS52MS5SZXF1ZXN0ZWRTZWFzb25IABIkCgVzdGF0ZRgDIAEoDjIVLm5hbWEudjEuUmVxdWVzdFN0YXRlEiYKCnJlcXVlc3RlcnMYBCADKAsyEi5uYW1hLnYxLlJlcXVlc3RlchISCgpjcmVhdGVkX2F0GAUgASgDEhsKDmRlY2xpbmVfcmVhc29uGAYgASgJSAGIAQESGwoOZmFpbHVyZV9yZWFzb24YCCABKAlIAogBARIdChBmb2xsb3dlZF9zaG93X2lkGAkgASgDSAOIAQESJAoJZG93bmxvYWRzGAogAygLMhEubmFtYS52MS5Eb3dubG9hZBIqCgdxdWFsaXR5GAsgASgLMhkubmFtYS52MS5SZXF1ZXN0ZWRRdWFsaXR5Ei8KDHF1YWxpdHlfdXNlZBgMIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVkUXVhbGl0eRIuCg5xdWFsaXR5X2NoYW5nZRgNIAEoCzIWLm5hbWEudjEuUXVhbGl0eUNoYW5nZRIgChNmdWxmaWxsZXJfcGx1Z2luX2lkGA4gASgJSASIAQESIQoHZmFpbHVyZRgPIAEoCzIQLm5hbWEudjEuUmVmdXNhbEIRCg9tb3ZpZV9vcl9zZWFzb25CEQoPX2RlY2xpbmVfcmVhc29uQhEKD19mYWlsdXJlX3JlYXNvbkITChFfZm9sbG93ZWRfc2hvd19pZEIWChRfZnVsZmlsbGVyX3BsdWdpbl9pZCJ5Cg1RdWFsaXR5Q2hhbmdlEhcKCmNoYW5nZWRfYnkYASABKAlIAIgBARIaCg1wcmV2aW91c19uYW1lGAIgASgJSAGIAQESEgoKY2hhbmdlZF9hdBgDIAEoA0INCgtfY2hhbmdlZF9ieUIQCg5fcHJldmlvdXNfbmFtZSJAChBSZXF1ZXN0ZWRRdWFsaXR5EgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSEgoKcHJvZmlsZV9pZBgDIAEoCSLZAQoIRG93bmxvYWQSDQoFdGl0bGUYASABKAkSDwoHcGVyY2VudBgCIAEoAhIXCgpzaXplX2J5dGVzGAMgASgESACIAQESGAoLZXRhX3NlY29uZHMYBCABKARIAYgBARInCgZzdGF0dXMYBSABKA4yFy5uYW1hLnYxLkRvd25sb2FkU3RhdHVzEh0KEGF0dGVudGlvbl9yZWFzb24YBiABKAlIAogBAUINCgtfc2l6ZV9ieXRlc0IOCgxfZXRhX3NlY29uZHNCEwoRX2F0dGVudGlvbl9yZWFzb24ipgIKDEZvbGxvd2VkU2hvdxIKCgJpZBgBIAEoAxIkCgdzaG93X2lkGAkgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhIKCnNob3dfdGl0bGUYAyABKAkSJAoFc3RhdGUYBCABKA4yFS5uYW1hLnYxLlJlcXVlc3RTdGF0ZRImCgpyZXF1ZXN0ZXJzGAUgAygLMhIubmFtYS52MS5SZXF1ZXN0ZXISEgoKY3JlYXRlZF9hdBgGIAEoAxIbCg5kZWNsaW5lX3JlYXNvbhgHIAEoCUgAiAEBEioKB3F1YWxpdHkYCCABKAsyGS5uYW1hLnYxLlJlcXVlc3RlZFF1YWxpdHlCEQoPX2RlY2xpbmVfcmVhc29uSgQIAhADUgxzaG93X3RtZGJfaWQinQEKDlJlcXVlc3RlZE1vdmllEh8KAmlkGAQgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEiAKA2lkcxgFIAMoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlSgQIARACUgd0bWRiX2lkIukBCg9SZXF1ZXN0ZWRTZWFzb24SJAoHc2hvd19pZBgHIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIlCghzaG93X2lkcxgIIAMoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNEhIKCnNob3dfdGl0bGUYAyABKAkSFQoIYWlyX2RhdGUYBCABKAlIAIgBAUILCglfYWlyX2RhdGVKBAgBEAJKBAgFEAZKBAgGEAdSDHNob3dfdG1kYl9pZFIMc2hvd19pbWRiX2lkUgxzaG93X3R2ZGJfaWQiQAoJUmVxdWVzdGVyEg8KB3VzZXJfaWQYASABKAMSDAoEbmFtZRgCIAEoCRIUCgxyZXF1ZXN0ZWRfYXQYAyABKAMidAoUQ3JlYXRlUmVxdWVzdFJlcXVlc3QSJQoIbW92aWVfaWQYAyABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFAoHcXVhbGl0eRgCIAEoA0gAiAEBQgoKCF9xdWFsaXR5SgQIARACUg1tb3ZpZV90bWRiX2lkIjoKFUNyZWF0ZVJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IpEBChtDcmVhdGVTZWFzb25SZXF1ZXN0c1JlcXVlc3QSJAoHc2hvd19pZBgEIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIWCg5zZWFzb25fbnVtYmVycxgCIAMoDRIUCgdxdWFsaXR5GAMgASgDSACIAQFCCgoIX3F1YWxpdHlKBAgBEAJSDHNob3dfdG1kYl9pZCJCChxDcmVhdGVTZWFzb25SZXF1ZXN0c1Jlc3BvbnNlEiIKCHJlcXVlc3RzGAEgAygLMhAubmFtYS52MS5SZXF1ZXN0IpEBChNMaXN0UmVxdWVzdHNSZXF1ZXN0EiYKBmZpbHRlchgEIAEoCzIWLm5hbWEudjEuUmVxdWVzdEZpbHRlchIiCgRwYWdlGAUgASgLMhQubmFtYS52MS5QYWdlUmVxdWVzdEoECAEQAkoECAIQA0oECAMQBFIFc3RhdGVSCXBhZ2Vfc2l6ZVIKcGFnZV90b2tlbiI1Cg1SZXF1ZXN0RmlsdGVyEiQKBXN0YXRlGAEgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUidwoZQ3JlYXRlRm9sbG93ZWRTaG93UmVxdWVzdBIkCgdzaG93X2lkGAMgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhQKB3F1YWxpdHkYAiABKANIAIgBAUIKCghfcXVhbGl0eUoECAEQAlIMc2hvd190bWRiX2lkIm4KGkNyZWF0ZUZvbGxvd2VkU2hvd1Jlc3BvbnNlEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIiCghyZXF1ZXN0cxgCIAMoCzIQLm5hbWEudjEuUmVxdWVzdCKlAQoUTGlzdFJlcXVlc3RzUmVzcG9uc2USIgoIcmVxdWVzdHMYASADKAsyEC5uYW1hLnYxLlJlcXVlc3QSLQoOZm9sbG93ZWRfc2hvd3MYAiADKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIjCgRwYWdlGAQgASgLMhUubmFtYS52MS5QYWdlUmVzcG9uc2VKBAgDEARSD25leHRfcGFnZV90b2tlbiIbChlMaXN0TW92aWVRdWFsaXRpZXNSZXF1ZXN0InUKGkxpc3RNb3ZpZVF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eRIdChBwZXJzb25hbF9kZWZhdWx0GAIgASgDSACIAQFCEwoRX3BlcnNvbmFsX2RlZmF1bHQiGgoYTGlzdFNob3dRdWFsaXRpZXNSZXF1ZXN0InQKGUxpc3RTaG93UXVhbGl0aWVzUmVzcG9uc2USIwoJcXVhbGl0aWVzGAEgAygLMhAubmFtYS52MS5RdWFsaXR5Eh0KEHBlcnNvbmFsX2RlZmF1bHQYAiABKANIAIgBAUITChFfcGVyc29uYWxfZGVmYXVsdCIdChtMaXN0RGVmYXVsdFF1YWxpdGllc1JlcXVlc3QiSQocTGlzdERlZmF1bHRRdWFsaXRpZXNSZXNwb25zZRIpCghkZWZhdWx0cxgBIAMoCzIXLm5hbWEudjEuRGVmYXVsdFF1YWxpdHkilgEKDkRlZmF1bHRRdWFsaXR5EhEKCXBsdWdpbl9pZBgBIAEoCRIqCglmdWxmaWxsZXIYAiABKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50EiMKCXF1YWxpdGllcxgDIAMoCzIQLm5hbWEudjEuUXVhbGl0eRIUCgdxdWFsaXR5GAQgASgDSACIAQFCCgoIX3F1YWxpdHkiTwoYU2V0RGVmYXVsdFF1YWxpdHlSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRIUCgdxdWFsaXR5GAIgASgDSACIAQFCCgoIX3F1YWxpdHkiGwoZU2V0RGVmYXVsdFF1YWxpdHlSZXNwb25zZSIfChFHZXRSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI3ChJHZXRSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIdChtDb3VudFBlbmRpbmdSZXF1ZXN0c1JlcXVlc3QiLQocQ291bnRQZW5kaW5nUmVxdWVzdHNSZXNwb25zZRINCgVjb3VudBgBIAEoDSJLChVBcHByb3ZlUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMSFwoKcXVhbGl0eV9pZBgCIAEoA0gAiAEBQg0KC19xdWFsaXR5X2lkIjsKFkFwcHJvdmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIzChVEZWNsaW5lUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMSDgoGcmVhc29uGAIgASgJIjsKFkRlY2xpbmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIiChRDYW5jZWxSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyIXChVDYW5jZWxSZXF1ZXN0UmVzcG9uc2UiSQoTUmV0cnlSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAxIXCgpxdWFsaXR5X2lkGAIgASgDSACIAQFCDQoLX3F1YWxpdHlfaWQiOQoUUmV0cnlSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIkChZXaXRoZHJhd1JlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIhkKF1dpdGhkcmF3UmVxdWVzdFJlc3BvbnNlIlAKGkFwcHJvdmVGb2xsb3dlZFNob3dSZXF1ZXN0EgoKAmlkGAEgASgDEhcKCnF1YWxpdHlfaWQYAiABKANIAIgBAUINCgtfcXVhbGl0eV9pZCJLChtBcHByb3ZlRm9sbG93ZWRTaG93UmVzcG9uc2USLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IjgKGkRlY2xpbmVGb2xsb3dlZFNob3dSZXF1ZXN0EgoKAmlkGAEgASgDEg4KBnJlYXNvbhgCIAEoCSJLChtEZWNsaW5lRm9sbG93ZWRTaG93UmVzcG9uc2USLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IicKGUNhbmNlbEZvbGxvd2VkU2hvd1JlcXVlc3QSCgoCaWQYASABKAMiHAoaQ2FuY2VsRm9sbG93ZWRTaG93UmVzcG9uc2UiKQobV2l0aGRyYXdGb2xsb3dlZFNob3dSZXF1ZXN0EgoKAmlkGAEgASgDIh4KHFdpdGhkcmF3Rm9sbG93ZWRTaG93UmVzcG9uc2UiPwobTGlzdE9mZmVyZWRRdWFsaXRpZXNSZXF1ZXN0EiAKBGtpbmQYASABKA4yEi5uYW1hLnYxLlRpdGxlS2luZCJDChxMaXN0T2ZmZXJlZFF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eSKMAgoITW92aWVIaXQSHwoCaWQYDCABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIAYgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAKIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIdChBwb3N0ZXJfdGh1bWJoYXNoGAogASgMSAOIAQFCBwoFX3llYXJCDQoLX3Bvc3Rlcl91cmxCDQoLX2xpYnJhcnlfaWRCEwoRX3Bvc3Rlcl90aHVtYmhhc2hKBAgBEAJSB3RtZGJfaWQi9AUKCkZvdW5kTW92aWUSHwoCaWQYDCABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBEhUKCG92ZXJ2aWV3GAQgASgJSAGIAQESHAoPcnVudGltZV9taW51dGVzGAUgASgNSAKIAQESFwoKcG9zdGVyX3VybBgGIAEoCUgDiAEBEhkKDGJhY2tkcm9wX3VybBgHIAEoCUgEiAEBEhcKCmxpYnJhcnlfaWQYCCABKANIBYgBARIhCgdyZXF1ZXN0GAkgASgLMhAubmFtYS52MS5SZXF1ZXN0Eh0KEHBvc3Rlcl90aHVtYmhhc2gYCiABKAxIBogBARIfChJiYWNrZHJvcF90aHVtYmhhc2gYCyABKAxIB4gBARISCgVzY29yZRgNIAEoAUgIiAEBEh4KEW9yaWdpbmFsX2xhbmd1YWdlGA4gASgJSAmIAQESDgoGZ2VucmVzGA8gAygJEhsKDmNvbnRlbnRfcmF0aW5nGBAgASgJSAqIAQESFAoMb25fd2F0Y2hsaXN0GBEgASgIEiIKB3NpbWlsYXIYFSADKAsyES5uYW1hLnYxLk1vdmllSGl0EiIKCHRyYWlsZXJzGBIgAygLMhAubmFtYS52MS5UcmFpbGVyEhsKBGNhc3QYEyADKAsyDS5uYW1hLnYxLlJvbGUSGwoEY3JldxgUIAMoCzINLm5hbWEudjEuUm9sZUIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkQhMKEV9wb3N0ZXJfdGh1bWJoYXNoQhUKE19iYWNrZHJvcF90aHVtYmhhc2hCCAoGX3Njb3JlQhQKEl9vcmlnaW5hbF9sYW5ndWFnZUIRCg9fY29udGVudF9yYXRpbmdKBAgBEAJSB3RtZGJfaWQiJAoHVHJhaWxlchIMCgRuYW1lGAEgASgJEgsKA3VybBgCIAEoCSJQChJMb29rVXBNb3ZpZVJlcXVlc3QSJQoIbW92aWVfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRKBAgBEAJSDW1vdmllX3RtZGJfaWQiOQoTTG9va1VwTW92aWVSZXNwb25zZRIiCgVtb3ZpZRgBIAEoCzITLm5hbWEudjEuRm91bmRNb3ZpZSKLAgoHU2hvd0hpdBIfCgJpZBgMIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIRCgR5ZWFyGAMgASgFSACIAQESFwoKcG9zdGVyX3VybBgFIAEoCUgBiAEBEhcKCmxpYnJhcnlfaWQYCCABKANIAogBARIdChBwb3N0ZXJfdGh1bWJoYXNoGAogASgMSAOIAQESIQoHcmVxdWVzdBgNIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckINCgtfcG9zdGVyX3VybEINCgtfbGlicmFyeV9pZEITChFfcG9zdGVyX3RodW1iaGFzaEoECAEQAlIHdG1kYl9pZCL2BQoJRm91bmRTaG93Eh8KAmlkGAwgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhcKCnBvc3Rlcl91cmwYBSABKAlIAogBARIZCgxiYWNrZHJvcF91cmwYBiABKAlIA4gBARIlCgdzZWFzb25zGAcgAygLMhQubmFtYS52MS5Gb3VuZFNlYXNvbhIsCg1mb2xsb3dlZF9zaG93GAggASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3cSKgoHcXVhbGl0eRgJIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVkUXVhbGl0eRIdChBwb3N0ZXJfdGh1bWJoYXNoGAogASgMSASIAQESHwoSYmFja2Ryb3BfdGh1bWJoYXNoGAsgASgMSAWIAQESEgoFc2NvcmUYDSABKAFIBogBARIeChFvcmlnaW5hbF9sYW5ndWFnZRgOIAEoCUgHiAEBEhsKBGNhc3QYEyADKAsyDS5uYW1hLnYxLlJvbGUSGwoEY3JldxgUIAMoCzINLm5hbWEudjEuUm9sZRIOCgZnZW5yZXMYDyADKAkSGwoOY29udGVudF9yYXRpbmcYECABKAlICIgBARIUCgxvbl93YXRjaGxpc3QYESABKAgSIQoHc2ltaWxhchgVIAMoCzIQLm5hbWEudjEuU2hvd0hpdBIiCgh0cmFpbGVycxgSIAMoCzIQLm5hbWEudjEuVHJhaWxlckIHCgVfeWVhckILCglfb3ZlcnZpZXdCDQoLX3Bvc3Rlcl91cmxCDwoNX2JhY2tkcm9wX3VybEITChFfcG9zdGVyX3RodW1iaGFzaEIVChNfYmFja2Ryb3BfdGh1bWJoYXNoQggKBl9zY29yZUIUChJfb3JpZ2luYWxfbGFuZ3VhZ2VCEQoPX2NvbnRlbnRfcmF0aW5nSgQIARACUgd0bWRiX2lkIk4KBFJvbGUSDAoEbmFtZRgBIAEoCRIMCgRwYXJ0GAIgASgJEhkKDGhlYWRzaG90X3VybBgDIAEoCUgAiAEBQg8KDV9oZWFkc2hvdF91cmwifwoLRm91bmRTZWFzb24SFQoNc2Vhc29uX251bWJlchgBIAEoDRIVCghhaXJfZGF0ZRgCIAEoCUgAiAEBEhIKCmluX2xpYnJhcnkYAyABKAgSIQoHcmVxdWVzdBgEIAEoCzIQLm5hbWEudjEuUmVxdWVzdEILCglfYWlyX2RhdGUiTQoRTG9va1VwU2hvd1JlcXVlc3QSJAoHc2hvd19pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEoECAEQAlIMc2hvd190bWRiX2lkIjYKEkxvb2tVcFNob3dSZXNwb25zZRIgCgRzaG93GAEgASgLMhIubmFtYS52MS5Gb3VuZFNob3cq/AEKDFJlcXVlc3RTdGF0ZRIdChlSRVFVRVNUX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVUkVRVUVTVF9TVEFURV9QRU5ESU5HEAESGgoWUkVRVUVTVF9TVEFURV9BUFBST1ZFRBACEhoKFlJFUVVFU1RfU1RBVEVfREVDTElORUQQAxIcChhSRVFVRVNUX1NUQVRFX1BST0NFU1NJTkcQBBIlCiFSRVFVRVNUX1NUQVRFX1BBUlRJQUxMWV9BVkFJTEFCTEUQBRIbChdSRVFVRVNUX1NUQVRFX0FWQUlMQUJMRRAGEhgKFFJFUVVFU1RfU1RBVEVfRkFJTEVEEAcqsgEKDkRvd25sb2FkU3RhdHVzEh8KG0RPV05MT0FEX1NUQVRVU19VTlNQRUNJRklFRBAAEhoKFkRPV05MT0FEX1NUQVRVU19RVUVVRUQQARIfChtET1dOTE9BRF9TVEFUVVNfRE9XTkxPQURJTkcQAhIdChlET1dOTE9BRF9TVEFUVVNfSU1QT1JUSU5HEAMSIwofRE9XTkxPQURfU1RBVFVTX05FRURTX0FUVEVOVElPThAEMuIPCg5SZXF1ZXN0U2VydmljZRJOCg1DcmVhdGVSZXF1ZXN0Eh0ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVxdWVzdBoeLm5hbWEudjEuQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEmIKEkxpc3RNb3ZpZVF1YWxpdGllcxIiLm5hbWEudjEuTGlzdE1vdmllUXVhbGl0aWVzUmVxdWVzdBojLm5hbWEudjEuTGlzdE1vdmllUXVhbGl0aWVzUmVzcG9uc2UiA5ACARJoChRMaXN0RGVmYXVsdFF1YWxpdGllcxIkLm5hbWEudjEuTGlzdERlZmF1bHRRdWFsaXRpZXNSZXF1ZXN0GiUubmFtYS52MS5MaXN0RGVmYXVsdFF1YWxpdGllc1Jlc3BvbnNlIgOQAgESXwoRU2V0RGVmYXVsdFF1YWxpdHkSIS5uYW1hLnYxLlNldERlZmF1bHRRdWFsaXR5UmVxdWVzdBoiLm5hbWEudjEuU2V0RGVmYXVsdFF1YWxpdHlSZXNwb25zZSIDkAICEmMKFENyZWF0ZVNlYXNvblJlcXVlc3RzEiQubmFtYS52MS5DcmVhdGVTZWFzb25SZXF1ZXN0c1JlcXVlc3QaJS5uYW1hLnYxLkNyZWF0ZVNlYXNvblJlcXVlc3RzUmVzcG9uc2USXwoRTGlzdFNob3dRdWFsaXRpZXMSIS5uYW1hLnYxLkxpc3RTaG93UXVhbGl0aWVzUmVxdWVzdBoiLm5hbWEudjEuTGlzdFNob3dRdWFsaXRpZXNSZXNwb25zZSIDkAIBEl0KEkNyZWF0ZUZvbGxvd2VkU2hvdxIiLm5hbWEudjEuQ3JlYXRlRm9sbG93ZWRTaG93UmVxdWVzdBojLm5hbWEudjEuQ3JlYXRlRm9sbG93ZWRTaG93UmVzcG9uc2USUAoMTGlzdFJlcXVlc3RzEhwubmFtYS52MS5MaXN0UmVxdWVzdHNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0UmVxdWVzdHNSZXNwb25zZSIDkAIBEkoKCkdldFJlcXVlc3QSGi5uYW1hLnYxLkdldFJlcXVlc3RSZXF1ZXN0GhsubmFtYS52MS5HZXRSZXF1ZXN0UmVzcG9uc2UiA5ACARJoChRDb3VudFBlbmRpbmdSZXF1ZXN0cxIkLm5hbWEudjEuQ291bnRQZW5kaW5nUmVxdWVzdHNSZXF1ZXN0GiUubmFtYS52MS5Db3VudFBlbmRpbmdSZXF1ZXN0c1Jlc3BvbnNlIgOQAgESTQoLTG9va1VwTW92aWUSGy5uYW1hLnYxLkxvb2tVcE1vdmllUmVxdWVzdBocLm5hbWEudjEuTG9va1VwTW92aWVSZXNwb25zZSIDkAIBEkoKCkxvb2tVcFNob3cSGi5uYW1hLnYxLkxvb2tVcFNob3dSZXF1ZXN0GhsubmFtYS52MS5Mb29rVXBTaG93UmVzcG9uc2UiA5ACARJRCg5BcHByb3ZlUmVxdWVzdBIeLm5hbWEudjEuQXBwcm92ZVJlcXVlc3RSZXF1ZXN0Gh8ubmFtYS52MS5BcHByb3ZlUmVxdWVzdFJlc3BvbnNlElEKDkRlY2xpbmVSZXF1ZXN0Eh4ubmFtYS52MS5EZWNsaW5lUmVxdWVzdFJlcXVlc3QaHy5uYW1hLnYxLkRlY2xpbmVSZXF1ZXN0UmVzcG9uc2USTgoNQ2FuY2VsUmVxdWVzdBIdLm5hbWEudjEuQ2FuY2VsUmVxdWVzdFJlcXVlc3QaHi5uYW1hLnYxLkNhbmNlbFJlcXVlc3RSZXNwb25zZRJLCgxSZXRyeVJlcXVlc3QSHC5uYW1hLnYxLlJldHJ5UmVxdWVzdFJlcXVlc3QaHS5uYW1hLnYxLlJldHJ5UmVxdWVzdFJlc3BvbnNlElQKD1dpdGhkcmF3UmVxdWVzdBIfLm5hbWEudjEuV2l0aGRyYXdSZXF1ZXN0UmVxdWVzdBogLm5hbWEudjEuV2l0aGRyYXdSZXF1ZXN0UmVzcG9uc2USYAoTQXBwcm92ZUZvbGxvd2VkU2hvdxIjLm5hbWEudjEuQXBwcm92ZUZvbGxvd2VkU2hvd1JlcXVlc3QaJC5uYW1hLnYxLkFwcHJvdmVGb2xsb3dlZFNob3dSZXNwb25zZRJgChNEZWNsaW5lRm9sbG93ZWRTaG93EiMubmFtYS52MS5EZWNsaW5lRm9sbG93ZWRTaG93UmVxdWVzdBokLm5hbWEudjEuRGVjbGluZUZvbGxvd2VkU2hvd1Jlc3BvbnNlEl0KEkNhbmNlbEZvbGxvd2VkU2hvdxIiLm5hbWEudjEuQ2FuY2VsRm9sbG93ZWRTaG93UmVxdWVzdBojLm5hbWEudjEuQ2FuY2VsRm9sbG93ZWRTaG93UmVzcG9uc2USYwoUV2l0aGRyYXdGb2xsb3dlZFNob3cSJC5uYW1hLnYxLldpdGhkcmF3Rm9sbG93ZWRTaG93UmVxdWVzdBolLm5hbWEudjEuV2l0aGRyYXdGb2xsb3dlZFNob3dSZXNwb25zZRJoChRMaXN0T2ZmZXJlZFF1YWxpdGllcxIkLm5hbWEudjEuTGlzdE9mZmVyZWRRdWFsaXRpZXNSZXF1ZXN0GiUubmFtYS52MS5MaXN0T2ZmZXJlZFF1YWxpdGllc1Jlc3BvbnNlIgOQAgFiBnByb3RvMw", [file_nama_v1_match, file_nama_v1_page, file_nama_v1_plugin, file_nama_v1_refusal]);
 
 /**
  * Users asking for one Movie, or one Season of a Show. Each has at most one open Request: one that
@@ -1414,8 +1414,8 @@ export type MovieHit = Message<"nama.v1.MovieHit"> & {
   posterUrl?: string | undefined;
 
   /**
-   * The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-   * by `id`.
+   * The oldest Library the Movie is Matched in, if any, or for `SearchService.Search`'s Library
+   * batch the one it was found in. `BrowseService.GetMovie` opens it there, by `id`.
    *
    * @generated from field: optional int64 library_id = 8;
    */
@@ -1524,6 +1524,69 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
    * @generated from field: optional bytes backdrop_thumbhash = 11;
    */
   backdropThumbhash?: Uint8Array | undefined;
+
+  /**
+   * As `nama.v1.Movie.score`, from the title source it was looked up in.
+   *
+   * @generated from field: optional double score = 13;
+   */
+  score?: number | undefined;
+
+  /**
+   * As `nama.v1.Movie.original_language`.
+   *
+   * @generated from field: optional string original_language = 14;
+   */
+  originalLanguage?: string | undefined;
+
+  /**
+   * As `nama.v1.Movie.genres`, from the title source it was looked up in.
+   *
+   * @generated from field: repeated string genres = 15;
+   */
+  genres: string[];
+
+  /**
+   * As `nama.v1.Movie.content_rating`, from the title source it was looked up in.
+   *
+   * @generated from field: optional string content_rating = 16;
+   */
+  contentRating?: string | undefined;
+
+  /**
+   * As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
+   *
+   * @generated from field: bool on_watchlist = 17;
+   */
+  onWatchlist: boolean;
+
+  /**
+   * As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+   *
+   * @generated from field: repeated nama.v1.MovieHit similar = 21;
+   */
+  similar: MovieHit[];
+
+  /**
+   * As `nama.v1.Movie.trailers`, from the title source it was looked up in.
+   *
+   * @generated from field: repeated nama.v1.Trailer trailers = 18;
+   */
+  trailers: Trailer[];
+
+  /**
+   * As `nama.v1.Movie.cast`, from the title source it was looked up in.
+   *
+   * @generated from field: repeated nama.v1.Role cast = 19;
+   */
+  cast: Role[];
+
+  /**
+   * As `nama.v1.Movie.crew`, from the title source it was looked up in.
+   *
+   * @generated from field: repeated nama.v1.Role crew = 20;
+   */
+  crew: Role[];
 };
 
 /**
@@ -1534,40 +1597,33 @@ export const FoundMovieSchema: GenMessage<FoundMovie> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 51);
 
 /**
- * @generated from message nama.v1.SearchMoviesRequest
+ * A video advertising a Movie or Show, as a link to where it is hosted. A client only links to
+ * it, so showing a title tells the host nothing until a User opens one.
+ *
+ * @generated from message nama.v1.Trailer
  */
-export type SearchMoviesRequest = Message<"nama.v1.SearchMoviesRequest"> & {
+export type Trailer = Message<"nama.v1.Trailer"> & {
   /**
-   * Must not be blank.
+   * What it is called, such as `Official Trailer`.
    *
-   * @generated from field: string title = 1;
+   * @generated from field: string name = 1;
    */
-  title: string;
-};
+  name: string;
 
-/**
- * Describes the message nama.v1.SearchMoviesRequest.
- * Use `create(SearchMoviesRequestSchema)` to create a new message.
- */
-export const SearchMoviesRequestSchema: GenMessage<SearchMoviesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 52);
-
-/**
- * @generated from message nama.v1.SearchMoviesResponse
- */
-export type SearchMoviesResponse = Message<"nama.v1.SearchMoviesResponse"> & {
   /**
-   * @generated from field: repeated nama.v1.MovieHit movies = 1;
+   * Where it is hosted: a `https` URL on YouTube or Vimeo.
+   *
+   * @generated from field: string url = 2;
    */
-  movies: MovieHit[];
+  url: string;
 };
 
 /**
- * Describes the message nama.v1.SearchMoviesResponse.
- * Use `create(SearchMoviesResponseSchema)` to create a new message.
+ * Describes the message nama.v1.Trailer.
+ * Use `create(TrailerSchema)` to create a new message.
  */
-export const SearchMoviesResponseSchema: GenMessage<SearchMoviesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 53);
+export const TrailerSchema: GenMessage<Trailer> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 52);
 
 /**
  * @generated from message nama.v1.LookUpMovieRequest
@@ -1586,7 +1642,7 @@ export type LookUpMovieRequest = Message<"nama.v1.LookUpMovieRequest"> & {
  * Use `create(LookUpMovieRequestSchema)` to create a new message.
  */
 export const LookUpMovieRequestSchema: GenMessage<LookUpMovieRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 54);
+  messageDesc(file_nama_v1_request, 53);
 
 /**
  * @generated from message nama.v1.LookUpMovieResponse
@@ -1603,7 +1659,7 @@ export type LookUpMovieResponse = Message<"nama.v1.LookUpMovieResponse"> & {
  * Use `create(LookUpMovieResponseSchema)` to create a new message.
  */
 export const LookUpMovieResponseSchema: GenMessage<LookUpMovieResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 55);
+  messageDesc(file_nama_v1_request, 54);
 
 /**
  * A Show a search found. Numbered as `FoundShow`, so a client built when searches gave
@@ -1641,11 +1697,27 @@ export type ShowHit = Message<"nama.v1.ShowHit"> & {
   posterUrl?: string | undefined;
 
   /**
+   * The oldest Library with an Episode of it Matched, if any, or for `SearchService.Search`'s
+   * Library batch the one it was found in. `BrowseService.GetShow` opens it there, by `id`.
+   *
+   * @generated from field: optional int64 library_id = 8;
+   */
+  libraryId?: bigint | undefined;
+
+  /**
    * As `nama.v1.Movie.poster_thumbhash`.
    *
    * @generated from field: optional bytes poster_thumbhash = 10;
    */
   posterThumbhash?: Uint8Array | undefined;
+
+  /**
+   * For `SearchService.Search`'s title-source batch, the open Request for its earliest Season
+   * with one the caller may see, if any.
+   *
+   * @generated from field: nama.v1.Request request = 13;
+   */
+  request?: Request | undefined;
 };
 
 /**
@@ -1653,7 +1725,7 @@ export type ShowHit = Message<"nama.v1.ShowHit"> & {
  * Use `create(ShowHitSchema)` to create a new message.
  */
 export const ShowHitSchema: GenMessage<ShowHit> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 56);
+  messageDesc(file_nama_v1_request, 55);
 
 /**
  * A Show looked up in the title source, whose Seasons `CreateSeasonRequests` asks for.
@@ -1740,6 +1812,69 @@ export type FoundShow = Message<"nama.v1.FoundShow"> & {
    * @generated from field: optional bytes backdrop_thumbhash = 11;
    */
   backdropThumbhash?: Uint8Array | undefined;
+
+  /**
+   * As `nama.v1.Movie.score`, from the title source it was looked up in.
+   *
+   * @generated from field: optional double score = 13;
+   */
+  score?: number | undefined;
+
+  /**
+   * As `nama.v1.Movie.original_language`.
+   *
+   * @generated from field: optional string original_language = 14;
+   */
+  originalLanguage?: string | undefined;
+
+  /**
+   * As `nama.v1.Show.cast`, from the title source it was looked up in.
+   *
+   * @generated from field: repeated nama.v1.Role cast = 19;
+   */
+  cast: Role[];
+
+  /**
+   * As `nama.v1.Show.crew`, from the title source it was looked up in.
+   *
+   * @generated from field: repeated nama.v1.Role crew = 20;
+   */
+  crew: Role[];
+
+  /**
+   * As `FoundMovie.genres`.
+   *
+   * @generated from field: repeated string genres = 15;
+   */
+  genres: string[];
+
+  /**
+   * As `FoundMovie.content_rating`, such as `TV-MA`.
+   *
+   * @generated from field: optional string content_rating = 16;
+   */
+  contentRating?: string | undefined;
+
+  /**
+   * As `FoundMovie.on_watchlist`.
+   *
+   * @generated from field: bool on_watchlist = 17;
+   */
+  onWatchlist: boolean;
+
+  /**
+   * As `FoundMovie.similar`, for the Show.
+   *
+   * @generated from field: repeated nama.v1.ShowHit similar = 21;
+   */
+  similar: ShowHit[];
+
+  /**
+   * As `nama.v1.Movie.trailers`, from the title source it was looked up in.
+   *
+   * @generated from field: repeated nama.v1.Trailer trailers = 18;
+   */
+  trailers: Trailer[];
 };
 
 /**
@@ -1747,6 +1882,43 @@ export type FoundShow = Message<"nama.v1.FoundShow"> & {
  * Use `create(FoundShowSchema)` to create a new message.
  */
 export const FoundShowSchema: GenMessage<FoundShow> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 56);
+
+/**
+ * A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew). A
+ * Person has no page.
+ *
+ * @generated from message nama.v1.Role
+ */
+export type Role = Message<"nama.v1.Role"> & {
+  /**
+   * The Person's name.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * The character they play, or the job they did, in English, such as `Director` or `Creator`.
+   * Empty if the title source doesn't say.
+   *
+   * @generated from field: string part = 2;
+   */
+  part: string;
+
+  /**
+   * Their headshot's URL on this Server. Only the first 15 of the Cast have one, if any.
+   *
+   * @generated from field: optional string headshot_url = 3;
+   */
+  headshotUrl?: string | undefined;
+};
+
+/**
+ * Describes the message nama.v1.Role.
+ * Use `create(RoleSchema)` to create a new message.
+ */
+export const RoleSchema: GenMessage<Role> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 57);
 
 /**
@@ -1794,42 +1966,6 @@ export const FoundSeasonSchema: GenMessage<FoundSeason> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 58);
 
 /**
- * @generated from message nama.v1.SearchShowsRequest
- */
-export type SearchShowsRequest = Message<"nama.v1.SearchShowsRequest"> & {
-  /**
-   * Must not be blank.
-   *
-   * @generated from field: string title = 1;
-   */
-  title: string;
-};
-
-/**
- * Describes the message nama.v1.SearchShowsRequest.
- * Use `create(SearchShowsRequestSchema)` to create a new message.
- */
-export const SearchShowsRequestSchema: GenMessage<SearchShowsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 59);
-
-/**
- * @generated from message nama.v1.SearchShowsResponse
- */
-export type SearchShowsResponse = Message<"nama.v1.SearchShowsResponse"> & {
-  /**
-   * @generated from field: repeated nama.v1.ShowHit shows = 1;
-   */
-  shows: ShowHit[];
-};
-
-/**
- * Describes the message nama.v1.SearchShowsResponse.
- * Use `create(SearchShowsResponseSchema)` to create a new message.
- */
-export const SearchShowsResponseSchema: GenMessage<SearchShowsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 60);
-
-/**
  * @generated from message nama.v1.LookUpShowRequest
  */
 export type LookUpShowRequest = Message<"nama.v1.LookUpShowRequest"> & {
@@ -1846,7 +1982,7 @@ export type LookUpShowRequest = Message<"nama.v1.LookUpShowRequest"> & {
  * Use `create(LookUpShowRequestSchema)` to create a new message.
  */
 export const LookUpShowRequestSchema: GenMessage<LookUpShowRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 61);
+  messageDesc(file_nama_v1_request, 59);
 
 /**
  * @generated from message nama.v1.LookUpShowResponse
@@ -1863,7 +1999,7 @@ export type LookUpShowResponse = Message<"nama.v1.LookUpShowResponse"> & {
  * Use `create(LookUpShowResponseSchema)` to create a new message.
  */
 export const LookUpShowResponseSchema: GenMessage<LookUpShowResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 62);
+  messageDesc(file_nama_v1_request, 60);
 
 /**
  * Where a Request is on its way to the Library (ADR 0012).
@@ -2142,19 +2278,6 @@ export const RequestService: GenService<{
     output: typeof CountPendingRequestsResponseSchema;
   },
   /**
-   * Searches the title source for Movies to ask for, best fit first. Unlike
-   * `MatchService.SearchTitles`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
-   * `invalid_argument` if the title is blank, and `unavailable` if no title source is
-   * enabled, or one failed.
-   *
-   * @generated from rpc nama.v1.RequestService.SearchMovies
-   */
-  searchMovies: {
-    methodKind: "unary";
-    input: typeof SearchMoviesRequestSchema;
-    output: typeof SearchMoviesResponseSchema;
-  },
-  /**
    * Returns one Movie from the title source, for its page when no Library has it. Needs
    * `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no title source has a Movie with the
    * id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
@@ -2166,17 +2289,6 @@ export const RequestService: GenService<{
     methodKind: "unary";
     input: typeof LookUpMovieRequestSchema;
     output: typeof LookUpMovieResponseSchema;
-  },
-  /**
-   * Searches the title source for Shows to ask for Seasons of, best fit first. Needs
-   * `PERMISSION_REQUEST_TV`. Fails as `SearchMovies` does.
-   *
-   * @generated from rpc nama.v1.RequestService.SearchShows
-   */
-  searchShows: {
-    methodKind: "unary";
-    input: typeof SearchShowsRequestSchema;
-    output: typeof SearchShowsResponseSchema;
   },
   /**
    * Returns one Show from the title source with each of its Seasons, for picking which to ask

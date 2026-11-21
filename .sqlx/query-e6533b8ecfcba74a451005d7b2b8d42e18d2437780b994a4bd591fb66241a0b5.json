@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT plugin_id FROM home_rows WHERE (user_id IS NOT NULL) = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "plugin_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e6533b8ecfcba74a451005d7b2b8d42e18d2437780b994a4bd591fb66241a0b5"
+}

@@ -4,10 +4,9 @@
 
 use nama_pdk::{
     Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Image, ImageAnswer, ImageAsked, Manifest,
-    Response, SeasonAsked, TitleKind, TitleSource,
+    OutsideService, Response, SeasonAsked, SettingField, SettingKind, TitleKind, TitleSource,
     extism_pdk::{Error, HttpRequest, json},
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
-    services,
+    required_setting, services, setting_default, setting_field, setting_value,
 };
 use serde::Deserialize;
 
@@ -15,6 +14,11 @@ const API_KEY: &str = "api_key";
 const CLIENT_KEY: &str = "client_key";
 const API_URL: &str = "api_url";
 const ASSETS_URL: &str = "assets_url";
+
+const FANART: OutsideService = OutsideService::new("fanart.tv").credential("API key");
+
+/// The host of fanart.tv's images, which is sent no key.
+const ASSETS_HOST: OutsideService = OutsideService::new("fanart.tv's assets host");
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -41,20 +45,9 @@ const SETUP: &str = "\
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
-    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
-        ..SettingField::default()
-    };
     let url = |key: &str, label: &str, description: &str, default: &str| SettingField {
-        default_value: SettingValue {
-            value: Some(setting_value::Value::TextValue(default.to_owned())),
-            ..SettingValue::default()
-        }
-        .into(),
-        ..setting(key, label, description, SettingKind::SETTING_KIND_URL)
+        default_value: setting_default(setting_value::Value::TextValue(default.to_owned())),
+        ..setting_field(key, label, description, SettingKind::SETTING_KIND_URL)
     };
     Manifest {
         name: "fanart.tv".to_owned(),
@@ -70,14 +63,14 @@ fn manifest() -> Manifest {
         settings: vec![
             SettingField {
                 required: true,
-                ..setting(
+                ..setting_field(
                     API_KEY,
                     "API key",
                     "A fanart.tv project API key, from the API page of your fanart.tv account.",
                     SettingKind::SETTING_KIND_SECRET,
                 )
             },
-            setting(
+            setting_field(
                 CLIENT_KEY,
                 "Personal API key",
                 "Your personal fanart.tv API key, which gets you newer artwork sooner.",
@@ -141,11 +134,12 @@ impl TitleSource for Fanart {
         }
         let url = format!(
             "{}{}",
-            setting(ASSETS_URL)?.trim_end_matches('/'),
+            required_setting(ASSETS_URL)?.trim_end_matches('/'),
             asked.path
         );
-        let Some(response) = accepted(send(&HttpRequest::new(url))?, "fanart.tv's assets host")?
-        else {
+        // Sent as the service, whose "didn't answer" Admins already read; refused as the host.
+        let response = FANART.send(&HttpRequest::new(url), None::<String>)?;
+        let Some(response) = ASSETS_HOST.found(response)? else {
             return Ok(ImageAnswer::default());
         };
         Ok(ImageAnswer {
@@ -239,13 +233,13 @@ fn show_path(asked: &SeasonAsked) -> Result<Option<String>, Error> {
 fn fetched(path: &str) -> Result<Option<Vec<u8>>, Error> {
     let mut url = format!(
         "{}/{path}?api_key={}",
-        setting(API_URL)?.trim_end_matches('/'),
-        encoded(&setting(API_KEY)?),
+        required_setting(API_URL)?.trim_end_matches('/'),
+        encoded(&required_setting(API_KEY)?),
     );
-    if let Some(client_key) = nama_pdk::setting(CLIENT_KEY)?.filter(|key| !key.trim().is_empty()) {
+    if let Some(client_key) = nama_pdk::setting(CLIENT_KEY)? {
         url = format!("{url}&client_key={}", encoded(client_key.trim()));
     }
-    let response = accepted(send(&HttpRequest::new(url))?, "fanart.tv")?;
+    let response = FANART.found(FANART.send(&HttpRequest::new(url), None::<String>)?)?;
     Ok(response.map(Response::into_body))
 }
 
@@ -336,27 +330,6 @@ fn unexpected(err: &json::Error) -> Error {
 fn asset_path(url: &str) -> Option<String> {
     let (_, rest) = url.split_once("://")?;
     rest.split_once('/').map(|(_, path)| format!("/{path}"))
-}
-
-/// The setting `key`, which the Server sets before every call.
-fn setting(key: &str) -> Result<String, Error> {
-    nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
-}
-
-fn send(request: &HttpRequest) -> Result<Response, Error> {
-    nama_pdk::http_request(request, None::<String>, "fanart.tv didn't answer")
-}
-
-/// `response` if `service` took the request, `None` for a 404, else an error naming the status
-/// and nothing of the request, which holds the key.
-fn accepted(response: Response, service: &str) -> Result<Option<Response>, Error> {
-    match response.status_code() {
-        200..300 => Ok(Some(response)),
-        404 => Ok(None),
-        status => Err(Error::msg(format!(
-            "{service} refused the request with HTTP status {status}"
-        ))),
-    }
 }
 
 /// `text` percent-encoded for a URL.

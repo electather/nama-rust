@@ -1,0 +1,254 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version_id, kind, codec, language, title, is_default AS \"default: bool\",\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", width, height, frame_rate, bit_depth, hdr,\n                      dolby_vision_profile, dolby_vision_base_layer,\n                      channels, atmos AS \"atmos: bool\",\n                      audio_description AS \"audio_description: bool\",\n                      image AS \"image: bool\", header AS \"header: bool\"\n               FROM tracks\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY version_id, position",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "version_id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "codec",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "codec"
+          }
+        }
+      },
+      {
+        "name": "language",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "default: bool",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "is_default"
+          }
+        }
+      },
+      {
+        "name": "forced: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "forced"
+          }
+        }
+      },
+      {
+        "name": "sdh: bool",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "sdh"
+          }
+        }
+      },
+      {
+        "name": "width",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "width"
+          }
+        }
+      },
+      {
+        "name": "height",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "height"
+          }
+        }
+      },
+      {
+        "name": "frame_rate",
+        "ordinal": 10,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "frame_rate"
+          }
+        }
+      },
+      {
+        "name": "bit_depth",
+        "ordinal": 11,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "bit_depth"
+          }
+        }
+      },
+      {
+        "name": "hdr",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "hdr"
+          }
+        }
+      },
+      {
+        "name": "dolby_vision_profile",
+        "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "dolby_vision_profile"
+          }
+        }
+      },
+      {
+        "name": "dolby_vision_base_layer",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "dolby_vision_base_layer"
+          }
+        }
+      },
+      {
+        "name": "channels",
+        "ordinal": 15,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "channels"
+          }
+        }
+      },
+      {
+        "name": "atmos: bool",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "atmos"
+          }
+        }
+      },
+      {
+        "name": "audio_description: bool",
+        "ordinal": 17,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "audio_description"
+          }
+        }
+      },
+      {
+        "name": "image: bool",
+        "ordinal": 18,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "image"
+          }
+        }
+      },
+      {
+        "name": "header: bool",
+        "ordinal": 19,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "header"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "e77765cadacbabc62d53349f52b11162f1402bae8e7174871839667ab81f6302"
+}

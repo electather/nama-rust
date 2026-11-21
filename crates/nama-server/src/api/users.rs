@@ -1,4 +1,4 @@
-//! The Server's Users, their Devices, Plugin Connections and Personal settings:
+//! The Server's Users, their Devices, Plugin Connections, Personal settings and Home layouts:
 //! `nama.v1.UserService`.
 
 use std::sync::Arc;
@@ -11,35 +11,43 @@ use nama_proto::nama::v1::{
     CreateInviteResponse, CreateUserRequest, CreateUserResponse, DeletePersonalSettingsRequest,
     DeletePersonalSettingsResponse, DeletePluginConnectionRequest, DeletePluginConnectionResponse,
     DeleteUserRequest, DeleteUserResponse, GetDefaultPermissionsRequest,
-    GetDefaultPermissionsResponse, ListDevicesRequest, ListDevicesResponse, ListInvitesRequest,
-    ListInvitesResponse, ListNotificationPreferencesRequest, ListNotificationPreferencesResponse,
+    GetDefaultPermissionsResponse, GetHomeLayoutRequest, GetHomeLayoutResponse, HomeLayoutRow,
+    ListDevicesRequest, ListDevicesResponse, ListInvitesRequest, ListInvitesResponse,
+    ListNotificationPreferencesRequest, ListNotificationPreferencesResponse,
     ListPersonalSettingsRequest, ListPersonalSettingsResponse, ListPluginConnectionsRequest,
     ListPluginConnectionsResponse, ListUsersRequest, ListUsersResponse, NotificationKind,
     NotificationPreference, Permission, PluginConnection, PluginConnectionState, RefusalReason,
-    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
-    SetDefaultPermissionsResponse, SetNotificationPreferenceRequest,
-    SetNotificationPreferenceResponse, SetPermissionsRequest, SetPermissionsResponse,
-    StartPluginConnectionRequest, StartPluginConnectionResponse, UpdatePersonalSettingsRequest,
-    UpdatePersonalSettingsResponse, UserService,
+    ReorderHomeRowsRequest, ReorderHomeRowsResponse, ResetHomeLayoutRequest,
+    ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
+    SetDefaultPermissionsResponse, SetHomeLayoutRequest, SetHomeLayoutResponse,
+    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
+    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
+    home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
 };
 
 use crate::{
     connections::{self, Connections},
     db::Database,
+    home_rows::HomeRows,
     images::PluginLogos,
     library::{CustomImageUrls, CustomImages},
     plugin_settings::{Personal, PluginSettings},
-    server_settings::ServerUrl,
+    server_settings::{ServerUrl, Settings},
     users::{
-        self, Caller, Permissions, Users, notification_preferences_of, set_notification_preference,
+        self, AskedHomeLayout, Caller, Permissions, User, UserHomeLayout, Users,
+        notification_preferences_of, set_notification_preference,
     },
 };
 
 use super::{
+    browse::home_rows_of,
     caller, database_failed, permission_required,
     plugins::{change_refused, list_failed, logo, setting_to_proto, settings_from_proto},
-    refuse, signed_out, unknown_enum_value,
+    refuse,
+    server::{home_layout_from_proto, home_row_from_proto},
+    signed_out, unknown_enum_value,
 };
 
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
@@ -55,10 +63,14 @@ pub(super) struct UserServiceHandler {
     pub(super) custom_images: CustomImages,
     /// The Manifests' logos, stored as their URLs are handed out.
     pub(super) plugin_logos: PluginLogos,
-    /// Where the notification preferences are stored.
+    /// Where the notification preferences and Home layouts are stored.
     pub(super) db: Arc<Database>,
     /// What Invites' links start with.
     pub(super) server_url: ServerUrl,
+    /// Lists the Home rows a User's Home layout shows or hides.
+    pub(super) home_rows: HomeRows,
+    /// Holds the default Home layout, which each User's follows but for what they change.
+    pub(super) settings: Settings,
 }
 
 #[expect(
@@ -448,9 +460,87 @@ impl UserService for UserServiceHandler {
             .map_err(database_failed)?;
         Response::ok(SetNotificationPreferenceResponse::default())
     }
+
+    async fn get_home_layout(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetHomeLayoutRequest>,
+    ) -> ServiceResult<GetHomeLayoutResponse> {
+        Response::ok(GetHomeLayoutResponse {
+            layout: self.home_layout(&caller(&ctx)?.user).await?.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn set_home_layout(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetHomeLayoutRequest>,
+    ) -> ServiceResult<SetHomeLayoutResponse> {
+        let reader = &caller(&ctx)?.user;
+        let layout = request.to_owned_message().layout.into_option();
+        let featured_hidden = layout.as_ref().and_then(|layout| layout.featured_hidden);
+        let asked = AskedHomeLayout {
+            featured_shown: featured_hidden.map(|hidden| !hidden),
+            rows: home_layout_from_proto(layout)?.rows,
+        };
+        let seen = home_rows_of(&self.home_rows, reader).await?;
+        let seen = seen.into_iter().map(|(row, _)| row).collect();
+        let default = self.settings.now().default_home_layout;
+        (UserHomeLayout::save(&self.db, reader.id, asked, seen, default).await)
+            .map_err(database_failed)?;
+        Response::ok(SetHomeLayoutResponse {
+            layout: self.home_layout(reader).await?.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn reorder_home_rows(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ReorderHomeRowsRequest>,
+    ) -> ServiceResult<ReorderHomeRowsResponse> {
+        let reader = &caller(&ctx)?.user;
+        let asked = (request.to_owned_message().rows.iter())
+            .map(|row| home_row_from_proto(row, "rows"))
+            .collect::<Result<Vec<_>, _>>()?;
+        let seen = home_rows_of(&self.home_rows, reader).await?;
+        let seen = seen.into_iter().map(|(row, _)| row).collect();
+        let default = self.settings.now().default_home_layout;
+        (UserHomeLayout::reorder(&self.db, reader.id, &asked, seen, default).await)
+            .map_err(database_failed)?;
+        Response::ok(ReorderHomeRowsResponse {
+            layout: self.home_layout(reader).await?.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn reset_home_layout(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ResetHomeLayoutRequest>,
+    ) -> ServiceResult<ResetHomeLayoutResponse> {
+        (UserHomeLayout::reset(&self.db, caller(&ctx)?.user.id).await).map_err(database_failed)?;
+        Response::ok(ResetHomeLayoutResponse::default())
+    }
 }
 
 impl UserServiceHandler {
+    /// `reader`'s Home layout with every Home row they could see now, as the API has it.
+    async fn home_layout(&self, reader: &User) -> Result<proto::HomeLayout, ConnectError> {
+        let rows = home_rows_of(&self.home_rows, reader).await?;
+        let own = UserHomeLayout::of(&self.db, reader.id).await;
+        let own = own.map_err(database_failed)?;
+        let default = self.settings.now().default_home_layout;
+        Ok(proto::HomeLayout {
+            featured_hidden: Some(!own.shows_featured(&default)),
+            rows: (own.arrange(&default, rows).into_iter())
+                .map(|((_, row), shown)| seen_row_to_proto(row, shown))
+                .collect(),
+            ..Default::default()
+        })
+    }
+
     /// A User's `personal` settings for a Plugin, its logo among `custom` or its Manifest's.
     async fn personal_to_proto(
         &self,
@@ -474,6 +564,19 @@ impl UserServiceHandler {
             name: manifest.name,
             ..Default::default()
         }
+    }
+}
+
+/// A Home row a User sees, as their Home layout has it.
+fn seen_row_to_proto(row: KernelOrPlugin, shown: bool) -> HomeLayoutRow {
+    let row = match row {
+        KernelOrPlugin::Kernel(kernel) => LayoutRow::Kernel(kernel),
+        KernelOrPlugin::Plugin(plugin) => LayoutRow::Plugin(plugin),
+    };
+    HomeLayoutRow {
+        row: Some(row),
+        hidden: !shown,
+        ..Default::default()
     }
 }
 
@@ -518,7 +621,7 @@ fn permissions_to_proto(permissions: Permissions) -> Vec<EnumValue<Permission>> 
     permissions.iter().map(EnumValue::from).collect()
 }
 
-pub(super) fn user_to_proto(user: users::User) -> proto::User {
+pub(super) fn user_to_proto(user: User) -> proto::User {
     proto::User {
         id: user.id,
         name: user.name,

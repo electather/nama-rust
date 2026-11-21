@@ -1,32 +1,43 @@
 import { notFound } from "@tanstack/react-router";
 
+import { CastAndCrew } from "@/features/title/components/cast-and-crew";
+import { MovieRequestHero } from "@/features/title/components/movie-request-hero";
+import { SimilarTitles } from "@/features/title/components/similar-titles";
+import { TitleDetails } from "@/features/title/components/title-details";
 import { TitlePage } from "@/features/title/components/title-page";
+import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useFoundMovie } from "@/features/title/data/use-found-movie";
+import { crewWithJob } from "@/features/title/lib/crew-with-job";
+import { originalAudio } from "@/features/title/lib/original-audio";
+import { similarMovies } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
-import { FoundMovieState } from "@/shared/components/found-movie-state/found-movie-state";
-import { metadataLine, runtimeOf } from "@/shared/lib/title-facts";
 
-/** A Movie from the title source, for the signed-in User `you` to Request. */
+/**
+ * A Movie from the title source, for the signed-in User `you` to Request: its top, with Request or
+ * where its Request is, its Trailers, the Similar titles on this Server, then its Details.
+ */
 export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: bigint | undefined }) {
   const movie = useFoundMovie({ movieId });
   if (!movie) {
     throw notFound();
   }
   return (
-    <TitlePage
-      title={movie.title}
-      backdropUrl={movie.backdropUrl}
-      backdropThumbhash={movie.backdropThumbhash}
-    >
-      <p className="text-sm text-muted-foreground">
-        {metadataLine(movie.year?.toString(), runtimeOf(movie.runtimeMinutes))}
-      </p>
-      <div className="mt-6 flex flex-wrap items-center gap-3">
-        <FoundMovieState movie={movie} you={you} primary />
-      </div>
-      {movie.overview !== undefined && (
-        <p className="mt-8 max-w-prose text-pretty">{movie.overview}</p>
-      )}
+    <TitlePage hero={<MovieRequestHero movieId={movieId} movie={movie} you={you} />}>
+      <CastAndCrew cast={movie.cast} crew={movie.crew} />
+      <TitleTrailers trailers={movie.trailers} />
+      <SimilarTitles heading="On this Server" titles={similarMovies(movie.similar)} />
+      <TitleDetails
+        groups={[
+          {
+            heading: "Information",
+            facts: [
+              ["Released", movie.year?.toString()],
+              ["Directed by", crewWithJob(movie.crew, "Director")],
+            ],
+          },
+          { heading: "Languages", facts: [originalAudio(movie.originalLanguage)] },
+        ]}
+      />
     </TitlePage>
   );
 }

@@ -1,26 +1,46 @@
-use std::collections::HashMap;
-
 use nama_pdk::{
-    HomeRows, TitleKind, extism_pdk::Error, nama_plugin_proto::nama::plugin::v1::SettingKind,
+    HomeRowSource, HomeRows, TitleKind,
+    extism_pdk::Error,
+    nama_plugin_proto::nama::plugin::v1::SettingKind,
     services,
+    testing::{Kernel, with},
 };
+use url::Url;
 
 use super::{
-    API_KEY, LISTS,
+    API_KEY, LISTS, MdbList,
     fake_mdblist::{FakeList, FakeMdbList, VALID_KEY},
-    manifest, rows,
+    manifest,
 };
 
+/// A Kernel holding the fake's API key and `lists` as List 1 to 3, whose requests `fake` answers.
+fn kernel(fake: FakeMdbList, lists: &[&str]) -> Kernel {
+    let kernel = Kernel::new()
+        .setting(API_KEY, VALID_KEY)
+        .http(move |request, _body| Ok(fake.answer(request)));
+    (LISTS.into_iter().zip(lists)).fold(kernel, |kernel, (key, list)| kernel.setting(key, list))
+}
+
 /// The rows the Plugin answers with `lists` set, asking `fake`.
-fn rows_from(fake: &mut FakeMdbList, lists: &[&str]) -> Result<HomeRows, Error> {
-    let mut settings = HashMap::from([(API_KEY, VALID_KEY.to_owned())]);
-    for (key, list) in LISTS.into_iter().zip(lists) {
-        settings.insert(key, (*list).to_owned());
-    }
-    rows(
-        |key| Ok(settings.get(key).cloned()),
-        |url| Ok(fake.answer(url)),
-    )
+fn rows_from(fake: FakeMdbList, lists: &[&str]) -> Result<HomeRows, Error> {
+    shared_rows(&mut kernel(fake, lists))
+}
+
+fn shared_rows(kernel: &mut Kernel) -> Result<HomeRows, Error> {
+    with(kernel, MdbList::shared_rows)
+}
+
+/// The query of each request `kernel` sent for a list's items, without the API key.
+fn pages(kernel: &Kernel) -> Vec<String> {
+    (kernel.sent().iter())
+        .filter_map(|sent| Url::parse(&sent.request.url).ok())
+        .filter(|url| url.path().ends_with("/items"))
+        .map(|url| {
+            url.query()
+                .unwrap_or_default()
+                .replace(&format!("apikey={VALID_KEY}&"), "")
+        })
+        .collect()
 }
 
 /// A row's titles by kind and TMDB id.
@@ -102,7 +122,7 @@ fn a_list_becomes_a_row_headed_by_its_name_of_its_tmdb_ids_in_rank_order() {
         ..FakeList::new(2194, "classics", "Classics")
     });
 
-    let rows = rows_from(&mut fake, &["https://mdblist.com/lists/alice/classics/"]).unwrap();
+    let rows = rows_from(fake, &["https://mdblist.com/lists/alice/classics/"]).unwrap();
 
     let movie = Some(TitleKind::TITLE_KIND_MOVIE);
     let show = Some(TitleKind::TITLE_KIND_SHOW);
@@ -129,7 +149,9 @@ fn a_long_list_is_read_a_page_at_a_time_up_to_200_titles() {
         ..FakeList::new(7, "long", "Long")
     });
 
-    let rows = rows_from(&mut fake, &["7"]).unwrap();
+    let mut kernel = kernel(fake, &["7"]);
+
+    let rows = shared_rows(&mut kernel).unwrap();
 
     let ids: Vec<_> = summary(&rows)[0]
         .3
@@ -138,15 +160,10 @@ fn a_long_list_is_read_a_page_at_a_time_up_to_200_titles() {
         .collect();
     let expected: Vec<_> = (1..=200).map(|id: u32| id.to_string()).collect();
     assert_eq!(ids, expected);
-    let pages: Vec<_> = (fake.asked.iter())
-        .filter(|url| url.path().ends_with("/items"))
-        .map(|url| {
-            url.query()
-                .unwrap_or_default()
-                .replace(&format!("apikey={VALID_KEY}&"), "")
-        })
-        .collect();
-    assert_eq!(pages, ["limit=100&offset=0", "limit=100&offset=100"]);
+    assert_eq!(
+        pages(&kernel),
+        ["limit=100&offset=0", "limit=100&offset=100"]
+    );
 }
 
 #[test]
@@ -157,13 +174,11 @@ fn a_short_list_stops_at_its_first_short_page() {
         ..FakeList::new(8, "short", "Short")
     });
 
-    rows_from(&mut fake, &["alice/short"]).unwrap();
+    let mut kernel = kernel(fake, &["alice/short"]);
 
-    let items = fake
-        .asked
-        .iter()
-        .filter(|url| url.path().ends_with("/items"));
-    assert_eq!(items.count(), 1);
+    shared_rows(&mut kernel).unwrap();
+
+    assert_eq!(pages(&kernel), ["limit=100&offset=0"]);
 }
 
 #[test]
@@ -172,7 +187,7 @@ fn each_list_set_becomes_a_row_in_the_settings_order() {
     fake.lists.push(FakeList::new(1, "first", "First"));
     fake.lists.push(FakeList::new(2, "second", "Second"));
 
-    let rows = rows_from(&mut fake, &["2", "", "alice/first"]).unwrap();
+    let rows = rows_from(fake, &["2", "", "alice/first"]).unwrap();
 
     let headings: Vec<_> = rows.rows.iter().map(|row| row.heading.as_str()).collect();
     assert_eq!(headings, ["Second", "First"]);
@@ -183,7 +198,7 @@ fn a_list_that_is_gone_fails_the_refresh_naming_it() {
     let mut fake = FakeMdbList::default();
     fake.lists.push(FakeList::new(1, "first", "First"));
 
-    let err = rows_from(&mut fake, &["alice/first", "alice/deleted"]).unwrap_err();
+    let err = rows_from(fake, &["alice/first", "alice/deleted"]).unwrap_err();
 
     assert_eq!(
         err.to_string(),
@@ -199,7 +214,7 @@ fn a_private_list_fails_the_refresh_naming_it() {
         ..FakeList::new(1, "secret", "Secret")
     });
 
-    let err = rows_from(&mut fake, &["https://mdblist.com/lists/alice/secret"]).unwrap_err();
+    let err = rows_from(fake, &["https://mdblist.com/lists/alice/secret"]).unwrap_err();
 
     assert_eq!(
         err.to_string(),
@@ -209,25 +224,24 @@ fn a_private_list_fails_the_refresh_naming_it() {
 
 #[test]
 fn a_setting_that_names_no_list_fails_the_refresh_saying_so() {
-    let err = rows_from(&mut FakeMdbList::default(), &["alice/top/movies"]).unwrap_err();
+    let mut kernel = kernel(FakeMdbList::default(), &["alice/top/movies"]);
+
+    let err = shared_rows(&mut kernel).unwrap_err();
 
     assert_eq!(
         err.to_string(),
         "alice/top/movies isn't an MDBList list's address or id"
     );
+    assert_eq!(kernel.sent(), []);
 }
 
 #[test]
 fn a_refused_api_key_fails_the_refresh_saying_so() {
     let mut fake = FakeMdbList::default();
     fake.lists.push(FakeList::new(1, "first", "First"));
-    let settings = HashMap::from([(API_KEY, "wrong"), (LISTS[0], "1")]);
+    let mut kernel = kernel(fake, &["1"]).setting(API_KEY, "wrong");
 
-    let err = rows(
-        |key| Ok(settings.get(key).map(|value| (*value).to_owned())),
-        |url| Ok(fake.answer(url)),
-    )
-    .unwrap_err();
+    let err = shared_rows(&mut kernel).unwrap_err();
 
     assert_eq!(err.to_string(), "MDBList refused the API key");
 }

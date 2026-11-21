@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT crew AS \"crew: bool\", person_namespace, person_value, name, part, headshot\n               FROM title_roles\n               WHERE plugin = ? AND kind = ? AND namespace = ? AND value = ?\n               ORDER BY crew, billed",
+  "describe": {
+    "columns": [
+      {
+        "name": "crew: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "crew"
+          }
+        }
+      },
+      {
+        "name": "person_namespace",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "person_namespace"
+          }
+        }
+      },
+      {
+        "name": "person_value",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "person_value"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "part",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "part"
+          }
+        }
+      },
+      {
+        "name": "headshot",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "headshot"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "0ebfcd1af4a5b3011c197621edbbf0b1a6ef78c9c057c0070192f37d668b68b3"
+}

@@ -17,6 +17,8 @@ export function OneClickRequest({
   return (
     <Button
       variant={variant}
+      // As tall as Play, as the primary action at the top of a title's page.
+      size={variant === "default" ? "tall" : "default"}
       aria-label={`Request ${what}`}
       disabled={disabled}
       // Not `onClick={onRequest}`: the caller's `onRequest` takes an optional Quality, which the

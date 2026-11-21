@@ -25,7 +25,7 @@ pub(crate) use contents::{
     LocalRole, MatchedTo, Metadata, Movie as LibraryMovie, Name, Named, NewestBackdrop, Pin,
     Season as LibrarySeason, Show as LibraryShow, Stored, TiedTitle, TitleSort, TitlesIn,
     Unmatched, UnmatchedReason, Version as LibraryVersion, Watched, library_with_movie,
-    matched_episodes, matched_ids, primary_id,
+    library_with_show, match_bands, matched_episodes, matched_ids, primary_id,
 };
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};
@@ -46,11 +46,11 @@ pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage}
 #[cfg(test)]
 pub(crate) use title_source::scripted;
 pub(crate) use title_source::{
-    Candidate, Episode as SourceEpisode, SearchQuery, Season as SourceSeason, Show as SourceShow,
-    Source, TitleKind, TitleSources, Unanswered,
+    Candidate, Episode as SourceEpisode, Roles, SearchQuery, Season as SourceSeason,
+    Show as SourceShow, Source, TitleKind, TitleSources, Trailer, Unanswered,
 };
 pub(crate) use titles::{
-    NotFound, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,
+    NotFound, OnServer, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,
 };
 pub(crate) use versions::PARSER_VERSION;
 // Matching names it only in its docs, so outside rustdoc nothing would use it.

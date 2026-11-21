@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT layout FROM user_home_layouts WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "layout",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_home_layouts",
+            "name": "layout"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1f885c3ce32209278c5cd70bae679e003e5059f6b2987eea1f06079bc9fd3346"
+}

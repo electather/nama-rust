@@ -94,45 +94,9 @@ async fn a_page_lists_each_movie_once_by_id_after_the_one_named() {
 }
 
 #[tokio::test]
-async fn a_page_names_a_movie_by_its_librarys_first_title_source() {
-    let fx = Fixture::new().await;
-    let ids = ExternalIds::from_iter([ExternalId::tmdb(348), ExternalId::tvdb(1)]);
-    matched_movie(&fx, "/media/Alien.mkv", "Alien", ids).await;
-
-    let before = page_ids(&fx, None, None).await;
-    let order = vec!["tvdb".to_owned(), "tmdb".to_owned()];
-    fx.libraries
-        .set_title_sources(fx.library, order)
-        .await
-        .unwrap();
-    let after_reorder = page_ids(&fx, None, None).await;
-
-    assert_eq!(before, [ExternalId::tmdb(348)]);
-    assert_eq!(after_reorder, [ExternalId::tvdb(1)]);
-}
-
-#[tokio::test]
-async fn a_page_names_a_movie_with_no_id_from_its_librarys_title_sources_by_its_first_namespace() {
-    let fx = Fixture::new().await;
-    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
-    let ids = ExternalIds::from_iter([ExternalId::tvdb(1), imdb.clone()]);
-    matched_movie(&fx, "/media/Alien.mkv", "Alien", ids).await;
-
-    let page = page_ids(&fx, None, None).await;
-    let browsed = fx.contents.movies(fx.library, None).await.unwrap();
-
-    assert_eq!(page, [imdb]);
-    assert_eq!(page[0], browsed[0].id);
-}
-
-#[tokio::test]
-async fn a_page_of_episodes_gives_their_show_numbers_and_added_time_and_leaves_out_one_without_a_show_id()
- {
-    let fx = Fixture::new().await;
+async fn a_page_of_episodes_gives_their_show_numbers_and_added_time() {
+    let fx = Fixture::shows().await;
     let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523)]);
-    let showless = ExternalIds::default();
-    matched_episode(&fx, "/media/Dark - S01E02.mkv", 2, "Lies", showless).await;
-
     let before = db::now();
     matched_episode(&fx, "/media/Dark - S01E01.mkv", 1, "Secrets", dark).await;
     let after = db::now();

@@ -46,6 +46,8 @@ const buttonVariants = cva(
         tall: "h-11 px-5 [&_svg]:size-5",
         // Play or Resume at the top of a title's page, as a pill.
         pill: "h-11 px-6 text-base [&_svg]:size-4 [&_svg]:fill-current",
+        // A Season's name over its Episodes, which opens the menu that picks another Season.
+        heading: "h-11 ps-5 pe-4 text-lg font-semibold [&_svg]:size-5",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

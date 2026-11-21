@@ -109,7 +109,7 @@ What an Installed Plugin is built against, with a version of its own that a Mani
 _Avoid_: plugin API, SDK, Nama API
 
 **Manifest**:
-What a Plugin says about itself before it is enabled: its id, name, version, description and logo, the Plugin contract versions it works with, its settings, the hosts it may reach, its Extension Points, and the ids its Fulfiller needs. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. An Installed Plugin's names each Extension Point by its service's full name with the versions of it the Plugin works with. A Server outside those Plugin contract versions refuses the Plugin, as it refuses an Installed Plugin naming none or naming an Extension Point it doesn't serve, at a version it doesn't serve, or lacking an export one needs, and a Plugin may take part only at the Extension Points it names.
+What a Plugin says about itself before it is enabled: its id, name, version, description and logo, setup steps, a homepage and a source link, a licence, the Plugin contract versions it works with, its settings, the Personal settings it declares, the hosts it may reach, the Plugin Permissions it requests, its Extension Points, and the ids its Fulfiller needs. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. An Installed Plugin's names each Extension Point by its service's full name with the versions of it the Plugin works with. A Server outside those Plugin contract versions refuses the Plugin, as it refuses an Installed Plugin naming none or naming an Extension Point it doesn't serve, at a version it doesn't serve, or lacking an export one needs, and a Plugin may take part only at the Extension Points it names.
 _Avoid_: descriptor, plugin.json, metadata
 
 **Extension Point**:
@@ -127,6 +127,10 @@ _Avoid_: driver, backend, adapter
 **Title source**:
 A Provider that finds and fetches Movies and Shows by a Namespace of External IDs, such as TMDB or TVDB. It keeps its titles under one Namespace and may look them up by others. Each Library asks its own title sources in its own order (ADR 0044).
 _Avoid_: metadata provider, metadata agent, scraper
+
+**Search source**:
+A Provider that answers what a User types into search with titles by External ID, in its own order, such as by meaning rather than by words. The Server decides whether each is on it, Requested or not on it; it doesn't fetch titles, as a title source does.
+_Avoid_: search provider, search engine, search plugin
 
 **Recogniser**:
 A Provider that proposes what a file is, such as an Episode numbered from the start of its Show, or which title an Item names. The Kernel decides: it alone writes Matches and marks an Item Unmatched, and its own Matching is what it falls back to. Each Library asks its own Recognisers in its own order (ADR 0050).
@@ -237,6 +241,34 @@ _Avoid_: collateral, doomed
 The age guidance a country's ratings board gives a Movie or Show, such as PG-13 or TV-MA.
 _Avoid_: certification, age rating, parental rating, maturity rating
 
+**Score**:
+How well a Movie's or Show's audience liked it, from 0 to 10, as the title source it is Matched to averages it. A title nobody has voted on has none.
+_Avoid_: rating (that's Content Rating), stars, user score
+
+**Person**:
+Someone who worked on Movies or Shows, known by an External ID, with at most one headshot, shared by all their Roles. A Person has no page.
+_Avoid_: actor, talent, cast member
+
+**Role**:
+A Person's part in one Movie or Show: a character they play (Cast) or a job they did (Crew), in the order the title source bills them. A Show's Roles span its whole run.
+_Avoid_: credit (Credits is a Segment), billing
+
+**Cast**:
+A title's Roles that are characters.
+_Avoid_: actors, starring
+
+**Crew**:
+A title's Roles that are jobs, such as Director or Creator.
+_Avoid_: staff, credits
+
+**Trailer**:
+A video advertising a Movie or Show, kept as a link to where it is hosted. Nama never plays it.
+_Avoid_: clip, teaser, preview
+
+**Similar titles**:
+The Movies or Shows a title source says are like a title. A User sees only those in their own Libraries.
+_Avoid_: recommendations, related, more like this
+
 **Poster**:
 The tall image that stands for a Movie, Show or Season.
 _Avoid_: cover, thumbnail, primary image
@@ -314,6 +346,10 @@ _Avoid_: arrangement, customization, home settings, home preferences
 **Track**:
 One video, audio or subtitle stream inside a Version, such as its English audio or its French subtitles.
 _Avoid_: stream, channel
+
+**Audio Description**:
+An audio Track that narrates what is on screen for people who can't see it, as its file marks it.
+_Avoid_: AD, descriptive audio, DVS
 
 **Chapter**:
 A named part of a Version, as its file lists it.

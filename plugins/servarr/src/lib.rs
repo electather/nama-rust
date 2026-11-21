@@ -4,9 +4,10 @@
 use std::collections::{HashMap, HashSet};
 
 use nama_pdk::{
-    CheckedSettings, Download, Fulfilled, Request, Response,
+    CheckedSettings, Download, Fulfilled, OutsideService, Request, Response, SettingField,
+    SettingKind,
     extism_pdk::{Error, HttpRequest, Json, json},
-    nama_plugin_proto::nama::plugin::v1::{DownloadStatus, SettingField, SettingKind},
+    nama_plugin_proto::nama::plugin::v1::DownloadStatus,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -20,12 +21,8 @@ const ROOT_FOLDER: &str = "root_folder";
 #[must_use]
 pub fn settings(service: &str, added: &str, port: u16) -> Vec<SettingField> {
     let setting = |key: &str, label: &str, description: String, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description,
-        kind: kind.into(),
         required: true,
-        ..SettingField::default()
+        ..nama_pdk::setting_field(key, label, description, kind)
     };
     vec![
         setting(
@@ -60,7 +57,7 @@ pub fn settings(service: &str, added: &str, port: u16) -> Vec<SettingField> {
 /// # Errors
 /// If it isn't set.
 pub fn root_folder() -> Result<String, Error> {
-    setting(ROOT_FOLDER)
+    nama_pdk::required_setting(ROOT_FOLDER)
 }
 
 /// The quality profile id `request` asks for: its Quality's, else the setting's.
@@ -70,7 +67,7 @@ pub fn root_folder() -> Result<String, Error> {
 pub fn quality_profile(request: &Request) -> Result<i64, Error> {
     let profile = match request.quality.as_option() {
         Some(quality) => quality.profile_id.clone(),
-        None => setting(QUALITY_PROFILE)?,
+        None => nama_pdk::required_setting(QUALITY_PROFILE)?,
     };
     profile
         .parse()
@@ -96,12 +93,6 @@ pub fn fulfilled(
     }
 }
 
-/// The setting `key`, which the Server sets before every call but a settings check, and for
-/// that one too unless it is a Choice.
-fn setting(key: &str) -> Result<String, Error> {
-    nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
-}
-
 /// A quality profile of the service, which a Request is added at.
 #[derive(Debug, Deserialize)]
 pub struct QualityProfile {
@@ -119,7 +110,7 @@ struct RootFolder {
 /// A Sonarr or Radarr service's API, as its URL, API key and name say. Its errors name the
 /// service, and never its URL: a Request's reason reaches every Requester.
 pub struct Servarr {
-    name: &'static str,
+    service: OutsideService,
     url: String,
     api_key: String,
 }
@@ -128,7 +119,7 @@ pub struct Servarr {
 impl std::fmt::Debug for Servarr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Servarr")
-            .field("name", &self.name)
+            .field("service", &self.service)
             .field("url", &self.url)
             .finish_non_exhaustive()
     }
@@ -141,9 +132,9 @@ impl Servarr {
     /// If either isn't set.
     pub fn from_settings(name: &'static str) -> Result<Self, Error> {
         Ok(Self {
-            name,
-            url: setting(URL)?,
-            api_key: setting(API_KEY)?,
+            service: outside_service(name),
+            url: nama_pdk::required_setting(URL)?,
+            api_key: nama_pdk::required_setting(API_KEY)?,
         })
     }
 
@@ -180,7 +171,10 @@ impl Servarr {
     /// Why `request` can't go to the service, which has no quality profile `id`.
     #[must_use]
     pub fn no_such_profile(&self, request: &Request, id: i64) -> Error {
-        let reason = format!("{} has no quality profile with the id {id}", self.name);
+        let reason = format!(
+            "{} has no quality profile with the id {id}",
+            self.service.name()
+        );
         Error::msg(match request.quality.as_option() {
             Some(quality) => format!("{reason}, which {} uses", quality.name),
             None => reason,
@@ -192,8 +186,8 @@ impl Servarr {
     /// # Errors
     /// If the service doesn't answer, refuses, or answers with something other than a `T`.
     pub fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
-        let response = self.accepted(self.send("GET", path, None::<()>)?)?;
-        parsed(self.name, response.body())
+        let response = self.service.accepted(self.send("GET", path, None::<()>)?)?;
+        parsed(self.service.name(), response.body())
     }
 
     /// Sends the service the change `body` to the API path `path` with `method`, ignoring what it
@@ -202,8 +196,9 @@ impl Servarr {
     /// # Errors
     /// If the service doesn't answer or refuses.
     pub fn change(&self, method: &str, path: &str, body: impl Serialize) -> Result<(), Error> {
-        self.accepted(self.send(method, path, Some(body))?)
-            .map(drop)
+        self.service
+            .accepted(self.send(method, path, Some(body))?)?;
+        Ok(())
     }
 
     /// Posts `body` to the API path `path` to add what it describes. Returns `false` if the service
@@ -216,7 +211,8 @@ impl Servarr {
         if already_has(exists, response.status_code(), response.body()) {
             return Ok(false);
         }
-        self.accepted(response).map(|_| true)
+        self.service.accepted(response)?;
+        Ok(true)
     }
 
     /// The Downloads in the service's queue for each of `references` that has any, read in one
@@ -231,7 +227,7 @@ impl Servarr {
         // ponytail: reads only the first 1000 entries, which Sonarr lists one per Episode; page
         // through `totalRecords` if a queue ever holds more.
         let queue: Queue<Q> = self.get(&format!("queue?pageSize=1000&{}=true", Q::INCLUDE))?;
-        Ok(downloads(self.name, queue.records, references))
+        Ok(downloads(self.service.name(), queue.records, references))
     }
 
     fn send(
@@ -245,19 +241,15 @@ impl Servarr {
             .with_method(method)
             .with_header("X-Api-Key", &self.api_key)
             .with_header("Content-Type", "application/json");
-        let unreachable = format!("{} didn't answer", self.name);
-        nama_pdk::http_request(&request, body.map(Json), &unreachable)
+        self.service.send(&request, body.map(Json))
     }
+}
 
-    /// `response`, if the service took the request, or else why it refused.
-    fn accepted(&self, response: Response) -> Result<Response, Error> {
-        let status = response.status_code();
-        if (200..300).contains(&status) {
-            Ok(response)
-        } else {
-            Err(refused(self.name, status, response.body()))
-        }
-    }
+/// The service `name`, such as "Sonarr", as its refusals word it.
+fn outside_service(name: &'static str) -> OutsideService {
+    OutsideService::new(name)
+        .credential("API key")
+        .reader(validation_messages)
 }
 
 /// What a queue entry is for, as each Plugin reads its own part of the entry.
@@ -309,18 +301,13 @@ fn already_has(exists: &str, status: u16, body: &[u8]) -> bool {
         .any(|failure| failure.error_code.as_deref() == Some(exists))
 }
 
-/// Why the service `service` refused a request, from the `status` and `body` of its response, in
-/// words a Requester understands.
-fn refused(service: &str, status: u16, body: &[u8]) -> Error {
-    let messages: Vec<_> = failures(status, body)
+/// The validation messages of a `400 Bad Request` `response`, joined, if it has any.
+fn validation_messages(response: &Response) -> Option<String> {
+    let messages: Vec<_> = failures(response.status_code(), response.body())
         .into_iter()
         .map(|failure| failure.error_message)
         .collect();
-    Error::msg(match status {
-        401 => format!("{service} refused the API key"),
-        400 if !messages.is_empty() => format!("{service} said: {}", messages.join(" ")),
-        status => format!("{service} failed with HTTP status {status}"),
-    })
+    (!messages.is_empty()).then(|| messages.join(" "))
 }
 
 /// The validation failures in `body`, if `status` is a `400 Bad Request`.
@@ -486,35 +473,21 @@ mod tests {
     ]"#;
 
     #[test]
-    fn a_refused_key_says_so() {
-        assert_eq!(
-            refused("Sonarr", 401, b"").to_string(),
-            "Sonarr refused the API key"
-        );
-    }
-
-    #[test]
     fn a_bad_request_says_its_validation_messages() {
         assert_eq!(
-            refused("Radarr", 400, FAILURES).to_string(),
-            "Radarr said: This movie has already been added Path is not valid"
+            validation_messages(&Response::new(400, FAILURES)).as_deref(),
+            Some("This movie has already been added Path is not valid")
         );
     }
 
     #[test]
-    fn a_bad_request_without_messages_says_its_status() {
-        assert_eq!(
-            refused("Radarr", 400, b"not json").to_string(),
-            "Radarr failed with HTTP status 400"
-        );
+    fn a_bad_request_without_messages_says_none() {
+        assert_eq!(validation_messages(&Response::new(400, "not json")), None);
     }
 
     #[test]
-    fn another_status_says_it() {
-        assert_eq!(
-            refused("Sonarr", 503, FAILURES).to_string(),
-            "Sonarr failed with HTTP status 503"
-        );
+    fn another_status_says_no_validation_messages() {
+        assert_eq!(validation_messages(&Response::new(503, FAILURES)), None);
     }
 
     #[test]
@@ -535,7 +508,7 @@ mod tests {
     /// Sonarr, which no test reaches over the network.
     fn sonarr() -> Servarr {
         Servarr {
-            name: "Sonarr",
+            service: outside_service("Sonarr"),
             url: String::new(),
             api_key: String::new(),
         }

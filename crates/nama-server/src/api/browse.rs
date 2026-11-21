@@ -12,20 +12,20 @@ use nama_proto::nama::v1::{
     ListGenresRequest, ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse,
     ListHomeRowsRequest, ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse,
     ListShowsRequest, ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort,
-    Permission, SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection,
-    WatchedFilter, home_row::KernelOrPlugin,
+    Permission, ShowSort, SortDirection, WatchedFilter, home_row::KernelOrPlugin,
 };
 
 use crate::{
     browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
     db::Database,
-    home_rows::{HomeRows, OnServer, RowTitle},
+    home_rows::{HomeRows, RowTitle},
     library::{
-        Downloaded, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing,
-        Role, ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
+        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, OnServer, Role,
+        ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
     server_settings::{HomeRowId, Settings},
+    users::{User, UserHomeLayout},
     watchlist,
 };
 
@@ -33,6 +33,7 @@ use super::{
     ImageSources, caller, database_failed, external_id_to_proto, proto_number,
     requests::{missing_movie_to_proto, missing_show_to_proto},
     required_id,
+    search::{movie_hits, show_hits},
 };
 
 mod refusals;
@@ -41,6 +42,7 @@ mod titles;
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
 use titles::{featured_to_proto, started_to_proto};
+pub(super) use titles::{roles_to_proto, trailers_to_proto};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -50,8 +52,35 @@ pub(super) struct BrowseServiceHandler {
     /// Holds the default Home layout, which orders and hides the Home rows and Featured.
     pub(super) settings: Settings,
     pub(super) images: ImageSources,
-    /// Holds the Watchlists that say whether a Movie or Show is on the caller's.
+    /// Holds the Watchlists that say whether a Movie or Show is on the caller's, and each User's
+    /// Home layout.
     pub(super) db: Arc<Database>,
+}
+
+/// Every Home row `reader` could see now, in no layout's order: Continue Watching, then the
+/// Plugins' rows.
+pub(super) async fn home_rows_of(
+    home_rows: &HomeRows,
+    reader: &User,
+) -> Result<Vec<(HomeRowId, KernelOrPlugin)>, ConnectError> {
+    let plugin_rows = home_rows.list(reader).await.map_err(home_rows_refused)?;
+    let plugin_rows = plugin_rows.into_iter().map(|(id, row)| {
+        let row = proto::PluginHomeRow {
+            plugin_id: id.plugin().map_or_default(ToString::to_string),
+            key: row.key,
+            heading: row.heading,
+            ..Default::default()
+        };
+        (id, row.into())
+    });
+    let continue_watching = proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING;
+    let continue_watching = (
+        HomeRowId::ContinueWatching,
+        KernelOrPlugin::Kernel(continue_watching.into()),
+    );
+    Ok(std::iter::once(continue_watching)
+        .chain(plugin_rows)
+        .collect())
 }
 
 impl BrowseServiceHandler {
@@ -125,10 +154,21 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let on_watchlist = (self.on_watchlist(user.id, TitleKind::Movie, &movie.ids)).await?;
+        let similar = (self
+            .browse
+            .similar(request.library_id, TitleKind::Movie, &movie.ids))
+        .await;
+        let similar = similar.map_err(refused(Fields::LIBRARY))?;
+        let roles = self.browse.movie_roles(&movie).await;
+        let roles = roles.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
+        let (cast, crew) = roles_to_proto(roles, stored_by(&movie.plugin, &images));
         Response::ok(GetMovieResponse {
+            similar: movie_hits(similar, &images),
             movie: proto::Movie {
                 on_watchlist,
+                cast,
+                crew,
                 ..movie_to_proto(movie, state, &images)
             }
             .into(),
@@ -204,7 +244,19 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let on_watchlist = (self.on_watchlist(user, TitleKind::Show, &show.ids)).await?;
+        let roles = self.browse.show_roles(&show).await;
+        let roles = roles.map_err(refused(Fields::LIBRARY))?;
+        let aired = self.browse.aired_episodes(&show).await;
+        let aired_episode_count = aired.map_err(database_failed)?;
+        let similar = (self
+            .browse
+            .similar(request.library_id, TitleKind::Show, &show.ids))
+        .await;
+        let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
+        // Without a Plugin it has no Episodes, so no Roles to show headshots of.
+        let plugin = show.plugin().unwrap_or_default();
+        let (cast, crew) = roles_to_proto(roles, stored_by(plugin, &images));
         let seasons = (show.seasons.iter())
             .map(|(&number, season)| {
                 let downloaded = season.poster.as_ref().map(Downloaded::stored);
@@ -222,10 +274,14 @@ impl BrowseService for BrowseServiceHandler {
         Response::ok(GetShowResponse {
             show: proto::Show {
                 on_watchlist,
+                cast,
+                crew,
                 ..show_to_proto(&show, &images)
             }
             .into(),
             seasons,
+            aired_episode_count,
+            similar: show_hits(similar, &images),
             ..Default::default()
         })
     }
@@ -323,7 +379,9 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListFeaturedRequest>,
     ) -> ServiceResult<ListFeaturedResponse> {
         let user = caller(&ctx)?.user.id;
-        if !self.settings.now().default_home_layout.featured_shown {
+        let own = UserHomeLayout::of(&self.db, user).await;
+        let own = own.map_err(database_failed)?;
+        if !own.shows_featured(&self.settings.now().default_home_layout) {
             return Response::ok(ListFeaturedResponse::default());
         }
         let suggested = self.home_rows.featured(user).await;
@@ -353,27 +411,10 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListHomeRowsRequest>,
     ) -> ServiceResult<ListHomeRowsResponse> {
         let reader = &caller(&ctx)?.user;
-        let plugin_rows = self.home_rows.list(reader).await;
-        let plugin_rows = plugin_rows.map_err(home_rows_refused)?;
-        let plugin_rows = plugin_rows.into_iter().map(|(id, row)| {
-            let row = proto::PluginHomeRow {
-                plugin_id: id.plugin().map_or_default(ToString::to_string),
-                key: row.key,
-                heading: row.heading,
-                ..Default::default()
-            };
-            (id, row.into())
-        });
-        let continue_watching = proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING;
-        let continue_watching = (
-            HomeRowId::ContinueWatching,
-            KernelOrPlugin::Kernel(continue_watching.into()),
-        );
-        let rows = std::iter::once(continue_watching)
-            .chain(plugin_rows)
-            .collect();
-        let layout = self.settings.now().default_home_layout;
-        let rows = layout.arrange(rows);
+        let rows = home_rows_of(&self.home_rows, reader).await?;
+        let own = UserHomeLayout::of(&self.db, reader.id).await;
+        let own = own.map_err(database_failed)?;
+        let rows = own.arrange(&self.settings.now().default_home_layout, rows);
         Response::ok(ListHomeRowsResponse {
             rows: (rows.into_iter())
                 .filter(|&(_, shown)| shown)
@@ -416,32 +457,6 @@ impl BrowseService for BrowseServiceHandler {
                     }),
                     ..Default::default()
                 })
-                .collect(),
-            page: page.into(),
-            ..Default::default()
-        })
-    }
-
-    async fn search_libraries(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, SearchLibrariesRequest>,
-    ) -> ServiceResult<SearchLibrariesResponse> {
-        let request = request.to_owned_message();
-        let found = self.browse.search(&request.query, &request.page).await;
-        let (found, page) = found.map_err(refused(Fields::NONE))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
-        Response::ok(SearchLibrariesResponse {
-            movies: (found.movies.into_iter())
-                .map(|movie| found_movie_to_proto(movie, &images))
-                .collect(),
-            shows: (found.shows.into_iter())
-                .map(|show| found_show_to_proto(show, &images))
-                .collect(),
-            episodes: found
-                .episodes
-                .into_iter()
-                .map(found_episode_to_proto)
                 .collect(),
             page: page.into(),
             ..Default::default()
@@ -582,19 +597,6 @@ fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLi
     }
 }
 
-fn found_episode_to_proto(episode: FoundEpisode) -> proto::EpisodeInLibrary {
-    proto::EpisodeInLibrary {
-        library_id: episode.library,
-        id: external_id_to_proto(&episode.id).into(),
-        show_id: external_id_to_proto(&episode.show).into(),
-        show_title: episode.show_title,
-        season_number: proto_number(episode.season),
-        episode_number: proto_number(episode.number),
-        title: episode.title,
-        ..Default::default()
-    }
-}
-
 /// A Movie as clients see it, with its images as URLs on this Server and their thumbhashes, the
 /// ones `images` shows in place of the downloaded ones, and the caller's Watch State of it,
 /// if they've started it.
@@ -615,6 +617,9 @@ fn movie_to_proto(
         title_logo_url: downloaded(movie.logo.as_ref()).url,
         genres: movie.genres,
         content_rating: movie.content_rating,
+        score: movie.score,
+        original_language: movie.original_language,
+        trailers: trailers_to_proto(movie.trailers),
         custom_poster: poster.custom,
         custom_backdrop: backdrop.custom,
         poster_url: poster.url,
@@ -649,6 +654,15 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
     }
 }
 
+/// Where clients fetch an image a Match of `plugin`'s stores, by its path.
+fn stored_by<'a>(plugin: &'a str, images: &'a ShownImages) -> impl Fn(&str) -> Option<String> + 'a {
+    move |path| {
+        images
+            .downloaded(Some(Downloaded::Stored { plugin, path }))
+            .url
+    }
+}
+
 /// A Show as clients see it, without its Seasons, with its images as URLs on this Server and their
 /// thumbhashes, the ones `images` shows in place of the downloaded ones.
 fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
@@ -674,6 +688,9 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         title_logo_url: downloaded(show.logo.as_ref()).url,
         genres: show.genres.clone(),
         content_rating: show.content_rating.clone(),
+        score: show.score,
+        original_language: show.original_language.clone(),
+        trailers: trailers_to_proto(show.trailers.clone()),
         overview: show.overview.clone(),
         first_air_date: show.first_air_date.clone(),
         season_count: u32::try_from(season_count(show)).unwrap_or(u32::MAX),

@@ -87,6 +87,14 @@ pub(crate) fn random_secret() -> Result<String, getrandom::Error> {
     random_base64::<SECRET_BYTES>()
 }
 
+/// What every session token starts with, so a leaked one is easy to recognise.
+const TOKEN_PREFIX: &str = "nama_";
+
+/// A new session token: [`TOKEN_PREFIX`], then a [`random_secret`].
+pub(super) fn new_token() -> Result<String, getrandom::Error> {
+    Ok(format!("{TOKEN_PREFIX}{}", random_secret()?))
+}
+
 /// A new Invite's token: [`INVITE_TOKEN_BYTES`] random bytes, base64url-encoded.
 pub(super) fn invite_token() -> Result<String, getrandom::Error> {
     random_base64::<INVITE_TOKEN_BYTES>()

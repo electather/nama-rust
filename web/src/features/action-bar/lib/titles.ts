@@ -1,56 +1,76 @@
-import type {
-  EpisodeInLibrary,
-  MovieInLibrary,
-  SearchLibrariesResponse,
-  ShowInLibrary,
-} from "@/gen/nama/v1/browse_pb";
-import { metadataLine, seasonName, yearOf } from "@/shared/lib/title-facts";
+import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
+import type { EpisodeHit, SearchResponse, TitleStatus } from "@/gen/nama/v1/search_pb";
+import { hitsIn, titleSourceUnavailable } from "@/shared/lib/search-hits";
+import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
+/** An Episode's Still, and its thumbhash. */
+export interface StillArt {
+  url: string;
+  thumbhash: Uint8Array | undefined;
+}
+
 /**
- * A Movie, Show or Episode in a Library, as the action bar lists it, opens it and remembers it.
- * Plain data, so Recent can keep it in `localStorage`.
+ * A Movie, Show or Episode, as the action bar lists it, opens it and remembers it. One in a Library
+ * is plain data, so Recent can keep it in `localStorage`, all but its Still's thumbhash.
  */
 export interface FoundTitle {
   /** Unique among titles: the same title in two Libraries is two of these. */
   id: string;
   kind: "movie" | "show" | "episode";
-  libraryId: string;
+  /** The Library it opens in, or none for a title to request, which opens its request page. */
+  libraryId: string | undefined;
+  /** The open Request the User can see for a title to request, which has no `libraryId`. */
+  request?: Request | undefined;
+  /** How close a search found it to being on the Server. Recent doesn't keep it. */
+  status?: TitleStatus;
   /** The Movie's or Show's id as a URL writes it. An Episode's is its Show's. */
   titleId: string;
   /** The Season an Episode's Show opens at. */
   season?: number;
   label: string;
   hint: string;
+  /** A Movie's or Show's Poster, or an Episode's Show's. */
   poster?: string | undefined;
+  /** An Episode's Still. */
+  still?: StillArt | undefined;
 }
 
-/** What a search found, by kind, each best fit first. */
+/** What a search found, by kind, each in the order to list it. */
 export interface Found {
   movies: FoundTitle[];
   shows: FoundTitle[];
   episodes: FoundTitle[];
+  /** Whether the titles to request couldn't be searched, so only this Server's are found. */
+  titleSourceUnavailable: boolean;
 }
 
-function movieFound(movie: MovieInLibrary): FoundTitle {
+function movieFound(movie: MovieHit, status: TitleStatus): FoundTitle {
   const titleId = titleParam(movie.id);
+  const libraryId = movie.libraryId?.toString();
   return {
-    id: `movie:${movie.libraryId}:${titleId}`,
+    id: `movie:${libraryId ?? "to-request"}:${titleId}`,
     kind: "movie",
-    libraryId: String(movie.libraryId),
+    libraryId,
+    // Only a title to request shows its Request; one in a Library stays plain data for Recent.
+    request: libraryId === undefined ? movie.request : undefined,
+    status,
     titleId,
     label: movie.title,
-    hint: metadataLine(yearOf(movie.releaseDate)),
+    hint: metadataLine(movie.year?.toString()),
     poster: movie.posterUrl,
   };
 }
 
-function showFound(show: ShowInLibrary): FoundTitle {
+function showFound(show: ShowHit, status: TitleStatus): FoundTitle {
   const titleId = titleParam(show.id);
+  const libraryId = show.libraryId?.toString();
   return {
-    id: `show:${show.libraryId}:${titleId}`,
+    id: `show:${libraryId ?? "to-request"}:${titleId}`,
     kind: "show",
-    libraryId: String(show.libraryId),
+    libraryId,
+    request: libraryId === undefined ? show.request : undefined,
+    status,
     titleId,
     label: show.title,
     hint: "",
@@ -58,7 +78,7 @@ function showFound(show: ShowInLibrary): FoundTitle {
   };
 }
 
-function episodeFound(episode: EpisodeInLibrary): FoundTitle {
+function episodeFound(episode: EpisodeHit): FoundTitle {
   return {
     id: `episode:${episode.libraryId}:${titleParam(episode.id)}`,
     kind: "episode",
@@ -67,15 +87,28 @@ function episodeFound(episode: EpisodeInLibrary): FoundTitle {
     season: episode.seasonNumber,
     label: `${episode.episodeNumber}. ${episode.title}`,
     hint: metadataLine(episode.showTitle, seasonName(episode.seasonNumber)),
+    poster: episode.showPosterUrl,
+    still:
+      episode.stillUrl === undefined
+        ? undefined
+        : { url: episode.stillUrl, thumbhash: episode.stillThumbhash },
   };
 }
 
-/** What `SearchLibraries` answered, as the action bar lists it. */
-export function foundIn(response: SearchLibrariesResponse): Found {
+/** What `Search` has streamed so far, as the action bar lists it: each kind in `hitsIn`'s order. */
+export function foundIn(responses: readonly SearchResponse[]): Found {
+  const titles = hitsIn(responses);
   return {
-    movies: response.movies.map(movieFound),
-    shows: response.shows.map(showFound),
-    episodes: response.episodes.map(episodeFound),
+    movies: titles.flatMap(({ title, status }) =>
+      title.case === "movie" ? [movieFound(title.value, status)] : [],
+    ),
+    shows: titles.flatMap(({ title, status }) =>
+      title.case === "show" ? [showFound(title.value, status)] : [],
+    ),
+    episodes: titles.flatMap(({ title }) =>
+      title.case === "episode" ? [episodeFound(title.value)] : [],
+    ),
+    titleSourceUnavailable: titleSourceUnavailable(responses),
   };
 }
 

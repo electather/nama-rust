@@ -1,9 +1,25 @@
+use std::sync::Arc;
+
 use super::tests::{
     PASSWORD, attempt, fail, fresh_sign_in, local_auth_users, retry_after_secs, set_up,
     sign_in_with_ada,
 };
 use super::*;
 use crate::users::Permissions;
+
+/// Sets Ada up on a fresh database in `data_dir`, as [`sign_in_with_ada`] does, then closes it.
+///
+/// Dropping the database instead leaves its connections closing in the background, racing a
+/// reopen of `data_dir` (#1564).
+async fn ada_set_up_then_closed(data_dir: &std::path::Path) {
+    let (sign_in, _) = sign_in_with_ada(data_dir).await;
+    let db = Arc::clone(&sign_in.users.db);
+    drop(sign_in);
+    Arc::into_inner(db)
+        .expect("only this test holds the database")
+        .close()
+        .await;
+}
 
 /// Fails to set up from `LAPTOP_IP` with a wrong Setup Code `times` times at `now`.
 async fn fail_setup(sign_in: &SignIn, times: usize, now: Instant) {
@@ -77,7 +93,7 @@ async fn once_the_server_has_users_setup_is_refused_as_already_set_up_whatever_t
 #[tokio::test]
 async fn setup_on_a_server_that_started_with_users_is_refused_as_already_set_up() {
     let data_dir = tempfile::tempdir().unwrap();
-    drop(sign_in_with_ada(data_dir.path()).await);
+    ada_set_up_then_closed(data_dir.path()).await;
     let restarted = SignIn::new(local_auth_users(data_dir.path()).await, None);
 
     let refused = set_up(&restarted, "AAAA-AAAA-AAAA", "Grace", Instant::now()).await;
@@ -114,7 +130,7 @@ async fn once_the_server_has_users_setup_refusals_do_not_count_toward_the_addres
 #[tokio::test]
 async fn setup_on_a_server_that_started_with_users_does_not_count_toward_the_address_limit() {
     let data_dir = tempfile::tempdir().unwrap();
-    drop(sign_in_with_ada(data_dir.path()).await);
+    ada_set_up_then_closed(data_dir.path()).await;
     let restarted = SignIn::new(local_auth_users(data_dir.path()).await, None);
     sign_in_ada_after_setups_refused_as_already_set_up(&restarted).await;
 }

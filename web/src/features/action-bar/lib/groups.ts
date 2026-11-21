@@ -8,6 +8,7 @@ import {
 } from "@/features/action-bar/lib/rows";
 import { shortcutGroups } from "@/features/action-bar/lib/shortcuts";
 import type { Found, FoundTitle } from "@/features/action-bar/lib/titles";
+import { TitleStatus } from "@/gen/nama/v1/search_pb";
 import { modKey } from "@/shared/lib/mod-key";
 
 /** What the action bar lists from. */
@@ -32,14 +33,38 @@ export interface BarActions {
 
 const badges = { movie: "Movie", show: "Show", episode: "Episode" } as const;
 
-function titleRows(titles: readonly FoundTitle[], open: BarActions["open"]): Row[] {
+/** What a row of Recent says beside its label: its kind, as Recent mixes them. */
+function kindBadge(title: FoundTitle): Pick<Row, "badge" | "request"> {
+  return { badge: badges[title.kind] };
+}
+
+/**
+ * What a search result says beside its label: nothing when Available, else its Request, or for a
+ * Followed Show with no open Season Request, that it's Requested.
+ */
+function statusBadge({ libraryId, request, status }: FoundTitle): Pick<Row, "badge" | "request"> {
+  if (libraryId !== undefined) {
+    return {};
+  }
+  if (request !== undefined) {
+    return { request };
+  }
+  return { badge: status === TitleStatus.REQUESTED ? "Requested" : "Request" };
+}
+
+function titleRows(
+  titles: readonly FoundTitle[],
+  open: BarActions["open"],
+  badgeOf = statusBadge,
+): Row[] {
   return titles.map((title) => ({
     id: title.id,
     label: title.label,
     hint: title.hint,
     icon: title.kind === "movie" ? "movie" : "show",
     poster: title.poster ?? null,
-    badge: badges[title.kind],
+    still: title.still,
+    ...badgeOf(title),
     action: "Open",
     run: () => {
       open(title);
@@ -111,7 +136,7 @@ function rootGroups(state: BarState, actions: BarActions): Group[] {
   ];
   return [
     ...section("Search", blank ? search : []),
-    ...section("Recent", blank ? titleRows(state.recents, actions.open) : []),
+    ...section("Recent", blank ? titleRows(state.recents, actions.open, kindBadge) : []),
     ...section("Jump to", matching(state.query, jumps)),
     ...(blank ? [] : results(state, actions)),
     ...section("Actions", matching(state.query, [shortcuts])),
@@ -133,5 +158,5 @@ export function groupsOf(state: BarState, actions: BarActions): Group[] {
   // lists what you opened lately of that kind. Give it a real list when the Server grows one.
   const kind = state.frame;
   const recent = state.recents.filter((title) => (title.kind === "movie") === (kind === "movie"));
-  return section("Recent", titleRows(recent, actions.open));
+  return section("Recent", titleRows(recent, actions.open, kindBadge));
 }

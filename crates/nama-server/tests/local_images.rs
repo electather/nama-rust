@@ -29,10 +29,9 @@ use image::ImageFormat;
 use log::Log;
 use nama_proto::nama::v1::{
     LibraryKind, ListMoviesRequest, ListShowsRequest, LookUpShowRequest, RequestServiceClient,
-    SearchShowsRequest,
 };
 use server::{
-    TestServer,
+    TestServer, search,
     tmdb::{ALIEN, DARK, THE_OFFICE},
 };
 
@@ -376,11 +375,7 @@ async fn a_shows_poster_in_its_folder_shows_on_its_search_hit_and_look_up() {
     fx.scan_and_match().await;
 
     let requests = fx.requests();
-    let searched = requests.search_shows(SearchShowsRequest {
-        title: "The Office".to_owned(),
-        ..Default::default()
-    });
-    let searched = searched.await.unwrap().into_owned().shows;
+    let searched = search::shows(&fx.server.client_config(), "The Office").await;
     let looked_up = requests.look_up_show(LookUpShowRequest {
         show_id: tmdb_id(DARK).into(),
         ..Default::default()

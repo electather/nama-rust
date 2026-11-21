@@ -1,21 +1,25 @@
 //! Looking titles up in the title source for Requests, as a viewer sees them.
 
+use std::collections::HashSet;
+
 use nama_plugin_api::{
     PluginId,
     metadata::{ExternalId, TitleMethod},
 };
-use nama_proto::nama::v1::{FollowedShow, FoundSeason, Request, RequestState, RequestedQuality};
+use nama_proto::nama::v1::{
+    FollowedShow, FoundSeason, Permission, Request, RequestState, RequestedQuality,
+};
 use sqlx::SqliteConnection;
 
 use super::asking::kept_under;
 use super::availability::{availability, today};
-use super::followed::{load_followed, open_followed_show};
+use super::followed::{load_followed, open_followed_show, open_followed_show_by_any};
 use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
     library::{
         Candidate, ImageRef, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind,
-        Unanswered, library_with_movie, matched_episodes,
+        Unanswered, library_with_movie, library_with_show, match_bands, matched_episodes,
     },
     users::User,
 };
@@ -32,6 +36,25 @@ pub(crate) struct Found<M> {
     pub(crate) library: Option<i64>,
     /// The Movie's open Request, if it has one the viewer may see.
     pub(crate) request: Option<Request>,
+}
+
+/// A Show the title source has, and how close it is to being on the Server.
+#[derive(Debug)]
+pub(crate) struct ShowToRequest {
+    pub(crate) hit: Hit,
+    /// The oldest Library with an Episode of it Matched, if any.
+    pub(crate) library: Option<i64>,
+    /// The open Request for its earliest Season with one the viewer may see, if any.
+    pub(crate) request: Option<Request>,
+    /// Whether it has an open Followed Show the viewer may see.
+    pub(crate) followed: bool,
+}
+
+impl ShowToRequest {
+    /// Whether the viewer sees it Requested: through a Season Request or its Followed Show.
+    pub(crate) fn requested(&self) -> bool {
+        self.request.is_some() || self.followed
+    }
 }
 
 /// A title a search found, which a Request can name by its id.
@@ -94,6 +117,45 @@ impl Requests {
             found.push(movie);
         }
         Ok(found)
+    }
+
+    /// The Movies the title source finds for a search for `query`, as `viewer` sees them, less any
+    /// with an id in `in_libraries`, ranked as ADR 0080 says: see [`ranked`]. `None`, without
+    /// asking, when `viewer` may not request Movies, so has none to find.
+    pub(crate) async fn search_to_request(
+        &self,
+        viewer: &User,
+        query: &str,
+        in_libraries: &HashSet<ExternalId>,
+    ) -> Result<Option<Vec<Found<Candidate>>>, Error> {
+        if !viewer.permissions.allow(Permission::RequestMovie) {
+            return Ok(None);
+        }
+        let found = self.search(viewer, query.to_owned()).await?;
+        Ok(Some(ranked(found, in_libraries, query, movie_standing)))
+    }
+
+    /// The Shows the title source finds for a search for `query`, as `viewer` sees them, less any
+    /// with an id in `in_libraries`, ranked as [`Self::search_to_request`] ranks Movies. `None`,
+    /// without asking, when `viewer` may not request Shows.
+    pub(crate) async fn search_shows_to_request(
+        &self,
+        viewer: &User,
+        query: &str,
+        in_libraries: &HashSet<ExternalId>,
+    ) -> Result<Option<Vec<ShowToRequest>>, Error> {
+        if !viewer.permissions.allow(Permission::RequestTv) {
+            return Ok(None);
+        }
+        let hits = self.search_shows(query.to_owned()).await?;
+        let mut conn = self.db.reader().acquire().await?;
+        let mut found = Vec::with_capacity(hits.len());
+        // ponytail: a few queries per Show found, more with open Season Requests the viewer can't
+        // see, and a search caps them at a page of 20.
+        for hit in hits {
+            found.push(self.look_around_show(&mut conn, viewer, hit).await?);
+        }
+        Ok(Some(ranked(found, in_libraries, query, show_standing)))
     }
 
     /// The Shows the title source finds titled like `title`, best fit first.
@@ -289,6 +351,30 @@ impl Requests {
         })
     }
 
+    /// The Show `hit` with the Library that has an Episode of it, and its open Season Request and
+    /// Followed Show, if `viewer` may see them.
+    async fn look_around_show(
+        &self,
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        hit: Hit,
+    ) -> Result<ShowToRequest, sqlx::Error> {
+        let mut ids = hit.candidate.ids.clone();
+        ids.insert(hit.id.clone());
+        let library = library_with_show(conn, &hit.id).await?;
+        let request = self.visible_open_season_request(conn, viewer, &ids).await?;
+        let followed = match open_followed_show_by_any(conn, &ids).await? {
+            Some(id) => !(load_followed(conn, Some(id), viewer.whose_requests()).await?).is_empty(),
+            None => false,
+        };
+        Ok(ShowToRequest {
+            hit,
+            library,
+            request,
+            followed,
+        })
+    }
+
     /// Each of `seasons`, of the Show `show`, as `viewer` sees it: whether a Library has it, and its
     /// open Request.
     async fn look_around_seasons(
@@ -331,3 +417,52 @@ pub(super) fn looking_up(err: Unanswered, missing: Error) -> Error {
         Unanswered::Unavailable => Error::Unavailable,
     }
 }
+
+/// A title the title source found, whether a Library has it, and whether the viewer sees it
+/// Requested, which [`ranked`] orders by.
+type Standing<'a> = (&'a Candidate, bool, bool);
+
+fn movie_standing(found: &Found<Candidate>) -> Standing<'_> {
+    (
+        &found.movie,
+        found.library.is_some(),
+        found.request.is_some(),
+    )
+}
+
+fn show_standing(found: &ShowToRequest) -> Standing<'_> {
+    (
+        &found.hit.candidate,
+        found.library.is_some(),
+        found.requested(),
+    )
+}
+
+/// `found`, in the title source's order, less any with an id in `in_libraries`: those a Library
+/// has first, then those Requested, as `standing` tells, then the rest, each by how well the
+/// title fits `query`, as the Libraries' search bands it, then in the source's order.
+fn ranked<T>(
+    found: Vec<T>,
+    in_libraries: &HashSet<ExternalId>,
+    query: &str,
+    standing: impl Fn(&T) -> Standing<'_>,
+) -> Vec<T> {
+    let mut found: Vec<_> = (found.into_iter())
+        .filter(|found| {
+            let (title, ..) = standing(found);
+            !in_libraries.contains(&title.id)
+                && !title.ids.iter().any(|id| in_libraries.contains(&id))
+        })
+        .collect();
+    found.sort_by_cached_key(|found| {
+        let (title, available, requested) = standing(found);
+        let year = title.year.map(|year| year.to_string());
+        let bands = match_bands(query, &title.title, year.as_deref());
+        (!available, !requested, bands)
+    });
+    found
+}
+
+#[cfg(test)]
+#[path = "lookup_tests.rs"]
+mod tests;

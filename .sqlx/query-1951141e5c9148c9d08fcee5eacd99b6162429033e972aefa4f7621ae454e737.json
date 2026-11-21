@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM episode_air_dates\n         WHERE plugin = ? AND namespace = ? AND value = ? AND season = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "1951141e5c9148c9d08fcee5eacd99b6162429033e972aefa4f7621ae454e737"
+}

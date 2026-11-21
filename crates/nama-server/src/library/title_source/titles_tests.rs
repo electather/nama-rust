@@ -4,8 +4,8 @@ use nama_plugin_api::{
 };
 
 use super::{
-    Artwork, ArtworkKind, SearchQuery, TitleKind, artwork, candidate, episode, search_query,
-    season, show,
+    Artwork, ArtworkKind, SearchQuery, TitleKind, Trailer, artwork, candidate, episode, movie,
+    search_query, season, show,
 };
 
 fn id(namespace: &str, value: &str) -> wire::TitleId {
@@ -91,6 +91,162 @@ fn an_answer_with_a_malformed_id_fails_naming_it() {
             r#"the title source answered with the id "t v-1": the namespace "t v" isn't one or more of a-z and 0-9"#,
         ]
     );
+}
+
+#[test]
+fn a_score_outside_0_to_10_is_dropped_not_stored() {
+    let scored = |score| {
+        let movie = movie(wire::Movie {
+            score: Some(score),
+            ..Default::default()
+        });
+        movie.unwrap().score
+    };
+
+    assert_eq!(scored(8.4), Some(8.4));
+    assert_eq!(scored(0.0), Some(0.0));
+    assert_eq!(
+        [scored(10.5), scored(-1.0), scored(f64::NAN)],
+        [None, None, None]
+    );
+}
+
+fn wire_role(person: &str, headshot: &str) -> wire::Role {
+    wire::Role {
+        person: id("tmdb", person).into(),
+        name: format!("Person {person}"),
+        headshot: Some(headshot.to_owned()),
+        ..Default::default()
+    }
+}
+
+fn trailer(site: &str, key: &str, name: &str) -> wire::Trailer {
+    wire::Trailer {
+        site: site.to_owned(),
+        key: key.to_owned(),
+        name: name.to_owned(),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn only_the_first_15_of_the_cast_keep_a_headshot_and_the_crew_none() {
+    let cast = (0..20)
+        .map(|n| wire_role(&n.to_string(), "/face.jpg"))
+        .collect();
+    let movie = movie(wire::Movie {
+        cast,
+        crew: vec![wire_role("578", "/scott.jpg")],
+        ..Default::default()
+    });
+    let roles = movie.unwrap().roles;
+
+    let headshots = (roles.cast.iter())
+        .filter(|role| role.headshot.is_some())
+        .count();
+    assert_eq!((roles.cast.len(), headshots), (20, 15));
+    assert_eq!(roles.crew[0].headshot, None);
+}
+
+#[test]
+fn a_role_without_a_valid_person_id_is_dropped_and_at_most_50_are_kept() {
+    let mut listed = vec![wire::Role::default()];
+    listed.extend((0..60).map(|n| wire_role(&n.to_string(), "/face.jpg")));
+    let show = show(wire::Show {
+        cast: listed,
+        ..Default::default()
+    });
+    let cast = show.unwrap().roles.cast;
+
+    assert_eq!((cast.len(), cast[0].name.as_str()), (50, "Person 0"));
+}
+
+#[test]
+fn a_trailer_becomes_a_link_to_youtube_or_vimeo() {
+    let trailers = vec![
+        trailer("YouTube", "LjLamj-b0I8", "Official Trailer"),
+        trailer("Vimeo", "123456789", "Teaser"),
+    ];
+
+    let movie = movie(wire::Movie {
+        trailers,
+        ..Default::default()
+    });
+
+    assert_eq!(
+        movie.unwrap().trailers,
+        [
+            Trailer {
+                name: "Official Trailer".to_owned(),
+                url: "https://www.youtube.com/watch?v=LjLamj-b0I8".to_owned(),
+            },
+            Trailer {
+                name: "Teaser".to_owned(),
+                url: "https://vimeo.com/123456789".to_owned(),
+            },
+        ]
+    );
+}
+
+#[test]
+fn a_trailer_on_another_site_or_whose_key_would_change_the_link_is_dropped() {
+    let trailers = vec![
+        trailer("Dailymotion", "x8abc", "Elsewhere"),
+        trailer("YouTube", "abc&list=evil", "Smuggled"),
+        trailer("YouTube", "../../evil", "Escaped"),
+        trailer("YouTube", "", "Keyless"),
+    ];
+
+    let show = show(wire::Show {
+        trailers,
+        ..Default::default()
+    });
+
+    assert_eq!(show.unwrap().trailers, []);
+}
+
+#[test]
+fn a_title_keeps_its_first_5_trailers_and_names_a_nameless_one() {
+    let trailers = (1..=7)
+        .map(|n| trailer("YouTube", &format!("key{n}"), ""))
+        .collect();
+
+    let movie = movie(wire::Movie {
+        trailers,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let urls: Vec<&str> = movie.trailers.iter().map(|t| t.url.as_str()).collect();
+    assert_eq!(urls.len(), 5);
+    assert_eq!(urls[4], "https://www.youtube.com/watch?v=key5");
+    assert!(movie.trailers.iter().all(|t| t.name == "Trailer"));
+}
+
+#[test]
+fn similar_titles_keep_the_first_20_well_formed_ids_in_order() {
+    let tmdb = |id: i64| wire::TitleId {
+        namespace: "tmdb".to_owned(),
+        value: id.to_string(),
+        ..Default::default()
+    };
+    let malformed = wire::TitleId {
+        namespace: "no such namespace!".to_owned(),
+        value: "1".to_owned(),
+        ..Default::default()
+    };
+    let given = std::iter::once(malformed)
+        .chain((1..=25).map(tmdb))
+        .collect();
+
+    let similar = movie(wire::Movie {
+        similar: given,
+        ..Default::default()
+    })
+    .unwrap()
+    .similar;
+
+    assert_eq!(similar, (1..=20).map(ExternalId::tmdb).collect::<Vec<_>>());
 }
 
 #[test]

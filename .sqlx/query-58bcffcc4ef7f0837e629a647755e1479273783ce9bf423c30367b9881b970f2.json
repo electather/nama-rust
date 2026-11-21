@@ -1,0 +1,433 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH titles AS (SELECT * FROM (SELECT library_id, item_id, kind, path, season, episode, own_id, listed_id,\n                      ROW_NUMBER() OVER title AS nth, MIN(item_id) OVER title AS title_item,\n                      MIN(added_at) OVER title AS first_added_at,\n                      MAX(added_at) OVER title AS newest_added_at,\n                      IIF(kind = 'movie', MIN(added_at) OVER title, MAX(added_at) OVER title)\n                          AS added_at\n               FROM (SELECT library_files.library_id, library_items.id AS item_id, library_items.kind,\n                      library_files.path, library_items.season, library_items.episode,\n                      library_items.added_at, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = 'title') AS own_id, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               JOIN libraries ON libraries.id = library_files.library_id\n               WHERE item_matches.state = 'matched'\n                 AND library_items.kind = IIF(libraries.kind = 'movies', 'movie', 'episode')\n                 AND own_id IS NOT NULL AND listed_id IS NOT NULL\n                 AND (library_items.kind = 'movie'\n                      OR (library_items.season IS NOT NULL\n                          AND library_items.episode IS NOT NULL)))\n               WINDOW title AS (PARTITION BY library_id, listed_id\n                                ORDER BY season, episode, path\n                                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)) AS library_titles\n                                 WHERE library_id = ?1 AND kind = 'episode')\n                       SELECT titles.listed_id AS \"listed_id!: String\",\n                              titles.own_id AS \"own_id!: String\",\n                              library_files.id AS \"file!\", library_files.path,\n                              library_files.size, library_files.modified_ns,\n                              library_files.parser_version, titles.season AS \"season!: i64\",\n                              titles.episode AS \"episode!: i64\",\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\",\n                              item_matches.title AS \"title!\",\n                              item_matches.show_title AS \"show_title!\",\n                              overview, release_date, runtime_minutes, poster, poster_plugin,\n                              backdrop, backdrop_plugin, titled_backdrop, titled_backdrop_plugin,\n                              logo, logo_plugin, still, genres,\n                              content_rating, show_poster, show_poster_plugin, show_overview,\n                              show_first_air_date, metadata_version, item_matches.original_language,\n                              title_details.score AS \"score?\",\n                              title_details.trailers AS \"trailers?\",\n                              titles.added_at AS \"added_at!: i64\"\n                       FROM titles\n                       JOIN item_matches ON item_matches.item_id = titles.item_id\n                       JOIN library_items ON library_items.id = titles.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       -- Keyed as `details::store` keys it.\n                       LEFT JOIN title_details\n                           ON title_details.plugin = item_matches.plugin\n                          AND title_details.kind = 'show'\n                          AND (title_details.namespace, title_details.value) =\n                              (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed\n                               WHERE keyed.item_id = item_matches.item_id\n                                 AND keyed.scope = 'show'\n                               ORDER BY keyed.namespace LIMIT 1)\n                       WHERE ?2 IS NULL\n                          OR titles.listed_id IN (\n                              SELECT asked.listed_id FROM titles AS asked\n                              JOIN item_match_ids AS named\n                                ON named.item_id = asked.item_id AND named.scope = 'show'\n                              JOIN json_each(?2) AS only\n                                ON only.value = named.namespace || '-' || named.value)\n                       ORDER BY titles.listed_id, titles.nth",
+  "describe": {
+    "columns": [
+      {
+        "name": "listed_id!: String",
+        "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "own_id!: String",
+        "ordinal": 1,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "file!",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "parser_version",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "parser_version"
+          }
+        }
+      },
+      {
+        "name": "season!: i64",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "episode!: i64",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
+      },
+      {
+        "name": "plugin!",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "ids?: String",
+        "ordinal": 10,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "show_ids?: String",
+        "ordinal": 11,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "title!",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "show_title!",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_title"
+          }
+        }
+      },
+      {
+        "name": "overview",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "overview"
+          }
+        }
+      },
+      {
+        "name": "release_date",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "release_date"
+          }
+        }
+      },
+      {
+        "name": "runtime_minutes",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "runtime_minutes"
+          }
+        }
+      },
+      {
+        "name": "poster",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster"
+          }
+        }
+      },
+      {
+        "name": "poster_plugin",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster_plugin"
+          }
+        }
+      },
+      {
+        "name": "backdrop",
+        "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop"
+          }
+        }
+      },
+      {
+        "name": "backdrop_plugin",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop_plugin"
+          }
+        }
+      },
+      {
+        "name": "titled_backdrop",
+        "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "titled_backdrop"
+          }
+        }
+      },
+      {
+        "name": "titled_backdrop_plugin",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "titled_backdrop_plugin"
+          }
+        }
+      },
+      {
+        "name": "logo",
+        "ordinal": 23,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "logo"
+          }
+        }
+      },
+      {
+        "name": "logo_plugin",
+        "ordinal": 24,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "logo_plugin"
+          }
+        }
+      },
+      {
+        "name": "still",
+        "ordinal": 25,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "still"
+          }
+        }
+      },
+      {
+        "name": "genres",
+        "ordinal": 26,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "genres"
+          }
+        }
+      },
+      {
+        "name": "content_rating",
+        "ordinal": 27,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "content_rating"
+          }
+        }
+      },
+      {
+        "name": "show_poster",
+        "ordinal": 28,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_poster"
+          }
+        }
+      },
+      {
+        "name": "show_poster_plugin",
+        "ordinal": 29,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_poster_plugin"
+          }
+        }
+      },
+      {
+        "name": "show_overview",
+        "ordinal": 30,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_overview"
+          }
+        }
+      },
+      {
+        "name": "show_first_air_date",
+        "ordinal": 31,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_first_air_date"
+          }
+        }
+      },
+      {
+        "name": "metadata_version",
+        "ordinal": 32,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "metadata_version"
+          }
+        }
+      },
+      {
+        "name": "original_language",
+        "ordinal": 33,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "original_language"
+          }
+        }
+      },
+      {
+        "name": "score?",
+        "ordinal": 34,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "title_details",
+            "name": "score"
+          }
+        }
+      },
+      {
+        "name": "trailers?",
+        "ordinal": 35,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_details",
+            "name": "trailers"
+          }
+        }
+      },
+      {
+        "name": "added_at!: i64",
+        "ordinal": 36,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null,
+      null,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "58bcffcc4ef7f0837e629a647755e1479273783ce9bf423c30367b9881b970f2"
+}

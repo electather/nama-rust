@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT similar_titles.similar FROM similar_titles\n             WHERE similar_titles.kind = ?1\n               AND similar_titles.namespace = ?2\n               AND similar_titles.value = ?3\n               AND similar_titles.plugin IN (\n                   SELECT item_matches.plugin FROM item_match_ids\n                   JOIN item_matches ON item_matches.item_id = item_match_ids.item_id\n                   JOIN library_items ON library_items.id = item_matches.item_id\n                   JOIN library_files ON library_files.id = library_items.file_id\n                   WHERE library_files.library_id = ?4\n                     AND item_match_ids.scope = ?5\n                     AND item_match_ids.namespace = ?2\n                     AND item_match_ids.value = ?3\n                     AND item_matches.state = 'matched')\n             LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "similar",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "similar_titles",
+            "name": "similar"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b7f9e707a8956b5e00d25514cc97f8dafd874f46d1d5e3d3e122abbc11a0f4a4"
+}

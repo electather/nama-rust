@@ -46,3 +46,7 @@ Bugs you notice that this issue doesn't cover:
 <skill name="park">
 !`cat .sandcastle/park.md`
 </skill>
+
+<skill name="sandbox">
+{{SANDBOX}}
+</skill>

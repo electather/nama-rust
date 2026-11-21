@@ -30,7 +30,7 @@ use crate::{
 mod home_layout;
 mod playback;
 
-pub(crate) use home_layout::{HomeLayout, HomeRowId, PlacedRow};
+pub(crate) use home_layout::{HomeLayout, HomeRowId, PlacedRow, keep_unnamed};
 pub(crate) use playback::{
     HardwareChoice, PickedGpu, PlaybackChange, PlaybackLimit, PlaybackSettings, PlaybackValues,
 };

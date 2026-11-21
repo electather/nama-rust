@@ -1,17 +1,19 @@
-use nama_plugin_api::{
-    PluginId,
-    metadata::{ExternalId, ExternalIds},
-};
-use nama_proto::nama::v1::PageRequest;
+use std::sync::Arc;
+
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tempfile::TempDir;
 
 use super::super::{
-    Change, Decided, Found, Item, Metadata,
+    Change, Contents, Decided, Found, Item, Metadata,
     fixture::{MatchedMovie, decide, tmdb_movie},
     testing::Fixture,
 };
-use crate::library::libraries::Kind;
-use crate::page::Page;
+use super::match_bands;
+use crate::{
+    db::{self, Database},
+    library::{TitleKind, libraries::Kind},
+};
 
 /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
 fn released_movie(tmdb: i64, title: &str, release_date: &str) -> Metadata {
@@ -32,16 +34,20 @@ impl Fixture {
             .item
     }
 
-    /// What the first page of a search for `query` finds.
-    async fn search(&self, query: &str) -> Found {
-        let page = Page::read(&PageRequest::default(), b"").unwrap();
-        self.contents.search(query, &page).await.unwrap().0
+    /// The best 20 of what a search of every kind for `query` finds.
+    async fn search(&self, query: &str) -> Vec<Found> {
+        self.contents.search(query, None, 20).await.unwrap()
     }
 
-    /// The titles of the Movies a search for `query` finds, best fit first.
+    /// The titles of the Movies a search for `query` finds, best first.
     async fn found_movies(&self, query: &str) -> Vec<String> {
         let found = self.search(query).await;
-        found.movies.into_iter().map(|movie| movie.title).collect()
+        (found.into_iter())
+            .filter_map(|found| match found {
+                Found::Movie(movie) => Some(movie.title),
+                Found::Show(_) | Found::Episode(_) => None,
+            })
+            .collect()
     }
 }
 
@@ -65,12 +71,13 @@ async fn a_year_after_the_words_narrows_a_search_to_that_year_or_titles_with_it(
         .await;
 
     assert_eq!(fx.found_movies("dune").await, ["Dune", "Dune"]);
-    let dune_2021 = fx.search("dune 2021").await.movies;
-    let found: Vec<_> = dune_2021
-        .iter()
-        .map(|movie| movie.release_date.as_deref())
+    let found: Vec<_> = (fx.search("dune 2021").await.into_iter())
+        .map(|found| match found {
+            Found::Movie(movie) => movie.release_date,
+            Found::Show(_) | Found::Episode(_) => panic!("only Movies are in the Library"),
+        })
         .collect();
-    assert_eq!(found, [Some("2021-09-15")]);
+    assert_eq!(found, [Some("2021-09-15".to_owned())]);
     assert_eq!(
         fx.found_movies("blade runner 2049").await,
         ["Blade Runner 2049"]
@@ -81,25 +88,10 @@ async fn a_year_after_the_words_narrows_a_search_to_that_year_or_titles_with_it(
 /// What TMDB says of an Episode of The Office (US): its id `tmdb` and `title`.
 fn office_episode(tmdb: i64, title: &str) -> Decided {
     Decided::Matched(Box::new(Metadata {
-        plugin: PluginId::from_static("tmdb"),
-        ids: ExternalIds::from_iter([ExternalId::tmdb(tmdb)]),
         show_ids: ExternalIds::from_iter([ExternalId::tmdb(THE_OFFICE)]),
-        title: title.to_owned(),
-        original_title: None,
         show_title: Some("The Office".to_owned()),
-        overview: None,
         release_date: Some("2005-03-24".to_owned()),
-        runtime_minutes: None,
-        poster: None,
-        backdrop: None,
-        titled_backdrop: None,
-        logo: None,
-        still: None,
-        genres: Vec::new(),
-        content_rating: None,
-        show_poster: None,
-        show_overview: None,
-        show_first_air_date: None,
+        ..tmdb_movie(tmdb, title)
     }))
 }
 
@@ -155,29 +147,20 @@ async fn a_search_finds_a_show_once_by_its_title_and_episodes_by_their_own() {
 
     let found = fx.search("office").await;
 
-    let shows: Vec<_> = found
-        .shows
-        .iter()
-        .map(|show| (show.library, show.title.as_str()))
-        .collect();
-    assert_eq!(shows, [(library, "The Office")]);
-    let found_episodes: Vec<_> = found
-        .episodes
-        .iter()
-        .map(|episode| {
-            (
-                &episode.show,
-                episode.season,
-                episode.number,
-                episode.title.as_str(),
-            )
-        })
-        .collect();
-    assert_eq!(
-        found_episodes,
-        [(&ExternalId::tmdb(THE_OFFICE), 1, 2, "Office Olympics")]
+    let [Found::Show(show), Found::Episode(episode)] = &found[..] else {
+        panic!("The Office, then one of its Episodes: {found:?}");
+    };
+    assert_eq!((show.library, show.title.as_str()), (library, "The Office"));
+    let episode = (
+        &episode.show,
+        episode.season,
+        episode.number,
+        episode.title.as_str(),
     );
-    assert!(found.movies.is_empty(), "{:?}", found.movies);
+    assert_eq!(
+        episode,
+        (&ExternalId::tmdb(THE_OFFICE), 1, 2, "Office Olympics")
+    );
 }
 
 #[tokio::test]
@@ -198,20 +181,17 @@ async fn a_search_finds_an_item_by_its_latest_match_and_not_once_it_is_unmatched
 }
 
 #[tokio::test]
-async fn a_search_skips_an_episode_whose_match_has_no_show_id() {
+async fn a_search_skips_a_show_whose_episodes_have_no_title_id() {
     let fx = Fixture::new().await;
     let (library, _folder) = fx.shows_library().await;
-    let Decided::Matched(mut showless) = office_episode(9001, "Pilot") else {
+    let Decided::Matched(mut untitled) = office_episode(9001, "Pilot") else {
         panic!("office_episode Matches");
     };
-    showless.show_ids = ExternalIds::default();
-    fx.decide_office_episode(library, 1, Decided::Matched(showless))
+    untitled.ids = ExternalIds::default();
+    fx.decide_office_episode(library, 1, Decided::Matched(untitled))
         .await;
 
-    let found = fx.search("pilot").await;
-
-    assert!(found.movies.is_empty(), "{:?}", found.movies);
-    assert!(found.episodes.is_empty(), "{:?}", found.episodes);
+    assert!(fx.search("office").await.is_empty());
 }
 
 #[tokio::test]
@@ -224,84 +204,322 @@ async fn a_search_hit_for_a_title_with_only_a_made_up_id_carries_that_id() {
     };
     MatchedMovie::store(&fx.contents, fx.library, "/media/Akira.mkv", matched).await;
 
-    let found = fx.search("akira").await.movies;
-    let ids: Vec<_> = found.into_iter().map(|movie| movie.id).collect();
-    assert_eq!(ids, [anidb]);
+    let found = fx.search("akira").await;
+    let [Found::Movie(akira)] = &found[..] else {
+        panic!("only Akira: {found:?}");
+    };
+    assert_eq!(akira.id, anidb);
 }
 
-impl Fixture {
-    /// Every page of a search for `query`, `size` titles at most each, with its `total_size`.
-    async fn search_pages(&self, query: &str, size: i32) -> Vec<(Found, Option<i32>)> {
-        let mut pages = Vec::new();
-        let mut token = String::new();
-        loop {
-            let asked = PageRequest {
-                size,
-                token,
-                ..Default::default()
-            };
-            let page = Page::read(&asked, query.as_bytes()).unwrap();
-            let (found, paging) = self.contents.search(query, &page).await.unwrap();
-            pages.push((found, paging.total_size));
-            token = paging.next_token;
-            if token.is_empty() {
-                return pages;
-            }
-        }
-    }
-}
-
-/// The titles each of `pages` found, Movies, then Shows, then Episodes.
-fn titles(pages: &[(Found, Option<i32>)]) -> Vec<&str> {
-    pages
-        .iter()
-        .flat_map(|(found, _)| found_titles(found))
+/// The titles `found` lists, in its order.
+fn titles(found: &[Found]) -> Vec<&str> {
+    (found.iter())
+        .map(|found| match found {
+            Found::Movie(movie) => movie.title.as_str(),
+            Found::Show(show) => show.title.as_str(),
+            Found::Episode(episode) => episode.title.as_str(),
+        })
         .collect()
 }
 
-fn found_titles(found: &Found) -> impl Iterator<Item = &str> {
-    let movies = found.movies.iter().map(|movie| movie.title.as_str());
-    let shows = found.shows.iter().map(|show| show.title.as_str());
-    let episodes = found.episodes.iter().map(|episode| episode.title.as_str());
-    movies.chain(shows).chain(episodes)
-}
-
 #[tokio::test]
-async fn a_search_pages_a_title_with_many_items_once() {
+async fn a_search_lists_exact_titles_then_prefixes_then_all_words_with_episodes_last() {
     let fx = Fixture::new().await;
     let (library, _folder) = fx.shows_library().await;
-    for (number, tmdb, title) in [(1, 9001, "Pilot"), (2, 9002, "Office Olympics")] {
-        fx.decide_office_episode(library, number, office_episode(tmdb, title))
-            .await;
-    }
-    let office_space = released_movie(1542, "Office Space", "1999-02-19");
-    for path in ["/media/Office Space.mkv", "/media/Office Space 4K.mkv"] {
-        MatchedMovie::store(&fx.contents, fx.library, path, office_space.clone()).await;
-    }
+    fx.decide_office_episode(library, 2, office_episode(9002, "Office Olympics"))
+        .await;
+    fx.match_movie(1, "The Officers", "2001-01-01").await;
+    fx.match_movie(2, "Office Space", "1999-02-19").await;
+    fx.match_movie(3, "Office", "2015-05-01").await;
 
-    let pages = fx.search_pages("office", 1).await;
+    let found = fx.search("office").await;
 
-    let mut found = titles(&pages);
-    found.sort_unstable();
-    assert_eq!(found, ["Office Olympics", "Office Space", "The Office"]);
-    let totals: Vec<_> = pages.iter().map(|&(_, total)| total).collect();
-    assert_eq!(totals, [Some(3), None, None], "one title a page");
+    assert_eq!(
+        titles(&found),
+        [
+            "Office",
+            "Office Space",
+            "The Office",
+            "The Officers",
+            "Office Olympics"
+        ]
+    );
 }
 
 #[tokio::test]
-async fn a_search_finding_over_100_titles_pages_them_best_fit_first_counting_them_first() {
+async fn a_search_counts_a_title_and_its_year_as_exact() {
     let fx = Fixture::new().await;
-    // A word fits a shorter title better, so each Movie fits worse than the one before.
-    let movies: Vec<String> = (0..101)
-        .map(|words| format!("Star{}", " Wars".repeat(words)))
-        .collect();
-    for (tmdb, title) in (1..).zip(&movies) {
-        fx.match_movie(tmdb, title, "1977-05-25").await;
+    fx.match_movie(1, "Dune 2021 Unboxed", "2021-01-01").await;
+    fx.match_movie(2, "Dune", "2021-09-15").await;
+
+    let found = fx.search("dune 2021").await;
+
+    assert_eq!(titles(&found), ["Dune", "Dune 2021 Unboxed"]);
+}
+
+#[tokio::test]
+async fn a_search_of_one_kind_finds_only_that_kind() {
+    let fx = Fixture::new().await;
+    let (library, _folder) = fx.shows_library().await;
+    fx.decide_office_episode(library, 2, office_episode(9002, "Office Olympics"))
+        .await;
+    fx.match_movie(2, "Office Space", "1999-02-19").await;
+
+    let movies = fx.contents.search("office", Some(TitleKind::Movie), 20);
+    let shows = fx.contents.search("office", Some(TitleKind::Show), 20);
+
+    assert_eq!(titles(&movies.await.unwrap()), ["Office Space"]);
+    assert_eq!(
+        titles(&shows.await.unwrap()),
+        ["The Office", "Office Olympics"]
+    );
+}
+
+#[tokio::test]
+async fn a_search_lists_no_more_than_its_limit() {
+    let fx = Fixture::new().await;
+    for (tmdb, title) in [(1, "Alien"), (2, "Aliens"), (3, "Alien 3")] {
+        fx.match_movie(tmdb, title, "1979-05-25").await;
     }
 
-    let pages = fx.search_pages("star", 100).await;
+    let found = fx.contents.search("alien", None, 2).await.unwrap();
 
-    assert_eq!(titles(&pages), movies);
-    let totals: Vec<_> = pages.iter().map(|&(_, total)| total).collect();
-    assert_eq!(totals, [Some(101), None]);
+    assert_eq!(titles(&found)[..1], ["Alien"], "the best first");
+    assert_eq!(found.len(), 2);
+}
+
+#[tokio::test]
+async fn a_search_ending_in_a_year_ranks_titles_starting_with_its_words_by_that_year() {
+    let fx = Fixture::new().await;
+    fx.match_movie(1, "Dune 2021 Unboxed", "2019-01-01").await;
+    fx.match_movie(2, "Dune Messiah", "2021-09-15").await;
+
+    let found = fx.search("dune 2021").await;
+
+    assert_eq!(titles(&found), ["Dune Messiah", "Dune 2021 Unboxed"]);
+}
+
+#[test]
+fn match_bands_put_an_exact_title_then_a_prefix_then_all_words_then_word_starts() {
+    let bands = |title| match_bands("alien", title, None);
+
+    assert!(bands("Alien") < bands("Alien: Romulus"));
+    assert!(bands("Alien: Romulus") < bands("Planet of the Alien"));
+    assert!(bands("Planet of the Alien") < bands("Planet of Aliens"));
+}
+
+#[test]
+fn match_bands_put_a_title_of_the_year_asked_for_first() {
+    let bands = |year| match_bands("dune 2021", "Dune: Messiah", Some(year));
+
+    assert!(bands("2021") < bands("1984"));
+}
+
+#[tokio::test]
+async fn a_search_by_a_show_title_skips_a_movie_whose_match_has_one() {
+    let fx = Fixture::new().await;
+    let matched = Metadata {
+        show_title: Some("Alien Saga".to_owned()),
+        ..tmdb_movie(348, "Alien")
+    };
+    MatchedMovie::store(&fx.contents, fx.library, "/media/348.mkv", matched).await;
+
+    assert!(fx.search("saga").await.is_empty());
+}
+
+/// What TMDB says of the Movie `tmdb`, called `title` here and `original_title` where it was made.
+fn translated_movie(tmdb: i64, title: &str, original_title: &str) -> Metadata {
+    Metadata {
+        original_title: Some(original_title.to_owned()),
+        ..tmdb_movie(tmdb, title)
+    }
+}
+
+#[tokio::test]
+async fn a_search_finds_a_movie_by_its_original_title_or_a_prefix_of_it() {
+    let fx = Fixture::new().await;
+    let matched = translated_movie(71_446, "Money Heist", "La casa de papel");
+    MatchedMovie::store(&fx.contents, fx.library, "/media/71446.mkv", matched).await;
+
+    assert_eq!(fx.found_movies("casa de papel").await, ["Money Heist"]);
+    assert_eq!(fx.found_movies("la cas").await, ["Money Heist"]);
+}
+
+#[tokio::test]
+async fn a_search_ranks_a_movie_by_the_better_fit_of_its_title_and_original_title() {
+    let fx = Fixture::new().await;
+    fx.match_movie(1, "La casa de papel verde", "2001-01-01")
+        .await;
+    fx.match_movie(2, "Papel de la casa", "2002-01-01").await;
+    let matched = translated_movie(71_446, "Money Heist", "La casa de papel");
+    MatchedMovie::store(&fx.contents, fx.library, "/media/71446.mkv", matched).await;
+
+    assert_eq!(
+        fx.found_movies("la casa de papel").await,
+        ["Money Heist", "La casa de papel verde", "Papel de la casa"]
+    );
+}
+
+#[tokio::test]
+async fn a_search_forgets_an_original_title_once_its_item_is_matched_again_or_removed() {
+    let fx = Fixture::new().await;
+    let heist = translated_movie(71_446, "Money Heist", "La casa de papel");
+    let item = MatchedMovie::store(&fx.contents, fx.library, "/media/heist.mkv", heist)
+        .await
+        .item;
+    let amelie = translated_movie(194, "Amélie", "Le Fabuleux Destin d'Amélie Poulain");
+    let amelie = MatchedMovie::store(&fx.contents, fx.library, "/media/amelie.mkv", amelie).await;
+
+    assert_eq!(fx.found_movies("casa").await, ["Money Heist"]);
+    assert_eq!(fx.found_movies("fabuleux").await, ["Amélie"]);
+
+    let ronin = Decided::Matched(Box::new(tmdb_movie(8195, "Ronin")));
+    fx.contents.record(vec![(item, ronin)]).await.unwrap();
+    assert_eq!(fx.found_movies("casa").await, Vec::<String>::new());
+
+    let removed = vec![Change::Remove(amelie.version)];
+    fx.contents.apply(fx.library, removed).await.unwrap();
+    assert_eq!(fx.found_movies("fabuleux").await, Vec::<String>::new());
+}
+
+/// The version of the migration that adds `original_title` to `title_search`.
+const ORIGINAL_TITLES: i64 = 20_261_121_012_705;
+
+#[tokio::test]
+async fn upgrading_to_original_titles_finds_a_movie_matched_before_by_its_original_title() {
+    let data = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = (migrations.iter().map(|migration| migration.version))
+        .filter(|&version| version < ORIGINAL_TITLES)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    sqlx::raw_sql(
+        "INSERT INTO libraries (id, name, kind) VALUES (1, 'Movies', 'movies');
+         INSERT INTO library_files (id, library_id, path, size, modified_ns)
+         VALUES (1, 1, '/media/Money Heist.mkv', 10, 0);
+         INSERT INTO library_items (id, file_id, kind, title, year)
+         VALUES (1, 1, 'movie', 'Money Heist', NULL);
+         INSERT INTO item_matches (item_id, state, plugin, title, original_title, decided_at)
+         VALUES (1, 'matched', 'tmdb', 'Money Heist', 'La casa de papel', 0);
+         INSERT INTO item_match_ids (item_id, scope, namespace, value)
+         VALUES (1, 'title', 'tmdb', '71446');",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let contents = Contents::new(Arc::new(Database::open(data.path()).await.unwrap()));
+    let found = contents.search("casa de papel", None, 20).await.unwrap();
+
+    assert_eq!(titles(&found), ["Money Heist"]);
+}
+
+#[tokio::test]
+async fn a_search_with_a_typo_finds_the_title_nearest_by_one_edit() {
+    let fx = Fixture::new().await;
+    fx.match_movie(71_446, "Money Heist", "2017-05-02").await;
+    fx.match_movie(157_336, "Interstellar", "2014-11-05").await;
+
+    assert_eq!(fx.found_movies("Mony Heist").await, ["Money Heist"]);
+    assert_eq!(fx.found_movies("Interstelar").await, ["Interstellar"]);
+}
+
+#[tokio::test]
+async fn a_search_never_corrects_a_word_of_three_letters() {
+    let fx = Fixture::new().await;
+    fx.match_movie(11_645, "Ran", "1985-06-01").await;
+
+    assert_eq!(fx.found_movies("Rab").await, Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn a_search_corrects_one_edit_up_to_seven_letters_and_two_from_eight() {
+    let fx = Fixture::new().await;
+    fx.match_movie(949, "Heat", "1995-12-15").await;
+    fx.match_movie(157_336, "Interstellar", "2014-11-05").await;
+    fx.match_movie(8844, "Jumanji", "1995-12-15").await;
+    fx.match_movie(10_655, "Ironclad", "2011-03-04").await;
+
+    assert_eq!(fx.found_movies("Hxat").await, ["Heat"]);
+    assert_eq!(fx.found_movies("Jumxnxi").await, Vec::<String>::new());
+    assert_eq!(fx.found_movies("Ironclxx").await, ["Ironclad"]);
+    assert_eq!(fx.found_movies("Hxxt").await, Vec::<String>::new());
+    assert_eq!(fx.found_movies("Intrstelar").await, ["Interstellar"]);
+    assert_eq!(fx.found_movies("Intrstlar").await, Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn a_search_corrects_to_the_word_most_titles_hold_then_the_first_alphabetically() {
+    let fx = Fixture::new().await;
+    for (tmdb, title) in [
+        (1, "Hell"),
+        (2, "Heal"),
+        (3, "Heal Me"),
+        (4, "Bolt"),
+        (5, "Belt"),
+    ] {
+        fx.match_movie(tmdb, title, "2001-01-01").await;
+    }
+
+    assert_eq!(fx.found_movies("Hexl").await, ["Heal", "Heal Me"]);
+    assert_eq!(fx.found_movies("Bxlt").await, ["Belt"]);
+}
+
+#[tokio::test]
+async fn a_search_keeps_a_word_some_indexed_word_starts_with() {
+    let fx = Fixture::new().await;
+    fx.match_movie(1, "Heats", "2001-01-01").await;
+    fx.match_movie(2, "Heal", "2002-01-01").await;
+
+    assert_eq!(fx.found_movies("heat").await, ["Heats"]);
+}
+
+#[tokio::test]
+async fn a_search_finding_five_titles_reads_no_vocab() {
+    let fx = Fixture::new().await;
+    for (tmdb, title) in [
+        (1, "Heist"),
+        (2, "Heist Two"),
+        (3, "Heist Three"),
+        (4, "Heist Four"),
+        (5, "Heist Five"),
+    ] {
+        fx.match_movie(tmdb, title, "2001-01-01").await;
+    }
+    // A word that finds something is never corrected, so only a missing vocab shows the
+    // fallback didn't run.
+    (fx.contents.db)
+        .write(|tx| {
+            Box::pin(async move {
+                sqlx::query("DROP TABLE title_search_vocab")
+                    .execute(&mut **tx)
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+
+    let five = fx.contents.search("heis", None, 20).await;
+    let two = fx.contents.search("heis f", None, 20).await;
+
+    assert_eq!(five.unwrap().len(), 5);
+    assert!(two.is_err(), "fewer than five found reads the vocab");
+}
+
+#[tokio::test]
+async fn a_search_lists_corrected_titles_within_its_limit() {
+    let fx = Fixture::new().await;
+    for (tmdb, title) in [(1, "Money"), (2, "Money Heist"), (3, "Money Monster")] {
+        fx.match_movie(tmdb, title, "2001-01-01").await;
+    }
+
+    let found = fx.contents.search("mony", None, 2).await.unwrap();
+
+    assert_eq!(titles(&found)[..1], ["Money"], "the best first");
+    assert_eq!(found.len(), 2);
 }

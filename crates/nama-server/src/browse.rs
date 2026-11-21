@@ -14,8 +14,9 @@ use crate::{
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, Stored,
-        TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind, WatchStates,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, OnServer,
+        Roles, Stored, TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState,
+        WatchStateKind, WatchStates,
     },
     page::{self, Page},
     playback::{Probe, StoredTracks, Track},
@@ -131,6 +132,16 @@ impl Browse {
         Ok((movie, state.flatten(), read_only_folder))
     }
 
+    /// `movie`'s Roles, each list in billing order.
+    pub(crate) async fn movie_roles(&self, movie: &Movie) -> Result<Roles, Error> {
+        Ok(self.contents.movie_roles(movie).await?)
+    }
+
+    /// `show`'s Roles, over its whole run.
+    pub(crate) async fn show_roles(&self, show: &Show) -> Result<Roles, Error> {
+        Ok(self.contents.show_roles(show).await?)
+    }
+
     /// The Episodes of Season `season` of the Show `show` of the Shows Library `library`, each
     /// with the User `user`'s Watch State of it, if they've started it.
     pub(crate) async fn episodes(
@@ -189,6 +200,11 @@ impl Browse {
         Ok(self.titles(&self.library(library).await?).await?.show(id)?)
     }
 
+    /// How many of `show`'s Episodes have aired: see [`Contents::aired_episodes`].
+    pub(crate) async fn aired_episodes(&self, show: &Show) -> Result<u32, sqlx::Error> {
+        self.contents.aired_episodes(show).await
+    }
+
     /// Season `number` of the Show `show` of the Shows Library `library`.
     pub(crate) async fn season(
         &self,
@@ -209,15 +225,15 @@ impl Browse {
         })
     }
 
-    /// The `asked` page of the Movies, Shows and Episodes of every Library that a search for
-    /// `query` finds: see [`Contents::search`].
+    /// The best `limit` Movies, Shows and Episodes of every Library that a search for `query`
+    /// finds, of `kind` only if it's set: see [`Contents::search`].
     pub(crate) async fn search(
         &self,
         query: &str,
-        asked: &PageRequest,
-    ) -> Result<(Found, PageResponse), Error> {
-        let page = Page::read(asked, format!("SearchLibraries {query}").as_bytes())?;
-        Ok(self.contents.search(query, &page).await?)
+        kind: Option<TitleKind>,
+        limit: usize,
+    ) -> Result<Vec<Found>, sqlx::Error> {
+        self.contents.search(query, kind, limit).await
     }
 
     /// The `asked` page of the Unmatched Items of the Library `library`, the one found most
@@ -324,6 +340,37 @@ impl Browse {
             return Ok(HashMap::new());
         }
         self.tracks.of(&files).await
+    }
+
+    /// The Similar titles that the Match in `library` of the title of `kind` known by `ids`
+    /// stores, as [`Self::in_libraries`] finds them.
+    pub(crate) async fn similar(
+        &self,
+        library: i64,
+        kind: TitleKind,
+        ids: &ExternalIds,
+    ) -> Result<Vec<OnServer>, Error> {
+        let similar = self.contents.similar(library, kind, ids).await?;
+        self.in_libraries(kind, &similar).await
+    }
+
+    /// The titles of `kind` that `ids` name and a Library has, in the order of `ids`, each once,
+    /// in the oldest Library that has it, by any id it shares with one of `ids`. Every Library
+    /// counts, since every User may browse each one.
+    pub(crate) async fn in_libraries(
+        &self,
+        kind: TitleKind,
+        ids: &[ExternalId],
+    ) -> Result<Vec<OnServer>, Error> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let libraries = self.libraries.list().await.map_err(finding_failed)?;
+        let kind = match kind {
+            TitleKind::Movie => LibraryKind::Movies,
+            TitleKind::Show => LibraryKind::Shows,
+        };
+        Ok(OnServer::in_order_of(&self.contents, &libraries, kind, ids).await?)
     }
 
     async fn library(&self, library: i64) -> Result<Library, Error> {

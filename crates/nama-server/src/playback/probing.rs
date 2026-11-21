@@ -14,6 +14,8 @@
 mod cues;
 mod ffprobe;
 mod mp4;
+#[cfg(test)]
+mod testing;
 
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
@@ -31,8 +33,11 @@ use tokio::sync::{Notify, watch};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
+use self::ffprobe::{Ffprobe, Reader};
 use super::{
-    StoredTracks, subtitles,
+    StoredTracks,
+    read_failures::{Read, ReadFailure},
+    subtitles,
     tracks::{
         Keyframes, LastingReason, ListedKeyframes, PassingReason, Probe, ProbeFailure, Tracks,
     },
@@ -40,7 +45,7 @@ use super::{
 use crate::{
     db::Database,
     diagnostics,
-    ffmpeg::Ffmpeg,
+    ffmpeg::{Ffmpeg, RunError},
     images::{DOWNLOADED_SUBTITLES_DIR, ImageStore, PREVIEW_FRAMES_DIR},
     library::{Contents, Stored},
 };
@@ -62,14 +67,8 @@ const LISTING_WAIT: Duration = Duration::from_secs(5);
 /// Why probing a file failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ProbeError {
-    #[error("the Server has no ffprobe")]
-    Unavailable,
-    #[error("ffprobe couldn't be run: {0}")]
-    Run(#[from] io::Error),
-    #[error("ffprobe took too long")]
-    TimedOut(#[from] tokio::time::error::Elapsed),
-    #[error("ffprobe failed: {0}")]
-    Failed(String),
+    #[error(transparent)]
+    Run(#[from] RunError),
     #[error("ffprobe's output couldn't be read: {0}")]
     Output(#[from] serde_json::Error),
     /// Kept from an earlier listing of the keyframes, which isn't tried again until the file
@@ -85,7 +84,7 @@ pub(crate) enum ProbeError {
 /// Why probing a Version right away failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    /// ffprobe couldn't read it, or the Server has no ffprobe ([`ProbeError::Unavailable`]).
+    /// ffprobe couldn't read it, or the Server has no ffprobe ([`RunError::Unavailable`]).
     /// Shared, as whoever waited for the same probe gets it too.
     #[error(transparent)]
     Probe(Arc<ProbeError>),
@@ -139,7 +138,7 @@ struct Inner {
     contents: Contents,
     tracks: Tracks,
     stored_tracks: StoredTracks,
-    ffmpeg: Arc<Ffmpeg>,
+    reader: Arc<dyn Reader>,
     subtitles: subtitles::Cache,
     /// Where downloaded subtitles and Preview frames are kept, from which it deletes those of
     /// Versions gone.
@@ -175,12 +174,22 @@ impl Probing {
         subtitles: subtitles::Cache,
         images: ImageStore,
     ) -> Self {
+        Self::with_reader(db, Arc::new(Ffprobe(ffmpeg)), subtitles, images)
+    }
+
+    /// As [`Self::new`], reading files with `reader` rather than ffprobe.
+    fn with_reader(
+        db: Arc<Database>,
+        reader: Arc<dyn Reader>,
+        subtitles: subtitles::Cache,
+        images: ImageStore,
+    ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 tracks: Tracks::new(Arc::clone(&db)),
                 stored_tracks: StoredTracks::new(Arc::clone(&db)),
                 contents: Contents::new(db),
-                ffmpeg,
+                reader,
                 subtitles,
                 images,
                 tasks: TaskTracker::new(),
@@ -306,7 +315,7 @@ impl Probing {
         if self.inner.cancel.is_cancelled() {
             return;
         }
-        if !self.inner.ffmpeg.can_probe() {
+        if !self.inner.reader.can_read() {
             finished(ProbingFinished {
                 library_id: library,
                 ..Default::default()
@@ -416,7 +425,10 @@ impl Probing {
                 Ok(Some(Ok(_))) => probed.probed += 1,
                 // ffprobe didn't run, so the file is left for the next scan.
                 Ok(Some(Err(err)))
-                    if matches!(*err, ProbeError::Unavailable | ProbeError::Run(_)) => {}
+                    if matches!(
+                        *err,
+                        ProbeError::Run(RunError::Unavailable(_) | RunError::Run(..))
+                    ) => {}
                 Ok(Some(Err(_))) => probed.failed += 1,
                 Ok(None) => {}
                 Err(err) => unstored = Some(err),
@@ -518,7 +530,7 @@ impl Probing {
         {
             return Ok(probe);
         }
-        match ffprobe::probe(&self.inner.ffmpeg, path).await {
+        match self.inner.reader.probe(path.to_owned()).await {
             Ok((probe, starts)) => {
                 let indexed = match probe.container.as_str() {
                     "matroska,webm" => cues::listed(path, starts.file_ms, probe.duration_ms).await,
@@ -535,7 +547,7 @@ impl Probing {
                 Ok(probe)
             }
             Err(err) => {
-                let failure = failure(&err, path).await;
+                let failure = failure(&err, Read::Probe, path).await;
                 self.inner.tracks.store_failure(file, failure).await?;
                 Err(Unprobed::Probe(Arc::new(err), failure))
             }
@@ -599,7 +611,10 @@ impl Probing {
     /// the file changes or the probe failure version is bumped. Unlike a probe, a timeout isn't
     /// tried again: each try reads the whole file for up to `WHOLE_FILE_TIMEOUT` (#850).
     async fn list_claimed(&self, path: &str, claim: Claim<Listed>) -> Result<(), sqlx::Error> {
-        let listed = ffprobe::keyframes(&self.inner.ffmpeg, path)
+        let listed = self
+            .inner
+            .reader
+            .keyframes(path.to_owned())
             .await
             .map_err(Arc::new);
         let kept = match &listed {
@@ -608,8 +623,8 @@ impl Probing {
                 // The plan that started it may have stopped waiting, and so won't log it.
                 tracing::warn!("could not list the keyframes of {path}: {err}");
                 matches!(
-                    failure(err, path).await,
-                    ProbeFailure::Lasting(_) | ProbeFailure::Passing(_)
+                    failure(err, Read::WholeFile, path).await,
+                    ProbeFailure::Lasting(_)
                 )
                 .then_some(Keyframes::Unlisted)
             }
@@ -636,37 +651,25 @@ fn plausible(listed: &ListedKeyframes, first_ms: i64, duration_ms: Option<i64>) 
         && (keyframes.last().zip(duration_ms)).is_some_and(|(last, duration)| *last <= duration)
 }
 
-/// What failing to probe the file at `path` with `err` means for trying it again.
-async fn failure(err: &ProbeError, path: &str) -> ProbeFailure {
+/// What failing to `read` the file at `path` with `err` means for trying it again.
+async fn failure(err: &ProbeError, read: Read, path: &str) -> ProbeFailure {
     match err {
-        // ffprobe never reached the file, so counting it against the file would skip a whole
-        // Library after one bad pass, such as during a package upgrade.
-        ProbeError::Run(_) => ProbeFailure::StopsPass,
-        // Nothing was read, so what's stored isn't known to be wrong, and a Server without
-        // ffprobe keeps it, as it never probes in the background.
-        ProbeError::Unavailable => ProbeFailure::Retried,
-        // ffprobe fails fast on a file it can't open, as on a share that dropped or an NFS handle
-        // gone stale since the scan, which may read fine once it's back unchanged.
-        ProbeError::Failed(_) if !readable(path).await => ProbeFailure::Retried,
-        // ffprobe read the file and refused it, or said something it can't parse: it will again.
-        // Only `Probing::keyframes` returns `UnlistedBefore` and `NotListedYet`, never ffprobe, so
-        // no probe or listing gets here with them.
-        ProbeError::Failed(_) | ProbeError::UnlistedBefore | ProbeError::NotListedYet => {
+        ProbeError::Run(err) => match ReadFailure::of(err, read, path).await {
+            // Says nothing about the file, so what's stored isn't known to be wrong, and a Server
+            // without ffprobe keeps it, as it never probes in the background.
+            ReadFailure::NoProgram | ReadFailure::NotTheFile => ProbeFailure::Retried,
+            // Counting it against the file would skip a whole Library after one bad pass, such
+            // as during a package upgrade.
+            ReadFailure::WontRun => ProbeFailure::StopsPass,
+            ReadFailure::Passing => ProbeFailure::Passing(PassingReason::TimedOut),
+            ReadFailure::Lasting => ProbeFailure::Lasting(LastingReason::Failed),
+        },
+        // Only `Probing::keyframes` returns these, never ffprobe, so no probe or listing gets
+        // here with them.
+        ProbeError::UnlistedBefore | ProbeError::NotListedYet => {
             ProbeFailure::Lasting(LastingReason::Failed)
         }
         ProbeError::Output(_) => ProbeFailure::Lasting(LastingReason::UnreadableOutput),
-        // A slow or unmounted share, or a busy disk, may not be slow next time.
-        ProbeError::TimedOut(_) => ProbeFailure::Passing(PassingReason::TimedOut),
-    }
-}
-
-/// Whether the file at `path` can be opened and read from now.
-pub(super) async fn readable(path: &str) -> bool {
-    use tokio::io::AsyncReadExt;
-
-    match tokio::fs::File::open(path).await {
-        Ok(mut file) => file.read(&mut [0; 1]).await.is_ok(),
-        Err(_) => false,
     }
 }
 

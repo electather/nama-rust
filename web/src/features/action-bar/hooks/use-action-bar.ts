@@ -10,6 +10,15 @@ import { press } from "@/features/action-bar/lib/keys";
 import { type Page, pagesFor } from "@/features/action-bar/lib/pages";
 import type { Frame, Opening, Row } from "@/features/action-bar/lib/rows";
 import type { FoundTitle } from "@/features/action-bar/lib/titles";
+import { TitleKind } from "@/gen/nama/v1/match_pb";
+
+/** What a search from each frame asks the Server for. */
+const kinds = {
+  root: TitleKind.UNSPECIFIED,
+  movie: TitleKind.MOVIE,
+  show: TitleKind.SHOW,
+  shortcuts: TitleKind.UNSPECIFIED,
+} satisfies Record<Frame, TitleKind>;
 
 /** The row selected: the one picked, while it's still listed, or else the first. */
 function activeOf(rows: readonly Row[], picked: string | undefined) {
@@ -34,7 +43,7 @@ export function useActionBar({
   const { recents, remember } = useRecents();
   const typed = frame === "shortcuts" ? "" : query.trim();
   const words = useDebounced(typed, 300);
-  const search = useFound(words);
+  const search = useFound(words, kinds[frame]);
   const { listed, slow, clear } = useListed(typed, words, search.searching);
 
   function push(next: Frame) {
@@ -52,10 +61,19 @@ export function useActionBar({
     dialog.close();
     void navigate({ to });
   }
+  function openToRequest({ kind, titleId }: FoundTitle) {
+    void (kind === "movie"
+      ? navigate({ to: "/movies/$movieId", params: { movieId: titleId } })
+      : navigate({ to: "/shows/$showId", params: { showId: titleId } }));
+  }
   function open(title: FoundTitle) {
-    remember(title);
     dialog.close();
     const { libraryId, titleId, season } = title;
+    if (libraryId === undefined) {
+      openToRequest(title);
+      return;
+    }
+    remember(title);
     void (title.kind === "movie"
       ? navigate({
           to: "/libraries/$libraryId/movies/$movieId",
@@ -95,6 +113,7 @@ export function useActionBar({
     groups,
     active,
     slow,
+    titleSourceUnavailable: search.titleSourceUnavailable,
     handleClose: dialog.close,
     handleBack: back,
     pick: setPicked,

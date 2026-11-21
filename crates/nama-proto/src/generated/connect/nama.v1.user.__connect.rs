@@ -174,6 +174,38 @@ pub type OwnedSetNotificationPreferenceResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<GetHomeLayoutRequestView<'static>>`.
+pub type OwnedGetHomeLayoutRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetHomeLayoutRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetHomeLayoutResponseView<'static>>`.
+pub type OwnedGetHomeLayoutResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetHomeLayoutResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetHomeLayoutRequestView<'static>>`.
+pub type OwnedSetHomeLayoutRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetHomeLayoutRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetHomeLayoutResponseView<'static>>`.
+pub type OwnedSetHomeLayoutResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetHomeLayoutResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ReorderHomeRowsRequestView<'static>>`.
+pub type OwnedReorderHomeRowsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReorderHomeRowsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ReorderHomeRowsResponseView<'static>>`.
+pub type OwnedReorderHomeRowsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReorderHomeRowsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ResetHomeLayoutRequestView<'static>>`.
+pub type OwnedResetHomeLayoutRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ResetHomeLayoutRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ResetHomeLayoutResponseView<'static>>`.
+pub type OwnedResetHomeLayoutResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ResetHomeLayoutResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -902,6 +934,142 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetHomeLayoutResponse>
+for crate::messages::nama::v1::__buffa::view::GetHomeLayoutResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetHomeLayoutResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetHomeLayoutResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetHomeLayoutResponse>
+for crate::messages::nama::v1::__buffa::view::SetHomeLayoutResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetHomeLayoutResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetHomeLayoutResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ReorderHomeRowsResponse>
+for crate::messages::nama::v1::__buffa::view::ReorderHomeRowsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ReorderHomeRowsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReorderHomeRowsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ResetHomeLayoutResponse>
+for crate::messages::nama::v1::__buffa::view::ResetHomeLayoutResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ResetHomeLayoutResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ResetHomeLayoutResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -1030,10 +1198,34 @@ pub const USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC: ::connectrpc::Spec = ::
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
-/// Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings and
-/// notification preferences. Every RPC but `ListDevices`, `RevokeDevice`, `ChangePassword`, the
-/// Plugin Connection ones, the Personal settings ones and the notification preference ones needs
-/// `PERMISSION_MANAGE_USERS`,
+/// Static [`Spec`](::connectrpc::Spec) for the `GetHomeLayout` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_GET_HOME_LAYOUT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/GetHomeLayout",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetHomeLayout` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_SET_HOME_LAYOUT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/SetHomeLayout",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ReorderHomeRows` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_REORDER_HOME_ROWS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ReorderHomeRows",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ResetHomeLayout` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_RESET_HOME_LAYOUT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ResetHomeLayout",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings,
+/// notification preferences and Home layouts. Every RPC but `ListDevices`, `RevokeDevice`,
+/// `ChangePassword`, the Plugin Connection ones, the Personal settings ones, the notification
+/// preference ones and the Home layout ones needs `PERMISSION_MANAGE_USERS`,
 /// and fails with `permission_denied` without it.
 /// Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 /// User with it, grant it, put it in the default Permissions or create a User while they hold it, or
@@ -1620,6 +1812,111 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetNotificationPreferenceResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// The caller's own Home layout: every Home row they could see now, shown or hidden, in the order
+    /// `BrowseService.ListHomeRows` lists the shown ones, and whether Featured is shown. Each of their
+    /// own rows from a Plugin is listed on its own, as a `plugin` row.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_home_layout<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetHomeLayoutRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetHomeLayoutResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Saves which Home rows, and whether Featured, the caller shows. Only the flags count, not the
+    /// order, which `ReorderHomeRows` saves. A row or Featured the caller hasn't set apart from the
+    /// default Home layout follows the default while it's saved as the default shows it. Once they
+    /// show or hide one otherwise, it keeps their flag, whatever the default does, until
+    /// `ResetHomeLayout`. A row the caller can't see now, such as a disabled Plugin's, keeps its flag.
+    /// Rows are named as `GetHomeLayout` names them, and one it doesn't list is ignored. A request
+    /// without a layout is refused with `REFUSAL_REASON_FIELD_REQUIRED` naming `layout`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_home_layout<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetHomeLayoutRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetHomeLayoutResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Saves the caller's order of their Home rows. Until they first do, their Home follows the
+    /// default Home layout's order; from then on it no longer moves their rows (ADR 0077). A row the
+    /// order doesn't place, such as a newly enabled Plugin's, goes after those it does. Rows are named
+    /// as `GetHomeLayout` names them; only which row each names counts, and one it doesn't list is
+    /// ignored.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn reorder_home_rows<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ReorderHomeRowsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ReorderHomeRowsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Forgets the caller's Home layout, its order and flags, so their Home follows the default Home
+    /// layout again.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn reset_home_layout<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ResetHomeLayoutRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ResetHomeLayoutResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -2264,6 +2561,122 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC)
+            .route_view_idempotent(
+                USER_SERVICE_SERVICE_NAME,
+                "GetHomeLayout",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetHomeLayoutRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetHomeLayoutRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_home_layout(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetHomeLayoutResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_GET_HOME_LAYOUT_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "SetHomeLayout",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetHomeLayoutRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetHomeLayoutRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_home_layout(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetHomeLayoutResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_SET_HOME_LAYOUT_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "ReorderHomeRows",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ReorderHomeRowsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ReorderHomeRowsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.reorder_home_rows(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ReorderHomeRowsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_REORDER_HOME_ROWS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "ResetHomeLayout",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ResetHomeLayoutRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ResetHomeLayoutRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.reset_home_layout(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ResetHomeLayoutResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_RESET_HOME_LAYOUT_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -2442,6 +2855,30 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC),
+                )
+            }
+            "GetHomeLayout" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(USER_SERVICE_GET_HOME_LAYOUT_SPEC),
+                )
+            }
+            "SetHomeLayout" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_SET_HOME_LAYOUT_SPEC),
+                )
+            }
+            "ReorderHomeRows" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_REORDER_HOME_ROWS_SPEC),
+                )
+            }
+            "ResetHomeLayout" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_RESET_HOME_LAYOUT_SPEC),
                 )
             }
             _ => None,
@@ -2908,6 +3345,94 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SetNotificationPreferenceResponse,
+                        >(format)
+                })
+            }
+            "GetHomeLayout" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetHomeLayoutRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetHomeLayoutRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetHomeLayoutRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_home_layout(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::GetHomeLayoutResponse,
+                        >(format)
+                })
+            }
+            "SetHomeLayout" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetHomeLayoutRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetHomeLayoutRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetHomeLayoutRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_home_layout(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetHomeLayoutResponse,
+                        >(format)
+                })
+            }
+            "ReorderHomeRows" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ReorderHomeRowsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ReorderHomeRowsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ReorderHomeRowsRequest,
+                    >::from_parts(&req, &body);
+                    svc.reorder_home_rows(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ReorderHomeRowsResponse,
+                        >(format)
+                })
+            }
+            "ResetHomeLayout" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ResetHomeLayoutRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ResetHomeLayoutRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ResetHomeLayoutRequest,
+                    >::from_parts(&req, &body);
+                    svc.reset_home_layout(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ResetHomeLayoutResponse,
                         >(format)
                 })
             }
@@ -3966,6 +4491,186 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetHomeLayout RPC. Sends a request to /nama.v1.UserService/GetHomeLayout.
+    pub async fn get_home_layout(
+        &self,
+        request: crate::messages::nama::v1::GetHomeLayoutRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_home_layout_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetHomeLayout RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_home_layout_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetHomeLayoutRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_GET_HOME_LAYOUT_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetHomeLayout RPC. Sends a request to /nama.v1.UserService/SetHomeLayout.
+    pub async fn set_home_layout(
+        &self,
+        request: crate::messages::nama::v1::SetHomeLayoutRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_home_layout_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetHomeLayout RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_home_layout_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetHomeLayoutRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_SET_HOME_LAYOUT_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ReorderHomeRows RPC. Sends a request to /nama.v1.UserService/ReorderHomeRows.
+    pub async fn reorder_home_rows(
+        &self,
+        request: crate::messages::nama::v1::ReorderHomeRowsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ReorderHomeRowsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.reorder_home_rows_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ReorderHomeRows RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn reorder_home_rows_with_options(
+        &self,
+        request: crate::messages::nama::v1::ReorderHomeRowsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ReorderHomeRowsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_REORDER_HOME_ROWS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ResetHomeLayout RPC. Sends a request to /nama.v1.UserService/ResetHomeLayout.
+    pub async fn reset_home_layout(
+        &self,
+        request: crate::messages::nama::v1::ResetHomeLayoutRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ResetHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.reset_home_layout_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ResetHomeLayout RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn reset_home_layout_with_options(
+        &self,
+        request: crate::messages::nama::v1::ResetHomeLayoutRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ResetHomeLayoutResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_RESET_HOME_LAYOUT_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

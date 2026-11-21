@@ -5,11 +5,13 @@ import { shownOnTitle } from "@/shared/components/request-state/request-states";
 import { StateLabel } from "@/shared/components/state-label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 
-const failed = <StateLabel {...shownOnTitle(RequestState.FAILED)} />;
-
-/** "Failed" in red, with its Fulfiller's `reason`, if it gave one, on hover and on focus. */
-export function FailedPill({ reason }: { reason: string | undefined }) {
+/**
+ * "Failed" in red, with its Fulfiller's `reason`, if it gave one, on hover and on focus; `large`
+ * beside a title's Play.
+ */
+export function FailedPill({ reason, large }: { reason: string | undefined; large: boolean }) {
   const reasonId = useId();
+  const failed = <StateLabel {...shownOnTitle(RequestState.FAILED)} large={large} />;
   if (reason === undefined) {
     return failed;
   }

@@ -20,6 +20,9 @@ have a Season still airing.
 `tv-2316.json` departs from TMDB on purpose: the US Office has only Seasons 1 and 3, so a Season 3
 Episode fits it and not the UK Office, which ties with it in a search.
 
+`search-tv-unreadable.json` is made up: its `results` isn't a list, so tests have a Show search
+TMDB answers with a page the Plugin can't read.
+
 `tv-900001.json` and its Season are made up: a Show with neither a TVDB nor an IMDb id, so tests
 have a Show a Fulfiller needing one cannot take.
 
@@ -28,6 +31,8 @@ textless, then other languages, but textless first for backdrops; then rating) t
 own `poster_path` and `backdrop_path`, since those are the only images whose bytes are here,
 besides Alien's and Dark Season 1's second English posters, which tests pick as Custom Images. Heat has no logos.
 `wire_tests.rs` checks this; the picked logos' bytes are 1x1 PNGs.
+
+Only Alien (`movie-348.json`) and Dark (`tv-70523.json`) have credits, trimmed to a few people; a Producer among Alien's crew, and Dark's Executive Producer, are jobs the Plugin leaves out. The headshots of those billed first are among `images/`, as stand-in bytes.
 
 `movie-949.json` has no US release, so tests have a title with no rating in the Language
 setting's country.

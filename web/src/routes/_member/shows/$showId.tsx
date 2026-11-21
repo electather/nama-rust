@@ -2,6 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { NotFound } from "@/app/route-error/not-found";
 import { ShowToRequest } from "@/features/title/components/show-to-request";
+import { TitlePending } from "@/features/title/components/title-pending";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/_member/shows/$showId")({
     await queryOrNotFound(context, RequestService.method.lookUpShow, input);
     return input;
   },
+  pendingComponent: TitlePending,
   notFoundComponent: NotFound,
   component: Show,
 });

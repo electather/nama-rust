@@ -421,7 +421,9 @@ async fn a_remux_converting_surround_to_e_ac_3_writes_e_ac_3_5_1_hls() {
         .await
         .unwrap();
     assert!(probed.status.success(), "{probed:?}");
-    assert_eq!(String::from_utf8_lossy(&probed.stdout).trim(), "eac3\n6");
+    // By line, not `trim`: ffprobe ends its lines with \r\n on Windows.
+    let stdout = String::from_utf8_lossy(&probed.stdout);
+    assert_eq!(stdout.lines().collect::<Vec<_>>(), ["eac3", "6"]);
 }
 
 #[tokio::test]
@@ -449,8 +451,10 @@ async fn a_remux_started_at_a_keyframe_starts_its_audio_where_a_run_from_the_fir
         encoder: AudioEncoder::Aac,
         channels: 2,
     };
-    for (conversion, within) in [(None, copied_within), (Some(stereo_aac), 1024)] {
-        let run = |name: &str| work.path().join(format!("{name}-{conversion:?}"));
+    let runs = [(None, copied_within), (Some(stereo_aac), 1024)];
+    for (i, (conversion, within)) in runs.into_iter().enumerate() {
+        // Not named by `conversion:?`: Windows refuses the `:` in it.
+        let run = |name: &str| work.path().join(format!("{name}-{i}"));
         let (whole, restarted) = (run("whole"), run("restarted"));
         remux(&ffmpeg, &file, &whole, first, conversion).await;
 

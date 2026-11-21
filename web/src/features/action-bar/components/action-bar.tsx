@@ -6,6 +6,7 @@ import { ActionBarList } from "@/features/action-bar/components/action-bar-list"
 import { useActionBar } from "@/features/action-bar/hooks/use-action-bar";
 import { useLightDismiss } from "@/features/action-bar/hooks/use-light-dismiss";
 import type { Opening } from "@/features/action-bar/lib/rows";
+import { TitleSourceNote } from "@/shared/components/title-source-note";
 
 /**
  * The action bar: the one place to search your Libraries, jump to a page and see the keyboard
@@ -54,6 +55,7 @@ export function ActionBar({
     >
       <ActionBarHeader bar={bar} listId={listId} />
       <ActionBarList bar={bar} listId={listId} />
+      <TitleSourceNote shown={bar.titleSourceUnavailable} className="px-3 pb-2 text-xs empty:p-0" />
       <ActionBarFooter />
     </dialog>
   );

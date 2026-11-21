@@ -1146,6 +1146,52 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub titled_backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// Its Score, from 0 to 10, as the title source it is Matched to averages it. Unset, not 0, if
+    /// nobody has voted or that source has none.
+    ///
+    /// Field 21: `score`
+    #[serde(
+        rename = "score",
+        with = "::buffa::json_helpers::opt_double",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub score: ::core::option::Option<f64>,
+    /// The ISO 639-1 code of the language it was made in, such as `ja`, as its title source has it.
+    ///
+    /// Field 22: `original_language`
+    #[serde(
+        rename = "originalLanguage",
+        alias = "original_language",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub original_language: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Its Trailers, as the title source it is Matched to gives them, at most 5.
+    ///
+    /// Field 23: `trailers`
+    #[serde(
+        rename = "trailers",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub trailers: ::buffa::alloc::vec::Vec<Trailer>,
+    /// Its Cast, in billing order, from the title source it is Matched to.
+    ///
+    /// Field 24: `cast`
+    #[serde(
+        rename = "cast",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub cast: ::buffa::alloc::vec::Vec<Role>,
+    /// Its Crew, in billing order, from that source. Its directors have the job `Director`.
+    ///
+    /// Field 25: `crew`
+    #[serde(
+        rename = "crew",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub crew: ::buffa::alloc::vec::Vec<Role>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1173,6 +1219,11 @@ impl ::core::fmt::Debug for Movie {
             .field("on_watchlist", &self.on_watchlist)
             .field("titled_backdrop_url", &self.titled_backdrop_url)
             .field("titled_backdrop_thumbhash", &self.titled_backdrop_thumbhash)
+            .field("score", &self.score)
+            .field("original_language", &self.original_language)
+            .field("trailers", &self.trailers)
+            .field("cast", &self.cast)
+            .field("crew", &self.crew)
             .finish()
     }
 }
@@ -1301,6 +1352,23 @@ impl Movie {
         self.titled_backdrop_thumbhash = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::score`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_score(mut self, value: f64) -> Self {
+        self.score = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::original_language`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_original_language(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.original_language = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Movie);
 impl ::buffa::MessageName for Movie {
@@ -1397,6 +1465,36 @@ impl ::buffa::Message for Movie {
         if let Some(ref v) = self.titled_backdrop_thumbhash {
             size += 2u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if self.score.is_some() {
+            size += 2u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.original_language {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.trailers {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.cast {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.crew {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1481,6 +1579,36 @@ impl ::buffa::Message for Movie {
         }
         if let Some(ref v) = self.titled_backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(20u32, v, buf);
+        }
+        if let Some(v) = self.score {
+            ::buffa::types::put_double_field(21u32, v, buf);
+        }
+        if let Some(ref v) = self.original_language {
+            ::buffa::types::put_string_field(22u32, v, buf);
+        }
+        for v in &self.trailers {
+            ::buffa::types::put_len_delimited_header(
+                23u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.cast {
+            ::buffa::types::put_len_delimited_header(
+                24u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.crew {
+            ::buffa::types::put_len_delimited_header(
+                25u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1709,6 +1837,63 @@ impl ::buffa::Message for Movie {
                     buf,
                 )?;
             }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.score = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .original_language
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            23u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.trailers.push(elem);
+            }
+            24u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.cast.push(elem);
+            }
+            25u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.crew.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1737,6 +1922,11 @@ impl ::buffa::Message for Movie {
         self.on_watchlist = false;
         self.titled_backdrop_url = ::core::option::Option::None;
         self.titled_backdrop_thumbhash = ::core::option::Option::None;
+        self.score = ::core::option::Option::None;
+        self.original_language = ::core::option::Option::None;
+        self.trailers.clear();
+        self.cast.clear();
+        self.crew.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3049,13 +3239,36 @@ pub struct AudioTrack {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub channels: u32,
+    /// Whether its profile says it carries Dolby Atmos, as TrueHD and E-AC-3 (JOC) can.
+    ///
+    /// Field 2: `atmos`
+    #[serde(
+        rename = "atmos",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub atmos: bool,
+    /// Whether the file marks it as Audio Description, for the visually impaired.
+    ///
+    /// Field 3: `audio_description`
+    #[serde(
+        rename = "audioDescription",
+        alias = "audio_description",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub audio_description: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for AudioTrack {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("AudioTrack").field("channels", &self.channels).finish()
+        f.debug_struct("AudioTrack")
+            .field("channels", &self.channels)
+            .field("atmos", &self.atmos)
+            .field("audio_description", &self.audio_description)
+            .finish()
     }
 }
 impl AudioTrack {
@@ -3088,6 +3301,12 @@ impl ::buffa::Message for AudioTrack {
         if self.channels != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.channels) as u64;
         }
+        if self.atmos {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.audio_description {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3100,6 +3319,12 @@ impl ::buffa::Message for AudioTrack {
         use ::buffa::Enumeration as _;
         if self.channels != 0u32 {
             ::buffa::types::put_uint32_field(1u32, self.channels, buf);
+        }
+        if self.atmos {
+            ::buffa::types::put_bool_field(2u32, self.atmos, buf);
+        }
+        if self.audio_description {
+            ::buffa::types::put_bool_field(3u32, self.audio_description, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3121,6 +3346,20 @@ impl ::buffa::Message for AudioTrack {
                 )?;
                 self.channels = ::buffa::types::decode_uint32(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.atmos = ::buffa::types::decode_bool(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.audio_description = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3130,6 +3369,8 @@ impl ::buffa::Message for AudioTrack {
     }
     fn clear(&mut self) {
         self.channels = 0u32;
+        self.atmos = false;
+        self.audio_description = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4468,6 +4709,16 @@ pub struct GetMovieResponse {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub read_only_folder: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Its Similar titles that are in a Library, most alike first, each with `library_id` set to
+    /// the oldest Library it is in. Its title source names them, and one in no Library is left out.
+    ///
+    /// Field 3: `similar`
+    #[serde(
+        rename = "similar",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub similar: ::buffa::alloc::vec::Vec<MovieHit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4477,6 +4728,7 @@ impl ::core::fmt::Debug for GetMovieResponse {
         f.debug_struct("GetMovieResponse")
             .field("movie", &self.movie)
             .field("read_only_folder", &self.read_only_folder)
+            .field("similar", &self.similar)
             .finish()
     }
 }
@@ -4530,6 +4782,14 @@ impl ::buffa::Message for GetMovieResponse {
         if let Some(ref v) = self.read_only_folder {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4550,6 +4810,14 @@ impl ::buffa::Message for GetMovieResponse {
         }
         if let Some(ref v) = self.read_only_folder {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4587,6 +4855,18 @@ impl ::buffa::Message for GetMovieResponse {
                     buf,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4597,6 +4877,7 @@ impl ::buffa::Message for GetMovieResponse {
     fn clear(&mut self) {
         self.movie = ::buffa::MessageField::none();
         self.read_only_folder = ::core::option::Option::None;
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4793,6 +5074,51 @@ pub struct Show {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub titled_backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// As `Movie.score`.
+    ///
+    /// Field 18: `score`
+    #[serde(
+        rename = "score",
+        with = "::buffa::json_helpers::opt_double",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub score: ::core::option::Option<f64>,
+    /// As `Movie.original_language`.
+    ///
+    /// Field 19: `original_language`
+    #[serde(
+        rename = "originalLanguage",
+        alias = "original_language",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub original_language: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `Movie.trailers`.
+    ///
+    /// Field 20: `trailers`
+    #[serde(
+        rename = "trailers",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub trailers: ::buffa::alloc::vec::Vec<Trailer>,
+    /// As `Movie.cast`, over the Show's whole run.
+    ///
+    /// Field 21: `cast`
+    #[serde(
+        rename = "cast",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub cast: ::buffa::alloc::vec::Vec<Role>,
+    /// As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
+    ///
+    /// Field 22: `crew`
+    #[serde(
+        rename = "crew",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub crew: ::buffa::alloc::vec::Vec<Role>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4817,6 +5143,11 @@ impl ::core::fmt::Debug for Show {
             .field("season_count", &self.season_count)
             .field("titled_backdrop_url", &self.titled_backdrop_url)
             .field("titled_backdrop_thumbhash", &self.titled_backdrop_thumbhash)
+            .field("score", &self.score)
+            .field("original_language", &self.original_language)
+            .field("trailers", &self.trailers)
+            .field("cast", &self.cast)
+            .field("crew", &self.crew)
             .finish()
     }
 }
@@ -4928,6 +5259,23 @@ impl Show {
         self.titled_backdrop_thumbhash = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::score`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_score(mut self, value: f64) -> Self {
+        self.score = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::original_language`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_original_language(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.original_language = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Show);
 impl ::buffa::MessageName for Show {
@@ -5005,6 +5353,36 @@ impl ::buffa::Message for Show {
         if let Some(ref v) = self.titled_backdrop_thumbhash {
             size += 2u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if self.score.is_some() {
+            size += 2u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.original_language {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.trailers {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.cast {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.crew {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5070,6 +5448,36 @@ impl ::buffa::Message for Show {
         }
         if let Some(ref v) = self.titled_backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(17u32, v, buf);
+        }
+        if let Some(v) = self.score {
+            ::buffa::types::put_double_field(18u32, v, buf);
+        }
+        if let Some(ref v) = self.original_language {
+            ::buffa::types::put_string_field(19u32, v, buf);
+        }
+        for v in &self.trailers {
+            ::buffa::types::put_len_delimited_header(
+                20u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.cast {
+            ::buffa::types::put_len_delimited_header(
+                21u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.crew {
+            ::buffa::types::put_len_delimited_header(
+                22u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5261,6 +5669,63 @@ impl ::buffa::Message for Show {
                     buf,
                 )?;
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.score = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .original_language
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.trailers.push(elem);
+            }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.cast.push(elem);
+            }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.crew.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5286,6 +5751,11 @@ impl ::buffa::Message for Show {
         self.season_count = 0u32;
         self.titled_backdrop_url = ::core::option::Option::None;
         self.titled_backdrop_thumbhash = ::core::option::Option::None;
+        self.score = ::core::option::Option::None;
+        self.original_language = ::core::option::Option::None;
+        self.trailers.clear();
+        self.cast.clear();
+        self.crew.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7484,6 +7954,26 @@ pub struct GetShowResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub seasons: ::buffa::alloc::vec::Vec<Season>,
+    /// How many of the Show's Episodes, Specials aside, have aired by today, by the air dates its
+    /// title source gave when the Show was last fetched. 0 if it gave none.
+    ///
+    /// Field 3: `aired_episode_count`
+    #[serde(
+        rename = "airedEpisodeCount",
+        alias = "aired_episode_count",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub aired_episode_count: u32,
+    /// As `GetMovieResponse.similar`, for the Show.
+    ///
+    /// Field 4: `similar`
+    #[serde(
+        rename = "similar",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub similar: ::buffa::alloc::vec::Vec<ShowHit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7493,6 +7983,8 @@ impl ::core::fmt::Debug for GetShowResponse {
         f.debug_struct("GetShowResponse")
             .field("show", &self.show)
             .field("seasons", &self.seasons)
+            .field("aired_episode_count", &self.aired_episode_count)
+            .field("similar", &self.similar)
             .finish()
     }
 }
@@ -7539,6 +8031,20 @@ impl ::buffa::Message for GetShowResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.aired_episode_count != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.aired_episode_count)
+                        as u64;
+        }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7560,6 +8066,17 @@ impl ::buffa::Message for GetShowResponse {
         for v in &self.seasons {
             ::buffa::types::put_len_delimited_header(
                 2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if self.aired_episode_count != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.aired_episode_count, buf);
+        }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -7601,6 +8118,25 @@ impl ::buffa::Message for GetShowResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.seasons.push(elem);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.aired_episode_count = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7611,6 +8147,8 @@ impl ::buffa::Message for GetShowResponse {
     fn clear(&mut self) {
         self.show = ::buffa::MessageField::none();
         self.seasons.clear();
+        self.aired_episode_count = 0u32;
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -9784,428 +10322,7 @@ pub mod featured_title {
     #[doc(inline)]
     pub use super::__buffa::view::oneof::featured_title::MovieOrShow as MovieOrShowView;
 }
-#[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize, ::serde::Deserialize)]
-#[serde(default)]
-pub struct SearchLibrariesRequest {
-    /// The words to search for. One without letters or digits finds nothing.
-    ///
-    /// Field 1: `query`
-    #[serde(
-        rename = "query",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub query: ::buffa::alloc::string::String,
-    /// The page of what it found to list. Movies, Shows and Episodes share one order, best fit
-    /// first, so a page holds `size` of them together.
-    ///
-    /// Field 2: `page`
-    #[serde(
-        rename = "page",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
-    )]
-    pub page: ::buffa::MessageField<PageRequest, ::buffa::Inline<PageRequest>>,
-    #[serde(skip)]
-    #[doc(hidden)]
-    pub __buffa_unknown_fields: ::buffa::UnknownFields,
-}
-impl ::core::fmt::Debug for SearchLibrariesRequest {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SearchLibrariesRequest")
-            .field("query", &self.query)
-            .field("page", &self.page)
-            .finish()
-    }
-}
-impl SearchLibrariesRequest {
-    /// Protobuf type URL for this message, for use with `Any::pack` and
-    /// `Any::unpack_if`.
-    ///
-    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchLibrariesRequest";
-}
-::buffa::impl_default_instance!(SearchLibrariesRequest);
-impl ::buffa::MessageName for SearchLibrariesRequest {
-    const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SearchLibrariesRequest";
-    const FULL_NAME: &'static str = "nama.v1.SearchLibrariesRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchLibrariesRequest";
-}
-impl ::buffa::Message for SearchLibrariesRequest {
-    /// Returns the total encoded size in bytes.
-    ///
-    /// Accumulates in `u64` (which cannot overflow for in-memory
-    /// data) and saturates to `u32` at return, so a message whose
-    /// encoded size exceeds the 2 GiB protobuf limit yields a value
-    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
-    /// points reject, never a silently wrapped size.
-    #[allow(clippy::let_and_return)]
-    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        let mut size = 0u64;
-        if !self.query.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.query) as u64;
-        }
-        if self.page.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.page.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
-        size += self.__buffa_unknown_fields.encoded_len() as u64;
-        ::buffa::saturate_size(size)
-    }
-    fn write_to(
-        &self,
-        __cache: &mut ::buffa::SizeCache,
-        buf: &mut impl ::buffa::EncodeSink,
-    ) {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        if !self.query.is_empty() {
-            ::buffa::types::put_string_field(1u32, &self.query, buf);
-        }
-        if self.page.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                2u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.page.write_to(__cache, buf);
-        }
-        self.__buffa_unknown_fields.write_to(buf);
-    }
-    fn merge_field(
-        &mut self,
-        tag: ::buffa::encoding::Tag,
-        buf: &mut impl ::buffa::bytes::Buf,
-        ctx: ::buffa::DecodeContext<'_>,
-    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
-        #[allow(unused_imports)]
-        use ::buffa::bytes::Buf as _;
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::types::merge_string(&mut self.query, buf)?;
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::Message::merge_length_delimited(
-                    self.page.get_or_insert_default(),
-                    buf,
-                    ctx,
-                )?;
-            }
-            _ => {
-                self.__buffa_unknown_fields
-                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
-            }
-        }
-        ::core::result::Result::Ok(())
-    }
-    fn clear(&mut self) {
-        self.query.clear();
-        self.page = ::buffa::MessageField::none();
-        self.__buffa_unknown_fields.clear();
-    }
-}
-impl ::buffa::ExtensionSet for SearchLibrariesRequest {
-    const PROTO_FQN: &'static str = "nama.v1.SearchLibrariesRequest";
-    fn unknown_fields(&self) -> &::buffa::UnknownFields {
-        &self.__buffa_unknown_fields
-    }
-    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
-        &mut self.__buffa_unknown_fields
-    }
-}
-impl ::buffa::json_helpers::ProtoElemJson for SearchLibrariesRequest {
-    fn serialize_proto_json<S: ::serde::Serializer>(
-        v: &Self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        ::serde::Serialize::serialize(v, s)
-    }
-    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        <Self as ::serde::Deserialize>::deserialize(d)
-    }
-}
-#[doc(hidden)]
-pub const __SEARCH_LIBRARIES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.SearchLibrariesRequest",
-    to_json: ::buffa::type_registry::any_to_json::<SearchLibrariesRequest>,
-    from_json: ::buffa::type_registry::any_from_json::<SearchLibrariesRequest>,
-    is_wkt: false,
-};
-/// A page of what `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in
-/// two Libraries is found in each.
-#[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize, ::serde::Deserialize)]
-#[serde(default)]
-pub struct SearchLibrariesResponse {
-    /// Field 1: `movies`
-    #[serde(
-        rename = "movies",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
-        deserialize_with = "::buffa::json_helpers::null_as_default"
-    )]
-    pub movies: ::buffa::alloc::vec::Vec<MovieInLibrary>,
-    /// Field 2: `shows`
-    #[serde(
-        rename = "shows",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
-        deserialize_with = "::buffa::json_helpers::null_as_default"
-    )]
-    pub shows: ::buffa::alloc::vec::Vec<ShowInLibrary>,
-    /// Field 3: `episodes`
-    #[serde(
-        rename = "episodes",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
-        deserialize_with = "::buffa::json_helpers::null_as_default"
-    )]
-    pub episodes: ::buffa::alloc::vec::Vec<EpisodeInLibrary>,
-    /// The rest of what it found: the next page's token, and on the first page how many Movies,
-    /// Shows and Episodes it found in all.
-    ///
-    /// Field 4: `page`
-    #[serde(
-        rename = "page",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
-    )]
-    pub page: ::buffa::MessageField<PageResponse, ::buffa::Inline<PageResponse>>,
-    #[serde(skip)]
-    #[doc(hidden)]
-    pub __buffa_unknown_fields: ::buffa::UnknownFields,
-}
-impl ::core::fmt::Debug for SearchLibrariesResponse {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SearchLibrariesResponse")
-            .field("movies", &self.movies)
-            .field("shows", &self.shows)
-            .field("episodes", &self.episodes)
-            .field("page", &self.page)
-            .finish()
-    }
-}
-impl SearchLibrariesResponse {
-    /// Protobuf type URL for this message, for use with `Any::pack` and
-    /// `Any::unpack_if`.
-    ///
-    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchLibrariesResponse";
-}
-::buffa::impl_default_instance!(SearchLibrariesResponse);
-impl ::buffa::MessageName for SearchLibrariesResponse {
-    const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SearchLibrariesResponse";
-    const FULL_NAME: &'static str = "nama.v1.SearchLibrariesResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchLibrariesResponse";
-}
-impl ::buffa::Message for SearchLibrariesResponse {
-    /// Returns the total encoded size in bytes.
-    ///
-    /// Accumulates in `u64` (which cannot overflow for in-memory
-    /// data) and saturates to `u32` at return, so a message whose
-    /// encoded size exceeds the 2 GiB protobuf limit yields a value
-    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
-    /// points reject, never a silently wrapped size.
-    #[allow(clippy::let_and_return)]
-    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        let mut size = 0u64;
-        for v in &self.movies {
-            let __slot = __cache.reserve();
-            let inner_size = v.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
-        for v in &self.shows {
-            let __slot = __cache.reserve();
-            let inner_size = v.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
-        for v in &self.episodes {
-            let __slot = __cache.reserve();
-            let inner_size = v.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
-        if self.page.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.page.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
-        size += self.__buffa_unknown_fields.encoded_len() as u64;
-        ::buffa::saturate_size(size)
-    }
-    fn write_to(
-        &self,
-        __cache: &mut ::buffa::SizeCache,
-        buf: &mut impl ::buffa::EncodeSink,
-    ) {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        for v in &self.movies {
-            ::buffa::types::put_len_delimited_header(
-                1u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            v.write_to(__cache, buf);
-        }
-        for v in &self.shows {
-            ::buffa::types::put_len_delimited_header(
-                2u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            v.write_to(__cache, buf);
-        }
-        for v in &self.episodes {
-            ::buffa::types::put_len_delimited_header(
-                3u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            v.write_to(__cache, buf);
-        }
-        if self.page.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                4u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.page.write_to(__cache, buf);
-        }
-        self.__buffa_unknown_fields.write_to(buf);
-    }
-    fn merge_field(
-        &mut self,
-        tag: ::buffa::encoding::Tag,
-        buf: &mut impl ::buffa::bytes::Buf,
-        ctx: ::buffa::DecodeContext<'_>,
-    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
-        #[allow(unused_imports)]
-        use ::buffa::bytes::Buf as _;
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let mut elem = ::core::default::Default::default();
-                ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&elem),
-                )?;
-                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
-                self.movies.push(elem);
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let mut elem = ::core::default::Default::default();
-                ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&elem),
-                )?;
-                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
-                self.shows.push(elem);
-            }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let mut elem = ::core::default::Default::default();
-                ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&elem),
-                )?;
-                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
-                self.episodes.push(elem);
-            }
-            4u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::Message::merge_length_delimited(
-                    self.page.get_or_insert_default(),
-                    buf,
-                    ctx,
-                )?;
-            }
-            _ => {
-                self.__buffa_unknown_fields
-                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
-            }
-        }
-        ::core::result::Result::Ok(())
-    }
-    fn clear(&mut self) {
-        self.movies.clear();
-        self.shows.clear();
-        self.episodes.clear();
-        self.page = ::buffa::MessageField::none();
-        self.__buffa_unknown_fields.clear();
-    }
-}
-impl ::buffa::ExtensionSet for SearchLibrariesResponse {
-    const PROTO_FQN: &'static str = "nama.v1.SearchLibrariesResponse";
-    fn unknown_fields(&self) -> &::buffa::UnknownFields {
-        &self.__buffa_unknown_fields
-    }
-    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
-        &mut self.__buffa_unknown_fields
-    }
-}
-impl ::buffa::json_helpers::ProtoElemJson for SearchLibrariesResponse {
-    fn serialize_proto_json<S: ::serde::Serializer>(
-        v: &Self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        ::serde::Serialize::serialize(v, s)
-    }
-    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        <Self as ::serde::Deserialize>::deserialize(d)
-    }
-}
-#[doc(hidden)]
-pub const __SEARCH_LIBRARIES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.SearchLibrariesResponse",
-    to_json: ::buffa::type_registry::any_to_json::<SearchLibrariesResponse>,
-    from_json: ::buffa::type_registry::any_from_json::<SearchLibrariesResponse>,
-    is_wkt: false,
-};
-/// A Movie a search found, with what a client needs to show it and open it with `GetMovie`.
+/// A Movie in a Library, with what a client needs to show it and open it with `GetMovie`.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -10514,7 +10631,7 @@ pub const __MOVIE_IN_LIBRARY_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
     from_json: ::buffa::type_registry::any_from_json::<MovieInLibrary>,
     is_wkt: false,
 };
-/// A Show a search found, with what a client needs to show it and open it with `GetShow`.
+/// A Show in a Library, with what a client needs to show it and open it with `GetShow`.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -10782,304 +10899,6 @@ pub const __SHOW_IN_LIBRARY_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     type_url: "type.googleapis.com/nama.v1.ShowInLibrary",
     to_json: ::buffa::type_registry::any_to_json::<ShowInLibrary>,
     from_json: ::buffa::type_registry::any_from_json::<ShowInLibrary>,
-    is_wkt: false,
-};
-/// An Episode a search found, with what a client needs to show it and open its Season with
-/// `ListEpisodes`.
-#[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize, ::serde::Deserialize)]
-#[serde(default)]
-pub struct EpisodeInLibrary {
-    /// The Library it is in.
-    ///
-    /// Field 1: `library_id`
-    #[serde(
-        rename = "libraryId",
-        alias = "library_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
-    )]
-    pub library_id: i64,
-    /// As `ListEpisodes` gives it.
-    ///
-    /// Field 2: `id`
-    #[serde(
-        rename = "id",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
-    )]
-    pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// Its Show's id, as `ListShows` gives it.
-    ///
-    /// Field 3: `show_id`
-    #[serde(
-        rename = "showId",
-        alias = "show_id",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
-    )]
-    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// Field 4: `show_title`
-    #[serde(
-        rename = "showTitle",
-        alias = "show_title",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub show_title: ::buffa::alloc::string::String,
-    /// Field 5: `season_number`
-    #[serde(
-        rename = "seasonNumber",
-        alias = "season_number",
-        with = "::buffa::json_helpers::uint32",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
-    )]
-    pub season_number: u32,
-    /// Field 6: `episode_number`
-    #[serde(
-        rename = "episodeNumber",
-        alias = "episode_number",
-        with = "::buffa::json_helpers::uint32",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
-    )]
-    pub episode_number: u32,
-    /// Field 7: `title`
-    #[serde(
-        rename = "title",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub title: ::buffa::alloc::string::String,
-    #[serde(skip)]
-    #[doc(hidden)]
-    pub __buffa_unknown_fields: ::buffa::UnknownFields,
-}
-impl ::core::fmt::Debug for EpisodeInLibrary {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("EpisodeInLibrary")
-            .field("library_id", &self.library_id)
-            .field("id", &self.id)
-            .field("show_id", &self.show_id)
-            .field("show_title", &self.show_title)
-            .field("season_number", &self.season_number)
-            .field("episode_number", &self.episode_number)
-            .field("title", &self.title)
-            .finish()
-    }
-}
-impl EpisodeInLibrary {
-    /// Protobuf type URL for this message, for use with `Any::pack` and
-    /// `Any::unpack_if`.
-    ///
-    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EpisodeInLibrary";
-}
-::buffa::impl_default_instance!(EpisodeInLibrary);
-impl ::buffa::MessageName for EpisodeInLibrary {
-    const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "EpisodeInLibrary";
-    const FULL_NAME: &'static str = "nama.v1.EpisodeInLibrary";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EpisodeInLibrary";
-}
-impl ::buffa::Message for EpisodeInLibrary {
-    /// Returns the total encoded size in bytes.
-    ///
-    /// Accumulates in `u64` (which cannot overflow for in-memory
-    /// data) and saturates to `u32` at return, so a message whose
-    /// encoded size exceeds the 2 GiB protobuf limit yields a value
-    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
-    /// points reject, never a silently wrapped size.
-    #[allow(clippy::let_and_return)]
-    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        let mut size = 0u64;
-        if self.library_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
-        }
-        if self.id.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.id.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
-        if self.show_id.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.show_id.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
-        if !self.show_title.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.show_title) as u64;
-        }
-        if self.season_number != 0u32 {
-            size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
-        }
-        if self.episode_number != 0u32 {
-            size
-                += 1u64 + ::buffa::types::uint32_encoded_len(self.episode_number) as u64;
-        }
-        if !self.title.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
-        }
-        size += self.__buffa_unknown_fields.encoded_len() as u64;
-        ::buffa::saturate_size(size)
-    }
-    fn write_to(
-        &self,
-        __cache: &mut ::buffa::SizeCache,
-        buf: &mut impl ::buffa::EncodeSink,
-    ) {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        if self.library_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
-        }
-        if self.id.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                2u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.id.write_to(__cache, buf);
-        }
-        if self.show_id.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                3u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.show_id.write_to(__cache, buf);
-        }
-        if !self.show_title.is_empty() {
-            ::buffa::types::put_string_field(4u32, &self.show_title, buf);
-        }
-        if self.season_number != 0u32 {
-            ::buffa::types::put_uint32_field(5u32, self.season_number, buf);
-        }
-        if self.episode_number != 0u32 {
-            ::buffa::types::put_uint32_field(6u32, self.episode_number, buf);
-        }
-        if !self.title.is_empty() {
-            ::buffa::types::put_string_field(7u32, &self.title, buf);
-        }
-        self.__buffa_unknown_fields.write_to(buf);
-    }
-    fn merge_field(
-        &mut self,
-        tag: ::buffa::encoding::Tag,
-        buf: &mut impl ::buffa::bytes::Buf,
-        ctx: ::buffa::DecodeContext<'_>,
-    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
-        #[allow(unused_imports)]
-        use ::buffa::bytes::Buf as _;
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.library_id = ::buffa::types::decode_int64(buf)?;
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::Message::merge_length_delimited(
-                    self.id.get_or_insert_default(),
-                    buf,
-                    ctx,
-                )?;
-            }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::Message::merge_length_delimited(
-                    self.show_id.get_or_insert_default(),
-                    buf,
-                    ctx,
-                )?;
-            }
-            4u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::types::merge_string(&mut self.show_title, buf)?;
-            }
-            5u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.season_number = ::buffa::types::decode_uint32(buf)?;
-            }
-            6u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.episode_number = ::buffa::types::decode_uint32(buf)?;
-            }
-            7u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::types::merge_string(&mut self.title, buf)?;
-            }
-            _ => {
-                self.__buffa_unknown_fields
-                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
-            }
-        }
-        ::core::result::Result::Ok(())
-    }
-    fn clear(&mut self) {
-        self.library_id = 0i64;
-        self.id = ::buffa::MessageField::none();
-        self.show_id = ::buffa::MessageField::none();
-        self.show_title.clear();
-        self.season_number = 0u32;
-        self.episode_number = 0u32;
-        self.title.clear();
-        self.__buffa_unknown_fields.clear();
-    }
-}
-impl ::buffa::ExtensionSet for EpisodeInLibrary {
-    const PROTO_FQN: &'static str = "nama.v1.EpisodeInLibrary";
-    fn unknown_fields(&self) -> &::buffa::UnknownFields {
-        &self.__buffa_unknown_fields
-    }
-    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
-        &mut self.__buffa_unknown_fields
-    }
-}
-impl ::buffa::json_helpers::ProtoElemJson for EpisodeInLibrary {
-    fn serialize_proto_json<S: ::serde::Serializer>(
-        v: &Self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        ::serde::Serialize::serialize(v, s)
-    }
-    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        <Self as ::serde::Deserialize>::deserialize(d)
-    }
-}
-#[doc(hidden)]
-pub const __EPISODE_IN_LIBRARY_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.EpisodeInLibrary",
-    to_json: ::buffa::type_registry::any_to_json::<EpisodeInLibrary>,
-    from_json: ::buffa::type_registry::any_from_json::<EpisodeInLibrary>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]

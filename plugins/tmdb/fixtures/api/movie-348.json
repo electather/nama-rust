@@ -29,5 +29,34 @@
         {"certification": "R", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "1979-06-22T00:00:00.000Z", "type": 3}
       ]}
     ]
+  },
+  "credits": {
+    "cast": [
+      {"adult": false, "gender": 2, "id": 4139, "known_for_department": "Acting", "name": "Tom Skerritt", "original_name": "Tom Skerritt", "popularity": 20.1, "profile_path": "/skerritt.jpg", "cast_id": 3, "character": "Dallas", "credit_id": "52fe4235c3a36847f800ffd1", "order": 0},
+      {"adult": false, "gender": 1, "id": 10205, "known_for_department": "Acting", "name": "Sigourney Weaver", "original_name": "Sigourney Weaver", "popularity": 45.3, "profile_path": "/weaver.jpg", "cast_id": 4, "character": "Ellen Ripley", "credit_id": "52fe4235c3a36847f800ffd5", "order": 1}
+    ],
+    "crew": [
+      {"adult": false, "gender": 2, "id": 578, "known_for_department": "Directing", "name": "Ridley Scott", "original_name": "Ridley Scott", "popularity": 12.4, "profile_path": "/scott.jpg", "credit_id": "52fe4235c3a36847f800ffc1", "department": "Directing", "job": "Director"},
+      {"adult": false, "gender": 2, "id": 915, "known_for_department": "Production", "name": "Gordon Carroll", "original_name": "Gordon Carroll", "popularity": 1.2, "profile_path": null, "credit_id": "52fe4235c3a36847f800ffc7", "department": "Production", "job": "Producer"},
+      {"adult": false, "gender": 2, "id": 1726, "known_for_department": "Writing", "name": "Dan O'Bannon", "original_name": "Dan O'Bannon", "popularity": 3.0, "profile_path": null, "credit_id": "52fe4235c3a36847f800ffcd", "department": "Writing", "job": "Screenplay"}
+    ]
+  },
+  "videos": {
+    "results": [
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Alien (1979) Fan Trailer", "key": "fanTrail01", "site": "YouTube", "type": "Trailer", "official": false},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "The Making of Alien", "key": "making0001", "site": "YouTube", "type": "Featurette", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Official Trailer", "key": "LjLamj-b0I8", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Chestburster", "key": "chestbust1", "site": "YouTube", "type": "Clip", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Teaser", "key": "teaser0001", "site": "YouTube", "type": "Teaser", "official": true}
+    ]
+  },
+  "recommendations": {
+    "page": 1,
+    "results": [
+      {"id": 679, "title": "Aliens"},
+      {"id": 949, "title": "Heat"}
+    ],
+    "total_pages": 1,
+    "total_results": 2
   }
 }

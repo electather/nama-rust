@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\" FROM requests\n                 WHERE season IS NOT NULL\n                   AND id IN (SELECT title.request_id FROM request_title_ids AS title\n                              JOIN json_each(?) AS wanted\n                                  ON title.namespace = wanted.key AND title.value = wanted.value)\n                   AND state NOT IN ('declined', 'available') ORDER BY season",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "58fc7ff651d7df523954e9cc8ae7e1f4688681c6f8a4fc4fed08a11f437529c3"
+}
