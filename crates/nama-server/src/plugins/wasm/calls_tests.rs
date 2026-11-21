@@ -5,25 +5,26 @@ use std::{
 
 use nama_plugin_api::{
     BoxFuture,
-    automation::{Kernel, KernelRefused, Tick},
+    automation::{Kernel, KernelRefused},
+    job::RunJob,
 };
 use nama_plugin_proto::{
-    nama::plugin::v1::{EventsObserved, ObservedEvents, Ticked},
+    nama::plugin::v1::{EventsObserved, JobRan, ObservedEvents},
     services,
 };
 use tokio::sync::Notify;
 
-use crate::plugins::{Failure, Registry, tick};
+use crate::plugins::{Failure, Registry, jobs};
 
 use super::{
     CRASHES_BEFORE_DISABLING, Running,
     calls::Calls,
     load::{
-        BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, JOB_TIMEOUT, TICK_TIMEOUT,
-        compile_with_kernel, load, write_cache_config,
+        BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, JOB_TIMEOUT, compile_with_kernel, load,
+        write_cache_config,
     },
     plugin_log::PluginLog,
-    services::{Method, OBSERVE_EVENTS, POINTS, TICK},
+    services::{Method, OBSERVE_EVENTS, POINTS, RUN_JOB},
 };
 
 #[expect(
@@ -37,7 +38,7 @@ mod test_plugin;
 const SHORT: Duration = Duration::from_millis(500);
 
 /// A Kernel that takes three times [`SHORT`] to store a value, and answers the test Plugin's
-/// other calls in its tick at once, each with an empty message.
+/// other calls in its Job `kernel` at once, each with an empty message.
 fn slow() -> Arc<dyn Kernel> {
     Arc::new(
         |function: &str, _request| -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
@@ -52,7 +53,7 @@ fn slow() -> Arc<dyn Kernel> {
     )
 }
 
-/// A Kernel whose `store_put`, the first function the test Plugin's tick calls, says it was
+/// A Kernel whose `store_put`, the first function the test Plugin's Job `kernel` calls, says it was
 /// called on `entered` and answers once `release` is notified. It refuses everything else.
 fn gate(entered: &Arc<Notify>, release: &Arc<Notify>) -> Arc<dyn Kernel> {
     let (entered, release) = (Arc::clone(entered), Arc::clone(release));
@@ -79,6 +80,14 @@ struct Release(Arc<Notify>);
 impl Drop for Release {
     fn drop(&mut self) {
         self.0.notify_one();
+    }
+}
+
+/// The test Plugin's Job `kernel`, as the Kernel asks it to run.
+fn kernel_job() -> RunJob {
+    RunJob {
+        job_id: "kernel".to_owned(),
+        ..RunJob::default()
     }
 }
 
@@ -123,30 +132,28 @@ fn running_with(
 async fn a_call_waiting_in_a_kernel_function_past_its_limit_still_succeeds() {
     let data_dir = tempfile::tempdir().unwrap();
     let running = running("automation", &data_dir, Some(slow()));
-    let tick = Method {
+    let run = Method {
         limit: SHORT,
-        ..TICK
+        ..RUN_JOB
     };
 
-    let ticked = running
-        .call_method::<_, Ticked>(&tick, &Tick::default())
-        .await;
+    let ran = running.call_method::<_, JobRan>(&run, &kernel_job()).await;
 
-    assert_eq!(ticked.err().map(|err| err.to_string()), None);
+    assert_eq!(ran.err().map(|err| err.to_string()), None);
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_tick_logging_in_a_loop_times_out_at_its_limit_and_counts_as_a_crash() {
+async fn a_job_logging_in_a_loop_times_out_at_its_limit_and_counts_as_a_crash() {
     let data_dir = tempfile::tempdir().unwrap();
-    let running = running("looping-tick", &data_dir, None);
-    let tick = Method {
+    let running = running("looping-job", &data_dir, None);
+    let run = Method {
         limit: SHORT,
-        ..TICK
+        ..RUN_JOB
     };
     let started = Instant::now();
 
     let failed = running
-        .call_method::<_, Ticked>(&tick, &Tick::default())
+        .call_method::<_, JobRan>(&run, &kernel_job())
         .await
         .unwrap_err();
 
@@ -162,18 +169,18 @@ async fn a_call_another_calls_timeout_interrupts_fails_plainly_and_not_as_a_cras
     let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
     let gate = gate(&entered, &release);
     let release = Release(release);
-    // One compile whose tick waits in the gate and whose Observer loops.
+    // One compile whose Job waits in the gate and whose Observer loops.
     let running = running_with(
         "automation",
         vec![("observer".to_owned(), "loop".to_owned())],
         &data_dir,
         Some(gate),
     );
-    let ticking = tokio::spawn({
+    let running_job = tokio::spawn({
         let running = running.clone();
         async move {
             running
-                .call_method::<_, Ticked>(&TICK, &Tick::default())
+                .call_method::<_, JobRan>(&RUN_JOB, &kernel_job())
                 .await
         }
     });
@@ -188,9 +195,9 @@ async fn a_call_another_calls_timeout_interrupts_fails_plainly_and_not_as_a_cras
         .await
         .unwrap_err();
     drop(release);
-    let interrupted = tokio::time::timeout(CALL_TIMEOUT, ticking)
+    let interrupted = tokio::time::timeout(CALL_TIMEOUT, running_job)
         .await
-        .expect("the tick ran on past the other call's timeout")
+        .expect("the Run ran on past the other call's timeout")
         .unwrap()
         .unwrap_err();
 
@@ -208,7 +215,7 @@ async fn a_call_another_calls_timeout_interrupts_fails_plainly_and_not_as_a_cras
 #[tokio::test(flavor = "multi_thread")]
 async fn stopping_a_plugins_calls_fails_a_running_one_as_disabled_and_not_as_a_crash() {
     let data_dir = tempfile::tempdir().unwrap();
-    let running = running("looping-tick", &data_dir, None);
+    let running = running("looping-job", &data_dir, None);
     // One crash short of disabling, so counting the stop as one would unwind here.
     running
         .crashes
@@ -216,7 +223,7 @@ async fn stopping_a_plugins_calls_fails_a_running_one_as_disabled_and_not_as_a_c
     let calling = running.clone();
     let call = tokio::spawn(async move {
         calling
-            .call_method::<_, Ticked>(&TICK, &Tick::default())
+            .call_method::<_, JobRan>(&RUN_JOB, &kernel_job())
             .await
     });
     tokio::time::sleep(SHORT).await;
@@ -240,7 +247,7 @@ async fn a_call_after_its_plugins_calls_are_stopped_fails_as_disabled_without_ru
     running.compiled.calls.stop();
 
     let failed = running
-        .call_method::<_, Ticked>(&TICK, &Tick::default())
+        .call_method::<_, JobRan>(&RUN_JOB, &kernel_job())
         .await
         .unwrap_err();
 
@@ -248,30 +255,30 @@ async fn a_call_after_its_plugins_calls_are_stopped_fails_as_disabled_without_ru
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn disabling_a_plugin_while_its_tick_runs_ends_the_wasm_call_promptly() {
+async fn disabling_a_plugin_while_its_job_runs_ends_the_wasm_call_promptly() {
     let data_dir = tempfile::tempdir().unwrap();
     let cache_config = write_cache_config(data_dir.path()).unwrap();
-    let plugin = load(test_plugin::build("looping-tick"), &cache_config).unwrap();
+    let plugin = load(test_plugin::build("looping-job"), &cache_config).unwrap();
     let id = plugin.manifest.id.clone();
     let registry = Registry::new();
     registry.enable(Arc::new(plugin)).unwrap();
     // Outside the Plugin's scope, so only the stop, not the scope's cancel, can end it.
-    let ticking = tokio::spawn({
+    let running_job = tokio::spawn({
         let (points, id) = (registry.extension_points(), id.clone());
-        async move { tick::once(&points, &id).await }
+        async move { jobs::run(&points, &id, "kernel").await }
     });
     tokio::time::sleep(SHORT).await;
 
     let disabled = tokio::time::timeout(CALL_TIMEOUT, registry.disable(&id)).await;
 
     assert_eq!(disabled.ok(), Some(true));
-    let ticked = tokio::time::timeout(CALL_TIMEOUT, ticking)
+    let ran = tokio::time::timeout(CALL_TIMEOUT, running_job)
         .await
-        .expect("the tick ran on past the disable")
+        .expect("the Run ran on past the disable")
         .unwrap();
     assert_eq!(
-        ticked,
-        tick::Ticked::Ran(Err(Failure {
+        ran,
+        Some(Err(Failure {
             kind: (),
             message: "the Plugin was disabled".to_owned()
         }))
@@ -279,12 +286,10 @@ async fn disabling_a_plugin_while_its_tick_runs_ends_the_wasm_call_promptly() {
 }
 
 #[test]
-fn a_tick_a_job_run_a_blob_call_and_a_home_row_refresh_may_run_long_and_every_other_method_for_call_timeout()
+fn a_job_run_a_blob_call_and_a_home_row_refresh_may_run_long_and_every_other_method_for_call_timeout()
  {
     for method in POINTS.iter().flat_map(|point| point.methods) {
-        let limit = if method.export == TICK.export {
-            TICK_TIMEOUT
-        } else if method.service == services::JOB {
+        let limit = if method.service == services::JOB {
             JOB_TIMEOUT
         } else if method.service == services::BLOB_STORE {
             BLOB_TIMEOUT

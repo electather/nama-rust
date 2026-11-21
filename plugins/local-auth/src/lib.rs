@@ -48,7 +48,6 @@ impl Plugin for LocalAuth {
             source_url: String::new(),
             license: String::new(),
             permissions: Vec::new(),
-            tick_every: None,
             jobs: Vec::new(),
             title_source: None,
         }

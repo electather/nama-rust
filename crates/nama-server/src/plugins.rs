@@ -13,7 +13,6 @@ mod registry;
 mod scope;
 #[cfg(test)]
 mod scripted_fulfiller;
-mod tick;
 mod wasm;
 
 use std::{
@@ -45,6 +44,7 @@ pub use failing::Failing;
 pub(crate) use fulfilling::{
     AskedAbout, FulfillerOutcome, RETRIES, ask_fulfiller, enabled_fulfiller, tell_fulfiller,
 };
+pub(crate) use jobs::log_jobs_time_zone;
 pub use points::ExtensionPoints;
 pub use registry::Registry;
 #[cfg(test)]

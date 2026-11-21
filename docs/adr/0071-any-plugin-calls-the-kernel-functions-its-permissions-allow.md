@@ -1,5 +1,7 @@
 # Any Plugin calls the Kernel functions its Permissions allow
 
+_Amended by [ADR 0079](0079-plugins-declare-jobs-and-the-kernel-runs-them-on-cron.md): `AutomationService` and its `Tick` are gone, and Jobs replace them._
+
 ADR 0048 gave the Kernel's functions to Plugins whose `points` name `AutomationService`, but the Kernel never checked `points`: it checks only the Plugin Permission each function needs (ADR 0049). A Plugin serving another Extension Point now needs one too. The OpenSubtitles.com Plugin gets a fresh instance on every call, so it has nowhere to keep its login token between downloads, and OpenSubtitles limits logins more tightly than other calls (#1268). We decided the granted Plugin Permission alone decides which Kernel functions any Plugin may call, during any of its calls. The written contract now says what the Kernel already does. The Admin agrees to each Permission when enabling the Plugin, so checking `points` as well would protect nothing.
 
 ## Considered Options

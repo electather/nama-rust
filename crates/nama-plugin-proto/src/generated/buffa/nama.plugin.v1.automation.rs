@@ -525,239 +525,27 @@ impl ::buffa::Enumeration for TitleRefKind {
         ]
     }
 }
-/// What the Kernel hands a Plugin on its scheduled tick, every `Manifest.tick_every_seconds`.
-#[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize, ::serde::Deserialize)]
-#[serde(default)]
-pub struct Tick {
-    /// The Kernel's clock, in milliseconds since the Unix epoch. A Plugin uses it rather than its own
-    /// clock.
-    ///
-    /// Field 1: `now_ms`
-    #[serde(
-        rename = "nowMs",
-        alias = "now_ms",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
-    )]
-    pub now_ms: i64,
-    #[serde(skip)]
-    #[doc(hidden)]
-    pub __buffa_unknown_fields: ::buffa::UnknownFields,
-}
-impl ::core::fmt::Debug for Tick {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Tick").field("now_ms", &self.now_ms).finish()
-    }
-}
-impl Tick {
-    /// Protobuf type URL for this message, for use with `Any::pack` and
-    /// `Any::unpack_if`.
-    ///
-    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Tick";
-}
-::buffa::impl_default_instance!(Tick);
-impl ::buffa::MessageName for Tick {
-    const PACKAGE: &'static str = "nama.plugin.v1";
-    const NAME: &'static str = "Tick";
-    const FULL_NAME: &'static str = "nama.plugin.v1.Tick";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Tick";
-}
-impl ::buffa::Message for Tick {
-    /// Returns the total encoded size in bytes.
-    ///
-    /// Accumulates in `u64` (which cannot overflow for in-memory
-    /// data) and saturates to `u32` at return, so a message whose
-    /// encoded size exceeds the 2 GiB protobuf limit yields a value
-    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
-    /// points reject, never a silently wrapped size.
-    #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        let mut size = 0u64;
-        if self.now_ms != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.now_ms) as u64;
-        }
-        size += self.__buffa_unknown_fields.encoded_len() as u64;
-        ::buffa::saturate_size(size)
-    }
-    fn write_to(
-        &self,
-        _cache: &mut ::buffa::SizeCache,
-        buf: &mut impl ::buffa::EncodeSink,
-    ) {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        if self.now_ms != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.now_ms, buf);
-        }
-        self.__buffa_unknown_fields.write_to(buf);
-    }
-    fn merge_field(
-        &mut self,
-        tag: ::buffa::encoding::Tag,
-        buf: &mut impl ::buffa::bytes::Buf,
-        ctx: ::buffa::DecodeContext<'_>,
-    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
-        #[allow(unused_imports)]
-        use ::buffa::bytes::Buf as _;
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.now_ms = ::buffa::types::decode_int64(buf)?;
-            }
-            _ => {
-                self.__buffa_unknown_fields
-                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
-            }
-        }
-        ::core::result::Result::Ok(())
-    }
-    fn clear(&mut self) {
-        self.now_ms = 0i64;
-        self.__buffa_unknown_fields.clear();
-    }
-}
-impl ::buffa::ExtensionSet for Tick {
-    const PROTO_FQN: &'static str = "nama.plugin.v1.Tick";
-    fn unknown_fields(&self) -> &::buffa::UnknownFields {
-        &self.__buffa_unknown_fields
-    }
-    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
-        &mut self.__buffa_unknown_fields
-    }
-}
-impl ::buffa::json_helpers::ProtoElemJson for Tick {
-    fn serialize_proto_json<S: ::serde::Serializer>(
-        v: &Self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        ::serde::Serialize::serialize(v, s)
-    }
-    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        <Self as ::serde::Deserialize>::deserialize(d)
-    }
-}
-#[doc(hidden)]
-pub const __TICK_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.plugin.v1.Tick",
-    to_json: ::buffa::type_registry::any_to_json::<Tick>,
-    from_json: ::buffa::type_registry::any_from_json::<Tick>,
-    is_wkt: false,
-};
-/// What a Plugin answers a `Tick` with.
-#[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize, ::serde::Deserialize)]
-#[serde(default)]
-pub struct Ticked {
-    #[serde(skip)]
-    #[doc(hidden)]
-    pub __buffa_unknown_fields: ::buffa::UnknownFields,
-}
-impl ::core::fmt::Debug for Ticked {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Ticked").finish()
-    }
-}
-impl Ticked {
-    /// Protobuf type URL for this message, for use with `Any::pack` and
-    /// `Any::unpack_if`.
-    ///
-    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Ticked";
-}
-::buffa::impl_default_instance!(Ticked);
-impl ::buffa::MessageName for Ticked {
-    const PACKAGE: &'static str = "nama.plugin.v1";
-    const NAME: &'static str = "Ticked";
-    const FULL_NAME: &'static str = "nama.plugin.v1.Ticked";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Ticked";
-}
-impl ::buffa::Message for Ticked {
-    /// Returns the total encoded size in bytes.
-    ///
-    /// Accumulates in `u64` (which cannot overflow for in-memory
-    /// data) and saturates to `u32` at return, so a message whose
-    /// encoded size exceeds the 2 GiB protobuf limit yields a value
-    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
-    /// points reject, never a silently wrapped size.
-    #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        let mut size = 0u64;
-        size += self.__buffa_unknown_fields.encoded_len() as u64;
-        ::buffa::saturate_size(size)
-    }
-    fn write_to(
-        &self,
-        _cache: &mut ::buffa::SizeCache,
-        buf: &mut impl ::buffa::EncodeSink,
-    ) {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        self.__buffa_unknown_fields.write_to(buf);
-    }
-    fn merge_field(
-        &mut self,
-        tag: ::buffa::encoding::Tag,
-        buf: &mut impl ::buffa::bytes::Buf,
-        ctx: ::buffa::DecodeContext<'_>,
-    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
-        #[allow(unused_imports)]
-        use ::buffa::bytes::Buf as _;
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        match tag.field_number() {
-            _ => {
-                self.__buffa_unknown_fields
-                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
-            }
-        }
-        ::core::result::Result::Ok(())
-    }
-    fn clear(&mut self) {
-        self.__buffa_unknown_fields.clear();
-    }
-}
-impl ::buffa::ExtensionSet for Ticked {
-    const PROTO_FQN: &'static str = "nama.plugin.v1.Ticked";
-    fn unknown_fields(&self) -> &::buffa::UnknownFields {
-        &self.__buffa_unknown_fields
-    }
-    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
-        &mut self.__buffa_unknown_fields
-    }
-}
-impl ::buffa::json_helpers::ProtoElemJson for Ticked {
-    fn serialize_proto_json<S: ::serde::Serializer>(
-        v: &Self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        ::serde::Serialize::serialize(v, s)
-    }
-    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        <Self as ::serde::Deserialize>::deserialize(d)
-    }
-}
-#[doc(hidden)]
-pub const __TICKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.plugin.v1.Ticked",
-    to_json: ::buffa::type_registry::any_to_json::<Ticked>,
-    from_json: ::buffa::type_registry::any_from_json::<Ticked>,
-    is_wkt: false,
-};
+/// The Kernel's functions, which any Plugin asks the Kernel through (ADR 0048).
+///
+/// They are the functions in the Wasm import namespace `nama` that any Plugin, whatever its
+/// Manifest's `points`, may call during any of its calls (ADR 0071). Each takes its request
+/// message, encoded, and returns a `KernelAnswer`. Each needs the Plugin Permission named beside
+/// it, which the Admin granted when enabling the Plugin; without it the Kernel answers `refused`.
+///
+///   store_get:         StoreKey         -\> StoreValue     PERMISSION_STORE
+///   store_put:         StoreEntry       -\> Stored         PERMISSION_STORE
+///   store_delete:      StoreKey         -\> Stored         PERMISSION_STORE
+///   list_libraries:    LibrariesAsked   -\> Libraries      PERMISSION_READ_LIBRARIES
+///   list_titles:       TitlesAsked      -\> Titles         PERMISSION_READ_LIBRARIES
+///   list_watch_states: WatchStatesAsked -\> WatchStates    PERMISSION_READ_WATCH_STATES
+///   list_users:        UsersAsked       -\> Users          PERMISSION_READ_USERS
+///   list_requesters:   RequestersAsked  -\> Requesters     PERMISSION_READ_REQUESTS
+///   list_watchlist:    WatchlistAsked   -\> Watchlist      PERMISSION_READ_WATCHLISTS
+///   delete_media:      DeleteAsked      -\> DeleteStarted  PERMISSION_DELETE_MEDIA
+///
+/// The functions are documented here rather than declared as a service: they are not an Extension
+/// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
+///
 /// What a Kernel function returns.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize)]

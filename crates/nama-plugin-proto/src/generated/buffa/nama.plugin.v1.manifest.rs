@@ -404,17 +404,6 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub permissions: ::buffa::alloc::vec::Vec<::buffa::EnumValue<Permission>>,
-    /// How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
-    /// `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
-    ///
-    /// Field 18: `tick_every_seconds`
-    #[serde(
-        rename = "tickEverySeconds",
-        alias = "tick_every_seconds",
-        with = "::buffa::json_helpers::uint32",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
-    )]
-    pub tick_every_seconds: u32,
     /// How to set the Plugin up, such as where to get an API key, as short Markdown an admin sees
     /// above its settings. Optional. Clients render it as text, never as HTML (ADR 0058). A Server
     /// drops one over 4 KiB, logging why, and still loads the Plugin.
@@ -491,7 +480,6 @@ impl ::core::fmt::Debug for Manifest {
             .field("title_lookup_namespaces", &self.title_lookup_namespaces)
             .field("personal_settings", &self.personal_settings)
             .field("permissions", &self.permissions)
-            .field("tick_every_seconds", &self.tick_every_seconds)
             .field("setup_markdown", &self.setup_markdown)
             .field("homepage_url", &self.homepage_url)
             .field("source_url", &self.source_url)
@@ -594,11 +582,6 @@ impl ::buffa::Message for Manifest {
                 .sum::<u64>();
             size += 2u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
-        if self.tick_every_seconds != 0u32 {
-            size
-                += 2u64
-                    + ::buffa::types::uint32_encoded_len(self.tick_every_seconds) as u64;
-        }
         if !self.setup_markdown.is_empty() {
             size
                 += 2u64
@@ -698,9 +681,6 @@ impl ::buffa::Message for Manifest {
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
-        }
-        if self.tick_every_seconds != 0u32 {
-            ::buffa::types::put_uint32_field(18u32, self.tick_every_seconds, buf);
         }
         if !self.setup_markdown.is_empty() {
             ::buffa::types::put_string_field(19u32, &self.setup_markdown, buf);
@@ -902,13 +882,6 @@ impl ::buffa::Message for Manifest {
                     );
                 }
             }
-            18u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.tick_every_seconds = ::buffa::types::decode_uint32(buf)?;
-            }
             19u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -972,7 +945,6 @@ impl ::buffa::Message for Manifest {
         self.title_lookup_namespaces.clear();
         self.personal_settings.clear();
         self.permissions.clear();
-        self.tick_every_seconds = 0u32;
         self.setup_markdown.clear();
         self.homepage_url.clear();
         self.source_url.clear();

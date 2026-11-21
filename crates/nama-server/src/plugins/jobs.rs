@@ -9,7 +9,7 @@ use nama_plugin_api::{
     job::{JobRunner, RunJob},
 };
 use nama_plugin_proto::services;
-use tracing::warn;
+use tracing::{info, warn};
 
 use super::{ExtensionPoints, Failure, cron::Cron, scope::Scope};
 use crate::db;
@@ -53,9 +53,9 @@ pub(super) fn refusal(manifest: &Manifest) -> Option<String> {
 }
 
 /// Starts in `scope` a loop firing each of `manifest`'s scheduled Jobs, if `registrations` provide
-/// a [`JobRunner`]. The Registry calls it under its lock, as it does `tick::scope`, so the loops
-/// are in the enablement's scope before a disable can find it. Starts nothing outside a Tokio
-/// runtime, where no task can run.
+/// a [`JobRunner`]. The Registry calls it under its lock, so the loops are in the enablement's
+/// scope before a disable can find it. Starts nothing outside a Tokio runtime, where no task can
+/// run.
 pub(super) fn schedule(
     scope: &Scope,
     points: &ExtensionPoints,
@@ -104,10 +104,34 @@ async fn firing(points: ExtensionPoints, plugin: PluginId, job: String, cron: Cr
     }
 }
 
-/// The Kernel's clock as the Server's time zone reads it, looked up each time so a change to the
-/// zone reaches the next firing.
+/// Logs the time zone Jobs' schedules are read in, the Server's.
+pub(crate) fn log_jobs_time_zone() {
+    log_zone(TimeZone::try_system());
+}
+
+/// Logs `found`, the Server's time zone or why it has none, which leaves Jobs in UTC.
+fn log_zone(found: Result<TimeZone, jiff::Error>) {
+    match found {
+        Ok(zone) => info!(
+            zone = zone.iana_name().unwrap_or("unnamed"),
+            "reading job schedules in this time zone"
+        ),
+        Err(error) => warn!(
+            %error,
+            "reading job schedules in UTC, as the server's time zone can't be found; \
+             set TZ to one such as Europe/London or, in docker, mount /etc/localtime"
+        ),
+    }
+}
+
+/// The Kernel's clock as the Server's time zone reads it.
 fn wall_clock() -> DateTime {
-    let now = Timestamp::from_millisecond(db::now_ms()).unwrap_or_default();
+    wall_clock_at(Timestamp::from_millisecond(db::now_ms()).unwrap_or_default())
+}
+
+/// `now` as the Server's time zone reads it, asked of jiff each time so a change to the zone
+/// reaches a firing once jiff's five-minute cache of it expires.
+fn wall_clock_at(now: Timestamp) -> DateTime {
     TimeZone::system().to_datetime(now)
 }
 
@@ -119,7 +143,7 @@ fn until_next_minute() -> Duration {
 
 /// Runs `plugin`'s Job `job` once, now: how the Run ended, or `None` if the Plugin runs no Jobs,
 /// such as one disabled since or one whose Run panicked, which disabled it.
-async fn run(
+pub(super) async fn run(
     points: &ExtensionPoints,
     plugin: &PluginId,
     job: &str,

@@ -6,7 +6,6 @@ use std::{sync::Arc, time::Duration};
 use buffa::Message;
 use nama_plugin_api::{
     PluginError, PointKey, Priority, Registrar,
-    automation::Automation,
     blob_store::BlobStore,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
@@ -23,7 +22,7 @@ use nama_plugin_proto::services;
 
 use super::{
     Running,
-    load::{BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, JOB_TIMEOUT, TICK_TIMEOUT},
+    load::{BLOB_TIMEOUT, CALL_TIMEOUT, HOME_ROWS_TIMEOUT, JOB_TIMEOUT},
 };
 
 /// The export that checks a Plugin's settings, if it has one. No service's: a Plugin of any has it.
@@ -136,10 +135,6 @@ pub(super) const RECOGNISE_TITLE: Method =
     optional(services::RECOGNISER, "RecogniseTitle", "recognise_title");
 pub(super) const RECOGNISE_FILE: Method =
     optional(services::RECOGNISER, "RecogniseFile", "recognise_file");
-pub(super) const TICK: Method = Method {
-    limit: TICK_TIMEOUT,
-    ..required(services::AUTOMATION, "Tick", "tick")
-};
 pub(super) const RUN_JOB: Method = Method {
     limit: JOB_TIMEOUT,
     ..required(services::JOB, "Run", "run_job")
@@ -243,15 +238,6 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn TitleSource>,
         register: |registrar, running| {
             registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(running));
-        },
-    },
-    Point {
-        service: services::AUTOMATION,
-        crash_group: services::AUTOMATION,
-        methods: &[TICK],
-        key: PointKey::provide::<dyn Automation>,
-        register: |registrar, running| {
-            registrar.provide::<dyn Automation>(Priority::DEFAULT, Arc::new(running));
         },
     },
     Point {

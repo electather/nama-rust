@@ -57,7 +57,7 @@ pub(crate) struct TestServer {
     /// The session token of the Admin's Device.
     pub(crate) admin_token: String,
     db: Arc<Database>,
-    /// The Registry the Server was started with, for running a Plugin's tick now.
+    /// The Registry the Server was started with.
     plugins: Registry,
     tmdb: Option<FakeTmdb>,
     fulfiller: Option<FakeFulfiller>,

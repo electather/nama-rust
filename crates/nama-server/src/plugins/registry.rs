@@ -21,7 +21,7 @@ use tracing::{Instrument as _, error, info};
 
 use super::{
     CheckError, CheckTimedOut, EnableError, ExtensionPoints, LastProvider, Listed,
-    SETTINGS_CHECK_TIMEOUT, contain_call, contain_sync, jobs, scope::Scope, secret_values, tick,
+    SETTINGS_CHECK_TIMEOUT, contain_call, contain_sync, jobs, scope::Scope, secret_values,
     without_secrets,
 };
 /// Every Plugin enabled on this Server and everything they registered.
@@ -55,7 +55,8 @@ pub(super) struct State {
     /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
     pub(super) crashed: Option<mpsc::UnboundedSender<PluginId>>,
     /// What makes the Kernel's functions for a Plugin and the Permissions granted it, once startup
-    /// sets it with [`ExtensionPoints::serve_kernel`]. A watch, so a tick can wait for it.
+    /// sets it with [`ExtensionPoints::serve_kernel`]. A watch, so a Job's firing loop can wait for
+    /// it.
     pub(super) kernel: Arc<watch::Sender<Option<MakeKernel>>>,
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
@@ -280,7 +281,7 @@ impl Registry {
             }
             let generation = state.next_generation;
             state.next_generation += 1;
-            let scope = tick::scope(&self.points, manifest, &registrations);
+            let scope = Scope::default();
             jobs::schedule(&scope, &self.points, manifest, &registrations);
             state.plugins.insert(
                 id.clone(),

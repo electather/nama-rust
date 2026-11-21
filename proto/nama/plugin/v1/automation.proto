@@ -5,14 +5,12 @@ package nama.plugin.v1;
 import "nama/plugin/v1/request.proto";
 import "nama/plugin/v1/title_source.proto";
 
-// The Automation lane, where the Kernel ticks a Plugin, and the Kernel's functions, which any
-// Plugin asks the Kernel through.
+// The Kernel's functions, which any Plugin asks the Kernel through (ADR 0048).
 //
-// The Kernel's functions are the functions in the Wasm import namespace `nama` that any Plugin,
-// whatever its Manifest's `points`, may call during any of its calls (ADR 0071). Each takes its
-// request message, encoded, and returns a `KernelAnswer`. Each needs the Plugin Permission named
-// beside it, which the Admin granted when enabling the Plugin; without it the Kernel answers
-// `refused`.
+// They are the functions in the Wasm import namespace `nama` that any Plugin, whatever its
+// Manifest's `points`, may call during any of its calls (ADR 0071). Each takes its request
+// message, encoded, and returns a `KernelAnswer`. Each needs the Plugin Permission named beside
+// it, which the Admin granted when enabling the Plugin; without it the Kernel answers `refused`.
 //
 //   store_get:         StoreKey         -> StoreValue     PERMISSION_STORE
 //   store_put:         StoreEntry       -> Stored         PERMISSION_STORE
@@ -27,26 +25,7 @@ import "nama/plugin/v1/title_source.proto";
 //   forget_home_rows:  ForgetHomeRowsAsked -> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
-// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`, not with
-// `AutomationService`, which covers only `Tick`.
-
-// The Extension Point for an Automation Plugin, served through the WASM export the rpc names.
-service AutomationService {
-  // The `tick` export: the Plugin's scheduled tick. Required. The Kernel calls it every
-  // `Manifest.tick_every_seconds`.
-  // Fully qualified: inside the service, a bare `Tick` names this rpc.
-  rpc Tick(.nama.plugin.v1.Tick) returns (Ticked);
-}
-
-// What the Kernel hands a Plugin on its scheduled tick, every `Manifest.tick_every_seconds`.
-message Tick {
-  // The Kernel's clock, in milliseconds since the Unix epoch. A Plugin uses it rather than its own
-  // clock.
-  int64 now_ms = 1;
-}
-
-// What a Plugin answers a `Tick` with.
-message Ticked {}
+// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
 
 // What a Kernel function returns.
 message KernelAnswer {
