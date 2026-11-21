@@ -6,7 +6,8 @@ use nama_proto::nama::v1::PageResponse;
 use super::{Contents, library_titles, parse_hint};
 use crate::page::Page;
 
-/// What a page of a Library's Movies or Shows is sorted by, tie-broken by the title's first Item.
+/// What a page of a Library's Movies or Shows is sorted by, tie-broken by its `title_item` in
+/// `library_titles`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TitleSort {
     /// By sort title (`sort_titles.rs`).

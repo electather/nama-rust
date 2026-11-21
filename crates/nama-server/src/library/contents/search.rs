@@ -111,8 +111,7 @@ impl Contents {
         // A hit is grouped by the id browsing knows its title by, which `matched_items` picks,
         // so each title is read once.
         // ponytail: every search groups every hit, since a title's Items can be anywhere in
-        // FTS5's order; the `LIMIT` caps what is read back. The exit is the stored title row
-        // named on `library_titles`.
+        // FTS5's order; the `LIMIT` caps what is read back.
         macro_rules! select {
             ($ids:literal, ($($matched:tt)+)) => {
                 sqlx::query_as!(

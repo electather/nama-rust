@@ -83,7 +83,7 @@ pub(crate) enum MatchedTo {
     NoSuchVersion,
     /// The file holds a Movie or nothing, and no Match: its Item is Unmatched or not Matched yet.
     Nothing,
-    /// The Movie's id, as browsing identifies it: see [`primary_id`](super::primary_id).
+    /// The Movie's id, as browsing identifies it: see [`primary_id_in`].
     Movie(ExternalId),
     /// The file holds Episodes.
     Episodes {
