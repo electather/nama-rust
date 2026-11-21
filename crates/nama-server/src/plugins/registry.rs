@@ -62,6 +62,8 @@ pub(super) struct State {
     pub(super) kernel: Arc<watch::Sender<Option<MakeKernel>>>,
     /// Where Job Runs are recorded, once startup sets it with [`Registry::record_job_runs_in`].
     pub(super) job_runs: Option<jobs::RunLog>,
+    /// The Jobs with a Run going.
+    pub(super) running_jobs: jobs::RunningJobs,
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
     pub(super) as_installed: Vec<fn() -> Arc<dyn Plugin>>,

@@ -9,10 +9,11 @@ use std::{cell::RefCell, collections::HashMap, fmt};
 use ::extism_pdk::{Error, HttpRequest};
 use buffa::{Message, MessageField};
 use nama_plugin_proto::nama::plugin::v1::{
-    DeleteAsked, DeleteStarted, KernelAnswer, Libraries, LibrariesAsked, Library, Requesters,
-    RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRequesters,
-    TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
-    WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
+    DeleteAsked, DeleteStarted, ForgetHomeRowsAsked, HomeRowsForgotten, KernelAnswer, Libraries,
+    LibrariesAsked, Library, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored,
+    Title, TitleRef, TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users,
+    UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
+    WatchlistTitle, kernel_answer,
 };
 
 use crate::{Response, kernel::MAX_PAGE_SIZE};
@@ -23,6 +24,9 @@ type Handler = Box<dyn FnMut(&HttpRequest, &[u8]) -> Result<Response, Error>>;
 
 /// Answers a Plugin's `delete_media` of a title, given with the titles its `also` names.
 type DeleteHandler = Box<dyn FnMut(&TitleRef, &[TitleRef]) -> Result<Vec<TitleRef>, String>>;
+
+/// Answers a Plugin's `forget_home_rows` of the days it asked with how many Users had rows.
+type ForgetHomeRowsHandler = Box<dyn FnMut(u32) -> Result<u32, String>>;
 
 /// What the Kernel gives a Plugin during a test: its settings, answers to its HTTP requests, and
 /// the Kernel functions the test granted.
@@ -40,6 +44,7 @@ pub struct Kernel {
     requesters: Option<Vec<(TitleRef, Vec<i64>)>>,
     watchlists: Option<HashMap<i64, Vec<WatchlistTitle>>>,
     delete_media: Option<DeleteHandler>,
+    forget_home_rows: Option<ForgetHomeRowsHandler>,
     /// Each Library's titles, by its id, answered once `libraries` is granted.
     titles: HashMap<i64, Vec<Title>>,
     deletes: Vec<Delete>,
@@ -177,6 +182,19 @@ impl Kernel {
         self
     }
 
+    /// The Kernel, the Admin having granted the Plugin Forget Home rows, answering each
+    /// `kernel::forget_home_rows` with `handler`, which is given the days asked. It answers how
+    /// many Users had rows, or an `Err` holding the Kernel's words refusing it, which reach the
+    /// Plugin as the Kernel's.
+    #[must_use]
+    pub fn forget_home_rows(
+        mut self,
+        handler: impl FnMut(u32) -> Result<u32, String> + 'static,
+    ) -> Self {
+        self.forget_home_rows = Some(Box::new(handler));
+        self
+    }
+
     /// The HTTP requests the Plugin sent, in order.
     #[must_use]
     pub fn sent(&self) -> &[Sent] {
@@ -289,6 +307,7 @@ impl Kernel {
             "list_requesters" => typed(request, |asked| self.list_requesters(asked)),
             "list_watchlist" => typed(request, |asked| self.list_watchlist(&asked)),
             "delete_media" => typed(request, |asked| self.start_delete(asked)),
+            "forget_home_rows" => typed(request, |asked| self.answer_forget_home_rows(&asked)),
             _ => Err(Error::msg(format!("the Kernel has no function {name}"))),
         }
     }
@@ -416,6 +435,17 @@ impl Kernel {
         Ok(DeleteStarted {
             taken_along: taken_along?,
             ..DeleteStarted::default()
+        })
+    }
+
+    fn answer_forget_home_rows(
+        &mut self,
+        asked: &ForgetHomeRowsAsked,
+    ) -> Result<HomeRowsForgotten, String> {
+        let handler = granted(self.forget_home_rows.as_mut(), "Forget Home rows")?;
+        Ok(HomeRowsForgotten {
+            users: handler(asked.days)?,
+            ..HomeRowsForgotten::default()
         })
     }
 }
@@ -797,6 +827,27 @@ mod tests {
     }
 
     #[test]
+    fn granted_forget_home_rows_answers_the_handlers_count_for_the_days_asked() {
+        let mut kernel = Kernel::new().forget_home_rows(|days| Ok(days * 2));
+
+        let forgotten = with(&mut kernel, || crate::kernel::forget_home_rows(30)).unwrap();
+
+        assert_eq!(forgotten, 60);
+    }
+
+    #[test]
+    fn a_refused_forget_home_rows_reaches_the_plugin_in_the_handlers_words() {
+        let mut kernel =
+            Kernel::new().forget_home_rows(|_days| Err("days must be at least 1".to_owned()));
+
+        let refused = with(&mut kernel, || {
+            crate::kernel::forget_home_rows(0).unwrap_err()
+        });
+
+        assert_eq!(refused.to_string(), "days must be at least 1");
+    }
+
+    #[test]
     fn each_function_not_granted_is_refused_naming_its_permission() {
         let refused = with(&mut Kernel::new(), || {
             [
@@ -807,6 +858,7 @@ mod tests {
                 crate::kernel::requesters(&[]).map(drop),
                 crate::kernel::watchlist(7).map(drop),
                 crate::kernel::delete_media(movie(1, "1"), &[]).map(drop),
+                crate::kernel::forget_home_rows(30).map(drop),
             ]
             .map(|answered| answered.unwrap_err().to_string())
         });
@@ -823,6 +875,7 @@ mod tests {
                 "Read Requests",
                 "Read Watchlists",
                 "Delete media",
+                "Forget Home rows",
             ]
             .map(not_granted)
         );

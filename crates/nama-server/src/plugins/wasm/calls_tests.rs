@@ -266,8 +266,8 @@ async fn disabling_a_plugin_while_its_job_runs_ends_the_wasm_call_promptly() {
     let running_job = tokio::spawn({
         let (points, id) = (registry.extension_points(), id.clone());
         async move {
-            jobs::run_recorded(&points, &id, "kernel")
-                .await
+            let run = jobs::Run::start(&points, &id, "kernel", None).await;
+            (run.expect("kernel isn't running").finish(&points).await)
                 .answered()
                 .map(|it| it.result.map_err(|failure| failure.message))
         }

@@ -131,7 +131,7 @@ pub fn serve(
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let users = Users::new(Arc::clone(&db), points.clone());
     let home_rows = HomeRows::new(Arc::clone(&db), points.clone(), requests.clone());
-    let artwork = Artwork::new(images.clone(), points.clone());
+    let artwork = Artwork::new(images.clone(), points);
     let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
     let scanner = Scanner::new(
@@ -145,7 +145,12 @@ pub fn serve(
         running.clone(),
         requests.clone(),
     );
-    let automation = Automation::serve(Arc::clone(&db), scanner.clone(), points, users.clone());
+    let automation = Automation::serve(
+        Arc::clone(&db),
+        scanner.clone(),
+        plugins.clone(),
+        users.clone(),
+    );
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let load_settings = load_settings(
         settings.clone(),

@@ -117,7 +117,10 @@ async fn a_builtin_plugin_is_granted_what_it_requests_on_its_first_start_and_an_
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
     let first = start(&db, data_dir.path(), "").await;
-    let requested = HashSet::from([Permission::PERMISSION_FORGET_HOME_ROWS]);
+    let requested = HashSet::from([
+        Permission::PERMISSION_FORGET_HOME_ROWS,
+        Permission::PERMISSION_FORGET_GONE_PLUGINS,
+    ]);
     assert_eq!(upkeep_granted(&first).await, requested);
 
     first

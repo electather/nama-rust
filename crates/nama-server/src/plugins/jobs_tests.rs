@@ -8,12 +8,13 @@ use nama_plugin_api::{
 use tempfile::TempDir;
 
 use super::{
-    JobRun, JobRunOutcome, Recording, RunLog, job_runs, log_zone, run_recorded, wall_clock_at,
+    JobRun, JobRunOutcome, Recording, Run, RunLog, RunRefused, job_runs, log_zone, run_now,
+    wall_clock_at,
 };
 use crate::{
     db::Database,
     log_capture::CapturedLog,
-    plugins::{Registry, cron::Cron, wasm::TimedOut},
+    plugins::{ExtensionPoints, Registry, cron::Cron, wasm::TimedOut},
 };
 
 const ID: PluginId = PluginId::from_static("chores");
@@ -116,13 +117,19 @@ async fn recording(runner: Arc<dyn JobRunner>) -> (Registry, Arc<Database>, Temp
     (registry, db, data_dir)
 }
 
+/// Runs the Job `tidy` once, as its schedule would.
+async fn run_tidy(points: &ExtensionPoints) {
+    let run = Run::start(points, &ID, "tidy", None).await;
+    run.expect("tidy isn't running").finish(points).await;
+}
+
 async fn runs(db: &Database) -> Vec<JobRun> {
     job_runs(db, &ID, "tidy").await.unwrap()
 }
 
 async fn outcome_of_running(ends: fn() -> Result<(), PluginError>) -> JobRunOutcome {
     let (registry, db, _dir) = recording(Arc::new(Ending(ends))).await;
-    run_recorded(&registry, &ID, "tidy").await;
+    run_tidy(&registry).await;
     let [run] = &runs(&db).await[..] else {
         panic!("not one run recorded");
     };
@@ -162,7 +169,7 @@ async fn a_run_its_plugin_is_disabled_during_is_recorded_as_interrupted() {
     let (registry, db, _dir) = recording(Arc::new(Endless)).await;
     let points = registry.extension_points();
     assert!(registry.spawn_in(&ID, async move {
-        run_recorded(&points, &ID, "tidy").await;
+        run_tidy(&points).await;
     }));
     while runs(&db).await.is_empty() {
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -181,7 +188,7 @@ async fn a_run_the_server_stops_during_is_recorded_as_interrupted_before_shutdow
     let (registry, db, _dir) = recording(Arc::new(Endless)).await;
     let points = registry.extension_points();
     assert!(registry.spawn_in(&ID, async move {
-        run_recorded(&points, &ID, "tidy").await;
+        run_tidy(&points).await;
     }));
     while runs(&db).await.is_empty() {
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -193,9 +200,23 @@ async fn a_run_the_server_stops_during_is_recorded_as_interrupted_before_shutdow
 }
 
 #[tokio::test]
+async fn an_admin_cant_run_a_job_its_schedule_is_running_until_that_run_ends() {
+    let (registry, _db, _dir) = recording(Arc::new(Idle)).await;
+    // As startup does, so the Server has its Manifest.
+    registry.describe_builtin(|| Arc::new(Declaring(vec![job(None)], Arc::new(Idle))));
+    let scheduled = Run::start(&registry, &ID, "tidy", None).await.unwrap();
+
+    let refused = run_now(&registry, &ID, "tidy", "Ada".to_owned()).await;
+    scheduled.finish(&registry).await;
+    let started = run_now(&registry, &ID, "tidy", "Ada".to_owned()).await;
+
+    assert_eq!((refused, started), (Err(RunRefused::Running), Ok(())));
+}
+
+#[tokio::test]
 async fn a_run_a_stopped_server_left_running_is_interrupted_at_the_next_start() {
     let (_registry, db, _dir) = recording(Arc::new(Idle)).await;
-    let recording = Recording::start(Some(RunLog::new(Arc::clone(&db))), &ID, "tidy").await;
+    let recording = Recording::start(Some(RunLog::new(Arc::clone(&db))), &ID, "tidy", None).await;
     #[expect(
         clippy::mem_forget,
         reason = "a Server that stops mid-Run never drops its Recording, leaving its row running"
@@ -217,7 +238,7 @@ async fn a_run_a_stopped_server_left_running_is_interrupted_at_the_next_start() 
 async fn a_job_keeps_its_newest_50_runs() {
     let (registry, db, _dir) = recording(Arc::new(Idle)).await;
     for _ in 0..51 {
-        run_recorded(&registry, &ID, "tidy").await;
+        run_tidy(&registry).await;
     }
 
     let kept = runs(&db).await;
