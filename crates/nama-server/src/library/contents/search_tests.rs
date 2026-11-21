@@ -447,8 +447,12 @@ async fn a_search_corrects_one_edit_up_to_seven_letters_and_two_from_eight() {
     let fx = Fixture::new().await;
     fx.match_movie(949, "Heat", "1995-12-15").await;
     fx.match_movie(157_336, "Interstellar", "2014-11-05").await;
+    fx.match_movie(8844, "Jumanji", "1995-12-15").await;
+    fx.match_movie(10_655, "Ironclad", "2011-03-04").await;
 
     assert_eq!(fx.found_movies("Hxat").await, ["Heat"]);
+    assert_eq!(fx.found_movies("Jumxnxi").await, Vec::<String>::new());
+    assert_eq!(fx.found_movies("Ironclxx").await, ["Ironclad"]);
     assert_eq!(fx.found_movies("Hxxt").await, Vec::<String>::new());
     assert_eq!(fx.found_movies("Intrstelar").await, ["Interstellar"]);
     assert_eq!(fx.found_movies("Intrstlar").await, Vec::<String>::new());
@@ -481,7 +485,7 @@ async fn a_search_keeps_a_word_some_indexed_word_starts_with() {
 }
 
 #[tokio::test]
-async fn a_search_finding_five_titles_lists_no_corrected_ones() {
+async fn a_search_finding_five_titles_lists_just_those() {
     let fx = Fixture::new().await;
     for (tmdb, title) in [
         (1, "Heist"),

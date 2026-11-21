@@ -235,8 +235,7 @@ struct IndexedWord {
     titles: i64,
 }
 
-/// How many edits [`SearchWords::corrected`] may make to `word`: none to a word of 3 letters or
-/// fewer, one to one of up to 7, else two.
+/// How many edits [`SearchWords::corrected`] may make to `word`, by how many letters it has.
 fn edits_allowed(word: &str) -> usize {
     match word.chars().filter(|c| c.is_alphabetic()).count() {
         0..=3 => 0,
