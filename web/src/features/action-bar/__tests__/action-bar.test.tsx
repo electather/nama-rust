@@ -1,8 +1,10 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { TitleKind } from "@/gen/nama/v1/match_pb";
+import { type SearchResponseSchema, SearchService } from "@/gen/nama/v1/search_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { modKey } from "@/shared/lib/mod-key";
 import { admin, fakeServer, newUser, openApp } from "@/test-app";
@@ -12,38 +14,64 @@ afterEach(() => {
   localStorage.clear();
 });
 
-type Search = ServiceImpl<typeof BrowseService>["searchLibraries"];
+type Search = ServiceImpl<typeof SearchService>["search"];
 
 const tmdb = (value: string) => ({ namespace: "tmdb", value });
 
-/** What a search for "office" finds: a Movie, a Show and one of the Show's Episodes. */
-const office: ReturnType<Search> = {
-  movies: [{ libraryId: 1n, id: tmdb("1542"), title: "Office Space", releaseDate: "1999-02-19" }],
-  shows: [{ libraryId: 2n, id: tmdb("2316"), title: "The Office" }],
-  episodes: [
-    {
-      libraryId: 2n,
-      id: tmdb("9001"),
-      showId: tmdb("2316"),
-      showTitle: "The Office",
-      seasonNumber: 2,
-      episodeNumber: 1,
-      title: "The Dundies",
-    },
-  ],
+const officeSpace = {
+  case: "movie",
+  value: { libraryId: 1n, id: tmdb("1542"), title: "Office Space", year: 1999 },
+} as const;
+const theOffice = {
+  case: "show",
+  value: { libraryId: 2n, id: tmdb("2316"), title: "The Office" },
+} as const;
+const theDundies = {
+  case: "episode",
+  value: {
+    libraryId: 2n,
+    id: tmdb("9001"),
+    showId: tmdb("2316"),
+    showTitle: "The Office",
+    seasonNumber: 2,
+    episodeNumber: 1,
+    title: "The Dundies",
+  },
+} as const;
+
+/** The titles a search for "office" of each kind finds: a Movie, a Show and one of its Episodes. */
+const office: Record<
+  TitleKind,
+  readonly (typeof officeSpace | typeof theOffice | typeof theDundies)[]
+> = {
+  [TitleKind.UNSPECIFIED]: [officeSpace, theOffice, theDundies],
+  [TitleKind.MOVIE]: [officeSpace],
+  [TitleKind.SHOW]: [theOffice, theDundies],
 };
 
-const findsOffice: Search = ({ query }) => (query.includes("office") ? office : {});
+/** Finds the titles of the kind asked for if the query has "office", in one batch, then Done. */
+const findsOffice: Search = ({ query, kind }) => {
+  const titles = (query.includes("office") ? office[kind] : undefined) ?? [];
+  return new ReadableStream<MessageInitShape<typeof SearchResponseSchema>>({
+    start(controller) {
+      controller.enqueue({
+        part: { case: "hits", value: { hits: titles.map((title) => ({ title })) } },
+      });
+      controller.enqueue({ part: { case: "done", value: {} } });
+      controller.close();
+    },
+  });
+};
 
 /** A search the Server fails. */
 const down: Search = () => {
   throw new ConnectError("down", Code.Internal);
 };
 
-/** A fake Server that answers a search with `searchLibraries`, for a User with `permissions`. */
-function serverToSearch(searchLibraries: Search, permissions: Permission[] = newUser) {
+/** A fake Server that answers a search with `search`, for a User with `permissions`. */
+function serverToSearch(search: Search, permissions: Permission[] = newUser) {
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
-    router.service(BrowseService, { searchLibraries });
+    router.service(SearchService, { search });
   });
 }
 
@@ -124,8 +152,13 @@ test("an Episode found opens its Show at its Season", async () => {
   });
 });
 
-test("a search of one kind lists that kind alone, and Escape steps back out of it", async () => {
-  openApp("/settings", serverToSearch(findsOffice));
+test("a search of one kind asks the Server for that kind, and Escape steps back out of it", async () => {
+  const kinds: TitleKind[] = [];
+  const search: Search = (request, context) => {
+    kinds.push(request.kind);
+    return findsOffice(request, context);
+  };
+  openApp("/settings", serverToSearch(search));
   const field = await openActionBar();
 
   fireEvent.click(screen.getByRole("option", { name: /^Search Shows/u }));
@@ -136,6 +169,7 @@ test("a search of one kind lists that kind alone, and Escape steps back out of i
     "The OfficeShowOpen",
     "1. The DundiesEpisodeThe Office · Season 2",
   ]);
+  expect(kinds).toStrictEqual([TitleKind.SHOW]);
   fireEvent.keyDown(field, { key: "Escape" });
   expect(screen.getByRole("option", { name: /^Search Movies/u })).toBeDefined();
   expect(screen.queryByRole("button", { name: "Clear filter" })).toBeNull();
@@ -152,10 +186,7 @@ test("a search that finds nothing says so", async () => {
 
 test("a search that fails offers Retry, which searches again", async () => {
   let answer = down;
-  const search: Search = async (request, context) => {
-    const found = await answer(request, context);
-    return found;
-  };
+  const search: Search = (request, context) => answer(request, context);
   openApp("/settings", serverToSearch(search));
   const field = await openActionBar();
 

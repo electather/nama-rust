@@ -12,8 +12,7 @@ use nama_proto::nama::v1::{
     ListGenresRequest, ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse,
     ListHomeRowsRequest, ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse,
     ListShowsRequest, ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort,
-    Permission, SearchLibrariesRequest, SearchLibrariesResponse, ShowSort, SortDirection,
-    WatchedFilter, home_row::KernelOrPlugin,
+    Permission, ShowSort, SortDirection, WatchedFilter, home_row::KernelOrPlugin,
 };
 
 use crate::{
@@ -21,8 +20,8 @@ use crate::{
     db::Database,
     home_rows::{HomeRows, OnServer, RowTitle},
     library::{
-        Downloaded, FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing,
-        Role, ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
+        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
+        ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
     server_settings::{HomeRowId, Settings},
@@ -422,32 +421,6 @@ impl BrowseService for BrowseServiceHandler {
         })
     }
 
-    async fn search_libraries(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, SearchLibrariesRequest>,
-    ) -> ServiceResult<SearchLibrariesResponse> {
-        let request = request.to_owned_message();
-        let found = self.browse.search(&request.query, &request.page).await;
-        let (found, page) = found.map_err(refused(Fields::NONE))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
-        Response::ok(SearchLibrariesResponse {
-            movies: (found.movies.into_iter())
-                .map(|movie| found_movie_to_proto(movie, &images))
-                .collect(),
-            shows: (found.shows.into_iter())
-                .map(|show| found_show_to_proto(show, &images))
-                .collect(),
-            episodes: found
-                .episodes
-                .into_iter()
-                .map(found_episode_to_proto)
-                .collect(),
-            page: page.into(),
-            ..Default::default()
-        })
-    }
-
     async fn list_unmatched(
         &self,
         _ctx: RequestContext,
@@ -578,19 +551,6 @@ fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLi
         poster_thumbhash: poster.thumbhash,
         id: external_id_to_proto(&show.id).into(),
         title: show.title,
-        ..Default::default()
-    }
-}
-
-fn found_episode_to_proto(episode: FoundEpisode) -> proto::EpisodeInLibrary {
-    proto::EpisodeInLibrary {
-        library_id: episode.library,
-        id: external_id_to_proto(&episode.id).into(),
-        show_id: external_id_to_proto(&episode.show).into(),
-        show_title: episode.show_title,
-        season_number: proto_number(episode.season),
-        episode_number: proto_number(episode.number),
-        title: episode.title,
         ..Default::default()
     }
 }

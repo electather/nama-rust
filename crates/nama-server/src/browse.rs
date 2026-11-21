@@ -15,7 +15,8 @@ use crate::{
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
         LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, Stored,
-        TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind, WatchStates,
+        TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind,
+        WatchStates,
     },
     page::{self, Page},
     playback::{Probe, StoredTracks, Track},
@@ -209,15 +210,15 @@ impl Browse {
         })
     }
 
-    /// The `asked` page of the Movies, Shows and Episodes of every Library that a search for
-    /// `query` finds: see [`Contents::search`].
+    /// The best `limit` Movies, Shows and Episodes of every Library that a search for `query`
+    /// finds, of `kind` only if it's set: see [`Contents::search`].
     pub(crate) async fn search(
         &self,
         query: &str,
-        asked: &PageRequest,
-    ) -> Result<(Found, PageResponse), Error> {
-        let page = Page::read(asked, format!("SearchLibraries {query}").as_bytes())?;
-        Ok(self.contents.search(query, &page).await?)
+        kind: Option<TitleKind>,
+        limit: usize,
+    ) -> Result<Vec<Found>, sqlx::Error> {
+        self.contents.search(query, kind, limit).await
     }
 
     /// The `asked` page of the Unmatched Items of the Library `library`, the one found most
