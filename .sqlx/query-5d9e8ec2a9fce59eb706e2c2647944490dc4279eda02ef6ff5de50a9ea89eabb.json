@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM similar_titles WHERE plugin = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5d9e8ec2a9fce59eb706e2c2647944490dc4279eda02ef6ff5de50a9ea89eabb"
+}

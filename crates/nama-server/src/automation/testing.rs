@@ -226,7 +226,12 @@ pub(super) async fn delete(
 
 /// Leaves a row of `plugin`'s in each table `forget_gone_plugins` deletes from, one of them the
 /// User `user`'s, as if the Server last had `plugin` `days_ago`.
-pub(super) async fn leave_behind(db: &Database, plugin: &'static str, user: i64, days_ago: i64) {
+pub(super) async fn leave_behind(
+    db: &Arc<Database>,
+    plugin: &'static str,
+    user: i64,
+    days_ago: i64,
+) {
     let id = PluginId::from_static(plugin);
     let had_at = db::now() - days_ago * 24 * 60 * 60;
     super::store::put(db, &id, None, "key".to_owned(), b"value".to_vec())
@@ -266,21 +271,25 @@ pub(super) async fn leave_behind(db: &Database, plugin: &'static str, user: i64,
     })
     .await
     .unwrap();
+    Contents::new(Arc::clone(db)).leave_title_rows(plugin).await;
 }
 
 /// Which of the rows [`leave_behind`] leaves for `plugin` and the User `user` are still there:
-/// its settings, Store entry, Personal settings and Plugin Connection.
-pub(super) async fn left_behind(db: &Database, plugin: &'static str, user: i64) -> [bool; 4] {
+/// its settings, Store entry, Personal settings, Plugin Connection, Similar titles and Roles.
+pub(super) async fn left_behind(db: &Arc<Database>, plugin: &'static str, user: i64) -> [bool; 6] {
     let id = PluginId::from_static(plugin);
     // Read through the grants, since a Server that never imported its config lists no settings.
     let settings = crate::plugin_settings::grants(db).await.unwrap();
     let stored = super::store::get(db, &id, None, "key").await.unwrap();
     let personal = users::personal_settings_of(db, user, &id).await.unwrap();
     let connected = connections::connected(db, &id).await.unwrap();
+    let [similar, roles] = Contents::new(Arc::clone(db)).title_rows_of(plugin).await;
     [
         settings.contains_key(plugin),
         stored.is_some(),
         !personal.is_empty(),
         !connected.is_empty(),
+        similar,
+        roles,
     ]
 }

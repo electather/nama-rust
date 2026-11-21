@@ -14,8 +14,8 @@
 //! as if uploaded. Any offered image may go into any slot, not only one it was offered for: the
 //! same admin can upload any bytes there anyway, so binding offers to slots would stop nothing.
 //! `DELETE` there removes it.
-//! `PREFIXES` in `src/api.rs` lets only Users with Manage Libraries do either, or for a Plugin's,
-//! Manage Settings. Anyone with a session fetches it at its
+//! `PREFIXES` in `src/api/access.rs` lets only Users with Manage Libraries do either, or for a
+//! Plugin's, Manage Settings. Anyone with a session fetches it at its
 //! [`Urls`] entry, under `/media/`, resized by `?width=` as a downloaded image is
 //! (`crate::library::artwork`).
 

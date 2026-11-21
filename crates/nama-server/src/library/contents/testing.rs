@@ -225,6 +225,53 @@ impl Contents {
             .await
             .unwrap();
     }
+
+    /// Stores Similar titles and a Role for a Movie as if `plugin`'s title source had Matched it.
+    pub(crate) async fn leave_title_rows(&self, plugin: &'static str) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO similar_titles (plugin, kind, namespace, value, similar)
+                         VALUES (?, 'movie', 'tmdb', '348', '[\"tmdb-679\"]')",
+                        plugin
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query!(
+                        "INSERT INTO title_roles (plugin, kind, namespace, value, crew, billed,
+                                                  person_namespace, person_value, name, part)
+                         VALUES (?, 'movie', 'tmdb', '348', 0, 0, 'tmdb', '10205',
+                                 'Sigourney Weaver', 'Ripley')",
+                        plugin
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
+                })
+            })
+            .await
+            .unwrap();
+    }
+
+    /// Whether `plugin` still has Similar titles and Roles stored, in that order.
+    pub(crate) async fn title_rows_of(&self, plugin: &str) -> [bool; 2] {
+        let similar = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM similar_titles WHERE plugin = ?) AS "exists: bool""#,
+            plugin
+        )
+        .fetch_one(self.db.reader())
+        .await
+        .unwrap();
+        let roles = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM title_roles WHERE plugin = ?) AS "exists: bool""#,
+            plugin
+        )
+        .fetch_one(self.db.reader())
+        .await
+        .unwrap();
+        [similar, roles]
+    }
 }
 
 pub(super) const ALIEN: &str = "/media/Alien (1979)/Alien (1979).mkv";

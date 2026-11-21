@@ -7,6 +7,8 @@
 
 use std::sync::Arc;
 
+use sqlx::SqliteConnection;
+
 use crate::db::Database;
 
 mod air_dates;
@@ -65,5 +67,15 @@ impl Contents {
     #[must_use]
     pub(crate) const fn new(db: Arc<Database>) -> Self {
         Self { db }
+    }
+
+    /// Deletes, in `conn`'s write, the Similar titles and Roles the Plugin `plugin`'s title
+    /// source gave titles, for Upkeep to forget a Plugin the Server no longer has.
+    pub(crate) async fn forget_plugin(
+        conn: &mut SqliteConnection,
+        plugin: &str,
+    ) -> Result<(), sqlx::Error> {
+        similar::forget_plugin(conn, plugin).await?;
+        roles::forget_plugin(conn, plugin).await
     }
 }
