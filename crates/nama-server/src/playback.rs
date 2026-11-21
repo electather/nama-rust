@@ -405,8 +405,8 @@ struct Facts {
     failed: BTreeSet<Method>,
     /// The methods whose ffmpeg stopped before writing anything while it was planned just now.
     failed_on_server: BTreeSet<Method>,
-    /// The [`recipe`]s, the Recipes, of the plans that just failed to play it on the Device. The Server never
-    /// stores them.
+    /// The Recipes of the plans that just failed to play it on the Device, as [`recipe`] names
+    /// them. The Server never stores them.
     failed_recipes: BTreeSet<String>,
     /// Whether listing the Version's keyframes failed or timed out, now or for its file as it is
     /// (#850), or isn't done yet (#866), which a Remux needs.

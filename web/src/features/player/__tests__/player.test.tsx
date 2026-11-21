@@ -247,7 +247,7 @@ test("a Direct Play that fails mid-film goes on as a Remux from there, until tha
   expect(asked.at(-1)?.failedRecipes).toStrictEqual(["direct-play", "remux/fmp4/aac"]);
 });
 
-test("a method that fails again gives up instead of asking for plans in a loop", async () => {
+test("a Recipe that fails again gives up instead of asking for plans in a loop", async () => {
   const asked: PlanPlaybackRequest[] = [];
   openApp(
     "/libraries/1/movies/tmdb-603/play?version=7",

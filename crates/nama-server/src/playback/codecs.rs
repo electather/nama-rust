@@ -154,8 +154,8 @@ pub(super) fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Tr
     }
 }
 
-/// `facts.device` without the audio codecs whose Recipe ([`recipe`]) by `method` just failed on it, so
-/// `method` sends another if it can.
+/// `facts.device` without the audio codecs whose Recipe by `method`, as [`recipe`] names it, just
+/// failed on it, so `method` sends another if it can.
 pub(super) fn untried_by(method: Method, facts: &Facts) -> DeviceDecoding {
     let mut device = facts.device.clone();
     device.audio_codecs.retain(|codec| {

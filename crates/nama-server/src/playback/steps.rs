@@ -7,7 +7,6 @@ use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
 use super::{
     Candidates, Facts, Fallback, Method, Playing, Reason, RunningTranscodes, accel_to_proto, build,
-    candidates as candidates_of,
     choices::burn_in,
     codecs::{
         audio_codec_name, audio_conversion, channels_of, hdr_name, played_hdr, played_tracks,
@@ -198,7 +197,7 @@ pub(super) fn converting(
         ),
         None | Some(Playing::DirectPlay) => return vec![],
     };
-    let mut reasons: Vec<Reason> = (recipe_failed(facts, candidates, method).into_iter())
+    let mut reasons: Vec<Reason> = (recipes_failed(facts, candidates, method).into_iter())
         .chain(
             conversion.and_then(|conversion| fewer_channels(facts, candidates, conversion, method)),
         )
@@ -481,35 +480,28 @@ pub(super) fn failed_on_device(facts: &Facts, candidates: Option<&Candidates>) -
     )
 }
 
-/// Why the Remux or Transcode `method` sends its audio in another codec than it would have, if
-/// that's because a Recipe sending that one just failed on the Device.
-fn recipe_failed(facts: &Facts, candidates: Option<&Candidates>, method: Method) -> Option<Reason> {
-    if facts.failed_recipes.is_empty() {
-        return None;
-    }
-    let untried = Facts {
-        failed_recipes: BTreeSet::new(),
-        ..facts.clone()
-    };
-    let wanted = sent_by(method, &untried, candidates_of(&untried).as_ref())?;
-    let wanted = sent_audio(&wanted)?;
-    let sent = sent_by(method, facts, candidates)?;
-    let sent = sent_audio(&sent)?;
-    if wanted == sent {
-        return None;
-    }
-    let text = format!(
-        "A {} sending {} audio just failed on this Device, so it sends {}",
-        method.name(),
-        audio_codec_name(wanted),
-        audio_codec_name(sent)
-    );
-    Some(
-        Reason::new(Kind::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE, text)
-            .with("method", &method_to_proto(Some(method)).proto_name())
-            .with("codec", &wanted)
-            .deciding(),
-    )
+/// Why the Remux or Transcode `method` sends audio in another codec than one of its Recipes that
+/// just failed on the Device: one reason for each such codec.
+fn recipes_failed(facts: &Facts, candidates: Option<&Candidates>, method: Method) -> Vec<Reason> {
+    let tracks = sent_by(method, facts, candidates).unwrap_or_default();
+    let sent = sent_audio(&tracks);
+    // What follows the method and container in a Recipe is the audio codec it sent.
+    let sending = recipe(method, Some(""));
+    (facts.failed_recipes.iter())
+        .filter_map(|failed| failed.strip_prefix(&sending))
+        .filter(|&codec| Some(codec) != sent)
+        .map(|codec| {
+            let text = format!(
+                "A {} sending {} audio just failed on this Device, so it sends another",
+                method.name(),
+                audio_codec_name(codec)
+            );
+            Reason::new(Kind::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE, text)
+                .with("method", &method_to_proto(Some(method)).proto_name())
+                .with("codec", &codec)
+                .deciding()
+        })
+        .collect()
 }
 
 /// The step for plans whose ffmpeg stopped before writing anything: it rules out each method that
