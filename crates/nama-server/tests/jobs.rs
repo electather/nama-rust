@@ -48,8 +48,9 @@ async fn with_jobs() -> TestServer {
     server
 }
 
+// One test, as every Server in this binary logs the same Job lines to the one global log.
 #[tokio::test]
-async fn a_job_fires_on_its_schedule_and_a_firing_due_while_it_runs_is_dropped() {
+async fn a_job_fires_on_its_schedule_drops_a_firing_due_while_it_runs_and_stops_with_its_plugin() {
     let log = Log::global();
     let (started, ended) = (log.count(STARTED), log.count(ENDED));
     let server = with_jobs().await;
@@ -76,13 +77,6 @@ async fn a_job_fires_on_its_schedule_and_a_firing_due_while_it_runs_is_dropped()
     server.advance_clock(Duration::from_mins(1));
     log.wait_for(ENDED, ended + 2).await;
     assert_eq!(log.count(&["test-plugin's Job on-ask"]), 0);
-}
-
-#[tokio::test]
-async fn disabling_the_plugin_stops_its_jobs() {
-    let log = Log::global();
-    let started = log.count(STARTED);
-    let server = with_jobs().await;
 
     PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
         .disable_plugin(DisablePluginRequest {
@@ -91,8 +85,7 @@ async fn disabling_the_plugin_stops_its_jobs() {
         })
         .await
         .unwrap();
-    server.advance_clock(until_four() + Duration::from_secs(5));
+    server.advance_clock(DAY);
     tokio::time::sleep(SETTLE).await;
-
-    assert_eq!(log.count(STARTED), started);
+    assert_eq!(log.count(STARTED), started + 2, "it fired once disabled");
 }
