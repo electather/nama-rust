@@ -103,7 +103,7 @@ fn top_picks(
         .collect()
 }
 
-fn on_watchlist(value: &str) -> WatchlistTitle {
+fn watchlisted_movie(value: &str) -> WatchlistTitle {
     WatchlistTitle {
         kind: TitleKind::TITLE_KIND_MOVIE.into(),
         id: id(value).into(),
@@ -149,7 +149,7 @@ fn a_watchlisted_title_outranks_the_users_genres() {
         unwatched(&titles[2]),
     ];
     assert_eq!(
-        top_picks(&titles, &states, &[on_watchlist("2")]),
+        top_picks(&titles, &states, &[watchlisted_movie("2")]),
         ["2", "3"]
     );
 }
@@ -366,7 +366,7 @@ fn user_rows_and_featured_put_a_watchlisted_title_above_the_users_genres() {
         movie("2", &["Comedy"]),
         movie("3", &["Horror"]),
     ];
-    let kernel = granting_watchlists(&titles).watchlist(ADA, [on_watchlist("2")]);
+    let kernel = granting_watchlists(&titles).watchlist(ADA, [watchlisted_movie("2")]);
     let mut kernel = watching(kernel, &titles[0], ADA, true, 0);
 
     let rows = user_rows(&mut kernel, ADA).unwrap();
