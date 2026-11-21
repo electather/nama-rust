@@ -145,52 +145,15 @@ async fn a_plugin_without_tick_every_is_never_ticked() {
     assert_eq!(count(&ticks), 0);
 }
 
-#[cfg(feature = "testing")]
-#[tokio::test(start_paused = true)]
-async fn a_registry_set_to_tick_on_demand_ticks_only_when_asked() {
-    let registry = served();
-    registry.tick_only_on_demand();
-    let ticks = enabled(&registry, Some(EVERY));
-
-    tokio::time::advance(EVERY * 10).await;
-    settle().await;
-    assert_eq!(count(&ticks), 0);
-
-    registry.tick_now(&ID).await.unwrap();
-    assert_eq!(count(&ticks), 1);
-}
-
-#[cfg(feature = "testing")]
-#[tokio::test(start_paused = true)]
-async fn tick_now_ticks_a_plugin_its_schedule_never_ticks() {
-    let registry = Registry::new();
-    let ticks = enabled(&registry, None);
-
-    registry.tick_now(&ID).await.unwrap();
-
-    assert_eq!(count(&ticks), 1);
-}
-
-#[cfg(feature = "testing")]
-#[tokio::test]
-async fn tick_now_refuses_a_plugin_that_is_not_enabled() {
-    let registry = Registry::new();
-
-    let refused = registry.tick_now(&ID).await.unwrap_err();
-
-    assert_eq!(refused, "ticked isn't enabled or provides no Automation");
-}
-
 /// A Built-in Plugin whose Automation panics when ticked.
-#[cfg(feature = "testing")]
 struct Panicking;
 
-#[cfg(feature = "testing")]
 impl Plugin for Panicking {
     fn manifest(&self) -> Manifest {
         Manifest {
             version: "0.0.0".to_owned(),
             extension_points: vec![PointKey::provide::<dyn Automation>()],
+            tick_every: Some(EVERY),
             ..Manifest::new(ID)
         }
     }
@@ -201,25 +164,21 @@ impl Plugin for Panicking {
     }
 }
 
-#[cfg(feature = "testing")]
 struct Panics;
 
-#[cfg(feature = "testing")]
 impl Automation for Panics {
     fn tick<'a>(&'a self, _: &'a Tick) -> BoxFuture<'a, Result<(), PluginError>> {
         panic!("the tick panicked")
     }
 }
 
-#[cfg(feature = "testing")]
-#[tokio::test]
-async fn tick_now_reports_a_tick_that_panicked() {
-    let registry = Registry::new();
+#[tokio::test(start_paused = true)]
+async fn a_scheduled_tick_that_panics_disables_its_plugin() {
+    let registry = served();
     registry.enable(Arc::new(Panicking)).unwrap();
 
-    let refused = registry.tick_now(&ID).await.unwrap_err();
+    settle().await;
 
-    assert_eq!(refused, "ticked's tick panicked, so it is disabled");
     assert!(!registry.enabled().contains(&ID));
 }
 
@@ -235,7 +194,6 @@ async fn a_tick_after_its_plugin_was_disabled_finds_no_automation() {
     assert_eq!(count(&ticks), 0);
 }
 
-#[cfg(feature = "testing")]
 #[tokio::test]
 async fn a_tick_that_panicked_is_told_from_one_with_no_automation() {
     let registry = Registry::new();

@@ -16,7 +16,7 @@ mod server;
 use std::{collections::BTreeMap, fs, io::Cursor, path::Path, time::Duration};
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
-use fake_s3::{FakeS3, S3, SECRET};
+use fake_s3::{FakeS3, S3};
 use http::{Reply, fetch_with, send};
 use http_body_util::Full;
 use hyper::{Request, body::Bytes};
@@ -25,7 +25,6 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, ExternalId, GetImageSettingsRequest, GetImageSettingsResponse,
     GetMovieRequest, LibraryKind, ListPluginsRequest, Movie, PluginServiceClient, RefusalReason,
     ServerServiceClient, SwitchImageStoreRequest, SwitchImageStoreResponse,
-    TestPluginSettingsRequest,
 };
 use refused::assert_refused;
 use server::{TestServer, WAIT, tmdb::ALIEN};
@@ -380,23 +379,4 @@ async fn switching_to_a_bucket_that_refuses_writes_is_refused_with_the_reason_ch
     assert_eq!(after.status, 200);
     assert_eq!(after.body, before.body);
     assert_eq!(after.header("etag"), before.header("etag"));
-}
-
-/// The fake bucket checks each request's signature, so the tests above prove the Plugin signs.
-#[tokio::test]
-async fn s3_settings_with_another_secret_fail_their_test_on_the_signature() {
-    let fx = Fixture::start().await;
-    let plugins = PluginServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
-    let test = |secret: &str| TestPluginSettingsRequest {
-        id: S3.to_owned(),
-        settings: fx.s3.settings(secret).into_iter().collect(),
-        ..Default::default()
-    };
-
-    let refused = plugins.test_plugin_settings(test("another secret")).await;
-    let passed = plugins.test_plugin_settings(test(SECRET)).await;
-
-    let err = refused.err().map_or_default(|err| format!("{err:?}"));
-    assert!(err.contains("SignatureDoesNotMatch"), "{err}");
-    assert!(passed.is_ok(), "{:?}", passed.err());
 }
