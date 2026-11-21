@@ -10,11 +10,11 @@ use super::{
     primary_id_in,
 };
 
-/// A Movie some Items of a Library are Matched to, with the metadata the Match of its first
-/// Version stores. Browse hands it out with Versions of its own, which have Tracks.
+/// A Movie as `library_titles` groups it, with the metadata the Match of its first Version
+/// stores. Browse hands it out with Versions of its own, which have Tracks.
 #[derive(Debug)]
 pub(crate) struct Movie<V = Version> {
-    /// Which of the Match's ids identifies the Movie: see [`primary_id`](super::primary_id).
+    /// Its `listed_id` in `library_titles`.
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Version gives it.
     pub(crate) ids: ExternalIds,
@@ -36,7 +36,7 @@ pub(crate) struct Movie<V = Version> {
     /// Its Score from the title source that made the Match, kept once per title.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
-    /// When its first Version was added, in seconds since the Unix epoch.
+    /// Its `added_at` in `library_titles`, in seconds since the Unix epoch.
     pub(crate) added_at: i64,
     /// The files Matched to it, by path.
     pub(crate) versions: Vec<V>,
@@ -106,11 +106,11 @@ pub(crate) enum TitlesIn {
     Episodes(Vec<Option<(ExternalId, ExternalIds)>>),
 }
 
-/// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
-/// first Episode, by season, episode and path, stores.
+/// A Show as `library_titles` groups it, with the metadata the Match of its first Episode
+/// stores.
 #[derive(Debug, Clone)]
 pub(crate) struct Show<V = Version> {
-    /// Which of its Episodes' Show ids identifies it: see [`primary_id`](super::primary_id).
+    /// Its `listed_id` in `library_titles`.
     pub(crate) id: ExternalId,
     /// Every Show id that Match gives it.
     pub(crate) ids: ExternalIds,
@@ -130,7 +130,7 @@ pub(crate) struct Show<V = Version> {
     /// As [`Movie::score`].
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
-    /// When its newest Episode was added, in seconds since the Unix epoch.
+    /// Its `added_at` in `library_titles`, in seconds since the Unix epoch.
     pub(crate) added_at: i64,
     /// The Seasons the Library has Episodes of, by number.
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
@@ -189,7 +189,7 @@ pub(crate) struct Season<V = Version> {
 /// Version stores.
 #[derive(Debug, Clone)]
 pub(crate) struct Episode<V = Version> {
-    /// Which of the Match's ids identifies the Episode: see [`primary_id`](super::primary_id).
+    /// Its `own_id` in `library_titles`.
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Version gives it.
     pub(crate) ids: ExternalIds,

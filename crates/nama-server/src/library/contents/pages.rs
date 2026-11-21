@@ -11,8 +11,7 @@ use crate::page::Page;
 pub(crate) enum TitleSort {
     /// By sort title (`sort_titles.rs`).
     Title,
-    /// By when it was added: a Movie when its first Version was, a Show when its newest Episode
-    /// was.
+    /// By when it was added, as `library_titles` has it.
     Added,
     /// By release date, or first air date, those without one first.
     Released,

@@ -28,7 +28,7 @@ pub(crate) enum Found {
 #[derive(Debug, Clone)]
 pub(crate) struct FoundMovie {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`](super::primary_id).
+    /// Its `own_id` in `matched_items`.
     pub(crate) id: ExternalId,
     /// Every id its Match gives it.
     pub(crate) ids: ExternalIds,
@@ -41,7 +41,7 @@ pub(crate) struct FoundMovie {
 #[derive(Debug, Clone)]
 pub(crate) struct FoundShow {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`](super::primary_id).
+    /// Its `listed_id` in `matched_items`.
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Episode found gives it.
     pub(crate) ids: ExternalIds,
@@ -55,9 +55,9 @@ pub(crate) struct FoundShow {
 #[derive(Debug)]
 pub(crate) struct FoundEpisode {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`](super::primary_id).
+    /// Its `own_id` in `matched_items`.
     pub(crate) id: ExternalId,
-    /// Its Show's id, as browsing identifies it.
+    /// Its Show's preferred id, its `listed_id` in `matched_items`.
     pub(crate) show: ExternalId,
     pub(crate) show_title: String,
     pub(crate) season: i64,
@@ -111,8 +111,8 @@ impl Contents {
         // A hit is grouped by the id browsing knows its title by, which `matched_items` picks,
         // so each title is read once.
         // ponytail: every search groups every hit, since a title's Items can be anywhere in
-        // FTS5's order; the `LIMIT` caps what is read back. Store a title row to search if that's
-        // slow.
+        // FTS5's order; the `LIMIT` caps what is read back. The exit is the stored title row
+        // named on `library_titles`.
         macro_rules! select {
             ($ids:literal, ($($matched:tt)+)) => {
                 sqlx::query_as!(
