@@ -59,6 +59,165 @@ impl SettingField {
     pub fn within_bounds(&self, number: i64) -> bool {
         self.min.is_none_or(|min| number >= min) && self.max.is_none_or(|max| number <= max)
     }
+
+    /// Why the Kernel refuses a Plugin that declares this setting, if it does: bounds or choices
+    /// on a kind that takes none, a `min` over its `max`, a choice listed twice, or a default
+    /// outside its bounds or choices.
+    #[must_use]
+    pub fn flaw(&self) -> Option<SettingFlaw> {
+        self.bounds_flaw().or_else(|| self.choices_flaw())
+    }
+
+    fn bounds_flaw(&self) -> Option<SettingFlaw> {
+        let key = || self.key.clone();
+        if self.kind != SettingKind::Integer && (self.min.is_some() || self.max.is_some()) {
+            return Some(SettingFlaw::BoundsOnAnotherKind { key: key() });
+        }
+        if let (Some(min), Some(max)) = (self.min, self.max)
+            && min > max
+        {
+            return Some(SettingFlaw::BoundsCrossed {
+                key: key(),
+                min,
+                max,
+            });
+        }
+        match self.default {
+            Some(SettingValue::Integer(default)) if !self.within_bounds(default) => {
+                Some(SettingFlaw::DefaultOutOfBounds { key: key() })
+            }
+            _ => None,
+        }
+    }
+
+    fn choices_flaw(&self) -> Option<SettingFlaw> {
+        let key = || self.key.clone();
+        if self.kind != SettingKind::Choices && !self.choices.is_empty() {
+            return Some(SettingFlaw::ChoicesOnAnotherKind { key: key() });
+        }
+        let mut listed = HashSet::new();
+        if let Some(choice) = self
+            .choices
+            .iter()
+            .find(|choice| !listed.insert(&choice.value))
+        {
+            return Some(SettingFlaw::ChoiceRepeated {
+                key: key(),
+                value: choice.value.clone(),
+            });
+        }
+        match &self.default {
+            Some(SettingValue::Texts(default))
+                if default.iter().any(|value| !listed.contains(value)) =>
+            {
+                Some(SettingFlaw::DefaultNotAChoice { key: key() })
+            }
+            _ => None,
+        }
+    }
+}
+
+impl SettingsSchema {
+    /// [`SettingFlaw::NoChoices`] for the first [`SettingKind::Choices`] setting with no choices
+    /// of its own, unless `offers_choices`, that is the Plugin has a [`SettingsCheck`] to offer
+    /// some.
+    #[must_use]
+    pub fn unoffered_choices(&self, offers_choices: bool) -> Option<SettingFlaw> {
+        if offers_choices {
+            return None;
+        }
+        let unoffered = self
+            .fields
+            .iter()
+            .find(|field| field.kind == SettingKind::Choices && field.choices.is_empty())?;
+        Some(SettingFlaw::NoChoices {
+            key: unoffered.key.clone(),
+        })
+    }
+}
+
+/// A flaw in a setting a Plugin declares, for which the Kernel refuses the Plugin whatever values
+/// it is given.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SettingFlaw {
+    /// A [`min`](SettingField::min) or [`max`](SettingField::max) on a setting that isn't
+    /// [`SettingKind::Integer`].
+    BoundsOnAnotherKind {
+        /// The setting's key.
+        key: String,
+    },
+    /// A `min` over its `max`.
+    BoundsCrossed {
+        /// The setting's key.
+        key: String,
+        /// Its `min`.
+        min: i64,
+        /// Its `max`.
+        max: i64,
+    },
+    /// A default outside the setting's bounds.
+    DefaultOutOfBounds {
+        /// The setting's key.
+        key: String,
+    },
+    /// [`choices`](SettingField::choices) on a setting that isn't [`SettingKind::Choices`].
+    ChoicesOnAnotherKind {
+        /// The setting's key.
+        key: String,
+    },
+    /// A choice's value listed twice.
+    ChoiceRepeated {
+        /// The setting's key.
+        key: String,
+        /// The value listed twice.
+        value: String,
+    },
+    /// A default holding a value that isn't among the setting's choices.
+    DefaultNotAChoice {
+        /// The setting's key.
+        key: String,
+    },
+    /// A [`SettingKind::Choices`] setting with no choices, from a Plugin with no
+    /// [`SettingsCheck`] to offer some.
+    NoChoices {
+        /// The setting's key.
+        key: String,
+    },
+}
+
+// Words a Built-in's refusal; an Installed Plugin's names its Manifest's fields and exports
+// instead (`Refused` in nama-server's `plugins/wasm.rs`).
+impl fmt::Display for SettingFlaw {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BoundsOnAnotherKind { key } => write!(
+                f,
+                "its setting {key} has min or max, which only an Integer setting may"
+            ),
+            Self::BoundsCrossed { key, min, max } => {
+                write!(f, "its setting {key}'s min {min} is over its max {max}")
+            }
+            Self::DefaultOutOfBounds { key } => {
+                write!(f, "its setting {key}'s default is outside its bounds")
+            }
+            Self::ChoicesOnAnotherKind { key } => write!(
+                f,
+                "its setting {key} has choices, which only a Choices setting may"
+            ),
+            Self::ChoiceRepeated { key, value } => {
+                write!(f, "its setting {key} lists the choice {value:?} twice")
+            }
+            Self::DefaultNotAChoice { key } => write!(
+                f,
+                "its setting {key}'s default holds a value that isn't among its choices"
+            ),
+            Self::NoChoices { key } => write!(
+                f,
+                "its setting {key} is Choices with no choices, and it has no settings check to \
+                 offer some"
+            ),
+        }
+    }
 }
 
 /// What kind of value a setting takes.
