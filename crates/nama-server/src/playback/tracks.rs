@@ -16,7 +16,7 @@ use sqlx::SqliteConnection;
 mod segments;
 mod to_proto;
 
-pub(crate) use segments::{Segment, SegmentKind, Segments, segments_of};
+pub(crate) use segments::{Segment, SegmentKind, Segments, make_segments_due, segments_of};
 pub(super) use to_proto::hdr_to_proto;
 pub(crate) use to_proto::track_to_proto;
 

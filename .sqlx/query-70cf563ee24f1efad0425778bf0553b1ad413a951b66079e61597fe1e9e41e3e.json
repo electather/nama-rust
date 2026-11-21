@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE version_probes SET segments_due_ms = NULL\n         WHERE version_id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "70cf563ee24f1efad0425778bf0553b1ad413a951b66079e61597fe1e9e41e3e"
+}

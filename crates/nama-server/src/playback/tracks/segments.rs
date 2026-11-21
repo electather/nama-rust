@@ -33,8 +33,7 @@ use crate::{
 
 /// How long a Version still missing a kind waits to be asked about again, as crowdsourced
 /// services fill in over time (ADR 0075).
-// ponytail: a source an Admin lists later, or a Version Matched later, waits out the rest of these
-// 30 days too; record which sources each ask reached if Admins expect it sooner.
+// ponytail: a Version Matched after it was asked waits out the rest of these 30 days too (#1650).
 const ASK_AGAIN_AFTER: Duration = Duration::from_hours(30 * 24);
 
 /// How long a Version a Segment source failed for waits to be asked about again, so a service
@@ -465,6 +464,27 @@ impl Segments {
 
 fn millis(wait: Duration) -> i64 {
     i64::try_from(wait.as_millis()).unwrap_or(i64::MAX)
+}
+
+/// Makes the Versions in the Libraries `libraries` due straight away, inside the caller's write,
+/// for a Segment source they newly ask (ADR 0075). They're asked only for the kinds they lack.
+// ponytail: asked on the loop's next pass, up to an hour later; notify the loop from both triggers
+// if Admins expect it sooner. An ask already running for one of them writes its 30-day wait back
+// over this; have `keep` skip that write if a missed source shows up.
+pub(crate) async fn make_segments_due(
+    conn: &mut SqliteConnection,
+    libraries: &[i64],
+) -> sqlx::Result<()> {
+    let versions = Contents::versions_in(&mut *conn, libraries).await?;
+    let versions = serde_json::Value::from(versions).to_string();
+    sqlx::query!(
+        "UPDATE version_probes SET segments_due_ms = NULL
+         WHERE version_id IN (SELECT value FROM json_each(?))",
+        versions
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
 }
 
 /// The Segments the Version `version` has, earliest first.

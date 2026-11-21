@@ -5,11 +5,14 @@ use std::collections::{BTreeMap, HashSet};
 
 use nama_plugin_api::{automation::Permission, settings::SettingValue};
 use nama_proto::nama::v1::PluginKind;
+use sqlx::SqliteConnection;
 
 use super::{Grants, StoredPlugin};
 use crate::{
     config::PluginConfig,
     db::Database,
+    library::Libraries,
+    playback::make_segments_due,
     plugins::{Listed, Registry},
 };
 
@@ -107,7 +110,8 @@ pub(super) async fn import(
     .await
 }
 
-/// Stores whether the Plugin `id` is enabled and its `settings`, replacing any stored.
+/// Stores whether the Plugin `id` is enabled and its `settings`, replacing any stored. Stored as
+/// enabled, it runs again with them, so it makes due the Versions it may now find Segments for.
 pub(super) async fn save(
     db: &Database,
     id: &str,
@@ -129,6 +133,9 @@ pub(super) async fn save(
             )
             .execute(&mut **tx)
             .await?;
+            if enabled {
+                make_listing_libraries_due(tx, &plugin_id).await?;
+            }
             Ok(())
         })
     })
@@ -159,7 +166,8 @@ pub(super) async fn set_enabled(
 }
 
 /// Saves the Plugin `plugin_id` as enabled with `granted` as its Plugin Permissions, replacing
-/// those granted before and keeping its stored settings.
+/// those granted before and keeping its stored settings, and makes due the Versions it may now
+/// find Segments for.
 pub(super) async fn set_enabled_granting(
     db: &Database,
     plugin_id: &str,
@@ -179,10 +187,21 @@ pub(super) async fn set_enabled_granting(
             )
             .execute(&mut **tx)
             .await?;
-            Ok(())
+            make_listing_libraries_due(tx, &plugin_id).await
         })
     })
     .await
+}
+
+/// Makes due the Versions of every Library listing the Plugin `plugin_id` as a Segment source, so
+/// enabling it, or enabling it again with new settings, reaches those asked without it (ADR 0075).
+/// A Plugin no Library lists as one makes nothing due.
+async fn make_listing_libraries_due(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+) -> Result<(), sqlx::Error> {
+    let libraries = Libraries::listing_segment_source(&mut *conn, plugin_id).await?;
+    make_segments_due(conn, &libraries).await
 }
 
 /// The Plugin Permissions each Built-in Plugin `registry` knows requests, which it always holds
