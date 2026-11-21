@@ -150,9 +150,9 @@ impl UserHomeLayout {
                 keep_unnamed(
                     &mut order,
                     &before.order.take().unwrap_or(defaults),
-                    PartialEq::eq,
-                    // The default's entry for a Plugin's Users' own rows places none of them one
-                    // by one, so it isn't copied: a User's own row their order lacks goes at its end.
+                    |named, placed| placed.places(named),
+                    // The default's entry for a Plugin's Users' own rows stands for those `order`
+                    // has, so it isn't copied: a User's own row their order lacks goes at its end.
                     |row| !matches!(row, HomeRowId::UsersOwn { .. }),
                 );
                 let order = Some(order);
@@ -239,3 +239,7 @@ async fn store(
     .await
     .map(drop)
 }
+
+#[cfg(test)]
+#[path = "home_layout_tests.rs"]
+mod tests;

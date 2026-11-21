@@ -78,7 +78,7 @@ impl HomeRowId {
 
     /// Whether a layout placing this places `row`: the same row, or one User's own row of the
     /// Plugin whose entry for them this is.
-    fn places(&self, row: &Self) -> bool {
+    pub(crate) fn places(&self, row: &Self) -> bool {
         match (self, row) {
             (Self::UsersOwn { plugin }, Self::Own { plugin: of, .. }) => plugin == of,
             _ => self == row,
@@ -137,24 +137,26 @@ impl HomeLayout {
 }
 
 /// Puts each of `before` that `rows` has no `same` of and that `keeps`, such as a disabled Plugin's
-/// row the editor didn't see, back into `rows`: right after the row it followed in `before`, first
-/// if it followed none, or last if that row is gone, neither in `rows` nor kept.
+/// row the editor didn't see, back into `rows`: right after the last of `rows` that is `same` as
+/// the row it followed in `before`, first if it followed none, or last if that row is gone,
+/// neither in `rows` nor kept.
 pub(crate) fn keep_unnamed<T: Clone>(
     rows: &mut Vec<T>,
     before: &[T],
     same: impl Fn(&T, &T) -> bool,
     keeps: impl Fn(&T) -> bool,
 ) {
-    let mut after = Some(0);
+    // `None` once the row the next one followed is gone, so it goes last.
+    let mut insert_at = Some(0);
     for placed in before {
-        if let Some(place) = rows.iter().position(|named| same(named, placed)) {
-            after = Some(place + 1);
+        if let Some(place) = rows.iter().rposition(|named| same(named, placed)) {
+            insert_at = Some(place + 1);
         } else if keeps(placed) {
-            let at = after.unwrap_or(rows.len());
+            let at = insert_at.unwrap_or(rows.len());
             rows.insert(at, placed.clone());
-            after = Some(at + 1);
+            insert_at = Some(at + 1);
         } else {
-            after = None;
+            insert_at = None;
         }
     }
 }

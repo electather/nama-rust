@@ -675,7 +675,7 @@ async fn a_row_a_user_has_not_placed_goes_at_the_end_of_their_order() {
 }
 
 #[tokio::test]
-async fn reordering_while_a_plugin_is_disabled_keeps_its_rows_where_they_were() {
+async fn reordering_while_a_plugin_is_disabled_keeps_its_rows_places_and_flags() {
     let server = serving_rows().await;
     let ada = server.user_with_default_permissions("ada").await;
     let missing_first = vec![shared("missing", "", false), continue_watching(false)];
