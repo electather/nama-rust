@@ -1,5 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { createConnectQueryKey } from "@connectrpc/connect-query";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { ExtensionPoint, type QualitySchema } from "@/gen/nama/v1/plugin_pb";
@@ -70,4 +71,61 @@ test("a User who may not choose a Quality sees no default Quality on Settings", 
     expect(screen.queryByRole("heading", { name: "Your default Quality" })).toBeNull();
   });
   expect(screen.queryByLabelText("Movies")).toBeNull();
+});
+
+test("saving a default for Shows reads the Show Quality menu's Qualities again", async () => {
+  let personalDefault: bigint | undefined;
+  const sonarr = {
+    pluginId: "sonarr",
+    fulfiller: ExtensionPoint.SHOW_FULFILLER,
+    qualities: [hd, fourK],
+  };
+  const dark = {
+    id: { namespace: "tmdb", value: "70523" },
+    title: "Dark",
+    seasons: [{ seasonNumber: 1 }],
+  };
+  const transport = fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
+    router.service(RequestService, {
+      listRequests: () => ({}),
+      lookUpShow: () => ({ show: dark }),
+      listShowQualities: () => ({ qualities: [hd, fourK], personalDefault }),
+      listDefaultQualities: () => ({ defaults: [{ ...sonarr, quality: personalDefault }] }),
+      setDefaultQuality: ({ quality }) => {
+        personalDefault = quality;
+        return {};
+      },
+    });
+  });
+  const router = openApp("/shows/tmdb-70523", transport);
+  const chevron = "Request Seasons of Dark at a Quality";
+  await waitFor(() => {
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: chevron }).disabled).toBe(false);
+  });
+
+  await act(async () => {
+    await router.navigate({ to: "/settings" });
+  });
+  await screen.findByLabelText("Shows");
+  fill("Shows", "2");
+  fireEvent.click(screen.getByRole("button", { name: "Save default for Shows" }));
+  await screen.findByText("Saved.");
+
+  const showQualitiesKey = createConnectQueryKey({
+    schema: RequestService.method.listShowQualities,
+    cardinality: "finite",
+  });
+  const cached = router.options.context.queryClient
+    .getQueryCache()
+    .findAll({ queryKey: showQualitiesKey });
+  expect(cached.map((query) => query.state.isInvalidated)).toStrictEqual([true]);
+  await act(async () => {
+    await router.navigate({ to: "/shows/$showId", params: { showId: "tmdb-70523" } });
+  });
+  await waitFor(() => {
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: chevron }).disabled).toBe(false);
+  });
+  fireEvent.click(screen.getByRole("button", { name: chevron }));
+  const items = await screen.findAllByRole("menuitemradio");
+  expect(items.map((item) => item.getAttribute("aria-checked"))).toStrictEqual(["false", "true"]);
 });
