@@ -4,7 +4,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { type MovieHitSchema, RequestService } from "@/gen/nama/v1/request_pb";
+import { type MovieHitSchema, RequestService, type ShowHitSchema } from "@/gen/nama/v1/request_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
@@ -29,6 +29,26 @@ function server(similar: Similar) {
       listRequests: () => ({}),
       lookUpMovie: () => ({ movie: { ...alien, similar } }),
       listMovieQualities: () => ({}),
+    });
+  });
+}
+
+/** The Office, a Similar title in the Shows Library 2. */
+const theOffice = { id: { namespace: "tmdb", value: "2316" }, title: "The Office", libraryId: 2n };
+
+/** As `server`, with a Shows Library (2) holding Dark, whose Similar titles are `similar`. */
+function showServer(similar: MessageInitShape<typeof ShowHitSchema>[]) {
+  const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
+  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
+    router.service(BrowseService, {
+      getShow: () => ({ show: dark, seasons: [{ number: 1 }], similar }),
+      listEpisodes: () => ({ episodes: [] }),
+      listContinueWatching: () => ({}),
+    });
+    router.service(RequestService, {
+      listRequests: () => ({}),
+      lookUpShow: () => ({ show: { ...dark, similar } }),
     });
   });
 }
@@ -64,4 +84,17 @@ test("a Movie with no Similar title in a Library shows no row", async () => {
 
   await expect(screen.findByRole("heading", { level: 1, name: "Alien" })).resolves.toBeDefined();
   expect(screen.queryByRole("region", { name: "Similar titles" })).toBeNull();
+});
+
+test.each([
+  ["/libraries/2/shows/tmdb-70523", "Similar titles"],
+  ["/shows/tmdb-70523", "On this Server"],
+])("a Show's page at %s shows its Similar titles under %s", async (path, heading) => {
+  openApp(path, showServer([theOffice]));
+
+  const links = await row(heading);
+
+  expect(links.map((link) => link.getAttribute("href"))).toStrictEqual([
+    "/libraries/2/shows/tmdb-2316",
+  ]);
 });
