@@ -164,7 +164,7 @@ fn the_settings_check_offers_tmdbs_countries_by_name_for_region() {
 }
 
 #[test]
-fn manifest_serves_shared_home_rows_from_an_api_key_region_and_picked_rows() {
+fn manifest_serves_home_rows_with_its_permissions_api_key_region_and_shared_rows() {
     let manifest = manifest();
 
     let points: Vec<_> = manifest.points.iter().map(|point| &point.service).collect();

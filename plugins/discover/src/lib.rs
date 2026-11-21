@@ -154,8 +154,8 @@ fn manifest() -> Manifest {
         logo_svg: include_str!("../logo.svg").to_owned(),
         points: vec![nama_pdk::point(services::HOME_ROW)],
         allowed_hosts: vec!["api.themoviedb.org".to_owned()],
-        // The rows for each User read these, and the award rows keep Wikidata's answers in the
-        // Store.
+        // Asked from the start, so an Admin grants once what Discover's rows for each User and its
+        // award rows, kept in the Store, will need.
         permissions: vec![
             Permission::PERMISSION_READ_LIBRARIES.into(),
             Permission::PERMISSION_READ_WATCH_STATES.into(),
@@ -188,7 +188,7 @@ impl HomeRowSource for Discover {
             .into_iter()
             .filter(|(key, _)| picked.iter().any(|pick| pick == key))
         {
-            // A row picked that Discover doesn't answer yet is left out.
+            // ponytail: a picked row Discover doesn't answer yet is left out until it's built.
             let titles = match key {
                 TRENDING => api.titles(&["trending", "all", "week"])?,
                 _ => continue,
