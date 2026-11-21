@@ -12,7 +12,10 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use walkdir::{DirEntry, WalkDir};
 
-use super::{Error, Planned, Summary, names};
+use super::{
+    Error, Planned, Summary, names,
+    nfo::{FoundNfos, is_nfo},
+};
 use crate::{
     library::{
         Change, FoundImages, LibraryKind, LocalImageFile, LocalRole, PARSER_VERSION, Role, Stored,
@@ -43,12 +46,12 @@ const SHOW_POSTER_NAME: &str = "show";
 const IGNORE_MARKERS: [&str; 2] = [".nomedia", ".ignore"];
 
 #[derive(Debug)]
-struct Found {
-    path: String,
+pub(super) struct Found {
+    pub(super) path: String,
     /// The path relative to the Library folder it was found in, which is what's parsed.
     relative: PathBuf,
-    size: i64,
-    modified_ns: i64,
+    pub(super) size: i64,
+    pub(super) modified_ns: i64,
 }
 
 #[derive(Debug, Default)]
@@ -56,6 +59,7 @@ pub(super) struct Walked {
     files: Vec<Found>,
     sidecars: Vec<Found>,
     images: Vec<Found>,
+    nfos: Vec<Found>,
     /// Folders and files that couldn't be read. What's stored under them is kept.
     unreadable: Vec<PathBuf>,
     /// The Library's folders the Server can't write to.
@@ -95,6 +99,7 @@ pub(super) fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Wal
             match entry.and_then(|entry| listed_file(root, &entry)) {
                 Ok(Some(file)) if is_video(Path::new(&file.path)) => walked.files.push(file),
                 Ok(Some(file)) if is_sidecar(Path::new(&file.path)) => walked.sidecars.push(file),
+                Ok(Some(file)) if is_nfo(Path::new(&file.path)) => walked.nfos.push(file),
                 Ok(Some(image)) => walked.images.push(image),
                 Ok(None) => {}
                 Err(err) => {
@@ -169,11 +174,14 @@ pub(super) fn is_video(path: &Path) -> bool {
         .is_some_and(|ext| VIDEO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
-/// The video, sidecar subtitle or image at `entry`, if it is one outside an extras folder.
+/// The video, sidecar subtitle, `.nfo` file or image at `entry`, if it is one outside an extras
+/// folder.
 fn listed_file(root: &Path, entry: &DirEntry) -> Result<Option<Found>, walkdir::Error> {
     let path = entry.path();
-    let listed = is_video(path) || is_sidecar(path) || image_name(path).is_some();
-    if !entry.file_type().is_file() || !listed {
+    let nfo = is_nfo(path);
+    let listed = is_video(path) || is_sidecar(path) || nfo || image_name(path).is_some();
+    // An `.nfo` file that isn't a regular one is listed too, so reading it says why it's skipped.
+    if !(entry.file_type().is_file() || nfo) || !listed {
         return Ok(None);
     }
     let Ok(relative) = path.strip_prefix(root) else {
@@ -216,8 +224,9 @@ pub(super) fn plan(
     let mut seen = HashSet::new();
     let parse = |relative: PathBuf| {
         let items = names::parse(kind, &relative).unwrap_or_default();
+        let edition = names::edition(&relative);
         let unread = items.is_empty().then_some(relative);
-        (items, unread)
+        (items, edition, unread)
     };
     for file in found.files {
         if !seen.insert(file.path.clone()) {
@@ -227,11 +236,12 @@ pub(super) fn plan(
             Some(old) if old.size == file.size && old.modified_ns == file.modified_ns => {
                 if old.parser_version < PARSER_VERSION {
                     summary.updated += 1;
-                    let (items, unread) = parse(file.relative);
+                    let (items, edition, unread) = parse(file.relative);
                     let change = Change::Reparse {
                         file: old.id,
                         items,
                         path: file.path,
+                        edition,
                     };
                     planned.push(Planned {
                         change,
@@ -252,12 +262,13 @@ pub(super) fn plan(
                 true
             }
         };
-        let (items, unread) = parse(file.relative);
+        let (items, edition, unread) = parse(file.relative);
         let change = Change::Store {
             items,
             path: file.path,
             size: file.size,
             modified_ns: file.modified_ns,
+            edition,
         };
         planned.push(Planned {
             change,
@@ -325,6 +336,14 @@ enum Tie {
 }
 
 impl Walked {
+    /// Takes the `.nfo` files out, leaving the videos to [`plan`].
+    pub(super) fn take_nfos(&mut self) -> FoundNfos {
+        FoundNfos {
+            nfos: mem::take(&mut self.nfos),
+            unreadable: self.unreadable.clone(),
+        }
+    }
+
     /// Takes the images out, leaving the videos to [`plan`].
     pub(super) fn take_images(&mut self) -> FoundLocalImages {
         FoundLocalImages {

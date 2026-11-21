@@ -22,6 +22,8 @@ pub(crate) struct File {
     pub(crate) path: String,
     /// The size, in bytes.
     pub(crate) size: i64,
+    /// The Edition its name says it holds.
+    pub(crate) edition: Option<String>,
     /// What the file holds, in the order stored.
     pub(crate) items: Vec<FileItem>,
 }
@@ -67,7 +69,7 @@ impl Contents {
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
-                    r#"SELECT library_files.path, library_files.size,
+                    r#"SELECT library_files.path, library_files.size, library_files.edition,
                               library_items.id AS "item?", library_items.kind AS "kind?: ItemKind",
                               library_items.title AS "item_title?", library_items.year,
                               library_items.hint, library_items.season,
@@ -94,6 +96,7 @@ impl Contents {
                 files.push(File {
                     path: row.path.clone(),
                     size: row.size,
+                    edition: row.edition.clone(),
                     items: Vec::new(),
                 });
             }
@@ -164,13 +167,14 @@ impl Contents {
 
 impl Contents {
     /// Marks the files of the Library `library` as read by the name parser before the current
-    /// one, as after a version bump.
+    /// one, which read no Editions, as after a version bump.
     pub(crate) async fn read_by_older_parser(&self, library: i64) {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE library_files SET parser_version = ? - 1 WHERE library_id = ?",
+                        "UPDATE library_files SET parser_version = ? - 1, edition = NULL
+                         WHERE library_id = ?",
                         PARSER_VERSION,
                         library
                     )
@@ -335,6 +339,7 @@ impl Fixture {
 
     pub(super) async fn store(&self, path: &str, size: i64, item: Item) {
         let change = Change::Store {
+            edition: None,
             path: path.to_owned(),
             size,
             modified_ns: 0,

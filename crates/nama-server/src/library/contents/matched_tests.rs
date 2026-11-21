@@ -502,6 +502,7 @@ async fn a_versions_titles_come_with_every_id_and_an_unmatched_episode_as_none()
         episode: number,
     };
     let change = Change::Store {
+        edition: None,
         path: path.to_owned(),
         size: 10,
         modified_ns: 0,
@@ -621,6 +622,7 @@ async fn a_version_is_named_by_its_movie_or_its_first_episodes_show_and_number()
         episode: number,
     };
     let change = Change::Store {
+        edition: None,
         path: path.to_owned(),
         size: 10,
         modified_ns: 0,

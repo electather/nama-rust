@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM nfo_files WHERE library_id = ? AND path = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "90e7b3da81ef07907e9d049c491c0cce1f63c7ca53fbdc068cc97ad2f762f4a3"
+}

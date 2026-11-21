@@ -64,6 +64,7 @@ async fn an_item_a_reparse_newly_reads_was_added_with_its_file() {
     db::advance_clock(Duration::from_secs(2));
     let file = fx.contents.stored(fx.library).await.unwrap()[ALIEN].id;
     let reparse = Change::Reparse {
+        edition: None,
         file,
         path: ALIEN.to_owned(),
         items: vec![movie("Alien", 1979), movie("Aliens", 1986)],
@@ -106,11 +107,13 @@ async fn a_reparse_adds_and_removes_items_when_their_number_changes() {
 
     let changes = vec![
         Change::Reparse {
+            edition: None,
             file: stored[ALIEN].id,
             path: ALIEN.to_owned(),
             items: vec![movie("Alien", 1979), movie("Aliens", 1986)],
         },
         Change::Reparse {
+            edition: None,
             file: stored[heat].id,
             path: heat.to_owned(),
             items: vec![],
@@ -146,6 +149,7 @@ async fn a_reparse_keeps_each_episode_on_the_item_with_its_numbers() {
 
     let file = fx.contents.stored(fx.library).await.unwrap()[dark].id;
     let reparse = Change::Reparse {
+        edition: None,
         file,
         path: dark.to_owned(),
         items: vec![episode(1), episode(2)],
@@ -181,6 +185,7 @@ async fn reading_unparsed_files_again_marks_only_that_librarys_unparsed_files() 
     let notes = "/media/notes.mkv";
     let unparsed = |library, path: &str| {
         let change = Change::Store {
+            edition: None,
             path: path.to_owned(),
             size: 10,
             modified_ns: 0,

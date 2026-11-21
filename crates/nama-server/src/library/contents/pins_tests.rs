@@ -77,6 +77,7 @@ async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
     };
     let stored = fx.contents.stored(fx.library).await.unwrap();
     let reparse = |path: &str, item| Change::Reparse {
+        edition: None,
         file: stored[path].id,
         path: path.to_owned(),
         items: vec![item],
@@ -134,6 +135,7 @@ async fn pin_refuses_and_stores_no_decisions_when_the_library_is_gone() {
         .unwrap()
         .id;
     let store_heat = Change::Store {
+        edition: None,
         path: root.join("Heat (1995).mkv").to_str().unwrap().to_owned(),
         size: 10,
         modified_ns: 0,

@@ -106,6 +106,7 @@ impl Fixture {
         let metadata = fs::metadata(&path).unwrap();
         let modified = metadata.modified().unwrap();
         let file = Change::Store {
+            edition: None,
             path: path.to_str().unwrap().to_owned(),
             size: i64::try_from(metadata.len()).unwrap(),
             modified_ns: i64::try_from(

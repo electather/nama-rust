@@ -116,6 +116,7 @@ impl Fixture {
             .unwrap()
             .unwrap();
         let changed = Change::Store {
+            edition: None,
             path,
             size,
             modified_ns: file.modified_ns,

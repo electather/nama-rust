@@ -167,6 +167,7 @@ async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_mad
         hint: None,
     };
     let store = Change::Store {
+        edition: None,
         path: "/media/Heat (1995)/Heat (1995).mkv".to_owned(),
         size: 1,
         modified_ns: 0,

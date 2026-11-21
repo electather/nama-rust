@@ -114,6 +114,7 @@ async fn recognised_listing(
     let plugins = Registry::new();
     plugins.enable(Arc::new(ProposingPlugin(answer))).unwrap();
     let store = |path: &str, items: Vec<Item>| Change::Store {
+        edition: None,
         path: path.to_owned(),
         size: 1,
         modified_ns: 1,
@@ -413,6 +414,7 @@ async fn every_file_a_recogniser_fails_on_is_left_out_and_each_failure_recorded(
     let points = plugins.extension_points();
     let unread = |name: &str| Planned {
         change: Change::Store {
+            edition: None,
             path: format!("/media/{name}"),
             size: 1,
             modified_ns: 1,
@@ -459,6 +461,7 @@ async fn a_recogniser_answering_clears_its_failure() {
     points.provider_failed(&plugin, point, "the Recogniser is down");
     let planned = vec![Planned {
         change: Change::Store {
+            edition: None,
             path: "/media/Show - 2.mkv".to_owned(),
             size: 1,
             modified_ns: 1,

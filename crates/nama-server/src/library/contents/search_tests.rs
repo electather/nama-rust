@@ -120,6 +120,7 @@ impl Fixture {
     async fn decide_office_episode(&self, library: i64, number: i64, decided: Decided) {
         let path = format!("/shows/The Office - S01E0{number}.mkv");
         let file = Change::Store {
+            edition: None,
             path: path.clone(),
             size: 10,
             modified_ns: 0,

@@ -123,9 +123,10 @@ impl Matcher {
 
     async fn outdated(&self, library: i64, below: i64) -> Result<Outdated, sqlx::Error> {
         let mut outdated = Outdated::default();
+        let hints = self.contents.nfo_hints(library).await?;
         for (id, item, plugin, title) in self.contents.matched_below(library, below).await? {
             let key = (plugin, title);
-            match PendingEpisode::of(id, &item) {
+            match PendingEpisode::of(id, &item, &hints) {
                 Some(episode) => outdated.shows.entry(key).or_default().push(episode),
                 None => outdated.movies.entry(key).or_default().push(id),
             }

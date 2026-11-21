@@ -2003,6 +2003,12 @@ pub struct Version {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub tracks: ::buffa::alloc::vec::Vec<Track>,
+    /// The Edition it holds, such as "Director's Cut", as its file or folder name writes it. A
+    /// client shows it where it lists a title's Versions. Unset on an Unmatched Item's Version.
+    ///
+    /// Field 5: `edition`
+    #[serde(rename = "edition", skip_serializing_if = "::core::option::Option::is_none")]
+    pub edition: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2014,6 +2020,7 @@ impl ::core::fmt::Debug for Version {
             .field("file_name", &self.file_name)
             .field("size", &self.size)
             .field("tracks", &self.tracks)
+            .field("edition", &self.edition)
             .finish()
     }
 }
@@ -2023,6 +2030,18 @@ impl Version {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.Version";
+}
+impl Version {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::edition`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_edition(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.edition = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Version);
 impl ::buffa::MessageName for Version {
@@ -2061,6 +2080,9 @@ impl ::buffa::Message for Version {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.edition {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2087,6 +2109,9 @@ impl ::buffa::Message for Version {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.edition {
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2134,6 +2159,16 @@ impl ::buffa::Message for Version {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.tracks.push(elem);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.edition.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2146,6 +2181,7 @@ impl ::buffa::Message for Version {
         self.file_name.clear();
         self.size = 0u64;
         self.tracks.clear();
+        self.edition = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

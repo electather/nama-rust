@@ -785,6 +785,7 @@ fn version_to_proto(version: &Version) -> proto::Version {
         file_name,
         // A size is never negative.
         size: u64::try_from(version.file.size).unwrap_or_default(),
+        edition: version.edition.clone(),
         tracks: version.tracks.iter().map(track_to_proto).collect(),
         ..Default::default()
     }

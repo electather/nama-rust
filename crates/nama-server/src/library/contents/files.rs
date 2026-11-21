@@ -26,6 +26,8 @@ pub(crate) enum Change {
         size: i64,
         modified_ns: i64,
         items: Vec<Item>,
+        /// The Edition its name says it holds.
+        edition: Option<String>,
     },
     /// Store what an unchanged file holds as the current name parser reads it. Its Items keep
     /// their ids and Matches, but not their automatic Unmatched decisions, so Matching tries them
@@ -34,6 +36,7 @@ pub(crate) enum Change {
         file: i64,
         path: String,
         items: Vec<Item>,
+        edition: Option<String>,
     },
     Remove(i64),
 }
@@ -185,19 +188,23 @@ async fn apply(
                 size,
                 modified_ns,
                 items,
+                edition,
             } => {
                 let file = sqlx::query_scalar!(
-                    r#"INSERT INTO library_files (library_id, path, size, modified_ns, parser_version)
-                       VALUES (?, ?, ?, ?, ?)
+                    r#"INSERT INTO library_files (library_id, path, size, modified_ns, parser_version,
+                                                  edition)
+                       VALUES (?, ?, ?, ?, ?, ?)
                        ON CONFLICT (library_id, path)
                        DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns,
-                                     parser_version = excluded.parser_version
+                                     parser_version = excluded.parser_version,
+                                     edition = excluded.edition
                        RETURNING id AS "id!""#,
                     library,
                     path,
                     size,
                     modified_ns,
                     PARSER_VERSION,
+                    edition,
                 )
                 .fetch_one(&mut *conn)
                 .await?;
@@ -213,7 +220,20 @@ async fn apply(
                         .map(|item| item_added(library, item, path.clone())),
                 );
             }
-            Change::Reparse { file, path, items } => {
+            Change::Reparse {
+                file,
+                path,
+                items,
+                edition,
+            } => {
+                sqlx::query!(
+                    "UPDATE library_files SET parser_version = ?, edition = ? WHERE id = ?",
+                    PARSER_VERSION,
+                    edition,
+                    file
+                )
+                .execute(&mut *conn)
+                .await?;
                 events.extend(reparse(conn, library, file, &path, &items).await?);
             }
             Change::Remove(file) => {
@@ -237,13 +257,6 @@ async fn reparse(
     path: &str,
     items: &[Item],
 ) -> Result<Vec<Event>, sqlx::Error> {
-    sqlx::query!(
-        "UPDATE library_files SET parser_version = ? WHERE id = ?",
-        PARSER_VERSION,
-        file
-    )
-    .execute(&mut *conn)
-    .await?;
     // The file is unchanged, so an Item only this parser reads is no newer media (#837).
     let added_at = first_added(conn, file).await?.unwrap_or_else(db::now);
     let mut stored = sqlx::query!(
