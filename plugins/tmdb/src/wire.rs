@@ -149,7 +149,7 @@ impl MovieDetails {
                     .find_map(|release| present(release.certification))
             }),
             score: self.votes.score(),
-            original_language: present(self.original_language),
+            original_language: original_language(self.original_language),
             ..Default::default()
         }
     }
@@ -199,10 +199,15 @@ impl ShowDetails {
             genres: genre_names(self.genres),
             content_rating: rated.and_then(|rated| present(rated.rating)),
             score: self.votes.score(),
-            original_language: present(self.original_language),
+            original_language: original_language(self.original_language),
             ..Default::default()
         }
     }
+}
+
+/// The language a title was made in, which TMDB gives as `xx` when it has none, such as a silent film.
+fn original_language(code: Option<String>) -> Option<String> {
+    present(code).filter(|code| code != "xx")
 }
 
 /// A title's `vote_average` and `vote_count`.
