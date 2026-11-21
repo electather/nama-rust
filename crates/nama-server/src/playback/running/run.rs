@@ -23,7 +23,12 @@ use crate::{
 
 /// How long a new plan waits at most for its first file before it's answered, so one whose ffmpeg
 /// dies at start-up is never handed to a Device, while a slow but healthy start is.
+#[cfg(not(feature = "testing"))]
 const START_WAIT: Duration = Duration::from_secs(5);
+/// Tests' fake ffmpeg writes nothing, so each of their Transcodes waits this out. 2 s, not less,
+/// so a fake that dies at start-up still stops within it under CI's parallel load.
+#[cfg(feature = "testing")]
+const START_WAIT: Duration = Duration::from_secs(2);
 
 /// Starts a run writing a plan's files, from a keyframe on, to the folder it's given: one file
 /// per keyframe of the file, listed or not, which the playlist named by [`hls_playlist`] lists,

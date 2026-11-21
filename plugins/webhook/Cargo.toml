@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # RustCrypto, since it builds for wasm32.
 hmac = "0.13"
-nama-pdk = { version = "0.2.0", path = "../../crates/nama-pdk" }
+nama-pdk = { version = "0.3.0", path = "../../crates/nama-pdk" }
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.11"
 

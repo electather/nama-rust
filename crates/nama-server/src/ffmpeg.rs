@@ -101,17 +101,33 @@ const READ_OUT_TIMEOUT: Duration = Duration::from_hours(1);
 /// aren't images either, such as teletext, need a library ffmpeg may lack, or are unknown.
 pub(crate) const TEXT_SUBTITLES: &[&str] = &["subrip", "mov_text", "webvtt", "ass", "ssa"];
 
-/// Why reading a subtitle, a font for one, or Preview frames out of a file failed.
+/// One of the two programs the Server runs, named as its errors name it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Program {
+    Ffmpeg,
+    Ffprobe,
+}
+
+impl std::fmt::Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Ffmpeg => "ffmpeg",
+            Self::Ffprobe => "ffprobe",
+        })
+    }
+}
+
+/// Why running ffmpeg or ffprobe, as [`Ffmpeg::run`] does, failed.
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum ReadOutError {
-    #[error("the Server has no ffmpeg")]
-    Unavailable,
-    #[error("ffmpeg couldn't be run: {0}")]
-    Run(#[from] io::Error),
-    #[error("ffmpeg took longer than {}s", READ_OUT_TIMEOUT.as_secs())]
-    TimedOut(#[from] tokio::time::error::Elapsed),
-    #[error("ffmpeg failed: {0}")]
-    Failed(String),
+pub(crate) enum RunError {
+    #[error("the Server has no {0}")]
+    Unavailable(Program),
+    #[error("{0} couldn't be run: {1}")]
+    Run(Program, #[source] io::Error),
+    #[error("{0} took too long")]
+    TimedOut(Program),
+    #[error("{0} failed: {1}")]
+    Failed(Program, String),
 }
 
 /// A program the Server found and ran.
@@ -528,7 +544,7 @@ impl Ffmpeg {
         subtitle: Option<usize>,
         codec: &str,
         muxer: &str,
-    ) -> Result<Vec<u8>, ReadOutError> {
+    ) -> Result<Vec<u8>, RunError> {
         let charset = match subtitle {
             // Matroska and MP4 store text subtitles as UTF-8.
             Some(_) => None,
@@ -537,11 +553,7 @@ impl Ffmpeg {
         let mut args = charset.map_or_default(|charset| vec!["-sub_charenc", charset]);
         let map = format!("0:s:{}", subtitle.unwrap_or_default());
         args.extend(["-i", path, "-map", &map, "-c:s", codec, "-f", muxer, "-"]);
-        let output = self.read_out(&args, Priority::Normal).await?;
-        if !output.status.success() {
-            return Err(failed(&output));
-        }
-        Ok(output.stdout)
+        self.read_out(&args, Priority::Normal).await
     }
 
     /// Reads, in one read of the file at `path`, each of `subtitles`, a subtitle stream by its
@@ -555,7 +567,7 @@ impl Ffmpeg {
         path: &str,
         subtitles: &[(usize, &str, PathBuf)],
         attachments: &[(usize, PathBuf)],
-    ) -> Result<(), ReadOutError> {
+    ) -> Result<(), RunError> {
         let mut args: Vec<OsString> = vec![];
         for (attachment, to) in attachments {
             args.push(format!("-dump_attachment:t:{attachment}").into());
@@ -567,14 +579,18 @@ impl Ffmpeg {
             args.extend(["-map", &map, "-c:s", format, "-f", format].map(OsString::from));
             args.push(to.into());
         }
-        let output = self.read_out(&args, Priority::Normal).await?;
+        let read = self.read_out(&args, Priority::Normal).await;
         // With no output file named, ffmpeg dumps the attachments and then fails for want of one,
         // so only what it wrote says whether that worked.
-        if output.status.success() || subtitles.is_empty() && all_there(attachments).await? {
-            Ok(())
-        } else {
-            Err(failed(&output))
+        if let Err(RunError::Failed(..)) = read
+            && subtitles.is_empty()
+            && all_there(attachments)
+                .await
+                .map_err(|err| RunError::Run(Program::Ffmpeg, err))?
+        {
+            return Ok(());
         }
+        read.map(drop)
     }
 
     /// Writes a still `width` pixels wide, keeping its aspect ratio, of the file at `path`'s first
@@ -587,7 +603,7 @@ impl Ffmpeg {
         every_s: u32,
         width: u32,
         dir: &Path,
-    ) -> Result<(), ReadOutError> {
+    ) -> Result<(), RunError> {
         let mut args: Vec<OsString> = ["-threads", "1", "-filter_threads", "1"]
             .into_iter()
             .chain(["-skip_frame", "nokey", "-i", path])
@@ -603,51 +619,74 @@ impl Ffmpeg {
             format!("fps=1/{every_s}:round=up,scale={width}:trunc(ow/dar/2)*2,setsar=1").into(),
         );
         args.push(dir.join("%d.jpg").into());
-        let output = self.read_out(&args, Priority::Low).await?;
-        if output.status.success() {
-            Ok(())
-        } else {
-            Err(failed(&output))
-        }
+        self.read_out(&args, Priority::Low).await.map(drop)
     }
 
-    /// What ffmpeg, quiet but for errors, writes given `args` at `priority`, within
-    /// [`READ_OUT_TIMEOUT`].
+    /// What ffmpeg prints given `args` at `priority`, within [`READ_OUT_TIMEOUT`].
     #[tracing::instrument(name = "ffmpeg extract", skip_all)]
     async fn read_out(
         &self,
         args: &[impl AsRef<OsStr>],
         priority: Priority,
-    ) -> Result<std::process::Output, ReadOutError> {
-        let Ok(ffmpeg) = &self.ffmpeg else {
-            return Err(ReadOutError::Unavailable);
+    ) -> Result<Vec<u8>, RunError> {
+        self.run(Program::Ffmpeg, args, READ_OUT_TIMEOUT, priority)
+            .await
+    }
+
+    /// What `program`, quiet but for errors, prints given `args` at `priority`, within `timeout`.
+    /// Dropping the future stops the program.
+    pub(crate) async fn run(
+        &self,
+        program: Program,
+        args: &[impl AsRef<OsStr>],
+        timeout: Duration,
+        priority: Priority,
+    ) -> Result<Vec<u8>, RunError> {
+        let found = match program {
+            Program::Ffmpeg => &self.ffmpeg,
+            Program::Ffprobe => &self.ffprobe,
         };
-        let mut command = tokio::process::Command::new(&ffmpeg.path);
+        let Ok(found) = found else {
+            return Err(RunError::Unavailable(program));
+        };
+        let mut command = tokio::process::Command::new(&found.path);
+        command.args(["-v", "error"]);
+        // ffprobe has no `-nostdin`.
+        if program == Program::Ffmpeg {
+            command.arg("-nostdin");
+        }
         command
-            .args(["-v", "error", "-nostdin"])
             .args(args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            // A fetch given up on, or a read cancelled at shutdown, stops ffmpeg too.
+            // A fetch or probe given up on, or one cancelled at shutdown, stops the program too.
             .kill_on_drop(true);
         #[cfg(windows)]
         if priority == Priority::Low {
             // `BELOW_NORMAL_PRIORITY_CLASS`, from `windows-sys`, which the Server doesn't depend on.
             command.creation_flags(0x0000_4000);
         }
-        let child = command.spawn()?;
+        let child = command.spawn().map_err(|err| RunError::Run(program, err))?;
         #[cfg(unix)]
         if priority == Priority::Low {
             lower_priority(&child);
         }
-        Ok(tokio::time::timeout(READ_OUT_TIMEOUT, child.wait_with_output()).await??)
+        let output = tokio::time::timeout(timeout, child.wait_with_output())
+            .await
+            .map_err(|_elapsed| RunError::TimedOut(program))?
+            .map_err(|err| RunError::Run(program, err))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(RunError::Failed(program, stderr.trim().to_owned()));
+        }
+        Ok(output.stdout)
     }
 }
 
-/// How much CPU time ffmpeg gets beside the rest of the system.
+/// How much CPU time a program gets beside the rest of the system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Priority {
+pub(crate) enum Priority {
     Normal,
     /// For background work, which yields to playback.
     Low,
@@ -696,12 +735,6 @@ fn charset_of(bytes: &[u8]) -> Option<&'static str> {
     let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
     detector.feed(bytes, true);
     Some(detector.guess(None, chardetng::Utf8Detection::Deny).name())
-}
-
-/// A failed read-out, saying what ffmpeg wrote to stderr.
-fn failed(output: &std::process::Output) -> ReadOutError {
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    ReadOutError::Failed(stderr.trim().to_owned())
 }
 
 /// Has a Remux's `command`, whose input seeks to `start_ms`, drop the audio from before it,
