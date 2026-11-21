@@ -3161,13 +3161,36 @@ pub struct AudioTrack {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub channels: u32,
+    /// Whether its profile says it carries Dolby Atmos, as TrueHD and E-AC-3 (JOC) can.
+    ///
+    /// Field 2: `atmos`
+    #[serde(
+        rename = "atmos",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub atmos: bool,
+    /// Whether the file marks it as Audio Description, for the visually impaired.
+    ///
+    /// Field 3: `audio_description`
+    #[serde(
+        rename = "audioDescription",
+        alias = "audio_description",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub audio_description: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for AudioTrack {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("AudioTrack").field("channels", &self.channels).finish()
+        f.debug_struct("AudioTrack")
+            .field("channels", &self.channels)
+            .field("atmos", &self.atmos)
+            .field("audio_description", &self.audio_description)
+            .finish()
     }
 }
 impl AudioTrack {
@@ -3200,6 +3223,12 @@ impl ::buffa::Message for AudioTrack {
         if self.channels != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.channels) as u64;
         }
+        if self.atmos {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.audio_description {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3212,6 +3241,12 @@ impl ::buffa::Message for AudioTrack {
         use ::buffa::Enumeration as _;
         if self.channels != 0u32 {
             ::buffa::types::put_uint32_field(1u32, self.channels, buf);
+        }
+        if self.atmos {
+            ::buffa::types::put_bool_field(2u32, self.atmos, buf);
+        }
+        if self.audio_description {
+            ::buffa::types::put_bool_field(3u32, self.audio_description, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3233,6 +3268,20 @@ impl ::buffa::Message for AudioTrack {
                 )?;
                 self.channels = ::buffa::types::decode_uint32(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.atmos = ::buffa::types::decode_bool(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.audio_description = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3242,6 +3291,8 @@ impl ::buffa::Message for AudioTrack {
     }
     fn clear(&mut self) {
         self.channels = 0u32;
+        self.atmos = false;
+        self.audio_description = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7707,6 +7758,17 @@ pub struct GetShowResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub seasons: ::buffa::alloc::vec::Vec<Season>,
+    /// How many of the Show's Episodes, Specials aside, have aired by today, by the air dates its
+    /// title source gave when the Show was last fetched. 0 if it gave none.
+    ///
+    /// Field 3: `aired_episode_count`
+    #[serde(
+        rename = "airedEpisodeCount",
+        alias = "aired_episode_count",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub aired_episode_count: u32,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7716,6 +7778,7 @@ impl ::core::fmt::Debug for GetShowResponse {
         f.debug_struct("GetShowResponse")
             .field("show", &self.show)
             .field("seasons", &self.seasons)
+            .field("aired_episode_count", &self.aired_episode_count)
             .finish()
     }
 }
@@ -7762,6 +7825,12 @@ impl ::buffa::Message for GetShowResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.aired_episode_count != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.aired_episode_count)
+                        as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7787,6 +7856,9 @@ impl ::buffa::Message for GetShowResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.aired_episode_count != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.aired_episode_count, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7824,6 +7896,13 @@ impl ::buffa::Message for GetShowResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.seasons.push(elem);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.aired_episode_count = ::buffa::types::decode_uint32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7834,6 +7913,7 @@ impl ::buffa::Message for GetShowResponse {
     fn clear(&mut self) {
         self.show = ::buffa::MessageField::none();
         self.seasons.clear();
+        self.aired_episode_count = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }

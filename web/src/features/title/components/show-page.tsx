@@ -68,7 +68,12 @@ export function ShowPage({
         onPick={pick}
       />
       <TitleTrailers trailers={data.show.trailers} />
-      <ShowDetails libraryId={libraryId} show={data.show} episodes={episodes} />
+      <ShowDetails
+        libraryId={libraryId}
+        show={data.show}
+        episodes={episodes}
+        aired={data.airedEpisodeCount}
+      />
     </TitlePage>
   );
 }

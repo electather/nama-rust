@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"aired!: u32\" FROM episode_air_dates\n               WHERE plugin = ? AND namespace = ? AND value = ? AND season > 0\n                 AND air_date <= date(?, 'unixepoch')",
+  "describe": {
+    "columns": [
+      {
+        "name": "aired!: u32",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9ebde55d6c187e2ba575a5f7a2053e4b732d20e94dcf82252eaaa04d676294f7"
+}

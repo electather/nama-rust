@@ -9,6 +9,7 @@ import {
   HdrFormat,
   type MovieSchema,
   type ShowSchema,
+  type VersionSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
@@ -158,6 +159,26 @@ test("dolby Vision is named as such, and a Movie without 4K, HDR or SDH has no b
   expect(screen.queryByText(/^(?:4K|HDR|SDH)$/u)).toBeNull();
 });
 
+/** A Version with an English Dolby Atmos 7.1 Track and an English Audio Description one. */
+const atmosAndAudioDescription: MessageInitShape<typeof VersionSchema> = {
+  id: 1n,
+  tracks: [
+    { language: "eng", kind: { case: "audio", value: { channels: 8, atmos: true } } },
+    { language: "eng", kind: { case: "audio", value: { channels: 2, audioDescription: true } } },
+  ],
+};
+
+/** How Languages lists `atmosAndAudioDescription`'s audio. */
+const atmosAndAudioDescriptionReads =
+  "English (7.1, Dolby Atmos), English (Stereo, Audio Description)";
+
+test("a Movie with Atmos audio shows Atmos, and marks Dolby Atmos and Audio Description under Languages", async () => {
+  openMovie({ versions: [atmosAndAudioDescription] });
+
+  await expect(screen.findByText("Atmos")).resolves.toBeDefined();
+  expect(detail("Audio")).toBe(atmosAndAudioDescriptionReads);
+});
+
 test("a started Movie shows Resume with its progress and time left", async () => {
   openMovie({ watchState: { positionMs: 1_800_000n, durationMs: 6_120_000n } });
 
@@ -225,6 +246,41 @@ test("a Show's page shows its own overview, first air year, Score, Original audi
     "https://www.youtube.com/watch?v=darkFinal01",
   );
   expect(screen.queryByRole("link", { name: /^(?:Resume|Play)/u })).toBeNull();
+});
+
+test("a Show's Details count its Episodes here, Specials aside, of those aired", async () => {
+  const episodes = [
+    { seasonNumber: 0, episodeNumber: 1 },
+    { seasonNumber: 1, episodeNumber: 1 },
+    { seasonNumber: 1, episodeNumber: 2 },
+  ];
+  const transport = server({
+    getShow: () => ({
+      show: { ...dark, seasonCount: 1 },
+      seasons: [{ number: 0 }, { number: 1 }],
+      airedEpisodeCount: 10,
+    }),
+    listEpisodes: ({ seasonNumber }) => ({
+      episodes: episodes.filter((episode) => episode.seasonNumber === seasonNumber),
+    }),
+  });
+  openApp("/libraries/2/shows/tmdb-70523", transport);
+
+  await screen.findByRole("heading", { level: 1, name: "Dark" });
+  expect(detail("Episodes")).toBe("2 of 10, in 1 Season");
+});
+
+test("a Show whose Episode has Atmos audio shows Atmos, and marks both Tracks under Languages", async () => {
+  const episode = { seasonNumber: 1, episodeNumber: 1, versions: [atmosAndAudioDescription] };
+  const transport = server({
+    getShow: () => ({ show: dark, seasons: [{ number: 1 }] }),
+    listEpisodes: () => ({ episodes: [episode] }),
+    listContinueWatching: () => ({ entries: [] }),
+  });
+  openApp("/libraries/2/shows/tmdb-70523", transport);
+
+  await expect(screen.findByText("Atmos")).resolves.toBeDefined();
+  expect(detail("Audio")).toBe(atmosAndAudioDescriptionReads);
 });
 
 test("a Show's page resumes its most recently started Episode in Continue Watching", async () => {

@@ -10,7 +10,7 @@ use nama_proto::nama::v1::{Event, PageResponse, SortDirection, UnmatchedItemSort
 use sqlx::SqliteConnection;
 
 use super::{
-    Contents, Item, ItemKind, ItemRow, Pin, details, ids_from_json, ids_sql, parse_hint,
+    Contents, Item, ItemKind, ItemRow, Pin, air_dates, details, ids_from_json, ids_sql, parse_hint,
     primary_id_in, sort_titles::sort_title,
 };
 use crate::{
@@ -172,9 +172,10 @@ impl From<Candidate> for TiedTitle {
 pub(crate) struct Decisions {
     /// Each Item, with what was decided about it.
     pub(crate) items: Vec<(i64, Decided)>,
-    /// The Seasons fetched to decide about Episodes, as the title source gave them, with every
-    /// id of their Show. Their Requests follow how much of them a Library has.
-    pub(crate) seasons: Vec<(ExternalIds, Season)>,
+    /// The Seasons fetched with their Show, as the Plugin's title source gave them, with every
+    /// id of their Show. Their Requests follow how much of them a Library has, and their
+    /// Episodes' air dates are stored.
+    pub(crate) seasons: Vec<(PluginId, ExternalIds, Season)>,
 }
 
 impl From<Vec<(i64, Decided)>> for Decisions {
@@ -585,28 +586,43 @@ pub(super) async fn insert_decisions(
         if let Decided::Matched(metadata) = &decision {
             details::store(&mut *conn, metadata).await?;
         }
-        // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
-        sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)
-            .execute(&mut *conn)
-            .await?;
-        let ids = (row.ids.iter().map(|id| ("title", id)))
-            .chain(row.show_ids.iter().map(|id| ("show", id)));
-        for (scope, id) in ids {
-            let (namespace, value) = (id.namespace(), id.value());
-            sqlx::query!(
-                "INSERT INTO item_match_ids (item_id, scope, namespace, value) VALUES (?, ?, ?, ?)",
-                item,
-                scope,
-                namespace,
-                value
-            )
-            .execute(&mut *conn)
-            .await?;
-        }
+        insert_match_ids(&mut *conn, item, &row).await?;
+    }
+    let mut seasons = Vec::with_capacity(decided.seasons.len());
+    for (plugin, show, season) in decided.seasons {
+        air_dates::store(&mut *conn, &plugin, &show, &season).await?;
+        seasons.push((show, season));
     }
     let mut happened = make_available(conn, movies).await?;
-    happened.extend(make_seasons_available(conn, decided.seasons).await?);
+    happened.extend(make_seasons_available(conn, seasons).await?);
     Ok(happened)
+}
+
+/// Stores the ids of `row`'s title and its Show as the Item `item`'s, in place of those it had.
+async fn insert_match_ids(
+    conn: &mut SqliteConnection,
+    item: i64,
+    row: &MatchRow<'_>,
+) -> Result<(), sqlx::Error> {
+    // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
+    sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)
+        .execute(&mut *conn)
+        .await?;
+    let ids =
+        (row.ids.iter().map(|id| ("title", id))).chain(row.show_ids.iter().map(|id| ("show", id)));
+    for (scope, id) in ids {
+        let (namespace, value) = (id.namespace(), id.value());
+        sqlx::query!(
+            "INSERT INTO item_match_ids (item_id, scope, namespace, value) VALUES (?, ?, ?, ?)",
+            item,
+            scope,
+            namespace,
+            value
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]

@@ -9750,9 +9750,37 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub original_language: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `nama.v1.Movie.genres`, from the title source it was looked up in.
+    ///
+    /// Field 15: `genres`
+    #[serde(
+        rename = "genres",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// As `nama.v1.Movie.content_rating`, from the title source it was looked up in.
+    ///
+    /// Field 16: `content_rating`
+    #[serde(
+        rename = "contentRating",
+        alias = "content_rating",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
+    ///
+    /// Field 17: `on_watchlist`
+    #[serde(
+        rename = "onWatchlist",
+        alias = "on_watchlist",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub on_watchlist: bool,
     /// As `nama.v1.Movie.trailers`, from the title source it was looked up in.
     ///
-    /// Field 15: `trailers`
+    /// Field 18: `trailers`
     #[serde(
         rename = "trailers",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
@@ -9779,6 +9807,9 @@ impl ::core::fmt::Debug for FoundMovie {
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
             .field("score", &self.score)
             .field("original_language", &self.original_language)
+            .field("genres", &self.genres)
+            .field("content_rating", &self.content_rating)
+            .field("on_watchlist", &self.on_watchlist)
             .field("trailers", &self.trailers)
             .finish()
     }
@@ -9879,6 +9910,16 @@ impl FoundMovie {
         self.original_language = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::content_rating`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_content_rating(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.content_rating = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(FoundMovie);
 impl ::buffa::MessageName for FoundMovie {
@@ -9949,12 +9990,21 @@ impl ::buffa::Message for FoundMovie {
         if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.on_watchlist {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         for v in &self.trailers {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -10016,9 +10066,18 @@ impl ::buffa::Message for FoundMovie {
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(14u32, v, buf);
         }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(15u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(16u32, v, buf);
+        }
+        if self.on_watchlist {
+            ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
+        }
         for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
-                15u32,
+                18u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -10179,6 +10238,36 @@ impl ::buffa::Message for FoundMovie {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.genres.push(__elem);
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .content_rating
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.on_watchlist = ::buffa::types::decode_bool(buf)?;
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
                 let mut elem = ::core::default::Default::default();
                 ctx.register_element_memory(
                     ::buffa::__private::element_footprint(&elem),
@@ -10207,6 +10296,9 @@ impl ::buffa::Message for FoundMovie {
         self.id = ::buffa::MessageField::none();
         self.score = ::core::option::Option::None;
         self.original_language = ::core::option::Option::None;
+        self.genres.clear();
+        self.content_rating = ::core::option::Option::None;
+        self.on_watchlist = false;
         self.trailers.clear();
         self.__buffa_unknown_fields.clear();
     }
@@ -11155,9 +11247,37 @@ pub struct FoundShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub original_language: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `FoundMovie.genres`.
+    ///
+    /// Field 15: `genres`
+    #[serde(
+        rename = "genres",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// As `FoundMovie.content_rating`, such as `TV-MA`.
+    ///
+    /// Field 16: `content_rating`
+    #[serde(
+        rename = "contentRating",
+        alias = "content_rating",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `FoundMovie.on_watchlist`.
+    ///
+    /// Field 17: `on_watchlist`
+    #[serde(
+        rename = "onWatchlist",
+        alias = "on_watchlist",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub on_watchlist: bool,
     /// As `nama.v1.Movie.trailers`, from the title source it was looked up in.
     ///
-    /// Field 15: `trailers`
+    /// Field 18: `trailers`
     #[serde(
         rename = "trailers",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
@@ -11184,6 +11304,9 @@ impl ::core::fmt::Debug for FoundShow {
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
             .field("score", &self.score)
             .field("original_language", &self.original_language)
+            .field("genres", &self.genres)
+            .field("content_rating", &self.content_rating)
+            .field("on_watchlist", &self.on_watchlist)
             .field("trailers", &self.trailers)
             .finish()
     }
@@ -11270,6 +11393,16 @@ impl FoundShow {
         self.original_language = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::content_rating`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_content_rating(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.content_rating = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(FoundShow);
 impl ::buffa::MessageName for FoundShow {
@@ -11350,12 +11483,21 @@ impl ::buffa::Message for FoundShow {
         if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.on_watchlist {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         for v in &self.trailers {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -11427,9 +11569,18 @@ impl ::buffa::Message for FoundShow {
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(14u32, v, buf);
         }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(15u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(16u32, v, buf);
+        }
+        if self.on_watchlist {
+            ::buffa::types::put_bool_field(17u32, self.on_watchlist, buf);
+        }
         for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
-                15u32,
+                18u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -11595,6 +11746,36 @@ impl ::buffa::Message for FoundShow {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.genres.push(__elem);
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .content_rating
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.on_watchlist = ::buffa::types::decode_bool(buf)?;
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
                 let mut elem = ::core::default::Default::default();
                 ctx.register_element_memory(
                     ::buffa::__private::element_footprint(&elem),
@@ -11623,6 +11804,9 @@ impl ::buffa::Message for FoundShow {
         self.id = ::buffa::MessageField::none();
         self.score = ::core::option::Option::None;
         self.original_language = ::core::option::Option::None;
+        self.genres.clear();
+        self.content_rating = ::core::option::Option::None;
+        self.on_watchlist = false;
         self.trailers.clear();
         self.__buffa_unknown_fields.clear();
     }

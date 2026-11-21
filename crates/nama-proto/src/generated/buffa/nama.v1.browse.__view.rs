@@ -2720,6 +2720,14 @@ pub struct AudioTrackView<'a> {
     ///
     /// Field 1: `channels`
     pub channels: u32,
+    /// Whether its profile says it carries Dolby Atmos, as TrueHD and E-AC-3 (JOC) can.
+    ///
+    /// Field 2: `atmos`
+    pub atmos: bool,
+    /// Whether the file marks it as Audio Description, for the visually impaired.
+    ///
+    /// Field 3: `audio_description`
+    pub audio_description: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for AudioTrackView<'a> {
@@ -2759,6 +2767,20 @@ impl<'a> ::buffa::MessageView<'a> for AudioTrackView<'a> {
                 )?;
                 view.channels = ::buffa::types::decode_uint32(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.atmos = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.audio_description = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2782,6 +2804,8 @@ impl<'a> ::buffa::MessageView<'a> for AudioTrackView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::AudioTrack {
             channels: self.channels,
+            atmos: self.atmos,
+            audio_description: self.audio_description,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2796,6 +2820,12 @@ impl<'a> ::buffa::ViewEncode<'a> for AudioTrackView<'a> {
         if self.channels != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.channels) as u64;
         }
+        if self.atmos {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.audio_description {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2809,6 +2839,12 @@ impl<'a> ::buffa::ViewEncode<'a> for AudioTrackView<'a> {
         use ::buffa::Enumeration as _;
         if self.channels != 0u32 {
             ::buffa::types::put_uint32_field(1u32, self.channels, buf);
+        }
+        if self.atmos {
+            ::buffa::types::put_bool_field(2u32, self.atmos, buf);
+        }
+        if self.audio_description {
+            ::buffa::types::put_bool_field(3u32, self.audio_description, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2837,6 +2873,12 @@ impl<'__a> ::serde::Serialize for AudioTrackView<'__a> {
                     "channels",
                     &::buffa::json_helpers::ProtoJson(&self.channels),
                 )?;
+        }
+        if self.atmos {
+            __map.serialize_entry("atmos", &self.atmos)?;
+        }
+        if self.audio_description {
+            __map.serialize_entry("audioDescription", &self.audio_description)?;
         }
         __map.end()
     }
@@ -2935,6 +2977,20 @@ impl AudioTrackOwnedView {
     #[must_use]
     pub fn channels(&self) -> u32 {
         self.0.reborrow().channels
+    }
+    /// Whether its profile says it carries Dolby Atmos, as TrueHD and E-AC-3 (JOC) can.
+    ///
+    /// Field 2: `atmos`
+    #[must_use]
+    pub fn atmos(&self) -> bool {
+        self.0.reborrow().atmos
+    }
+    /// Whether the file marks it as Audio Description, for the visually impaired.
+    ///
+    /// Field 3: `audio_description`
+    #[must_use]
+    pub fn audio_description(&self) -> bool {
+        self.0.reborrow().audio_description
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<AudioTrackView<'static>>>
@@ -9735,6 +9791,11 @@ pub struct GetShowResponseView<'a> {
     ///
     /// Field 2: `seasons`
     pub seasons: ::buffa::RepeatedView<'a, super::super::__buffa::view::SeasonView<'a>>,
+    /// How many of the Show's Episodes, Specials aside, have aired by today, by the air dates its
+    /// title source gave when the Show was last fetched. 0 if it gave none.
+    ///
+    /// Field 3: `aired_episode_count`
+    pub aired_episode_count: u32,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetShowResponseView<'a> {
@@ -9787,6 +9848,13 @@ impl<'a> ::buffa::MessageView<'a> for GetShowResponseView<'a> {
                         );
                     }
                 }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.aired_episode_count = ::buffa::types::decode_uint32(&mut cur)?;
             }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -9842,6 +9910,7 @@ impl<'a> ::buffa::MessageView<'a> for GetShowResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            aired_episode_count: self.aired_episode_count,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -9869,6 +9938,12 @@ impl<'a> ::buffa::ViewEncode<'a> for GetShowResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.aired_episode_count != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.aired_episode_count)
+                        as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9895,6 +9970,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetShowResponseView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.aired_episode_count != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.aired_episode_count, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9924,6 +10002,13 @@ impl<'__a> ::serde::Serialize for GetShowResponseView<'__a> {
         }
         if !self.seasons.is_empty() {
             __map.serialize_entry("seasons", &*self.seasons)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.aired_episode_count) {
+            __map
+                .serialize_entry(
+                    "airedEpisodeCount",
+                    &::buffa::json_helpers::ProtoJson(&self.aired_episode_count),
+                )?;
         }
         __map.end()
     }
@@ -10033,6 +10118,14 @@ impl GetShowResponseOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::SeasonView<'_>> {
         &self.0.reborrow().seasons
+    }
+    /// How many of the Show's Episodes, Specials aside, have aired by today, by the air dates its
+    /// title source gave when the Show was last fetched. 0 if it gave none.
+    ///
+    /// Field 3: `aired_episode_count`
+    #[must_use]
+    pub fn aired_episode_count(&self) -> u32 {
+        self.0.reborrow().aired_episode_count
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetShowResponseView<'static>>>

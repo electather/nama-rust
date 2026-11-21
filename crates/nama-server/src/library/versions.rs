@@ -9,6 +9,6 @@ pub(crate) const PARSER_VERSION: i64 = 9;
 /// `src/matching/AGENTS.md` for when to bump it. Version 2 adds artwork picked across the
 /// Library's sources, Title Logos among it; version 3 genres, Content Ratings and a Show's own
 /// Poster, overview and first air date; version 4 picks a Backdrop without text first; version 5
-/// adds a titled Backdrop; version 6 a title's Score and original language; version 7 its
-/// Trailers.
-pub(crate) const METADATA_VERSION: i64 = 7;
+/// adds a titled Backdrop; version 6 a title's Score and original language; version 7 every
+/// Season's Episode air dates; version 8 a title's Trailers.
+pub(crate) const METADATA_VERSION: i64 = 8;

@@ -9,10 +9,12 @@ use std::sync::Arc;
 
 use crate::db::Database;
 
+mod air_dates;
 mod any_library;
 mod backdrops;
 mod decisions;
 mod details;
+mod edit_distance;
 mod files;
 #[cfg(test)]
 pub(crate) mod fixture;

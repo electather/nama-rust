@@ -301,13 +301,23 @@ test("a Show someone else follows shows its state, and Requesting the Whole Show
   expect(followed).toStrictEqual(["tmdb-70523"]);
 });
 
-test("a Show to Request shows its Score among its facts, its Original audio in Details, and its Trailers", async () => {
+test("a Show to Request shows its Score, genres and Content Rating, its Watchlist state, its Original audio in Details, and its Trailers", async () => {
   const trailers = [{ name: "Final Trailer", url: "https://www.youtube.com/watch?v=darkFinal01" }];
-  const { transport } = showServer({ ...dark, score: 8.4, originalLanguage: "de", trailers });
+  const { transport } = showServer({
+    ...dark,
+    score: 8.4,
+    originalLanguage: "de",
+    genres: ["Crime", "Drama"],
+    contentRating: "TV-MA",
+    onWatchlist: true,
+    trailers,
+  });
   openApp("/shows/tmdb-70523", transport);
 
   const score = await screen.findByText("Score");
-  expect(score.closest("p")?.textContent).toBe("Score8.42017");
+  expect(score.closest("p")?.textContent).toBe("Score8.42017TV-MA");
+  expect(screen.getByText("Show · Crime · Drama")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Remove from your Watchlist" })).toBeDefined();
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("German");
   expect(screen.getByRole("link", { name: /^Final Trailer/u }).getAttribute("href")).toBe(
