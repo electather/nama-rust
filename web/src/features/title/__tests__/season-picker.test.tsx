@@ -320,7 +320,7 @@ test("a Show to Request shows its Score, genres and Content Rating, its Watchlis
   expect(screen.getByRole("button", { name: "Remove from your Watchlist" })).toBeDefined();
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("German");
-  expect(screen.getByRole("link", { name: /^Final Trailer/u }).getAttribute("href")).toBe(
+  expect(screen.getByRole("link", { name: "Final Trailer" }).getAttribute("href")).toBe(
     trailers[0]?.url,
   );
 });

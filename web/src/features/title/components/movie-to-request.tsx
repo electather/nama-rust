@@ -23,9 +23,12 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
   }
   return (
     <TitlePage hero={<MovieRequestHero movieId={movieId} movie={movie} you={you} />}>
-      <CastAndCrew cast={movie.cast} crew={movie.crew} />
-      <TitleTrailers trailers={movie.trailers} />
+      <TitleTrailers
+        trailers={movie.trailers}
+        art={{ url: movie.backdropUrl, thumbhash: movie.backdropThumbhash }}
+      />
       <SimilarTitles heading="On this Server" titles={similarMovies(movie.similar)} />
+      <CastAndCrew cast={movie.cast} crew={movie.crew} />
       <TitleDetails
         groups={[
           {

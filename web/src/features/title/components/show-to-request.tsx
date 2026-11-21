@@ -26,9 +26,12 @@ export function ShowToRequest({ showId, you }: { showId: ExternalId; you: bigint
   return (
     <TitlePage hero={<ShowRequestHero showId={showId} show={show} />}>
       <SeasonPicker show={show} you={you} />
-      <CastAndCrew cast={show.cast} crew={show.crew} />
-      <TitleTrailers trailers={show.trailers} />
+      <TitleTrailers
+        trailers={show.trailers}
+        art={{ url: show.backdropUrl, thumbhash: show.backdropThumbhash }}
+      />
       <SimilarTitles heading="On this Server" titles={similarShows(show.similar)} />
+      <CastAndCrew cast={show.cast} crew={show.crew} />
       <TitleDetails
         groups={[
           { heading: "Information", facts: [["Created by", crewWithJob(show.crew, "Creator")]] },

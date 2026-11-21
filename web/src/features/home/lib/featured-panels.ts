@@ -26,6 +26,8 @@ export interface Panel {
   facts: string;
   overview: string | undefined;
   action: PanelAction;
+  /** Its page, which the open panel opens when clicked. */
+  page: LinkOptions;
   watchlist: { kind: TitleKind; id: ExternalId; on: boolean };
 }
 
@@ -65,6 +67,7 @@ function moviePanel(libraryId: string, movie: Movie): Panel[] {
         genres(movie.genres),
       ),
       action: { kind: "play", link, state: movie.watchState },
+      page: { to: "/libraries/$libraryId/movies/$movieId", params: { libraryId, movieId } },
       watchlist: { kind: TitleKind.MOVIE, id, on: movie.onWatchlist },
     },
   ];
@@ -85,6 +88,7 @@ function showPanel(libraryId: string, show: Show, next: Episode | undefined): Pa
         genres(show.genres),
       ),
       action: next ? episodeAction({ libraryId, showId }, next) : showInfo(libraryId, showId),
+      page: showPage(libraryId, showId),
       watchlist: { kind: TitleKind.SHOW, id, on: show.onWatchlist },
     },
   ];
@@ -118,10 +122,11 @@ function episodeAction(show: { libraryId: string; showId: string }, next: Episod
 
 /** A Show you've played every Episode of opens its page instead. */
 function showInfo(libraryId: string, showId: string): PanelAction {
-  return {
-    kind: "info",
-    link: { to: "/libraries/$libraryId/shows/$showId", params: { libraryId, showId } },
-  };
+  return { kind: "info", link: showPage(libraryId, showId) };
+}
+
+function showPage(libraryId: string, showId: string): LinkOptions {
+  return { to: "/libraries/$libraryId/shows/$showId", params: { libraryId, showId } };
 }
 
 /** The first two genres, as the artboard's facts line names them. */

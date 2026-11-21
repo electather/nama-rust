@@ -1597,8 +1597,8 @@ export const FoundMovieSchema: GenMessage<FoundMovie> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 51);
 
 /**
- * A video advertising a Movie or Show, as a link to where it is hosted. A client only links to
- * it, so showing a title tells the host nothing until a User opens one.
+ * A video advertising a Movie or Show, as a link to where it is hosted. A client plays it only in
+ * the host's own player, so showing a title tells the host nothing until a User opens one.
  *
  * @generated from message nama.v1.Trailer
  */
