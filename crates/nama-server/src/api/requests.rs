@@ -18,8 +18,7 @@ use nama_proto::nama::v1::{
     DeclineRequestRequest, DeclineRequestResponse, GetRequestRequest, GetRequestResponse,
     ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest, LookUpMovieResponse,
     LookUpShowRequest, LookUpShowResponse, RefusalReason, RequestService, RequestState,
-    RetryRequestRequest, RetryRequestResponse, SearchMoviesRequest, SearchMoviesResponse,
-    SearchShowsRequest, SearchShowsResponse, WithdrawFollowedShowRequest,
+    RetryRequestRequest, RetryRequestResponse, WithdrawFollowedShowRequest,
     WithdrawFollowedShowResponse, WithdrawRequestRequest, WithdrawRequestResponse,
 };
 
@@ -155,24 +154,6 @@ impl RequestService for RequestServiceHandler {
         })
     }
 
-    async fn search_movies(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, SearchMoviesRequest>,
-    ) -> ServiceResult<SearchMoviesResponse> {
-        let viewer = &caller(&ctx)?.user;
-        let title = searched_title(request.to_owned_message().title)?;
-        let found = self.requests.search(viewer, title).await?;
-        let images = self.images.shown().await.map_err(database_failed)?;
-        Response::ok(SearchMoviesResponse {
-            movies: found
-                .into_iter()
-                .map(|found| searched_to_proto(found, &images))
-                .collect(),
-            ..Default::default()
-        })
-    }
-
     async fn list_movie_qualities(
         &self,
         ctx: RequestContext,
@@ -258,23 +239,6 @@ impl RequestService for RequestServiceHandler {
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpMovieResponse {
             movie: looked_up_to_proto(found, &images).into(),
-            ..Default::default()
-        })
-    }
-
-    async fn search_shows(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, SearchShowsRequest>,
-    ) -> ServiceResult<SearchShowsResponse> {
-        let title = searched_title(request.to_owned_message().title)?;
-        let found = self.requests.search_shows(title).await?;
-        let images = self.images.shown().await.map_err(database_failed)?;
-        Response::ok(SearchShowsResponse {
-            shows: found
-                .into_iter()
-                .map(|found| searched_show_to_proto(found, &images))
-                .collect(),
             ..Default::default()
         })
     }
@@ -613,19 +577,6 @@ pub(super) fn missing_show_to_proto(show: Listed, images: &ShownImages) -> proto
         poster_thumbhash: poster.thumbhash,
         ..Default::default()
     }
-}
-
-/// `title`, unless it is blank, which a search for titles refuses.
-fn searched_title(title: String) -> Result<String, ConnectError> {
-    if title.trim().is_empty() {
-        return Err(refuse(
-            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-            "the title to search for must not be blank",
-        )
-        .field("title")
-        .into());
-    }
-    Ok(title)
 }
 
 /// The refusal of a Quality a User named, in the field they named it in.
