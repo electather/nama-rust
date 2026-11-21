@@ -11,6 +11,7 @@ mod server;
 use std::{
     future,
     sync::{Arc, Mutex, PoisonError},
+    time::Duration,
 };
 
 use browsing::Fixture;
@@ -32,6 +33,9 @@ use server::{
     search::search,
     tmdb::{ALIEN_IMDB, DUNE, HEAT, THE_OFFICE},
 };
+
+/// Aliens, which the fake TMDB finds for "Alien".
+const ALIENS: i64 = 679;
 
 /// A query the fake TMDB finds no Movies for, so only a Search source adds any.
 const NO_TITLE_MATCHES: &str = "Home Movies";
@@ -439,4 +443,67 @@ async fn a_search_source_is_asked_only_the_query_the_kind_and_the_limit() {
         ..Default::default()
     };
     assert_eq!(dreams.asked(), [expected]);
+}
+
+#[tokio::test]
+async fn a_search_sources_batch_leaves_out_what_the_title_sources_batch_sent() {
+    let dreams = FakeSource::new(
+        "dreams",
+        Answer::Titles(vec![
+            movie(&[("tmdb", &ALIENS.to_string())], "Aliens again"),
+            movie(&[("tmdb", &DUNE.to_string())], "Dune"),
+        ]),
+    );
+    let fx = start(&[&dreams]).await;
+    let ada = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+
+    let parts = search(&ada.client_config(), "Alien", TitleKind::TITLE_KIND_MOVIE)
+        .await
+        .unwrap();
+
+    let [
+        Part::Hits(_),
+        Part::Hits(to_request),
+        Part::Hits(from_dreams),
+        Part::Done(_),
+    ] = &parts[..]
+    else {
+        panic!("the Libraries', the title source's, the Search source's, then Done: {parts:?}");
+    };
+    assert!(
+        titles_and_statuses(to_request).contains(&("Aliens", NOT_ON_THIS_SERVER.into())),
+        "{to_request:?}"
+    );
+    assert_eq!(
+        titles_and_statuses(from_dreams),
+        [("Dune", NOT_ON_THIS_SERVER.into())]
+    );
+}
+
+#[tokio::test]
+async fn a_slow_search_source_doesnt_hold_back_the_title_sources_batch() {
+    let slow = FakeSource::new("slow", Answer::Hangs);
+    let fx = start(&[&slow]).await;
+    let ada = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+    let request = SearchRequest {
+        query: NO_TITLE_MATCHES.to_owned(),
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        ..Default::default()
+    };
+    let client = SearchServiceClient::new(HttpClient::plaintext(), ada.client_config());
+
+    let mut stream = client.search(request).await.unwrap();
+    let mut next = async || {
+        let message = stream.message::<SearchResponse>().await.unwrap().unwrap();
+        message.to_owned_message().part.unwrap()
+    };
+    let library = next().await;
+    // Well within the 5 seconds the slow source is given.
+    let title_source = tokio::time::timeout(Duration::from_secs(3), next()).await;
+
+    assert!(matches!(library, Part::Hits(_)), "{library:?}");
+    assert!(
+        matches!(title_source, Ok(Part::Hits(_))),
+        "{title_source:?}"
+    );
 }
