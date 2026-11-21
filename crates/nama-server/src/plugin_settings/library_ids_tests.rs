@@ -17,6 +17,7 @@ fn schema(fields: &[(&str, SettingKind)]) -> SettingsSchema {
                 default: None,
                 min: None,
                 max: None,
+                choices: Vec::new(),
             })
             .collect(),
     }

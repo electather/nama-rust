@@ -811,7 +811,7 @@ pub const __FEATURED_SUGGESTION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry =
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct HomeRows {
-    /// The rows, in the order home shows them. The Kernel keeps the first 3.
+    /// The rows, in the order home shows them. The Kernel keeps the first 20 (1.5.0; 3 before).
     ///
     /// Field 1: `rows`
     #[serde(

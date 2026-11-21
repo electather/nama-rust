@@ -1,6 +1,7 @@
 //! Reading, compiling and checking an Installed Plugin's Package.
 
 use std::{
+    collections::HashSet,
     fs, io, mem,
     ops::Deref,
     path::{Path, PathBuf},
@@ -19,7 +20,9 @@ use nama_plugin_api::{
     automation::Kernel,
     job::Job,
     metadata::{ExternalId, InvalidId, SourceManifest},
-    settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
+    settings::{
+        SettingField, SettingKind, SettingValue, Settings, SettingsSchema, in_listed_order,
+    },
 };
 use nama_plugin_proto::{CONTRACT_VERSION, nama::plugin::v1 as wire, services};
 use semver::{Version, VersionReq};
@@ -58,7 +61,7 @@ pub(super) const BLOB_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How long a Home row refresh may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`],
-/// since a refresh may page an outside service for 3 rows of 200 titles each (ADR 0058).
+/// since a refresh may page an outside service for 20 rows of 200 titles each (ADR 0091).
 pub(super) const HOME_ROWS_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
@@ -230,6 +233,7 @@ fn manifest(
     exported: &[&str],
 ) -> Result<Manifest, Refused> {
     let settings = settings_schema(package)?;
+    check_choices_offered(&settings, exported.contains(&CHECK_SETTINGS))?;
     let personal_settings = schema(&package.personal_settings)?;
     let permissions = package
         .permissions
@@ -431,7 +435,8 @@ pub(super) fn allowed_hosts(
 }
 
 /// `settings` as the Extism config a Plugin reads them from, each value as text: a bool as
-/// `true` or `false`, a number in decimal, Library ids in decimal joined by `,` (empty for none).
+/// `true` or `false`, a number in decimal, Library ids in decimal joined by `,` (empty for none),
+/// picked choices' values as a JSON array of strings.
 pub(super) fn extism_config(schema: &SettingsSchema, settings: &Settings) -> Vec<(String, String)> {
     schema
         .fields
@@ -444,6 +449,8 @@ pub(super) fn extism_config(schema: &SettingsSchema, settings: &Settings) -> Vec
                 SettingValue::Libraries(ids) => {
                     ids.iter().map(i64::to_string).collect::<Vec<_>>().join(",")
                 }
+                // JSON, not joined like Library ids, since a choice's value may hold any text.
+                SettingValue::Texts(values) => serde_json::Value::from(values.clone()).to_string(),
             };
             Some((field.key.clone(), text))
         })
@@ -559,7 +566,7 @@ fn setting_field(field: &wire::SettingField) -> Result<SettingField, Refused> {
             kind,
         });
     }
-    let field = SettingField {
+    let mut field = SettingField {
         key: field.key.clone(),
         label: field.label.clone(),
         description: field.description.clone(),
@@ -568,8 +575,19 @@ fn setting_field(field: &wire::SettingField) -> Result<SettingField, Refused> {
         default,
         min: field.min_value,
         max: field.max_value,
+        choices: field
+            .choices
+            .iter()
+            .cloned()
+            .map(contract::choice)
+            .collect(),
     };
     check_bounds(&field)?;
+    check_choices(&field)?;
+    // Shaped as a save would store it, so the Plugin and the form never see a repeat.
+    if let Some(SettingValue::Texts(picked)) = &mut field.default {
+        *picked = in_listed_order(&field.choices, picked);
+    }
     Ok(field)
 }
 
@@ -595,6 +613,47 @@ fn check_bounds(field: &SettingField) -> Result<(), Refused> {
         return Err(Refused::DefaultOutOfBounds { key: key() });
     }
     Ok(())
+}
+
+/// Refuses choices on a setting that isn't [`SettingKind::Choices`], a choice's value listed
+/// twice, or a default holding a value not among them.
+fn check_choices(field: &SettingField) -> Result<(), Refused> {
+    let key = || field.key.clone();
+    if field.kind != SettingKind::Choices && !field.choices.is_empty() {
+        return Err(Refused::ChoicesOnAnotherKind { key: key() });
+    }
+    let mut listed = HashSet::new();
+    if let Some(choice) = field
+        .choices
+        .iter()
+        .find(|choice| !listed.insert(&choice.value))
+    {
+        return Err(Refused::ChoiceRepeated {
+            key: key(),
+            value: choice.value.clone(),
+        });
+    }
+    if let Some(SettingValue::Texts(default)) = &field.default
+        && default.iter().any(|value| !listed.contains(value))
+    {
+        return Err(Refused::DefaultNotAChoice { key: key() });
+    }
+    Ok(())
+}
+
+/// Refuses a [`SettingKind::Choices`] setting in `schema` with no choices of its own when the
+/// Plugin has no settings check to offer some.
+fn check_choices_offered(schema: &SettingsSchema, checks_settings: bool) -> Result<(), Refused> {
+    let unoffered = schema
+        .fields
+        .iter()
+        .find(|field| field.kind == SettingKind::Choices && field.choices.is_empty());
+    match unoffered {
+        Some(field) if !checks_settings => Err(Refused::NoChoices {
+            key: field.key.clone(),
+        }),
+        Some(_) | None => Ok(()),
+    }
 }
 
 #[cfg(test)]

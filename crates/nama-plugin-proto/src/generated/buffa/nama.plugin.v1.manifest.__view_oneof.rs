@@ -14,5 +14,10 @@ pub mod setting_value {
                 super::super::super::super::__buffa::view::LibraryIdsView<'a>,
             >,
         ),
+        Texts(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::TextsView<'a>,
+            >,
+        ),
     }
 }

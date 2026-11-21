@@ -10,6 +10,7 @@ pub mod setting_value {
         BoolValue(bool),
         IntegerValue(i64),
         LibraryIds(::buffa::alloc::boxed::Box<super::super::super::LibraryIds>),
+        Texts(::buffa::alloc::boxed::Box<super::super::super::Texts>),
     }
     impl ::buffa::Oneof for Value {}
     impl From<super::super::super::LibraryIds> for Value {
@@ -19,6 +20,16 @@ pub mod setting_value {
     }
     impl From<super::super::super::LibraryIds> for ::core::option::Option<Value> {
         fn from(v: super::super::super::LibraryIds) -> Self {
+            Self::Some(Value::from(v))
+        }
+    }
+    impl From<super::super::super::Texts> for Value {
+        fn from(v: super::super::super::Texts) -> Self {
+            Self::Texts(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::Texts> for ::core::option::Option<Value> {
+        fn from(v: super::super::super::Texts) -> Self {
             Self::Some(Value::from(v))
         }
     }
@@ -44,6 +55,9 @@ pub mod setting_value {
                 }
                 Self::LibraryIds(v) => {
                     map.serialize_entry("libraryIds", &**v)?;
+                }
+                Self::Texts(v) => {
+                    map.serialize_entry("texts", &**v)?;
                 }
             }
             map.end()

@@ -88,6 +88,7 @@ impl Plugin for FailingPlugin {
                     default: None,
                     min: None,
                     max: None,
+                    choices: Vec::new(),
                 }],
             },
             extension_points: vec![PointKey::provide::<dyn TitleSource>()],

@@ -631,7 +631,7 @@ pub(super) fn personal_settings_refusal(manifest: &Manifest) -> Option<String> {
         let key = &field.key;
         if matches!(
             field.kind,
-            SettingKind::Url | SettingKind::Choice | SettingKind::Libraries
+            SettingKind::Url | SettingKind::Choice | SettingKind::Choices | SettingKind::Libraries
         ) {
             Some(format!(
                 "its Personal setting {key} is {:?}, and a Personal setting may only be Text, \
@@ -722,7 +722,7 @@ async fn check_fresh<A: Sync, T>(
 /// what to pick for them.
 fn with_optional_choices(mut schema: SettingsSchema) -> SettingsSchema {
     for field in &mut schema.fields {
-        field.required &= field.kind != SettingKind::Choice;
+        field.required &= !matches!(field.kind, SettingKind::Choice | SettingKind::Choices);
     }
     schema
 }

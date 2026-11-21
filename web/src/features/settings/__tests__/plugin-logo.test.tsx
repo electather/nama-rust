@@ -54,7 +54,7 @@ test("the pencil on a Plugin's logo uploads an image to show in its place", asyn
   openLogoMenu(view);
   expect(screen.queryByRole("menuitem", { name: "Remove custom image" })).toBeNull();
   fireEvent.click(await screen.findByRole("menuitem", { name: "Upload an image" }));
-  expect(dialogOpened).toHaveBeenCalledOnce();
+  expect(dialogOpened).toHaveBeenCalledTimes(1);
   const file = new File(["<svg/>"], "logo.svg", { type: "image/svg+xml" });
   pickLogo(file);
 

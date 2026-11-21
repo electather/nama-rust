@@ -37,6 +37,7 @@ impl Plugin for Bucketer {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         };
         Manifest {
             version: "0.0.0".to_owned(),
@@ -186,7 +187,10 @@ async fn stored_texts(server: &TestServer) -> Vec<String> {
     (settings(server).await.into_iter())
         .filter_map(|setting| match setting.value.into_option()?.value? {
             Value::TextValue(text) => Some(text),
-            Value::BoolValue(_) | Value::IntegerValue(_) | Value::LibraryIds(_) => None,
+            Value::BoolValue(_)
+            | Value::IntegerValue(_)
+            | Value::LibraryIds(_)
+            | Value::Texts(_) => None,
         })
         .collect()
 }

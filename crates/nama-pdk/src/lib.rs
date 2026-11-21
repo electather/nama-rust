@@ -839,14 +839,7 @@ where
     L: Into<String>,
 {
     let setting_choices = |pairs: C| SettingChoices {
-        choices: pairs
-            .into_iter()
-            .map(|(value, label)| Choice {
-                value: value.into(),
-                label: label.into(),
-                ..Choice::default()
-            })
-            .collect(),
+        choices: pairs.into_iter().map(choice).collect(),
         ..SettingChoices::default()
     };
     CheckedSettings {
@@ -855,6 +848,14 @@ where
             .map(|(key, pairs)| (key.into(), setting_choices(pairs)))
             .collect(),
         ..CheckedSettings::default()
+    }
+}
+
+fn choice<V: Into<String>, L: Into<String>>((value, label): (V, L)) -> Choice {
+    Choice {
+        value: value.into(),
+        label: label.into(),
+        ..Choice::default()
     }
 }
 
@@ -874,6 +875,22 @@ pub fn setting_field(
         description: description.into(),
         kind: kind.into(),
         ..SettingField::default()
+    }
+}
+
+/// A Manifest's `SETTING_KIND_CHOICES` setting `key`, as [`setting_field`] makes one, offering
+/// `choices` as `(value, label)` pairs in the order a form shows them, as [`checked_settings`]
+/// takes them. Its value is read with [`setting_picked`].
+#[must_use]
+pub fn choices_setting_field<V: Into<String>, L: Into<String>>(
+    key: &str,
+    label: &str,
+    description: impl Into<String>,
+    choices: impl IntoIterator<Item = (V, L)>,
+) -> SettingField {
+    SettingField {
+        choices: choices.into_iter().map(choice).collect(),
+        ..setting_field(key, label, description, SettingKind::SETTING_KIND_CHOICES)
     }
 }
 
@@ -900,6 +917,30 @@ pub fn setting_default(
 /// never writes.
 pub fn setting_library_ids(key: &str) -> Result<Vec<i64>, Error> {
     library_ids(key, &setting(key)?.unwrap_or_default())
+}
+
+/// The values the `SETTING_KIND_CHOICES` setting `key` holds, in the order its choices are listed;
+/// none if it isn't set. A choice no longer offered may be among them: skip a value the Plugin
+/// doesn't know.
+///
+/// # Errors
+///
+/// When the config can't be read, or the setting holds something other than picked values,
+/// which the Kernel never writes.
+pub fn setting_picked(key: &str) -> Result<Vec<String>, Error> {
+    match setting(key)? {
+        Some(text) => picked(key, &text),
+        None => Ok(Vec::new()),
+    }
+}
+
+/// `text`, the setting `key`'s config, as picked values: a JSON array of strings.
+fn picked(key: &str, text: &str) -> Result<Vec<String>, Error> {
+    ::extism_pdk::json::from_str(text).map_err(|_not_a_list| {
+        Error::msg(format!(
+            "the setting {key} holds something other than picked choices"
+        ))
+    })
 }
 
 /// `text`, the setting `key`'s config, as Library ids: each in decimal, joined by `,`.
@@ -1124,9 +1165,10 @@ fn clear_error() {
 #[cfg(test)]
 mod tests {
     use crate::{
-        SearchQuery, SearchResults, SettingField, SettingKind, SettingValue, TitleSource,
+        Choice, SearchQuery, SearchResults, SettingField, SettingKind, SettingValue, TitleSource,
+        choices_setting_field,
         extism_pdk::Error,
-        library_ids, setting_default, setting_field, setting_value,
+        library_ids, picked, setting_default, setting_field, setting_value,
         testing::{Kernel, with},
     };
 
@@ -1149,6 +1191,47 @@ mod tests {
                 ..SettingField::default()
             }
         );
+    }
+
+    #[test]
+    fn a_choices_setting_field_offers_its_choices_in_order() {
+        let field = choices_setting_field(
+            "ratings",
+            "Ratings",
+            "Which ratings count.",
+            [("PG", "PG"), ("G", "General")],
+        );
+
+        assert_eq!(field.kind, SettingKind::SETTING_KIND_CHOICES);
+        assert_eq!(
+            field
+                .choices
+                .iter()
+                .map(|Choice { value, label, .. }| (value.as_str(), label.as_str()))
+                .collect::<Vec<_>>(),
+            [("PG", "PG"), ("G", "General")]
+        );
+    }
+
+    #[test]
+    fn picked_values_are_read_from_their_config_text() {
+        assert_eq!(
+            picked("ratings", r#"["PG-13","a, b"]"#).ok(),
+            Some(vec!["PG-13".to_owned(), "a, b".to_owned()])
+        );
+        assert_eq!(
+            picked("ratings", "PG").map_err(|err| err.to_string()),
+            Err("the setting ratings holds something other than picked choices".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_unset_choices_setting_holds_no_values() {
+        let mut kernel = Kernel::new();
+
+        let values = with(&mut kernel, || crate::setting_picked("ratings").unwrap());
+
+        assert_eq!(values, Vec::<String>::new());
     }
 
     #[test]

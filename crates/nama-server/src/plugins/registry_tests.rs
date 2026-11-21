@@ -30,6 +30,7 @@ fn secret(key: &str) -> SettingsSchema {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         }],
     }
 }

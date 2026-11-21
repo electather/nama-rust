@@ -141,8 +141,9 @@ pub(crate) fn text(value: SettingValue) -> String {
         SettingValue::Text(text) => text,
         SettingValue::Bool(on) => on.to_string(),
         SettingValue::Integer(number) => number.to_string(),
-        // Never stored: the Kernel refuses a Manifest whose Personal settings name Libraries.
-        SettingValue::Libraries(_) => String::new(),
+        // Never stored: the Kernel refuses a Manifest whose Personal settings name Libraries or
+        // Choices.
+        SettingValue::Libraries(_) | SettingValue::Texts(_) => String::new(),
     }
 }
 
@@ -155,8 +156,9 @@ pub(crate) fn value(kind: SettingKind, text: String) -> Option<SettingValue> {
         SettingKind::Text | SettingKind::Secret | SettingKind::Choice | SettingKind::Url => {
             Some(SettingValue::Text(text))
         }
-        // Never personal: the Kernel refuses a Manifest whose Personal settings name Libraries.
-        SettingKind::Libraries => None,
+        // Never personal: the Kernel refuses a Manifest whose Personal settings name Libraries or
+        // Choices.
+        SettingKind::Libraries | SettingKind::Choices => None,
     }
 }
 

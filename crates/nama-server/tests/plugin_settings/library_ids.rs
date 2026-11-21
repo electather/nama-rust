@@ -29,6 +29,7 @@ impl Plugin for Keeper {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         };
         Manifest {
             version: "0.0.0".to_owned(),
@@ -94,7 +95,9 @@ async fn kept(server: &TestServer) -> Option<Vec<i64>> {
         .find(|setting| setting.key == "keep")?;
     match keep.value.as_option()?.value.as_ref()? {
         Value::LibraryIds(libraries) => Some(libraries.ids.clone()),
-        Value::TextValue(_) | Value::BoolValue(_) | Value::IntegerValue(_) => None,
+        Value::TextValue(_) | Value::BoolValue(_) | Value::IntegerValue(_) | Value::Texts(_) => {
+            None
+        }
     }
 }
 

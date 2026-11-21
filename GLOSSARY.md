@@ -353,6 +353,10 @@ _Avoid_: hero, spotlight, banner, billboard
 The order of a User's Home rows, and which of them and whether Featured are shown. Featured is always at the top. An Admin sets the default Home layout; a User follows it until they change their own, and a row they haven't placed goes to the end of theirs.
 _Avoid_: arrangement, customization, home settings, home preferences
 
+**Discover**:
+The Plugin whose Home rows show what's trending, top rated and award-winning, and each User's rows picked from what they watch, such as "Because you watched" and their Watchlist. An Admin picks which of its rows it offers.
+_Avoid_: recommendations plugin, discovery rows
+
 ## Playback
 
 **Track**:

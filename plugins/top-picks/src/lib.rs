@@ -7,13 +7,20 @@ use std::collections::{HashMap, HashSet};
 
 use nama_pdk::{
     FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowSource, HomeRowTitle, HomeRows,
-    Manifest, Permission, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind,
-    TitleWatchStates, UserFeaturedAsked, UserRowsAsked, WatchlistTitle, extism_pdk::Error, kernel,
-    services, setting_value,
+    Manifest, Permission, SettingField, Title, TitleId, TitleKind, TitleRefKind, TitleWatchStates,
+    UserFeaturedAsked, UserRowsAsked, WatchlistTitle, extism_pdk::Error, kernel,
+    nama_plugin_proto::nama::plugin::v1::Texts, services, setting_value,
 };
 
-const FAMILY_RATINGS: &str = "family_ratings";
-const DEFAULT_FAMILY_RATINGS: &str = "G, PG, PG-13, TV-Y, TV-G, TV-PG";
+// A new key, not the free-text `family_ratings`: the Server keeps that one's stored text, unused.
+// No released Server holds it, so nothing converts it.
+const FAMILY_RATINGS: &str = "family_content_ratings";
+/// The Content Ratings an admin may pick for Family night, the US film and TV boards', in the
+/// order a form lists them.
+const RATINGS: [&str; 11] = [
+    "G", "PG", "PG-13", "R", "NC-17", "TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA",
+];
+const DEFAULT_FAMILY_RATINGS: [&str; 6] = ["G", "PG", "PG-13", "TV-Y", "TV-G", "TV-PG"];
 
 /// How long the rows and suggestions stay fresh, in seconds: the 15 minutes the Kernel holds a
 /// shorter time to, since it asks again only once they're stale, and a title the User started
@@ -45,15 +52,15 @@ mod exports {
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let family_ratings = SettingField {
-        default_value: nama_pdk::setting_default(setting_value::Value::TextValue(
-            DEFAULT_FAMILY_RATINGS.to_owned(),
-        )),
-        ..nama_pdk::setting_field(
+        default_value: nama_pdk::setting_default(setting_value::Value::Texts(Box::new(Texts {
+            values: DEFAULT_FAMILY_RATINGS.map(str::to_owned).into(),
+            ..Texts::default()
+        }))),
+        ..nama_pdk::choices_setting_field(
             FAMILY_RATINGS,
             "Family Content Ratings",
-            "The Content Ratings Family night shows, separated by commas. A title without one \
-             isn't shown.",
-            SettingKind::SETTING_KIND_TEXT,
+            "The Content Ratings Family night shows. A title without one isn't shown.",
+            RATINGS.map(|rating| (rating, rating)),
         )
     };
     Manifest {
@@ -79,7 +86,7 @@ struct TopPicks;
 
 impl HomeRowSource for TopPicks {
     fn user_rows(asked: UserRowsAsked) -> Result<HomeRows, Error> {
-        let family = nama_pdk::setting(FAMILY_RATINGS)?.unwrap_or_default();
+        let family = nama_pdk::setting_picked(FAMILY_RATINGS)?;
         Ok(rows(&picks_for(asked.user_id)?, &family))
     }
 
@@ -236,14 +243,11 @@ fn ranked(
 }
 
 /// The "Top picks" row of every pick and the "Family night" row of those rated one of
-/// `family_ratings`, Content Ratings separated by commas.
-fn rows(picks: &[Pick], family_ratings: &str) -> HomeRows {
-    let family: Vec<&str> = family_ratings.split(',').map(str::trim).collect();
+/// `family_ratings`, ignoring case.
+fn rows(picks: &[Pick], family_ratings: &[impl AsRef<str>]) -> HomeRows {
     let is_family = |pick: &&Pick| {
         (pick.content_rating.as_deref()).is_some_and(|rating| {
-            family
-                .iter()
-                .any(|family| family.eq_ignore_ascii_case(rating))
+            (family_ratings.iter()).any(|family| family.as_ref().eq_ignore_ascii_case(rating))
         })
     };
     HomeRows {

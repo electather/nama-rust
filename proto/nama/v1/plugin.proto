@@ -22,16 +22,19 @@ service PluginService {
   // Replaces a Plugin's settings and, if it is meant to be enabled, enables it again with them,
   // without a restart. Settings that don't fit its schema, such as an integer outside its bounds
   // (`REFUSAL_REASON_SETTING_OUT_OF_RANGE`), are refused with a Refusal naming `settings.<key>`,
-  // and nothing changes; so is a `SETTING_KIND_LIBRARIES` setting naming an id no Library has,
-  // with `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. A required setting left out
-  // or blank is refused with `REFUSAL_REASON_FIELD_REQUIRED` only while the Plugin is meant to be
-  // enabled: a disabled Plugin's can be cleared, and `EnablePlugin` checks them. A repeated
-  // Library id is saved once, where it first appears. If a choice setting has a value, the
-  // Plugin's settings check runs on the new settings first, and a check that fails, or doesn't
-  // offer that value, is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or
-  // `REFUSAL_REASON_CHOICE_NOT_OFFERED` naming the setting, and nothing changes. A Plugin that
-  // then refuses to start with them doesn't fail the call: the settings are saved and it comes
-  // back not running (`plugin.summary.enabled` false); `EnablePlugin` says why with
+  // and nothing changes; so is a `SETTING_KIND_LIBRARIES` setting naming an id no Library has, with
+  // `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. A required setting left out or
+  // blank is refused with `REFUSAL_REASON_FIELD_REQUIRED` only while the Plugin is meant to be
+  // enabled: a disabled Plugin's can be cleared, and `EnablePlugin` checks them. A repeated Library
+  // id is saved once, where it first appears. If a choice setting has a value, the Plugin's
+  // settings check runs on the new settings first, and a check that fails, or doesn't offer that
+  // value, is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or
+  // `REFUSAL_REASON_CHOICE_NOT_OFFERED` naming the setting, and nothing changes. A
+  // `SETTING_KIND_CHOICES` setting's values are checked the same way, against the choices the check
+  // offers for it or else its `Setting.choices`, the check running only if the Plugin has one, and
+  // each is saved once, in the order its choices are listed. A Plugin that then refuses to start
+  // with them doesn't fail the call: the settings are saved and it comes back not running
+  // (`plugin.summary.enabled` false); `EnablePlugin` says why with
   // `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
   rpc UpdatePluginSettings(UpdatePluginSettingsRequest) returns (UpdatePluginSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
@@ -47,8 +50,9 @@ service PluginService {
     option idempotency_level = IDEMPOTENT;
   }
   // Runs a Plugin's settings check on `settings`, which may not be saved yet, and returns the
-  // choices it offers for each `SETTING_KIND_CHOICE` setting. It runs only when called, never to
-  // enable a Plugin. Settings that don't fit the Plugin's schema are refused as in
+  // choices it offers for each `SETTING_KIND_CHOICE` setting, and for each `SETTING_KIND_CHOICES`
+  // setting it offers its own for, which replace its `Setting.choices`. It runs only when called,
+  // never to enable a Plugin. Settings that don't fit the Plugin's schema are refused as in
   // `UpdatePluginSettings`, except that a choice setting may be left out. A check that fails, runs
   // too long or crashes is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, its message saying
   // why in plain words, as is a Plugin without a check (see `Plugin.checks_settings`). Fails with
@@ -145,7 +149,8 @@ message TestPluginSettingsRequest {
 }
 
 message TestPluginSettingsResponse {
-  // The choices for each `SETTING_KIND_CHOICE` setting, by key.
+  // The choices for each `SETTING_KIND_CHOICE` setting, and each `SETTING_KIND_CHOICES` setting
+  // the check offers its own for, by key.
   map<string, SettingChoices> choices = 1;
 }
 
@@ -156,7 +161,8 @@ message SettingChoices {
 
 // One value a choice setting may take.
 message Choice {
-  // What is stored as the setting's `text_value`, such as a quality profile's id.
+  // What is stored as the setting's `text_value`, or among its `texts`, such as a quality
+  // profile's id.
   string value = 1;
   // What an Admin picks it by, such as the profile's name.
   string label = 2;
@@ -442,6 +448,11 @@ enum SettingKind {
   // that names no Library is refused, and a repeated id is kept once; a Library deleted later
   // stays in the value.
   SETTING_KIND_LIBRARIES = 7;
+  // Several values, unlike `SETTING_KIND_CHOICE`, each picked from `Setting.choices`, or from
+  // those `TestPluginSettings` offers for it, which replace them. Each value is saved once, in the
+  // order the choices are listed, and an empty list picks none. A value saved earlier may no
+  // longer be offered.
+  SETTING_KIND_CHOICES = 8;
 }
 
 // One setting a Plugin takes, as its schema declares it, and its stored value.
@@ -466,6 +477,9 @@ message Setting {
   // `REFUSAL_REASON_SETTING_OUT_OF_RANGE`.
   optional int64 min_value = 9;
   optional int64 max_value = 10;
+  // The choices a SETTING_KIND_CHOICES setting offers, in the order a form shows them, unless
+  // `TestPluginSettings` offers others for it. Empty for other kinds.
+  repeated Choice choices = 11;
 }
 
 // A setting's value, of the setting's kind.
@@ -479,7 +493,14 @@ message SettingValue {
     int64 integer_value = 3;
     // Library ids, for SETTING_KIND_LIBRARIES.
     LibraryIds library_ids = 4;
+    // The picked choices' values, for SETTING_KIND_CHOICES.
+    Texts texts = 5;
   }
+}
+
+// The values a SETTING_KIND_CHOICES setting holds, in the order its choices are listed.
+message Texts {
+  repeated string values = 1;
 }
 
 // The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.

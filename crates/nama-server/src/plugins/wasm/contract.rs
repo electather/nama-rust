@@ -3,7 +3,7 @@
 
 use nama_plugin_api::{
     fulfiller::{Movies, Shows},
-    settings::{SettingKind, SettingValue},
+    settings::{Choice, SettingKind, SettingValue},
 };
 use nama_plugin_proto::nama::plugin::v1::{self as wire, setting_value};
 
@@ -23,6 +23,7 @@ pub(super) const fn setting_kind(kind: wire::SettingKind) -> Option<SettingKind>
         wire::SettingKind::SETTING_KIND_CHOICE => SettingKind::Choice,
         wire::SettingKind::SETTING_KIND_URL => SettingKind::Url,
         wire::SettingKind::SETTING_KIND_LIBRARIES => SettingKind::Libraries,
+        wire::SettingKind::SETTING_KIND_CHOICES => SettingKind::Choices,
     })
 }
 
@@ -35,7 +36,15 @@ pub(super) fn setting_value(value: &wire::SettingValue) -> Option<SettingValue> 
         setting_value::Value::LibraryIds(libraries) => {
             SettingValue::Libraries(libraries.ids.clone())
         }
+        setting_value::Value::Texts(texts) => SettingValue::Texts(texts.values.clone()),
     })
+}
+
+pub(super) fn choice(choice: wire::Choice) -> Choice {
+    Choice {
+        value: choice.value,
+        label: choice.label,
+    }
 }
 
 /// A kind of title a Fulfiller is registered under, with where a Manifest names its needs and

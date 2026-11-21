@@ -4,6 +4,8 @@
 
 #[path = "plugin_settings/builtin_grants.rs"]
 mod builtin_grants;
+#[path = "plugin_settings/choices.rs"]
+mod choices;
 #[path = "plugin_settings/clearing.rs"]
 mod clearing;
 #[path = "plugin_settings/flaky.rs"]
@@ -67,6 +69,7 @@ impl Plugin for Fake {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         };
         Manifest {
             version: "0.0.0".to_owned(),

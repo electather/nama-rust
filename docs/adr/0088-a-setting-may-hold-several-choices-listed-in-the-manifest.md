@@ -14,4 +14,5 @@ The value is a new `SettingValue` arm holding the picked choices' values. Each v
 
 - A Server refuses a Plugin that sets manifest choices on any other kind, repeats a choice value, has a default holding a value that isn't among its manifest choices, or has a `SETTING_KIND_CHOICES` setting with no manifest choices and no settings check.
 - Personal settings refuse the kind, as they refuse `SETTING_KIND_CHOICE` (ADR 0046).
-- The change is additive, so the Plugin contract version gets a minor bump and `proto/BREAKING.md` needs no entry (ADR 0041).
+- The change is additive, so the Plugin contract version gets the bump an addition takes, a patch while it is 0.x (`nama-plugin-proto`'s `AGENTS.md`), and `proto/BREAKING.md` needs no entry (ADR 0041).
+- An Installed Plugin reads the value as a JSON array of strings, since a choice's value may hold any text, so Library ids' `,`-joined form won't do.

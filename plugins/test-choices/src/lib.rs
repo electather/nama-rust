@@ -44,6 +44,7 @@ impl Plugin for TestChoices {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         };
         let settings = SettingsSchema {
             fields: vec![

@@ -12,7 +12,10 @@
 //! [`Plugin::register`]: crate::Plugin::register
 //! [`Registrar::settings`]: crate::Registrar::settings
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt,
+};
 
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -45,6 +48,9 @@ pub struct SettingField {
     pub min: Option<i64>,
     /// The most an [`SettingKind::Integer`] setting may be, inclusive. Only for that kind.
     pub max: Option<i64>,
+    /// The choices a [`SettingKind::Choices`] setting offers, in the order a form shows them,
+    /// unless the Plugin's [`SettingsCheck`] offers its own for it. Only for that kind.
+    pub choices: Vec<Choice>,
 }
 
 impl SettingField {
@@ -74,6 +80,10 @@ pub enum SettingKind {
     /// The ids of Libraries, which an admin picks from the Server's Library list. A Library
     /// deleted later stays in the value, so a Plugin ignores an id the Kernel no longer lists.
     Libraries,
+    /// Several values, unlike [`SettingKind::Choice`], each picked from the setting's
+    /// [`choices`](SettingField::choices) or those its [`SettingsCheck`] offers. A value no longer
+    /// offered stays in the value, so a Plugin ignores one it doesn't know.
+    Choices,
 }
 
 // The noun phrase a refusal ends with, "the setting url must be an http or https URL".
@@ -86,6 +96,7 @@ impl fmt::Display for SettingKind {
             Self::Choice => "one of its choices",
             Self::Url => "an http or https URL",
             Self::Libraries => "a list of Library ids",
+            Self::Choices => "a list of its choices",
         })
     }
 }
@@ -103,6 +114,28 @@ pub enum SettingValue {
     Text(String),
     /// Library ids, for [`SettingKind::Libraries`].
     Libraries(Vec<i64>),
+    /// The picked choices' values, for [`SettingKind::Choices`], in the order the choices are
+    /// listed.
+    // Stored as `{"texts": [..]}`: untagged, a bare `[]` would read back as no Library ids.
+    #[serde(with = "tagged_texts")]
+    Texts(Vec<String>),
+}
+
+mod tagged_texts {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize)]
+    struct Tagged<T> {
+        texts: T,
+    }
+
+    pub(super) fn serialize<S: Serializer>(texts: &[String], to: S) -> Result<S::Ok, S::Error> {
+        Tagged { texts }.serialize(to)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(from: D) -> Result<Vec<String>, D::Error> {
+        Tagged::deserialize(from).map(|tagged| tagged.texts)
+    }
 }
 
 impl From<Vec<i64>> for SettingValue {
@@ -120,6 +153,7 @@ impl SettingValue {
             (Self::Bool(_), SettingKind::Bool)
             | (Self::Integer(_), SettingKind::Integer)
             | (Self::Libraries(_), SettingKind::Libraries)
+            | (Self::Texts(_), SettingKind::Choices)
             | (Self::Text(_), SettingKind::Text | SettingKind::Secret | SettingKind::Choice) => {
                 true
             }
@@ -136,6 +170,7 @@ impl fmt::Debug for SettingValue {
             Self::Integer(_) => "Integer",
             Self::Text(_) => "Text",
             Self::Libraries(_) => "Libraries",
+            Self::Texts(_) => "Texts",
         };
         write!(f, "{kind}(..)")
     }
@@ -163,7 +198,10 @@ impl Settings {
     pub fn text(&self, key: &str) -> Option<&str> {
         match self.get(key)? {
             SettingValue::Text(text) => Some(text),
-            SettingValue::Bool(_) | SettingValue::Integer(_) | SettingValue::Libraries(_) => None,
+            SettingValue::Bool(_)
+            | SettingValue::Integer(_)
+            | SettingValue::Libraries(_)
+            | SettingValue::Texts(_) => None,
         }
     }
 
@@ -173,7 +211,10 @@ impl Settings {
     pub fn library_ids(&self, key: &str) -> Option<&[i64]> {
         match self.get(key)? {
             SettingValue::Libraries(ids) => Some(ids),
-            SettingValue::Bool(_) | SettingValue::Integer(_) | SettingValue::Text(_) => None,
+            SettingValue::Bool(_)
+            | SettingValue::Integer(_)
+            | SettingValue::Text(_)
+            | SettingValue::Texts(_) => None,
         }
     }
 
@@ -188,14 +229,18 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// If a required setting is missing, or else a setting has a value of the wrong kind or an
-    /// integer outside its bounds. Settings the schema doesn't name are kept, so a Plugin's older
-    /// settings survive an upgrade.
+    /// If a required setting is missing, or holds an empty list of choices, or else a setting has a
+    /// value of the wrong kind or an integer outside its bounds. Settings the schema doesn't name
+    /// are kept, so a Plugin's older settings survive an upgrade.
     pub fn resolve(mut self, schema: &SettingsSchema) -> Result<Self, SettingsError> {
         // Missing before wrong kinds, whatever the order of the fields: the Plugins list offers
         // Set up exactly when this refuses with `Missing`.
         let missing = schema.fields.iter().find(|field| {
-            field.required && field.default.is_none() && !self.0.contains_key(&field.key)
+            let value = self.0.get(&field.key).or(field.default.as_ref());
+            field.required
+                && value.is_none_or(
+                    |value| matches!(value, SettingValue::Texts(picked) if picked.is_empty()),
+                )
         });
         if let Some(field) = missing {
             return Err(SettingsError::Missing(field.key.clone()));
@@ -276,23 +321,36 @@ impl fmt::Display for SettingsError {
 
 impl std::error::Error for SettingsError {}
 
-/// One value a [`SettingKind::Choice`] setting may take.
+/// One value a [`SettingKind::Choice`] or [`SettingKind::Choices`] setting may take.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Choice {
-    /// What is stored as the setting's text, such as a quality profile's id.
+    /// What is stored as the setting's text, or among its texts, such as a quality profile's id.
     pub value: String,
     /// What an admin picks it by, such as the profile's name.
     pub label: String,
 }
 
-/// The choices for each [`SettingKind::Choice`] setting, by key.
+/// The choices for each [`SettingKind::Choice`] or [`SettingKind::Choices`] setting, by key.
 pub type Choices = BTreeMap<String, Vec<Choice>>;
+
+/// `values` as a [`SettingKind::Choices`] setting keeps them: each once, in the order `choices`
+/// lists them, leaving out any it doesn't list.
+#[must_use]
+pub fn in_listed_order(choices: &[Choice], values: &[String]) -> Vec<String> {
+    let mut kept = HashSet::new();
+    choices
+        .iter()
+        .filter(|choice| values.contains(&choice.value) && kept.insert(&choice.value))
+        .map(|choice| choice.value.clone())
+        .collect()
+}
 
 /// A Plugin's check of its settings against the outside service they are for.
 pub trait SettingsCheck: Send + Sync {
     /// Checks `settings`, which fit the Plugin's schema except that [`SettingKind::Choice`]
-    /// settings may be missing, and returns the choices for each Choice setting. The Kernel gives
-    /// up on a check that runs too long.
+    /// settings may be missing, and returns the choices for each Choice setting and for each
+    /// Choices setting whose [`choices`](SettingField::choices) it replaces. The Kernel gives up
+    /// on a check that runs too long.
     ///
     /// # Errors
     ///
@@ -337,6 +395,7 @@ mod tests {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         }
     }
 
@@ -480,6 +539,29 @@ mod tests {
         assert_eq!(settings.library_ids("keep"), Some([4, 2].as_slice()));
         assert_eq!(settings.text("keep"), None);
         assert_eq!(settings.library_ids("missing"), None);
+    }
+
+    #[test]
+    fn a_choices_setting_takes_only_picked_values() {
+        assert!(SettingValue::Texts(vec!["G".to_owned()]).is(SettingKind::Choices));
+        assert!(SettingValue::Texts(Vec::new()).is(SettingKind::Choices));
+
+        assert!(!text("G").is(SettingKind::Choices));
+        assert!(!SettingValue::Libraries(Vec::new()).is(SettingKind::Choices));
+        assert!(!SettingValue::Texts(Vec::new()).is(SettingKind::Text));
+    }
+
+    #[test]
+    fn a_required_choices_setting_with_none_picked_is_missing() {
+        let schema = SettingsSchema {
+            fields: vec![required("ratings", SettingKind::Choices)],
+        };
+        let none = Settings::new([("ratings".to_owned(), SettingValue::Texts(Vec::new()))].into());
+
+        assert_eq!(
+            none.resolve(&schema),
+            Err(SettingsError::Missing("ratings".to_owned()))
+        );
     }
 
     #[test]

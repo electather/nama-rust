@@ -107,6 +107,7 @@ impl Plugin for Listens {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         };
         Manifest {
             extension_points: vec![PointKey::provide::<dyn Told>()],
@@ -200,6 +201,7 @@ impl Plugin for Watches {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         };
         Manifest {
             extension_points: vec![PointKey::observe::<Words>()],
