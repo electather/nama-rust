@@ -8,6 +8,7 @@ Some state the Server keeps only grows or goes stale, such as Home rows of Users
 
 - **Keep Tick and add Jobs beside it**: rejected. Two ways to run work on a schedule, one invisible.
 - **The Kernel declares its own maintenance Jobs**: rejected. Each would be Kernel code that a Plugin, reaching state through Kernel functions, can do as well.
+- **Each area cleans up on its own fixed timer**, #1005's first decision: rejected. Work no Admin can see or start, with thresholds nobody can change.
 - **An interval schedule**: rejected. Maintenance belongs at a quiet hour, which only a time of day says.
 - **Storing the Admin's whole schedule once edited**, as Jellyfin does: rejected. A Plugin update's new default would never reach that Job.
 
