@@ -1,6 +1,6 @@
 import { NextRuns } from "@/features/admin-jobs/components/next-runs";
-import { scheduleWords } from "@/features/admin-jobs/lib/schedule-words";
 import type { Job } from "@/gen/nama/v1/job_pb";
+import { scheduleWords } from "@/shared/lib/schedule-words";
 
 /** The top of a Job's sheet: its name, what it does, its schedule and when it next runs. */
 export function JobSchedule({ job, headingId }: { job: Job; headingId: string }) {
