@@ -366,6 +366,21 @@ async fn a_search_finds_a_movie_by_its_original_title_or_a_prefix_of_it() {
 }
 
 #[tokio::test]
+async fn a_search_ranks_a_movie_by_the_better_fit_of_its_title_and_original_title() {
+    let fx = Fixture::new().await;
+    fx.match_movie(1, "La casa de papel verde", "2001-01-01")
+        .await;
+    fx.match_movie(2, "Papel de la casa", "2002-01-01").await;
+    let matched = translated_movie(71_446, "Money Heist", "La casa de papel");
+    MatchedMovie::store(&fx.contents, fx.library, "/media/71446.mkv", matched).await;
+
+    assert_eq!(
+        fx.found_movies("la casa de papel").await,
+        ["Money Heist", "La casa de papel verde", "Papel de la casa"]
+    );
+}
+
+#[tokio::test]
 async fn a_search_forgets_an_original_title_once_its_item_is_matched_again_or_removed() {
     let fx = Fixture::new().await;
     let heist = translated_movie(71_446, "Money Heist", "La casa de papel");

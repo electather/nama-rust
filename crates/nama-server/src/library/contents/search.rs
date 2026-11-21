@@ -183,7 +183,8 @@ impl Contents {
                         + r#"'title') AS "ids?: String", "#
                         + $ids
                         + r#"'show') AS "show_ids?: String", item_matches.title AS "title!",
-                              item_matches.show_title, item_matches.release_date, plugin, still,
+                              item_matches.original_title, item_matches.show_title,
+                              item_matches.release_date, plugin, still,
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.show_poster, item_matches.show_poster_plugin,
                               item_matches.metadata_version,
@@ -282,6 +283,8 @@ struct SearchRow {
     /// As [`ids_sql`] gives them.
     show_ids: Option<String>,
     title: String,
+    /// The title where it was made, which a search finds it by too.
+    original_title: Option<String>,
     show_title: Option<String>,
     release_date: Option<String>,
     /// The Plugin whose title source made the Match, which the Still's path is for.
@@ -495,12 +498,14 @@ struct Rank {
 
 impl Rank {
     fn of(row: &SearchRow, words: &SearchWords<'_>) -> Self {
-        let title = match (row.by_show, &row.show_title) {
-            (true, Some(show_title)) => show_title,
-            _ => &row.title,
+        // `item_matches` holds no Show's original title, so a Show is graded by its title alone.
+        let (title, original_title) = match (row.by_show, &row.show_title) {
+            (true, Some(show_title)) => (show_title, None),
+            _ => (&row.title, row.original_title.as_deref()),
         };
         let year = row.release_date.as_deref().and_then(|date| date.get(..4));
         let (fit, other_year) = words.bands(title, year);
+        let fit = original_title.map_or(fit, |original| fit.min(Fit::of(words, original, year)));
         Self {
             episode: !row.by_show && row.kind == ItemKind::Episode,
             fit,
