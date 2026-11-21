@@ -93,66 +93,32 @@ const FRESH_FOR: Duration = Duration::from_hours(6);
 struct MdbList;
 
 impl HomeRowSource for MdbList {
+    /// A row for each list the settings name, in the settings' order.
+    ///
+    /// # Errors
+    /// If the API key isn't set, or any list can't be read: a refresh shows every list or none.
     fn shared_rows() -> Result<HomeRows, Error> {
-        rows(nama_pdk::setting, send)
+        let api = Api {
+            key: nama_pdk::required_setting(API_KEY)?.trim().to_owned(),
+        };
+        let mut rows = Vec::new();
+        for key in LISTS {
+            if let Some(list) = nama_pdk::setting(key)? {
+                rows.push(api.row(list.trim())?);
+            }
+        }
+        Ok(HomeRows {
+            rows,
+            ..HomeRows::default()
+        })
     }
 }
 
 nama_pdk::home_row_source!(MdbList, [shared_rows]);
 
-/// MDBList's answer to a request: the Server gives a Plugin no response headers.
-#[derive(Debug)]
-struct Answer {
-    status: u16,
-    body: Vec<u8>,
-}
-
-/// GETs `url` through the Server, the only transport outside the tests.
-fn send(url: &Url) -> Result<Answer, Error> {
-    let response = nama_pdk::http_request(
-        &HttpRequest::new(url.as_str()),
-        None::<String>,
-        "MDBList didn't answer",
-    )?;
-    Ok(Answer {
-        status: response.status_code(),
-        body: response.into_body(),
-    })
-}
-
-/// A row for each list `setting` names, in the settings' order, asking MDBList through `send`.
-///
-/// # Errors
-/// If the API key isn't set, or any list can't be read: a refresh shows every list or none.
-fn rows(
-    setting: impl Fn(&str) -> Result<Option<String>, Error>,
-    send: impl FnMut(&Url) -> Result<Answer, Error>,
-) -> Result<HomeRows, Error> {
-    let text = |key| -> Result<Option<String>, Error> {
-        Ok(setting(key)?
-            .map(|value| value.trim().to_owned())
-            .filter(|value| !value.is_empty()))
-    };
-    let mut api = Api {
-        key: text(API_KEY)?.ok_or_else(|| Error::msg("the setting api_key isn't set"))?,
-        send,
-    };
-    let mut rows = Vec::new();
-    for key in LISTS {
-        if let Some(list) = text(key)? {
-            rows.push(api.row(&list)?);
-        }
-    }
-    Ok(HomeRows {
-        rows,
-        ..HomeRows::default()
-    })
-}
-
-/// MDBList's API, asked with the Admin's key through `send`.
-struct Api<F> {
+/// MDBList's API, asked with the Admin's key.
+struct Api {
     key: String,
-    send: F,
 }
 
 /// A list as MDBList describes it.
@@ -180,9 +146,9 @@ struct Item {
     rank: u64,
 }
 
-impl<F: FnMut(&Url) -> Result<Answer, Error>> Api<F> {
+impl Api {
     /// The row of the list `setting` names, of its first [`MOST_TITLES`] titles.
-    fn row(&mut self, setting: &str) -> Result<HomeRow, Error> {
+    fn row(&self, setting: &str) -> Result<HomeRow, Error> {
         let list: Vec<List> = self.get(&list_path(setting)?, setting, &[])?;
         let list = list.into_iter().next().ok_or_else(|| gone(setting))?;
         let key = list.id.to_string();
@@ -197,7 +163,7 @@ impl<F: FnMut(&Url) -> Result<Answer, Error>> Api<F> {
 
     /// The first [`MOST_TITLES`] titles in the items at `path`, of the list `setting` names, a
     /// page at a time until a page comes back short.
-    fn titles(&mut self, path: &[&str], setting: &str) -> Result<Vec<HomeRowTitle>, Error> {
+    fn titles(&self, path: &[&str], setting: &str) -> Result<Vec<HomeRowTitle>, Error> {
         let mut titles = Vec::new();
         let mut offset = 0;
         while offset < MOST_TITLES {
@@ -234,7 +200,7 @@ impl<F: FnMut(&Url) -> Result<Answer, Error>> Api<F> {
     /// # Errors
     /// If MDBList didn't answer, refused, or answered with something unexpected.
     fn get<T: for<'de> Deserialize<'de>>(
-        &mut self,
+        &self,
         path: &[&str],
         setting: &str,
         query: &[(&str, String)],
@@ -247,9 +213,13 @@ impl<F: FnMut(&Url) -> Result<Answer, Error>> Api<F> {
         url.query_pairs_mut()
             .append_pair("apikey", &self.key)
             .extend_pairs(query);
-        let answer = (self.send)(&url)?;
-        match answer.status {
-            200..300 => json::from_slice(&answer.body).map_err(|err| {
+        let response = nama_pdk::http_request(
+            &HttpRequest::new(url.as_str()),
+            None::<String>,
+            "MDBList didn't answer",
+        )?;
+        match response.status_code() {
+            200..300 => json::from_slice(response.body()).map_err(|err| {
                 Error::msg(format!("MDBList answered with something unexpected: {err}"))
             }),
             401 => Err(Error::msg("MDBList refused the API key")),
