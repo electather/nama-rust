@@ -53,7 +53,7 @@ export function valueText(setting: SettingValue | undefined) {
 export function settingsTyped(typed: FormData, settings: Setting[]) {
   return Object.fromEntries(
     settings
-      .map(({ key, kind }) => [key, { value: valueTyped(typed, key, kind) }] as const)
+      .map((setting) => [setting.key, { value: valueTyped(typed, setting) }] as const)
       .filter(([, { value }]) => value.case !== undefined),
   );
 }
@@ -63,7 +63,8 @@ export function forgottenTyped(typed: FormData) {
   return typed.getAll(forgottenField).filter((key) => typeof key === "string");
 }
 
-function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingValue["value"] {
+function valueTyped(typed: FormData, setting: Setting): SettingValue["value"] {
+  const { key, kind } = setting;
   // An unticked checkbox isn't in the form data at all.
   if (kind === SettingKind.BOOL) {
     return { case: "boolValue", value: typed.has(key) };
@@ -72,9 +73,7 @@ function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingVal
     return librariesTyped(typed, key);
   }
   if (kind === SettingKind.CHOICES) {
-    // Sent even with none picked, which a blank would replace with the default.
-    const values = typed.getAll(key).filter((value) => typeof value === "string");
-    return { case: "texts", value: create(TextsSchema, { values }) };
+    return choicesTyped(typed, setting);
   }
   return textTyped(typed, key, kind);
 }
@@ -90,6 +89,29 @@ function textTyped(typed: FormData, key: string, kind: SettingKind): SettingValu
   return kind === SettingKind.INTEGER
     ? { case: "integerValue", value: BigInt(Number(text)) }
     : { case: "textValue", value: text };
+}
+
+/**
+ * The choices ticked for `setting`, sent even with none ticked, which a blank would replace with
+ * the default.
+ */
+function choicesTyped(typed: FormData, setting: Setting): SettingValue["value"] {
+  const values = typed.getAll(setting.key).filter((picked) => typeof picked === "string");
+  return leavesDefault(values, setting)
+    ? { case: undefined }
+    : { case: "texts", value: create(TextsSchema, { values }) };
+}
+
+/**
+ * Whether ticking `values` leaves `setting` on its default: it holds nothing and they're its
+ * default's. Then it's left out, so the default keeps applying, as a blank text setting's does.
+ */
+function leavesDefault(values: string[], { value, defaultValue }: Setting) {
+  if (value !== undefined || defaultValue?.value.case !== "texts") {
+    return false;
+  }
+  const defaults = new Set(defaultValue.value.value.values);
+  return values.length === defaults.size && values.every((picked) => defaults.has(picked));
 }
 
 /** The Libraries ticked for the setting `key`, by id. None ticked is blank. */

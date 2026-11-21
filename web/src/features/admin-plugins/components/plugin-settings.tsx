@@ -36,6 +36,7 @@ export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
           key={setting.key}
           setting={setting}
           offered={choices}
+          checksSettings={plugin.checksSettings}
           error={errors[setting.key]}
           checksRequired={plugin.summary.enabled}
           forgettable

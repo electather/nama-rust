@@ -8,11 +8,13 @@ import { hint } from "@/shared/lib/setting-values";
 export function PickedInput({
   setting,
   offered,
+  checksSettings,
   error,
   checksRequired,
 }: {
   setting: Setting;
   offered: Record<string, SettingChoices> | undefined;
+  checksSettings: boolean;
   error: string | undefined;
   checksRequired: boolean;
 }) {
@@ -26,7 +28,12 @@ export function PickedInput({
   }
   if (setting.kind === SettingKind.CHOICES) {
     return (
-      <ChoicesPicker setting={setting} offered={offeredOrListed(setting, offered)} error={error} />
+      <ChoicesPicker
+        setting={setting}
+        offered={offeredOrListed(setting, offered)}
+        current={offeredNow(offered, checksSettings)}
+        error={error}
+      />
     );
   }
   return <LibraryPicker setting={setting} hint={hint(setting)} error={error} />;
@@ -43,4 +50,9 @@ function offeredOrListed(
   offered: Record<string, SettingChoices> | undefined,
 ) {
   return offered?.[key]?.choices ?? choices;
+}
+
+/** Whether a CHOICES setting's choices are what the Plugin offers now, not ones a test may replace. */
+function offeredNow(offered: Record<string, SettingChoices> | undefined, checksSettings: boolean) {
+  return offered !== undefined || !checksSettings;
 }

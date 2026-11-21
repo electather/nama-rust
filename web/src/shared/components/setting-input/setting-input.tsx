@@ -16,6 +16,7 @@ const pickedKinds = new Set<SettingKind>([
 export function SettingInput({
   setting,
   offered,
+  checksSettings = false,
   error,
   checksRequired,
   forgettable = false,
@@ -23,6 +24,8 @@ export function SettingInput({
   setting: Setting;
   /** The choices the last passing settings test offered, by setting key. Never for Personal settings. */
   offered?: Record<string, SettingChoices> | undefined;
+  /** Whether the Plugin checks settings, so its choices are only known once a test passes. */
+  checksSettings?: boolean;
   error: string | undefined;
   /** Whether a required setting must be filled in. Not for a disabled Plugin, checked when enabled. */
   checksRequired: boolean;
@@ -30,7 +33,7 @@ export function SettingInput({
   forgettable?: boolean;
 }) {
   if (pickedKinds.has(setting.kind)) {
-    return <PickedInput {...{ setting, offered, error, checksRequired }} />;
+    return <PickedInput {...{ setting, offered, checksSettings, error, checksRequired }} />;
   }
   return <OwnInput {...{ setting, error, checksRequired, forgettable }} />;
 }

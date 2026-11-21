@@ -4,16 +4,19 @@ import { PickList } from "@/shared/components/setting-input/pick-list";
 
 /**
  * A several-choices setting's input: a checkbox per choice `offered`, ticked for the ones it holds,
- * then a ticked one per held value no longer offered, so an admin sees why saving is refused and
- * can unpick it.
+ * then a ticked one per held value not among them, marked no longer offered once `offered` is
+ * `current`, so an admin sees why saving is refused and can unpick it.
  */
 export function ChoicesPicker({
   setting,
   offered,
+  current,
   error,
 }: {
   setting: Setting;
   offered: Choice[];
+  /** Whether `offered` is what the Plugin offers now, not a Manifest's list a settings check replaces. */
+  current: boolean;
   error: string | undefined;
 }) {
   const held = heldOf(setting);
@@ -34,7 +37,8 @@ export function ChoicesPicker({
         )),
         ...gone.map((value) => (
           <PickBox key={value} name={setting.key} value={value} checked {...box}>
-            {value} <span className="text-muted-foreground">(no longer offered)</span>
+            {value}
+            {current && <span className="text-muted-foreground"> (no longer offered)</span>}
           </PickBox>
         )),
       ]}
@@ -47,7 +51,7 @@ function hintOf({ description, required }: Setting) {
   return required ? `${description} Required.`.trim() : description;
 }
 
-/** The values `setting` holds, or its default's while nothing is stored, which the form then saves. */
+/** The values `setting` holds, or its default's while nothing is stored. */
 function heldOf({ value, defaultValue }: Setting) {
   const held = value ?? defaultValue;
   return held?.value.case === "texts" ? held.value.value.values : [];

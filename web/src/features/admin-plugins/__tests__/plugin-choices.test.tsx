@@ -231,8 +231,38 @@ function openSaving(sent: unknown[]) {
   });
 }
 
-test("a several-choices setting offers its Manifest’s choices before a test, held ones picked", async () => {
+test("before a test, a several-choices setting offers its Manifest’s choices, held ones picked, unmarked", async () => {
   openPlugin("test-choices");
+
+  await expect(shown()).resolves.toStrictEqual({
+    offered: ["G", "PG", "R", "nc-17"],
+    picked: ["PG", "nc-17"],
+  });
+});
+
+/** A several-choices value holding `values`. */
+const texts = (...values: string[]) => ({ value: { case: "texts" as const, value: { values } } });
+
+/**
+ * Opens the test Plugin without a settings check, with only its Ratings, which hold `held` or
+ * nothing, keeping the Ratings' values each save sends in `sent`.
+ */
+function openRatings(
+  held: { value?: ReturnType<typeof texts>; defaultValue?: ReturnType<typeof texts> },
+  sent: unknown[] = [],
+) {
+  const summary = { id: "test-choices", enabled: true };
+  openPlugin("test-choices", {
+    getPlugin: () => ({ plugin: { summary, settings: [{ ...ratingsSetting, ...held }] } }),
+    updatePluginSettings: (request) => {
+      sent.push(savedRatings(request));
+      return { plugin: { summary } };
+    },
+  });
+}
+
+test("without a settings check, a held choice the Manifest doesn’t list is no longer offered", async () => {
+  openRatings({ value: texts("pg", "nc-17") });
 
   await expect(shown()).resolves.toStrictEqual({
     offered: ["G", "PG", "R", "nc-17 (no longer offered)"],
@@ -248,9 +278,7 @@ function ratingsServer(): Parameters<typeof openPlugin>[1] {
     getPlugin: () => ({
       plugin: {
         summary,
-        settings: [
-          { ...ratingsSetting, value: { value: { case: "texts", value: { values: held } } } },
-        ],
+        settings: [{ ...ratingsSetting, value: texts(...held) }],
       },
     }),
     updatePluginSettings: (request) => {
@@ -275,18 +303,34 @@ test("several picked choices are saved, and show picked after a reload", async (
 });
 
 test("a several-choices setting holding nothing shows its default picked", async () => {
-  const defaultValue = { value: { case: "texts" as const, value: { values: ["g", "r"] } } };
-  openPlugin("test-choices", {
-    getPlugin: () => ({
-      plugin: {
-        summary: { id: "test-choices", enabled: true },
-        settings: [{ ...ratingsSetting, defaultValue }],
-      },
-    }),
-  });
+  openRatings({ defaultValue: texts("g", "r") });
 
   const { picked } = await shown();
   expect(picked).toStrictEqual(["G", "R"]);
+});
+
+test("a several-choices setting holding nothing saves nothing while its default stays picked", async () => {
+  const sent: unknown[] = [];
+  openRatings({ defaultValue: texts("r", "g") }, sent);
+
+  await shown();
+  await pressSave();
+
+  await waitFor(() => {
+    expect(sent).toStrictEqual([undefined]);
+  });
+});
+
+test("a several-choices setting holding nothing saves its picks once they differ from its default", async () => {
+  const sent: unknown[] = [];
+  openRatings({ defaultValue: texts("g", "r") }, sent);
+
+  await pick("PG");
+  await pressSave();
+
+  await waitFor(() => {
+    expect(sent).toStrictEqual([["g", "pg", "r"]]);
+  });
 });
 
 test("a required several-choices setting saved with none picked shows as missing", async () => {
@@ -299,7 +343,7 @@ test("a required several-choices setting saved with none picked shows as missing
       });
     },
   });
-  await pick("PG", "nc-17 (no longer offered)");
+  await pick("PG", "nc-17");
 
   await pressSave();
 
@@ -314,7 +358,7 @@ test("unpicking every choice saves none picked, not the default", async () => {
   const sent: unknown[] = [];
   openSaving(sent);
 
-  await pick("PG", "nc-17 (no longer offered)");
+  await pick("PG", "nc-17");
   await pressSave();
 
   await waitFor(() => {
