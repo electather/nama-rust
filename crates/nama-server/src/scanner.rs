@@ -13,11 +13,13 @@
 //! Once the Server is serving, a Library is also scanned when its folders change (see [`watch`]).
 //!
 //! Files are only listed and their metadata read, never opened, except the images that stand in
-//! for downloaded ones. A scan also stores the sidecar subtitles beside each Version, such as
-//! `Movie.en.srt`, replacing a Version's only when they changed, and apart from its Tracks, so a
-//! changed sidecar never probes its video again. It copies the images beside each Version, such as
-//! `poster.jpg`, or for an Episode in its Show's or Season's folder, again only when they changed
-//! (see [`crate::library::LocalImages`]). Other sidecars, such as `.nfo` files, are ignored.
+//! for downloaded ones and `.nfo` files. A scan also stores the sidecar subtitles beside each
+//! Version, such as `Movie.en.srt`, replacing a Version's only when they changed, and apart from
+//! its Tracks, so a changed sidecar never probes its video again. It copies the images beside each
+//! Version, such as `poster.jpg`, or for an Episode in its Show's or Season's folder, again only
+//! when they changed (see [`crate::library::LocalImages`]). It reads only the IDs in the `.nfo`
+//! files beside them, and only from one that is new or changed, as each Item's ID Hints in place
+//! of its name's (see [`nfo`], ADR 0087). Other sidecars are ignored.
 //! Deleting media deletes every sidecar too (see [`deleting`]).
 //! A scan also records which of the Library's folders the Server can't write to, so a delete from
 //! one is refused before anyone tries (ADR 0038).
@@ -40,11 +42,13 @@
 mod deleting;
 mod library_changes;
 mod names;
+mod nfo;
 mod recognised;
 mod walking;
 mod watch;
 
 pub(crate) use deleting::{Deleted, File as DoomedFile, TakenAlong, ToDelete, read_only_folder};
+use nfo::{FoundNfos, NfoChanges};
 use recognised::{Planned, recognise};
 use walking::{FoundLocalImages, FoundSidecars, after_stem, is_video, plan, walk};
 
@@ -355,6 +359,7 @@ impl Scanner {
         }
         let sidecars = found.take_sidecars();
         let images = found.take_images();
+        let nfos = found.take_nfos();
         if found.read_only != library.read_only {
             let read_only = found.read_only.clone();
             self.inner.libraries.set_read_only(id, read_only).await?;
@@ -395,6 +400,7 @@ impl Scanner {
         self.store_sidecars(id, sidecars, &cancel).await?;
         self.store_local_images(library.kind, id, images, &cancel)
             .await?;
+        self.store_nfo_hints(id, nfos, &cancel).await?;
         tracing::info!(library = id, ?summary, "scanned a Library");
         if let Some(probing) = &self.inner.probing {
             // Before `ScanFinished`, so a client that waited for the scan isn't served a gone or
@@ -505,6 +511,44 @@ impl Scanner {
         Ok(())
     }
 
+    /// Stores the Library `id`'s `.nfo` files that changed and the ID Hints its Items take from
+    /// them, in batches, forgetting what Matching decided about each Item whose ID Hints changed
+    /// (ADR 0087). After the scan's files and Items are stored, so new Items get theirs.
+    async fn store_nfo_hints(
+        &self,
+        id: i64,
+        found: FoundNfos,
+        cancel: &CancellationToken,
+    ) -> Result<(), Error> {
+        let contents = &self.inner.contents;
+        let stored = contents.nfo_files(id).await?;
+        let items = contents.nfo_items(id).await?;
+        let NfoChanges {
+            files,
+            gone,
+            items: changed,
+        } = found.changes(stored, items).await;
+        for batch in files.chunks(BATCH_SIZE) {
+            if cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            contents.keep_nfo_files(id, batch.to_vec()).await?;
+        }
+        for batch in gone.chunks(BATCH_SIZE) {
+            if cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            contents.forget_nfo_files(id, batch.to_vec()).await?;
+        }
+        for batch in changed.chunks(BATCH_SIZE) {
+            if cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            contents.set_nfo_hints(batch.to_vec()).await?;
+        }
+        Ok(())
+    }
+
     /// Publishes that a scan of the Library `library` started, and returns which scan of it this
     /// is.
     fn publish_started(&self, library: i64) -> u64 {
@@ -554,6 +598,10 @@ impl Scanner {
         self.inner.tasks.reopen();
     }
 }
+
+#[cfg(test)]
+#[path = "scanner/editions_tests.rs"]
+mod editions_tests;
 
 #[cfg(test)]
 #[path = "scanner/shutdown_tests.rs"]

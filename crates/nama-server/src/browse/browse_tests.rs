@@ -56,6 +56,7 @@ pub(super) async fn store(
     let contents = Contents::new(Arc::clone(db));
     let (items, decided): (Vec<_>, Vec<_>) = items.into_iter().unzip();
     let file = Change::Store {
+        edition: None,
         path: path.clone(),
         size: 10,
         modified_ns: 0,

@@ -125,6 +125,7 @@ pub(super) fn dark(hint: Option<ExternalId>) -> TitleKey {
     TitleKey {
         name: item.name(),
         pin: None,
+        nfo: Vec::new(),
     }
 }
 
@@ -229,6 +230,7 @@ async fn match_with_pin(pin: ExternalId, aa_looks_up: &'static [&'static str]) -
     let contents = Contents::new(Arc::clone(&db));
     // "Aaa" sorts before "Dark", so its pin is asked about first.
     let files = ["Aaa", "Dark"].map(|title| Change::Store {
+        edition: None,
         path: format!("/media/{title}.mkv"),
         size: 10,
         modified_ns: 0,
@@ -355,6 +357,7 @@ fn dark_movie(pin: Option<ExternalId>) -> TitleKey {
     TitleKey {
         name: item.name(),
         pin: pin.map(Pin::Title),
+        nfo: Vec::new(),
     }
 }
 
@@ -425,6 +428,7 @@ impl DarkMatched {
             .unwrap();
         let contents = Contents::new(Arc::clone(&db));
         let file = Change::Store {
+            edition: None,
             path: "/media/Dark.mkv".to_owned(),
             size: 10,
             modified_ns: 0,

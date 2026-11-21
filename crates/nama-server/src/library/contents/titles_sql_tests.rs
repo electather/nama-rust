@@ -89,6 +89,7 @@ impl Fixture {
     /// Stores a file at `path` in `library` holding `item`, which Matching hasn't decided yet.
     async fn store(&self, library: i64, path: &str, item: Item) {
         let change = Change::Store {
+            edition: None,
             path: path.to_owned(),
             size: 10,
             modified_ns: 0,

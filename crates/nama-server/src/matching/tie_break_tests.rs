@@ -155,6 +155,7 @@ async fn tied_show(metadata: &TitleSources) -> Result<ExternalId, Miss> {
         item: 1,
         season: 1,
         episode: 1,
+        ids: Vec::new(),
     };
     let key = dark(None);
     let found = show(metadata, &no_recognisers(), &key, &[], &[pilot]).await?;
@@ -189,6 +190,7 @@ async fn a_tied_show_not_listing_the_season_is_asked_for_none_of_its_seasons() {
         item: 1,
         season: 2,
         episode: 1,
+        ids: Vec::new(),
     };
 
     let found = show(&metadata, &no_recognisers(), &key, &[], &[second_season]).await;

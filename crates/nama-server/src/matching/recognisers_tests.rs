@@ -123,6 +123,7 @@ fn dark() -> TitleKey {
     TitleKey {
         name: item.name(),
         pin: None,
+        nfo: Vec::new(),
     }
 }
 
@@ -189,6 +190,7 @@ async fn match_dark_file(answers: Answers) -> (Summary, usize, Asked) {
     let contents = Contents::new(Arc::clone(&db));
     let path = media.path().canonicalize().unwrap().join("Dark/Dark.mkv");
     let file = Change::Store {
+        edition: None,
         path: path.to_str().unwrap().to_owned(),
         size: 10,
         modified_ns: 0,

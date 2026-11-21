@@ -14,10 +14,10 @@ import { playerOpened } from "@/shared/lib/diagnostics";
 export function Player(props: PlayerProps) {
   useEffect(playerOpened, []);
   // Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it mounted, and
-  // React keeps the Tracks and Playback Limit it asked for.
+  // React keeps the Tracks and Playback Limit it asked for. Keyed, so another Version starts afresh.
   return (
     <Suspense fallback={<GettingReady {...props} />}>
-      <PlannedPlayer {...props} autoplay={useAutoplay(props.next)} />
+      <PlannedPlayer key={String(props.versionId)} {...props} autoplay={useAutoplay(props.next)} />
     </Suspense>
   );
 }

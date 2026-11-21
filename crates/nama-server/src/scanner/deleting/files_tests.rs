@@ -41,6 +41,7 @@ impl Fixture {
                 parser_version: 0,
             },
             path: self.path(video),
+            edition: None,
         });
         Doomed {
             library: Library {

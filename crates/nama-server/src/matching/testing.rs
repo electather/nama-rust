@@ -75,12 +75,19 @@ impl Library {
         let path = self.path(relative);
         let file = self.contents.stored(self.id).await.unwrap()[&path].id;
         let items = items.to_vec();
-        self.apply(Change::Reparse { file, path, items }).await;
+        self.apply(Change::Reparse {
+            file,
+            path,
+            items,
+            edition: None,
+        })
+        .await;
     }
 
     async fn store(&self, relative: &str, size: i64, items: Vec<Item>) {
         let path = self.path(relative);
         let change = Change::Store {
+            edition: None,
             path,
             size,
             modified_ns: 0,

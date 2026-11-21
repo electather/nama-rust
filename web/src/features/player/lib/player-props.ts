@@ -5,7 +5,7 @@ import type { Autoplay } from "@/features/player/hooks/use-autoplay";
 import type { InShow } from "@/features/player/lib/in-show";
 import type { NowPlaying } from "@/features/player/lib/lock-screen";
 import type { NextEpisode } from "@/features/player/lib/next-episode";
-import type { Track } from "@/gen/nama/v1/browse_pb";
+import type { Track, Version } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
 /** What the player plays, and where "back" goes. */
@@ -17,6 +17,8 @@ export interface PlayerProps extends NowPlaying {
   /** The facts under the heading, such as "2024 · PG-13" or "S1, E3 · Half Loop · TV-MA". */
   line?: string | undefined;
   versionId: bigint;
+  /** The title's Versions, which it offers another of when this one can't play here. */
+  versions?: Version[] | undefined;
   /** The Version's Tracks, whose audio ones the User chooses from. */
   tracks: Track[];
   /** Your Watch State of the Movie or Episode: where playing resumes. */

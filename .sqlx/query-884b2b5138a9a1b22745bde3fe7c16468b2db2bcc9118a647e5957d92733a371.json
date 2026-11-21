@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE library_items SET nfo_hints = ?, episode_nfo_hints = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "884b2b5138a9a1b22745bde3fe7c16468b2db2bcc9118a647e5957d92733a371"
+}

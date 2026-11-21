@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO nfo_files (library_id, path, size, modified_ns, ids)\n             VALUES (?, ?, ?, ?, ?)\n             ON CONFLICT (library_id, path)\n             DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns,\n                           ids = excluded.ids",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "fc720f4b6de2c7e77045c9775912a62a09e3f6079f06b895658ede76801e9e6a"
+}

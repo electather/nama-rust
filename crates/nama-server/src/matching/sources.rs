@@ -76,6 +76,12 @@ pub(super) async fn movie(
     key: &TitleKey,
     paths: &[String],
 ) -> Result<Metadata, Miss> {
+    let by_nfo = |routed, id: ExternalId| async move {
+        movie_from(metadata, routed, &id, ExternalIds::default()).await
+    };
+    if let Some(movie) = from_nfo(metadata, TitleKind::Movie, key, by_nfo).await? {
+        return Ok(movie);
+    }
     let mut found = find(metadata, recognisers, TitleKind::Movie, key, paths).await?;
     let routed = found.route(metadata, TitleKind::Movie).await;
     movie_from(metadata, routed, &found.id, found.ids.clone())
@@ -92,6 +98,12 @@ pub(super) async fn show(
     paths: &[String],
     episodes: &[PendingEpisode],
 ) -> Result<FoundShow, Miss> {
+    let by_nfo = |routed, id: ExternalId| async move {
+        show_from(metadata, routed, &id, ExternalIds::default()).await
+    };
+    if let Some(show) = from_nfo(metadata, TitleKind::Show, key, by_nfo).await? {
+        return Ok(show);
+    }
     let mut found = match find(metadata, recognisers, TitleKind::Show, key, paths).await {
         Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(tied)))) => {
             return break_tie(metadata, tied, episodes).await;
@@ -102,6 +114,42 @@ pub(super) async fn show(
     show_from(metadata, routed, &found.id, found.ids.clone())
         .await
         .map_err(|err| found.missed(err))
+}
+
+/// The title of `kind` the first of `key`'s `.nfo` ID Hints to be found names, each fetched with
+/// `fetch` from the sources it routes to. `None` once the sources reject every one, or when `key`
+/// has none or is pinned, so its name decides (ADR 0087); [`Miss::Unserved`] while no source
+/// looks titles up by any of their namespaces, as a pin's waits.
+async fn from_nfo<T, F>(
+    metadata: &TitleSources,
+    kind: TitleKind,
+    key: &TitleKey,
+    fetch: impl Fn(Vec<Source>, ExternalId) -> F,
+) -> Result<Option<T>, Miss>
+where
+    F: Future<Output = Result<T, Unanswered>>,
+{
+    if key.pin.is_some() || key.nfo.is_empty() {
+        return Ok(None);
+    }
+    let mut served = false;
+    for id in &key.nfo {
+        let routed = metadata.by_namespace(id.namespace(), kind.method()).await;
+        if routed.is_empty() {
+            continue;
+        }
+        served = true;
+        match fetch(routed, id.clone()).await {
+            Ok(found) => return Ok(Some(found)),
+            Err(Unanswered::NotFound) => {}
+            Err(Unanswered::Unavailable) => return Err(Miss::Undecided),
+        }
+    }
+    if served {
+        Ok(None)
+    } else {
+        Err(Miss::Unserved)
+    }
 }
 
 /// The Movie with the id `id`, from the source keeping its namespace or else the first looking it

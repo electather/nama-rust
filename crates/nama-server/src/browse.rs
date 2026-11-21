@@ -44,6 +44,7 @@ pub(crate) struct Version {
     /// Its file as stored now: Tracks count only if probing read it at this size and time.
     pub(crate) file: Stored,
     pub(crate) path: String,
+    pub(crate) edition: Option<String>,
     /// What probing read from the file as it is now: none if it hasn't.
     pub(crate) tracks: Vec<Track>,
 }
@@ -270,7 +271,13 @@ impl Browse {
             .ok_or(NotFound::NoSuchVersion)?;
         let (path, file) =
             (self.contents.version_file(version).await?).ok_or(NotFound::NoSuchVersion)?;
-        let found = LibraryVersion { file, path };
+        // An Unmatched Item has this one Version, listed beside no other, so its Edition tells
+        // nothing apart.
+        let found = LibraryVersion {
+            file,
+            path,
+            edition: None,
+        };
         let probes = self.probes(std::iter::once(&found)).await?;
         Ok((unmatched, with_tracks(&probes)(found)))
     }
@@ -418,6 +425,7 @@ fn with_tracks(probes: &HashMap<i64, Probe>) -> impl Fn(LibraryVersion) -> Versi
         Version {
             file: version.file,
             path: version.path,
+            edition: version.edition,
             tracks,
         }
     }
