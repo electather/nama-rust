@@ -1,4 +1,4 @@
-import { ShownSwitch } from "@/features/admin-home/components/shown-switch";
+import { ShownSwitch } from "@/shared/components/home-layout/shown-switch";
 
 /** Featured, which is always at the top, so it only shows or hides. */
 export function FeaturedRow({

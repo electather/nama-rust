@@ -15804,8 +15804,8 @@ pub struct MovieHitView<'a> {
     ///
     /// Field 6: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
-    /// The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-    /// by `id`.
+    /// The oldest Library the Movie is Matched in, if any, or for `SearchService.Search`'s Library
+    /// batch the one it was found in. `BrowseService.GetMovie` opens it there, by `id`.
     ///
     /// Field 8: `library_id`
     pub library_id: ::core::option::Option<i64>,
@@ -16224,8 +16224,8 @@ impl MovieHitOwnedView {
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
     }
-    /// The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-    /// by `id`.
+    /// The oldest Library the Movie is Matched in, if any, or for `SearchService.Search`'s Library
+    /// batch the one it was found in. `BrowseService.GetMovie` opens it there, by `id`.
     ///
     /// Field 8: `library_id`
     #[must_use]
@@ -18092,6 +18092,11 @@ pub struct ShowHitView<'a> {
     ///
     /// Field 5: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
+    /// The Library `SearchService.Search` found it in. `BrowseService.GetShow` opens it there, by
+    /// `id`.
+    ///
+    /// Field 8: `library_id`
+    pub library_id: ::core::option::Option<i64>,
     /// As `nama.v1.Movie.poster_thumbhash`.
     ///
     /// Field 10: `poster_thumbhash`
@@ -18170,6 +18175,13 @@ impl<'a> ::buffa::MessageView<'a> for ShowHitView<'a> {
                 )?;
                 view.poster_url = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
             10u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -18211,6 +18223,7 @@ impl<'a> ::buffa::MessageView<'a> for ShowHitView<'a> {
             title: self.title.to_string(),
             year: self.year,
             poster_url: self.poster_url.map(|s| s.to_string()),
+            library_id: self.library_id,
             poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
@@ -18231,6 +18244,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowHitView<'a> {
         }
         if let Some(ref v) = self.poster_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.library_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
         }
         if let Some(ref v) = self.poster_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
@@ -18262,6 +18278,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowHitView<'a> {
         }
         if let Some(ref v) = self.poster_url {
             ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if let Some(v) = self.library_id {
+            ::buffa::types::put_int64_field(8u32, v, buf);
         }
         if let Some(ref v) = self.poster_thumbhash {
             ::buffa::types::put_shared_bytes_field(10u32, v, buf);
@@ -18308,6 +18327,9 @@ impl<'__a> ::serde::Serialize for ShowHitView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.poster_url {
             __map.serialize_entry("posterUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.library_id {
+            __map.serialize_entry("libraryId", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         if let ::core::option::Option::Some(__v) = self.poster_thumbhash {
             __map
@@ -18434,6 +18456,14 @@ impl ShowHitOwnedView {
     #[must_use]
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
+    }
+    /// The Library `SearchService.Search` found it in. `BrowseService.GetShow` opens it there, by
+    /// `id`.
+    ///
+    /// Field 8: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().library_id
     }
     /// As `nama.v1.Movie.poster_thumbhash`.
     ///

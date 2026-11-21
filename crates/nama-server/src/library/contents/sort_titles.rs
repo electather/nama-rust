@@ -13,17 +13,22 @@ const BATCH: i64 = 500;
 /// so *The Matrix* sorts under M and "éclair" beside "Eclair". SQLite here has no ICU collation,
 /// and `NOCASE` folds ASCII only (ADR 0055).
 pub(super) fn sort_title(title: &str) -> String {
-    let marks = CodePointMapData::<GeneralCategory>::new();
-    let folded = DecomposingNormalizerBorrowed::new_nfd()
-        .normalize(title.trim())
-        .chars()
-        .filter(|&c| marks.get(c) != GeneralCategory::NonspacingMark)
-        .collect::<String>()
-        .to_lowercase();
+    let folded = folded(title.trim());
     let rest = ["the ", "a ", "an "]
         .iter()
         .find_map(|article| folded.strip_prefix(article));
     rest.map_or_else(|| folded.clone(), |rest| rest.trim_start().to_owned())
+}
+
+/// `text` lowercase and without accents.
+pub(super) fn folded(text: &str) -> String {
+    let marks = CodePointMapData::<GeneralCategory>::new();
+    DecomposingNormalizerBorrowed::new_nfd()
+        .normalize(text)
+        .chars()
+        .filter(|&c| marks.get(c) != GeneralCategory::NonspacingMark)
+        .collect::<String>()
+        .to_lowercase()
 }
 
 impl Contents {

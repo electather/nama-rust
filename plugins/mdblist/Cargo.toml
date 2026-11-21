@@ -11,7 +11,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-nama-pdk = { version = "0.2.0", path = "../../crates/nama-pdk" }
+nama-pdk = { version = "0.3.0", path = "../../crates/nama-pdk" }
 serde = { version = "1", features = ["derive"] }
 url = "2.5"
 

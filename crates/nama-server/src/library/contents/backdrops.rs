@@ -44,7 +44,7 @@ impl Contents {
                                                 item_matches.backdrop_plugin AS plugin,
                                                 item_matches.backdrop, libraries.title_sources, "#
                         + $listed_id
-                        + " AS listed_id, "
+                        + "IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id, "
                         + $ids
                         + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS ids
                                          FROM item_matches

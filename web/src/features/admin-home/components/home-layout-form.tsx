@@ -7,8 +7,9 @@ import { usePluginNames } from "@/features/admin-home/data/use-plugin-names";
 import { useSetDefaultHomeLayout } from "@/features/admin-home/data/use-set-default-home-layout";
 import { useLayoutRows } from "@/features/admin-home/hooks/use-layout-rows";
 import { useRowDrag } from "@/features/admin-home/hooks/use-row-drag";
-import { rowKey, rowName, saveRefused } from "@/features/admin-home/lib/home-layout";
+import { saveRefused } from "@/features/admin-home/lib/home-layout";
 import { FormEnd } from "@/shared/components/form-field/form-end";
+import { rowKey, rowName } from "@/shared/lib/home-layout";
 
 /** The default Home layout as an Admin changes it, saved as a whole. */
 export function HomeLayoutForm() {

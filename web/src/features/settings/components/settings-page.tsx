@@ -1,5 +1,6 @@
 import { DefaultQualities } from "@/features/settings/components/default-qualities";
 import { DevicesSection } from "@/features/settings/components/devices-section";
+import { HomeLayoutSection } from "@/features/settings/components/home-layout-section";
 import { ImagesSection } from "@/features/settings/components/images-section";
 import { NotificationPreferences } from "@/features/settings/components/notification-preferences";
 import { PasswordSection } from "@/features/settings/components/password-section";
@@ -22,6 +23,7 @@ export function SettingsPage({ user }: { user: User | undefined }) {
       <PluginConnections />
       <PersonalSettings />
       <NotificationPreferences />
+      <HomeLayoutSection />
       {may(user, Permission.MANAGE_SETTINGS) && <ServerSection />}
       {may(user, Permission.MANAGE_SETTINGS) && <ImagesSection />}
     </Page>

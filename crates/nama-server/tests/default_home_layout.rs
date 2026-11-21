@@ -1,5 +1,6 @@
-//! The default Home layout an Admin sets (ADR 0077), over the API: every User's Home follows its
-//! order and leaves out what it hides, the test Plugin built as a Home row source giving the rows.
+//! The default Home layout an Admin sets, and each User's own over it (ADR 0077), over the API:
+//! every User's Home follows the default's order and leaves out what it, or the User, hides, the
+//! test Plugin built as a Home row source giving the rows.
 
 #[path = "support/home_row_plugin.rs"]
 mod home_row_plugin;
@@ -25,13 +26,14 @@ use connectrpc::{
 };
 use home_row_plugin::{PLUGIN, disable, enable, set_handle};
 use nama_proto::nama::v1::{
-    BrowseServiceClient, GetDefaultHomeLayoutRequest, HomeLayout, HomeLayoutRow, KernelHomeRow,
-    LibraryKind, ListFeaturedRequest, ListHomeRowsRequest, ListPluginsRequest, PluginHomeRow,
-    RefusalReason, ServerServiceClient, SetDefaultHomeLayoutRequest, home_layout_row,
-    home_row::KernelOrPlugin,
+    BrowseServiceClient, DeleteUserRequest, GetDefaultHomeLayoutRequest, GetHomeLayoutRequest,
+    HomeLayout, HomeLayoutRow, KernelHomeRow, LibraryKind, ListFeaturedRequest,
+    ListHomeRowsRequest, ListPluginsRequest, PluginHomeRow, RefusalReason, ResetHomeLayoutRequest,
+    ServerServiceClient, SetDefaultHomeLayoutRequest, SetHomeLayoutRequest, UserServiceClient,
+    home_layout_row, home_row::KernelOrPlugin,
 };
 use refused::assert_refused;
-use server::{TestServer, WAIT};
+use server::{SignedIn, TestServer, WAIT};
 
 /// A Server with the fake TMDB, a Movies Library of Alien, and the test Plugin built as a Home
 /// row source and enabled, giving its shared rows `picks`, `again` and `missing`.
@@ -161,6 +163,48 @@ async fn get_default(server: &TestServer) -> HomeLayout {
     got.unwrap().into_owned().layout.into_option().unwrap()
 }
 
+fn users(config: ClientConfig) -> UserServiceClient<HttpClient> {
+    UserServiceClient::new(HttpClient::plaintext(), config)
+}
+
+/// Saves `layout` as `user`'s own Home layout.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn set_own(user: &SignedIn, layout: HomeLayout) -> HomeLayout {
+    let saved = users(user.client_config())
+        .set_home_layout(SetHomeLayoutRequest {
+            layout: layout.into(),
+            ..Default::default()
+        })
+        .await;
+    saved.unwrap().into_owned().layout.into_option().unwrap()
+}
+
+/// `user`'s own Home layout.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn get_own(user: &SignedIn) -> HomeLayout {
+    let got = users(user.client_config())
+        .get_home_layout(GetHomeLayoutRequest::default())
+        .await;
+    got.unwrap().into_owned().layout.into_option().unwrap()
+}
+
+/// How many titles Featured lists to the caller `config` signs in as.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn featured(config: ClientConfig) -> usize {
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), config);
+    let listed = browse.list_featured(ListFeaturedRequest::default()).await;
+    listed.unwrap().into_owned().titles.len()
+}
+
 #[tokio::test]
 async fn the_default_home_layout_needs_manage_settings() {
     let server = TestServer::builder().start().await;
@@ -217,17 +261,16 @@ async fn every_users_home_follows_the_default_order_and_leaves_out_what_it_hides
 #[tokio::test]
 async fn a_hidden_featured_lists_no_titles() {
     let server = serving_rows().await;
-    let featured = || async {
-        let browse = BrowseServiceClient::new(HttpClient::plaintext(), server.client_config());
-        let listed = browse.list_featured(ListFeaturedRequest::default()).await;
-        listed.unwrap().into_owned().titles.len()
-    };
-    assert_eq!(featured().await, 1, "Alien was just added");
+    assert_eq!(
+        featured(server.client_config()).await,
+        1,
+        "Alien was just added"
+    );
 
     let saved = set_default(&server, layout(true, Vec::new())).await;
 
     assert!(saved.featured_hidden);
-    assert_eq!(featured().await, 0);
+    assert_eq!(featured(server.client_config()).await, 0);
 }
 
 #[tokio::test]
@@ -343,4 +386,232 @@ async fn saving_while_a_plugin_is_disabled_keeps_its_rows_where_they_were() {
             users_rows(false),
         ]
     );
+}
+
+#[tokio::test]
+async fn a_row_a_user_hides_leaves_their_home_and_no_one_elses() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+
+    let saved = set_own(
+        &ada,
+        layout(
+            false,
+            vec![shared("picks", "", true), shared("again", "", false)],
+        ),
+    )
+    .await;
+
+    let expected = layout(
+        false,
+        vec![
+            continue_watching(false),
+            shared("picks", "Picks", true),
+            shared("again", "Alien again", false),
+            shared("missing", "Not on the Server", false),
+        ],
+    );
+    assert_eq!(saved, expected);
+    assert_eq!(get_own(&ada).await, expected);
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["continue-watching", "again", "missing"]
+    );
+    assert_eq!(
+        rows(server.client_config()).await,
+        ["continue-watching", "picks", "again", "missing"]
+    );
+}
+
+#[tokio::test]
+async fn a_user_shows_a_row_the_default_hides_for_them_alone() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_default(&server, layout(false, vec![shared("picks", "", true)])).await;
+    assert_eq!(get_own(&ada).await.rows[0], shared("picks", "Picks", true));
+
+    set_own(&ada, layout(false, vec![shared("picks", "", false)])).await;
+
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["picks", "continue-watching", "again", "missing"]
+    );
+    assert_eq!(
+        rows(server.client_config()).await,
+        ["continue-watching", "again", "missing"]
+    );
+}
+
+#[tokio::test]
+async fn a_user_shows_one_of_their_own_rows_the_default_hides() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_handle(&ada, "ada").await;
+    wait_for_rows(
+        ada.client_config(),
+        &["continue-watching", "picks", "again", "missing", "for-ada"],
+    )
+    .await;
+    set_default(&server, layout(false, vec![users_rows(true)])).await;
+    assert_eq!(
+        get_own(&ada).await.rows[0],
+        shared("for-ada", "For ada", true)
+    );
+
+    set_own(&ada, layout(false, vec![shared("for-ada", "", false)])).await;
+
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["for-ada", "continue-watching", "picks", "again", "missing"]
+    );
+}
+
+#[tokio::test]
+async fn a_user_hiding_featured_lists_no_titles_to_them_alone() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    assert_eq!(
+        featured(ada.client_config()).await,
+        1,
+        "Alien was just added"
+    );
+
+    let saved = set_own(&ada, layout(true, Vec::new())).await;
+
+    assert!(saved.featured_hidden);
+    assert_eq!(featured(ada.client_config()).await, 0);
+    assert_eq!(featured(server.client_config()).await, 1);
+}
+
+#[tokio::test]
+async fn a_user_who_only_hid_rows_follows_a_later_default_order() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_own(&ada, layout(false, vec![shared("picks", "", true)])).await;
+
+    set_default(
+        &server,
+        layout(
+            false,
+            vec![
+                shared("missing", "", false),
+                shared("again", "", false),
+                continue_watching(false),
+            ],
+        ),
+    )
+    .await;
+
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["missing", "again", "continue-watching"]
+    );
+}
+
+#[tokio::test]
+async fn a_user_who_shows_what_the_default_shows_follows_it_when_it_changes() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_own(&ada, layout(false, vec![shared("picks", "", false)])).await;
+
+    set_default(&server, layout(true, vec![shared("picks", "", true)])).await;
+
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["continue-watching", "again", "missing"]
+    );
+    assert_eq!(featured(ada.client_config()).await, 0);
+}
+
+#[tokio::test]
+async fn a_users_flag_stays_when_they_save_while_the_default_agrees_with_it() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_own(&ada, layout(false, vec![shared("picks", "", true)])).await;
+    set_default(&server, layout(false, vec![shared("picks", "", true)])).await;
+
+    set_own(&ada, layout(true, vec![shared("picks", "", true)])).await;
+    set_default(&server, layout(false, vec![shared("picks", "", false)])).await;
+
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["continue-watching", "again", "missing"]
+    );
+}
+
+#[tokio::test]
+async fn resetting_a_users_home_layout_drops_their_flags() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_own(&ada, layout(true, vec![shared("picks", "", true)])).await;
+
+    users(ada.client_config())
+        .reset_home_layout(ResetHomeLayoutRequest::default())
+        .await
+        .unwrap();
+
+    let own = get_own(&ada).await;
+    assert!(!own.featured_hidden);
+    assert!(own.rows.iter().all(|row| !row.hidden), "{own:?}");
+    assert_eq!(featured(ada.client_config()).await, 1);
+}
+
+#[tokio::test]
+async fn deleting_a_user_deletes_their_home_layout() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_own(&ada, layout(true, Vec::new())).await;
+
+    users(server.client_config())
+        .delete_user(DeleteUserRequest {
+            user_id: ada.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let stored: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_home_layouts")
+        .fetch_one(server.db().reader())
+        .await
+        .unwrap();
+    assert_eq!(stored, 0);
+}
+
+#[tokio::test]
+async fn uninstalling_a_plugin_drops_its_rows_from_users_layouts() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_own(&ada, layout(false, vec![shared("missing", "", true)])).await;
+
+    disable(&server).await;
+    std::fs::remove_file(server.data_dir().join("plugins/test.wasm")).unwrap();
+    (server.plugin_service())
+        .list_plugins(ListPluginsRequest::default())
+        .await
+        .unwrap();
+    server.install_test_plugin("home-rows").await;
+    enable(&server).await;
+
+    wait_for_rows(
+        ada.client_config(),
+        &["continue-watching", "picks", "again", "missing"],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn saving_a_users_home_layout_without_one_is_refused() {
+    let server = TestServer::builder().start().await;
+    let ada = server.user_with_default_permissions("ada").await;
+
+    let saved = users(ada.client_config())
+        .set_home_layout(SetHomeLayoutRequest::default())
+        .await;
+
+    let refusal = assert_refused(
+        saved,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "layout");
 }

@@ -9316,8 +9316,8 @@ pub struct MovieHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-    /// by `id`.
+    /// The oldest Library the Movie is Matched in, if any, or for `SearchService.Search`'s Library
+    /// batch the one it was found in. `BrowseService.GetMovie` opens it there, by `id`.
     ///
     /// Field 8: `library_id`
     #[serde(
@@ -10784,6 +10784,17 @@ pub struct ShowHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// The Library `SearchService.Search` found it in. `BrowseService.GetShow` opens it there, by
+    /// `id`.
+    ///
+    /// Field 8: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub library_id: ::core::option::Option<i64>,
     /// As `nama.v1.Movie.poster_thumbhash`.
     ///
     /// Field 10: `poster_thumbhash`
@@ -10805,6 +10816,7 @@ impl ::core::fmt::Debug for ShowHit {
             .field("title", &self.title)
             .field("year", &self.year)
             .field("poster_url", &self.poster_url)
+            .field("library_id", &self.library_id)
             .field("poster_thumbhash", &self.poster_thumbhash)
             .finish()
     }
@@ -10832,6 +10844,13 @@ impl ShowHit {
         value: impl Into<::buffa::alloc::string::String>,
     ) -> Self {
         self.poster_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::library_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_library_id(mut self, value: i64) -> Self {
+        self.library_id = Some(value);
         self
     }
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
@@ -10874,6 +10893,9 @@ impl ::buffa::Message for ShowHit {
         if let Some(ref v) = self.poster_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(v) = self.library_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         if let Some(ref v) = self.poster_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
@@ -10903,6 +10925,9 @@ impl ::buffa::Message for ShowHit {
         }
         if let Some(ref v) = self.poster_url {
             ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if let Some(v) = self.library_id {
+            ::buffa::types::put_int64_field(8u32, v, buf);
         }
         if let Some(ref v) = self.poster_thumbhash {
             ::buffa::types::put_shared_bytes_field(10u32, v, buf);
@@ -10956,6 +10981,15 @@ impl ::buffa::Message for ShowHit {
                     buf,
                 )?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
             10u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -10990,6 +11024,7 @@ impl ::buffa::Message for ShowHit {
         self.title.clear();
         self.year = ::core::option::Option::None;
         self.poster_url = ::core::option::Option::None;
+        self.library_id = ::core::option::Option::None;
         self.poster_thumbhash = ::core::option::Option::None;
         self.id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();

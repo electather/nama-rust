@@ -27,6 +27,7 @@ mod search;
 mod sort_titles;
 #[cfg(test)]
 mod testing;
+mod titles_sql;
 #[cfg(test)]
 pub(crate) use testing::{File, FileItem, Recorded};
 
@@ -37,7 +38,7 @@ pub(crate) use decisions::{
 };
 pub(crate) use files::{Change, Stored};
 pub(crate) use ids::{DEFAULT_ORDER, matched_ids, parse_hint, primary_id};
-use ids::{ids_from_json, ids_sql, listed_id_sql, primary_id_in};
+use ids::{ids_from_json, ids_sql, primary_id_in};
 use items::ItemRow;
 pub(crate) use items::{Item, ItemKind, Name};
 pub(crate) use local_images::{LocalImage, LocalImageFile, LocalRole, TitleLocalImage};
@@ -48,6 +49,7 @@ pub(crate) use matched::{
 pub(crate) use pages::{Listing, TitleSort, Watched};
 pub(crate) use pins::{Named, Pin};
 pub(crate) use search::{Found, FoundEpisode, FoundMovie, FoundShow};
+use titles_sql::{library_titles, listed_id_sql, matched_items};
 
 /// Reads and writes the contents of Libraries.
 #[derive(Debug, Clone)]

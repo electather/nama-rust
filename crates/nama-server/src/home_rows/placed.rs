@@ -49,11 +49,9 @@ impl HomeRows {
 
 /// What a Home layout places a row of `scope` by.
 pub(super) fn placed_by((plugin, user): Scope, row: &Row) -> HomeRowId {
+    let key = row.key.clone();
     match user {
-        None => HomeRowId::Shared {
-            plugin,
-            key: row.key.clone(),
-        },
-        Some(_) => HomeRowId::UsersOwn { plugin },
+        None => HomeRowId::Shared { plugin, key },
+        Some(_) => HomeRowId::Own { plugin, key },
     }
 }

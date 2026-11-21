@@ -4,6 +4,8 @@
 pub(crate) mod fulfiller;
 #[path = "requests.rs"]
 pub(crate) mod requests;
+#[path = "search.rs"]
+pub(crate) mod search;
 #[path = "tmdb.rs"]
 pub(crate) mod tmdb;
 

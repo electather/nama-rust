@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO user_home_layouts (user_id, layout) VALUES (?, ?)\n         ON CONFLICT (user_id) DO UPDATE SET layout = excluded.layout",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "2198794dd6f158621aa5e8c0434fc3d704def37bffdadeb7f9a59b8512857235"
+}

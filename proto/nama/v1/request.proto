@@ -616,8 +616,8 @@ message MovieHit {
   optional int32 year = 3;
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 6;
-  // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-  // by `id`.
+  // The oldest Library the Movie is Matched in, if any, or for `SearchService.Search`'s Library
+  // batch the one it was found in. `BrowseService.GetMovie` opens it there, by `id`.
   optional int64 library_id = 8;
   // The Movie's open Request, if it has one the caller may see.
   Request request = 9;
@@ -690,6 +690,9 @@ message ShowHit {
   optional int32 year = 3;
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;
+  // The Library `SearchService.Search` found it in. `BrowseService.GetShow` opens it there, by
+  // `id`.
+  optional int64 library_id = 8;
   // As `nama.v1.Movie.poster_thumbhash`.
   optional bytes poster_thumbhash = 10;
 }

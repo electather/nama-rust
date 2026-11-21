@@ -47,7 +47,7 @@ subtitle-source = []
 # Extism's own HTTP, which `nama_pdk::extism_pdk` closes, so the Kernel's refusal of a host
 # reaches the Server's tests in the Kernel's words, not in a Plugin's "didn't answer".
 extism-pdk = { version = "1.4.1", default-features = false, features = ["http"] }
-nama-pdk = { version = "0.2.0", path = "../nama-pdk" }
+nama-pdk = { version = "0.3.0", path = "../nama-pdk" }
 
 [lints]
 workspace = true

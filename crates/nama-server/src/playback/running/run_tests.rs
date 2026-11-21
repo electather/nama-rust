@@ -11,7 +11,7 @@ use std::{
 
 use super::{
     super::testing::{FakeRuns, every_two_seconds},
-    DISK_FULL, Fallback, Method, POLL_EVERY, Running, Runs, Timeline, keyframe_number,
+    Fallback, Method, POLL_EVERY, Running, Runs, Timeline, keyframe_number,
 };
 use crate::{
     ffmpeg::{hls_init, hls_playlist},
@@ -589,7 +589,7 @@ async fn a_transcode_whose_hardware_fills_the_segment_folder_stays_on_hardware()
     let test = on_hardware().await;
 
     test.runs
-        .fail(0, &format!("av_interleaved_write_frame(): {DISK_FULL}"));
+        .fail(0, "av_interleaved_write_frame(): No space left on device");
 
     a_look_later().await;
     assert_eq!(test.software.started(), [0_usize; 0]);
@@ -598,12 +598,26 @@ async fn a_transcode_whose_hardware_fills_the_segment_folder_stays_on_hardware()
     assert!(log.finish().contains("is full"), "still warns");
     let restarted = test.ask(1);
     assert_eq!(test.runs.until_started(2).await, [0, 3]);
-    test.runs.fail(1, DISK_FULL);
+    test.runs.fail(1, "No space left on device");
     assert_eq!(
         answer(restarted).await.unwrap(),
         None,
         "the restart fails too"
     );
+}
+
+#[tokio::test]
+async fn a_transcode_whose_hardware_goes_over_quota_warns_the_folder_is_full_and_stays_on_hardware()
+{
+    let log = CapturedLog::start();
+    let test = on_hardware().await;
+
+    test.runs.fail(0, "[mp4] 0.m4s: Disk quota exceeded");
+
+    a_look_later().await;
+    assert_eq!(test.software.started(), [0_usize; 0]);
+    assert!(!test.plan.fell_back());
+    assert!(log.finish().contains("is full"));
 }
 
 #[tokio::test]
@@ -613,7 +627,7 @@ async fn ffmpeg_failing_on_a_full_disk_warns_naming_the_segment_folder_and_time_
     let test = remux().await;
     let asked = test.ask(0);
 
-    test.runs.fail(0, &format!("[mp4] 0.m4s: {DISK_FULL}"));
+    test.runs.fail(0, "[mp4] 0.m4s: No space left on device");
 
     // Given up on once ffmpeg is marked stopped, after it logged why it failed.
     assert_eq!(answer(asked).await.unwrap(), None);
