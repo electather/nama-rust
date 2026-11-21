@@ -1,56 +1,45 @@
-use std::{fs, time::Duration};
-#[cfg(unix)]
-use std::{path::Path, process::Command};
+use std::{fs, path::Path, process::Command, sync::Arc, time::Duration};
 
 use super::tests::{Fixture, system_ffmpeg};
-#[cfg(unix)]
-use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
-#[cfg(unix)]
 use super::{
-    Error, LISTING_WAIT, ProbeError, WHOLE_FILE_READS_AT_ONCE, ffprobe::WHOLE_FILE_TIMEOUT,
+    Error, Keyframes, LISTING_WAIT, ListedKeyframes, Probe, ProbeError, WHOLE_FILE_READS_AT_ONCE,
+    ffprobe, plausible,
+    testing::{FakeReader, failed},
 };
-use super::{Keyframes, ListedKeyframes, Probe, ffprobe, plausible};
-use crate::ffmpeg;
-#[cfg(unix)]
-use crate::ffmpeg::{Ffmpeg, RunError};
+use crate::ffmpeg::{self, Program, RunError};
 
-/// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
-/// Tracks, and lists keyframes at 0 and at as many seconds as the file has bytes, so a changed
-/// file lists differently. Each listing logs a line to `bin/runs` first, then takes a second.
-#[cfg(unix)]
-fn listing_ffprobe(bin: &Path) -> Ffmpeg {
-    ffprobe_listing_by(
-        bin,
-        r#"sleep 1
-    # macOS's wc pads the count with spaces.
-    printf '0.000000,K__\n%s.000000,K__\n' "$(wc -c < "$file" | tr -d ' ')""#,
-    )
+/// The file at `path` listing keyframes at 0 and at as many seconds as it has bytes, so a changed
+/// file lists differently.
+fn listed_by_size(path: &str) -> ListedKeyframes {
+    let bytes = i64::try_from(fs::metadata(path).unwrap().len()).unwrap();
+    ListedKeyframes {
+        file_start_ms: 0,
+        keyframes_ms: vec![0, bytes * 1000],
+    }
 }
 
-/// As [`listing_ffprobe`], but each listing fails, as on a file ffprobe can't read through.
-#[cfg(unix)]
-fn failing_listing_ffprobe(bin: &Path) -> Ffmpeg {
-    ffprobe_listing_by(bin, "echo 'read failed' >&2; exit 1")
+/// A reader that probes each file by its size and answers each listing with `listing`.
+fn reader_listing(
+    listing: impl Fn(&str) -> Result<ListedKeyframes, ProbeError> + Send + Sync + 'static,
+) -> Arc<FakeReader> {
+    let reader = FakeReader::by_size();
+    reader.list(listing);
+    reader
 }
 
-/// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
-/// Tracks, and lists keyframes by running `listing`, after logging a line to `bin/runs`.
-#[cfg(unix)]
-fn ffprobe_listing_by(bin: &Path, listing: &str) -> Ffmpeg {
-    let runs = bin.join("runs");
-    fake_ffprobe(
-        bin,
-        &format!(
-            r#"for file; do :; done
-case "$*" in *packet=*)
-    echo list >> '{}'
-    {listing}
-    exit ;;
-esac
-echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"#,
-            runs.display()
-        ),
-    )
+/// A reader that probes and lists each file by its size.
+fn reader_by_size() -> Arc<FakeReader> {
+    reader_listing(|path| Ok(listed_by_size(path)))
+}
+
+/// Whether `result` failed with a [`ProbeError`] `reason` matches.
+fn failed_with<T>(result: &Result<T, Error>, reason: impl Fn(&ProbeError) -> bool) -> bool {
+    matches!(result, Err(Error::Probe(err)) if reason(err))
+}
+
+/// Whether `err` says the keyframes aren't listed yet.
+fn not_listed_yet(err: &ProbeError) -> bool {
+    matches!(err, ProbeError::NotListedYet)
 }
 
 impl Fixture {
@@ -66,48 +55,52 @@ impl Fixture {
         let version = self.file_id(relative).await;
         self.probing.keyframes(version).await.unwrap().keyframes_ms
     }
+
+    /// Lists the keyframes of the Version `version` as a plan would, in the background.
+    fn plan(&self, version: i64) -> tokio::task::JoinHandle<Result<ListedKeyframes, Error>> {
+        let probing = self.probing.clone();
+        tokio::spawn(async move { probing.keyframes(version).await })
+    }
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_versions_keyframes_are_listed_once_and_kept() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
 
     assert_eq!(media.keyframes(alien).await, [0, 10_000]);
     assert_eq!(media.keyframes(alien).await, [0, 10_000]);
 
-    assert_eq!(probe_runs(bin.path()), 1);
+    assert_eq!(reader.listings(), 1);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_versions_keyframes_asked_for_at_once_are_listed_once() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
     let version = media.file_id(alien).await;
-    let probing = media.probing.clone();
-    let first = tokio::spawn(async move { probing.keyframes(version).await });
-    wait_for_probe(&bin.path().join("runs")).await;
+    reader.hold();
+    let first = media.plan(version);
+    reader.until_listed(1).await;
 
-    let second = media.probing.keyframes(version).await.unwrap();
+    // Usually reaches the first listing's claim before it stores what it listed; if not, it finds
+    // what was stored.
+    let (second, ()) = tokio::join!(media.probing.keyframes(version), async {
+        reader.release();
+    });
 
-    assert_eq!(first.await.unwrap().unwrap(), second);
-    assert_eq!(probe_runs(bin.path()), 1);
+    assert_eq!(first.await.unwrap().unwrap(), second.unwrap());
+    assert_eq!(reader.listings(), 1);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_versions_keyframes_are_listed_again_once_its_files_size_changes() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
     media.keyframes(alien).await;
@@ -117,15 +110,13 @@ async fn a_versions_keyframes_are_listed_again_once_its_files_size_changes() {
     media.match_to_alien(alien).await;
 
     assert_eq!(media.keyframes(alien).await, [0, 20_000]);
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.listings(), 2);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_versions_keyframes_are_listed_again_once_its_file_is_touched() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
     media.keyframes(alien).await;
@@ -141,15 +132,13 @@ async fn a_versions_keyframes_are_listed_again_once_its_file_is_touched() {
     media.match_to_alien(alien).await;
     media.keyframes(alien).await;
 
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.listings(), 2);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_versions_keyframes_that_failed_to_list_arent_listed_again() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let reader = reader_listing(|_| Err(failed()));
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
     let version = media.file_id(alien).await;
@@ -157,15 +146,13 @@ async fn a_versions_keyframes_that_failed_to_list_arent_listed_again() {
     media.probing.keyframes(version).await.unwrap_err();
     media.probing.keyframes(version).await.unwrap_err();
 
-    assert_eq!(probe_runs(bin.path()), 1);
+    assert_eq!(reader.listings(), 1);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_its_file_changes() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let reader = reader_listing(|_| Err(failed()));
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
     let version = media.file_id(alien).await;
@@ -175,16 +162,14 @@ async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_its_file
     media.write_probed(alien, 20).await;
     media.probing.keyframes(version).await.unwrap_err();
 
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.listings(), 2);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_the_failure_version_is_bumped()
  {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let reader = reader_listing(|_| Err(failed()));
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
     let version = media.file_id(alien).await;
@@ -193,193 +178,136 @@ async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_the_fail
     media.tracks.failed_by_older_failure_version(version).await;
     media.probing.keyframes(version).await.unwrap_err();
 
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.listings(), 2);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_versions_keyframes_that_timed_out_arent_listed_again() {
-    let bin = tempfile::tempdir().unwrap();
-    // `exec`, so the timeout's kill stops the sleep rather than leaving it orphaned.
-    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), "exec sleep 3600")).await;
+    let reader = reader_listing(|_| Err(ProbeError::Run(RunError::TimedOut(Program::Ffprobe))));
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
     let version = media.file_id(alien).await;
-    let probing = media.probing.clone();
-    let listing = tokio::spawn(async move { probing.keyframes(version).await });
-    wait_for_probe(&bin.path().join("runs")).await;
 
-    // After opening the database, whose pool times out by the clock.
-    tokio::time::pause();
-    tokio::time::advance(WHOLE_FILE_TIMEOUT).await;
-    // Real time again: storing the timeout writes SQLite, which a paused clock would race.
-    tokio::time::resume();
-    listing.await.unwrap().unwrap_err();
-    // Bounded, so listing it again fails the test rather than sleeping out the fake's hour.
-    let again =
-        tokio::time::timeout(Duration::from_secs(5), media.probing.keyframes(version)).await;
+    let listed = media.probing.keyframes(version).await;
+    let again = media.probing.keyframes(version).await;
 
-    assert!(
-        again.as_ref().is_ok_and(|again| matches!(
-            again,
-            Err(Error::Probe(err))
-                if matches!(**err, ProbeError::Run(RunError::TimedOut(_)) | ProbeError::UnlistedBefore)
-        )),
-        "{again:?}"
-    );
-    assert_eq!(probe_runs(bin.path()), 1);
+    let timed_out = |err: &ProbeError| matches!(err, ProbeError::Run(RunError::TimedOut(_)));
+    assert!(failed_with(&listed, timed_out), "{listed:?}");
+    let unlisted = |err: &ProbeError| matches!(err, ProbeError::UnlistedBefore);
+    assert!(failed_with(&again, unlisted), "{again:?}");
+    assert_eq!(reader.listings(), 1);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_listing_carries_on_after_the_plan_waiting_for_it_is_dropped() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
-    let version = media.file_id(alien).await;
-    let probing = media.probing.clone();
-    let dropped = tokio::spawn(async move { probing.keyframes(version).await });
-    wait_for_probe(&bin.path().join("runs")).await;
+    reader.hold();
+    let dropped = media.plan(media.file_id(alien).await);
+    reader.until_listed(1).await;
 
     dropped.abort();
     dropped.await.unwrap_err();
-    let file = media.stored(alien).await;
-    let started = tokio::time::Instant::now();
-    let kept = loop {
-        if let Some(kept) = media.tracks.keyframes(file).await.unwrap() {
-            break kept;
-        }
-        assert!(
-            started.elapsed() < Duration::from_secs(5),
-            "the listing was never kept"
-        );
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    };
+    reader.release();
+    media.probing.idle().await;
 
+    let kept = media.tracks.keyframes(media.stored(alien).await).await;
     let listed = ListedKeyframes {
         file_start_ms: 0,
         keyframes_ms: vec![0, 10_000],
     };
-    assert_eq!(kept, Keyframes::Listed(listed));
+    assert_eq!(kept.unwrap(), Some(Keyframes::Listed(listed)));
     assert_eq!(media.keyframes(alien).await, [0, 10_000]);
-    assert_eq!(probe_runs(bin.path()), 1);
+    assert_eq!(reader.listings(), 1);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_listing_not_done_within_the_wait_is_unlisted_for_now_and_carries_on() {
-    let bin = tempfile::tempdir().unwrap();
-    let go = bin.path().join("go");
-    let listing = format!(
-        "while [ ! -e '{}' ]; do sleep 0.1; done\nprintf '0.000000,K__\\n'",
-        go.display()
-    );
-    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), &listing)).await;
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
-    let version = media.file_id(alien).await;
-    let probing = media.probing.clone();
-    let waiting = tokio::spawn(async move { probing.keyframes(version).await });
-    wait_for_probe(&bin.path().join("runs")).await;
+    reader.hold();
+    let waiting = media.plan(media.file_id(alien).await);
+    reader.until_listed(1).await;
 
     // After opening the database, whose pool times out by the clock.
     tokio::time::pause();
     tokio::time::advance(LISTING_WAIT).await;
     tokio::time::resume();
     let waited = waiting.await.unwrap();
-    fs::write(&go, "").unwrap();
+    reader.release();
 
-    assert!(
-        matches!(&waited, Err(Error::Probe(err)) if matches!(**err, ProbeError::NotListedYet)),
-        "{waited:?}"
-    );
-    assert_eq!(media.keyframes(alien).await, [0]);
-    assert_eq!(probe_runs(bin.path()), 1);
+    assert!(failed_with(&waited, not_listed_yet), "{waited:?}");
+    assert_eq!(media.keyframes(alien).await, [0, 10_000]);
+    assert_eq!(reader.listings(), 1);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
+/// Writes and probes as many Movies as `count`, and returns their paths in the Library.
+async fn write_movies(media: &Fixture, count: usize) -> Vec<String> {
+    let mut movies = Vec::new();
+    for n in 0..count {
+        let movie = format!("Movie {n} (2000)/Movie {n} (2000).mkv");
+        media.write_probed(&movie, 10).await;
+        movies.push(movie);
+    }
+    movies
+}
+
 #[tokio::test]
 async fn a_listing_past_the_cap_waits_for_a_slot() {
-    let bin = tempfile::tempdir().unwrap();
-    let go = bin.path().join("go");
-    let listing = format!(
-        "while [ ! -e '{}' ]; do sleep 0.05; done\nprintf '0.000000,K__\\n'",
-        go.display()
-    );
-    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), &listing)).await;
-    let mut plans = Vec::new();
-    for n in 0..=WHOLE_FILE_READS_AT_ONCE {
-        let movie = format!("Movie {n} (2000)/Movie {n} (2000).mkv");
-        media.write_probed(&movie, 10).await;
-        let version = media.file_id(&movie).await;
-        let probing = media.probing.clone();
-        plans.push(tokio::spawn(
-            async move { probing.keyframes(version).await },
-        ));
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
+    let movies = write_movies(&media, WHOLE_FILE_READS_AT_ONCE + 1).await;
+    let (past_cap, filling) = movies.split_last().unwrap();
+    let past_cap = media.file_id(past_cap).await;
+    reader.hold();
+    for movie in filling {
+        media.plan(media.file_id(movie).await);
     }
-    let started = tokio::time::Instant::now();
-    while probe_runs(bin.path()) < WHOLE_FILE_READS_AT_ONCE {
-        assert!(
-            started.elapsed() < Duration::from_secs(5),
-            "the listings never started"
-        );
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-    // Long enough for one past the cap to start, were it not held back.
-    tokio::time::sleep(Duration::from_millis(300)).await;
-    let while_full = probe_runs(bin.path());
-    fs::write(&go, "").unwrap();
-    let listed = futures_util::future::join_all(plans).await;
+    reader.until_listed(WHOLE_FILE_READS_AT_ONCE).await;
 
+    // A paused clock skips the wait only once no task, the listing past the cap's included, can
+    // go further. Reading the database meanwhile is safe: its readers are all open and never
+    // pinged, so taking one waits on no timer.
+    tokio::time::pause();
+    let waited = media.probing.keyframes(past_cap).await;
+    tokio::time::resume();
+    let while_full = reader.listings();
+    reader.release_one();
+    reader.until_listed(WHOLE_FILE_READS_AT_ONCE + 1).await;
+    reader.release();
+    media.probing.idle().await;
+
+    assert!(failed_with(&waited, not_listed_yet), "{waited:?}");
     assert_eq!(while_full, WHOLE_FILE_READS_AT_ONCE);
-    assert!(
-        listed
-            .iter()
-            .all(|listed| listed.as_ref().is_ok_and(Result::is_ok)),
-        "{listed:?}"
-    );
-    assert_eq!(probe_runs(bin.path()), WHOLE_FILE_READS_AT_ONCE + 1);
+    assert_eq!(reader.most_at_once(), WHOLE_FILE_READS_AT_ONCE);
+    for movie in &movies {
+        assert_eq!(media.keyframes(movie).await, [0, 10_000], "{movie}");
+    }
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn another_whole_file_read_waits_while_listings_fill_the_cap() {
-    let bin = tempfile::tempdir().unwrap();
-    let go = bin.path().join("go");
-    let listing = format!(
-        "while [ ! -e '{}' ]; do sleep 0.05; done\nprintf '0.000000,K__\\n'",
-        go.display()
-    );
-    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), &listing)).await;
-    for n in 0..WHOLE_FILE_READS_AT_ONCE {
-        let movie = format!("Movie {n} (2000)/Movie {n} (2000).mkv");
-        media.write_probed(&movie, 10).await;
-        let version = media.file_id(&movie).await;
-        let probing = media.probing.clone();
-        tokio::spawn(async move { probing.keyframes(version).await });
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
+    let movies = write_movies(&media, WHOLE_FILE_READS_AT_ONCE).await;
+    reader.hold();
+    for movie in &movies {
+        media.plan(media.file_id(movie).await);
     }
-    let started = tokio::time::Instant::now();
-    while probe_runs(bin.path()) < WHOLE_FILE_READS_AT_ONCE {
-        assert!(
-            started.elapsed() < Duration::from_secs(5),
-            "the listings never started"
-        );
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    reader.until_listed(WHOLE_FILE_READS_AT_ONCE).await;
     let (reading, mut was_read) = tokio::sync::oneshot::channel();
     let read = async move { reading.send(()).unwrap() };
 
     let spawned = (media.probing).read_whole_file_in_background(tracing::Span::none(), read);
-    // Long enough for it to run, were it not held back.
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    // On the test's one thread, the read's task runs until it waits for a slot before this goes on.
+    tokio::task::yield_now().await;
     let while_full = was_read.try_recv();
-    fs::write(&go, "").unwrap();
+    reader.release();
 
     assert!(spawned);
     assert!(while_full.is_err(), "it read while listings filled the cap");
@@ -387,19 +315,15 @@ async fn another_whole_file_read_waits_while_listings_fill_the_cap() {
     assert!(after.is_ok_and(|sent| sent.is_ok()), "it never read");
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn shutting_down_stops_a_listing_and_keeps_nothing() {
-    let bin = tempfile::tempdir().unwrap();
-    // `exec`, so stopping it kills the sleep rather than leaving it orphaned.
-    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), "exec sleep 3600")).await;
+    let reader = reader_by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
-    let version = media.file_id(alien).await;
-    let probing = media.probing.clone();
-    let listing = tokio::spawn(async move { probing.keyframes(version).await });
-    wait_for_probe(&bin.path().join("runs")).await;
+    reader.hold();
+    let listing = media.plan(media.file_id(alien).await);
+    reader.until_listed(1).await;
 
     let stopped = tokio::time::timeout(Duration::from_secs(5), media.probing.shutdown()).await;
     let waited = tokio::time::timeout(Duration::from_secs(5), listing).await;
@@ -419,7 +343,7 @@ async fn shutting_down_stops_a_listing_and_keeps_nothing() {
 
 #[tokio::test]
 async fn a_version_read_by_an_older_probe_gets_its_keyframes_from_its_cues_when_probed_again() {
-    let media = Fixture::with_ffmpeg(system_ffmpeg()).await;
+    let media = Fixture::with_system_ffmpeg().await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     let path = media.path(alien);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -475,24 +399,8 @@ fn index_keyframes_are_plausible_only_from_where_the_first_should_fall_in_order_
     }
 }
 
-/// The ffprobe on `PATH`, behind a shell script in `bin` that first logs each whole-file listing
-/// to `bin/runs`, which [`probe_runs`] counts.
-#[cfg(unix)]
-fn system_ffprobe_logging_listings(bin: &Path) -> Ffmpeg {
-    let real = system_ffmpeg().ffprobe.unwrap().path;
-    fake_ffprobe(
-        bin,
-        &format!(
-            "case \"$*\" in *packet=pts_time,flags*) echo list >> '{}' ;; esac\nexec '{}' \"$@\"",
-            bin.join("runs").display(),
-            real.display()
-        ),
-    )
-}
-
 /// Overwrites the ID of the Cues element in the Matroska file at `path`, so the `SeekHead` points
 /// at no Cues, while ffprobe still reads the file's Tracks.
-#[cfg(unix)]
 fn corrupt_cues(path: &Path) {
     let mut bytes = fs::read(path).unwrap();
     let cues_id = [0x1C, 0x53, 0xBB, 0x6B];
@@ -502,7 +410,6 @@ fn corrupt_cues(path: &Path) {
     fs::write(path, bytes).unwrap();
 }
 
-#[cfg(unix)]
 impl Fixture {
     /// Writes Alien at `relative` as an MP4: [`ffmpeg::write_h264_with_5_1`]'s MKV, copied by
     /// the ffmpeg on `PATH` with the arguments `options` adds, given that MKV, before the output.
@@ -541,12 +448,10 @@ impl Fixture {
     }
 }
 
-// The logging ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_fragmented_mp4_keeps_no_keyframes_when_probed_and_lists_them_from_the_whole_file() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(system_ffprobe_logging_listings(bin.path())).await;
+    let reader = FakeReader::forwarding_to(system_ffmpeg());
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mp4";
     media.write_alien_mp4(alien, |copy, _| {
         copy.args(["-movflags", "frag_keyframe+empty_moov"]);
@@ -558,16 +463,14 @@ async fn a_fragmented_mp4_keeps_no_keyframes_when_probed_and_lists_them_from_the
 
     assert_eq!(kept, None);
     assert_eq!(listed, media.whole_file_listing(alien).await);
-    assert_eq!(probe_runs(bin.path()), 1);
+    assert_eq!(reader.listings(), 1);
 }
 
-// The logging ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn an_mp4_whose_video_starts_with_an_empty_edit_keeps_the_keyframes_a_whole_file_listing_gives()
  {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(system_ffprobe_logging_listings(bin.path())).await;
+    let reader = FakeReader::forwarding_to(system_ffmpeg());
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mp4";
     media.write_alien_mp4(alien, |copy, mkv| {
         // Video delayed behind the audio, so ffmpeg starts the video's `elst` with an empty edit.
@@ -587,16 +490,14 @@ async fn an_mp4_whose_video_starts_with_an_empty_edit_keeps_the_keyframes_a_whol
     );
     assert_eq!(kept, Some(Keyframes::Listed(whole_file.clone())));
     assert_eq!(planned, whole_file);
-    assert_eq!(probe_runs(bin.path()), 0);
+    assert_eq!(reader.listings(), 0);
 }
 
-// The logging ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn an_mkv_whose_cues_are_corrupted_keeps_no_keyframes_when_probed_and_lists_them_once_from_the_whole_file()
  {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(system_ffprobe_logging_listings(bin.path())).await;
+    let reader = FakeReader::forwarding_to(system_ffmpeg());
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let (intact, alien) = (
         "Alien (1979)/Alien (1979) - Intact.mkv",
         "Alien (1979)/Alien (1979).mkv",
@@ -616,5 +517,5 @@ async fn an_mkv_whose_cues_are_corrupted_keeps_no_keyframes_when_probed_and_list
 
     assert_eq!(kept, None);
     assert_eq!(listed, media.whole_file_listing(alien).await);
-    assert_eq!(probe_runs(bin.path()), 1);
+    assert_eq!(reader.listings(), 1);
 }
