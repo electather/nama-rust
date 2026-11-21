@@ -19,7 +19,7 @@ fn listed_by_size(path: &str) -> ListedKeyframes {
 }
 
 /// A reader that probes each file by its size and answers each listing with `listing`.
-fn listing(
+fn reader_listing(
     listing: impl Fn(&str) -> Result<ListedKeyframes, ProbeError> + Send + Sync + 'static,
 ) -> Arc<FakeReader> {
     let reader = FakeReader::by_size();
@@ -27,9 +27,14 @@ fn listing(
     reader
 }
 
-/// Whether `result` failed with a [`ProbeError`] `is` matches.
-fn failed_with<T>(result: &Result<T, Error>, is: impl Fn(&ProbeError) -> bool) -> bool {
-    matches!(result, Err(Error::Probe(err)) if is(err))
+/// Whether `result` failed with a [`ProbeError`] `reason` matches.
+fn failed_with<T>(result: &Result<T, Error>, reason: impl Fn(&ProbeError) -> bool) -> bool {
+    matches!(result, Err(Error::Probe(err)) if reason(err))
+}
+
+/// Whether `err` says the keyframes aren't listed yet.
+fn not_listed_yet(err: &ProbeError) -> bool {
+    matches!(err, ProbeError::NotListedYet)
 }
 
 impl Fixture {
@@ -55,7 +60,7 @@ impl Fixture {
 
 #[tokio::test]
 async fn a_versions_keyframes_are_listed_once_and_kept() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -68,7 +73,7 @@ async fn a_versions_keyframes_are_listed_once_and_kept() {
 
 #[tokio::test]
 async fn a_versions_keyframes_asked_for_at_once_are_listed_once() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -89,7 +94,7 @@ async fn a_versions_keyframes_asked_for_at_once_are_listed_once() {
 
 #[tokio::test]
 async fn a_versions_keyframes_are_listed_again_once_its_files_size_changes() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -105,7 +110,7 @@ async fn a_versions_keyframes_are_listed_again_once_its_files_size_changes() {
 
 #[tokio::test]
 async fn a_versions_keyframes_are_listed_again_once_its_file_is_touched() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -127,7 +132,7 @@ async fn a_versions_keyframes_are_listed_again_once_its_file_is_touched() {
 
 #[tokio::test]
 async fn a_versions_keyframes_that_failed_to_list_arent_listed_again() {
-    let reader = listing(|_| Err(failed()));
+    let reader = reader_listing(|_| Err(failed()));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -141,7 +146,7 @@ async fn a_versions_keyframes_that_failed_to_list_arent_listed_again() {
 
 #[tokio::test]
 async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_its_file_changes() {
-    let reader = listing(|_| Err(failed()));
+    let reader = reader_listing(|_| Err(failed()));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -158,7 +163,7 @@ async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_its_file
 #[tokio::test]
 async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_the_failure_version_is_bumped()
  {
-    let reader = listing(|_| Err(failed()));
+    let reader = reader_listing(|_| Err(failed()));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -173,7 +178,7 @@ async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_the_fail
 
 #[tokio::test]
 async fn a_versions_keyframes_that_timed_out_arent_listed_again() {
-    let reader = listing(|_| Err(ProbeError::Run(RunError::TimedOut(Program::Ffprobe))));
+    let reader = reader_listing(|_| Err(ProbeError::Run(RunError::TimedOut(Program::Ffprobe))));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -192,7 +197,7 @@ async fn a_versions_keyframes_that_timed_out_arent_listed_again() {
 
 #[tokio::test]
 async fn a_listing_carries_on_after_the_plan_waiting_for_it_is_dropped() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -217,7 +222,7 @@ async fn a_listing_carries_on_after_the_plan_waiting_for_it_is_dropped() {
 
 #[tokio::test]
 async fn a_listing_not_done_within_the_wait_is_unlisted_for_now_and_carries_on() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
@@ -232,8 +237,7 @@ async fn a_listing_not_done_within_the_wait_is_unlisted_for_now_and_carries_on()
     let waited = waiting.await.unwrap();
     reader.release();
 
-    let not_yet = |err: &ProbeError| matches!(err, ProbeError::NotListedYet);
-    assert!(failed_with(&waited, not_yet), "{waited:?}");
+    assert!(failed_with(&waited, not_listed_yet), "{waited:?}");
     assert_eq!(media.keyframes(alien).await, [0, 10_000]);
     assert_eq!(reader.listings(), 1);
 }
@@ -251,7 +255,7 @@ async fn write_movies(media: &Fixture, count: usize) -> Vec<String> {
 
 #[tokio::test]
 async fn a_listing_past_the_cap_waits_for_a_slot() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let movies = write_movies(&media, WHOLE_FILE_READS_AT_ONCE + 1).await;
     let (past_cap, filling) = movies.split_last().unwrap();
@@ -267,16 +271,17 @@ async fn a_listing_past_the_cap_waits_for_a_slot() {
     reader.release();
     media.probing.idle().await;
 
-    let not_yet = |err: &ProbeError| matches!(err, ProbeError::NotListedYet);
-    assert!(failed_with(&waited, not_yet), "{waited:?}");
+    assert!(failed_with(&waited, not_listed_yet), "{waited:?}");
     assert_eq!(while_full, WHOLE_FILE_READS_AT_ONCE);
     assert_eq!(reader.listings(), WHOLE_FILE_READS_AT_ONCE + 1);
-    assert_eq!(media.keyframes(past_cap).await, [0, 10_000]);
+    for movie in &movies {
+        assert_eq!(media.keyframes(movie).await, [0, 10_000], "{movie}");
+    }
 }
 
 #[tokio::test]
 async fn another_whole_file_read_waits_while_listings_fill_the_cap() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let movies = write_movies(&media, WHOLE_FILE_READS_AT_ONCE).await;
     reader.hold();
@@ -301,7 +306,7 @@ async fn another_whole_file_read_waits_while_listings_fill_the_cap() {
 
 #[tokio::test]
 async fn shutting_down_stops_a_listing_and_keeps_nothing() {
-    let reader = listing(|path| Ok(listed_by_size(path)));
+    let reader = reader_listing(|path| Ok(listed_by_size(path)));
     let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write_probed(alien, 10).await;
