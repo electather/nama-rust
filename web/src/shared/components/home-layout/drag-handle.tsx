@@ -1,6 +1,6 @@
 import { GripVertical } from "lucide-react";
 
-import type { HandleProps } from "@/features/admin-home/hooks/use-row-drag";
+import type { HandleProps } from "@/shared/hooks/use-row-drag";
 
 /**
  * The grip a pointer drags a row by. Hidden from assistive technology and the keyboard, which move
