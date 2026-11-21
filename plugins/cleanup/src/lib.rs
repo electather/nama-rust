@@ -6,11 +6,8 @@
 use std::collections::HashSet;
 
 use nama_pdk::{
-    Library, Manifest, Permission, Tick, TitleRef, TitleRequesters, TitleWatchStates,
-    extism_pdk::Error,
-    kernel,
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
-    services,
+    Library, Manifest, Permission, SettingField, SettingKind, Tick, TitleRef, TitleRequesters,
+    TitleWatchStates, extism_pdk::Error, kernel, services, setting_field, setting_value,
 };
 
 const DAYS: &str = "days";
@@ -54,13 +51,6 @@ mod exports {
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
-    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
-        ..SettingField::default()
-    };
     Manifest {
         logo_svg: include_str!("../logo.svg").to_owned(),
         points: vec![nama_pdk::point(services::AUTOMATION)],
@@ -74,7 +64,7 @@ fn manifest() -> Manifest {
         tick_every_seconds: 3600,
         settings: vec![
             days_setting(
-                setting(
+                setting_field(
                     DAYS,
                     "Days after the Requester watched it",
                     "A Requester is done with a Movie or Episode this many days after they \
@@ -85,7 +75,7 @@ fn manifest() -> Manifest {
                 30,
             ),
             days_setting(
-                setting(
+                setting_field(
                     DAYS_UNWATCHED,
                     "Days a Requester has to start watching",
                     "A Requester who hasn't watched a Movie or Episode is done with it this many \
@@ -94,7 +84,7 @@ fn manifest() -> Manifest {
                 ),
                 90,
             ),
-            setting(
+            setting_field(
                 LIBRARIES,
                 "Libraries",
                 "The Libraries to clean. None cleans none.",
@@ -114,11 +104,7 @@ fn days_setting(field: SettingField, default: i64) -> SettingField {
     SettingField {
         required: true,
         min_value: Some(0),
-        default_value: SettingValue {
-            value: Some(setting_value::Value::IntegerValue(default)),
-            ..SettingValue::default()
-        }
-        .into(),
+        default_value: nama_pdk::setting_default(setting_value::Value::IntegerValue(default)),
         ..field
     }
 }
@@ -135,11 +121,8 @@ fn tick(tick: &Tick) -> Result<(), Error> {
     }
     let cutoffs = Cutoffs::at(
         tick.now_ms,
-        days(DAYS, nama_pdk::setting(DAYS)?.as_deref())?,
-        days(
-            DAYS_UNWATCHED,
-            nama_pdk::setting(DAYS_UNWATCHED)?.as_deref(),
-        )?,
+        days(DAYS, &nama_pdk::required_setting(DAYS)?)?,
+        days(DAYS_UNWATCHED, &nama_pdk::required_setting(DAYS_UNWATCHED)?)?,
     );
     let libraries = kernel::libraries()?;
     let mut refused = Vec::new();
@@ -246,11 +229,10 @@ fn chosen_libraries<'a>(ids: &[i64], libraries: &'a [Library]) -> Vec<&'a Librar
         .collect()
 }
 
-/// The setting `key`, read as `setting`, as a number of days, at least 0. A failure names the
+/// The setting `key`, which holds `setting`, as a number of days, at least 0. A failure names the
 /// setting. The Kernel refuses saving one under 0, but one saved before the Manifest said so may
 /// still be stored.
-fn days(key: &str, setting: Option<&str>) -> Result<i64, Error> {
-    let setting = setting.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))?;
+fn days(key: &str, setting: &str) -> Result<i64, Error> {
     match setting.trim().parse::<i64>() {
         Ok(days) if days >= 0 => Ok(days),
         _ => Err(Error::msg(format!(
