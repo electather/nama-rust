@@ -104,7 +104,7 @@ impl Adapter for Rows {
             .execute(&mut *conn)
             .await?;
         }
-        // In the write, after the rows, so it is logged only when they are stored.
+        // In the write, after the guard, so an answer dropped as its put-off is gone logs nothing.
         if let Some(err) = unanswered {
             warn!(plugin = %plugin, user, "the title source couldn't look up the Plugin's Home row titles, which keep what the last refresh looked up until a refresh in 15 minutes: {err}");
         }
@@ -323,7 +323,7 @@ fn scope(plugin: PluginId, user: Option<i64>) -> Scope {
 /// repeat, each with its first [`MAX_TITLES`] titles less those it can't read, and its heading
 /// cut to [`MAX_HEADING`] characters; and how long they stay fresh, the shortest of their times
 /// to live, or [`MIN_TTL`] for none.
-pub(super) fn kept(given: Given) -> (Vec<Row>, Duration) {
+fn kept(given: Given) -> (Vec<Row>, Duration) {
     let mut keys = HashSet::new();
     let given_rows = (given.rows.into_iter())
         .filter(|row| keys.insert(row.key.clone()))
@@ -349,3 +349,7 @@ pub(super) fn kept(given: Given) -> (Vec<Row>, Duration) {
     }
     (rows, fresh_for.unwrap_or(MIN_TTL))
 }
+
+#[cfg(test)]
+#[path = "rows_tests.rs"]
+mod tests;
