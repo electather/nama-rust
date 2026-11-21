@@ -10,6 +10,8 @@
 //! - ID Hints anywhere in a Movie's or Show's name: `{tmdb-123}`, `[tvdbid-123]`,
 //!   `(imdb=tt0083658)` and the like, a bare `tt0083658`, or `{namespace-value}` in any other
 //!   namespace, such as `{anidb-5101}`.
+//! - An Edition in a file's name, else its nearest folder's: `{edition-Director's Cut}`. It names
+//!   the Version and nothing else, so it never takes part in Matching.
 //! - A country tag ending a Show's name, as Sonarr names same-name Shows apart: `The Office (US)`.
 //!   It stays in the stored name, so pins keep their key; Matching reads it with
 //!   [`country_tag`](crate::library::country_tag).
@@ -39,6 +41,9 @@ static ID_HINT: LazyLock<Regex> = LazyLock::new(|| {
         r"|(?:\b|_)(?P<bare>tt\d{7,})(?:\b|_)",
     ))
 });
+
+/// Plex's edition tag, in curly braces only.
+static EDITION: LazyLock<Regex> = LazyLock::new(|| regex(r"(?i)\{edition-(?P<edition>[^}]*)\}"));
 
 /// Any `{…}` or `[…]` tag, such as an ID Hint, an edition or a quality.
 static TAG: LazyLock<Regex> = LazyLock::new(|| regex(r"\{[^}]*\}|\[[^\]]*\]"));
@@ -150,6 +155,16 @@ pub(super) fn parse(kind: LibraryKind, relative: &Path) -> Option<Vec<Item>> {
         LibraryKind::Movies => parse_movie(&folders, &stem).map(|movie| vec![movie]),
         LibraryKind::Shows => parse_episodes(relative, &stem),
     }
+}
+
+/// The Edition the file at `relative`, relative to its Library folder, holds: the one in its own
+/// name, else in its nearest folder's, as written but trimmed.
+pub(super) fn edition(relative: &Path) -> Option<String> {
+    relative.iter().rev().find_map(|name| {
+        let captures = EDITION.captures(name.to_str()?)?;
+        let edition = captures.name("edition")?.as_str().trim();
+        (!edition.is_empty()).then(|| edition.to_owned())
+    })
 }
 
 /// A Movie, named by the file if its name gives a year or an ID Hint, or else by the nearest

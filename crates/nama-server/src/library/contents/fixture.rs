@@ -46,6 +46,7 @@ impl MatchedMovie {
         matched: Metadata,
     ) -> Self {
         let file = Change::Store {
+            edition: None,
             path: path.to_owned(),
             size: 10,
             modified_ns: 0,

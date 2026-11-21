@@ -1161,6 +1161,11 @@ pub struct VersionView<'a> {
     ///
     /// Field 4: `tracks`
     pub tracks: ::buffa::RepeatedView<'a, super::super::__buffa::view::TrackView<'a>>,
+    /// The Edition it holds, such as "Director's Cut", as its file or folder name writes it. A
+    /// client shows it where it lists a title's Versions, and the file name where it's unset.
+    ///
+    /// Field 5: `edition`
+    pub edition: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for VersionView<'a> {
@@ -1214,6 +1219,13 @@ impl<'a> ::buffa::MessageView<'a> for VersionView<'a> {
                 )?;
                 view.size = ::buffa::types::decode_uint64(&mut cur)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.edition = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -1262,6 +1274,7 @@ impl<'a> ::buffa::MessageView<'a> for VersionView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            edition: self.edition.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1290,6 +1303,9 @@ impl<'a> ::buffa::ViewEncode<'a> for VersionView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.edition {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1317,6 +1333,9 @@ impl<'a> ::buffa::ViewEncode<'a> for VersionView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.edition {
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1351,6 +1370,9 @@ impl<'__a> ::serde::Serialize for VersionView<'__a> {
         }
         if !self.tracks.is_empty() {
             __map.serialize_entry("tracks", &*self.tracks)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.edition {
+            __map.serialize_entry("edition", __v)?;
         }
         __map.end()
     }
@@ -1472,6 +1494,14 @@ impl VersionOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrackView<'_>> {
         &self.0.reborrow().tracks
+    }
+    /// The Edition it holds, such as "Director's Cut", as its file or folder name writes it. A
+    /// client shows it where it lists a title's Versions, and the file name where it's unset.
+    ///
+    /// Field 5: `edition`
+    #[must_use]
+    pub fn edition(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().edition
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<VersionView<'static>>>

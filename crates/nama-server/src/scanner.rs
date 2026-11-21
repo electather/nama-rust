@@ -556,6 +556,10 @@ impl Scanner {
 }
 
 #[cfg(test)]
+#[path = "scanner/editions_tests.rs"]
+mod editions_tests;
+
+#[cfg(test)]
 #[path = "scanner/shutdown_tests.rs"]
 mod shutdown_tests;
 

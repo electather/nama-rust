@@ -56,6 +56,7 @@ async fn store(media: &Fixture, file: &str, episodes: &[(i64, i64, &str)]) {
         })
         .collect();
     let stored = Change::Store {
+        edition: None,
         path: path.clone(),
         size: 10,
         modified_ns: 0,

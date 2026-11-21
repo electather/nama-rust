@@ -272,6 +272,7 @@ async fn failures_are_logged_when_a_scan_is_cancelled_while_asking() {
 /// Stores an unparsed file and a Movie that Matching left Unmatched in the Library `id`.
 async fn unparsed_and_unmatched(contents: &Contents, id: i64) {
     let store = |path: &str, items| Change::Store {
+        edition: None,
         path: path.to_owned(),
         size: 1,
         modified_ns: 1,

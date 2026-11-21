@@ -216,8 +216,9 @@ pub(super) fn plan(
     let mut seen = HashSet::new();
     let parse = |relative: PathBuf| {
         let items = names::parse(kind, &relative).unwrap_or_default();
+        let edition = names::edition(&relative);
         let unread = items.is_empty().then_some(relative);
-        (items, unread)
+        (items, edition, unread)
     };
     for file in found.files {
         if !seen.insert(file.path.clone()) {
@@ -227,11 +228,12 @@ pub(super) fn plan(
             Some(old) if old.size == file.size && old.modified_ns == file.modified_ns => {
                 if old.parser_version < PARSER_VERSION {
                     summary.updated += 1;
-                    let (items, unread) = parse(file.relative);
+                    let (items, edition, unread) = parse(file.relative);
                     let change = Change::Reparse {
                         file: old.id,
                         items,
                         path: file.path,
+                        edition,
                     };
                     planned.push(Planned {
                         change,
@@ -252,12 +254,13 @@ pub(super) fn plan(
                 true
             }
         };
-        let (items, unread) = parse(file.relative);
+        let (items, edition, unread) = parse(file.relative);
         let change = Change::Store {
             items,
             path: file.path,
             size: file.size,
             modified_ns: file.modified_ns,
+            edition,
         };
         planned.push(Planned {
             change,

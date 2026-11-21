@@ -159,6 +159,7 @@ pub(super) async fn two_episodes_in_one_file_also_known_as(
     };
     let contents = Contents::new(Arc::clone(db));
     let file = Change::Store {
+        edition: None,
         path: path.clone(),
         size: 10,
         modified_ns: 0,

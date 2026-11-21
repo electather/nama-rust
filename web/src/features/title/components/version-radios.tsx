@@ -3,7 +3,7 @@ import { metadataLine, sizeOf } from "@/shared/lib/title-facts";
 import { versionLine } from "@/shared/lib/version-facts";
 import { DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/shared/ui/dropdown-menu";
 
-/** Each of `versions` by its picture, sound and size, `version` checked. */
+/** Each of `versions` by its Edition, picture, sound and size, `version` checked. */
 export function VersionRadios({
   versions,
   version,
@@ -22,7 +22,7 @@ export function VersionRadios({
     >
       {versions.map((option) => (
         <DropdownMenuRadioItem key={String(option.id)} value={String(option.id)}>
-          {metadataLine(versionLine(option), sizeOf(option.size))}
+          {metadataLine(option.edition, versionLine(option), sizeOf(option.size))}
         </DropdownMenuRadioItem>
       ))}
     </DropdownMenuRadioGroup>
