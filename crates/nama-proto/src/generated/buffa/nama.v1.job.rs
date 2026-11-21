@@ -480,8 +480,9 @@ pub struct Job {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub description: ::buffa::alloc::string::String,
-    /// Its standard 5-field cron schedule, such as `0 4 * * *`, read in the Server's time zone, or
-    /// empty for a Job that runs only when an Admin starts it.
+    /// The standard 5-field cron schedule it runs on, such as `0 4 * * *`, read in the Server's
+    /// time zone: an Admin's in place of `default_schedule`, or that. Empty for a Job that runs only
+    /// when an Admin starts it.
     ///
     /// Field 6: `schedule`
     #[serde(
@@ -491,7 +492,7 @@ pub struct Job {
     )]
     pub schedule: ::buffa::alloc::string::String,
     /// When its schedule next fires, soonest first, in milliseconds since the Unix epoch: up to 3,
-    /// and none without a schedule.
+    /// and none without a schedule or while it is off.
     ///
     /// Field 7: `next_runs_at_ms`
     #[serde(
@@ -510,6 +511,25 @@ pub struct Job {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub last_run: ::buffa::MessageField<JobRun, ::buffa::Inline<JobRun>>,
+    /// The schedule its Plugin's Manifest declares, or empty for none.
+    ///
+    /// Field 9: `default_schedule`
+    #[serde(
+        rename = "defaultSchedule",
+        alias = "default_schedule",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub default_schedule: ::buffa::alloc::string::String,
+    /// Whether it runs on its schedule. An Admin turns it off with `ConfigureJob`.
+    ///
+    /// Field 10: `enabled`
+    #[serde(
+        rename = "enabled",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub enabled: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -525,6 +545,8 @@ impl ::core::fmt::Debug for Job {
             .field("schedule", &self.schedule)
             .field("next_runs_at_ms", &self.next_runs_at_ms)
             .field("last_run", &self.last_run)
+            .field("default_schedule", &self.default_schedule)
+            .field("enabled", &self.enabled)
             .finish()
     }
 }
@@ -589,6 +611,14 @@ impl ::buffa::Message for Job {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.default_schedule.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.default_schedule) as u64;
+        }
+        if self.enabled {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -635,6 +665,12 @@ impl ::buffa::Message for Job {
                 buf,
             );
             self.last_run.write_to(__cache, buf);
+        }
+        if !self.default_schedule.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.default_schedule, buf);
+        }
+        if self.enabled {
+            ::buffa::types::put_bool_field(10u32, self.enabled, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -742,6 +778,20 @@ impl ::buffa::Message for Job {
                     ctx,
                 )?;
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.default_schedule, buf)?;
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.enabled = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -758,6 +808,8 @@ impl ::buffa::Message for Job {
         self.schedule.clear();
         self.next_runs_at_ms.clear();
         self.last_run = ::buffa::MessageField::none();
+        self.default_schedule.clear();
+        self.enabled = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -788,6 +840,614 @@ pub const __JOB_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_r
     type_url: "type.googleapis.com/nama.v1.Job",
     to_json: ::buffa::type_registry::any_to_json::<Job>,
     from_json: ::buffa::type_registry::any_from_json::<Job>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ConfigureJobRequest {
+    /// The id of the Plugin declaring the Job, such as `upkeep`.
+    ///
+    /// Field 1: `plugin_id`
+    #[serde(
+        rename = "pluginId",
+        alias = "plugin_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub plugin_id: ::buffa::alloc::string::String,
+    /// The Job's id, such as `forget-home-rows`.
+    ///
+    /// Field 2: `job_id`
+    #[serde(
+        rename = "jobId",
+        alias = "job_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub job_id: ::buffa::alloc::string::String,
+    /// Whether it runs on its schedule.
+    ///
+    /// Field 3: `enabled`
+    #[serde(
+        rename = "enabled",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub enabled: bool,
+    /// A standard 5-field cron schedule to run it on in place of its Manifest's, or empty for that.
+    ///
+    /// Field 4: `schedule`
+    #[serde(
+        rename = "schedule",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub schedule: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ConfigureJobRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ConfigureJobRequest")
+            .field("plugin_id", &self.plugin_id)
+            .field("job_id", &self.job_id)
+            .field("enabled", &self.enabled)
+            .field("schedule", &self.schedule)
+            .finish()
+    }
+}
+impl ConfigureJobRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ConfigureJobRequest";
+}
+::buffa::impl_default_instance!(ConfigureJobRequest);
+impl ::buffa::MessageName for ConfigureJobRequest {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ConfigureJobRequest";
+    const FULL_NAME: &'static str = "nama.v1.ConfigureJobRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ConfigureJobRequest";
+}
+impl ::buffa::Message for ConfigureJobRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        if !self.job_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.job_id) as u64;
+        }
+        if self.enabled {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.schedule.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.schedule) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        if !self.job_id.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.job_id, buf);
+        }
+        if self.enabled {
+            ::buffa::types::put_bool_field(3u32, self.enabled, buf);
+        }
+        if !self.schedule.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.schedule, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.plugin_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.job_id, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.enabled = ::buffa::types::decode_bool(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.schedule, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.plugin_id.clear();
+        self.job_id.clear();
+        self.enabled = false;
+        self.schedule.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ConfigureJobRequest {
+    const PROTO_FQN: &'static str = "nama.v1.ConfigureJobRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ConfigureJobRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __CONFIGURE_JOB_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.ConfigureJobRequest",
+    to_json: ::buffa::type_registry::any_to_json::<ConfigureJobRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<ConfigureJobRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ConfigureJobResponse {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ConfigureJobResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ConfigureJobResponse").finish()
+    }
+}
+impl ConfigureJobResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ConfigureJobResponse";
+}
+::buffa::impl_default_instance!(ConfigureJobResponse);
+impl ::buffa::MessageName for ConfigureJobResponse {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ConfigureJobResponse";
+    const FULL_NAME: &'static str = "nama.v1.ConfigureJobResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ConfigureJobResponse";
+}
+impl ::buffa::Message for ConfigureJobResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ConfigureJobResponse {
+    const PROTO_FQN: &'static str = "nama.v1.ConfigureJobResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ConfigureJobResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __CONFIGURE_JOB_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.ConfigureJobResponse",
+    to_json: ::buffa::type_registry::any_to_json::<ConfigureJobResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<ConfigureJobResponse>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PreviewJobScheduleRequest {
+    /// A standard 5-field cron schedule, such as `*/15 * * * *`.
+    ///
+    /// Field 1: `schedule`
+    #[serde(
+        rename = "schedule",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub schedule: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PreviewJobScheduleRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PreviewJobScheduleRequest")
+            .field("schedule", &self.schedule)
+            .finish()
+    }
+}
+impl PreviewJobScheduleRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewJobScheduleRequest";
+}
+::buffa::impl_default_instance!(PreviewJobScheduleRequest);
+impl ::buffa::MessageName for PreviewJobScheduleRequest {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PreviewJobScheduleRequest";
+    const FULL_NAME: &'static str = "nama.v1.PreviewJobScheduleRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewJobScheduleRequest";
+}
+impl ::buffa::Message for PreviewJobScheduleRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.schedule.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.schedule) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.schedule.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.schedule, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.schedule, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.schedule.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PreviewJobScheduleRequest {
+    const PROTO_FQN: &'static str = "nama.v1.PreviewJobScheduleRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PreviewJobScheduleRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PREVIEW_JOB_SCHEDULE_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.PreviewJobScheduleRequest",
+    to_json: ::buffa::type_registry::any_to_json::<PreviewJobScheduleRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<PreviewJobScheduleRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PreviewJobScheduleResponse {
+    /// When it next fires, soonest first, in milliseconds since the Unix epoch: up to 3.
+    ///
+    /// Field 1: `next_runs_at_ms`
+    #[serde(
+        rename = "nextRunsAtMs",
+        alias = "next_runs_at_ms",
+        with = "::buffa::json_helpers::proto_seq",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub next_runs_at_ms: ::buffa::alloc::vec::Vec<i64>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PreviewJobScheduleResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PreviewJobScheduleResponse")
+            .field("next_runs_at_ms", &self.next_runs_at_ms)
+            .finish()
+    }
+}
+impl PreviewJobScheduleResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewJobScheduleResponse";
+}
+::buffa::impl_default_instance!(PreviewJobScheduleResponse);
+impl ::buffa::MessageName for PreviewJobScheduleResponse {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PreviewJobScheduleResponse";
+    const FULL_NAME: &'static str = "nama.v1.PreviewJobScheduleResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewJobScheduleResponse";
+}
+impl ::buffa::Message for PreviewJobScheduleResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.next_runs_at_ms.is_empty() {
+            let payload: u64 = self
+                .next_runs_at_ms
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.next_runs_at_ms.is_empty() {
+            let payload: u64 = self
+                .next_runs_at_ms
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(1u32, payload, buf);
+            for &v in &self.next_runs_at_ms {
+                ::buffa::types::encode_int64(v, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_int64(
+                            &buf.chunk()[..len],
+                            &mut self.next_runs_at_ms,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.next_runs_at_ms.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.next_runs_at_ms
+                                .push(::buffa::types::decode_int64_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.next_runs_at_ms.push(::buffa::types::decode_int64(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.next_runs_at_ms.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PreviewJobScheduleResponse {
+    const PROTO_FQN: &'static str = "nama.v1.PreviewJobScheduleResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PreviewJobScheduleResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PREVIEW_JOB_SCHEDULE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.PreviewJobScheduleResponse",
+    to_json: ::buffa::type_registry::any_to_json::<PreviewJobScheduleResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<PreviewJobScheduleResponse>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
@@ -1404,6 +2064,18 @@ pub struct JobRun {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub started_by: ::buffa::alloc::string::String,
+    /// The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
+    /// Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
+    /// `Job.last_run`.
+    ///
+    /// Field 7: `log_lines`
+    #[serde(
+        rename = "logLines",
+        alias = "log_lines",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub log_lines: ::buffa::alloc::vec::Vec<PluginLogLine>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1417,6 +2089,7 @@ impl ::core::fmt::Debug for JobRun {
             .field("ended_at_ms", &self.ended_at_ms)
             .field("error", &self.error)
             .field("started_by", &self.started_by)
+            .field("log_lines", &self.log_lines)
             .finish()
     }
 }
@@ -1452,7 +2125,7 @@ impl ::buffa::Message for JobRun {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -1477,12 +2150,20 @@ impl ::buffa::Message for JobRun {
         if !self.started_by.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.started_by) as u64;
         }
+        for v in &self.log_lines {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -1507,6 +2188,14 @@ impl ::buffa::Message for JobRun {
         }
         if !self.started_by.is_empty() {
             ::buffa::types::put_string_field(6u32, &self.started_by, buf);
+        }
+        for v in &self.log_lines {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1567,6 +2256,18 @@ impl ::buffa::Message for JobRun {
                 )?;
                 ::buffa::types::merge_string(&mut self.started_by, buf)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.log_lines.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1581,6 +2282,7 @@ impl ::buffa::Message for JobRun {
         self.ended_at_ms = ::core::option::Option::None;
         self.error.clear();
         self.started_by.clear();
+        self.log_lines.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

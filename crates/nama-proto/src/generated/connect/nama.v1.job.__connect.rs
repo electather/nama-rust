@@ -14,6 +14,22 @@ pub type OwnedListJobRunsRequestView = ::buffa::view::OwnedView<
 pub type OwnedListJobRunsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListJobRunsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ConfigureJobRequestView<'static>>`.
+pub type OwnedConfigureJobRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ConfigureJobRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ConfigureJobResponseView<'static>>`.
+pub type OwnedConfigureJobResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ConfigureJobResponseView<'static>,
+>;
+///Shorthand for `OwnedView<PreviewJobScheduleRequestView<'static>>`.
+pub type OwnedPreviewJobScheduleRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PreviewJobScheduleRequestView<'static>,
+>;
+///Shorthand for `OwnedView<PreviewJobScheduleResponseView<'static>>`.
+pub type OwnedPreviewJobScheduleResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PreviewJobScheduleResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<RunJobRequestView<'static>>`.
 pub type OwnedRunJobRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::RunJobRequestView<'static>,
@@ -90,6 +106,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ConfigureJobResponse>
+for crate::messages::nama::v1::__buffa::view::ConfigureJobResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ConfigureJobResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ConfigureJobResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::PreviewJobScheduleResponse>
+for crate::messages::nama::v1::__buffa::view::PreviewJobScheduleResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::PreviewJobScheduleResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PreviewJobScheduleResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::RunJobResponse>
 for crate::messages::nama::v1::__buffa::view::RunJobResponseView<'_> {
     fn encode(
@@ -135,6 +219,18 @@ pub const JOB_SERVICE_LIST_JOBS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::s
 /// Static [`Spec`](::connectrpc::Spec) for the `ListJobRuns` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const JOB_SERVICE_LIST_JOB_RUNS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.JobService/ListJobRuns",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ConfigureJob` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const JOB_SERVICE_CONFIGURE_JOB_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.JobService/ConfigureJob",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `PreviewJobSchedule` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const JOB_SERVICE_PREVIEW_JOB_SCHEDULE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.JobService/PreviewJobSchedule",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
@@ -242,6 +338,58 @@ pub trait JobService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ListJobRunsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Turns a Job on or off and sets the schedule it runs on in place of its Manifest's, taking
+    /// effect at once. A Job on and on its Manifest's schedule has nothing stored, so a Plugin
+    /// update's new schedule reaches it: that is how a Job is reset to its default. Fails with
+    /// `REFUSAL_REASON_JOB_NOT_FOUND` if no Plugin the Server has declares it, and
+    /// `REFUSAL_REASON_SCHEDULE_INVALID` if `schedule` doesn't parse or is set for a Job without one
+    /// of its own.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn configure_job<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ConfigureJobRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ConfigureJobResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns when `schedule` next fires, for showing before it is saved. Fails with
+    /// `REFUSAL_REASON_SCHEDULE_INVALID` if it doesn't parse.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn preview_job_schedule<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::PreviewJobScheduleRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::PreviewJobScheduleResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -363,6 +511,64 @@ impl<S: JobService> JobServiceExt for S {
             .with_spec(JOB_SERVICE_LIST_JOB_RUNS_SPEC)
             .route_view(
                 JOB_SERVICE_SERVICE_NAME,
+                "ConfigureJob",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ConfigureJobRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ConfigureJobRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.configure_job(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ConfigureJobResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(JOB_SERVICE_CONFIGURE_JOB_SPEC)
+            .route_view_idempotent(
+                JOB_SERVICE_SERVICE_NAME,
+                "PreviewJobSchedule",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::PreviewJobScheduleRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::PreviewJobScheduleRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.preview_job_schedule(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::PreviewJobScheduleResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(JOB_SERVICE_PREVIEW_JOB_SCHEDULE_SPEC)
+            .route_view(
+                JOB_SERVICE_SERVICE_NAME,
                 "RunJob",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -454,6 +660,18 @@ impl<T: JobService> ::connectrpc::Dispatcher for JobServiceServer<T> {
                         .with_spec(JOB_SERVICE_LIST_JOB_RUNS_SPEC),
                 )
             }
+            "ConfigureJob" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(JOB_SERVICE_CONFIGURE_JOB_SPEC),
+                )
+            }
+            "PreviewJobSchedule" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(JOB_SERVICE_PREVIEW_JOB_SCHEDULE_SPEC),
+                )
+            }
             "RunJob" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -513,6 +731,50 @@ impl<T: JobService> ::connectrpc::Dispatcher for JobServiceServer<T> {
                     svc.list_job_runs(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::ListJobRunsResponse>(format)
+                })
+            }
+            "ConfigureJob" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ConfigureJobRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ConfigureJobRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ConfigureJobRequest,
+                    >::from_parts(&req, &body);
+                    svc.configure_job(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ConfigureJobResponse,
+                        >(format)
+                })
+            }
+            "PreviewJobSchedule" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::PreviewJobScheduleRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::PreviewJobScheduleRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::PreviewJobScheduleRequest,
+                    >::from_parts(&req, &body);
+                    svc.preview_job_schedule(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::PreviewJobScheduleResponse,
+                        >(format)
                 })
             }
             "RunJob" => {
@@ -742,6 +1004,96 @@ where
                 &self.transport,
                 &self.config,
                 JOB_SERVICE_LIST_JOB_RUNS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ConfigureJob RPC. Sends a request to /nama.v1.JobService/ConfigureJob.
+    pub async fn configure_job(
+        &self,
+        request: crate::messages::nama::v1::ConfigureJobRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ConfigureJobResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.configure_job_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ConfigureJob RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn configure_job_with_options(
+        &self,
+        request: crate::messages::nama::v1::ConfigureJobRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ConfigureJobResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                JOB_SERVICE_CONFIGURE_JOB_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PreviewJobSchedule RPC. Sends a request to /nama.v1.JobService/PreviewJobSchedule.
+    pub async fn preview_job_schedule(
+        &self,
+        request: crate::messages::nama::v1::PreviewJobScheduleRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::PreviewJobScheduleResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.preview_job_schedule_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PreviewJobSchedule RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn preview_job_schedule_with_options(
+        &self,
+        request: crate::messages::nama::v1::PreviewJobScheduleRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::PreviewJobScheduleResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                JOB_SERVICE_PREVIEW_JOB_SCHEDULE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

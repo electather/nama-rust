@@ -12,7 +12,7 @@ use sqlx::SqliteConnection;
 use super::asked::{self, Asked};
 use super::followed::load_followed;
 use super::quality::stored_quality;
-use super::state::{open_request, open_season_requests, read_state, stored};
+use super::state::{open_request, open_requests, open_season_requests, read_state, stored};
 use super::{Error, Requests};
 use crate::page::Page;
 use crate::users::{User, may_see};
@@ -141,7 +141,29 @@ impl Requests {
         viewer: &User,
         ids: &metadata::ExternalIds,
     ) -> Result<Option<Request>, sqlx::Error> {
-        for id in open_season_requests(conn, ids).await? {
+        let open = open_season_requests(conn, ids).await?;
+        self.first_visible(conn, viewer, open).await
+    }
+
+    /// The open Request for the Movie with any of `ids` that `viewer` may see.
+    pub(super) async fn visible_open_movie_request(
+        &self,
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        ids: &metadata::ExternalIds,
+    ) -> Result<Option<Request>, sqlx::Error> {
+        let open = open_requests(conn, ids, None).await?;
+        self.first_visible(conn, viewer, open).await
+    }
+
+    /// The first of the Requests `ids` that `viewer` may see.
+    async fn first_visible(
+        &self,
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        ids: Vec<i64>,
+    ) -> Result<Option<Request>, sqlx::Error> {
+        for id in ids {
             if let Some(request) = self.visible(conn, Some(id), viewer).await?.pop() {
                 return Ok(Some(request));
             }

@@ -316,6 +316,19 @@ message Plugin {
   string source_url = 17;
   // Its licence as an SPDX expression, such as `MIT`, or empty if it gives none.
   string license = 18;
+  // The Jobs its Manifest declares, in that order, whether or not it is enabled, so an Admin sees
+  // what it will run. `JobService` gives an enabled Plugin's Jobs with their Runs.
+  repeated PluginJob jobs = 19;
+}
+
+// A Job a Plugin's Manifest declares.
+message PluginJob {
+  // Unique within its Plugin, such as `forget-home-rows`: `JobService` knows it by this id.
+  string id = 1;
+  string name = 2;
+  // Its standard 5-field cron schedule, such as `0 4 * * *`, read in the Server's time zone, or
+  // empty for a Job that runs only when an Admin starts it.
+  string schedule = 3;
 }
 
 // An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call
@@ -353,8 +366,10 @@ enum PluginPermission {
   PLUGIN_PERMISSION_FORGET_HOME_ROWS = 8;
   // Delete the settings and data kept for Plugins the Server stopped having a while ago.
   PLUGIN_PERMISSION_FORGET_GONE_PLUGINS = 9;
+  // Delete the Devices and Invites that have expired, which no longer work.
+  PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS = 10;
   // Fetch every Matched title's metadata again from its title source.
-  PLUGIN_PERMISSION_REFRESH_METADATA = 10;
+  PLUGIN_PERMISSION_REFRESH_METADATA = 11;
 }
 
 // A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
@@ -394,6 +409,9 @@ enum ExtensionPoint {
   // Says where a Version's Intro, Recap and Credits are, which a Library lists to ask it
   // (ADR 0075).
   EXTENSION_POINT_SEGMENT_SOURCE = 14;
+  // Adds titles to every User's search, such as by what they are about, after the Libraries'
+  // and the title source's (ADR 0083).
+  EXTENSION_POINT_SEARCH_SOURCE = 15;
 }
 
 // What kind of value a setting takes.

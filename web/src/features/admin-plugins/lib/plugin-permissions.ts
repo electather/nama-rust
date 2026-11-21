@@ -38,6 +38,11 @@ export const pluginPermissions: Partial<
     about:
       "It deletes the Home rows and Featured suggestions kept for Users who stopped opening home. They get fresh ones when they come back.",
   },
+  [PluginPermission.DELETE_EXPIRED_SIGN_INS]: {
+    label: "Delete expired sign-ins",
+    about:
+      "It deletes the Devices whose sign-in has expired and the Invites past their expiry. Neither works any more.",
+  },
   [PluginPermission.FORGET_GONE_PLUGINS]: {
     label: "Forget removed Plugins",
     about:

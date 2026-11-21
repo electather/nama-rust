@@ -27,8 +27,10 @@ pub enum Permission {
     PERMISSION_FORGET_HOME_ROWS = 8i32,
     /// Deleting what Plugins the Server no longer has left behind: `forget_gone_plugins`.
     PERMISSION_FORGET_GONE_PLUGINS = 9i32,
+    /// Deleting the Devices and Invites that have expired: `delete_expired_sign_ins`.
+    PERMISSION_DELETE_EXPIRED_SIGN_INS = 10i32,
     /// Fetching every Matched title again from its title source: `refresh_metadata`.
-    PERMISSION_REFRESH_METADATA = 10i32,
+    PERMISSION_REFRESH_METADATA = 11i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -61,6 +63,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_FORGET_GONE_PLUGINS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ForgetGonePlugins: Self = Self::PERMISSION_FORGET_GONE_PLUGINS;
+    ///Idiomatic alias for [`Self::PERMISSION_DELETE_EXPIRED_SIGN_INS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeleteExpiredSignIns: Self = Self::PERMISSION_DELETE_EXPIRED_SIGN_INS;
     ///Idiomatic alias for [`Self::PERMISSION_REFRESH_METADATA`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RefreshMetadata: Self = Self::PERMISSION_REFRESH_METADATA;
@@ -169,7 +174,10 @@ impl ::buffa::Enumeration for Permission {
             7i32 => ::core::option::Option::Some(Self::PERMISSION_READ_WATCHLISTS),
             8i32 => ::core::option::Option::Some(Self::PERMISSION_FORGET_HOME_ROWS),
             9i32 => ::core::option::Option::Some(Self::PERMISSION_FORGET_GONE_PLUGINS),
-            10i32 => ::core::option::Option::Some(Self::PERMISSION_REFRESH_METADATA),
+            10i32 => {
+                ::core::option::Option::Some(Self::PERMISSION_DELETE_EXPIRED_SIGN_INS)
+            }
+            11i32 => ::core::option::Option::Some(Self::PERMISSION_REFRESH_METADATA),
             _ => ::core::option::Option::None,
         }
     }
@@ -188,6 +196,9 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_WATCHLISTS => "PERMISSION_READ_WATCHLISTS",
             Self::PERMISSION_FORGET_HOME_ROWS => "PERMISSION_FORGET_HOME_ROWS",
             Self::PERMISSION_FORGET_GONE_PLUGINS => "PERMISSION_FORGET_GONE_PLUGINS",
+            Self::PERMISSION_DELETE_EXPIRED_SIGN_INS => {
+                "PERMISSION_DELETE_EXPIRED_SIGN_INS"
+            }
             Self::PERMISSION_REFRESH_METADATA => "PERMISSION_REFRESH_METADATA",
         }
     }
@@ -221,6 +232,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_FORGET_GONE_PLUGINS" => {
                 ::core::option::Option::Some(Self::PERMISSION_FORGET_GONE_PLUGINS)
             }
+            "PERMISSION_DELETE_EXPIRED_SIGN_INS" => {
+                ::core::option::Option::Some(Self::PERMISSION_DELETE_EXPIRED_SIGN_INS)
+            }
             "PERMISSION_REFRESH_METADATA" => {
                 ::core::option::Option::Some(Self::PERMISSION_REFRESH_METADATA)
             }
@@ -239,6 +253,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_WATCHLISTS,
             Self::PERMISSION_FORGET_HOME_ROWS,
             Self::PERMISSION_FORGET_GONE_PLUGINS,
+            Self::PERMISSION_DELETE_EXPIRED_SIGN_INS,
             Self::PERMISSION_REFRESH_METADATA,
         ]
     }
@@ -565,6 +580,10 @@ impl ::buffa::Enumeration for TitleRefKind {
 ///   list_watchlist:    WatchlistAsked   -\> Watchlist      PERMISSION_READ_WATCHLISTS
 ///   delete_media:      DeleteAsked      -\> DeleteStarted  PERMISSION_DELETE_MEDIA
 ///   forget_home_rows:  ForgetHomeRowsAsked -\> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
+///   delete_expired_sign_ins: ExpiredSignInsAsked -\> ExpiredSignInsDeleted
+/// ```text
+///                  PERMISSION_DELETE_EXPIRED_SIGN_INS
+/// ```
 ///   forget_gone_plugins: ForgetGonePluginsAsked -\> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
 ///   refresh_metadata:  RefreshMetadataAsked -\> MetadataRefreshed  PERMISSION_REFRESH_METADATA
 ///
@@ -5434,6 +5453,264 @@ pub const __HOME_ROWS_FORGOTTEN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry =
     type_url: "type.googleapis.com/nama.plugin.v1.HomeRowsForgotten",
     to_json: ::buffa::type_registry::any_to_json::<HomeRowsForgotten>,
     from_json: ::buffa::type_registry::any_from_json::<HomeRowsForgotten>,
+    is_wkt: false,
+};
+/// What `delete_expired_sign_ins` takes.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ExpiredSignInsAsked {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ExpiredSignInsAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ExpiredSignInsAsked").finish()
+    }
+}
+impl ExpiredSignInsAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ExpiredSignInsAsked";
+}
+::buffa::impl_default_instance!(ExpiredSignInsAsked);
+impl ::buffa::MessageName for ExpiredSignInsAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ExpiredSignInsAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ExpiredSignInsAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ExpiredSignInsAsked";
+}
+impl ::buffa::Message for ExpiredSignInsAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ExpiredSignInsAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.ExpiredSignInsAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ExpiredSignInsAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __EXPIRED_SIGN_INS_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.ExpiredSignInsAsked",
+    to_json: ::buffa::type_registry::any_to_json::<ExpiredSignInsAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<ExpiredSignInsAsked>,
+    is_wkt: false,
+};
+/// What `delete_expired_sign_ins` answers once it deleted every Device whose session expired and
+/// every Invite past its expiry. Neither worked any more; they were only still stored.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ExpiredSignInsDeleted {
+    /// How many Devices it deleted.
+    ///
+    /// Field 1: `devices`
+    #[serde(
+        rename = "devices",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub devices: u32,
+    /// How many Invites it deleted.
+    ///
+    /// Field 2: `invites`
+    #[serde(
+        rename = "invites",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub invites: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ExpiredSignInsDeleted {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ExpiredSignInsDeleted")
+            .field("devices", &self.devices)
+            .field("invites", &self.invites)
+            .finish()
+    }
+}
+impl ExpiredSignInsDeleted {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ExpiredSignInsDeleted";
+}
+::buffa::impl_default_instance!(ExpiredSignInsDeleted);
+impl ::buffa::MessageName for ExpiredSignInsDeleted {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ExpiredSignInsDeleted";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ExpiredSignInsDeleted";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ExpiredSignInsDeleted";
+}
+impl ::buffa::Message for ExpiredSignInsDeleted {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.devices != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.devices) as u64;
+        }
+        if self.invites != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.invites) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.devices != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.devices, buf);
+        }
+        if self.invites != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.invites, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.devices = ::buffa::types::decode_uint32(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.invites = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.devices = 0u32;
+        self.invites = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ExpiredSignInsDeleted {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.ExpiredSignInsDeleted";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ExpiredSignInsDeleted {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __EXPIRED_SIGN_INS_DELETED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.ExpiredSignInsDeleted",
+    to_json: ::buffa::type_registry::any_to_json::<ExpiredSignInsDeleted>,
+    from_json: ::buffa::type_registry::any_from_json::<ExpiredSignInsDeleted>,
     is_wkt: false,
 };
 /// What `forget_gone_plugins` takes.

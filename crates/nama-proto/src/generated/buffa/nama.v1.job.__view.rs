@@ -519,13 +519,14 @@ pub struct JobView<'a> {
     ///
     /// Field 5: `description`
     pub description: &'a str,
-    /// Its standard 5-field cron schedule, such as `0 4 * * *`, read in the Server's time zone, or
-    /// empty for a Job that runs only when an Admin starts it.
+    /// The standard 5-field cron schedule it runs on, such as `0 4 * * *`, read in the Server's
+    /// time zone: an Admin's in place of `default_schedule`, or that. Empty for a Job that runs only
+    /// when an Admin starts it.
     ///
     /// Field 6: `schedule`
     pub schedule: &'a str,
     /// When its schedule next fires, soonest first, in milliseconds since the Unix epoch: up to 3,
-    /// and none without a schedule.
+    /// and none without a schedule or while it is off.
     ///
     /// Field 7: `next_runs_at_ms`
     pub next_runs_at_ms: ::buffa::RepeatedView<'a, i64>,
@@ -533,6 +534,14 @@ pub struct JobView<'a> {
     ///
     /// Field 8: `last_run`
     pub last_run: ::buffa::MessageFieldView<super::super::__buffa::view::JobRunView<'a>>,
+    /// The schedule its Plugin's Manifest declares, or empty for none.
+    ///
+    /// Field 9: `default_schedule`
+    pub default_schedule: &'a str,
+    /// Whether it runs on its schedule. An Admin turns it off with `ConfigureJob`.
+    ///
+    /// Field 10: `enabled`
+    pub enabled: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for JobView<'a> {
@@ -628,6 +637,20 @@ impl<'a> ::buffa::MessageView<'a> for JobView<'a> {
                     }
                 }
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.default_schedule = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.enabled = ::buffa::types::decode_bool(&mut cur)?;
+            }
             7u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
@@ -685,6 +708,8 @@ impl<'a> ::buffa::MessageView<'a> for JobView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            default_schedule: self.default_schedule.to_string(),
+            enabled: self.enabled,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -729,6 +754,14 @@ impl<'a> ::buffa::ViewEncode<'a> for JobView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if !self.default_schedule.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.default_schedule) as u64;
+        }
+        if self.enabled {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -777,6 +810,12 @@ impl<'a> ::buffa::ViewEncode<'a> for JobView<'a> {
                 buf,
             );
             self.last_run.write_to(__cache, buf);
+        }
+        if !self.default_schedule.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.default_schedule, buf);
+        }
+        if self.enabled {
+            ::buffa::types::put_bool_field(10u32, self.enabled, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -828,6 +867,12 @@ impl<'__a> ::serde::Serialize for JobView<'__a> {
             if let ::core::option::Option::Some(__v) = self.last_run.as_option() {
                 __map.serialize_entry("lastRun", __v)?;
             }
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.default_schedule) {
+            __map.serialize_entry("defaultSchedule", self.default_schedule)?;
+        }
+        if self.enabled {
+            __map.serialize_entry("enabled", &self.enabled)?;
         }
         __map.end()
     }
@@ -949,8 +994,9 @@ impl JobOwnedView {
     pub fn description(&self) -> &'_ str {
         self.0.reborrow().description
     }
-    /// Its standard 5-field cron schedule, such as `0 4 * * *`, read in the Server's time zone, or
-    /// empty for a Job that runs only when an Admin starts it.
+    /// The standard 5-field cron schedule it runs on, such as `0 4 * * *`, read in the Server's
+    /// time zone: an Admin's in place of `default_schedule`, or that. Empty for a Job that runs only
+    /// when an Admin starts it.
     ///
     /// Field 6: `schedule`
     #[must_use]
@@ -958,7 +1004,7 @@ impl JobOwnedView {
         self.0.reborrow().schedule
     }
     /// When its schedule next fires, soonest first, in milliseconds since the Unix epoch: up to 3,
-    /// and none without a schedule.
+    /// and none without a schedule or while it is off.
     ///
     /// Field 7: `next_runs_at_ms`
     #[must_use]
@@ -973,6 +1019,20 @@ impl JobOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::JobRunView<'_>> {
         &self.0.reborrow().last_run
+    }
+    /// The schedule its Plugin's Manifest declares, or empty for none.
+    ///
+    /// Field 9: `default_schedule`
+    #[must_use]
+    pub fn default_schedule(&self) -> &'_ str {
+        self.0.reborrow().default_schedule
+    }
+    /// Whether it runs on its schedule. An Admin turns it off with `ConfigureJob`.
+    ///
+    /// Field 10: `enabled`
+    #[must_use]
+    pub fn enabled(&self) -> bool {
+        self.0.reborrow().enabled
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<JobView<'static>>> for JobOwnedView {
@@ -995,6 +1055,1127 @@ impl ::buffa::HasMessageView for super::super::Job {
     type ViewHandle = JobOwnedView;
 }
 impl ::serde::Serialize for JobOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct ConfigureJobRequestView<'a> {
+    /// The id of the Plugin declaring the Job, such as `upkeep`.
+    ///
+    /// Field 1: `plugin_id`
+    pub plugin_id: &'a str,
+    /// The Job's id, such as `forget-home-rows`.
+    ///
+    /// Field 2: `job_id`
+    pub job_id: &'a str,
+    /// Whether it runs on its schedule.
+    ///
+    /// Field 3: `enabled`
+    pub enabled: bool,
+    /// A standard 5-field cron schedule to run it on in place of its Manifest's, or empty for that.
+    ///
+    /// Field 4: `schedule`
+    pub schedule: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ConfigureJobRequestView<'a> {
+    type Owned = super::super::ConfigureJobRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.plugin_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.job_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.enabled = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.schedule = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ConfigureJobRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ConfigureJobRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ConfigureJobRequest {
+            plugin_id: self.plugin_id.to_string(),
+            job_id: self.job_id.to_string(),
+            enabled: self.enabled,
+            schedule: self.schedule.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ConfigureJobRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        if !self.job_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.job_id) as u64;
+        }
+        if self.enabled {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.schedule.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.schedule) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        if !self.job_id.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.job_id, buf);
+        }
+        if self.enabled {
+            ::buffa::types::put_bool_field(3u32, self.enabled, buf);
+        }
+        if !self.schedule.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.schedule, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ConfigureJobRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.plugin_id) {
+            __map.serialize_entry("pluginId", self.plugin_id)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.job_id) {
+            __map.serialize_entry("jobId", self.job_id)?;
+        }
+        if self.enabled {
+            __map.serialize_entry("enabled", &self.enabled)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.schedule) {
+            __map.serialize_entry("schedule", self.schedule)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ConfigureJobRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ConfigureJobRequest";
+    const FULL_NAME: &'static str = "nama.v1.ConfigureJobRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ConfigureJobRequest";
+}
+::buffa::impl_default_view_instance!(ConfigureJobRequestView);
+::buffa::impl_view_reborrow!(ConfigureJobRequestView);
+/** Self-contained, `'static` owned view of a `ConfigureJobRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ConfigureJobRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ConfigureJobRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ConfigureJobRequestOwnedView(
+    ::buffa::OwnedView<ConfigureJobRequestView<'static>>,
+);
+impl ConfigureJobRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ConfigureJobRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ConfigureJobRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ConfigureJobRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ConfigureJobRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ConfigureJobRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ConfigureJobRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ConfigureJobRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The id of the Plugin declaring the Job, such as `upkeep`.
+    ///
+    /// Field 1: `plugin_id`
+    #[must_use]
+    pub fn plugin_id(&self) -> &'_ str {
+        self.0.reborrow().plugin_id
+    }
+    /// The Job's id, such as `forget-home-rows`.
+    ///
+    /// Field 2: `job_id`
+    #[must_use]
+    pub fn job_id(&self) -> &'_ str {
+        self.0.reborrow().job_id
+    }
+    /// Whether it runs on its schedule.
+    ///
+    /// Field 3: `enabled`
+    #[must_use]
+    pub fn enabled(&self) -> bool {
+        self.0.reborrow().enabled
+    }
+    /// A standard 5-field cron schedule to run it on in place of its Manifest's, or empty for that.
+    ///
+    /// Field 4: `schedule`
+    #[must_use]
+    pub fn schedule(&self) -> &'_ str {
+        self.0.reborrow().schedule
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ConfigureJobRequestView<'static>>>
+for ConfigureJobRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<ConfigureJobRequestView<'static>>) -> Self {
+        ConfigureJobRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ConfigureJobRequestOwnedView>
+for ::buffa::OwnedView<ConfigureJobRequestView<'static>> {
+    fn from(wrapper: ConfigureJobRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ConfigureJobRequestView<'static>>>
+for ConfigureJobRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ConfigureJobRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ConfigureJobRequest {
+    type View<'a> = ConfigureJobRequestView<'a>;
+    type ViewHandle = ConfigureJobRequestOwnedView;
+}
+impl ::serde::Serialize for ConfigureJobRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct ConfigureJobResponseView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ConfigureJobResponseView<'a> {
+    type Owned = super::super::ConfigureJobResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ConfigureJobResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ConfigureJobResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ConfigureJobResponse {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ConfigureJobResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ConfigureJobResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ConfigureJobResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ConfigureJobResponse";
+    const FULL_NAME: &'static str = "nama.v1.ConfigureJobResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ConfigureJobResponse";
+}
+::buffa::impl_default_view_instance!(ConfigureJobResponseView);
+::buffa::impl_view_reborrow!(ConfigureJobResponseView);
+/** Self-contained, `'static` owned view of a `ConfigureJobResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ConfigureJobResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ConfigureJobResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ConfigureJobResponseOwnedView(
+    ::buffa::OwnedView<ConfigureJobResponseView<'static>>,
+);
+impl ConfigureJobResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ConfigureJobResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ConfigureJobResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ConfigureJobResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ConfigureJobResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ConfigureJobResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ConfigureJobResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ConfigureJobResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ConfigureJobResponseView<'static>>>
+for ConfigureJobResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<ConfigureJobResponseView<'static>>) -> Self {
+        ConfigureJobResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ConfigureJobResponseOwnedView>
+for ::buffa::OwnedView<ConfigureJobResponseView<'static>> {
+    fn from(wrapper: ConfigureJobResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ConfigureJobResponseView<'static>>>
+for ConfigureJobResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ConfigureJobResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ConfigureJobResponse {
+    type View<'a> = ConfigureJobResponseView<'a>;
+    type ViewHandle = ConfigureJobResponseOwnedView;
+}
+impl ::serde::Serialize for ConfigureJobResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PreviewJobScheduleRequestView<'a> {
+    /// A standard 5-field cron schedule, such as `*/15 * * * *`.
+    ///
+    /// Field 1: `schedule`
+    pub schedule: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PreviewJobScheduleRequestView<'a> {
+    type Owned = super::super::PreviewJobScheduleRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.schedule = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PreviewJobScheduleRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PreviewJobScheduleRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PreviewJobScheduleRequest {
+            schedule: self.schedule.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PreviewJobScheduleRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.schedule.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.schedule) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.schedule.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.schedule, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PreviewJobScheduleRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.schedule) {
+            __map.serialize_entry("schedule", self.schedule)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PreviewJobScheduleRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PreviewJobScheduleRequest";
+    const FULL_NAME: &'static str = "nama.v1.PreviewJobScheduleRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewJobScheduleRequest";
+}
+::buffa::impl_default_view_instance!(PreviewJobScheduleRequestView);
+::buffa::impl_view_reborrow!(PreviewJobScheduleRequestView);
+/** Self-contained, `'static` owned view of a `PreviewJobScheduleRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PreviewJobScheduleRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PreviewJobScheduleRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PreviewJobScheduleRequestOwnedView(
+    ::buffa::OwnedView<PreviewJobScheduleRequestView<'static>>,
+);
+impl PreviewJobScheduleRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewJobScheduleRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewJobScheduleRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PreviewJobScheduleRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewJobScheduleRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PreviewJobScheduleRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PreviewJobScheduleRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PreviewJobScheduleRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// A standard 5-field cron schedule, such as `*/15 * * * *`.
+    ///
+    /// Field 1: `schedule`
+    #[must_use]
+    pub fn schedule(&self) -> &'_ str {
+        self.0.reborrow().schedule
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PreviewJobScheduleRequestView<'static>>>
+for PreviewJobScheduleRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<PreviewJobScheduleRequestView<'static>>) -> Self {
+        PreviewJobScheduleRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PreviewJobScheduleRequestOwnedView>
+for ::buffa::OwnedView<PreviewJobScheduleRequestView<'static>> {
+    fn from(wrapper: PreviewJobScheduleRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PreviewJobScheduleRequestView<'static>>>
+for PreviewJobScheduleRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PreviewJobScheduleRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PreviewJobScheduleRequest {
+    type View<'a> = PreviewJobScheduleRequestView<'a>;
+    type ViewHandle = PreviewJobScheduleRequestOwnedView;
+}
+impl ::serde::Serialize for PreviewJobScheduleRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PreviewJobScheduleResponseView<'a> {
+    /// When it next fires, soonest first, in milliseconds since the Unix epoch: up to 3.
+    ///
+    /// Field 1: `next_runs_at_ms`
+    pub next_runs_at_ms: ::buffa::RepeatedView<'a, i64>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PreviewJobScheduleResponseView<'a> {
+    type Owned = super::super::PreviewJobScheduleResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_int64(
+                        payload,
+                        view.next_runs_at_ms.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.next_runs_at_ms.push(::buffa::types::decode_int64(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PreviewJobScheduleResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PreviewJobScheduleResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PreviewJobScheduleResponse {
+            next_runs_at_ms: self.next_runs_at_ms.to_vec(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PreviewJobScheduleResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.next_runs_at_ms.is_empty() {
+            let payload: u64 = self
+                .next_runs_at_ms
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.next_runs_at_ms.is_empty() {
+            let payload: u64 = self
+                .next_runs_at_ms
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(1u32, payload, buf);
+            for &v in &self.next_runs_at_ms {
+                ::buffa::types::encode_int64(v, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PreviewJobScheduleResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.next_runs_at_ms.is_empty() {
+            __map
+                .serialize_entry(
+                    "nextRunsAtMs",
+                    &::buffa::json_helpers::RepeatedJson(&self.next_runs_at_ms),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PreviewJobScheduleResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PreviewJobScheduleResponse";
+    const FULL_NAME: &'static str = "nama.v1.PreviewJobScheduleResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewJobScheduleResponse";
+}
+::buffa::impl_default_view_instance!(PreviewJobScheduleResponseView);
+::buffa::impl_view_reborrow!(PreviewJobScheduleResponseView);
+/** Self-contained, `'static` owned view of a `PreviewJobScheduleResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PreviewJobScheduleResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PreviewJobScheduleResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PreviewJobScheduleResponseOwnedView(
+    ::buffa::OwnedView<PreviewJobScheduleResponseView<'static>>,
+);
+impl PreviewJobScheduleResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewJobScheduleResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewJobScheduleResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PreviewJobScheduleResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PreviewJobScheduleResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PreviewJobScheduleResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PreviewJobScheduleResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PreviewJobScheduleResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// When it next fires, soonest first, in milliseconds since the Unix epoch: up to 3.
+    ///
+    /// Field 1: `next_runs_at_ms`
+    #[must_use]
+    pub fn next_runs_at_ms(&self) -> &::buffa::RepeatedView<'_, i64> {
+        &self.0.reborrow().next_runs_at_ms
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PreviewJobScheduleResponseView<'static>>>
+for PreviewJobScheduleResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<PreviewJobScheduleResponseView<'static>>) -> Self {
+        PreviewJobScheduleResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PreviewJobScheduleResponseOwnedView>
+for ::buffa::OwnedView<PreviewJobScheduleResponseView<'static>> {
+    fn from(wrapper: PreviewJobScheduleResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PreviewJobScheduleResponseView<'static>>>
+for PreviewJobScheduleResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PreviewJobScheduleResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PreviewJobScheduleResponse {
+    type View<'a> = PreviewJobScheduleResponseView<'a>;
+    type ViewHandle = PreviewJobScheduleResponseOwnedView;
+}
+impl ::serde::Serialize for PreviewJobScheduleResponseOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
@@ -2096,6 +3277,15 @@ pub struct JobRunView<'a> {
     ///
     /// Field 6: `started_by`
     pub started_by: &'a str,
+    /// The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
+    /// Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
+    /// `Job.last_run`.
+    ///
+    /// Field 7: `log_lines`
+    pub log_lines: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::PluginLogLineView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for JobRunView<'a> {
@@ -2172,6 +3362,26 @@ impl<'a> ::buffa::MessageView<'a> for JobRunView<'a> {
                 )?;
                 view.started_by = ::buffa::types::borrow_str(&mut cur)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::PluginLogLineView,
+                    >(),
+                )?;
+                view.log_lines
+                    .push(
+                        <super::super::__buffa::view::PluginLogLineView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2200,6 +3410,11 @@ impl<'a> ::buffa::MessageView<'a> for JobRunView<'a> {
             ended_at_ms: self.ended_at_ms,
             error: self.error.to_string(),
             started_by: self.started_by.to_string(),
+            log_lines: self
+                .log_lines
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2207,7 +3422,7 @@ impl<'a> ::buffa::MessageView<'a> for JobRunView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for JobRunView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -2232,13 +3447,21 @@ impl<'a> ::buffa::ViewEncode<'a> for JobRunView<'a> {
         if !self.started_by.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.started_by) as u64;
         }
+        for v in &self.log_lines {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -2263,6 +3486,14 @@ impl<'a> ::buffa::ViewEncode<'a> for JobRunView<'a> {
         }
         if !self.started_by.is_empty() {
             ::buffa::types::put_string_field(6u32, &self.started_by, buf);
+        }
+        for v in &self.log_lines {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2306,6 +3537,9 @@ impl<'__a> ::serde::Serialize for JobRunView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.started_by) {
             __map.serialize_entry("startedBy", self.started_by)?;
+        }
+        if !self.log_lines.is_empty() {
+            __map.serialize_entry("logLines", &*self.log_lines)?;
         }
         __map.end()
     }
@@ -2435,6 +3669,17 @@ impl JobRunOwnedView {
     #[must_use]
     pub fn started_by(&self) -> &'_ str {
         self.0.reborrow().started_by
+    }
+    /// The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
+    /// Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
+    /// `Job.last_run`.
+    ///
+    /// Field 7: `log_lines`
+    #[must_use]
+    pub fn log_lines(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::PluginLogLineView<'_>> {
+        &self.0.reborrow().log_lines
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<JobRunView<'static>>> for JobRunOwnedView {

@@ -14,7 +14,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/search.proto.
  */
 export const file_nama_v1_search: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlYXJjaC5wcm90bxIHbmFtYS52MSJPCg1TZWFyY2hSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEiAKBGtpbmQYAiABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgVsaW1pdBgDIAEoBSJWCg5TZWFyY2hSZXNwb25zZRIdCgRoaXRzGAEgASgLMg0ubmFtYS52MS5IaXRzSAASHQoEZG9uZRgCIAEoCzINLm5hbWEudjEuRG9uZUgAQgYKBHBhcnQiIgoESGl0cxIaCgRoaXRzGAEgAygLMgwubmFtYS52MS5IaXQiogEKA0hpdBIiCgVtb3ZpZRgBIAEoCzIRLm5hbWEudjEuTW92aWVIaXRIABIgCgRzaG93GAIgASgLMhAubmFtYS52MS5TaG93SGl0SAASJgoHZXBpc29kZRgDIAEoCzITLm5hbWEudjEuRXBpc29kZUhpdEgAEiQKBnN0YXR1cxgEIAEoDjIULm5hbWEudjEuVGl0bGVTdGF0dXNCBwoFdGl0bGUigQMKCkVwaXNvZGVIaXQSEgoKbGlicmFyeV9pZBgBIAEoAxIfCgJpZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIkCgdzaG93X2lkGAMgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhIKCnNob3dfdGl0bGUYBCABKAkSFQoNc2Vhc29uX251bWJlchgFIAEoDRIWCg5lcGlzb2RlX251bWJlchgGIAEoDRINCgV0aXRsZRgHIAEoCRIWCglzdGlsbF91cmwYCCABKAlIAIgBARIcCg9zdGlsbF90aHVtYmhhc2gYCSABKAxIAYgBARIcCg9zaG93X3Bvc3Rlcl91cmwYCiABKAlIAogBARIiChVzaG93X3Bvc3Rlcl90aHVtYmhhc2gYCyABKAxIA4gBAUIMCgpfc3RpbGxfdXJsQhIKEF9zdGlsbF90aHVtYmhhc2hCEgoQX3Nob3dfcG9zdGVyX3VybEIYChZfc2hvd19wb3N0ZXJfdGh1bWJoYXNoIigKBERvbmUSIAoYdGl0bGVfc291cmNlX3VuYXZhaWxhYmxlGAEgASgIKogBCgtUaXRsZVN0YXR1cxIcChhUSVRMRV9TVEFUVVNfVU5TUEVDSUZJRUQQABIaChZUSVRMRV9TVEFUVVNfQVZBSUxBQkxFEAESGgoWVElUTEVfU1RBVFVTX1JFUVVFU1RFRBACEiMKH1RJVExFX1NUQVRVU19OT1RfT05fVEhJU19TRVJWRVIQAzJRCg1TZWFyY2hTZXJ2aWNlEkAKBlNlYXJjaBIWLm5hbWEudjEuU2VhcmNoUmVxdWVzdBoXLm5hbWEudjEuU2VhcmNoUmVzcG9uc2UiA5ACATABYgZwcm90bzM", [file_nama_v1_match, file_nama_v1_request]);
+  fileDesc("ChRuYW1hL3YxL3NlYXJjaC5wcm90bxIHbmFtYS52MSJPCg1TZWFyY2hSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEiAKBGtpbmQYAiABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgVsaW1pdBgDIAEoBSJWCg5TZWFyY2hSZXNwb25zZRIdCgRoaXRzGAEgASgLMg0ubmFtYS52MS5IaXRzSAASHQoEZG9uZRgCIAEoCzINLm5hbWEudjEuRG9uZUgAQgYKBHBhcnQiIgoESGl0cxIaCgRoaXRzGAEgAygLMgwubmFtYS52MS5IaXQiogEKA0hpdBIiCgVtb3ZpZRgBIAEoCzIRLm5hbWEudjEuTW92aWVIaXRIABIgCgRzaG93GAIgASgLMhAubmFtYS52MS5TaG93SGl0SAASJgoHZXBpc29kZRgDIAEoCzITLm5hbWEudjEuRXBpc29kZUhpdEgAEiQKBnN0YXR1cxgEIAEoDjIULm5hbWEudjEuVGl0bGVTdGF0dXNCBwoFdGl0bGUigQMKCkVwaXNvZGVIaXQSEgoKbGlicmFyeV9pZBgBIAEoAxIfCgJpZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIkCgdzaG93X2lkGAMgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhIKCnNob3dfdGl0bGUYBCABKAkSFQoNc2Vhc29uX251bWJlchgFIAEoDRIWCg5lcGlzb2RlX251bWJlchgGIAEoDRINCgV0aXRsZRgHIAEoCRIWCglzdGlsbF91cmwYCCABKAlIAIgBARIcCg9zdGlsbF90aHVtYmhhc2gYCSABKAxIAYgBARIcCg9zaG93X3Bvc3Rlcl91cmwYCiABKAlIAogBARIiChVzaG93X3Bvc3Rlcl90aHVtYmhhc2gYCyABKAxIA4gBAUIMCgpfc3RpbGxfdXJsQhIKEF9zdGlsbF90aHVtYmhhc2hCEgoQX3Nob3dfcG9zdGVyX3VybEIYChZfc2hvd19wb3N0ZXJfdGh1bWJoYXNoIkcKBERvbmUSIAoYdGl0bGVfc291cmNlX3VuYXZhaWxhYmxlGAEgASgIEh0KFWZhaWxlZF9zZWFyY2hfc291cmNlcxgCIAMoCSqIAQoLVGl0bGVTdGF0dXMSHAoYVElUTEVfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWVElUTEVfU1RBVFVTX0FWQUlMQUJMRRABEhoKFlRJVExFX1NUQVRVU19SRVFVRVNURUQQAhIjCh9USVRMRV9TVEFUVVNfTk9UX09OX1RISVNfU0VSVkVSEAMyUQoNU2VhcmNoU2VydmljZRJACgZTZWFyY2gSFi5uYW1hLnYxLlNlYXJjaFJlcXVlc3QaFy5uYW1hLnYxLlNlYXJjaFJlc3BvbnNlIgOQAgEwAWIGcHJvdG8z", [file_nama_v1_match, file_nama_v1_request]);
 
 /**
  * @generated from message nama.v1.SearchRequest
@@ -92,7 +92,8 @@ export const SearchResponseSchema: GenMessage<SearchResponse> = /*@__PURE__*/
  * query, then one holding each of its words whole (in both, the year it ends with aside), then
  * one of that year, then the better fit, then the shorter title. The title source's batch holds
  * none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
- * A client lists every batch's results stably sorted by `status`.
+ * A Search source's batch holds none an earlier batch sent: by `status`, then in the source's
+ * order. A client lists every batch's results stably sorted by `status`.
  *
  * @generated from message nama.v1.Hits
  */
@@ -254,6 +255,14 @@ export type Done = Message<"nama.v1.Done"> & {
    * @generated from field: bool title_source_unavailable = 1;
    */
   titleSourceUnavailable: boolean;
+
+  /**
+   * The Plugin ids of the enabled Search sources that failed or took too long, which added no
+   * batch, in the Admin's precedence of Plugins.
+   *
+   * @generated from field: repeated string failed_search_sources = 2;
+   */
+  failedSearchSources: string[];
 };
 
 /**
@@ -291,7 +300,8 @@ export const TitleStatus = {
   REQUESTED: 2,
 
   /**
-   * Only the title source has it, and the caller may request it.
+   * Only the title source has it, or a Search source found it under an id an enabled title
+   * source keeps, and the caller may request it.
    *
    * @generated from enum value: TITLE_STATUS_NOT_ON_THIS_SERVER = 3;
    */
@@ -330,8 +340,15 @@ export const SearchService: GenService<{
    * `PERMISSION_REQUEST_TV` the Shows: for each kind, the first title source in the Admin's
    * precedence to find any is asked for the query, as it is typed.
    *
+   * Each enabled Search source is asked too, with the query, the kind and the limit, never the
+   * caller (ADR 0083). Its titles count only by an id this Server knows: one a Library has is
+   * Available, one with an open Request the caller can see or a Followed Show is Requested, and
+   * one of a kind the caller may request is Not on this Server if an enabled title source keeps
+   * one of its ids' namespaces. The rest are dropped.
+   *
    * Streams the batch the Libraries found at once, then, for a caller who may request, the
-   * title source's for each kind it answered, Movies first, then `Done`. Fails with
+   * title source's for each kind it answered, Movies first, then a batch for each Search source
+   * that answered, in the Admin's precedence of Plugins, then `Done`. Fails with
    * `invalid_argument` if the query is blank (`REFUSAL_REASON_FIELD_REQUIRED`).
    *
    * @generated from rpc nama.v1.SearchService.Search

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT enabled AS \"enabled: bool\", schedule FROM job_overrides\n         WHERE plugin = ? AND job = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "enabled: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "job_overrides",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "schedule",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_overrides",
+            "name": "schedule"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "8e181f127ce388eabc126a08b17e77d934cccc94e320da0cda1fa3a98353ec8b"
+}

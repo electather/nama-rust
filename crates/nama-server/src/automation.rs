@@ -16,12 +16,13 @@ use buffa::{EnumValue, Message, MessageField};
 use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
-        DeleteAsked, DeleteStarted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
-        GonePluginsForgotten, HomeRowsForgotten, Kernel, KernelRefused, Libraries, LibrariesAsked,
-        Library, LibraryKind, MetadataRefreshed, Permission, RefreshMetadataAsked, Requesters,
-        RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind,
-        TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
-        WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
+        DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
+        ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
+        Kernel, KernelRefused, Libraries, LibrariesAsked, Library, LibraryKind, MetadataRefreshed,
+        Permission, RefreshMetadataAsked, Requesters, RequestersAsked, StoreEntry, StoreKey,
+        StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates,
+        Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
+        Watchlist, WatchlistAsked, WatchlistTitle,
     },
     contract,
     fulfiller::TitleId,
@@ -163,6 +164,11 @@ const FUNCTIONS: &[Function] = &[
         answer: |caller, request| typed(caller, request, Caller::forget_home_rows),
     },
     Function {
+        name: "delete_expired_sign_ins",
+        needs: Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS,
+        answer: |caller, request| typed(caller, request, Caller::delete_expired_sign_ins),
+    },
+    Function {
         name: "forget_gone_plugins",
         needs: Permission::PERMISSION_FORGET_GONE_PLUGINS,
         answer: |caller, request| typed(caller, request, Caller::forget_gone_plugins),
@@ -205,6 +211,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_READ_REQUESTS => "Read Requests",
         Permission::PERMISSION_READ_WATCHLISTS => "Read Watchlists",
         Permission::PERMISSION_FORGET_HOME_ROWS => "Forget Home rows",
+        Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS => "Delete expired sign-ins",
         Permission::PERMISSION_FORGET_GONE_PLUGINS => "Forget removed Plugins",
         Permission::PERMISSION_REFRESH_METADATA => "Refresh metadata",
     }
@@ -623,6 +630,20 @@ impl Caller {
         })
     }
 
+    async fn delete_expired_sign_ins(
+        self,
+        _asked: ExpiredSignInsAsked,
+    ) -> Result<ExpiredSignInsDeleted, KernelRefused> {
+        let deleted = (self.automation.users.delete_expired())
+            .await
+            .map_err(|err| self.database_refused("deleting expired sign-ins", &err))?;
+        Ok(ExpiredSignInsDeleted {
+            devices: u32::try_from(deleted.devices).unwrap_or(u32::MAX),
+            invites: u32::try_from(deleted.invites).unwrap_or(u32::MAX),
+            ..ExpiredSignInsDeleted::default()
+        })
+    }
+
     /// Deletes, in one write, what each Plugin the Server hasn't had for `asked.days` left behind:
     /// its settings, Store entries, Personal settings and Plugin Connections.
     async fn forget_gone_plugins(
@@ -744,3 +765,7 @@ fn watch_state_to_proto(user: i64, state: library::WatchState) -> WatchState {
 #[cfg(test)]
 #[path = "automation/automation_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "automation/housekeeping_tests.rs"]
+mod housekeeping_tests;

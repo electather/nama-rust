@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM job_overrides\n                     WHERE plugin NOT IN (SELECT value FROM json_each(?))\n                     AND (plugin, job) NOT IN (SELECT value ->> 0, value ->> 1 FROM json_each(?))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "511b6f5886be581f615477db7cc97ef1f2aee9416ce29fc729eec8dc21d306ac"
+}

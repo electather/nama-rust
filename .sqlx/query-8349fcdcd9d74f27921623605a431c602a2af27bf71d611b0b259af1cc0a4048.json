@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM job_overrides WHERE plugin = ? AND job = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8349fcdcd9d74f27921623605a431c602a2af27bf71d611b0b259af1cc0a4048"
+}

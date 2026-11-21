@@ -16,13 +16,20 @@ use nama_plugin_api::{
 use nama_plugin_proto::services;
 use tokio::{runtime::Handle, task::JoinHandle};
 use tokio_util::task::TaskTracker;
-use tracing::{info, warn};
+use tracing::{Instrument as _, Span, info, warn};
 
 use super::{
-    Answer, ExtensionPoints, Failure, FailureKind, Listed, ProviderError, cron::Cron,
-    points::Asked, scope::Scope, wasm::TimedOut,
+    Answer, ExtensionPoints, Failure, FailureKind, Listed, ProviderError,
+    cron::Cron,
+    job_overrides::{self, ConfigureError, job_override},
+    points::Asked,
+    scope::Scope,
+    wasm::TimedOut,
 };
-use crate::db::{self, Database};
+use crate::{
+    db::{self, Database},
+    diagnostics::job_run_span,
+};
 
 /// How many of a Job's Runs are kept, whatever their outcome, so its history stays bounded.
 const RUNS_KEPT: i64 = 50;
@@ -51,8 +58,12 @@ pub struct ListedJob {
     pub plugin_name: String,
     /// The Job, as the Plugin's Manifest declares it.
     pub job: Job,
+    /// The schedule it runs on: an Admin's in place of its Manifest's, or that.
+    pub schedule: Option<String>,
+    /// Whether it runs on its schedule, unless an Admin turned it off.
+    pub enabled: bool,
     /// The next times its schedule fires, soonest first, in milliseconds since the Unix epoch:
-    /// up to 3, and none without a schedule.
+    /// up to 3, and none without a schedule or while it is off.
     pub next_runs_ms: Vec<i64>,
     /// Its newest Run, if it has run.
     pub last_run: Option<JobRun>,
@@ -170,17 +181,20 @@ pub(super) fn schedule(
     }
 }
 
-/// Runs the Job `job` each time `cron` comes due on the Server's wall clock, from when the Kernel
-/// serves until its scope is cancelled or the Plugin no longer runs Jobs. A firing due while a Run
-/// of the Job goes, its own or an Admin's, is dropped, and it counts from its start, so firings
-/// missed before are not made up.
-async fn firing(points: ExtensionPoints, plugin: PluginId, job: String, cron: Cron) {
+/// Runs the Job `job` each time its schedule comes due on the Server's wall clock, from when the
+/// Kernel serves until its scope is cancelled or the Plugin no longer runs Jobs. The schedule is
+/// `declared` unless an Admin turned the Job off or gave it another, which it reads each minute. A
+/// firing due while a Run of the Job goes, its own or an Admin's, is dropped, and it counts from its
+/// start, so firings missed before are not made up.
+async fn firing(points: ExtensionPoints, plugin: PluginId, job: String, declared: Cron) {
     points.kernel_served().await;
     let mut seen = wall_clock();
     loop {
         tokio::time::sleep(until_next_minute().min(LOOK_EVERY)).await;
         let now = wall_clock();
-        let due = cron.fires_between(seen, now);
+        let due = configured(&points, &plugin, &job, declared)
+            .await
+            .is_some_and(|cron| cron.fires_between(seen, now));
         // Kept when the clocks go back, so the minutes they repeat don't fire again.
         seen = seen.max(now);
         if !due {
@@ -195,6 +209,32 @@ async fn firing(points: ExtensionPoints, plugin: PluginId, job: String, cron: Cr
             return;
         }
         seen = seen.max(wall_clock());
+    }
+}
+
+/// The schedule `plugin`'s Job `job` fires on now: `declared`, unless an Admin turned it off or gave
+/// it another. `None` while it is off, or when what an Admin changed can't be read, since it may
+/// be off.
+async fn configured(
+    points: &ExtensionPoints,
+    plugin: &PluginId,
+    job: &str,
+    declared: Cron,
+) -> Option<Cron> {
+    let Some(log) = points.read(|state| state.job_runs.clone()) else {
+        return Some(declared);
+    };
+    match job_override(&log.db, plugin.as_str(), job).await {
+        Ok(None) => Some(declared),
+        Ok(Some(changed)) if !changed.enabled => None,
+        // Saving it refused a schedule that doesn't parse.
+        Ok(Some(changed)) => changed
+            .schedule
+            .map_or(Some(declared), |it| Cron::parse(&it).ok()),
+        Err(err) => {
+            warn!(plugin = %plugin, job, "couldn't read the job's schedule: {err}");
+            None
+        }
     }
 }
 
@@ -364,6 +404,7 @@ impl Run {
             .ask_one(&plugin, |runner: Arc<dyn JobRunner>| async move {
                 runner.run(run).await.map_err(RunError)
             })
+            .instrument(recording.span())
             .await;
         recording.close(outcome(&asked)).await;
         drop(claim);
@@ -491,6 +532,14 @@ impl Recording {
         }
     }
 
+    /// The span the Run calls its Plugin in, so the Plugin's lines carry the Run's id. None for a
+    /// Run that isn't recorded, whose id no one could look up.
+    fn span(&self) -> Span {
+        self.0
+            .as_ref()
+            .map_or_else(Span::none, |&(_, id)| job_run_span(id))
+    }
+
     async fn close(mut self, outcome: JobRunOutcome) {
         if let Some((log, id)) = self.0.take() {
             // Its own task, as a Plugin's panic cancels this Run's scope while it closes.
@@ -557,7 +606,8 @@ pub(super) async fn interrupt_unfinished(db: &Database) -> Result<(), sqlx::Erro
 }
 
 /// The Jobs of each Plugin in `plugins` that is enabled, in that order and then as its Manifest
-/// declares them, with when each next fires and its newest Run in `db`.
+/// declares them, with what an Admin changed of each, when it next fires and its newest Run in
+/// `db`.
 ///
 /// # Errors
 ///
@@ -567,9 +617,11 @@ pub(crate) async fn list_jobs(
     db: &Database,
 ) -> Result<Vec<ListedJob>, sqlx::Error> {
     let mut last_runs = last_runs(db).await?;
+    let changed = job_overrides::job_overrides(db).await?;
     let now = wall_clock();
-    let enabled = plugins.into_iter().filter(|plugin| plugin.enabled);
-    let manifests = enabled.filter_map(|plugin| plugin.manifest.ok());
+    let manifests = (plugins.into_iter())
+        .filter(|plugin| plugin.enabled)
+        .filter_map(|plugin| plugin.manifest.ok());
     Ok(manifests
         .flat_map(|manifest| {
             manifest
@@ -577,22 +629,41 @@ pub(crate) async fn list_jobs(
                 .into_iter()
                 .map(move |job| (manifest.id.clone(), manifest.name.clone(), job))
         })
-        .map(|(plugin, plugin_name, job)| ListedJob {
-            next_runs_ms: next_runs_ms(job.schedule.as_deref(), now),
-            last_run: last_runs.remove(&(plugin.to_string(), job.id.clone())),
-            plugin,
-            plugin_name,
-            job,
+        .map(|(plugin, plugin_name, job)| {
+            let key = (plugin.to_string(), job.id.clone());
+            let changed = changed.get(&key);
+            let schedule = job_overrides::schedule(&job, changed).map(str::to_owned);
+            let enabled = job_overrides::enabled(changed);
+            // Enabling, or saving an Admin's, refused a schedule that doesn't parse.
+            let cron = schedule.as_deref().and_then(|it| Cron::parse(it).ok());
+            ListedJob {
+                next_runs_ms: cron
+                    .filter(|_| enabled)
+                    .map_or_default(|cron| next_runs_ms(cron, now)),
+                last_run: last_runs.remove(&key),
+                plugin,
+                plugin_name,
+                job,
+                schedule,
+                enabled,
+            }
         })
         .collect())
 }
 
-/// The next [`NEXT_RUNS`] times `schedule` fires after the wall-clock time `now`, as instants.
-fn next_runs_ms(schedule: Option<&str>, now: DateTime) -> Vec<i64> {
-    // Enabling refused a schedule that doesn't parse.
-    let Some(cron) = schedule.and_then(|it| Cron::parse(it).ok()) else {
-        return Vec::new();
-    };
+/// When `schedule` would next fire, as [`list_jobs`] gives a Job's next Runs, for an Admin to see
+/// before they save it.
+///
+/// # Errors
+///
+/// [`ConfigureError::Invalid`], saying why `schedule` doesn't parse.
+pub(crate) fn preview_schedule(schedule: &str) -> Result<Vec<i64>, ConfigureError> {
+    let cron = Cron::parse(schedule.trim()).map_err(ConfigureError::Invalid)?;
+    Ok(next_runs_ms(cron, wall_clock()))
+}
+
+/// The next [`NEXT_RUNS`] times `cron` fires after the wall-clock time `now`, as instants.
+fn next_runs_ms(cron: Cron, now: DateTime) -> Vec<i64> {
     let zone = TimeZone::system();
     let instant = |at| zone.to_ambiguous_timestamp(at).compatible().ok();
     cron.firings_after(now)

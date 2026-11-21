@@ -4,12 +4,12 @@
 use std::{error::Error, fmt};
 
 pub use nama_plugin_proto::nama::plugin::v1::{
-    DeleteAsked, DeleteStarted, ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten,
-    HomeRowsForgotten, Libraries, LibrariesAsked, Library, LibraryKind, MetadataRefreshed,
-    Permission, RefreshMetadataAsked, Requesters, RequestersAsked, StoreEntry, StoreKey,
-    StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates, Titles,
-    TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist,
-    WatchlistAsked, WatchlistTitle,
+    DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
+    ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, Libraries, LibrariesAsked,
+    Library, LibraryKind, MetadataRefreshed, Permission, RefreshMetadataAsked, Requesters,
+    RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind,
+    TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState,
+    WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
 };
 
 use crate::BoxFuture;

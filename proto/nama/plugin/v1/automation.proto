@@ -23,6 +23,8 @@ import "nama/plugin/v1/title_source.proto";
 //   list_watchlist:    WatchlistAsked   -> Watchlist      PERMISSION_READ_WATCHLISTS
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //   forget_home_rows:  ForgetHomeRowsAsked -> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
+//   delete_expired_sign_ins: ExpiredSignInsAsked -> ExpiredSignInsDeleted
+//                      PERMISSION_DELETE_EXPIRED_SIGN_INS
 //   forget_gone_plugins: ForgetGonePluginsAsked -> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
 //   refresh_metadata:  RefreshMetadataAsked -> MetadataRefreshed  PERMISSION_REFRESH_METADATA
 //
@@ -62,8 +64,10 @@ enum Permission {
   PERMISSION_FORGET_HOME_ROWS = 8;
   // Deleting what Plugins the Server no longer has left behind: `forget_gone_plugins`.
   PERMISSION_FORGET_GONE_PLUGINS = 9;
+  // Deleting the Devices and Invites that have expired: `delete_expired_sign_ins`.
+  PERMISSION_DELETE_EXPIRED_SIGN_INS = 10;
   // Fetching every Matched title again from its title source: `refresh_metadata`.
-  PERMISSION_REFRESH_METADATA = 10;
+  PERMISSION_REFRESH_METADATA = 11;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
@@ -282,6 +286,18 @@ message ForgetHomeRowsAsked {
 message HomeRowsForgotten {
   // How many Users had rows it deleted.
   uint32 users = 1;
+}
+
+// What `delete_expired_sign_ins` takes.
+message ExpiredSignInsAsked {}
+
+// What `delete_expired_sign_ins` answers once it deleted every Device whose session expired and
+// every Invite past its expiry. Neither worked any more; they were only still stored.
+message ExpiredSignInsDeleted {
+  // How many Devices it deleted.
+  uint32 devices = 1;
+  // How many Invites it deleted.
+  uint32 invites = 2;
 }
 
 // What `forget_gone_plugins` takes.

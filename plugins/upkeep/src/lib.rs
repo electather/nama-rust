@@ -7,8 +7,9 @@ use buffa::Message;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::{
-        ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
-        Kernel, MetadataRefreshed, Permission, RefreshMetadataAsked,
+        ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
+        GonePluginsForgotten, HomeRowsForgotten, Kernel, MetadataRefreshed, Permission,
+        RefreshMetadataAsked,
     },
     job::{Job, JobRunner, RunJob},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
@@ -20,6 +21,8 @@ const FORGET_HOME_ROWS: &str = "forget-home-rows";
 /// The setting holding how many days without opening home a User's rows are kept.
 const HOME_ROWS_DAYS: &str = "home_rows_days";
 const DEFAULT_HOME_ROWS_DAYS: u32 = 30;
+/// The Job deleting expired Devices and Invites.
+const DELETE_EXPIRED_SIGN_INS: &str = "delete-expired-sign-ins";
 /// The Job deleting what Plugins the Server no longer has left behind.
 const FORGET_GONE_PLUGINS: &str = "forget-gone-plugins";
 /// The setting holding how many days what a removed Plugin left behind is kept.
@@ -69,6 +72,7 @@ impl Plugin for Upkeep {
             permissions: vec![
                 Permission::PERMISSION_FORGET_HOME_ROWS,
                 Permission::PERMISSION_FORGET_GONE_PLUGINS,
+                Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS,
                 Permission::PERMISSION_REFRESH_METADATA,
             ],
             jobs: vec![
@@ -80,6 +84,14 @@ impl Plugin for Upkeep {
                                   they come back."
                         .to_owned(),
                     schedule: Some("0 4 * * *".to_owned()),
+                },
+                Job {
+                    id: DELETE_EXPIRED_SIGN_INS.to_owned(),
+                    name: "Delete expired sign-ins".to_owned(),
+                    description: "Deletes the Devices and Invites that have expired, which no \
+                                  longer work."
+                        .to_owned(),
+                    schedule: Some("10 4 * * *".to_owned()),
                 },
                 Job {
                     id: FORGET_GONE_PLUGINS.to_owned(),
@@ -155,6 +167,7 @@ impl JobRunner for Jobs {
         Box::pin(async move {
             match run.job_id.as_str() {
                 FORGET_HOME_ROWS => self.forget_home_rows().await,
+                DELETE_EXPIRED_SIGN_INS => self.delete_expired_sign_ins().await,
                 FORGET_GONE_PLUGINS => self.forget_gone_plugins().await,
                 REFRESH_METADATA => self.refresh_metadata().await,
                 other => Err(format!("Upkeep has no Job {other}").into()),
@@ -176,6 +189,18 @@ impl Jobs {
         info!(
             users = forgotten.users,
             "forgot the Home rows of Users who stopped opening home"
+        );
+        Ok(())
+    }
+
+    async fn delete_expired_sign_ins(&self) -> Result<(), PluginError> {
+        let asked = ExpiredSignInsAsked::default().encode_to_vec();
+        let answer = (self.kernel).call("delete_expired_sign_ins", asked).await?;
+        let deleted = ExpiredSignInsDeleted::decode_from_slice(&answer)?;
+        info!(
+            devices = deleted.devices,
+            invites = deleted.invites,
+            "deleted expired Devices and Invites"
         );
         Ok(())
     }

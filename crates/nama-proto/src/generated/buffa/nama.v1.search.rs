@@ -13,7 +13,8 @@ pub enum TitleStatus {
     /// No Library has it, and the caller can see an open Request for it or one of the Show's
     /// Seasons, in `request`, or the Show's open Followed Show, which alone leaves `request` unset.
     TITLE_STATUS_REQUESTED = 2i32,
-    /// Only the title source has it, and the caller may request it.
+    /// Only the title source has it, or a Search source found it under an id an enabled title
+    /// source keeps, and the caller may request it.
     TITLE_STATUS_NOT_ON_THIS_SERVER = 3i32,
 }
 impl TitleStatus {
@@ -632,7 +633,8 @@ pub mod search_response {
 /// query, then one holding each of its words whole (in both, the year it ends with aside), then
 /// one of that year, then the better fit, then the shorter title. The title source's batch holds
 /// none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
-/// A client lists every batch's results stably sorted by `status`.
+/// A Search source's batch holds none an earlier batch sent: by `status`, then in the source's
+/// order. A client lists every batch's results stably sorted by `status`.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -1642,6 +1644,17 @@ pub struct Done {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub title_source_unavailable: bool,
+    /// The Plugin ids of the enabled Search sources that failed or took too long, which added no
+    /// batch, in the Admin's precedence of Plugins.
+    ///
+    /// Field 2: `failed_search_sources`
+    #[serde(
+        rename = "failedSearchSources",
+        alias = "failed_search_sources",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub failed_search_sources: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1650,6 +1663,7 @@ impl ::core::fmt::Debug for Done {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("Done")
             .field("title_source_unavailable", &self.title_source_unavailable)
+            .field("failed_search_sources", &self.failed_search_sources)
             .finish()
     }
 }
@@ -1683,6 +1697,9 @@ impl ::buffa::Message for Done {
         if self.title_source_unavailable {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.failed_search_sources {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1695,6 +1712,9 @@ impl ::buffa::Message for Done {
         use ::buffa::Enumeration as _;
         if self.title_source_unavailable {
             ::buffa::types::put_bool_field(1u32, self.title_source_unavailable, buf);
+        }
+        for v in &self.failed_search_sources {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1716,6 +1736,17 @@ impl ::buffa::Message for Done {
                 )?;
                 self.title_source_unavailable = ::buffa::types::decode_bool(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.failed_search_sources.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1725,6 +1756,7 @@ impl ::buffa::Message for Done {
     }
     fn clear(&mut self) {
         self.title_source_unavailable = false;
+        self.failed_search_sources.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

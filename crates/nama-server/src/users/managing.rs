@@ -113,6 +113,7 @@ impl Users {
             })
         })
         .await
+        .map(drop)
     }
 }
 

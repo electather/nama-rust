@@ -4,6 +4,7 @@ import { ExtensionPoints } from "@/features/admin-plugins/components/extension-p
 import { LogoChoice } from "@/features/admin-plugins/components/logo-choice";
 import { PluginAbout } from "@/features/admin-plugins/components/plugin-about";
 import { PluginIdentity } from "@/features/admin-plugins/components/plugin-identity";
+import { PluginJobs } from "@/features/admin-plugins/components/plugin-jobs";
 import { PluginLog } from "@/features/admin-plugins/components/plugin-log";
 import { PluginQualities } from "@/features/admin-plugins/components/plugin-qualities";
 import { PluginSettingsSection } from "@/features/admin-plugins/components/plugin-settings-section";
@@ -38,6 +39,7 @@ export function PluginPage({ id }: { id: string }) {
           <LogoChoice summary={summary} />
           <PluginSettingsSection plugin={plugin} />
           <PluginQualities plugin={plugin} />
+          <PluginJobs summary={summary} jobs={plugin.jobs} />
           <PluginLog id={summary.id} />
         </>
       ) : (
