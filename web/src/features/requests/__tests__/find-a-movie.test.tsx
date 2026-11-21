@@ -7,15 +7,18 @@ import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   type FoundMovie,
   FoundMovieSchema,
+  type MovieHit,
   MovieHitSchema,
   RequestSchema,
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
+import { SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { titleParam } from "@/shared/lib/title-param";
 import { fakeServer, fill, newUser, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { searchFinding, searchServer } from "@/test-search";
 
 afterEach(cleanup);
 
@@ -33,10 +36,11 @@ function searchableServer(movies: Found[], permissions = newUser) {
     }),
   );
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
+    router.service(SearchService, {
+      search: searchFinding(() => [[...found.values()].map((movie) => hitOf(movie))]),
+    });
     router.service(RequestService, {
       listRequests: () => ({}),
-      searchMovies: () => ({ movies: [...found.values()].map((movie) => hitOf(movie)) }),
-      searchShows: () => ({}),
       lookUpMovie: ({ movieId }) => {
         const movie = found.get(titleParam(movieId));
         if (!movie) {
@@ -56,8 +60,17 @@ function searchableServer(movies: Found[], permissions = newUser) {
   });
 }
 
-function hitOf({ id, title, year, posterUrl, libraryId, request }: FoundMovie) {
-  return { id, title, year, posterUrl, libraryId, request };
+/** `movie` as `Search` finds it, with its status. */
+function hitOf({ id, title, year, posterUrl, libraryId, request }: FoundMovie | MovieHit) {
+  const movie = { id, title, year, posterUrl, libraryId, request };
+  return { title: { case: "movie" as const, value: movie }, status: statusOf(movie) };
+}
+
+function statusOf({ libraryId, request }: Pick<MovieHit, "libraryId" | "request">) {
+  if (libraryId !== undefined) {
+    return TitleStatus.AVAILABLE;
+  }
+  return request ? TitleStatus.REQUESTED : TitleStatus.NOT_ON_THIS_SERVER;
 }
 
 function tmdb(value: string) {
@@ -192,10 +205,9 @@ test("a Movie's page is not found when no title source has its id", async () => 
 test("requesting a Movie a scan Matched meanwhile shows it in its Library", async () => {
   const movie = create(MovieHitSchema, notOnTheServer);
   const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
+    router.service(SearchService, { search: searchFinding(() => [[hitOf(movie)]]) });
     router.service(RequestService, {
       listRequests: () => ({}),
-      searchMovies: () => ({ movies: [movie] }),
-      searchShows: () => ({}),
       createRequest: () => {
         movie.libraryId = 4n;
         throw refused(Code.FailedPrecondition, "a Library has it", {
@@ -214,4 +226,39 @@ test("requesting a Movie a scan Matched meanwhile shows it in its Library", asyn
     within(results).findByRole("link", { name: "Dune in your Library" }),
   ).resolves.toBeDefined();
   expect(within(results).queryByRole("button", { name: "Request Dune" })).toBeNull();
+});
+
+function movieHit(init: MessageInitShape<typeof MovieHitSchema>) {
+  return hitOf(create(MovieHitSchema, init));
+}
+
+test("a search lists Movies Available, then Requested, then to Request, as the action bar does", async () => {
+  const library = [movieHit(inALibrary)];
+  const titleSource = [movieHit(notOnTheServer), movieHit(askedForByAda)];
+  openApp("/requests", searchServer([library, titleSource]));
+  await screen.findByLabelText("Find a Movie or Show");
+
+  const results = await search("a");
+  await within(results).findByRole("button", { name: "Request Dune" });
+
+  const opened = within(results)
+    .getAllByRole("listitem")
+    .map((card) => within(card).getAllByRole("link")[0]?.getAttribute("href"));
+  expect(opened).toStrictEqual([
+    "/libraries/4/movies/tmdb-348",
+    "/movies/tmdb-949",
+    "/movies/tmdb-438631",
+  ]);
+});
+
+test("a search the title source couldn't answer lists this Server's Movies and says so", async () => {
+  openApp("/requests", searchServer([[movieHit(inALibrary)]], true));
+  await screen.findByLabelText("Find a Movie or Show");
+
+  const results = await search("Alien");
+
+  await expect(
+    screen.findByText("Titles to request couldn’t be searched, so only this Server’s are listed."),
+  ).resolves.toBeDefined();
+  expect(within(results).getByRole("link", { name: "Alien in your Library" })).toBeDefined();
 });

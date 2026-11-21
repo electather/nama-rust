@@ -78,14 +78,6 @@ pub type OwnedCountPendingRequestsRequestView = ::buffa::view::OwnedView<
 pub type OwnedCountPendingRequestsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CountPendingRequestsResponseView<'static>,
 >;
-///Shorthand for `OwnedView<SearchMoviesRequestView<'static>>`.
-pub type OwnedSearchMoviesRequestView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchMoviesRequestView<'static>,
->;
-///Shorthand for `OwnedView<SearchMoviesResponseView<'static>>`.
-pub type OwnedSearchMoviesResponseView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchMoviesResponseView<'static>,
->;
 ///Shorthand for `OwnedView<LookUpMovieRequestView<'static>>`.
 pub type OwnedLookUpMovieRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::LookUpMovieRequestView<'static>,
@@ -93,14 +85,6 @@ pub type OwnedLookUpMovieRequestView = ::buffa::view::OwnedView<
 ///Shorthand for `OwnedView<LookUpMovieResponseView<'static>>`.
 pub type OwnedLookUpMovieResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::LookUpMovieResponseView<'static>,
->;
-///Shorthand for `OwnedView<SearchShowsRequestView<'static>>`.
-pub type OwnedSearchShowsRequestView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchShowsRequestView<'static>,
->;
-///Shorthand for `OwnedView<SearchShowsResponseView<'static>>`.
-pub type OwnedSearchShowsResponseView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<'static>,
 >;
 ///Shorthand for `OwnedView<LookUpShowRequestView<'static>>`.
 pub type OwnedLookUpShowRequestView = ::buffa::view::OwnedView<
@@ -530,40 +514,6 @@ for ::buffa::view::OwnedView<
         )
     }
 }
-impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchMoviesResponse>
-for crate::messages::nama::v1::__buffa::view::SearchMoviesResponseView<'_> {
-    fn encode(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body(self, codec)
-    }
-}
-impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchMoviesResponse>
-for ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchMoviesResponseView<'static>,
-> {
-    fn encode(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
-    }
-    /// An `OwnedView` still holds the buffer it was decoded from, so
-    /// its large fields can be handed to the response body by
-    /// reference count instead of copied. The bare view impl above
-    /// cannot do this: it has borrows but no buffer to name.
-    fn encode_segments(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body_segments(
-            self.reborrow(),
-            self.bytes(),
-            codec,
-        )
-    }
-}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::LookUpMovieResponse>
 for crate::messages::nama::v1::__buffa::view::LookUpMovieResponseView<'_> {
     fn encode(
@@ -576,40 +526,6 @@ for crate::messages::nama::v1::__buffa::view::LookUpMovieResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::LookUpMovieResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::LookUpMovieResponseView<'static>,
-> {
-    fn encode(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
-    }
-    /// An `OwnedView` still holds the buffer it was decoded from, so
-    /// its large fields can be handed to the response body by
-    /// reference count instead of copied. The bare view impl above
-    /// cannot do this: it has borrows but no buffer to name.
-    fn encode_segments(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body_segments(
-            self.reborrow(),
-            self.bytes(),
-            codec,
-        )
-    }
-}
-impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchShowsResponse>
-for crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<'_> {
-    fn encode(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body(self, codec)
-    }
-}
-impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchShowsResponse>
-for ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -1068,21 +984,9 @@ pub const REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC: ::connectrpc::Spec = ::co
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
-/// Static [`Spec`](::connectrpc::Spec) for the `SearchMovies` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
-pub const REQUEST_SERVICE_SEARCH_MOVIES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/nama.v1.RequestService/SearchMovies",
-        ::connectrpc::StreamType::Unary,
-    )
-    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `LookUpMovie` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/LookUpMovie",
-        ::connectrpc::StreamType::Unary,
-    )
-    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
-/// Static [`Spec`](::connectrpc::Spec) for the `SearchShows` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
-pub const REQUEST_SERVICE_SEARCH_SHOWS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/nama.v1.RequestService/SearchShows",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
@@ -1476,32 +1380,6 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Searches the title source for Movies to ask for, best fit first. Unlike
-    /// `MatchService.SearchTitles`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
-    /// `invalid_argument` if the title is blank, and `unavailable` if no title source is
-    /// enabled, or one failed.
-    ///
-    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
-    ///
-    /// `request` is borrowed from the request body and is valid for the
-    /// duration of the call; message fields are read directly on it
-    /// (zero-copy). The response cannot borrow from `request` — use
-    /// `.to_owned_message()` (or copy the specific fields) for anything
-    /// returned, stored, or moved into `tokio::spawn`.
-    fn search_movies<'a>(
-        &'a self,
-        ctx: ::connectrpc::RequestContext,
-        request: ::connectrpc::ServiceRequest<
-            '_,
-            crate::messages::nama::v1::SearchMoviesRequest,
-        >,
-    ) -> impl ::std::future::Future<
-        Output = ::connectrpc::ServiceResult<
-            impl ::connectrpc::Encodable<
-                crate::messages::nama::v1::SearchMoviesResponse,
-            > + Send + use<'a, Self>,
-        >,
-    > + Send;
     /// Returns one Movie from the title source, for its page when no Library has it. Needs
     /// `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no title source has a Movie with the
     /// id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
@@ -1525,30 +1403,6 @@ pub trait RequestService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::LookUpMovieResponse,
-            > + Send + use<'a, Self>,
-        >,
-    > + Send;
-    /// Searches the title source for Shows to ask for Seasons of, best fit first. Needs
-    /// `PERMISSION_REQUEST_TV`. Fails as `SearchMovies` does.
-    ///
-    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
-    ///
-    /// `request` is borrowed from the request body and is valid for the
-    /// duration of the call; message fields are read directly on it
-    /// (zero-copy). The response cannot borrow from `request` — use
-    /// `.to_owned_message()` (or copy the specific fields) for anything
-    /// returned, stored, or moved into `tokio::spawn`.
-    fn search_shows<'a>(
-        &'a self,
-        ctx: ::connectrpc::RequestContext,
-        request: ::connectrpc::ServiceRequest<
-            '_,
-            crate::messages::nama::v1::SearchShowsRequest,
-        >,
-    ) -> impl ::std::future::Future<
-        Output = ::connectrpc::ServiceResult<
-            impl ::connectrpc::Encodable<
-                crate::messages::nama::v1::SearchShowsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -2161,35 +2015,6 @@ impl<S: RequestService> RequestServiceExt for S {
             .with_spec(REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC)
             .route_view_idempotent(
                 REQUEST_SERVICE_SERVICE_NAME,
-                "SearchMovies",
-                {
-                    let svc = ::std::sync::Arc::clone(&self);
-                    ::connectrpc::view_handler_fn(move |
-                        ctx,
-                        req: ::buffa::view::OwnedView<
-                            crate::messages::nama::v1::__buffa::view::SearchMoviesRequestView<
-                                'static,
-                            >,
-                        >,
-                        format|
-                    {
-                        let svc = ::std::sync::Arc::clone(&svc);
-                        async move {
-                            let sreq = ::connectrpc::ServiceRequest::<
-                                crate::messages::nama::v1::SearchMoviesRequest,
-                            >::from_parts(req.reborrow(), req.bytes());
-                            svc.search_movies(ctx, sreq)
-                                .await?
-                                .encode::<
-                                    crate::messages::nama::v1::SearchMoviesResponse,
-                                >(format)
-                        }
-                    })
-                },
-            )
-            .with_spec(REQUEST_SERVICE_SEARCH_MOVIES_SPEC)
-            .route_view_idempotent(
-                REQUEST_SERVICE_SERVICE_NAME,
                 "LookUpMovie",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -2217,35 +2042,6 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC)
-            .route_view_idempotent(
-                REQUEST_SERVICE_SERVICE_NAME,
-                "SearchShows",
-                {
-                    let svc = ::std::sync::Arc::clone(&self);
-                    ::connectrpc::view_handler_fn(move |
-                        ctx,
-                        req: ::buffa::view::OwnedView<
-                            crate::messages::nama::v1::__buffa::view::SearchShowsRequestView<
-                                'static,
-                            >,
-                        >,
-                        format|
-                    {
-                        let svc = ::std::sync::Arc::clone(&svc);
-                        async move {
-                            let sreq = ::connectrpc::ServiceRequest::<
-                                crate::messages::nama::v1::SearchShowsRequest,
-                            >::from_parts(req.reborrow(), req.bytes());
-                            svc.search_shows(ctx, sreq)
-                                .await?
-                                .encode::<
-                                    crate::messages::nama::v1::SearchShowsResponse,
-                                >(format)
-                        }
-                    })
-                },
-            )
-            .with_spec(REQUEST_SERVICE_SEARCH_SHOWS_SPEC)
             .route_view_idempotent(
                 REQUEST_SERVICE_SERVICE_NAME,
                 "LookUpShow",
@@ -2679,22 +2475,10 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .with_spec(REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC),
                 )
             }
-            "SearchMovies" => {
-                Some(
-                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
-                        .with_spec(REQUEST_SERVICE_SEARCH_MOVIES_SPEC),
-                )
-            }
             "LookUpMovie" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
                         .with_spec(REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC),
-                )
-            }
-            "SearchShows" => {
-                Some(
-                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
-                        .with_spec(REQUEST_SERVICE_SEARCH_SHOWS_SPEC),
                 )
             }
             "LookUpShow" => {
@@ -2996,28 +2780,6 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         >(format)
                 })
             }
-            "SearchMovies" => {
-                let svc = ::std::sync::Arc::clone(&self.inner);
-                Box::pin(async move {
-                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        crate::messages::nama::v1::SearchMoviesRequest,
-                    >(request.encoded()?, format)?;
-                    let req: crate::messages::nama::v1::__buffa::view::SearchMoviesRequestView<
-                        '_,
-                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
-                        &body,
-                        ctx.decode_options(),
-                    )?;
-                    let req = ::connectrpc::ServiceRequest::<
-                        crate::messages::nama::v1::SearchMoviesRequest,
-                    >::from_parts(&req, &body);
-                    svc.search_movies(ctx, req)
-                        .await?
-                        .encode::<
-                            crate::messages::nama::v1::SearchMoviesResponse,
-                        >(format)
-                })
-            }
             "LookUpMovie" => {
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
@@ -3036,26 +2798,6 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                     svc.look_up_movie(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::LookUpMovieResponse>(format)
-                })
-            }
-            "SearchShows" => {
-                let svc = ::std::sync::Arc::clone(&self.inner);
-                Box::pin(async move {
-                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        crate::messages::nama::v1::SearchShowsRequest,
-                    >(request.encoded()?, format)?;
-                    let req: crate::messages::nama::v1::__buffa::view::SearchShowsRequestView<
-                        '_,
-                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
-                        &body,
-                        ctx.decode_options(),
-                    )?;
-                    let req = ::connectrpc::ServiceRequest::<
-                        crate::messages::nama::v1::SearchShowsRequest,
-                    >::from_parts(&req, &body);
-                    svc.search_shows(ctx, req)
-                        .await?
-                        .encode::<crate::messages::nama::v1::SearchShowsResponse>(format)
                 })
             }
             "LookUpShow" => {
@@ -3872,51 +3614,6 @@ where
             )
             .await
     }
-    /// Call the SearchMovies RPC. Sends a request to /nama.v1.RequestService/SearchMovies.
-    pub async fn search_movies(
-        &self,
-        request: crate::messages::nama::v1::SearchMoviesRequest,
-    ) -> Result<
-        ::connectrpc::client::UnaryResponse<
-            ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::SearchMoviesResponseView<
-                    'static,
-                >,
-            >,
-        >,
-        ::connectrpc::ConnectError,
-    > {
-        self.search_movies_with_options(
-                request,
-                ::connectrpc::client::CallOptions::default(),
-            )
-            .await
-    }
-    /// Call the SearchMovies RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
-    pub async fn search_movies_with_options(
-        &self,
-        request: crate::messages::nama::v1::SearchMoviesRequest,
-        options: ::connectrpc::client::CallOptions,
-    ) -> Result<
-        ::connectrpc::client::UnaryResponse<
-            ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::SearchMoviesResponseView<
-                    'static,
-                >,
-            >,
-        >,
-        ::connectrpc::ConnectError,
-    > {
-        ::connectrpc::client::call_unary(
-                &self.transport,
-                &self.config,
-                REQUEST_SERVICE_SEARCH_MOVIES_SPEC
-                    .with_origin(::connectrpc::SpecOrigin::Client),
-                request,
-                options,
-            )
-            .await
-    }
     /// Call the LookUpMovie RPC. Sends a request to /nama.v1.RequestService/LookUpMovie.
     pub async fn look_up_movie(
         &self,
@@ -3956,51 +3653,6 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC
-                    .with_origin(::connectrpc::SpecOrigin::Client),
-                request,
-                options,
-            )
-            .await
-    }
-    /// Call the SearchShows RPC. Sends a request to /nama.v1.RequestService/SearchShows.
-    pub async fn search_shows(
-        &self,
-        request: crate::messages::nama::v1::SearchShowsRequest,
-    ) -> Result<
-        ::connectrpc::client::UnaryResponse<
-            ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<
-                    'static,
-                >,
-            >,
-        >,
-        ::connectrpc::ConnectError,
-    > {
-        self.search_shows_with_options(
-                request,
-                ::connectrpc::client::CallOptions::default(),
-            )
-            .await
-    }
-    /// Call the SearchShows RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
-    pub async fn search_shows_with_options(
-        &self,
-        request: crate::messages::nama::v1::SearchShowsRequest,
-        options: ::connectrpc::client::CallOptions,
-    ) -> Result<
-        ::connectrpc::client::UnaryResponse<
-            ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<
-                    'static,
-                >,
-            >,
-        >,
-        ::connectrpc::ConnectError,
-    > {
-        ::connectrpc::client::call_unary(
-                &self.transport,
-                &self.config,
-                REQUEST_SERVICE_SEARCH_SHOWS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

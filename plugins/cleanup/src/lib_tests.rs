@@ -325,9 +325,9 @@ fn a_library_chosen_twice_is_cleaned_once() {
 
 #[test]
 fn days_is_a_whole_number_of_zero_or_more() {
-    assert_eq!(days("days", Some("30")).ok(), Some(30));
-    assert_eq!(days("days", Some("0")).ok(), Some(0));
-    for refused in [None, Some("-1"), Some("a week")] {
+    assert_eq!(days("days", "30").ok(), Some(30));
+    assert_eq!(days("days", "0").ok(), Some(0));
+    for refused in ["-1", "a week"] {
         let error = days("days_unwatched", refused)
             .map(drop)
             .unwrap_err()

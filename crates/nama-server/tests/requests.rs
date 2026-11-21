@@ -52,9 +52,9 @@ use nama_proto::nama::v1::{
     GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
     ListOfferedQualitiesRequest, ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse,
     MovieHit, PageRequest, Permission, PluginServiceClient, Quality, RefusalReason, Request,
-    RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
-    SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
-    WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
+    RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest,
+    SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest,
+    event, request::MovieOrSeason, setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -67,7 +67,7 @@ use server::{
     Builder, Library, Subscription, TestServer, WAIT,
     fulfiller::{FakeFulfiller, Fulfills, MOVIE_FULFILLER, SHOWS_FULFILLER, quality},
     requests::{Requester, tmdb_id},
-    subscribe,
+    search, subscribe,
     tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE, UNLISTED},
 };
 use tokio::{net::TcpListener, sync::mpsc};
@@ -340,20 +340,8 @@ async fn list_once_handed_off(client: &RequestServiceClient<HttpClient>) -> Vec<
 }
 
 /// The Movies a search for "Alien" finds, as the User `config` calls as sees them.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn search_alien(config: ClientConfig) -> Vec<MovieHit> {
-    requests(config)
-        .search_movies(SearchMoviesRequest {
-            title: "Alien".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .movies
+    search::movies(&config, "Alien").await
 }
 
 fn requester_ids(request: &Request) -> Vec<i64> {
@@ -2048,30 +2036,6 @@ async fn without_view_requests_a_search_hides_other_peoples_requests() {
     assert!(found[0].request.is_unset(), "{:?}", found[0]);
 }
 
-#[tokio::test]
-async fn searching_for_a_blank_title_is_refused() {
-    let fixture = Fixture::start().await;
-    let as_grace = fixture
-        .server
-        .user("Grace", &NEW_USER)
-        .await
-        .client_config();
-
-    let refused = requests(as_grace)
-        .search_movies(SearchMoviesRequest {
-            title: " ".to_owned(),
-            ..Default::default()
-        })
-        .await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-    );
-    assert_eq!(refusal.field, "title");
-}
-
 /// Artwork is served for paths a search handed out, and still for no others: Alien's backdrop
 /// is one TMDB has, but no search gave it.
 #[tokio::test]
@@ -2590,15 +2554,7 @@ async fn a_show_search_finds_shows_with_their_year_and_poster() {
         .await
         .client_config();
 
-    let found = requests(as_grace)
-        .search_shows(SearchShowsRequest {
-            title: "The Office".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .shows;
+    let found = search::shows(&as_grace, "The Office").await;
 
     assert_eq!(
         found[0].poster_url.as_deref(),

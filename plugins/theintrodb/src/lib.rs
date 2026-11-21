@@ -7,14 +7,14 @@
 //! API, redistribute them, or build a database from them.
 
 use nama_pdk::{
-    Manifest, Permission, Response, SegmentKind, SegmentResult, SegmentResults, SegmentSearch,
-    SegmentSource, TitleKind,
+    Manifest, OutsideService, Permission, Response, SegmentKind, SegmentResult, SegmentResults,
+    SegmentSearch, SegmentSource, SettingKind, TitleKind,
     extism_pdk::{Error, HttpRequest, json},
-    kernel,
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind},
-    services,
+    kernel, services,
 };
 use serde::Deserialize;
+
+const THEINTRODB: OutsideService = OutsideService::new("TheIntroDB").credential("API key");
 
 const MEDIA_URL: &str = "https://api.theintrodb.org/v4/media";
 
@@ -56,15 +56,13 @@ fn manifest() -> Manifest {
         points: vec![nama_pdk::point(services::SEGMENT_SOURCE)],
         allowed_hosts: vec!["api.theintrodb.org".to_owned()],
         permissions: vec![Permission::PERMISSION_STORE.into()],
-        settings: vec![SettingField {
-            key: API_KEY.to_owned(),
-            label: "API key".to_owned(),
-            description: "Your TheIntroDB API key, from your account's settings. It raises the \
-                          rate limit from 30 to 120 requests every 10 seconds."
-                .to_owned(),
-            kind: SettingKind::SETTING_KIND_SECRET.into(),
-            ..SettingField::default()
-        }],
+        settings: vec![nama_pdk::setting_field(
+            API_KEY,
+            "API key",
+            "Your TheIntroDB API key, from your account's settings. It raises the rate limit from \
+             30 to 120 requests every 10 seconds.",
+            SettingKind::SETTING_KIND_SECRET,
+        )],
         ..nama_pdk::manifest("theintrodb", env!("CARGO_PKG_VERSION"))
     }
 }
@@ -77,9 +75,7 @@ impl SegmentSource for TheIntroDb {
         let Some(url) = media_url(&search) else {
             return Ok(SegmentResults::default());
         };
-        let api_key = nama_pdk::setting(API_KEY)?
-            .map(|key| key.trim().to_owned())
-            .filter(|key| !key.is_empty());
+        let api_key = nama_pdk::setting(API_KEY)?.map(|key| key.trim().to_owned());
         let mut request = HttpRequest::new(url);
         if let Some(api_key) = &api_key {
             request = request.with_header("Authorization", format!("Bearer {api_key}"));
@@ -89,10 +85,9 @@ impl SegmentSource for TheIntroDb {
         } else {
             ANONYMOUS_LIMIT
         })?;
-        let response =
-            nama_pdk::http_request(&request, None::<String>, "TheIntroDB didn't answer")?;
+        let response = THEINTRODB.send(&request, None::<String>)?;
         Ok(SegmentResults {
-            segments: segments(answered(&response)?),
+            segments: segments(answered(response)?),
             ..SegmentResults::default()
         })
     }
@@ -179,16 +174,10 @@ struct Stretch {
 ///
 /// # Errors
 /// When TheIntroDB refused the request, such as past its rate limit, or answered something else.
-fn answered(response: &Response) -> Result<Media, Error> {
+fn answered(response: Response) -> Result<Media, Error> {
     match response.status_code() {
-        200..300 => response.json(),
         400 | 404 | 422 => Ok(Media::default()),
-        429 => Err(Error::msg(
-            "TheIntroDB is limiting this Server's requests; an API key raises the limit",
-        )),
-        status => Err(Error::msg(format!(
-            "TheIntroDB refused the request with HTTP status {status}"
-        ))),
+        _ => THEINTRODB.accepted(response)?.json(),
     }
 }
 

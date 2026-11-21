@@ -75,8 +75,8 @@ pub(super) use matched_items;
 /// lowest Item id, which breaks ties in keyset paging (ADR 0055); and `first_added_at`,
 /// `newest_added_at` and `added_at`, the title's added time: a Movie's first Version's, a Show's
 /// newest Episode's. The Item's own `added_at` is replaced by the title's.
-// ponytail: whole-Library read. Grouping a 25,000-Episode Library takes tens of milliseconds;
-// store a row per title, kept current on Match writes, title source reorders (ADR 0044) and
+// ponytail: whole-Library read. Grouping a 25,000-Episode Library takes tens of milliseconds a
+// page; store a row per title, kept current on Match writes, title source reorders (ADR 0044) and
 // deletes, if that grows, and move every reader of this with it.
 macro_rules! library_titles {
     ([$($query:tt)::+ $(, $arg:tt)*], ($($matched:tt)+)) => {

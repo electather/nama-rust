@@ -1,3 +1,4 @@
+import type { StillArt } from "@/features/action-bar/lib/titles";
 import type { Request } from "@/gen/nama/v1/request_pb";
 
 /** Where the action bar is: its root, a search of one kind of title, or the keyboard shortcuts. */
@@ -30,6 +31,8 @@ export interface Row {
   icon?: IconName;
   /** A title's poster, or `null` for a title without one: its `icon` then fills the poster's box. */
   poster?: string | null;
+  /** An Episode's Still, which it leads with in place of its `poster`. */
+  still?: StillArt | undefined;
   /** What it is or is set to, in a pill beside the label. */
   badge?: string;
   /** A title's open Request, whose pill shows beside the label. */

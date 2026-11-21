@@ -110,8 +110,7 @@ const MANAGE_REQUESTS: [&str; 9] = [
 ];
 
 /// Every RPC for Requesting a Movie, which needs `PERMISSION_REQUEST_MOVIE`.
-const REQUEST_MOVIE: [&str; 4] = [
-    "/nama.v1.RequestService/SearchMovies",
+const REQUEST_MOVIE: [&str; 3] = [
     "/nama.v1.RequestService/LookUpMovie",
     "/nama.v1.RequestService/ListMovieQualities",
     "/nama.v1.RequestService/CreateRequest",
@@ -119,8 +118,7 @@ const REQUEST_MOVIE: [&str; 4] = [
 
 /// Every RPC for Requesting Seasons of a Show or Following it, which needs
 /// `PERMISSION_REQUEST_TV`.
-const REQUEST_TV: [&str; 5] = [
-    "/nama.v1.RequestService/SearchShows",
+const REQUEST_TV: [&str; 4] = [
     "/nama.v1.RequestService/LookUpShow",
     "/nama.v1.RequestService/ListShowQualities",
     "/nama.v1.RequestService/CreateSeasonRequests",

@@ -14,9 +14,11 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
+import { SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { eventFeed, fakeServer, fill, newUser, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { searchFinding } from "@/test-search";
 
 afterEach(cleanup);
 
@@ -35,13 +37,15 @@ function showServer(
   const state =
     events === undefined ? { signedIn: permissions } : { signedIn: permissions, events };
   const transport = fakeServer(state, {}, {}, (router) => {
+    router.service(SearchService, {
+      search: searchFinding(() => {
+        const { id, title, year, posterUrl } = show;
+        const hit = { id, title, year, posterUrl };
+        return [[{ title: { case: "show", value: hit }, status: TitleStatus.NOT_ON_THIS_SERVER }]];
+      }),
+    });
     router.service(RequestService, {
       listRequests: () => ({}),
-      searchMovies: () => ({}),
-      searchShows: () => {
-        const { id, title, year, posterUrl } = show;
-        return { shows: [{ id, title, year, posterUrl }] };
-      },
       lookUpShow: () => ({ show }),
       createSeasonRequests: ({ seasonNumbers }) => {
         if (seasonNumbers.length === 0) {

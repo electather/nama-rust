@@ -28,6 +28,9 @@ use server::{
 /// The Office (US) by an ID hint, since TMDB's search fits the UK one too.
 const THE_OFFICE_US_S01E02: &str = "The Office {tmdb-2316}/Season 01/The Office - S01E02.mkv";
 
+/// Dark's own Poster, as TMDB has it.
+const DARK_POSTER: &str = "/media/artwork/tmdb/%2FapbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg";
+
 /// TMDB Matches it to the 2021 Dune.
 const DUNE_2021: &str = "Dune (2021)/Dune (2021).mkv";
 
@@ -162,6 +165,33 @@ async fn a_search_finds_a_show_by_its_title_and_an_episode_with_its_show_and_sea
             "Diversity Day"
         )
     );
+}
+
+/// TMDB has a Still for Dark's "Secrets" and none for "Beginnings and Endings".
+#[tokio::test]
+async fn an_episode_is_found_with_its_still_and_its_shows_poster() {
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+    fx.write("Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv", b"video");
+    fx.write("Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv", b"video");
+    fx.scan_and_match().await;
+    let shows = TitleKind::TITLE_KIND_SHOW;
+
+    let secrets = found(&fx, "secrets", shows).await;
+    let beginnings = found(&fx, "beginnings", shows).await;
+
+    let artwork = |found: &[hit::Title]| match found {
+        [hit::Title::Episode(episode)] => {
+            (episode.still_url.clone(), episode.show_poster_url.clone())
+        }
+        _ => panic!("one Episode: {found:?}"),
+    };
+    let dark_poster = Some(DARK_POSTER.to_owned());
+    let secrets_still = "/media/artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
+    assert_eq!(
+        artwork(&secrets),
+        (Some(secrets_still.to_owned()), dark_poster.clone())
+    );
+    assert_eq!(artwork(&beginnings), (None, dark_poster));
 }
 
 #[tokio::test]

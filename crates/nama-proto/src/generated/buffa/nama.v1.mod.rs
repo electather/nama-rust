@@ -171,15 +171,11 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SHOW_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_SHOW_JSON_ANY);
         reg.register_json_any(super::__FOUND_SEASON_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_SHOWS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_SHOWS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WATCH_STATE_JSON_ANY);
@@ -851,14 +847,6 @@ pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMoviesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchMoviesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchMoviesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchMoviesResponseOwnedView;
-#[doc(inline)]
 pub use self::__buffa::view::LookUpMovieRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpMovieRequestOwnedView;
@@ -878,14 +866,6 @@ pub use self::__buffa::view::FoundShowOwnedView;
 pub use self::__buffa::view::FoundSeasonView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundSeasonOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchShowsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchShowsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchShowsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchShowsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpShowRequestView;
 #[doc(inline)]
