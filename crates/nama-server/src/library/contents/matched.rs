@@ -463,7 +463,7 @@ impl Contents {
                 }),
             }
         }
-        movies.sort_by_cached_key(|movie| title_order(&movie.title));
+        movies.sort_by_cached_key(|movie| title_order(&movie.title, &movie.id));
         Ok(movies)
     }
 
@@ -594,15 +594,15 @@ impl Contents {
                 }),
             }
         }
-        shows.sort_by_cached_key(|show| title_order(&show.title));
+        shows.sort_by_cached_key(|show| title_order(&show.title, &show.id));
         Ok(shows)
     }
 }
 
 /// The key Movies and Shows sort by: alphabetical whatever the case, then as written so titles
-/// differing only in case ("Up", "UP") keep one order.
-fn title_order(title: &str) -> (String, String) {
-    (title.to_lowercase(), title.to_owned())
+/// differing only in case ("Up", "UP") keep one order, then by `id` so identical ones do too.
+fn title_order(title: &str, id: &ExternalId) -> (String, String, ExternalId) {
+    (title.to_lowercase(), title.to_owned(), id.clone())
 }
 
 impl Contents {

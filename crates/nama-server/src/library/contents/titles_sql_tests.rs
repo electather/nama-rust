@@ -147,16 +147,16 @@ async fn the_preferred_id_follows_the_librarys_title_sources_and_moves_when_they
         (movies, episodes.collect::<Vec<_>>())
     };
 
-    let before = ids().await;
+    let (movies_before, episodes_before) = ids().await;
     fx.order_titles_by(fx.movies, &["tvdb", "tmdb"]).await;
     fx.order_titles_by(fx.shows, &["tvdb", "tmdb"]).await;
-    let after = ids().await;
+    let (movies_after, episodes_after) = ids().await;
 
-    let text = |listed: &str, own: &str| (listed.to_owned(), own.to_owned());
-    assert_eq!(before.0, ["tmdb-348"]);
-    assert_eq!(before.1, [text("tmdb-1437", "tmdb-1001")]);
-    assert_eq!(after.0, ["tvdb-1"]);
-    assert_eq!(after.1, [text("tvdb-78874", "tvdb-297989")]);
+    let show_and_own = |listed: &str, own: &str| (listed.to_owned(), own.to_owned());
+    assert_eq!(movies_before, ["tmdb-348"]);
+    assert_eq!(episodes_before, [show_and_own("tmdb-1437", "tmdb-1001")]);
+    assert_eq!(movies_after, ["tvdb-1"]);
+    assert_eq!(episodes_after, [show_and_own("tvdb-78874", "tvdb-297989")]);
 }
 
 #[tokio::test]
@@ -177,12 +177,14 @@ async fn a_title_with_no_ordered_id_takes_its_first_by_namespace_and_a_made_up_o
 #[tokio::test]
 async fn two_movie_files_matched_to_one_id_are_one_title_placed_by_path() {
     let fx = Fixture::new().await;
-    let later = fx.movie("/m/b.mkv", &[ExternalId::tmdb(348)]).await;
-    let first = fx.movie("/m/a.mkv", &[ExternalId::tmdb(348)]).await;
+    // A made-up id, as grouping must take any namespace.
+    let made_up = [id("anidb", "m-1")];
+    let later = fx.movie("/m/b.mkv", &made_up).await;
+    let first = fx.movie("/m/a.mkv", &made_up).await;
 
     let places = fx.places(fx.movies).await;
 
-    let alien = || "tmdb-348".to_owned();
+    let alien = || "anidb-m-1".to_owned();
     assert_eq!(
         places,
         [(alien(), alien(), first, 1), (alien(), alien(), later, 2)]
