@@ -97,13 +97,15 @@ impl JobRunner for Ending {
     }
 }
 
-/// A Job runner whose Runs never end, notifying its `Notify` as each starts.
-struct Endless(Arc<Notify>);
+/// A Job runner whose Runs never end, notifying `started` as each starts.
+struct Endless {
+    started: Arc<Notify>,
+}
 
 impl JobRunner for Endless {
     fn run<'a>(&'a self, _: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async {
-            self.0.notify_one();
+            self.started.notify_one();
             pending().await
         })
     }
@@ -134,7 +136,10 @@ async fn runs(db: &Database) -> Vec<JobRun> {
 /// A Registry recording Job Runs whose Job `tidy` is running in its Plugin's scope and never ends.
 async fn running_tidy_forever() -> (Registry, Arc<Database>, TempDir) {
     let started = Arc::new(Notify::new());
-    let (registry, db, dir) = recording(Arc::new(Endless(Arc::clone(&started)))).await;
+    let (registry, db, dir) = recording(Arc::new(Endless {
+        started: Arc::clone(&started),
+    }))
+    .await;
     let points = registry.extension_points();
     assert!(registry.spawn_in(&ID, async move {
         run_tidy(&points).await;
