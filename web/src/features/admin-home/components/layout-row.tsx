@@ -1,10 +1,10 @@
 import { DragHandle } from "@/features/admin-home/components/drag-handle";
 import { DropMarker } from "@/features/admin-home/components/drop-marker";
 import { MoveButtons } from "@/features/admin-home/components/move-buttons";
-import { RowLabel } from "@/features/admin-home/components/row-label";
-import { ShownSwitch } from "@/features/admin-home/components/shown-switch";
 import type { RowDrag } from "@/features/admin-home/hooks/use-row-drag";
-import type { RowName } from "@/features/admin-home/lib/home-layout";
+import { RowLabel } from "@/shared/components/home-layout/row-label";
+import { ShownSwitch } from "@/shared/components/home-layout/shown-switch";
+import type { RowName } from "@/shared/lib/home-layout";
 
 /** One Home row of the layout, at `place`: dragged or moved by its arrows, and shown or not. */
 export function LayoutRow({

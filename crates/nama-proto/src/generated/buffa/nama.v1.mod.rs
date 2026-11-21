@@ -456,6 +456,12 @@ pub mod __buffa {
         reg.register_json_any(super::__NOTIFICATION_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__SET_NOTIFICATION_PREFERENCE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_NOTIFICATION_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_HOME_LAYOUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_HOME_LAYOUT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_HOME_LAYOUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_HOME_LAYOUT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__RESET_HOME_LAYOUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RESET_HOME_LAYOUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__ADD_TO_WATCHLIST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__ADD_TO_WATCHLIST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_REQUEST_JSON_ANY);
@@ -1966,6 +1972,30 @@ pub use self::__buffa::view::SetNotificationPreferenceRequestOwnedView;
 pub use self::__buffa::view::SetNotificationPreferenceResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetNotificationPreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetHomeLayoutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetHomeLayoutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetHomeLayoutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetHomeLayoutResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHomeLayoutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHomeLayoutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHomeLayoutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetHomeLayoutResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetHomeLayoutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetHomeLayoutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetHomeLayoutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetHomeLayoutResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::AddToWatchlistRequestView;
 #[doc(inline)]

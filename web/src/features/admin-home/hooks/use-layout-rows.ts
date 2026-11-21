@@ -1,7 +1,8 @@
 import { useState } from "react";
 
-import { moved, rowName } from "@/features/admin-home/lib/home-layout";
+import { moved } from "@/features/admin-home/lib/home-layout";
 import type { HomeLayoutRow } from "@/gen/nama/v1/server_pb";
+import { rowName } from "@/shared/lib/home-layout";
 
 /**
  * The rows of a Home layout as an Admin changes them, from `saved`: moving one, which says where

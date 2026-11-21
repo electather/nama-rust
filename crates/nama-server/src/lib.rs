@@ -50,7 +50,7 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
-    users::{SetupCode, Users},
+    users::{SetupCode, UserHomeLayout, Users},
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,
@@ -147,7 +147,12 @@ pub fn serve(
     );
     let automation = Automation::serve(Arc::clone(&db), scanner.clone(), points, users.clone());
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
-    let load_settings = load_settings(settings.clone(), images.clone(), plugins.clone());
+    let load_settings = load_settings(
+        settings.clone(),
+        images.clone(),
+        plugins.clone(),
+        Arc::clone(&db),
+    );
     let app = api::router(
         config,
         db,
@@ -226,10 +231,16 @@ async fn fill_sort_titles(contents: &Contents) {
     }
 }
 
-/// Reads the Server settings, logging a failure and going on with the defaults, drops the default
-/// Home layout's rows of Plugins uninstalled since, has `images` keep its originals in the store
-/// they name, then sweeps the segment files and uploads an earlier run left.
-async fn load_settings(settings: Settings, images: ImageStore, plugins: PluginSettings) {
+/// Reads the Server settings, logging a failure and going on with the defaults, drops the rows of
+/// Plugins uninstalled since from the default Home layout and each User's in `db`, has `images`
+/// keep its originals in the store they name, then sweeps the segment files and uploads an earlier
+/// run left.
+async fn load_settings(
+    settings: Settings,
+    images: ImageStore,
+    plugins: PluginSettings,
+    db: Arc<Database>,
+) {
     if let Err(err) = settings.load().await {
         tracing::error!(
             "reading the Server settings failed, so each is its default and notifications have \
@@ -239,6 +250,9 @@ async fn load_settings(settings: Settings, images: ImageStore, plugins: PluginSe
     let installed = |plugin: &PluginId| plugins.has(plugin);
     if let Err(err) = settings.forget_uninstalled(installed).await {
         tracing::error!("could not drop uninstalled Plugins' rows from the Home layout: {err}");
+    }
+    if let Err(err) = UserHomeLayout::forget_uninstalled(&db, installed).await {
+        tracing::error!("could not drop uninstalled Plugins' rows from Users' Home layouts: {err}");
     }
     if let Some(plugin) = settings.now().image_store {
         let blobs = PluginBlobs::new(plugins.extension_points(), plugin.clone());
