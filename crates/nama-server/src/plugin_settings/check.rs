@@ -1,10 +1,13 @@
-//! Running a Plugin's settings check, and refusing settings whose choices it doesn't offer.
+//! Running a Plugin's settings check, and refusing settings whose choices aren't offered.
 
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashSet},
+    slice,
+};
 
 use nama_plugin_api::{
     Manifest, PluginId,
-    settings::{Choices, SettingKind, SettingValue, Settings},
+    settings::{Choice, Choices, SettingField, SettingKind, SettingValue, Settings},
 };
 
 use super::{ChangeError, PluginSettings, StoredPlugin, sent::with_stored_secrets};
@@ -64,42 +67,74 @@ impl PluginSettings {
         }
     }
 
-    /// Refuses `settings` for the Plugin `manifest` describes unless its settings check passes on
-    /// them and offers each choice setting's value. The check runs only when some choice setting
-    /// has a value.
+    /// Refuses `settings` for the Plugin `manifest` describes unless each value a choice or
+    /// Choices setting holds is offered: among the choices its settings check offers for it, or
+    /// else a Choices setting's own. Keeps each Choices setting's values once, in the order its
+    /// choices are listed. The check runs only when a choice setting has a value, or the Plugin
+    /// `checks_settings` and a Choices setting holds some.
     pub(super) async fn check_choices(
         &self,
         manifest: &Manifest,
-        settings: &BTreeMap<String, SettingValue>,
+        checks_settings: bool,
+        settings: &mut BTreeMap<String, SettingValue>,
     ) -> Result<(), ChangeError> {
-        let chosen: Vec<_> = manifest
-            .settings
-            .fields
-            .iter()
-            .filter(|field| field.kind == SettingKind::Choice)
-            .filter_map(|field| match settings.get(&field.key) {
-                Some(SettingValue::Text(value)) => Some((field.key.as_str(), value)),
-                _ => None,
-            })
-            .collect();
-        let Some(&(first, _)) = chosen.first() else {
-            return Ok(());
+        let picked = picked(&manifest.settings.fields, settings);
+        let needs_check =
+            (picked.iter()).any(|(field, _)| checks_settings || field.kind == SettingKind::Choice);
+        let offered = match picked.first() {
+            Some((first, _)) if needs_check => {
+                self.run_check(&manifest.id, settings.clone(), Some(&first.key))
+                    .await?
+            }
+            Some(_) | None => Choices::new(),
         };
-        let offered = self
-            .run_check(&manifest.id, settings.clone(), Some(first))
-            .await?;
-        for (key, value) in chosen {
-            let is_offered = offered
-                .get(key)
-                .is_some_and(|choices| choices.iter().any(|choice| choice.value == *value));
-            if !is_offered {
+        let mut ordered = Vec::new();
+        for (field, values) in picked {
+            let listed = offered.get(&field.key).unwrap_or(&field.choices);
+            let unoffered =
+                (values.iter()).find(|value| !listed.iter().any(|choice| choice.value == **value));
+            if let Some(value) = unoffered {
                 return Err(ChangeError::NotOffered {
                     plugin: manifest.id.clone(),
-                    key: key.to_owned(),
+                    key: field.key.clone(),
                     value: value.clone(),
                 });
             }
+            if field.kind == SettingKind::Choices {
+                ordered.push((field.key.clone(), in_listed_order(listed, values)));
+            }
         }
+        settings.extend(ordered);
         Ok(())
     }
+}
+
+/// Each choice or Choices setting in `fields` that `settings` gives a value, with the values it
+/// holds: a choice setting's one, or a Choices setting's, if it holds any.
+fn picked<'a>(
+    fields: &'a [SettingField],
+    settings: &'a BTreeMap<String, SettingValue>,
+) -> Vec<(&'a SettingField, &'a [String])> {
+    fields
+        .iter()
+        .filter_map(|field| {
+            let values = match (field.kind, settings.get(&field.key)?) {
+                (SettingKind::Choice, SettingValue::Text(value)) => slice::from_ref(value),
+                (SettingKind::Choices, SettingValue::Texts(values)) if !values.is_empty() => values,
+                _ => return None,
+            };
+            Some((field, values))
+        })
+        .collect()
+}
+
+/// `values` as a Choices setting's value: each once, in the order `listed` lists them.
+fn in_listed_order(listed: &[Choice], values: &[String]) -> SettingValue {
+    let mut kept = HashSet::new();
+    let values = listed
+        .iter()
+        .filter(|choice| values.contains(&choice.value) && kept.insert(&choice.value))
+        .map(|choice| choice.value.clone())
+        .collect();
+    SettingValue::Texts(values)
 }

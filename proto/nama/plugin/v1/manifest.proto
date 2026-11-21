@@ -139,11 +139,18 @@ message SettingField {
   // enabling.
   optional int64 min_value = 7;
   optional int64 max_value = 8;
+  // The choices a `SETTING_KIND_CHOICES` setting offers, in the order a form shows them, unless
+  // `check_settings()` returns its own for the setting, which replace them. A Server refuses a
+  // Plugin setting them on another kind, repeating a choice's value, with a default holding a
+  // value not among them, or with a `SETTING_KIND_CHOICES` setting that has none and no
+  // `check_settings()` export.
+  repeated Choice choices = 9;
 }
 
 // What an Installed Plugin's `check_settings()` returns when its settings work.
 message CheckedSettings {
-  // The choices for each `SETTING_KIND_CHOICE` setting, by key.
+  // The choices for each `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting, by key. A
+  // `SETTING_KIND_CHOICES` setting's replace those its `SettingField.choices` lists.
   map<string, SettingChoices> choices = 1;
 }
 
@@ -179,6 +186,11 @@ enum SettingKind {
   // kept once. A Library deleted later stays in the value, and the Plugin ignores an id the Kernel
   // no longer lists.
   SETTING_KIND_LIBRARIES = 7;
+  // Several values, unlike `SETTING_KIND_CHOICE`, each picked from the setting's
+  // `SettingField.choices` or those `check_settings()` offers for it. Each value is kept once, in
+  // the order the choices are listed, and an empty list picks none. The Plugin ignores a value it
+  // no longer offers.
+  SETTING_KIND_CHOICES = 8;
 }
 
 // A setting's value, of the setting's kind.
@@ -192,7 +204,14 @@ message SettingValue {
     int64 integer_value = 3;
     // Library ids, for SETTING_KIND_LIBRARIES.
     LibraryIds library_ids = 4;
+    // The picked choices' values, for SETTING_KIND_CHOICES.
+    Texts texts = 5;
   }
+}
+
+// The values a SETTING_KIND_CHOICES setting holds, in the order its choices are listed.
+message Texts {
+  repeated string values = 1;
 }
 
 // The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.
@@ -200,15 +219,16 @@ message LibraryIds {
   repeated int64 ids = 1;
 }
 
-// The values a SETTING_KIND_CHOICE setting may take, in the order a form offers them.
+// The values a SETTING_KIND_CHOICE or SETTING_KIND_CHOICES setting may take, in the order a form
+// offers them.
 message SettingChoices {
   repeated Choice choices = 1;
 }
 
-// One value a SETTING_KIND_CHOICE setting may take.
+// One value a SETTING_KIND_CHOICE or SETTING_KIND_CHOICES setting may take.
 message Choice {
-  // What the setting's value holds as its `text_value` when an admin picks it, such as a quality
-  // profile's id.
+  // What the setting's value holds when an admin picks it, as its `text_value` or among its
+  // `texts`, such as a quality profile's id.
   string value = 1;
   // What an admin picks it by, such as the profile's name.
   string label = 2;

@@ -94,6 +94,7 @@ impl Plugin for Tmdb {
                     default: None,
                     min: None,
                     max: None,
+                    choices: Vec::new(),
                 },
                 SettingField {
                     key: LANGUAGE.to_owned(),
@@ -106,6 +107,7 @@ impl Plugin for Tmdb {
                     default: Some(SettingValue::Text(DEFAULT_LANGUAGE.to_owned())),
                     min: None,
                     max: None,
+                    choices: Vec::new(),
                 },
             ],
         };

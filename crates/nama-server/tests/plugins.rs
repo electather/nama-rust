@@ -582,6 +582,7 @@ impl Plugin for Configurable {
             default,
             min: None,
             max: None,
+            choices: Vec::new(),
         };
         let settings = SettingsSchema {
             fields: vec![
@@ -839,6 +840,7 @@ impl Plugin for PersonalKind {
                     default: None,
                     min: None,
                     max: None,
+                    choices: Vec::new(),
                 }],
             },
             ..Manifest::new(PluginId::from_static(self.0))

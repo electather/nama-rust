@@ -71,6 +71,7 @@ fn field(key: &str, kind: SettingKind) -> SettingField {
         default: None,
         min: None,
         max: None,
+        choices: Vec::new(),
     }
 }
 
@@ -224,14 +225,11 @@ fn a_manifests_settings_become_its_settings_schema() {
     let schema = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_SECRET)).ok();
 
     let expected = SettingField {
-        key: "api_key".to_owned(),
         label: "API key".to_owned(),
         description: "The key.".to_owned(),
-        kind: SettingKind::Secret,
         required: true,
         default: Some(SettingValue::Text("none".to_owned())),
-        min: None,
-        max: None,
+        ..field("api_key", SettingKind::Secret)
     };
     assert_eq!(schema.map(|schema| schema.fields), Some(vec![expected]));
 }

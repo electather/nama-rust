@@ -3,12 +3,15 @@ use std::time::Duration;
 use nama_plugin_proto::{
     CONTRACT_VERSION,
     nama::plugin::v1::{
-        Job, Manifest, Permission, Point, SettingField, SettingKind, SettingValue, setting_value,
+        Choice, Job, Manifest, Permission, Point, SettingField, SettingKind, SettingValue, Texts,
+        setting_value,
     },
     services,
 };
 
-use super::judge;
+use nama_plugin_api::settings::{self, Settings, SettingsSchema};
+
+use super::{extism_config, judge};
 
 #[cfg(feature = "testing")]
 #[expect(
@@ -142,6 +145,7 @@ fn personal_settings_a_user_could_widen_hosts_by_or_whose_keys_clash_are_refused
     let refusals = [
         vec![personal("webhook", SettingKind::SETTING_KIND_URL)],
         vec![personal("language", SettingKind::SETTING_KIND_CHOICE)],
+        vec![personal("ratings", SettingKind::SETTING_KIND_CHOICES)],
         vec![
             personal("topic", SettingKind::SETTING_KIND_TEXT),
             personal("topic", SettingKind::SETTING_KIND_SECRET),
@@ -162,6 +166,8 @@ fn personal_settings_a_user_could_widen_hosts_by_or_whose_keys_clash_are_refused
             "its Personal setting webhook is Url, and a Personal setting may only be Text, \
              Secret, Bool or Integer",
             "its Personal setting language is Choice, and a Personal setting may only be Text, \
+             Secret, Bool or Integer",
+            "its Personal setting ratings is Choices, and a Personal setting may only be Text, \
              Secret, Bool or Integer",
             "its Personal setting topic repeats a key",
             "its Personal setting server has a Plugin setting's key",
@@ -185,9 +191,7 @@ fn days(min_value: Option<i64>, max_value: Option<i64>, default: Option<i64>) ->
     }
 }
 
-fn judged_settings(
-    setting: SettingField,
-) -> Result<Vec<nama_plugin_api::settings::SettingField>, String> {
+fn judged_settings(setting: SettingField) -> Result<Vec<settings::SettingField>, String> {
     let mut package = Manifest {
         settings: vec![setting],
         ..title_source("cleanup")
@@ -230,6 +234,87 @@ fn an_integer_settings_bounds_reach_its_schema() {
             .map(|field| (field.min, field.max))
             .collect::<Vec<_>>(),
         [(Some(0), Some(365))]
+    );
+}
+
+fn ratings(choices: &[&str], default: Option<&[&str]>) -> SettingField {
+    SettingField {
+        choices: (choices.iter())
+            .map(|&value| Choice {
+                value: value.to_owned(),
+                label: value.to_owned(),
+                ..Default::default()
+            })
+            .collect(),
+        default_value: default
+            .map(|values| SettingValue {
+                value: Some(setting_value::Value::Texts(Box::new(Texts {
+                    values: values.iter().map(|&value| value.to_owned()).collect(),
+                    ..Default::default()
+                }))),
+                ..Default::default()
+            })
+            .into(),
+        ..personal("ratings", SettingKind::SETTING_KIND_CHOICES)
+    }
+}
+
+#[test]
+fn a_choices_settings_manifest_choices_reach_its_schema() {
+    let fields = judged_settings(ratings(&["G", "PG"], Some(&["PG"]))).unwrap();
+
+    assert_eq!(
+        (fields.iter())
+            .map(|field| field
+                .choices
+                .iter()
+                .map(|choice| choice.value.as_str())
+                .collect())
+            .collect::<Vec<Vec<_>>>(),
+        [["G", "PG"]]
+    );
+}
+
+#[test]
+fn a_choices_setting_without_manifest_choices_loads_only_with_a_settings_check() {
+    let judged = |exported: &[&str]| {
+        let mut package = Manifest {
+            settings: vec![ratings(&[], None)],
+            ..title_source("cleanup")
+        };
+        judge(&mut package, exported).map_err(|refused| refused.to_string())
+    };
+
+    assert_eq!(
+        judged(&[]).err().as_deref(),
+        Some(
+            "its setting ratings is Choices with no choices, and it has no check_settings export \
+             to offer some"
+        )
+    );
+    assert_eq!(judged(&["check_settings"]).err(), None);
+}
+
+#[test]
+fn choices_on_another_kind_repeated_or_missing_the_default_are_refused() {
+    let refusals = [
+        SettingField {
+            kind: SettingKind::SETTING_KIND_CHOICE.into(),
+            ..ratings(&["G"], None)
+        },
+        ratings(&["G", "PG", "G"], None),
+        ratings(&["G", "PG"], Some(&["G", "R"])),
+    ]
+    .map(|setting| judged_settings(setting).err());
+
+    assert_eq!(
+        refusals,
+        [
+            "its setting ratings has choices, which only a Choices setting may",
+            r#"its setting ratings lists the choice "G" twice"#,
+            "its setting ratings's default holds a value that isn't among its choices",
+        ]
+        .map(|refusal| Some(refusal.to_owned()))
     );
 }
 
@@ -548,4 +633,19 @@ fn a_bad_setup_text_link_or_licence_is_dropped_saying_why_and_the_plugin_still_t
         assert!(logged.contains("tvdb"), "{logged}");
         assert!(logged.contains(&format!("dropped its {why}")), "{logged}");
     }
+}
+
+#[test]
+fn a_plugin_reads_picked_choices_as_a_json_array() {
+    let fields = judged_settings(ratings(&["PG-13", "a, \"b\""], None)).unwrap();
+    let picked = vec!["PG-13".to_owned(), "a, \"b\"".to_owned()];
+    let settings =
+        Settings::new([("ratings".to_owned(), settings::SettingValue::Texts(picked))].into());
+
+    let config = extism_config(&SettingsSchema { fields }, &settings);
+
+    assert_eq!(
+        config,
+        [("ratings".to_owned(), r#"["PG-13","a, \"b\""]"#.to_owned())]
+    );
 }

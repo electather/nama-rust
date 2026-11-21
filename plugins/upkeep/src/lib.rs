@@ -162,6 +162,7 @@ fn days_field(key: &str, label: &str, description: &str, default: u32) -> Settin
         default: Some(SettingValue::Integer(default.into())),
         min: Some(1),
         max: Some(3650),
+        choices: Vec::new(),
     }
 }
 
