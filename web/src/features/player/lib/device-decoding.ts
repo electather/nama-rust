@@ -1,4 +1,10 @@
-import { AudioCodec, Container, SubtitleFormat, VideoCodec } from "@/gen/nama/v1/playback_pb";
+import {
+  AudioCodec,
+  Container,
+  DecodingEvidence,
+  SubtitleFormat,
+  VideoCodec,
+} from "@/gen/nama/v1/playback_pb";
 
 /** The values of the generated enum `E` but its unspecified one, so a table keyed by them needs
  * an entry for each value the schema adds. */
@@ -72,6 +78,8 @@ export async function findDeviceDecoding() {
     mse,
     audioChannels: audioChannels(),
     subtitleFormats: drawnFormats().filter((format) => !failedRenderers.has(format)),
+    // A browser only says what it may play, and overstates (ADR 0027).
+    evidence: DecodingEvidence.DECLARED,
   };
 }
 

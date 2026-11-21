@@ -318,8 +318,13 @@ message PlanPlaybackRequest {
   PlaybackLimit playback_limit = 5;
   // What the Device can decode, as it found out just now.
   DeviceDecoding device_decoding = 6;
-  // The methods that just failed to play this Version on this Device.
+  // The methods that just failed to play this Version on this Device, each ruled out whole. A
+  // client that sends `failed_recipes` leaves this empty.
   repeated PlaybackMethod failed_methods = 7;
+  // The `PlaybackPlan.recipe` of each plan that just failed to play this Version on this Device,
+  // as the plan gave it. Each rules out only that Recipe: the plan plays by the same method
+  // another way if it can, and rules the method out only once every way it has failed.
+  repeated string failed_recipes = 9;
   // Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
   // shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
   bool no_subtitles = 8;
@@ -360,6 +365,22 @@ message DeviceDecoding {
   // The subtitle formats it draws itself, over the video. WebVTT is never listed: every Device
   // shows it (ADR 0033).
   repeated SubtitleFormat subtitle_formats = 9;
+  // How sure it is of what it says it decodes.
+  DecodingEvidence evidence = 11;
+}
+
+// How a Device found out what it decodes, and so how sure it is. A choice that goes wrong where a
+// Device overstates, such as passing audio through to a receiver, needs `DECODING_EVIDENCE_EXACT`
+// (ADR 0027).
+enum DecodingEvidence {
+  // Read as `DECODING_EVIDENCE_DECLARED`.
+  DECODING_EVIDENCE_UNSPECIFIED = 0;
+  // What it says it may play, such as a browser's `isTypeSupported`, which overstates.
+  DECODING_EVIDENCE_DECLARED = 1;
+  // What its platform vouches for, such as Apple's AVFoundation.
+  DECODING_EVIDENCE_ATTESTED = 2;
+  // The decoders it has, listed, such as Android's MediaCodecList.
+  DECODING_EVIDENCE_EXACT = 3;
 }
 
 // A format the Server serves a subtitle Track in, for a Device to show it itself.
@@ -495,6 +516,11 @@ message PlaybackPlan {
   // `SearchSubtitles` won't refuse with `REFUSAL_REASON_NO_SUBTITLE_SOURCE` for lack of one. It
   // says nothing of `PERMISSION_DOWNLOAD_SUBTITLES`. Set on every plan, also one that can't play.
   bool can_search_subtitles = 18;
+  // Its Recipe, what sets it apart from another plan by the same method: the method, the
+  // container it serves and the audio codec it sends, such as `remux/fmp4/eac3`. A client that
+  // fails to play it sends it back as it is in `PlanPlaybackRequest.failed_recipes`; its form
+  // isn't API contract. Empty when it can't be played.
+  string recipe = 19;
 }
 
 // A stretch of the Version a plan plays that the player acts on.
@@ -606,8 +632,8 @@ enum PlaybackReasonKind {
   PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO = 9;
   // Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5.
   PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER = 10;
-  // Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device.
-  // One for each method that did.
+  // Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device, or
+  // every Recipe of it did. One for each method that did.
   PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE = 11;
   // Rules out Transcode: the Server runs as many Transcodes as it may. Params: `maxTranscodes`.
   PLAYBACK_REASON_KIND_SERVER_BUSY = 12;
@@ -675,4 +701,7 @@ enum PlaybackReasonKind {
   // The hardware the plan Transcoded on failed while playing, so the rest Transcodes in
   // software. Only in `PlaybackChanged`. Params: `hardwareAcceleration`.
   PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY = 30;
+  // The plan's method sends its audio in another codec, because sending it in `codec` (`eac3`,
+  // as ffprobe names it) just failed on the Device. Params: `method`, `codec`.
+  PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE = 35;
 }

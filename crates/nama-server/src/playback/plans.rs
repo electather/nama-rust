@@ -40,6 +40,8 @@ pub(crate) struct Asked {
     pub(crate) decoding: DeviceDecoding,
     /// The methods that just failed to play it on the Device.
     pub(crate) failed: BTreeSet<Method>,
+    /// The Recipes of the plans that just failed to play it on the Device, as they named them.
+    pub(crate) failed_recipes: BTreeSet<String>,
     /// The audio Track chosen, by its place in the Version's Tracks, or `None` for the Server's
     /// choice by the User's Audio Preference.
     pub(crate) audio: Option<usize>,
@@ -206,6 +208,7 @@ impl Plans {
             version,
             decoding,
             failed,
+            failed_recipes,
             audio,
             subtitle,
             limit,
@@ -244,6 +247,7 @@ impl Plans {
             can_do: self.abilities.can_do().await,
             failed,
             failed_on_server: BTreeSet::new(),
+            failed_recipes,
             keyframes_unlisted: false,
             running_transcodes: self.running.running_transcodes(),
             max_transcodes: settings.max_transcodes,

@@ -5,7 +5,7 @@ use nama_proto::nama::v1 as proto;
 use proto::PlaybackReasonKind as Kind;
 
 use super::{
-    Choice, DeviceDecoding, Facts, Method, Playing, Reason,
+    Choice, DeviceDecoding, Facts, Method, Playing, Reason, recipe,
     steps::hdr_reason,
     tracks::{Hdr, Probe, Track, TrackKind},
 };
@@ -151,6 +151,39 @@ pub(super) fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Tr
             converted_to_h264(tracks, video)
         }
         None | Some(Playing::DirectPlay | Playing::Remux { .. }) => tracks,
+    }
+}
+
+/// `facts.device` without each audio codec `method` would send `audio` as whose Recipe by it just
+/// failed on the Device, so it sends another if it can; and those codecs, as ffprobe names them.
+pub(super) fn untried_by(
+    method: Method,
+    facts: &Facts,
+    audio: &Track,
+) -> (DeviceDecoding, Vec<String>) {
+    let mut device = facts.device.clone();
+    let mut passed_over = vec![];
+    loop {
+        let sent = match method {
+            Method::Remux => remux_audio_conversion(&device, audio),
+            Method::DirectPlay | Method::Transcode => Some(audio_conversion(&device, audio)),
+        }
+        .map_or(audio.codec.as_str(), |conversion| {
+            conversion.encoder.ffmpeg_name()
+        });
+        // Stereo is sent as AAC whatever the Device decodes, so passing over a codec it no longer
+        // lists would never end.
+        let failed = (AUDIO_CODECS.iter())
+            .find(|(name, ..)| *name == sent)
+            .map(|&(_, codec, _)| codec)
+            .filter(|codec| device.audio_codecs.contains(codec))
+            .filter(|_| facts.failed_recipes.contains(&recipe(method, Some(sent))));
+        let Some(failed) = failed else {
+            passed_over.retain(|codec| codec != sent);
+            return (device, passed_over);
+        };
+        device.audio_codecs.retain(|&codec| codec != failed);
+        passed_over.push(sent.to_owned());
     }
 }
 

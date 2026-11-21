@@ -57,6 +57,8 @@ impl PlaybackService for PlaybackServiceHandler {
         let client = client_ip(&ctx)?;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
+        // ponytail: `decoding.evidence` goes unread, unset meaning declared, since nothing passes
+        // audio through yet; read it once something does, which needs exact (ADR 0027).
         let decoding = request.device_decoding.into_option().unwrap_or_default();
         let subtitle = match (request.subtitle_track, request.no_subtitles) {
             // A place past `usize::MAX` is in no file ffprobe reads.
@@ -81,6 +83,7 @@ impl PlaybackService for PlaybackServiceHandler {
             failed: (request.failed_methods.iter())
                 .filter_map(|method| method_from_proto(*method))
                 .collect(),
+            failed_recipes: request.failed_recipes.into_iter().collect(),
             // A place past `usize::MAX` is in no file, so the Server chooses.
             audio: (request.audio_track).and_then(|place| usize::try_from(place).ok()),
             subtitle,
@@ -564,6 +567,7 @@ fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybac
     // A place past `u32::MAX` is in no file ffprobe reads.
     let place = |place: usize| u32::try_from(place).ok();
     let places = |places: Vec<usize>| places.into_iter().filter_map(place).collect();
+    let recipe = plan.recipe();
     let plan = proto::PlaybackPlan {
         id,
         method: method_to_proto(plan.method()).into(),
@@ -601,6 +605,7 @@ fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybac
         segments: plan.segments.into_iter().map(segment_to_proto).collect(),
         preview_frames: plan.preview_frames.into(),
         can_search_subtitles,
+        recipe,
         ..Default::default()
     };
     PlanPlaybackResponse {

@@ -11,9 +11,10 @@ use super::{
     codecs::{
         audio_codec_name, audio_conversion, channels_of, hdr_name, played_hdr, played_tracks,
         played_video, remux_audio_conversion, transcoded_hdr, undecodable, undecodable_container,
+        untried_by,
     },
     limits::video_limit,
-    method_to_proto,
+    method_to_proto, recipe, sent_audio_codec, sent_by,
     tracks::{Hdr, Track, hdr_to_proto},
 };
 use crate::{
@@ -196,9 +197,10 @@ pub(super) fn converting(
         ),
         None | Some(Playing::DirectPlay) => return vec![],
     };
-    let mut reasons: Vec<Reason> = conversion
-        .and_then(|conversion| fewer_channels(facts, candidates, conversion, method))
-        .into_iter()
+    let mut reasons: Vec<Reason> = (passed_over_recipes(candidates, method).into_iter())
+        .chain(
+            conversion.and_then(|conversion| fewer_channels(facts, candidates, conversion, method)),
+        )
         .collect();
     if let Some(Playing::Transcode { transcode, .. }) = playing {
         reasons.extend(tone_mapping(facts, transcode.video.tone_map));
@@ -392,29 +394,42 @@ fn video_conversion(facts: &Facts) -> VideoConversion {
 }
 
 /// What a Remux for `facts` converts, playing `audio`: the index ffmpeg knows an audio Track by,
-/// and that Track.
-pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> Remux {
-    let audio = audio.map(|(track, played)| RemuxAudio {
-        track,
-        conversion: remux_audio_conversion(&facts.device, played),
+/// and that Track; and the audio codecs it passes over, as [`untried_by`] says.
+pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> (Remux, Vec<String>) {
+    let mut passed_over = vec![];
+    let audio = audio.map(|(track, played)| {
+        let (device, passed) = untried_by(Method::Remux, facts, played);
+        passed_over = passed;
+        RemuxAudio {
+            track,
+            conversion: remux_audio_conversion(&device, played),
+        }
     });
     let video = facts.probe.as_ref().and_then(played_video);
-    Remux {
+    let remux = Remux {
         audio,
         hevc: video.is_some_and(|video| video.codec == "hevc"),
-    }
+    };
+    (remux, passed_over)
 }
 
-/// What a Transcode for `facts` converts, playing `audio` as [`remux`] does.
-pub(super) fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> Transcode {
-    let audio = audio.map(|(track, played)| TranscodeAudio {
-        track,
-        conversion: audio_conversion(&facts.device, played),
+/// What a Transcode for `facts` converts, playing `audio`, and the codecs it passes over, as
+/// [`remux`] does.
+pub(super) fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> (Transcode, Vec<String>) {
+    let mut passed_over = vec![];
+    let audio = audio.map(|(track, played)| {
+        let (device, passed) = untried_by(Method::Transcode, facts, played);
+        passed_over = passed;
+        TranscodeAudio {
+            track,
+            conversion: audio_conversion(&device, played),
+        }
     });
-    Transcode {
+    let transcode = Transcode {
         audio,
         video: video_conversion(facts),
-    }
+    };
+    (transcode, passed_over)
 }
 
 /// The step for how busy the Server is: no Transcode while as many run as it may.
@@ -456,14 +471,49 @@ pub(super) fn too_busy_to_play(facts: Facts) -> Option<u32> {
     transcodes_full(&not_busy, Some(&transcode.video))
 }
 
-/// The step for what just failed to play on the Device: it rules out each method that did, so
-/// the player can ask again without looping.
-pub(super) fn failed_on_device(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
+/// The step for what just failed to play on the Device: it rules out each method that did, or
+/// whose every Recipe did, so the player can ask again without looping.
+pub(super) fn failed_on_device(facts: &Facts, candidates: Option<&Candidates>) -> Vec<Reason> {
+    // A candidate sends another codec than one whose Recipe failed if it can, so its own Recipe
+    // failed only once every one it could send has.
+    let every_recipe_failed = Method::ALL.into_iter().filter(|&method| {
+        sent_by(method, facts, candidates).is_some_and(|tracks| {
+            (facts.failed_recipes).contains(&recipe(method, sent_audio_codec(&tracks)))
+        })
+    });
     failures(
-        &facts.failed,
+        &facts
+            .failed
+            .iter()
+            .copied()
+            .chain(every_recipe_failed)
+            .collect(),
         Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
         "on this Device",
     )
+}
+
+/// Why the Remux or Transcode `method` sends audio in another codec than one of its Recipes that
+/// just failed on the Device: one reason for each codec it passed over.
+fn passed_over_recipes(candidates: Option<&Candidates>, method: Method) -> Vec<Reason> {
+    let passed_over = match (candidates, method) {
+        (Some(candidates), Method::Remux) => candidates.remux_passed_over.as_slice(),
+        (Some(candidates), Method::Transcode) => candidates.transcode_passed_over.as_slice(),
+        (None, _) | (_, Method::DirectPlay) => &[],
+    };
+    (passed_over.iter())
+        .map(|codec| {
+            let text = format!(
+                "A {} sending {} audio just failed on this Device, so it sends another",
+                method.name(),
+                audio_codec_name(codec)
+            );
+            Reason::new(Kind::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE, text)
+                .with("method", &method_to_proto(Some(method)).proto_name())
+                .with("codec", codec)
+                .deciding()
+        })
+        .collect()
 }
 
 /// The step for plans whose ffmpeg stopped before writing anything: it rules out each method that

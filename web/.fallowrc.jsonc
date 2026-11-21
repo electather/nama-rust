@@ -25,6 +25,11 @@
         "reason": "The app's tokens and global CSS, plus one import for each feature's own tokens file (`home.css`, `title.css`).",
       },
       {
+        "files": ["src/shared/lib/playback-wording.ts"],
+        "maxFileLines": 220,
+        "reason": "A sentence for each Playback Reason kind, a table that grows with the schema's `PlaybackReasonKind`.",
+      },
+      {
         "files": ["vite.config.ts"],
         "maxFileLines": 0,
         "reason": "All format, lint and test config lives in it (web/AGENTS.md, \"Only `vp`\").",

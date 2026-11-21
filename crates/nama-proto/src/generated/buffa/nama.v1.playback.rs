@@ -822,6 +822,176 @@ impl ::buffa::Enumeration for PlaybackLimit {
         ]
     }
 }
+/// How a Device found out what it decodes, and so how sure it is. A choice that goes wrong where a
+/// Device overstates, such as passing audio through to a receiver, needs `DECODING_EVIDENCE_EXACT`
+/// (ADR 0027).
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum DecodingEvidence {
+    /// Read as `DECODING_EVIDENCE_DECLARED`.
+    DECODING_EVIDENCE_UNSPECIFIED = 0i32,
+    /// What it says it may play, such as a browser's `isTypeSupported`, which overstates.
+    DECODING_EVIDENCE_DECLARED = 1i32,
+    /// What its platform vouches for, such as Apple's AVFoundation.
+    DECODING_EVIDENCE_ATTESTED = 2i32,
+    /// The decoders it has, listed, such as Android's MediaCodecList.
+    DECODING_EVIDENCE_EXACT = 3i32,
+}
+impl DecodingEvidence {
+    ///Idiomatic alias for [`Self::DECODING_EVIDENCE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::DECODING_EVIDENCE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::DECODING_EVIDENCE_DECLARED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Declared: Self = Self::DECODING_EVIDENCE_DECLARED;
+    ///Idiomatic alias for [`Self::DECODING_EVIDENCE_ATTESTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Attested: Self = Self::DECODING_EVIDENCE_ATTESTED;
+    ///Idiomatic alias for [`Self::DECODING_EVIDENCE_EXACT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Exact: Self = Self::DECODING_EVIDENCE_EXACT;
+}
+impl ::core::default::Default for DecodingEvidence {
+    fn default() -> Self {
+        Self::DECODING_EVIDENCE_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for DecodingEvidence {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DecodingEvidence {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = DecodingEvidence;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!(
+                        "a string, integer, or null for ", stringify!(DecodingEvidence)
+                    ),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<DecodingEvidence, E> {
+                <DecodingEvidence as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<DecodingEvidence, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <DecodingEvidence as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<DecodingEvidence, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <DecodingEvidence as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<DecodingEvidence, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for DecodingEvidence {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for DecodingEvidence {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::DECODING_EVIDENCE_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::DECODING_EVIDENCE_DECLARED),
+            2i32 => ::core::option::Option::Some(Self::DECODING_EVIDENCE_ATTESTED),
+            3i32 => ::core::option::Option::Some(Self::DECODING_EVIDENCE_EXACT),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::DECODING_EVIDENCE_UNSPECIFIED => "DECODING_EVIDENCE_UNSPECIFIED",
+            Self::DECODING_EVIDENCE_DECLARED => "DECODING_EVIDENCE_DECLARED",
+            Self::DECODING_EVIDENCE_ATTESTED => "DECODING_EVIDENCE_ATTESTED",
+            Self::DECODING_EVIDENCE_EXACT => "DECODING_EVIDENCE_EXACT",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "DECODING_EVIDENCE_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::DECODING_EVIDENCE_UNSPECIFIED)
+            }
+            "DECODING_EVIDENCE_DECLARED" => {
+                ::core::option::Option::Some(Self::DECODING_EVIDENCE_DECLARED)
+            }
+            "DECODING_EVIDENCE_ATTESTED" => {
+                ::core::option::Option::Some(Self::DECODING_EVIDENCE_ATTESTED)
+            }
+            "DECODING_EVIDENCE_EXACT" => {
+                ::core::option::Option::Some(Self::DECODING_EVIDENCE_EXACT)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::DECODING_EVIDENCE_UNSPECIFIED,
+            Self::DECODING_EVIDENCE_DECLARED,
+            Self::DECODING_EVIDENCE_ATTESTED,
+            Self::DECODING_EVIDENCE_EXACT,
+        ]
+    }
+}
 /// A format the Server serves a subtitle Track in, for a Device to show it itself.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -1907,8 +2077,8 @@ pub enum PlaybackReasonKind {
     PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO = 9i32,
     /// Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5.
     PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER = 10i32,
-    /// Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device.
-    /// One for each method that did.
+    /// Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device, or
+    /// every Recipe of it did. One for each method that did.
     PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE = 11i32,
     /// Rules out Transcode: the Server runs as many Transcodes as it may. Params: `maxTranscodes`.
     PLAYBACK_REASON_KIND_SERVER_BUSY = 12i32,
@@ -1975,6 +2145,9 @@ pub enum PlaybackReasonKind {
     /// The hardware the plan Transcoded on failed while playing, so the rest Transcodes in
     /// software. Only in `PlaybackChanged`. Params: `hardwareAcceleration`.
     PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY = 30i32,
+    /// The plan's method sends its audio in another codec, because sending it in `codec` (`eac3`,
+    /// as ffprobe names it) just failed on the Device. Params: `method`, `codec`.
+    PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE = 35i32,
 }
 impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -2082,6 +2255,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const HardwareFailedPartway: Self = Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RecipeFailedOnDevice: Self = Self::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE;
 }
 impl ::core::default::Default for PlaybackReasonKind {
     fn default() -> Self {
@@ -2340,6 +2516,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
                 )
             }
+            35i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -2448,6 +2629,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             }
             Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY => {
                 "PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY"
+            }
+            Self::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE => {
+                "PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE"
             }
         }
     }
@@ -2618,6 +2802,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
                 )
             }
+            "PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -2658,6 +2847,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED,
             Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST,
             Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
+            Self::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE,
         ]
     }
 }
@@ -6670,7 +6860,8 @@ pub struct PlanPlaybackRequest {
         DeviceDecoding,
         ::buffa::Inline<DeviceDecoding>,
     >,
-    /// The methods that just failed to play this Version on this Device.
+    /// The methods that just failed to play this Version on this Device, each ruled out whole. A
+    /// client that sends `failed_recipes` leaves this empty.
     ///
     /// Field 7: `failed_methods`
     #[serde(
@@ -6680,6 +6871,18 @@ pub struct PlanPlaybackRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub failed_methods: ::buffa::alloc::vec::Vec<::buffa::EnumValue<PlaybackMethod>>,
+    /// The `PlaybackPlan.recipe` of each plan that just failed to play this Version on this Device,
+    /// as the plan gave it. Each rules out only that Recipe: the plan plays by the same method
+    /// another way if it can, and rules the method out only once every way it has failed.
+    ///
+    /// Field 9: `failed_recipes`
+    #[serde(
+        rename = "failedRecipes",
+        alias = "failed_recipes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub failed_recipes: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     /// Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
     /// shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
     ///
@@ -6705,6 +6908,7 @@ impl ::core::fmt::Debug for PlanPlaybackRequest {
             .field("playback_limit", &self.playback_limit)
             .field("device_decoding", &self.device_decoding)
             .field("failed_methods", &self.failed_methods)
+            .field("failed_recipes", &self.failed_recipes)
             .field("no_subtitles", &self.no_subtitles)
             .finish()
     }
@@ -6791,6 +6995,9 @@ impl ::buffa::Message for PlanPlaybackRequest {
         if self.no_subtitles {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.failed_recipes {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6840,6 +7047,9 @@ impl ::buffa::Message for PlanPlaybackRequest {
         }
         if self.no_subtitles {
             ::buffa::types::put_bool_field(8u32, self.no_subtitles, buf);
+        }
+        for v in &self.failed_recipes {
+            ::buffa::types::put_string_field(9u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6951,6 +7161,17 @@ impl ::buffa::Message for PlanPlaybackRequest {
                 )?;
                 self.no_subtitles = ::buffa::types::decode_bool(buf)?;
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.failed_recipes.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -6967,6 +7188,7 @@ impl ::buffa::Message for PlanPlaybackRequest {
         self.device_decoding = ::buffa::MessageField::none();
         self.failed_methods.clear();
         self.no_subtitles = false;
+        self.failed_recipes.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7093,6 +7315,15 @@ pub struct DeviceDecoding {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub subtitle_formats: ::buffa::alloc::vec::Vec<::buffa::EnumValue<SubtitleFormat>>,
+    /// How sure it is of what it says it decodes.
+    ///
+    /// Field 11: `evidence`
+    #[serde(
+        rename = "evidence",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub evidence: ::buffa::EnumValue<DecodingEvidence>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7109,6 +7340,7 @@ impl ::core::fmt::Debug for DeviceDecoding {
             .field("mse", &self.mse)
             .field("audio_channels", &self.audio_channels)
             .field("subtitle_formats", &self.subtitle_formats)
+            .field("evidence", &self.evidence)
             .finish()
     }
 }
@@ -7187,6 +7419,12 @@ impl ::buffa::Message for DeviceDecoding {
         if self.h264_10bit {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        {
+            let val = self.evidence.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7255,6 +7493,12 @@ impl ::buffa::Message for DeviceDecoding {
         }
         if self.h264_10bit {
             ::buffa::types::put_bool_field(10u32, self.h264_10bit, buf);
+        }
+        {
+            let val = self.evidence.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(11u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7456,6 +7700,15 @@ impl ::buffa::Message for DeviceDecoding {
                 )?;
                 self.h264_10bit = ::buffa::types::decode_bool(buf)?;
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.evidence = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7473,6 +7726,7 @@ impl ::buffa::Message for DeviceDecoding {
         self.audio_codecs.clear();
         self.subtitle_formats.clear();
         self.h264_10bit = false;
+        self.evidence = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7915,6 +8169,18 @@ pub struct PlaybackPlan {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub can_search_subtitles: bool,
+    /// Its Recipe, what sets it apart from another plan by the same method: the method, the
+    /// container it serves and the audio codec it sends, such as `remux/fmp4/eac3`. A client that
+    /// fails to play it sends it back as it is in `PlanPlaybackRequest.failed_recipes`; its form
+    /// isn't API contract. Empty when it can't be played.
+    ///
+    /// Field 19: `recipe`
+    #[serde(
+        rename = "recipe",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub recipe: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7939,6 +8205,7 @@ impl ::core::fmt::Debug for PlaybackPlan {
             .field("chapters", &self.chapters)
             .field("segments", &self.segments)
             .field("can_search_subtitles", &self.can_search_subtitles)
+            .field("recipe", &self.recipe)
             .finish()
     }
 }
@@ -8094,6 +8361,9 @@ impl ::buffa::Message for PlaybackPlan {
         if self.can_search_subtitles {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.recipe.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.recipe) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8214,6 +8484,9 @@ impl ::buffa::Message for PlaybackPlan {
         }
         if self.can_search_subtitles {
             ::buffa::types::put_bool_field(18u32, self.can_search_subtitles, buf);
+        }
+        if !self.recipe.is_empty() {
+            ::buffa::types::put_string_field(19u32, &self.recipe, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8483,6 +8756,13 @@ impl ::buffa::Message for PlaybackPlan {
                 )?;
                 self.can_search_subtitles = ::buffa::types::decode_bool(buf)?;
             }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.recipe, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -8508,6 +8788,7 @@ impl ::buffa::Message for PlaybackPlan {
         self.preview_frames = ::buffa::MessageField::none();
         self.segments.clear();
         self.can_search_subtitles = false;
+        self.recipe.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

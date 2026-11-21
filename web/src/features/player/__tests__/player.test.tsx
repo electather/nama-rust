@@ -6,6 +6,7 @@ import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   AudioCodec,
+  DecodingEvidence,
   type PlanPlaybackRequest,
   PlaybackMethod,
   type PlaybackPlanSchema,
@@ -64,6 +65,7 @@ const directPlay: Planned = (request) => ({
   method: PlaybackMethod.DIRECT_PLAY,
   url: `/planned/${request.versionId}`,
   tracks: plannedTracks,
+  recipe: "direct-play",
 });
 const cantPlay: Planned = () => ({
   reasons: [...saying(cantDecode), { text: "Hardware acceleration is off" }],
@@ -73,6 +75,7 @@ const remux = () => ({
   url: "/media/plans/0/index.m3u8",
   tracks: plannedTracks,
   reasons: saying("This Device can't decode its Matroska container"),
+  recipe: "remux/fmp4/aac",
 });
 const directPlayFailed = "Direct Play failed on this Device";
 /**
@@ -97,8 +100,7 @@ const serverPlanning = ({
     router.service(PlaybackService, {
       planPlayback: (request) => {
         asked.push(request);
-        const failed =
-          !ignoresFailures && request.failedMethods.includes(PlaybackMethod.DIRECT_PLAY);
+        const failed = !ignoresFailures && request.failedRecipes.includes("direct-play");
         if (failed) {
           return { plan: { reasons: saying(directPlayFailed) } };
         }
@@ -195,20 +197,18 @@ test("a file the browser fails to load is planned again from where it started, w
   await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(screen.getByText(directPlayFailed)).toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
-  expect(asked.map((request) => request.failedMethods)).toStrictEqual([
-    [],
-    [PlaybackMethod.DIRECT_PLAY],
-  ]);
+  expect(asked.map((request) => request.failedRecipes)).toStrictEqual([[], ["direct-play"]]);
+  expect(asked.map((request) => request.failedMethods)).toStrictEqual([[], []]);
   expect(asked.map((request) => request.startPositionMs)).toStrictEqual([600_000n, 600_000n]);
 });
 
 /** As the real Server plans a file in a container the Device decodes: Direct Play, then a Remux. */
 const remuxOnceDirectPlayFails: Planned = (request) => {
-  const failed = (method: PlaybackMethod) => request.failedMethods.includes(method);
-  if (failed(PlaybackMethod.REMUX)) {
+  const failed = (recipe: string) => request.failedRecipes.includes(recipe);
+  if (failed("remux/fmp4/aac")) {
     return { reasons: saying(directPlayFailed, "Remux failed") };
   }
-  if (failed(PlaybackMethod.DIRECT_PLAY)) {
+  if (failed("direct-play")) {
     return { ...remux(), reasons: saying(directPlayFailed) };
   }
   return directPlay(request);
@@ -244,9 +244,10 @@ test("a Direct Play that fails mid-film goes on as a Remux from there, until tha
 
   await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
   expect(screen.getByText("Remux failed")).toBeDefined();
+  expect(asked.at(-1)?.failedRecipes).toStrictEqual(["direct-play", "remux/fmp4/aac"]);
 });
 
-test("a method that fails again gives up instead of asking for plans in a loop", async () => {
+test("a Recipe that fails again gives up instead of asking for plans in a loop", async () => {
   const asked: PlanPlaybackRequest[] = [];
   openApp(
     "/libraries/1/movies/tmdb-603/play?version=7",
@@ -296,7 +297,12 @@ test("the plan request says what this Device decodes", async () => {
   await findVideo();
 
   expect(asked.map((request) => request.deviceDecoding)).toMatchObject([
-    { videoCodecs: [VideoCodec.H264], audioCodecs: [AudioCodec.AAC], audioChannels: 6 },
+    {
+      videoCodecs: [VideoCodec.H264],
+      audioCodecs: [AudioCodec.AAC],
+      audioChannels: 6,
+      evidence: DecodingEvidence.DECLARED,
+    },
   ]);
 });
 
