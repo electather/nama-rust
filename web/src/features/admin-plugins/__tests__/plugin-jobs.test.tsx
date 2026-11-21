@@ -10,7 +10,10 @@ const jobs = [
   { id: "tidy", name: "Tidy", schedule: "" },
 ];
 
-/** Upkeep's page, enabled and declaring `declared`, opened by an Admin unless `asAdmin` is false. */
+/**
+ * Upkeep's page declaring `declared`, enabled unless `enabled` is false, opened by an Admin unless
+ * `asAdmin` is false.
+ */
 async function openUpkeep(declared: typeof jobs, { asAdmin = true, enabled = true } = {}) {
   const open = asAdmin ? openPluginAsAdmin : openPlugin;
   open("upkeep", {
