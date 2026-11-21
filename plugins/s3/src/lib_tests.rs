@@ -218,6 +218,16 @@ fn a_wrong_secret_is_refused_with_s3s_error_code() {
 }
 
 #[test]
+fn an_endpoint_that_doesnt_answer_says_s3_didnt() {
+    let mut kernel = configured(&settings(SECRET))
+        .http(|_request, _body| Err(nama_pdk::extism_pdk::Error::msg("unreachable")));
+
+    let err = with(&mut kernel, check).unwrap_err();
+
+    assert_eq!(err.to_string(), "S3 didn't answer");
+}
+
+#[test]
 fn checking_the_settings_lists_one_key() {
     let mut kernel = kernel(&settings(SECRET), &bucket());
 
