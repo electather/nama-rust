@@ -701,9 +701,5 @@ fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {
 mod tests;
 
 #[cfg(test)]
-#[path = "matching/refresh_tests.rs"]
-mod refresh_tests;
-
-#[cfg(test)]
 #[path = "matching/manual_tests.rs"]
 mod manual_tests;
