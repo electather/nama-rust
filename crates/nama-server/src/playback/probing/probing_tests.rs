@@ -40,6 +40,7 @@ impl Fixture {
         Self::with_ffmpeg(Ffmpeg::default()).await
     }
 
+    /// Reading files with `ffmpeg`'s ffprobe.
     pub(super) async fn with_ffmpeg(ffmpeg: Ffmpeg) -> Self {
         Self::with_reader(Arc::new(Ffprobe(Arc::new(ffmpeg)))).await
     }
