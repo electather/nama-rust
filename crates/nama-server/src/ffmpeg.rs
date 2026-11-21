@@ -7,6 +7,7 @@ pub mod fake;
 mod finding;
 mod hardware;
 mod hls;
+mod refused_write;
 #[cfg(any(test, feature = "testing"))]
 mod test_media;
 
@@ -31,6 +32,7 @@ pub(crate) use self::hls::{
 use self::hls::{
     VideoArgs, convert_audio, hls_output, map_audio, pgs_start_ms, seconds, video_args,
 };
+pub(crate) use self::refused_write::RefusedWrite;
 #[cfg(any(test, feature = "testing"))]
 pub use self::test_media::{
     FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_17_minutes_h264, write_1080p_h264,
