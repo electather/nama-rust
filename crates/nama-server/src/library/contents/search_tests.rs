@@ -192,17 +192,17 @@ async fn a_search_finds_an_item_by_its_latest_match_and_not_once_it_is_unmatched
 }
 
 #[tokio::test]
-async fn a_search_skips_an_episode_whose_match_has_no_show_id() {
+async fn a_search_skips_a_show_whose_episodes_have_no_title_id() {
     let fx = Fixture::new().await;
     let (library, _folder) = fx.shows_library().await;
-    let Decided::Matched(mut showless) = office_episode(9001, "Pilot") else {
+    let Decided::Matched(mut untitled) = office_episode(9001, "Pilot") else {
         panic!("office_episode Matches");
     };
-    showless.show_ids = ExternalIds::default();
-    fx.decide_office_episode(library, 1, Decided::Matched(showless))
+    untitled.ids = ExternalIds::default();
+    fx.decide_office_episode(library, 1, Decided::Matched(untitled))
         .await;
 
-    assert!(fx.search("pilot").await.is_empty());
+    assert!(fx.search("office").await.is_empty());
 }
 
 #[tokio::test]

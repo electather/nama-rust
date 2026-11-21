@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
-    Contents, ImageRef, ItemKind, ids_from_json, ids_sql, primary_id_in, show_poster,
+    Contents, ImageRef, ItemKind, ids_from_json, ids_sql, matched_items, parse_hint, show_poster,
     sort_titles::folded,
 };
 use crate::library::TitleKind;
@@ -99,10 +99,6 @@ impl Contents {
     /// The best [`CANDIDATES`] titles whose `title_search` rows fit `words`, of `kind` only if
     /// it's set, by FTS5's rank: each Movie, Show and Episode once per Library, by the row of its
     /// best-fitting Item.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one query, which sqlx reads only as one literal"
-    )]
     async fn search_rows(
         &self,
         words: &SearchWords<'_>,
@@ -111,14 +107,13 @@ impl Contents {
         let (titles, shows) = (words.in_column("title"), words.in_column("show_title"));
         let movies_wanted = kind != Some(TitleKind::Show);
         let shows_wanted = kind != Some(TitleKind::Movie);
-        // A title is grouped by the id browsing knows it by, picked in SQL as `primary_id_in`
-        // picks it, so each title is read once. SQLite can't order a subquery by an outer
-        // column, so a window picks it.
+        // A hit is grouped by the id browsing knows its title by, which `matched_items` picks,
+        // so each title is read once.
         // ponytail: every search groups every hit, since a title's Items can be anywhere in
         // FTS5's order; the `LIMIT` caps what is read back. Store a title row to search if that's
         // slow.
         macro_rules! select {
-            ($ids:literal) => {
+            ($ids:literal, ($($matched:tt)+)) => {
                 sqlx::query_as!(
                     SearchRow,
                     r#"WITH hits (by_show, item_id, rank) AS (
@@ -126,49 +121,33 @@ impl Contents {
                            UNION ALL
                            SELECT 1, rowid, rank FROM title_search WHERE title_search MATCH ?2
                        ),
-                       ids AS (
+                       titled AS (
                            SELECT hits.by_show, hits.item_id, hits.rank,
-                                  library_files.library_id AS library,
-                                  item_match_ids.namespace || '-' || item_match_ids.value
-                                      AS title_key,
-                                  row_number() OVER (
-                                      PARTITION BY hits.by_show, hits.item_id
-                                      ORDER BY instr(',' || libraries.title_sources || ',',
-                                                     ',' || item_match_ids.namespace || ',') = 0,
-                                               instr(',' || libraries.title_sources || ',',
-                                                     ',' || item_match_ids.namespace || ','),
-                                               item_match_ids.namespace
-                                  ) AS preference
+                                  matched_items.library_id AS library, matched_items.own_id,
+                                  matched_items.listed_id,
+                                  iif(hits.by_show, matched_items.listed_id, matched_items.own_id)
+                                      AS title_key
                            FROM hits
-                           JOIN item_match_ids ON item_match_ids.item_id = hits.item_id
-                                AND item_match_ids.scope = iif(hits.by_show, 'show', 'title')
-                           JOIN library_items ON library_items.id = hits.item_id
-                           JOIN library_files ON library_files.id = library_items.file_id
-                           JOIN libraries ON libraries.id = library_files.library_id
-                           -- An Episode is skipped as `Contents::shows` skips it, so browsing
-                           -- can open what's found.
-                           WHERE iif(library_items.kind = 'movie', ?3, ?4)
-                             AND (hits.by_show OR library_items.kind = 'movie'
-                                  OR (library_items.season IS NOT NULL
-                                      AND library_items.episode IS NOT NULL
-                                      AND EXISTS (SELECT 1 FROM item_match_ids AS show_ids
-                                                  WHERE show_ids.item_id = hits.item_id
-                                                    AND show_ids.scope = 'show')))
+                           JOIN "#
+                        + $($matched)+
+                        + r#" AS matched_items ON matched_items.item_id = hits.item_id
+                           WHERE iif(matched_items.kind = 'movie', ?3, ?4)
                        ),
                        grouped AS (
                            SELECT *, row_number() OVER (
                                PARTITION BY by_show, library, title_key ORDER BY rank, item_id
                            ) AS nth
-                           FROM ids WHERE preference = 1
+                           FROM titled
                        ),
                        best AS (
-                           SELECT by_show, item_id, rank, library, title_key
+                           SELECT by_show, item_id, rank, library, title_key, own_id, listed_id
                            FROM grouped WHERE nth = 1
                            ORDER BY rank, by_show, item_id
                            LIMIT ?5
                        )
                        SELECT best.library AS "library!", best.by_show AS "by_show!: bool",
-                              best.rank AS "rank!: f64",
+                              best.rank AS "rank!: f64", best.own_id AS "own_id!: String",
+                              best.listed_id AS "listed_id!: String",
                               library_items.kind AS "kind: ItemKind", library_items.season,
                               library_items.episode, "#
                         + $ids
@@ -178,7 +157,7 @@ impl Contents {
                               item_matches.show_title, item_matches.release_date,
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.show_poster, item_matches.show_poster_plugin,
-                              item_matches.metadata_version, libraries.title_sources,
+                              item_matches.metadata_version,
                               iif(best.by_show, (
                                   SELECT json_group_array(json_array(
                                       library_items.season, item_matches.poster,
@@ -192,7 +171,6 @@ impl Contents {
                        FROM best
                        JOIN item_matches ON item_matches.item_id = best.item_id
                        JOIN library_items ON library_items.id = best.item_id
-                       JOIN libraries ON libraries.id = best.library
                        ORDER BY best.rank, best.by_show, best.item_id"#,
                     titles,
                     shows,
@@ -202,7 +180,12 @@ impl Contents {
                 )
             };
         }
-        ids_sql!(select).fetch_all(self.db.reader()).await
+        macro_rules! with_ids {
+            ($ids:literal) => {
+                matched_items!(select, $ids)
+            };
+        }
+        ids_sql!(with_ids).fetch_all(self.db.reader()).await
     }
 }
 
@@ -212,6 +195,10 @@ struct SearchRow {
     /// Whether it is the Show the Item is an Episode of, found by the Show's title.
     by_show: bool,
     rank: f64,
+    /// Its Item's preferred `title` id, as `matched_items` picks it.
+    own_id: String,
+    /// The preferred id of the title its Item is listed under, as `matched_items` picks it.
+    listed_id: String,
     kind: ItemKind,
     /// Set for an Episode.
     season: Option<i64>,
@@ -229,8 +216,6 @@ struct SearchRow {
     show_poster: Option<String>,
     show_poster_plugin: Option<String>,
     metadata_version: i64,
-    /// The Library's, as `libraries` stores them.
-    title_sources: String,
     /// For a Show, a JSON array of the season number, poster and poster's Plugin of each of its
     /// Episodes the search found.
     seasons: Option<String>,
@@ -245,14 +230,14 @@ impl SearchRow {
         ids_from_json(self.show_ids.as_deref())
     }
 
-    /// As browsing identifies the title: see [`primary_id`](super::primary_id).
+    /// As browsing identifies the title.
     fn primary_id(&self) -> Option<ExternalId> {
-        primary_id_in(&self.ids(), &self.title_sources)
+        parse_hint(&self.own_id)
     }
 
-    /// As browsing identifies the Show: see [`primary_id`](super::primary_id).
+    /// As browsing identifies an Episode's Show.
     fn show_primary_id(&self) -> Option<ExternalId> {
-        primary_id_in(&self.show_ids(), &self.title_sources)
+        parse_hint(&self.listed_id)
     }
 
     /// The Seasons of the Show's Episodes the search found, with their posters, in any order.
