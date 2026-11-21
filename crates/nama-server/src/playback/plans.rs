@@ -73,7 +73,7 @@ pub(crate) enum Pick {
     Audio(usize),
 }
 
-/// Why a Track pick couldn't be kept.
+/// Why a Track pick or Subtitle Offset couldn't be kept.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum PickError {
     #[error("there is no such Version")]

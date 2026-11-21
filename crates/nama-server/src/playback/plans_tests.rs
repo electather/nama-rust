@@ -251,6 +251,8 @@ async fn a_pick_in_an_unmatched_items_version_is_accepted_and_kept_nowhere_whate
     alien.keep(Pick::Audio(99)).await.unwrap();
 
     assert_eq!(alien.subtitle_preference().await, None);
+    let audio = alien.plans.preferences.audio(alien.user(), alien.version);
+    assert_eq!(audio.await.unwrap(), None);
 }
 
 #[tokio::test]
