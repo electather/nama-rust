@@ -13,6 +13,7 @@ pub struct OutsideService {
     name: &'static str,
     credential: Option<&'static str>,
     reader: Option<fn(&Response) -> Option<String>>,
+    retry_after: Option<fn(&Response) -> Option<u64>>,
 }
 
 impl OutsideService {
@@ -24,6 +25,7 @@ impl OutsideService {
             name,
             credential: None,
             reader: None,
+            retry_after: None,
         }
     }
 
@@ -43,6 +45,16 @@ impl OutsideService {
     pub const fn reader(self, reader: fn(&Response) -> Option<String>) -> Self {
         Self {
             reader: Some(reader),
+            ..self
+        }
+    }
+
+    /// The service, whose refusal without a `Retry-After` header in whole seconds waits the seconds
+    /// `retry_after` picks from it, such as a field of its body, or `None` when it gave none.
+    #[must_use]
+    pub const fn retry_after(self, retry_after: fn(&Response) -> Option<u64>) -> Self {
+        Self {
+            retry_after: Some(retry_after),
             ..self
         }
     }
@@ -99,7 +111,11 @@ impl OutsideService {
         // A `Retry-After` may also be an HTTP date, which isn't worth parsing for a wording.
         let retry_after_seconds = response
             .header("Retry-After")
-            .and_then(|after| after.parse().ok());
+            .and_then(|after| after.parse().ok())
+            .or_else(|| {
+                self.retry_after
+                    .and_then(|retry_after| retry_after(response))
+            });
         let name = self.name;
         let wording = match (status, self.credential) {
             (401, Some(credential)) => format!("{name} refused the {credential}"),
@@ -143,7 +159,8 @@ impl Refusal {
         self.status
     }
 
-    /// The seconds the response's `Retry-After` said to wait, when it gave whole seconds.
+    /// The seconds the response said to wait, in its `Retry-After` header when it gave whole
+    /// seconds there, or else wherever the service's [`OutsideService::retry_after`] found them.
     #[must_use]
     pub fn retry_after_seconds(&self) -> Option<u64> {
         self.retry_after_seconds
@@ -246,6 +263,37 @@ mod tests {
                 "Discord is limiting this Server's requests; try again in a few seconds",
                 "Discord is limiting this Server's requests; try again in a few seconds",
             ]
+        );
+    }
+
+    #[test]
+    fn a_429_waits_the_retry_after_header_else_the_seconds_the_service_picks() {
+        const PATIENT: OutsideService = OutsideService::new("Telegram").retry_after(|_| Some(7));
+        let refusal = |service, answer| {
+            answered(service, answer)
+                .unwrap_err()
+                .downcast::<Refusal>()
+                .unwrap()
+        };
+
+        let read = refusal(PATIENT, Response::new(429, ""));
+        let header = refusal(
+            PATIENT,
+            Response::new(429, "").with_header("Retry-After", "120"),
+        );
+        let unread = refusal(DISCORD, Response::new(429, ""));
+
+        assert_eq!(
+            [&read, &header, &unread].map(ToString::to_string),
+            [
+                "Telegram is limiting this Server's requests; try again in 7 s",
+                "Telegram is limiting this Server's requests; try again in 120 s",
+                "Discord is limiting this Server's requests; try again in a few seconds",
+            ]
+        );
+        assert_eq!(
+            [&read, &header, &unread].map(Refusal::retry_after_seconds),
+            [Some(7), Some(120), None]
         );
     }
 

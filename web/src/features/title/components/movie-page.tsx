@@ -1,5 +1,6 @@
 import { notFound } from "@tanstack/react-router";
 
+import { CastAndCrew } from "@/features/title/components/cast-and-crew";
 import { MovieDetails } from "@/features/title/components/movie-details";
 import { MovieHero } from "@/features/title/components/movie-hero";
 import { TitlePage } from "@/features/title/components/title-page";
@@ -26,6 +27,7 @@ export function MoviePage({
   }
   return (
     <TitlePage hero={<MovieHero {...{ libraryId, movieId, movie, readOnlyFolder, params }} />}>
+      <CastAndCrew cast={movie.cast} crew={movie.crew} />
       <TitleTrailers trailers={movie.trailers} />
       <MovieDetails libraryId={libraryId} movie={movie} />
     </TitlePage>

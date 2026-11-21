@@ -25,8 +25,8 @@ use nama_proto::nama::v1::{
 use crate::{
     db::Database,
     library::{
-        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
-        TitleKind, Trailer,
+        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, Roles, ShownImages,
+        TitleImage, TitleKind, Trailer,
     },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
@@ -480,6 +480,7 @@ fn looked_up_to_proto(
     };
     let poster = shown(Role::Poster, movie.poster.as_ref());
     let backdrop = shown(Role::Backdrop, movie.backdrop.as_ref());
+    let (cast, crew) = roles_to_proto(movie.roles, offered_by(&movie.plugin, images));
     proto::FoundMovie {
         id: external_id_to_proto(&id).into(),
         title: movie.title,
@@ -488,6 +489,8 @@ fn looked_up_to_proto(
         runtime_minutes: movie.runtime_minutes,
         score: movie.score,
         original_language: movie.original_language,
+        cast,
+        crew,
         genres: movie.genres,
         content_rating: movie.content_rating,
         on_watchlist,
@@ -548,6 +551,7 @@ fn looked_up_show_to_proto(
     };
     let poster = shown(Role::Poster, show.poster.as_deref());
     let backdrop = shown(Role::Backdrop, show.backdrop.as_deref());
+    let (cast, crew) = roles_to_proto(show.roles, offered_by(&plugin, images));
     proto::FoundShow {
         id: external_id_to_proto(&id).into(),
         title: show.title,
@@ -555,6 +559,8 @@ fn looked_up_show_to_proto(
         overview: show.overview,
         score: show.score,
         original_language: show.original_language,
+        cast,
+        crew,
         genres: show.genres,
         content_rating: show.content_rating,
         on_watchlist,
@@ -568,6 +574,37 @@ fn looked_up_show_to_proto(
         quality: quality.into(),
         ..Default::default()
     }
+}
+
+/// Where clients fetch an image the title source of `plugin` answered with, offered to them by its
+/// path.
+fn offered_by<'a>(
+    plugin: &'a PluginId,
+    images: &'a ShownImages,
+) -> impl Fn(&str) -> Option<String> + 'a {
+    move |path| {
+        images
+            .downloaded(Some(Downloaded::Offered { plugin, path }))
+            .url
+    }
+}
+
+/// A title's Cast and Crew as clients see them, each headshot at `headshot_url(its path)`.
+pub(super) fn roles_to_proto(
+    roles: Roles,
+    headshot_url: impl Fn(&str) -> Option<String>,
+) -> (Vec<proto::Role>, Vec<proto::Role>) {
+    let [cast, crew] = [roles.cast, roles.crew].map(|roles| {
+        (roles.into_iter())
+            .map(|role| proto::Role {
+                headshot_url: role.headshot.as_deref().and_then(&headshot_url),
+                name: role.name,
+                part: role.part,
+                ..Default::default()
+            })
+            .collect()
+    });
+    (cast, crew)
 }
 
 /// A title's Trailers, as clients see them.

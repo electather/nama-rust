@@ -11,11 +11,11 @@ use sqlx::SqliteConnection;
 
 use super::{
     Contents, Item, ItemKind, ItemRow, Pin, air_dates, details, ids_from_json, ids_sql, parse_hint,
-    primary_id_in, sort_titles::sort_title,
+    primary_id_in, roles, sort_titles::sort_title,
 };
 use crate::{
     db::now,
-    library::title_source::{Candidate, Season, Trailer},
+    library::title_source::{Candidate, Roles, Season, Trailer},
     library::versions::METADATA_VERSION,
     page::Page,
     requests::{make_available, make_seasons_available},
@@ -215,12 +215,11 @@ pub(crate) struct Metadata {
     pub(crate) show_poster: Option<ImageRef>,
     pub(crate) show_overview: Option<String>,
     pub(crate) show_first_air_date: Option<String>,
-    /// The title's Score, stored once per title apart from the Match; for an Episode, its Show's,
-    /// as are `original_language` and `trailers`.
+    /// From here on the title's, kept once per title apart from the Match: an Episode's its Show's.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
-    /// The title's Trailers, stored once per title beside its Score.
     pub(crate) trailers: Vec<Trailer>,
+    pub(crate) roles: Roles,
 }
 
 /// An image a Match stores: a path the title source of `plugin` serves.
@@ -529,7 +528,7 @@ pub(super) async fn insert_decisions(
     decided: Decisions,
     now: i64,
 ) -> Result<Vec<Event>, sqlx::Error> {
-    let mut movies = Vec::new();
+    let (mut movies, mut roles_stored) = (Vec::new(), roles::Stored::new());
     for (item, decision) in decided.items {
         if let Decided::Matched(metadata) = &decision {
             movies.push(metadata.ids.clone());
@@ -585,6 +584,7 @@ pub(super) async fn insert_decisions(
         }
         if let Decided::Matched(metadata) = &decision {
             details::store(&mut *conn, metadata).await?;
+            roles::store_once(&mut *conn, metadata, &mut roles_stored).await?;
         }
         insert_match_ids(&mut *conn, item, &row).await?;
     }

@@ -274,6 +274,29 @@ fn a_users_chat_failing_otherwise_says_telegrams_words_and_the_recipient_stays()
 }
 
 #[test]
+fn telegram_limiting_the_bot_says_the_seconds_its_body_gives() {
+    let mut kernel = telegram(
+        429,
+        r#"{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 5","parameters":{"retry_after":5}}"#,
+    );
+
+    assert_eq!(
+        channel_post_error(&mut kernel).to_string(),
+        "Telegram is limiting this Server's requests; try again in 5 s"
+    );
+}
+
+#[test]
+fn telegram_limiting_the_bot_without_parameters_says_a_few_seconds() {
+    let mut kernel = telegram(429, &refusal("Too Many Requests: retry after 5"));
+
+    assert_eq!(
+        channel_post_error(&mut kernel).to_string(),
+        "Telegram is limiting this Server's requests; try again in a few seconds"
+    );
+}
+
+#[test]
 fn the_channel_refusing_the_bot_is_a_failure_not_a_recipient_gone() {
     let mut kernel = telegram(
         403,

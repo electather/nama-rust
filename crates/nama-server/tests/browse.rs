@@ -10,6 +10,8 @@ mod http;
 mod next_episode;
 #[path = "support/refused.rs"]
 mod refused;
+#[path = "browse/roles.rs"]
+mod roles;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;

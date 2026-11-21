@@ -1,10 +1,12 @@
 import { notFound } from "@tanstack/react-router";
 
+import { CastAndCrew } from "@/features/title/components/cast-and-crew";
 import { MovieRequestHero } from "@/features/title/components/movie-request-hero";
 import { TitleDetails } from "@/features/title/components/title-details";
 import { TitlePage } from "@/features/title/components/title-page";
 import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useFoundMovie } from "@/features/title/data/use-found-movie";
+import { crewWithJob } from "@/features/title/lib/crew-with-job";
 import { originalAudio } from "@/features/title/lib/original-audio";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 
@@ -19,10 +21,17 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
   }
   return (
     <TitlePage hero={<MovieRequestHero movieId={movieId} movie={movie} you={you} />}>
+      <CastAndCrew cast={movie.cast} crew={movie.crew} />
       <TitleTrailers trailers={movie.trailers} />
       <TitleDetails
         groups={[
-          { heading: "Information", facts: [["Released", movie.year?.toString()]] },
+          {
+            heading: "Information",
+            facts: [
+              ["Released", movie.year?.toString()],
+              ["Directed by", crewWithJob(movie.crew, "Director")],
+            ],
+          },
           { heading: "Languages", facts: [originalAudio(movie.originalLanguage)] },
         ]}
       />

@@ -298,6 +298,7 @@ impl Metadata {
             score: show.score,
             original_language: show.original_language.clone(),
             trailers: show.trailers.clone(),
+            roles: show.roles.clone(),
         }
     }
 }

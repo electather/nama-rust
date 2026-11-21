@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-21, #1528
+
+- None that `buf breaking` reports: in `nama/v1/server.proto`, `GetServerInfoResponse.searches_subtitles` (6) is deleted with its number and name reserved.
+- `GetServerInfo` answers before sign-in, so it no longer says whether a subtitle source is enabled; `PlaybackPlan.can_search_subtitles` says it to signed-in callers on each plan.
+- A client built before reads it as false, so it never offers a subtitle search; it must regenerate and read `PlaybackPlan.can_search_subtitles`. The web app is the only client.
+
 ## 2026-11-21, #1466
 
 - `RPC_NO_DELETE`, `nama/v1/request.proto`: `RequestService.SearchMovies` and `RequestService.SearchShows`.

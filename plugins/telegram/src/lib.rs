@@ -36,7 +36,8 @@ mod exports {
 
     const TELEGRAM: OutsideService = OutsideService::new("Telegram")
         .credential("bot token")
-        .reader(telegrams_words);
+        .reader(telegrams_words)
+        .retry_after(telegrams_wait);
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
@@ -140,6 +141,12 @@ mod exports {
             .map(|error| error.description)
     }
 
+    /// The seconds Telegram says to wait in a 429: its body's `parameters.retry_after`, where the
+    /// Bot API documents it.
+    fn telegrams_wait(response: &Response) -> Option<u64> {
+        response.json::<ApiError>().ok()?.parameters?.retry_after
+    }
+
     /// What `sendMessage` takes. Plain text, so a title needs no escaping.
     #[derive(Serialize)]
     struct SendMessage<'a> {
@@ -188,6 +195,13 @@ mod exports {
     #[derive(Deserialize)]
     struct ApiError {
         description: String,
+        parameters: Option<Parameters>,
+    }
+
+    /// What a Bot API error adds for a bot to act on.
+    #[derive(Deserialize)]
+    struct Parameters {
+        retry_after: Option<u64>,
     }
 }
 

@@ -27,8 +27,8 @@ service TitleSourceService {
   rpc Season(SeasonAsked) returns (SeasonAnswer);
   // The `title_episode` export: one Episode of the Show with the id asked for. Optional.
   rpc Episode(EpisodeAsked) returns (EpisodeAnswer);
-  // The `title_image` export: the image at a path the source gave in a poster, backdrop, still or
-  // `Artwork`. A path names bytes that never change: the Kernel keeps an image under its path and
+  // The `title_image` export: the image at a path the source gave in a poster, backdrop, still,
+  // `Artwork` or `Role.headshot`. A path names bytes that never change: the Kernel keeps an image under its path and
   // browsers cache it for good, so a changed image needs a new path. Optional.
   rpc Image(ImageAsked) returns (ImageAnswer);
   // The `title_artwork` export: the artwork the source has for one title, of every kind it has.
@@ -233,6 +233,10 @@ message Movie {
   optional string original_language = 12;
   // Its Trailers, in the order to show them. The Kernel keeps the first 5 it can link to.
   repeated Trailer trailers = 13;
+  // Its Cast, in billing order.
+  repeated Role cast = 14;
+  // Its Crew, in billing order.
+  repeated Role crew = 15;
 }
 
 // A Show's details.
@@ -263,6 +267,10 @@ message Show {
   optional string original_language = 12;
   // As `Movie.trailers`.
   repeated Trailer trailers = 13;
+  // As `Movie.cast`, over the Show's whole run, without one Episode's guest stars.
+  repeated Role cast = 14;
+  // As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
+  repeated Role crew = 15;
 }
 
 // A video advertising a Movie or Show, which the Kernel only ever links to where it is hosted.
@@ -275,6 +283,20 @@ message Trailer {
   string name = 3;
   // Whether the title's makers released it.
   bool official = 4;
+}
+
+// A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew).
+message Role {
+  // The Person's id in this source, such as `tmdb` `500`.
+  TitleId person = 1;
+  // The Person's name.
+  string name = 2;
+  // The character they play, or the job they did in English, such as `Director`. Empty if the
+  // source doesn't say.
+  string part = 3;
+  // Their headshot, as a path for the `title_image` export. The Kernel keeps it only for the
+  // first 15 of the Cast.
+  optional string headshot = 4;
 }
 
 // One Season of a Show, with its Episodes.
