@@ -1,9 +1,9 @@
-import { DragHandle } from "@/features/admin-home/components/drag-handle";
-import { DropMarker } from "@/features/admin-home/components/drop-marker";
-import { MoveButtons } from "@/features/admin-home/components/move-buttons";
-import type { RowDrag } from "@/features/admin-home/hooks/use-row-drag";
+import { DragHandle } from "@/shared/components/home-layout/drag-handle";
+import { DropMarker } from "@/shared/components/home-layout/drop-marker";
+import { MoveButtons } from "@/shared/components/home-layout/move-buttons";
 import { RowLabel } from "@/shared/components/home-layout/row-label";
 import { ShownSwitch } from "@/shared/components/home-layout/shown-switch";
+import type { RowDrag } from "@/shared/hooks/use-row-drag";
 import type { RowName } from "@/shared/lib/home-layout";
 
 /** One Home row of the layout, at `place`: dragged or moved by its arrows, and shown or not. */

@@ -375,6 +375,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_GET_HOME_LAYOUT_SPEC.procedure,          Access::SignedIn),
     (proto::USER_SERVICE_SET_HOME_LAYOUT_SPEC.procedure,          Access::SignedIn),
+    (proto::USER_SERVICE_REORDER_HOME_ROWS_SPEC.procedure,        Access::SignedIn),
     (proto::USER_SERVICE_RESET_HOME_LAYOUT_SPEC.procedure,        Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),

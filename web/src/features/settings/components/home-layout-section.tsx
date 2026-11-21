@@ -3,8 +3,8 @@ import { ResetHomeLayout } from "@/features/settings/components/reset-home-layou
 import { useHomeLayout } from "@/features/settings/data/use-home-layout";
 
 /**
- * Which Home rows, and whether Featured, the signed-in User's Home shows, each a switch that
- * saves as it's flipped, and going back to the Server's.
+ * Which Home rows, and whether Featured, the signed-in User's Home shows, and the rows' order,
+ * each saved as it changes, and going back to the Server's.
  */
 export function HomeLayoutSection() {
   const layout = useHomeLayout().data?.layout;
@@ -17,7 +17,9 @@ export function HomeLayoutSection() {
         Home
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Choose what your Home shows. Anything you don’t change follows the Server’s default.
+        Drag a row, or use its arrows, to move it, and switch off what your Home shouldn’t show.
+        What you leave alone follows the Server’s default. Once you move a row, the order is yours,
+        and a new row goes at the end.
       </p>
       <HomeLayoutRows saved={layout} />
       <ResetHomeLayout />

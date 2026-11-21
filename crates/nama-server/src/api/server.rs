@@ -419,43 +419,51 @@ pub(super) fn home_layout_from_proto(
         )
         .field("layout")
     })?;
-    let place = |placed: &HomeLayoutRow| {
-        let row = match &placed.row {
-            Some(LayoutRow::Kernel(kernel)) => match kernel.as_known() {
-                Some(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING) => {
-                    HomeRowId::ContinueWatching
-                }
-                _ => {
-                    return Err(unknown_enum_value(
-                        "layout.rows",
-                        "the Kernel row must be Continue Watching",
-                    ));
-                }
-            },
-            Some(LayoutRow::Plugin(row)) => HomeRowId::Shared {
-                plugin: PluginId::from(row.plugin_id.clone()),
-                key: row.key.clone(),
-            },
-            Some(LayoutRow::PluginUsersRows(plugin)) => HomeRowId::UsersOwn {
-                plugin: PluginId::from(plugin.clone()),
-            },
-            None => {
-                return Err(refuse(
-                    RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                    "each row of the layout must name a Home row",
-                )
-                .field("layout.rows")
-                .into());
-            }
-        };
+    let place = |placed: &HomeLayoutRow| -> Result<_, ConnectError> {
         Ok(PlacedRow {
-            row,
+            row: home_row_from_proto(placed, "layout.rows")?,
             shown: !placed.hidden,
         })
     };
     Ok(HomeLayout {
         featured_shown: !layout.featured_hidden,
         rows: layout.rows.iter().map(place).collect::<Result<_, _>>()?,
+    })
+}
+
+/// The Home row `placed` names, refused as the request's `field` if it names none the Kernel
+/// knows.
+pub(super) fn home_row_from_proto(
+    placed: &HomeLayoutRow,
+    field: &str,
+) -> Result<HomeRowId, ConnectError> {
+    Ok(match &placed.row {
+        Some(LayoutRow::Kernel(kernel)) => match kernel.as_known() {
+            Some(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING) => {
+                HomeRowId::ContinueWatching
+            }
+            _ => {
+                return Err(unknown_enum_value(
+                    field,
+                    "the Kernel row must be Continue Watching",
+                ));
+            }
+        },
+        Some(LayoutRow::Plugin(row)) => HomeRowId::Shared {
+            plugin: PluginId::from(row.plugin_id.clone()),
+            key: row.key.clone(),
+        },
+        Some(LayoutRow::PluginUsersRows(plugin)) => HomeRowId::UsersOwn {
+            plugin: PluginId::from(plugin.clone()),
+        },
+        None => {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "each row must name a Home row",
+            )
+            .field(field)
+            .into());
+        }
     })
 }
 

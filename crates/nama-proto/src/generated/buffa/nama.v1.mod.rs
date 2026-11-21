@@ -460,6 +460,8 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_HOME_LAYOUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_HOME_LAYOUT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_HOME_LAYOUT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REORDER_HOME_ROWS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REORDER_HOME_ROWS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__RESET_HOME_LAYOUT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__RESET_HOME_LAYOUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__ADD_TO_WATCHLIST_REQUEST_JSON_ANY);
@@ -1988,6 +1990,14 @@ pub use self::__buffa::view::SetHomeLayoutRequestOwnedView;
 pub use self::__buffa::view::SetHomeLayoutResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetHomeLayoutResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReorderHomeRowsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReorderHomeRowsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReorderHomeRowsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReorderHomeRowsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ResetHomeLayoutRequestView;
 #[doc(inline)]

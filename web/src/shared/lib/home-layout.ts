@@ -32,6 +32,27 @@ export function rowName({ row }: HomeLayoutRow, names?: Map<string, string>): Ro
   return { label: "Continue Watching" };
 }
 
+/** `rows` with the row at `from` put before the one at `before`, or last for `rows.length`. */
+export function moved<T>(rows: readonly T[], from: number, before: number) {
+  const row = rows[from];
+  if (row === undefined) {
+    return [...rows];
+  }
+  const rest = rows.filter((_, index) => index !== from);
+  rest.splice(before > from ? before - 1 : before, 0, row);
+  return rest;
+}
+
+/** What assistive technology announces once `row` has moved to its place in `rows`. */
+export function moveAnnouncement(
+  row: HomeLayoutRow,
+  rows: HomeLayoutRow[],
+  names?: Map<string, string>,
+) {
+  const { label } = rowName(row, names);
+  return `${label} moved to place ${rows.indexOf(row) + 1} of ${rows.length}.`;
+}
+
 function fromPlugin(plugin: string, names?: Map<string, string>) {
   return names && `From ${names.get(plugin) ?? plugin}`;
 }
