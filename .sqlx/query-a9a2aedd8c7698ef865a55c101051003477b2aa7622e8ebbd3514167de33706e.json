@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO plugin_connections (user_id, plugin_id, connection, created_at)\n                 VALUES (?, ?, 'chat', 0)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a9a2aedd8c7698ef865a55c101051003477b2aa7622e8ebbd3514167de33706e"
+}
