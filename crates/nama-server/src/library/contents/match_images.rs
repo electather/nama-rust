@@ -38,8 +38,8 @@ impl Contents {
         .await
     }
 
-    /// Each image a Match stores, as its Plugin and path, in the Library `library` or else in
-    /// every Library.
+    /// Each image a Match stores, and each headshot of the Roles of the titles they Match, as its
+    /// Plugin and path, in the Library `library` or else in every Library.
     pub(crate) async fn images(
         &self,
         library: Option<i64>,

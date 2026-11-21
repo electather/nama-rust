@@ -20,7 +20,7 @@ export function RoleCard({ role }: { role: Role }) {
           sizes="96px"
           alt=""
           loading="lazy"
-          className="size-24 rounded-full bg-muted object-cover outline -outline-offset-1 outline-border"
+          className="size-24 rounded-full bg-muted object-cover outline -outline-offset-1 outline-input"
         />
       )}
       <span className="line-clamp-2 font-medium">{role.name}</span>

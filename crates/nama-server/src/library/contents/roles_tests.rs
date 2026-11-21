@@ -93,7 +93,7 @@ async fn a_shows_roles_are_stored_once_not_on_each_episode() {
 }
 
 #[tokio::test]
-async fn an_actor_in_two_matched_titles_has_one_stored_headshot() {
+async fn a_person_in_two_matched_titles_has_one_stored_headshot() {
     let fx = Fixture::new().await;
     for (path, title, year, tmdb, character) in [
         (ALIEN, "Alien", 1979, 348, "Ellen Ripley"),

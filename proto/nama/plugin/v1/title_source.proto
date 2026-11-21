@@ -27,8 +27,8 @@ service TitleSourceService {
   rpc Season(SeasonAsked) returns (SeasonAnswer);
   // The `title_episode` export: one Episode of the Show with the id asked for. Optional.
   rpc Episode(EpisodeAsked) returns (EpisodeAnswer);
-  // The `title_image` export: the image at a path the source gave in a poster, backdrop, still or
-  // `Artwork`. A path names bytes that never change: the Kernel keeps an image under its path and
+  // The `title_image` export: the image at a path the source gave in a poster, backdrop, still,
+  // `Artwork` or `Role.headshot`. A path names bytes that never change: the Kernel keeps an image under its path and
   // browsers cache it for good, so a changed image needs a new path. Optional.
   rpc Image(ImageAsked) returns (ImageAnswer);
   // The `title_artwork` export: the artwork the source has for one title, of every kind it has.
