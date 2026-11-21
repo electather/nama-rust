@@ -22,16 +22,25 @@ export function libraryErrors(error: unknown, attempt: string): FormErrors {
     {
       [RefusalReason.LIBRARY_NAME_TAKEN]: { name: serverMessage(error) },
       [RefusalReason.TITLE_SOURCES_INVALID]: { titleSources: serverMessage(error) },
-      [RefusalReason.RECOGNISERS_INVALID]: recognisersRefused(error),
+      [RefusalReason.RECOGNISERS_INVALID]: orderRefused(error, "recogniser", "recognisers"),
+      [RefusalReason.SEGMENT_SOURCES_INVALID]: orderRefused(
+        error,
+        "segment_source",
+        "segmentSources",
+      ),
     },
   );
 }
 
 /**
- * Where a Recognisers refusal shows: on the Recognisers field when it names `recogniser_ids` (a
- * create) or `recogniser_order` (an update), else for the whole form.
+ * Where a Plugin order refusal shows: on its `key` field when it names `<field>_ids` (a create) or
+ * `<field>_order` (an update), else for the whole form.
  */
-function recognisersRefused(error: unknown): FormErrors {
-  const onTheField = /^recogniser_(?:ids|order)\b/u.test(refusalOf(error).field);
-  return onTheField ? { recognisers: serverMessage(error) } : { form: serverMessage(error) };
+function orderRefused(
+  error: unknown,
+  field: string,
+  key: "recognisers" | "segmentSources",
+): FormErrors {
+  const onTheField = new RegExp(`^${field}_(?:ids|order)\\b`, "u").test(refusalOf(error).field);
+  return onTheField ? { [key]: serverMessage(error) } : { form: serverMessage(error) };
 }

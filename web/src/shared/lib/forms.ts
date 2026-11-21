@@ -20,6 +20,7 @@ export interface FormErrors {
   folders?: string;
   titleSources?: string;
   recognisers?: string;
+  segmentSources?: string;
   serverUrl?: string;
   segmentFolder?: string;
   maxTranscodes?: string;

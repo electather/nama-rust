@@ -5,6 +5,7 @@ import { FirstFrameCover } from "@/features/player/components/first-frame-cover"
 import { NextEpisodeOverlay } from "@/features/player/components/next-episode-overlay";
 import { PictureInPictureCover } from "@/features/player/components/picture-in-picture-cover";
 import { PlayerControls } from "@/features/player/components/player-controls";
+import { SkipSegmentButton } from "@/features/player/components/skip-segment-button";
 import { SubtitleTracks } from "@/features/player/components/subtitle-tracks";
 import type { TopBar } from "@/features/player/components/top-bar";
 import { useControlsHidden } from "@/features/player/hooks/use-controls-hidden";
@@ -19,6 +20,9 @@ import { clickToToggle } from "@/features/player/lib/click-to-toggle";
 import { nextLink, previousLink } from "@/features/player/lib/in-show";
 import { captionsToggled, frameSeconds } from "@/features/player/lib/key-targets";
 import type { PlannedProps } from "@/features/player/lib/player-props";
+import { frameSheets } from "@/features/player/lib/preview-frame";
+import { seekSections } from "@/features/player/lib/seek-sections";
+import { creditsStart } from "@/features/player/lib/segments";
 
 /** The `<video>` with its controls, Watch State, lock screen and autoplay, for one plan. */
 export function VideoPlayer({
@@ -43,8 +47,12 @@ export function VideoPlayer({
   const src = usePlaybackSource(videoRef, plan, onCantPlay);
   useWatchState(videoRef, versionId, startPositionMs);
   const { hidden, wake } = useControlsHidden({ playerRef, videoRef }, video);
-  const nextEpisode = useNextEpisode(autoplay, video, wake);
+  const nextEpisode = useNextEpisode(autoplay, video, {
+    wake,
+    credits: creditsStart(plan.segments),
+  });
   const { onInput, playNext } = nextEpisode;
+  const sections = seekSections(plan.chapters, plan.segments, video.state.duration);
   const next = nextLink(inShow);
   const previous = previousLink(inShow);
   useShortcuts(
@@ -58,6 +66,7 @@ export function VideoPlayer({
         planned.chooseSubtitle(element, captionsToggled(plan, planned.shownSubtitle));
       },
       frame: frameSeconds(tracks),
+      sections,
     },
   );
   useMediaSession(videoRef, { title, artist, posterUrl }, { next, previous });
@@ -96,9 +105,12 @@ export function VideoPlayer({
         refs={{ playerRef, videoRef }}
         tracks={tracks}
         planned={planned}
+        seekBar={{ sections, sheets: frameSheets(plan.previewFrames, versionId) }}
         autoplay={autoplay.next !== undefined}
         inShow={inShow}
       />
+      {/* The Next Episode card, drawn after it, covers it where the two meet. */}
+      <SkipSegmentButton segments={plan.segments} video={video} />
       <NextEpisodeOverlay nextEpisode={nextEpisode} back={back} />
     </div>
   );

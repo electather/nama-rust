@@ -3,10 +3,11 @@ import { RecognisersField } from "@/features/admin-libraries/components/recognis
 import { useUpdateLibrary } from "@/features/admin-libraries/data/use-update-library";
 import {
   foldersTyped,
-  recognisersTyped,
+  pluginOrderTyped,
   titleSourcesTyped,
 } from "@/features/admin-libraries/lib/library-form";
 import { libraryErrors } from "@/features/admin-libraries/lib/library-refusals";
+import { RECOGNISERS, SEGMENT_SOURCES } from "@/features/admin-libraries/lib/recognisers";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { formText, onSubmitted } from "@/shared/lib/forms";
@@ -25,13 +26,23 @@ export function EditLibrary({ library }: { library: Library }) {
           name: formText(typed, "name"),
           folders: foldersTyped(formText(typed, "folders")),
           titleSources: titleSourcesTyped(typed),
-          // Always set, so the Library keeps exactly the Recognisers the form shows, even none.
-          recogniserOrder: { ids: recognisersTyped(typed) },
+          // Always set, so the Library keeps exactly the Plugins the form shows, even none.
+          recogniserOrder: { ids: pluginOrderTyped(typed, RECOGNISERS) },
+          segmentSourceOrder: { ids: pluginOrderTyped(typed, SEGMENT_SOURCES) },
         });
       })}
     >
       <NameAndFolders errors={errors} library={library} />
-      <RecognisersField initial={library.recogniserIds} error={errors.recognisers} />
+      <RecognisersField
+        kind={RECOGNISERS}
+        initial={library.recogniserIds}
+        error={errors.recognisers}
+      />
+      <RecognisersField
+        kind={SEGMENT_SOURCES}
+        initial={library.segmentSourceIds}
+        error={errors.segmentSources}
+      />
       <FormEnd
         action={update.isPending ? "Saving…" : "Save changes"}
         pending={update.isPending}

@@ -202,3 +202,83 @@ test("a refused update shows on the Recognisers field", async () => {
   const field = screen.getByRole("group", { name: "Recognisers" });
   expect(field.getAttribute("aria-describedby")).toContain(error.id);
 });
+
+const introDb: Summary = {
+  id: "theintrodb",
+  name: "TheIntroDB",
+  enabled: true,
+  extensionPoints: [ExtensionPoint.SEGMENT_SOURCE],
+};
+const chapters: Summary = {
+  id: "chapters",
+  name: "",
+  enabled: true,
+  extensionPoints: [ExtensionPoint.SEGMENT_SOURCE],
+};
+
+test("a new Library sends its Segment sources in their order, apart from its Recognisers", async () => {
+  let sent: { recognisers: string[]; sources: string[] } | undefined;
+  openApp(
+    "/admin/libraries",
+    recognisersServer(
+      {
+        createLibrary: (request) => {
+          sent = { recognisers: request.recogniserIds, sources: request.segmentSourceIds };
+          return { library: films };
+        },
+      },
+      [anime, introDb, chapters],
+    ),
+  );
+  const sources = await screen.findByRole("group", { name: "Segment sources" });
+  fireEvent.click(await within(sources).findByRole("button", { name: "Add TheIntroDB" }));
+  fireEvent.click(within(sources).getByRole("button", { name: "Add chapters" }));
+  fireEvent.click(within(sources).getByRole("button", { name: "Move chapters up" }));
+  expect(within(sources).queryByRole("button", { name: /Anime/u })).toBeNull();
+  createFilms();
+
+  await screen.findByText("Films is ready. Scan it to fill it.");
+  expect(sent).toStrictEqual({ recognisers: [], sources: ["chapters", "theintrodb"] });
+});
+
+test("removing a Library's Segment source saves the order without it", async () => {
+  let sent: string[] | undefined;
+  openApp(
+    "/admin/libraries/1",
+    recognisersServer(
+      {
+        updateLibrary: (request) => {
+          sent = request.segmentSourceOrder?.ids;
+          return { library: films };
+        },
+      },
+      [introDb, chapters],
+      { ...films, segmentSourceIds: ["theintrodb", "chapters"] },
+    ),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Remove TheIntroDB" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+  await screen.findByText("Saved. Scan the Library to pick up new folders.");
+  expect(sent).toStrictEqual(["chapters"]);
+});
+
+test("a refused update shows on the Segment sources field", async () => {
+  openApp(
+    "/admin/libraries/1",
+    recognisersServer({
+      updateLibrary: () => {
+        throw refused(Code.InvalidArgument, "dates is no Segment source", {
+          reason: RefusalReason.SEGMENT_SOURCES_INVALID,
+          field: "segment_source_order",
+          params: { pluginId: "dates" },
+        });
+      },
+    }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Save changes" }));
+
+  const error = await screen.findByText("Dates is no Segment source.");
+  const field = screen.getByRole("group", { name: "Segment sources" });
+  expect(field.getAttribute("aria-describedby")).toContain(error.id);
+});

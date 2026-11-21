@@ -9,6 +9,7 @@ import { TracksPanel } from "@/features/player/components/tracks-panel";
 import type { usePlaybackPlan } from "@/features/player/hooks/use-playback-plan";
 import type { Video } from "@/features/player/hooks/use-video";
 import type { InShow } from "@/features/player/lib/in-show";
+import type { SeekBar } from "@/features/player/lib/seek-sections";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 
 function playedPart({ state }: Video) {
@@ -22,6 +23,7 @@ export function PlayerControls({
   refs: { playerRef, videoRef },
   tracks,
   planned,
+  seekBar,
   autoplay,
   inShow,
 }: {
@@ -33,6 +35,7 @@ export function PlayerControls({
   };
   tracks: Track[];
   planned: ReturnType<typeof usePlaybackPlan>;
+  seekBar: SeekBar;
   /** Whether Playback settings offers autoplay, as it does for an Episode with one after it. */
   autoplay: boolean;
   inShow: InShow | undefined;
@@ -52,6 +55,7 @@ export function PlayerControls({
       />
       <BottomBar
         video={video}
+        seekBar={seekBar}
         refs={{ playerRef, videoRef, rowsRef }}
         next={inShow?.after && <NextEpisodeButton episode={inShow.after} link={inShow.link} />}
       >

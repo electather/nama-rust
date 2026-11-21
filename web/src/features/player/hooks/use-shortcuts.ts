@@ -1,6 +1,7 @@
 import { type LinkOptions, useNavigate } from "@tanstack/react-router";
 import { type RefObject, useEffect } from "react";
 
+import type { SeekSection } from "@/features/player/lib/seek-sections";
 import { shortcutFor } from "@/features/player/lib/shortcuts";
 
 /** What the player's keys need besides the video: where they go and what they show. */
@@ -16,6 +17,8 @@ export interface ShortcutParts {
   captions: (video: HTMLVideoElement) => void;
   /** How long one frame shows, in seconds. */
   frame: number;
+  /** The seek bar's sections, which Ctrl/⌥ with Left and Right go to. */
+  sections: SeekSection[];
 }
 
 /** YouTube's keys for the player (`shortcuts.ts`), and Esc to go back to the title. */
@@ -27,7 +30,7 @@ export function useShortcuts(
     videoRef: RefObject<HTMLVideoElement | null>;
     playerRef: RefObject<HTMLDivElement | null>;
   },
-  { back, next, previous, wake, captions, frame }: ShortcutParts,
+  { back, next, previous, wake, captions, frame, sections }: ShortcutParts,
 ) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -51,13 +54,14 @@ export function useShortcuts(
           captions(video);
         },
         frame,
+        sections,
       });
     }
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [videoRef, playerRef, back, next, previous, wake, captions, frame, navigate]);
+  }, [videoRef, playerRef, back, next, previous, wake, captions, frame, sections, navigate]);
 }
 
 /** What opens `link`, when there is one. */

@@ -51,12 +51,30 @@ export const COUNTDOWN_SECONDS = 20;
 /** How many Episodes in a row autoplay starts with no input before the player asks instead. */
 const ASK_AFTER_STREAK = 3;
 
-/** `next` while the countdown to it runs, near the end of the video. */
+/**
+ * When `next` plays by itself, in seconds: `COUNTDOWN_SECONDS` into the Credits, if `credits` says
+ * when they start, or else at the end of the video.
+ */
+export function nextAt(duration: number, credits: number | undefined) {
+  return credits === undefined ? duration : Math.min(credits + COUNTDOWN_SECONDS, duration);
+}
+
+/** `next` while the countdown to it runs: from the start of the `credits`, or near the end without them. */
 export function dueNext(
   next: NextEpisode | undefined,
   { time, duration }: { time: number; duration: number },
+  credits: number | undefined,
 ) {
-  return duration > 0 && duration - time <= COUNTDOWN_SECONDS ? next : undefined;
+  return duration > 0 && time >= (credits ?? duration - COUNTDOWN_SECONDS) ? next : undefined;
+}
+
+/** `countdown` once it has run out at `time`, if it does so in the Credits before the end, which `onEnded` can't see. */
+export function endsEarly(
+  countdown: NextEpisode | undefined,
+  { time, duration }: { time: number; duration: number },
+  at: number,
+) {
+  return at < duration && time >= at ? countdown : undefined;
 }
 
 /** The streak autoplay opens `next` with: input during this Episode starts the count again. */
