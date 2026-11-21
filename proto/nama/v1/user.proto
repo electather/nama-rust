@@ -146,7 +146,7 @@ service UserService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Saves which Home rows, and whether Featured, the caller shows. Only the flags count, not the
-  // order. A row or Featured the caller hasn't set apart from the default Home layout follows the
+  // order, which `ReorderHomeRows` saves. A row or Featured the caller hasn't set apart from the default Home layout follows the
   // default while it's saved as the default shows it. Once they show or hide one otherwise, it
   // keeps their flag, whatever the default does, until `ResetHomeLayout`. A row the caller can't
   // see now, such as a disabled Plugin's, keeps its flag. Rows are named as `GetHomeLayout` names
@@ -155,7 +155,16 @@ service UserService {
   rpc SetHomeLayout(SetHomeLayoutRequest) returns (SetHomeLayoutResponse) {
     option idempotency_level = IDEMPOTENT;
   }
-  // Forgets the caller's Home layout, so their Home follows the default Home layout again.
+  // Saves the caller's order of their Home rows. Until they first do, their Home follows the
+  // default Home layout's order; from then on it no longer moves their rows (ADR 0077). A row the
+  // order doesn't place, such as a newly enabled Plugin's, goes after those it does. Rows are named
+  // as `GetHomeLayout` names them; only which row each names counts, and one it doesn't list is
+  // ignored.
+  rpc ReorderHomeRows(ReorderHomeRowsRequest) returns (ReorderHomeRowsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Forgets the caller's Home layout, its order and flags, so their Home follows the default Home
+  // layout again.
   rpc ResetHomeLayout(ResetHomeLayoutRequest) returns (ResetHomeLayoutResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -438,6 +447,16 @@ message SetHomeLayoutRequest {
 }
 
 message SetHomeLayoutResponse {
+  // The layout as saved, as `GetHomeLayout` returns it.
+  HomeLayout layout = 1;
+}
+
+message ReorderHomeRowsRequest {
+  // Every Home row the caller sees, in the order their Home shows them.
+  repeated HomeLayoutRow rows = 1;
+}
+
+message ReorderHomeRowsResponse {
   // The layout as saved, as `GetHomeLayout` returns it.
   HomeLayout layout = 1;
 }

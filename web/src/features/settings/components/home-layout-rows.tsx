@@ -1,61 +1,48 @@
-import { create } from "@bufbuild/protobuf";
+import { useRef } from "react";
 
-import { ShownRow } from "@/features/settings/components/shown-row";
-import { useSetHomeLayout } from "@/features/settings/data/use-set-home-layout";
-import { type HomeLayout, type HomeLayoutRow, HomeLayoutSchema } from "@/gen/nama/v1/server_pb";
+import { useHomeLayoutChanges } from "@/features/settings/hooks/use-home-layout-changes";
+import type { HomeLayout } from "@/gen/nama/v1/server_pb";
+import { FeaturedRow } from "@/shared/components/home-layout/featured-row";
+import { LayoutRow } from "@/shared/components/home-layout/layout-row";
+import { useRowDrag } from "@/shared/hooks/use-row-drag";
 import { refusal } from "@/shared/lib/forms";
 import { rowKey, rowName } from "@/shared/lib/home-layout";
 
-/** Featured and each Home row of the `saved` layout, with a switch that saves it shown or hidden. */
+/**
+ * Featured and each Home row of the `saved` layout, with a switch that saves it shown or hidden,
+ * and each row dragged or moved by its arrows into the User's own order.
+ */
 export function HomeLayoutRows({ saved }: { saved: HomeLayout }) {
-  const save = useSetHomeLayout();
-  // Shows the choice being saved until the layout comes back with it.
-  const layout = save.isPending
-    ? saving(saved, create(HomeLayoutSchema, save.variables.layout))
-    : saved;
-  // Names only the flipped row: a row the User leaves alone then keeps following the default,
-  // even one the default changed since this list was loaded (`UserService.SetHomeLayout`).
-  const flip = (row: HomeLayoutRow, shown: boolean) => {
-    save.mutate({
-      layout: { featuredHidden: layout.featuredHidden, rows: [{ ...row, hidden: !shown }] },
-    });
-  };
+  const { layout, setFeaturedShown, setShown, move, announced, error } =
+    useHomeLayoutChanges(saved);
+  const list = useRef<HTMLUListElement>(null);
+  const rowDrag = useRowDrag(list, layout.rows.length, move);
   return (
-    <>
-      <ul className="mt-4 flex flex-col">
-        <ShownRow
-          name={{ label: "Featured", from: "Always at the top" }}
-          shown={!layout.featuredHidden}
-          onShownChange={(shown) => {
-            save.mutate({ layout: { featuredHidden: !shown } });
-          }}
-        />
-        {layout.rows.map((row) => (
-          <ShownRow
+    <div className="mt-4 flex flex-col">
+      <FeaturedRow shown={!layout.featuredHidden} onShownChange={setFeaturedShown} />
+      <ul ref={list} className="-mx-3 flex flex-col">
+        {layout.rows.map((row, index) => (
+          <LayoutRow
             key={rowKey(row)}
             name={rowName(row)}
             shown={!row.hidden}
+            place={{ index, count: layout.rows.length }}
+            drag={rowDrag(index)}
+            onMove={move}
             onShownChange={(shown) => {
-              flip(row, shown);
+              setShown(row, shown);
             }}
           />
         ))}
       </ul>
-      {save.error && (
+      <output aria-live="polite" className="sr-only">
+        {announced}
+      </output>
+      {error && (
         <p role="alert" className="mt-2 text-sm text-destructive">
-          {refusal(save.error, "save your Home", {}).form}
+          {refusal(error, "save your Home", {}).form}
         </p>
       )}
-    </>
+    </div>
   );
-}
-
-/** `saved` with what `asked` changes in it. */
-function saving(saved: HomeLayout, asked: HomeLayout): HomeLayout {
-  const named = new Map(asked.rows.map((row) => [rowKey(row), row]));
-  return {
-    ...saved,
-    featuredHidden: asked.featuredHidden,
-    rows: saved.rows.map((row) => named.get(rowKey(row)) ?? row),
-  };
 }

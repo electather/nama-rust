@@ -17,13 +17,14 @@ use nama_proto::nama::v1::{
     ListPersonalSettingsRequest, ListPersonalSettingsResponse, ListPluginConnectionsRequest,
     ListPluginConnectionsResponse, ListUsersRequest, ListUsersResponse, NotificationKind,
     NotificationPreference, Permission, PluginConnection, PluginConnectionState, RefusalReason,
-    ResetHomeLayoutRequest, ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetHomeLayoutRequest,
-    SetHomeLayoutResponse, SetNotificationPreferenceRequest, SetNotificationPreferenceResponse,
-    SetPermissionsRequest, SetPermissionsResponse, StartPluginConnectionRequest,
-    StartPluginConnectionResponse, UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse,
-    UserService, home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
+    ReorderHomeRowsRequest, ReorderHomeRowsResponse, ResetHomeLayoutRequest,
+    ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
+    SetDefaultPermissionsResponse, SetHomeLayoutRequest, SetHomeLayoutResponse,
+    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
+    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
+    home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
 };
 
 use crate::{
@@ -45,7 +46,7 @@ use super::{
     caller, database_failed, permission_required,
     plugins::{change_refused, list_failed, logo, setting_to_proto, settings_from_proto},
     refuse,
-    server::home_layout_from_proto,
+    server::{home_layout_from_proto, home_row_from_proto},
     signed_out, unknown_enum_value,
 };
 
@@ -484,6 +485,25 @@ impl UserService for UserServiceHandler {
         (UserHomeLayout::save(&self.db, reader.id, &asked, seen, default).await)
             .map_err(database_failed)?;
         Response::ok(SetHomeLayoutResponse {
+            layout: self.home_layout(reader).await?.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn reorder_home_rows(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ReorderHomeRowsRequest>,
+    ) -> ServiceResult<ReorderHomeRowsResponse> {
+        let reader = &caller(&ctx)?.user;
+        let asked = (request.to_owned_message().rows.iter())
+            .map(|row| home_row_from_proto(row, "rows"))
+            .collect::<Result<Vec<_>, _>>()?;
+        let seen = home_rows_of(&self.home_rows, reader).await?;
+        let seen = seen.into_iter().map(|(row, _)| row).collect();
+        (UserHomeLayout::reorder(&self.db, reader.id, &asked, seen).await)
+            .map_err(database_failed)?;
+        Response::ok(ReorderHomeRowsResponse {
             layout: self.home_layout(reader).await?.into(),
             ..Default::default()
         })

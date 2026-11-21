@@ -24,11 +24,13 @@ function defaultLayout() {
 
 /**
  * Opens Settings on a fake Server keeping this User's Home layout, and returns what it's asked to
- * save. Like the Server, it keeps the flags of the rows a request leaves out.
+ * save, and each order it's asked to reorder the rows in. Like the Server, it keeps the flags of
+ * the rows a request leaves out.
  */
 function openSettings() {
   let layout = defaultLayout();
   const saves: HomeLayout[] = [];
+  const orders: string[][] = [];
   openApp(
     "/settings",
     fakeServer(
@@ -46,6 +48,13 @@ function openSettings() {
           });
           return { layout };
         },
+        reorderHomeRows: (request) => {
+          orders.push(request.rows.map(rowKey));
+          const saved = new Map(layout.rows.map((row) => [rowKey(row), row]));
+          const rows = request.rows.flatMap((row) => saved.get(rowKey(row)) ?? []);
+          layout = create(HomeLayoutSchema, { ...layout, rows });
+          return { layout };
+        },
         resetHomeLayout: () => {
           layout = defaultLayout();
           return {};
@@ -53,7 +62,13 @@ function openSettings() {
       },
     ),
   );
-  return saves;
+  return { saves, orders };
+}
+
+function rowLabels(home: HTMLElement) {
+  return within(home)
+    .getAllByRole("switch")
+    .map((shown) => shown.getAttribute("aria-label"));
 }
 
 function shownSwitch(home: HTMLElement, name: string) {
@@ -61,7 +76,7 @@ function shownSwitch(home: HTMLElement, name: string) {
 }
 
 test("a User hides a Home row and Featured on Settings, then resets to the default", async () => {
-  const saves = openSettings();
+  const { saves } = openSettings();
   const home = await screen.findByRole("region", { name: "Home" });
 
   fireEvent.click(shownSwitch(home, "Top picks"));
@@ -81,7 +96,7 @@ test("a User hides a Home row and Featured on Settings, then resets to the defau
 });
 
 test("flipping a switch saves that row alone, so the rows left alone follow the default", async () => {
-  const saves = openSettings();
+  const { saves } = openSettings();
   const home = await screen.findByRole("region", { name: "Home" });
 
   fireEvent.click(shownSwitch(home, "Top picks"));
@@ -93,4 +108,17 @@ test("flipping a switch saves that row alone, so the rows left alone follow the 
   fireEvent.click(shownSwitch(home, "Featured"));
   await expect.poll(() => saves.length).toBe(2);
   expect(saves[1]?.rows).toStrictEqual([]);
+});
+
+test("moving a row saves the User's order of their Home rows and says where it went", async () => {
+  const { orders } = openSettings();
+  const home = await screen.findByRole("region", { name: "Home" });
+
+  fireEvent.click(await within(home).findByRole("button", { name: "Move Top picks up" }));
+
+  await expect.poll(() => orders).toStrictEqual([["plugin/top-picks/picks", "kernel/1"]]);
+  await expect
+    .poll(() => rowLabels(home))
+    .toStrictEqual(["Show Featured", "Show Top picks", "Show Continue Watching"]);
+  expect(within(home).getByRole("status").textContent).toBe("Top picks moved to place 1 of 2.");
 });

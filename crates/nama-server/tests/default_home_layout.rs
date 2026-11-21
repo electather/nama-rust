@@ -28,9 +28,9 @@ use home_row_plugin::{PLUGIN, disable, enable, set_handle};
 use nama_proto::nama::v1::{
     BrowseServiceClient, DeleteUserRequest, GetDefaultHomeLayoutRequest, GetHomeLayoutRequest,
     HomeLayout, HomeLayoutRow, KernelHomeRow, LibraryKind, ListFeaturedRequest,
-    ListHomeRowsRequest, ListPluginsRequest, PluginHomeRow, RefusalReason, ResetHomeLayoutRequest,
-    ServerServiceClient, SetDefaultHomeLayoutRequest, SetHomeLayoutRequest, UserServiceClient,
-    home_layout_row, home_row::KernelOrPlugin,
+    ListHomeRowsRequest, ListPluginsRequest, PluginHomeRow, RefusalReason, ReorderHomeRowsRequest,
+    ResetHomeLayoutRequest, ServerServiceClient, SetDefaultHomeLayoutRequest, SetHomeLayoutRequest,
+    UserServiceClient, home_layout_row, home_row::KernelOrPlugin,
 };
 use refused::assert_refused;
 use server::{SignedIn, TestServer, WAIT};
@@ -176,6 +176,21 @@ async fn set_own(user: &SignedIn, layout: HomeLayout) -> HomeLayout {
     let saved = users(user.client_config())
         .set_home_layout(SetHomeLayoutRequest {
             layout: layout.into(),
+            ..Default::default()
+        })
+        .await;
+    saved.unwrap().into_owned().layout.into_option().unwrap()
+}
+
+/// Saves `rows` as `user`'s order of their Home rows.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn reorder(user: &SignedIn, rows: Vec<HomeLayoutRow>) -> HomeLayout {
+    let saved = users(user.client_config())
+        .reorder_home_rows(ReorderHomeRowsRequest {
+            rows,
             ..Default::default()
         })
         .await;
@@ -554,6 +569,127 @@ async fn resetting_a_users_home_layout_drops_their_flags() {
     assert!(!own.featured_hidden);
     assert!(own.rows.iter().all(|row| !row.hidden), "{own:?}");
     assert_eq!(featured(ada.client_config()).await, 1);
+}
+
+#[tokio::test]
+async fn a_user_reorders_their_home_and_no_one_elses() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+
+    let saved = reorder(
+        &ada,
+        vec![
+            shared("missing", "", false),
+            continue_watching(false),
+            shared("again", "", false),
+            shared("picks", "", false),
+        ],
+    )
+    .await;
+
+    let expected = layout(
+        false,
+        vec![
+            shared("missing", "Not on the Server", false),
+            continue_watching(false),
+            shared("again", "Alien again", false),
+            shared("picks", "Picks", false),
+        ],
+    );
+    assert_eq!(saved, expected);
+    assert_eq!(get_own(&ada).await, expected);
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["missing", "continue-watching", "again", "picks"]
+    );
+    assert_eq!(
+        rows(server.client_config()).await,
+        ["continue-watching", "picks", "again", "missing"]
+    );
+}
+
+#[tokio::test]
+async fn after_a_users_first_reorder_the_defaults_order_no_longer_moves_their_rows() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_handle(&ada, "ada").await;
+    wait_for_rows(
+        ada.client_config(),
+        &["continue-watching", "picks", "again", "missing", "for-ada"],
+    )
+    .await;
+    let order = ["for-ada", "picks", "continue-watching", "again", "missing"];
+    reorder(
+        &ada,
+        vec![
+            shared("for-ada", "", false),
+            shared("picks", "", false),
+            continue_watching(false),
+            shared("again", "", false),
+            shared("missing", "", false),
+        ],
+    )
+    .await;
+
+    set_default(
+        &server,
+        layout(
+            false,
+            vec![
+                shared("missing", "", false),
+                shared("again", "", false),
+                continue_watching(false),
+                users_rows(false),
+                shared("picks", "", false),
+            ],
+        ),
+    )
+    .await;
+
+    assert_eq!(rows(ada.client_config()).await, order);
+}
+
+#[tokio::test]
+async fn a_row_a_user_has_not_placed_goes_at_the_end_of_their_order() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_default(&server, layout(false, vec![users_rows(false)])).await;
+    reorder(
+        &ada,
+        vec![
+            shared("missing", "", false),
+            continue_watching(false),
+            shared("again", "", false),
+            shared("picks", "", false),
+        ],
+    )
+    .await;
+
+    set_handle(&ada, "ada").await;
+
+    wait_for_rows(
+        ada.client_config(),
+        &["missing", "continue-watching", "again", "picks", "for-ada"],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn resetting_a_users_home_layout_returns_them_to_the_defaults_order() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    reorder(&ada, vec![shared("missing", "", false)]).await;
+
+    users(ada.client_config())
+        .reset_home_layout(ResetHomeLayoutRequest::default())
+        .await
+        .unwrap();
+    set_default(&server, layout(false, vec![shared("again", "", false)])).await;
+
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["again", "continue-watching", "picks", "missing"]
+    );
 }
 
 #[tokio::test]
