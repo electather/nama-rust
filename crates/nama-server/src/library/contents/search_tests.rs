@@ -339,7 +339,7 @@ fn translated_movie(tmdb: i64, title: &str, original_title: &str) -> Metadata {
 }
 
 #[tokio::test]
-async fn a_search_finds_a_movie_by_its_original_title_and_its_start() {
+async fn a_search_finds_a_movie_by_its_original_title_or_a_prefix_of_it() {
     let fx = Fixture::new().await;
     let matched = translated_movie(71_446, "Money Heist", "La casa de papel");
     MatchedMovie::store(&fx.contents, fx.library, "/media/71446.mkv", matched).await;
