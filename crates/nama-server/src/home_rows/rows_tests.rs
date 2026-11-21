@@ -4,27 +4,24 @@ use nama_plugin_api::contract::{HomeRow, TitleKind};
 
 use super::kept;
 use crate::home_rows::{
-    Kind, Row, Title,
+    Kind, Title,
     tests::{given, movie, row, titled},
 };
 
-/// An answer of `count` rows keyed `row-1` on, each with no titles.
+/// An answer of `count` rows keyed `row-1` to `row-{count}`, each with no titles.
 fn numbered(count: usize) -> Vec<HomeRow> {
     (1..=count)
         .map(|n| row(&format!("row-{n}"), 3600, vec![]))
         .collect()
 }
 
-fn keys(kept: &[Row]) -> Vec<&str> {
-    kept.iter().map(|row| row.key.as_str()).collect()
-}
-
 #[test]
 fn an_answer_of_21_rows_keeps_the_first_20_in_order() {
     let (kept, _) = kept(given(numbered(21)));
 
-    let first_20: Vec<String> = numbered(20).into_iter().map(|row| row.key).collect();
-    assert_eq!(keys(&kept), first_20);
+    let keys: Vec<&str> = kept.iter().map(|row| row.key.as_str()).collect();
+    let first_20: Vec<String> = (1..=20).map(|n| format!("row-{n}")).collect();
+    assert_eq!(keys, first_20);
 }
 
 #[test]
