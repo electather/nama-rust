@@ -598,9 +598,10 @@ async fn probing_a_version_right_away_while_the_background_probe_fails_returns_t
         matches!(&probed, Err(Error::Probe(err)) if matches!(**err, ProbeError::Run(RunError::Failed(..)))),
         "{probed:?}"
     );
-    // ponytail: doesn't count reads, as `current` may reach the file only once the background
-    // probe stored its failure, and then rightly reads it again; a hook saying `current` waits
-    // would let it.
+    // Doesn't pin that `current` waited on the background probe's claim rather than reading
+    // again: it may reach the file only once the failure is stored, and then rightly reads it
+    // again, and nothing outside Probing's claim map shows it waiting, so the test can't hold the
+    // read until it is. A test-only hook to show it would go against #1526 (#1534).
 }
 
 #[tokio::test]
