@@ -58,7 +58,7 @@ enum Told {
 impl Told {
     #[expect(
         clippy::panic,
-        reason = "a Request event the Kernel shouldn't send fails the test"
+        reason = "the Kernel hands a Notifier only Request events; another fails its delivery, which a test then misses"
     )]
     fn of(notification: &Notification) -> Self {
         match &notification.event.event {
@@ -302,9 +302,10 @@ impl Fixture {
     /// What the Server keeps as Ada's Plugin Connection to the chat Plugin, if anything.
     async fn adas_stored_connection(&self) -> Option<String> {
         sqlx::query_scalar(
-            "SELECT connection FROM plugin_connections WHERE user_id = ? AND plugin_id = 'chat'",
+            "SELECT connection FROM plugin_connections WHERE user_id = ? AND plugin_id = ?",
         )
         .bind(self.ada.id)
+        .bind(CHAT)
         .fetch_optional(self.server.db().reader())
         .await
         .unwrap()

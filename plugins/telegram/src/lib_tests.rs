@@ -185,6 +185,7 @@ fn an_answer_that_is_not_json_fails_as_making_no_sense() {
             .starts_with("Telegram's answer made no sense: "),
         "{error}"
     );
+    assert!(!error.to_string().contains("123:abc"), "{error}");
 }
 
 #[test]
@@ -279,10 +280,7 @@ fn the_channel_refusing_the_bot_is_a_failure_not_a_recipient_gone() {
         &refusal("Forbidden: bot is not a member of the channel"),
     );
 
-    let error = with(&mut kernel, || {
-        Telegram::deliver(dune_pending(), Recipient::Channel(Box::default()))
-    })
-    .unwrap_err();
+    let error = channel_post_error(&mut kernel);
 
     assert!(!error.is::<RecipientGone>());
     assert_eq!(
