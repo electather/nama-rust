@@ -851,7 +851,6 @@ where
     }
 }
 
-/// The `(value, label)` pair as a [`Choice`].
 fn choice<V: Into<String>, L: Into<String>>((value, label): (V, L)) -> Choice {
     Choice {
         value: value.into(),

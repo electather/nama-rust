@@ -40,7 +40,6 @@ pub(super) fn setting_value(value: &wire::SettingValue) -> Option<SettingValue> 
     })
 }
 
-/// `choice` as the Kernel takes it.
 pub(super) fn choice(choice: wire::Choice) -> Choice {
     Choice {
         value: choice.value,

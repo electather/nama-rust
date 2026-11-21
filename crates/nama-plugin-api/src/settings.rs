@@ -226,9 +226,9 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// If a required setting is missing, or holds an empty list of choices, or else a setting has
-    /// a value of the wrong kind or an integer outside its bounds. Settings the schema doesn't name are kept, so a Plugin's older
-    /// settings survive an upgrade.
+    /// If a required setting is missing, or holds an empty list of choices, or else a setting has a
+    /// value of the wrong kind or an integer outside its bounds. Settings the schema doesn't name
+    /// are kept, so a Plugin's older settings survive an upgrade.
     pub fn resolve(mut self, schema: &SettingsSchema) -> Result<Self, SettingsError> {
         // Missing before wrong kinds, whatever the order of the fields: the Plugins list offers
         // Set up exactly when this refuses with `Missing`.
