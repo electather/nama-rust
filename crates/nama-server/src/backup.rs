@@ -12,7 +12,7 @@ use std::{
 };
 
 use jiff::{Timestamp, civil::DateTime};
-use nama_plugin_api::automation::BackedUp;
+use nama_plugin_api::contract::BackedUp;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection as _;
 use tempfile::TempDir;

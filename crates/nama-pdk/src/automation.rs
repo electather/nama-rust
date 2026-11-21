@@ -12,16 +12,22 @@ pub use nama_plugin_proto::nama::plugin::v1::{
 /// [`testing::with`](crate::testing::with) answers every one of them; called outside `with`, each
 /// panics.
 pub mod kernel {
+    pub use nama_plugin_proto::{FUNCTIONS, KernelFunction, functions};
+
     use buffa::Message;
     use extism_pdk::Error;
     use nama_plugin_proto::nama::plugin::v1::{
-        BackUpAsked, BackedUp, DeleteAsked, DeleteStarted, ExpiredSignInsAsked,
-        ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten,
-        HomeRowsForgotten, KernelAnswer, Libraries, LibrariesAsked, Library, MetadataRefreshed,
-        RefreshMetadataAsked, Requesters, RequestersAsked, SharingTitle, SharingTitles, StoreEntry,
-        StoreKey, StoreValue, Stored, Title, TitleId, TitleKind, TitleRef, TitleRequesters,
-        TitleWatchStates, Titles, TitlesAsked, TitlesSharingAsked, User, Users, UsersAsked,
-        WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
+        BackUpAsked, DeleteAsked, ExpiredSignInsAsked, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
+        KernelAnswer, LibrariesAsked, Library, RefreshMetadataAsked, RequestersAsked, SharingTitle,
+        StoreEntry, StoreKey, Title, TitleId, TitleKind, TitleRef, TitleRequesters,
+        TitleWatchStates, Titles, TitlesAsked, TitlesSharingAsked, User, UsersAsked,
+        WatchStatesAsked, WatchlistAsked, WatchlistTitle, kernel_answer,
+    };
+
+    use self::functions::{
+        BackUp, DeleteExpiredSignIns, DeleteMedia, ForgetGonePlugins, ForgetHomeRows,
+        ListLibraries, ListRequesters, ListTitles, ListTitlesSharing, ListUsers, ListWatchStates,
+        ListWatchlist, RefreshMetadata, StoreDelete, StoreGet, StorePut,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -36,7 +42,7 @@ pub mod kernel {
             user_id: user,
             ..StoreKey::default()
         };
-        Ok(call::<StoreValue>("store_get", &asked)?.value)
+        Ok(call::<StoreGet>(&asked)?.value)
     }
 
     /// Keeps `value` under `key` in the Plugin's Store, for `user` or, with `None`, for the Plugin
@@ -53,7 +59,7 @@ pub mod kernel {
             value: value.to_vec(),
             ..StoreEntry::default()
         };
-        call::<Stored>("store_put", &entry).map(drop)
+        call::<StorePut>(&entry).map(drop)
     }
 
     /// Deletes what the Plugin's Store keeps under `key`, for `user` or, with `None`, for the
@@ -68,7 +74,7 @@ pub mod kernel {
             user_id: user,
             ..StoreKey::default()
         };
-        call::<Stored>("store_delete", &asked).map(drop)
+        call::<StoreDelete>(&asked).map(drop)
     }
 
     /// Every Library. Needs `PERMISSION_READ_LIBRARIES`.
@@ -77,7 +83,7 @@ pub mod kernel {
     ///
     /// When the Kernel refused or couldn't be called.
     pub fn libraries() -> Result<Vec<Library>, Error> {
-        Ok(call::<Libraries>("list_libraries", &LibrariesAsked::default())?.libraries)
+        Ok(call::<ListLibraries>(&LibrariesAsked::default())?.libraries)
     }
 
     /// The Movies of the Library `library_id`, or its Shows' Episodes, by kind and then id,
@@ -118,7 +124,7 @@ pub mod kernel {
             page_token: page_token.to_owned(),
             ..TitlesAsked::default()
         };
-        call::<Titles>("list_titles", &asked)
+        call::<ListTitles>(&asked)
     }
 
     /// Each of `titles` with every User's Watch State of it, or with `Some(user)` only that
@@ -136,7 +142,7 @@ pub mod kernel {
             user_id: user,
             ..WatchStatesAsked::default()
         };
-        Ok(call::<WatchStates>("list_watch_states", &asked)?.titles)
+        Ok(call::<ListWatchStates>(&asked)?.titles)
     }
 
     /// Every User, with their id and display name only. Every User sees every Library, so these
@@ -147,7 +153,7 @@ pub mod kernel {
     ///
     /// When the Kernel refused or couldn't be called.
     pub fn users() -> Result<Vec<User>, Error> {
-        Ok(call::<Users>("list_users", &UsersAsked::default())?.users)
+        Ok(call::<ListUsers>(&UsersAsked::default())?.users)
     }
 
     /// Each of `titles` with the ids of the Users who Requested it, and whether anything did, so
@@ -162,7 +168,7 @@ pub mod kernel {
             titles: titles.to_vec(),
             ..RequestersAsked::default()
         };
-        Ok(call::<Requesters>("list_requesters", &asked)?.titles)
+        Ok(call::<ListRequesters>(&asked)?.titles)
     }
 
     /// The User `user`'s Watchlist, each title by the id it was added under, whether or not a
@@ -176,7 +182,7 @@ pub mod kernel {
             user_id: user,
             ..WatchlistAsked::default()
         };
-        Ok(call::<Watchlist>("list_watchlist", &asked)?.titles)
+        Ok(call::<ListWatchlist>(&asked)?.titles)
     }
 
     /// Deletes the media files of `title`, as an Admin's delete does. It returns once the Kernel
@@ -194,7 +200,7 @@ pub mod kernel {
             also: also.to_vec(),
             ..DeleteAsked::default()
         };
-        Ok(call::<DeleteStarted>("delete_media", &asked)?.taken_along)
+        Ok(call::<DeleteMedia>(&asked)?.taken_along)
     }
 
     /// Deletes each User's own Home rows and Featured suggestions, for each User who hasn't opened
@@ -209,7 +215,7 @@ pub mod kernel {
             days,
             ..ForgetHomeRowsAsked::default()
         };
-        Ok(call::<HomeRowsForgotten>("forget_home_rows", &asked)?.users)
+        Ok(call::<ForgetHomeRows>(&asked)?.users)
     }
 
     /// Deletes every Device whose session expired and every Invite past its expiry, and answers
@@ -219,10 +225,7 @@ pub mod kernel {
     ///
     /// When the Kernel refused or couldn't be called.
     pub fn delete_expired_sign_ins() -> Result<(u32, u32), Error> {
-        let deleted = call::<ExpiredSignInsDeleted>(
-            "delete_expired_sign_ins",
-            &ExpiredSignInsAsked::default(),
-        )?;
+        let deleted = call::<DeleteExpiredSignIns>(&ExpiredSignInsAsked::default())?;
         Ok((deleted.devices, deleted.invites))
     }
 
@@ -238,7 +241,7 @@ pub mod kernel {
             days,
             ..ForgetGonePluginsAsked::default()
         };
-        Ok(call::<GonePluginsForgotten>("forget_gone_plugins", &asked)?.plugin_ids)
+        Ok(call::<ForgetGonePlugins>(&asked)?.plugin_ids)
     }
 
     /// Up to `limit` (at most 1000, 0 for 1000) Movies or Shows of `kind` from every Library, each
@@ -263,7 +266,7 @@ pub mod kernel {
             limit,
             ..TitlesSharingAsked::default()
         };
-        Ok(call::<SharingTitles>("list_titles_sharing", &asked)?.titles)
+        Ok(call::<ListTitlesSharing>(&asked)?.titles)
     }
 
     /// Fetches every Matched title of every Library again from its title source, by the ids its
@@ -276,8 +279,7 @@ pub mod kernel {
     ///
     /// When the Kernel refused or couldn't be called.
     pub fn refresh_metadata() -> Result<(u64, Vec<String>), Error> {
-        let refreshed =
-            call::<MetadataRefreshed>("refresh_metadata", &RefreshMetadataAsked::default())?;
+        let refreshed = call::<RefreshMetadata>(&RefreshMetadataAsked::default())?;
         Ok((refreshed.titles, refreshed.unavailable_plugin_ids))
     }
 
@@ -290,13 +292,18 @@ pub mod kernel {
     ///
     /// When the Kernel refused, couldn't write the Backup, or couldn't be called.
     pub fn back_up() -> Result<(String, u64), Error> {
-        let backed_up = call::<BackedUp>("back_up", &BackUpAsked::default())?;
+        let backed_up = call::<BackUp>(&BackUpAsked::default())?;
         Ok((backed_up.name, backed_up.size_bytes))
     }
 
-    /// Calls the Kernel function `name` with `request` and decodes its answer.
-    fn call<T: Message>(name: &str, request: &impl Message) -> Result<T, Error> {
-        answer(name, &raw(name, &request.try_encode_to_vec()?)?)
+    /// Calls the Kernel function `F` with `request`, such as one no wrapper here covers yet, and
+    /// answers its response.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused or couldn't be called.
+    pub fn call<F: KernelFunction>(request: &F::Request) -> Result<F::Response, Error> {
+        answer(F::NAME, &raw(F::NAME, &request.try_encode_to_vec()?)?)
     }
 
     /// The response a `KernelAnswer` encoded as `bytes` holds, or the Kernel's words as the error
@@ -386,6 +393,45 @@ mod tests {
             ..KernelAnswer::default()
         }
         .encode_to_vec()
+    }
+
+    /// Each name the Wasm imports' `extern` block above declares, and each its dispatch matches,
+    /// each sorted, beside the contract's table sorted.
+    fn imports_and_table() -> [Vec<&'static str>; 3] {
+        let code = include_str!("automation.rs")
+            .split("#[cfg(test)]\nmod tests")
+            .next()
+            .unwrap_or_default();
+        let lines = || code.lines().map(str::trim);
+        let mut declared: Vec<_> = lines()
+            .filter_map(|line| line.strip_prefix("safe fn ")?.split('(').next())
+            .collect();
+        let mut dispatched: Vec<_> = lines()
+            .filter_map(|line| {
+                line.strip_prefix('"')?
+                    .split_once("\" => ")
+                    .map(|(name, _)| name)
+            })
+            .collect();
+        let mut table: Vec<_> = kernel::FUNCTIONS.iter().map(|(name, _)| *name).collect();
+        for names in [&mut declared, &mut dispatched, &mut table] {
+            names.sort_unstable();
+        }
+        [declared, dispatched, table]
+    }
+
+    #[test]
+    fn the_wasm_imports_declare_every_kernel_function_and_no_other() {
+        let [declared, _, table] = imports_and_table();
+
+        assert_eq!(declared, table);
+    }
+
+    #[test]
+    fn the_wasm_imports_dispatch_every_kernel_function_and_no_other() {
+        let [_, dispatched, table] = imports_and_table();
+
+        assert_eq!(dispatched, table);
     }
 
     #[test]

@@ -1,17 +1,11 @@
 //! The Kernel's functions, which any Plugin may call through the [`Kernel`] it finds in
 //! [`Registrar::kernel`](crate::Registrar::kernel) (ADR 0048, ADR 0071).
 
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, future, sync::Arc};
 
-pub use nama_plugin_proto::nama::plugin::v1::{
-    BackUpAsked, BackedUp, DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
-    ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
-    Libraries, LibrariesAsked, Library, LibraryKind, MetadataRefreshed, Permission,
-    RefreshMetadataAsked, Requesters, RequestersAsked, SharingTitle, SharingTitles, StoreEntry,
-    StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleRole,
-    TitleWatchStates, Titles, TitlesAsked, TitlesSharingAsked, User, Users, UsersAsked, WatchState,
-    WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
-};
+use buffa::Message;
+
+pub use nama_plugin_proto::{FUNCTIONS, KernelFunction, functions, nama::plugin::v1::Permission};
 
 use crate::BoxFuture;
 
@@ -60,3 +54,49 @@ where
         self(function, request)
     }
 }
+
+impl dyn Kernel {
+    /// Asks the Kernel's function `F` `request`, and answers its response.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused, as [`Kernel::call`] says, or answered something that isn't
+    /// `F`'s response.
+    pub async fn ask<F: KernelFunction>(
+        &self,
+        request: F::Request,
+    ) -> Result<F::Response, KernelRefused> {
+        let answer = self.call(F::NAME, request.encode_to_vec()).await?;
+        F::Response::decode_from_slice(&answer).map_err(|_unreadable| {
+            KernelRefused(format!("the Kernel's answer to {} can't be read", F::NAME))
+        })
+    }
+}
+
+/// A Kernel answering the function `F` alone, with `answer`, as a test's fake: it refuses a request
+/// it can't read and any other function, as the Kernel does.
+pub fn answering<F: KernelFunction>(
+    answer: impl Fn(F::Request) -> Result<F::Response, KernelRefused> + Send + Sync + 'static,
+) -> Arc<dyn Kernel> {
+    Arc::new(
+        move |function: &str, request: Vec<u8>| -> BoxFuture<'static, _> {
+            let answered = if function == F::NAME {
+                (F::Request::decode_from_slice(&request))
+                    .map_err(|_unreadable| {
+                        KernelRefused("the Kernel couldn't read the request".to_owned())
+                    })
+                    .and_then(&answer)
+                    .map(|response| response.encode_to_vec())
+            } else {
+                Err(KernelRefused(format!(
+                    "the Kernel has no function {function}"
+                )))
+            };
+            Box::pin(future::ready(answered))
+        },
+    )
+}
+
+#[cfg(test)]
+#[path = "automation_tests.rs"]
+mod tests;

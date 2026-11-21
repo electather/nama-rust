@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, HashSet},
     fs,
     path::Path,
     sync::Arc,
@@ -9,12 +9,17 @@ use std::{
 use buffa::MessageField;
 use nama_plugin_api::{
     automation::{
-        DeleteAsked, DeleteStarted, Libraries as ListedLibraries, LibrariesAsked, LibraryKind,
-        Permission, Requesters, RequestersAsked, StoreKey, StoreValue, Titles, TitlesAsked,
-        Users as ListedUsers, UsersAsked, WatchStates as ListedWatchStates, WatchStatesAsked,
-        Watchlist, WatchlistAsked,
+        FUNCTIONS, Permission,
+        functions::{
+            DeleteMedia, ListLibraries, ListRequesters, ListTitles, ListUsers, ListWatchStates,
+            ListWatchlist, StoreGet,
+        },
     },
-    contract,
+    contract::{
+        self, DeleteAsked, DeleteStarted, LibrariesAsked, LibraryKind, Requesters, RequestersAsked,
+        StoreKey, Titles, TitlesAsked, UsersAsked, WatchStates as ListedWatchStates,
+        WatchStatesAsked, Watchlist, WatchlistAsked,
+    },
     metadata::ExternalId,
     settings::{SettingValue, Settings},
 };
@@ -24,9 +29,9 @@ use nama_plugin_tmdb::{
 };
 
 use super::{
-    FUNCTIONS, permission_name,
+    permission_name,
     testing::{
-        ALIEN_TMDB_ID, DARK_TMDB_ID, LIES_TMDB_ID, SECRETS_TMDB_ID, UNREADABLE, ask, delete,
+        ALIEN_TMDB_ID, DARK_TMDB_ID, LIES_TMDB_ID, SECRETS_TMDB_ID, UNREADABLE, delete,
         episode_ref, kernel, movie_ref, movies, titles_asked, two_episodes_in_one_file,
         two_episodes_in_one_file_also_known_as, users,
     },
@@ -38,7 +43,7 @@ use crate::{
         Contents, Libraries, Metadata, MovieOrEpisode, Progress, TitleKind, WatchStates,
         fixture::{self, MatchedMovie, tmdb_movie},
     },
-    plugins::{ExtensionPoints, KERNEL_IMPORTS, Registry},
+    plugins::{ExtensionPoints, Registry},
     requests::Requests,
     server_settings::ServerUrl,
     users::{Permissions, User, Users},
@@ -51,10 +56,10 @@ async fn every_function_refuses_a_plugin_not_granted_its_permission_before_readi
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_UNSPECIFIED);
 
-    for function in FUNCTIONS {
-        let refused = kernel.call(function.name, UNREADABLE.to_vec()).await;
+    for &(function, needs) in FUNCTIONS {
+        let refused = kernel.call(function, UNREADABLE.to_vec()).await;
 
-        let needs = permission_name(function.needs);
+        let needs = permission_name(needs);
         let words = format!("the Admin hasn't granted cleanup the {needs} Permission");
         assert_eq!(refused.unwrap_err().0, words);
     }
@@ -75,16 +80,6 @@ async fn a_granted_function_refuses_a_request_it_cant_read_and_an_unknown_one_is
     assert_eq!(unknown, "the Kernel has no function list_everything");
 }
 
-#[test]
-fn every_kernel_import_has_one_function_and_every_function_an_import() {
-    let rows: BTreeSet<_> = FUNCTIONS.iter().map(|function| function.name).collect();
-    let imports: BTreeSet<_> = KERNEL_IMPORTS.iter().copied().collect();
-
-    assert_eq!(rows, imports);
-    let listed_once = rows.len() == FUNCTIONS.len() && imports.len() == KERNEL_IMPORTS.len();
-    assert!(listed_once, "a name is listed twice");
-}
-
 #[tokio::test]
 async fn list_libraries_lists_each_library() {
     let data_dir = tempfile::tempdir().unwrap();
@@ -93,7 +88,8 @@ async fn list_libraries_lists_each_library() {
     let id = fixture::movies_library(&db, media.path()).await;
     let (_automation, kernel) = kernel(&db, data_dir.path(), Permission::PERMISSION_READ_LIBRARIES);
 
-    let listed = ask::<ListedLibraries>(&kernel, "list_libraries", &LibrariesAsked::default())
+    let listed = kernel
+        .ask::<ListLibraries>(LibrariesAsked::default())
         .await
         .unwrap();
 
@@ -124,7 +120,7 @@ async fn list_titles_gives_each_movie_with_the_id_its_watch_state_uses() {
         library_id: alien.library,
         ..TitlesAsked::default()
     };
-    let listed = ask::<Titles>(&kernel, "list_titles", &asked).await.unwrap();
+    let listed = kernel.ask::<ListTitles>(asked).await.unwrap();
 
     let [title] = listed.titles.as_slice() else {
         panic!("{listed:?}");
@@ -151,7 +147,7 @@ async fn list_titles_gives_genres_content_rating_and_an_episodes_show_id() {
 
     let mut listed = Vec::new();
     for library in [alien.library, dark] {
-        let page = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 0, "")).await;
+        let page = kernel.ask::<ListTitles>(titles_asked(library, 0, "")).await;
         listed.extend(page.unwrap().titles.into_iter().map(|title| {
             let show = title.show_id.as_option().map(|id| id.value.clone());
             (title.genres, title.content_rating, show)
@@ -185,7 +181,7 @@ async fn list_titles_gives_when_each_movie_and_episode_was_added() {
 
     let mut added = Vec::new();
     for library in [alien.library, dark] {
-        let listed = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 0, "")).await;
+        let listed = kernel.ask::<ListTitles>(titles_asked(library, 0, "")).await;
         added.extend(listed.unwrap().titles.iter().map(|title| title.added_at_ms));
     }
 
@@ -207,7 +203,9 @@ async fn list_titles_pages_cover_every_title_once_in_order_and_the_last_has_no_t
     let mut pages = Vec::new();
     let mut token = String::new();
     loop {
-        let page = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 2, &token)).await;
+        let page = kernel
+            .ask::<ListTitles>(titles_asked(library, 2, &token))
+            .await;
         let page = page.unwrap();
         let ids: Vec<_> = (page.titles.iter())
             .map(|title| title.title_ref.id.value.clone())
@@ -235,7 +233,7 @@ async fn a_title_matched_between_two_pages_neither_repeats_nor_skips_a_listed_on
             .collect()
     };
 
-    let first = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 2, "")).await;
+    let first = kernel.ask::<ListTitles>(titles_asked(library, 2, "")).await;
     let first = first.unwrap();
     let path = media.path().canonicalize().unwrap().join("1.mkv");
     let contents = Contents::new(Arc::clone(&db));
@@ -247,7 +245,7 @@ async fn a_title_matched_between_two_pages_neither_repeats_nor_skips_a_listed_on
     )
     .await;
     let asked = titles_asked(library, 2, &first.next_page_token);
-    let second = ask::<Titles>(&kernel, "list_titles", &asked).await.unwrap();
+    let second = kernel.ask::<ListTitles>(asked).await.unwrap();
 
     assert_eq!(ids(&first), ["2", "3"]);
     assert_eq!(ids(&second), ["5", "6"]);
@@ -262,7 +260,7 @@ async fn list_titles_with_page_size_0_gives_every_title_without_a_token() {
     let library = movies(&db, media.path(), &[2, 1, 3]).await;
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
 
-    let listed = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 0, "")).await;
+    let listed = kernel.ask::<ListTitles>(titles_asked(library, 0, "")).await;
 
     let listed = listed.unwrap();
     let ids: Vec<_> = (listed.titles.iter())
@@ -280,7 +278,9 @@ async fn list_titles_refuses_a_page_token_it_didnt_hand_out() {
     let library = movies(&db, media.path(), &[1]).await;
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
 
-    let refused = ask::<Titles>(&kernel, "list_titles", &titles_asked(library, 2, "next")).await;
+    let refused = kernel
+        .ask::<ListTitles>(titles_asked(library, 2, "next"))
+        .await;
 
     assert_eq!(
         refused.unwrap_err().0,
@@ -306,7 +306,7 @@ async fn list_watch_states_gives_each_users_watch_state_of_each_title() {
         titles: vec![movie_ref(1, ALIEN_TMDB_ID), movie_ref(1, 1)],
         ..WatchStatesAsked::default()
     };
-    let listed: ListedWatchStates = ask(&kernel, "list_watch_states", &asked).await.unwrap();
+    let listed: ListedWatchStates = kernel.ask::<ListWatchStates>(asked).await.unwrap();
 
     let [watched, unwatched] = listed.titles.as_slice() else {
         panic!("{listed:?}");
@@ -347,13 +347,13 @@ async fn list_watch_states_for_one_user_gives_no_other_users_watch_state() {
         user_id: Some(bo),
         ..WatchStatesAsked::default()
     };
-    let listed = ask(&kernel, "list_watch_states", &asked).await.unwrap();
+    let listed = kernel.ask::<ListWatchStates>(asked).await.unwrap();
 
     assert_eq!(users_played(&listed), [(bo, true)]);
 }
 
 /// The Users and what they did of each Watch State `listed` gives of its one title.
-fn users_played(listed: &nama_plugin_api::automation::WatchStates) -> Vec<(i64, bool)> {
+fn users_played(listed: &ListedWatchStates) -> Vec<(i64, bool)> {
     let [title] = listed.titles.as_slice() else {
         panic!("{listed:?}");
     };
@@ -382,7 +382,7 @@ async fn list_watch_states_finds_a_movies_watch_state_kept_under_another_of_its_
         titles: vec![movie_ref(alien.library, ALIEN_TMDB_ID)],
         ..WatchStatesAsked::default()
     };
-    let listed: ListedWatchStates = ask(&kernel, "list_watch_states", &asked).await.unwrap();
+    let listed: ListedWatchStates = kernel.ask::<ListWatchStates>(asked).await.unwrap();
 
     assert_eq!(users_played(&listed), [(ada, true)]);
 }
@@ -406,7 +406,7 @@ async fn list_watch_states_finds_an_episodes_watch_state_kept_under_another_of_i
         titles: vec![episode_ref(library, LIES_TMDB_ID)],
         ..WatchStatesAsked::default()
     };
-    let listed: ListedWatchStates = ask(&kernel, "list_watch_states", &asked).await.unwrap();
+    let listed: ListedWatchStates = kernel.ask::<ListWatchStates>(asked).await.unwrap();
 
     assert_eq!(users_played(&listed), [(ada, true)]);
 }
@@ -422,7 +422,8 @@ async fn list_users_gives_every_user_with_their_id_and_display_name() {
         .unwrap();
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_USERS);
 
-    let listed = ask::<ListedUsers>(&kernel, "list_users", &UsersAsked::default())
+    let listed = kernel
+        .ask::<ListUsers>(UsersAsked::default())
         .await
         .unwrap();
 
@@ -553,7 +554,7 @@ async fn delete_media_of_an_episode_naming_the_other_in_also_starts_and_gives_it
         also: vec![episode_ref(library, LIES_TMDB_ID)],
         ..DeleteAsked::default()
     };
-    let started: DeleteStarted = ask(&kernel, "delete_media", &asked).await.unwrap();
+    let started: DeleteStarted = kernel.ask::<DeleteMedia>(asked).await.unwrap();
 
     assert_eq!(started.taken_along, [episode_ref(library, LIES_TMDB_ID)]);
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -573,7 +574,7 @@ async fn a_function_refuses_once_the_server_is_stopping() {
 
     drop(automation);
 
-    let refused = ask::<StoreValue>(&kernel, "store_get", &StoreKey::default()).await;
+    let refused = kernel.ask::<StoreGet>(StoreKey::default()).await;
     assert_eq!(refused.unwrap_err().0, "the Server is stopping");
 }
 
@@ -634,9 +635,7 @@ async fn list_requesters_gives_who_requested_each_movie_and_episode() {
         ],
         ..RequestersAsked::default()
     };
-    let listed = ask::<Requesters>(&kernel, "list_requesters", &asked)
-        .await
-        .unwrap();
+    let listed = kernel.ask::<ListRequesters>(asked).await.unwrap();
 
     assert_eq!(
         requested(&listed),
@@ -675,9 +674,7 @@ async fn list_requesters_gives_a_title_whose_only_requester_was_deleted_as_reque
         titles: vec![movie_ref(library, ALIEN_TMDB_ID)],
         ..RequestersAsked::default()
     };
-    let listed = ask::<Requesters>(&kernel, "list_requesters", &asked)
-        .await
-        .unwrap();
+    let listed = kernel.ask::<ListRequesters>(asked).await.unwrap();
 
     assert_eq!(requested(&listed), [(true, vec![])]);
 }
@@ -706,7 +703,7 @@ async fn list_watchlist_gives_that_users_watchlist_only() {
         user_id: ada,
         ..WatchlistAsked::default()
     };
-    let listed: Watchlist = ask(&kernel, "list_watchlist", &asked).await.unwrap();
+    let listed: Watchlist = kernel.ask::<ListWatchlist>(asked).await.unwrap();
 
     let listed: HashSet<_> = (listed.titles.iter())
         .map(|title| (title.kind, title.id.value.clone()))

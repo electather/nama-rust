@@ -94,6 +94,69 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::SEARCH_SOURCE, "1.0.0"),
 ];
 
+/// One of the Kernel's functions, which any Plugin calls by its name in the Wasm import namespace
+/// `nama` (ADR 0048, ADR 0071), as a marker in [`functions`]: its name, the Plugin
+/// [`Permission`](nama::plugin::v1::Permission) it needs, and the messages it takes and answers.
+pub trait KernelFunction {
+    /// The function's name, as a Plugin imports it.
+    const NAME: &'static str;
+    /// The Plugin Permission the Kernel refuses the function without.
+    const NEEDS: nama::plugin::v1::Permission;
+    /// The message the function takes.
+    type Request: buffa::Message + Default;
+    /// The message the function answers.
+    type Response: buffa::Message + Default;
+}
+
+/// Writes each Kernel function's marker in [`functions`] and its row in [`FUNCTIONS`].
+macro_rules! kernel_functions {
+    ($($marker:ident = $name:literal: $request:ident -> $response:ident, $needs:ident;)*) => {
+        /// A marker for each of the Kernel's functions, which [`KernelFunction`] describes. Two
+        /// functions can take the same request, so a marker, not a message, names one.
+        pub mod functions {
+            use crate::nama::plugin::v1 as contract;
+
+            $(
+                #[doc = concat!("The Kernel function `", $name, "`.")]
+                #[derive(Debug, Clone, Copy)]
+                pub struct $marker;
+
+                impl crate::KernelFunction for $marker {
+                    const NAME: &'static str = $name;
+                    const NEEDS: contract::Permission = contract::Permission::$needs;
+                    type Request = contract::$request;
+                    type Response = contract::$response;
+                }
+            )*
+        }
+
+        /// Each Kernel function's name and the Plugin Permission it needs, as `automation.proto`
+        /// lists them. `AGENTS.md` says how one is added.
+        pub const FUNCTIONS: &[(&str, nama::plugin::v1::Permission)] = &[
+            $(($name, nama::plugin::v1::Permission::$needs)),*
+        ];
+    };
+}
+
+kernel_functions! {
+    StoreGet = "store_get": StoreKey -> StoreValue, PERMISSION_STORE;
+    StorePut = "store_put": StoreEntry -> Stored, PERMISSION_STORE;
+    StoreDelete = "store_delete": StoreKey -> Stored, PERMISSION_STORE;
+    ListLibraries = "list_libraries": LibrariesAsked -> Libraries, PERMISSION_READ_LIBRARIES;
+    ListTitles = "list_titles": TitlesAsked -> Titles, PERMISSION_READ_LIBRARIES;
+    ListWatchStates = "list_watch_states": WatchStatesAsked -> WatchStates, PERMISSION_READ_WATCH_STATES;
+    ListUsers = "list_users": UsersAsked -> Users, PERMISSION_READ_USERS;
+    ListRequesters = "list_requesters": RequestersAsked -> Requesters, PERMISSION_READ_REQUESTS;
+    ListWatchlist = "list_watchlist": WatchlistAsked -> Watchlist, PERMISSION_READ_WATCHLISTS;
+    DeleteMedia = "delete_media": DeleteAsked -> DeleteStarted, PERMISSION_DELETE_MEDIA;
+    ForgetHomeRows = "forget_home_rows": ForgetHomeRowsAsked -> HomeRowsForgotten, PERMISSION_FORGET_HOME_ROWS;
+    DeleteExpiredSignIns = "delete_expired_sign_ins": ExpiredSignInsAsked -> ExpiredSignInsDeleted, PERMISSION_DELETE_EXPIRED_SIGN_INS;
+    ForgetGonePlugins = "forget_gone_plugins": ForgetGonePluginsAsked -> GonePluginsForgotten, PERMISSION_FORGET_GONE_PLUGINS;
+    RefreshMetadata = "refresh_metadata": RefreshMetadataAsked -> MetadataRefreshed, PERMISSION_REFRESH_METADATA;
+    ListTitlesSharing = "list_titles_sharing": TitlesSharingAsked -> SharingTitles, PERMISSION_READ_LIBRARIES;
+    BackUp = "back_up": BackUpAsked -> BackedUp, PERMISSION_BACK_UP;
+}
+
 /// The largest object a blob store holds, in bytes: the Kernel never puts a larger one, and a
 /// blob store Plugin may refuse one. One call carries one object, so this bounds its memory.
 pub const BLOB_MAX_BYTES: usize = 20 * 1024 * 1024;

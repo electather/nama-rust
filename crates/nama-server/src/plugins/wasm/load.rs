@@ -17,7 +17,7 @@ use buffa::{
 use extism::{CompiledPlugin, CurrentPlugin, PluginBuilder, UserData, Val, ValType, Wasm};
 use nama_plugin_api::{
     Manifest, PluginId,
-    automation::Kernel,
+    automation::{FUNCTIONS, Kernel},
     job::Job,
     metadata::{ExternalId, InvalidId, SourceManifest},
     settings::{
@@ -31,7 +31,7 @@ use tracing::error;
 
 use super::{
     Installed, Point, Refused,
-    automation::{KERNEL_IMPORTS, Reach, import},
+    automation::{Reach, import},
     bundled::BUNDLED,
     calls::Calls,
     check_exports, contract,
@@ -372,7 +372,7 @@ fn build(
     });
     // Every import is defined whether or not the Plugin may call it, so a Plugin importing them
     // still instantiates to read its Manifest or check its settings.
-    let builder = KERNEL_IMPORTS.iter().fold(
+    let builder = FUNCTIONS.iter().fold(
         PluginBuilder::new(manifest)
             .with_cache_config(cache_config)
             .with_http_response_headers(true)
@@ -385,7 +385,7 @@ fn build(
                 UserData::new(log),
                 plugin_log::import,
             ),
-        |builder, &function| {
+        |builder, &(function, _)| {
             builder.with_function_in_namespace(
                 "nama",
                 function,

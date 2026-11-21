@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use buffa::EnumValue;
 use nama_plugin_api::{
-    automation::{KernelRefused, SharingTitle, SharingTitles, TitlesSharingAsked},
-    contract::TitleKind as AskedKind,
+    automation::KernelRefused,
+    contract::{SharingTitle, SharingTitles, TitleKind as AskedKind, TitlesSharingAsked},
     metadata::ExternalId,
 };
 

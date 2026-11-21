@@ -8,8 +8,6 @@ repository.workspace = true
 
 # Built-in Plugins depend on no workspace crate but nama-plugin-api (ADR 0006).
 [dependencies]
-# Encodes the Kernel functions' requests, which the Kernel takes as bytes.
-buffa = "0.9.2"
 nama-plugin-api = { version = "0.2.0", path = "../../crates/nama-plugin-api" }
 tracing = "0.1"
 
