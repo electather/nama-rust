@@ -1,7 +1,10 @@
 use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
 use nama_proto::nama::v1 as proto;
 
-use super::{setting_to_proto, setting_value_from_proto, setting_value_to_proto};
+use super::{
+    points::public_points, setting_to_proto, setting_value_from_proto, setting_value_to_proto,
+};
+use crate::plugins::installed_points;
 
 #[test]
 fn a_secrets_default_and_stored_value_are_never_sent() {
@@ -42,4 +45,16 @@ fn each_value_comes_back_from_the_schema_as_it_went() {
         setting_value_from_proto(&proto::SettingValue::default()),
         None
     );
+}
+
+#[test]
+fn every_point_an_installed_plugin_can_serve_shows_on_the_plugins_page() {
+    let shown = public_points().map(|(key, _)| key);
+
+    for (service, key) in installed_points() {
+        assert!(
+            shown.contains(&key),
+            "{service} has no entry in public_points(), so the Plugins page hides it"
+        );
+    }
 }
