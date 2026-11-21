@@ -75,6 +75,13 @@ describe("the Jobs page", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
   });
 
+  test("a Job's row is the target a Plugin's page links to", async () => {
+    openJobs();
+
+    const job = await screen.findByRole("button", { name: "Forget Home rows" });
+    expect(job.id).toBe("upkeep/forget-home-rows");
+  });
+
   test("a Job's sheet shows what it does, its next 3 times and each Run's detail", async () => {
     openJobs();
 

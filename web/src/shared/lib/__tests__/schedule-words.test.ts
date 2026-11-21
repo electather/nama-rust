@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { scheduleWords } from "@/features/admin-jobs/lib/schedule-words";
+import { scheduleWords } from "@/shared/lib/schedule-words";
 
 describe("a Job's schedule in words", () => {
   test.each([
