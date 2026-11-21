@@ -1,5 +1,6 @@
 import { LibraryLink } from "@/features/title/components/library-link";
 import { TitleDetails } from "@/features/title/components/title-details";
+import { crewWithJob } from "@/features/title/lib/crew-with-job";
 import { episodesHere } from "@/features/title/lib/episodes-here";
 import { filesDetails } from "@/features/title/lib/files-details";
 import { listed } from "@/features/title/lib/listed";
@@ -29,6 +30,7 @@ export function ShowDetails({
             ["Released", yearOf(show.firstAirDate)],
             ["Rated", show.contentRating],
             ["Genres", listed(show.genres)],
+            ["Created by", crewWithJob(show.crew, "Creator")],
           ],
         },
         ...filesDetails(

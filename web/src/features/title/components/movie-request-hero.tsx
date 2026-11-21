@@ -4,6 +4,7 @@ import { TitleFacts } from "@/features/title/components/title-facts";
 import { TitleGenres } from "@/features/title/components/title-genres";
 import { TitleHero } from "@/features/title/components/title-hero";
 import { TitleName } from "@/features/title/components/title-name";
+import { TitleStarring } from "@/features/title/components/title-starring";
 import type { FoundMovie } from "@/gen/nama/v1/request_pb";
 import { FoundMovieState } from "@/shared/components/found-movie-state/found-movie-state";
 import { runtimeOf } from "@/shared/lib/title-facts";
@@ -18,6 +19,7 @@ export function MovieRequestHero({ movie, you }: { movie: FoundMovie; you: bigin
       <TitleName title={movie.title} logoUrl={undefined} />
       <TitleGenres kind="Movie" genres={[]} />
       {movie.overview !== undefined && <Overview text={movie.overview} />}
+      <TitleStarring cast={movie.cast} />
       <TitleFacts
         score={movie.score}
         facts={[movie.year?.toString(), runtimeOf(movie.runtimeMinutes, "short")]}

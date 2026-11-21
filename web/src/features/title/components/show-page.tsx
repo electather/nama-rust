@@ -1,5 +1,6 @@
 import { notFound } from "@tanstack/react-router";
 
+import { CastAndCrew } from "@/features/title/components/cast-and-crew";
 import { NotToldNotice } from "@/features/title/components/not-told-notice";
 import { ShowDetails } from "@/features/title/components/show-details";
 import { ShowEpisodes } from "@/features/title/components/show-episodes";
@@ -65,6 +66,7 @@ export function ShowPage({
         current={season}
         onPick={pick}
       />
+      <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
       <ShowDetails libraryId={libraryId} show={data.show} episodes={episodes} />
     </TitlePage>
   );

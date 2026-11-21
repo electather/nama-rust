@@ -8,6 +8,7 @@ import { TitleFacts } from "@/features/title/components/title-facts";
 import { TitleGenres } from "@/features/title/components/title-genres";
 import { TitleHero } from "@/features/title/components/title-hero";
 import { TitleName } from "@/features/title/components/title-name";
+import { TitleStarring } from "@/features/title/components/title-starring";
 import { titleBadges } from "@/features/title/lib/title-badges";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
 import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
@@ -40,6 +41,7 @@ export function MovieHero({
       <TitleName title={movie.title} logoUrl={movie.titleLogoUrl} />
       <TitleGenres kind="Movie" genres={movie.genres} />
       {movie.overview !== undefined && <Overview text={movie.overview} />}
+      <TitleStarring cast={movie.cast} />
       <TitleFacts
         score={movie.score}
         facts={[yearOf(movie.releaseDate), runtimeOf(movie.runtimeMinutes, "short")]}

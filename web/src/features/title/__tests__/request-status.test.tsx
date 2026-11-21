@@ -1,5 +1,5 @@
 import { type MessageInitShape, create, fromJson } from "@bufbuild/protobuf";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import {
@@ -33,6 +33,8 @@ function server(request: Request, permissions: Permission[] = newUser, retried: 
     year: 2021,
     score: 7.8,
     originalLanguage: "en",
+    cast: [{ name: "Timothée Chalamet", part: "Paul Atreides" }],
+    crew: [{ name: "Denis Villeneuve", part: "Director" }],
     request,
   });
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
@@ -185,4 +187,14 @@ test("a Movie to Request shows its Score among its facts, and its Original audio
   expect(score.closest("p")?.textContent).toBe("Score7.82021");
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("English");
+});
+
+test("a Movie to Request shows who stars in it, its Cast & Crew, and who directed it", async () => {
+  openApp("/movies/tmdb-438631", server({}));
+
+  await expect(screen.findByText("Starring Timothée Chalamet")).resolves.toBeDefined();
+  const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
+  expect(row.getAllByRole("listitem")).toHaveLength(2);
+  const directed = screen.getByText("Directed by", { selector: "dt" });
+  expect(directed.nextElementSibling?.textContent).toBe("Denis Villeneuve");
 });

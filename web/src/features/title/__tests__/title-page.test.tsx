@@ -66,6 +66,49 @@ test("a Movie's page shows its Score among its facts, and its Original audio in 
   expect(detail("Original audio")).toBe("Korean");
 });
 
+const parasiteCast = [
+  { name: "Song Kang-ho", part: "Kim Ki-taek", headshotUrl: "/media/artwork/tmdb/%2Fsong.jpg" },
+  { name: "Lee Sun-kyun", part: "Park Dong-ik" },
+  { name: "Cho Yeo-jeong", part: "Choi Yeon-kyo" },
+  { name: "Choi Woo-shik", part: "Kim Ki-woo" },
+];
+
+test("a Movie's page shows who stars in it, its Cast & Crew, and who directed it", async () => {
+  openMovie({
+    cast: parasiteCast,
+    crew: [
+      { name: "Bong Joon-ho", part: "Director" },
+      { name: "Bong Joon-ho", part: "Screenplay" },
+    ],
+  });
+
+  await expect(
+    screen.findByText("Starring Song Kang-ho, Lee Sun-kyun, Cho Yeo-jeong"),
+  ).resolves.toBeDefined();
+  const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
+  expect(row.getAllByRole("listitem").map((role) => role.textContent)).toStrictEqual([
+    "Song Kang-hoKim Ki-taek",
+    "Lee Sun-kyunPark Dong-ik",
+    "Cho Yeo-jeongChoi Yeon-kyo",
+    "Choi Woo-shikKim Ki-woo",
+    "Bong Joon-hoDirector",
+    "Bong Joon-hoScreenplay",
+  ]);
+  // Its name is beside it, so the headshot is presentational.
+  const headshot = row.getAllByRole("listitem")[0]?.querySelector("img");
+  expect(headshot?.getAttribute("src")).toBe("/media/artwork/tmdb/%2Fsong.jpg");
+  expect(detail("Directed by")).toBe("Bong Joon-ho");
+});
+
+test("a title without Roles shows no Starring, Cast & Crew or Directed by", async () => {
+  openMovie({});
+
+  await expect(screen.findByRole("heading", { level: 1, name: "Parasite" })).resolves.toBeDefined();
+  expect(screen.queryByText(/^Starring/u)).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Cast & Crew" })).toBeNull();
+  expect(screen.queryByText("Directed by")).toBeNull();
+});
+
 test("a title nobody has voted on shows no Score, not 0", async () => {
   openMovie({ releaseDate: "2019-05-30" });
 
@@ -154,6 +197,11 @@ function openDark(...entries: MessageInitShape<typeof ContinueWatchingEntrySchem
     genres: ["Drama"],
     score: 8.4,
     originalLanguage: "de",
+    cast: [{ name: "Louis Hofmann", part: "Jonas Kahnwald" }],
+    crew: [
+      { name: "Baran bo Odar", part: "Creator" },
+      { name: "Jantje Friese", part: "Creator" },
+    ],
   };
   const transport = server({
     getShow: () => ({ show, seasons: [{ number: 1 }] }),
@@ -191,6 +239,15 @@ test("a Show's page shows its own overview, first air year, Score and Original a
   expect(screen.getByText("Score").parentElement?.textContent).toBe("Score8.4");
   expect(detail("Original audio")).toBe("German");
   expect(screen.queryByRole("link", { name: /^(?:Resume|Play)/u })).toBeNull();
+});
+
+test("a Show's page shows who stars in it, its Cast & Crew, and who created it", async () => {
+  openDark();
+
+  await expect(screen.findByText("Starring Louis Hofmann")).resolves.toBeDefined();
+  const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
+  expect(row.getAllByRole("listitem")).toHaveLength(3);
+  expect(detail("Created by")).toBe("Baran bo Odar, Jantje Friese");
 });
 
 test("a Show's page resumes its most recently started Episode in Continue Watching", async () => {

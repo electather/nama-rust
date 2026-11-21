@@ -310,3 +310,16 @@ test("a Show to Request shows its Score among its facts, and its Original audio 
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("German");
 });
+
+test("a Show to Request shows who stars in it, its Cast & Crew, and who created it", async () => {
+  const cast = [{ name: "Louis Hofmann", part: "Jonas Kahnwald" }];
+  const crew = [{ name: "Baran bo Odar", part: "Creator" }];
+  const { transport } = showServer({ ...dark, cast, crew });
+  openApp("/shows/tmdb-70523", transport);
+
+  await expect(screen.findByText("Starring Louis Hofmann")).resolves.toBeDefined();
+  const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
+  expect(row.getAllByRole("listitem")).toHaveLength(2);
+  const created = screen.getByText("Created by", { selector: "dt" });
+  expect(created.nextElementSibling?.textContent).toBe("Baran bo Odar");
+});
