@@ -85,8 +85,8 @@ fn a_builtin_declaring_jobs_with_and_without_a_schedule_is_enabled() {
 #[test]
 fn with_tz_set_to_london_a_job_at_three_comes_due_at_three_london_time() {
     const LONDON: &str = "Europe/London";
-    // TZ is process-wide and jiff caches the zone it read, so the test runs again in a child with
-    // TZ set rather than set it under the other tests running in this process.
+    // TZ is process-wide and jiff caches the zone it read for five minutes, so the test runs again
+    // in a child with TZ set rather than set it under the other tests running in this process.
     if env::var_os("TZ").is_none_or(|tz| tz != LONDON) {
         let name = "plugins::jobs::tests::with_tz_set_to_london_a_job_at_three_comes_due_at_three_london_time";
         let child = Command::new(env::current_exe().unwrap())

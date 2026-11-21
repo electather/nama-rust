@@ -129,8 +129,8 @@ fn wall_clock() -> DateTime {
     wall_clock_at(Timestamp::from_millisecond(db::now_ms()).unwrap_or_default())
 }
 
-/// `now` as the Server's time zone reads it, looked up each time so a change to the zone reaches
-/// the next firing.
+/// `now` as the Server's time zone reads it, asked of jiff each time so a change to the zone
+/// reaches a firing once jiff's five-minute cache of it expires.
 fn wall_clock_at(now: Timestamp) -> DateTime {
     TimeZone::system().to_datetime(now)
 }
