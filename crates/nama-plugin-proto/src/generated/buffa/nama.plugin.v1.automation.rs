@@ -542,6 +542,7 @@ impl ::buffa::Enumeration for TitleRefKind {
 ///   list_requesters:   RequestersAsked  -\> Requesters     PERMISSION_READ_REQUESTS
 ///   list_watchlist:    WatchlistAsked   -\> Watchlist      PERMISSION_READ_WATCHLISTS
 ///   delete_media:      DeleteAsked      -\> DeleteStarted  PERMISSION_DELETE_MEDIA
+///   forget_home_rows:  ForgetHomeRowsAsked -\> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
 ///
 /// The functions are documented here rather than declared as a service: they are not an Extension
 /// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
