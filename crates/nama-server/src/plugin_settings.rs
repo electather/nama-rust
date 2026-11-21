@@ -45,7 +45,7 @@ mod title_sources;
 pub(crate) use personal::Personal;
 use sent::{check_fits, with_stored_secrets};
 use stored::{
-    first_grants, grant_first, import, never_stored, save, set_enabled, set_enabled_granting,
+    first_grants, import, never_stored, save, save_first_grants, set_enabled, set_enabled_granting,
     with_stored,
 };
 pub use stored::{grants, stored};
@@ -257,7 +257,7 @@ impl PluginSettings {
             info!(imported = ?in_config, "imported plugin settings from the config");
         }
         // After the import, which would otherwise find these Plugins' rows already stored.
-        grant_first(&plugins.db, &first_grants)
+        save_first_grants(&plugins.db, &first_grants)
             .await
             .map_err(StartError::Grant)?;
         let crashed = plugins.registry.crashed();

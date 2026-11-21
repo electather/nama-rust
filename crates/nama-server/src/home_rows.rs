@@ -28,6 +28,7 @@ mod placed;
 mod refreshes;
 mod rows;
 pub(crate) use featured::Suggested;
+use featured::Suggestions;
 use placed::placed_by;
 use refreshes::{Refreshes, Scope};
 use rows::Rows;
@@ -141,6 +142,12 @@ impl HomeRows {
     /// and lists what is stored meanwhile. Deletes the rows of a Plugin no longer giving them.
     /// Each row comes with what a Home layout places it by.
     pub(crate) async fn list(&self, reader: &User) -> Result<Vec<(HomeRowId, Row)>, Error> {
+        if let Err(err) = self.refreshes.visited(reader.id).await {
+            warn!(
+                user = reader.id,
+                "could not record the visit to home: {err}"
+            );
+        }
         let rows = Rows(self.clone());
         let stored = rows.stored(reader.id).await?;
         self.refreshes.refresh_stale(&rows, reader.id).await?;
@@ -339,9 +346,8 @@ pub(crate) async fn forget_unvisited(
 /// Deletes the User `user`'s own rows, suggestions and put-offs, and returns whether they had rows
 /// or suggestions.
 async fn forget_user(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
-    refreshes::forget_put_offs(conn, user).await?;
-    let had_rows = rows::delete_users_own(conn, user).await?;
-    let had_suggestions = featured::delete_users_own(conn, user).await?;
+    let had_rows = refreshes::forget_user::<Rows>(conn, user).await?;
+    let had_suggestions = refreshes::forget_user::<Suggestions>(conn, user).await?;
     Ok(had_rows || had_suggestions)
 }
 

@@ -200,7 +200,7 @@ pub(super) fn first_grants(registry: &Registry, grants: &Grants) -> Grants {
 
 /// Saves each Plugin `first` names with the Plugin Permissions it holds, keeping whether it is
 /// enabled and its settings if they are stored, or else as a Built-in with nothing stored starts.
-pub(super) async fn grant_first(db: &Database, first: &Grants) -> Result<(), sqlx::Error> {
+pub(super) async fn save_first_grants(db: &Database, first: &Grants) -> Result<(), sqlx::Error> {
     let rows = (first.iter())
         .map(|(plugin_id, granted)| Ok((plugin_id.clone(), granted_names(granted)?)))
         .collect::<Result<Vec<_>, sqlx::Error>>()?;

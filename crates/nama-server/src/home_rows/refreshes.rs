@@ -42,9 +42,8 @@ pub(super) trait Adapter: Clone + Send + Sync + 'static {
     type Kept: Send + 'static;
     /// What the log calls the answers, as in "the Plugin's Home rows".
     const NOUN: &'static str;
-
     /// The methods giving its answers.
-    fn methods(&self) -> &'static [HomeRowMethod];
+    const METHODS: &'static [HomeRowMethod];
 
     /// The scopes of a Plugin's answers the User `reader` sees, each as its method and User.
     fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)>;
@@ -68,6 +67,12 @@ pub(super) trait Adapter: Clone + Send + Sync + 'static {
         plugin: &str,
         method: HomeRowMethod,
     ) -> impl Future<Output = Result<(), sqlx::Error>> + Send;
+
+    /// Deletes the User `user`'s own answers, and returns whether they had any.
+    fn delete_users_own(
+        conn: &mut SqliteConnection,
+        user: i64,
+    ) -> impl Future<Output = Result<bool, sqlx::Error>> + Send;
 
     /// The Plugins it stores answers by `method` of.
     fn plugins(
@@ -104,7 +109,6 @@ impl Refreshes {
         adapter: &A,
         reader: i64,
     ) -> Result<(), sqlx::Error> {
-        self.visited(reader).await?;
         let serving = self.points.providers::<dyn HomeRowSource>();
         for (method, user) in adapter.scopes(reader) {
             let fresh = self.fresh(method, user).await?;
@@ -123,7 +127,7 @@ impl Refreshes {
     /// Records that `reader` opened home now, which [`take_unvisited`] reads.
     // ponytail: one write per visit to home; skip it while the stored visit is recent if visits
     // ever queue behind the writer.
-    async fn visited(&self, reader: i64) -> Result<(), sqlx::Error> {
+    pub(super) async fn visited(&self, reader: i64) -> Result<(), sqlx::Error> {
         let now = db::now();
         self.db
             .write(move |tx| {
@@ -173,7 +177,7 @@ impl Refreshes {
     /// export, so its next enable, or a version giving them again, starts afresh.
     pub(super) async fn forget<A: Adapter>(&self, adapter: &A) -> Result<(), sqlx::Error> {
         let mut stored = Vec::new();
-        for &method in adapter.methods() {
+        for &method in A::METHODS {
             // ponytail: reads every Plugin with a put-off or answer by `method` on each visit to
             // Home, bounded by Plugins; delete them as a Plugin is disabled if visits grow slow.
             let mut plugins: BTreeSet<PluginId> =
@@ -414,19 +418,27 @@ pub(super) async fn take_unvisited(
     .await
 }
 
-/// Deletes the User `user`'s put-offs, so their next visit to home refreshes each of their scopes
-/// as one never refreshed.
-pub(super) async fn forget_put_offs(
+/// Deletes the User `user`'s own answers of `A`'s and their put-offs, so their next visit to home
+/// refreshes each of their scopes as one never refreshed. Returns whether they had answers.
+pub(super) async fn forget_user<A: Adapter>(
     conn: &mut SqliteConnection,
     user: i64,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!("DELETE FROM home_row_refreshes WHERE user_id = ?", user)
-        .execute(&mut *conn)
-        .await?;
-    sqlx::query!("DELETE FROM featured_refreshes WHERE user_id = ?", user)
-        .execute(conn)
-        .await?;
-    Ok(())
+) -> Result<bool, sqlx::Error> {
+    for &method in A::METHODS {
+        match method {
+            HomeRowMethod::Featured => {
+                sqlx::query!("DELETE FROM featured_refreshes WHERE user_id = ?", user)
+                    .execute(&mut *conn)
+                    .await?
+            }
+            HomeRowMethod::Shared | HomeRowMethod::User => {
+                sqlx::query!("DELETE FROM home_row_refreshes WHERE user_id = ?", user)
+                    .execute(&mut *conn)
+                    .await?
+            }
+        };
+    }
+    A::delete_users_own(conn, user).await
 }
 
 /// When something fresh for `fresh_for` from now goes stale, in seconds since the Unix epoch.

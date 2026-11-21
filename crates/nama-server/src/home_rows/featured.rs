@@ -56,10 +56,7 @@ pub(super) struct Suggestions(pub(super) HomeRows);
 impl Adapter for Suggestions {
     type Kept = Vec<Suggestion>;
     const NOUN: &'static str = "Featured suggestions";
-
-    fn methods(&self) -> &'static [HomeRowMethod] {
-        &[HomeRowMethod::Featured]
-    }
+    const METHODS: &'static [HomeRowMethod] = &[HomeRowMethod::Featured];
 
     fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)> {
         vec![(HomeRowMethod::Featured, Some(reader))]
@@ -116,6 +113,13 @@ impl Adapter for Suggestions {
         Ok(())
     }
 
+    async fn delete_users_own(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
+        let deleted = sqlx::query!("DELETE FROM featured_suggestions WHERE user_id = ?", user)
+            .execute(conn)
+            .await?;
+        Ok(deleted.rows_affected() > 0)
+    }
+
     async fn plugins(&self, _method: HomeRowMethod) -> Result<Vec<PluginId>, sqlx::Error> {
         let plugins = sqlx::query_scalar!("SELECT DISTINCT plugin_id FROM featured_suggestions")
             .fetch_all(self.0.db.reader())
@@ -137,17 +141,6 @@ impl Suggestions {
             .map(|row| (PluginId::from(row.plugin_id), from_json(&row.suggestions)))
             .collect())
     }
-}
-
-/// Deletes what each Plugin suggested for the User `user`, and returns whether there was any.
-pub(super) async fn delete_users_own(
-    conn: &mut SqliteConnection,
-    user: i64,
-) -> Result<bool, sqlx::Error> {
-    let deleted = sqlx::query!("DELETE FROM featured_suggestions WHERE user_id = ?", user)
-        .execute(conn)
-        .await?;
-    Ok(deleted.rows_affected() > 0)
 }
 
 /// Adds each of `suggestions` to `suggested`, a title suggested twice at its heavier weight.
