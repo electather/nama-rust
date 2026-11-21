@@ -68,6 +68,17 @@ pub(super) async fn store_once(
     Ok(())
 }
 
+/// Deletes the Roles `plugin`'s title source gave.
+pub(super) async fn forget_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM title_roles WHERE plugin = ?", plugin)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 impl Contents {
     /// The Roles `movie`'s title source gave it, each list in billing order.
     pub(crate) async fn movie_roles<V>(&self, movie: &Movie<V>) -> Result<Roles, sqlx::Error> {

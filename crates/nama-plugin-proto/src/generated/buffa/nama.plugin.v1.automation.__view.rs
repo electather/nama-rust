@@ -8930,8 +8930,8 @@ impl ::serde::Serialize for ForgetGonePluginsAskedOwnedView {
     }
 }
 /// What `forget_gone_plugins` answers once it deleted each such Plugin's Store entries, settings,
-/// Personal settings and Plugin Connections. A Plugin the Server still has, enabled or not, is never
-/// one of them.
+/// Personal settings, Plugin Connections, and the Similar titles and Roles its title source gave. A
+/// Plugin the Server still has, enabled or not, is never one of them.
 #[derive(Clone, Debug, Default)]
 pub struct GonePluginsForgottenView<'a> {
     /// The id of each Plugin whose rows it deleted.

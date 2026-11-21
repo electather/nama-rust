@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO similar_titles (plugin, kind, namespace, value, similar)\n                         VALUES (?, 'movie', 'tmdb', '348', '[\"tmdb-679\"]')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "9d69a89179f5207cd1ed74932ee7a64e42ed21fd36fc940c29aab2b8e184888e"
+}
