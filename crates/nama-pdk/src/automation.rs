@@ -15,13 +15,13 @@ pub mod kernel {
     use buffa::Message;
     use extism_pdk::Error;
     use nama_plugin_proto::nama::plugin::v1::{
-        DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
-        ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
-        KernelAnswer, Libraries, LibrariesAsked, Library, MetadataRefreshed, RefreshMetadataAsked,
-        Requesters, RequestersAsked, SharingTitle, SharingTitles, StoreEntry, StoreKey, StoreValue,
-        Stored, Title, TitleId, TitleKind, TitleRef, TitleRequesters, TitleWatchStates, Titles,
-        TitlesAsked, TitlesSharingAsked, User, Users, UsersAsked, WatchStates, WatchStatesAsked,
-        Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
+        BackUpAsked, BackedUp, DeleteAsked, DeleteStarted, ExpiredSignInsAsked,
+        ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten,
+        HomeRowsForgotten, KernelAnswer, Libraries, LibrariesAsked, Library, MetadataRefreshed,
+        RefreshMetadataAsked, Requesters, RequestersAsked, SharingTitle, SharingTitles, StoreEntry,
+        StoreKey, StoreValue, Stored, Title, TitleId, TitleKind, TitleRef, TitleRequesters,
+        TitleWatchStates, Titles, TitlesAsked, TitlesSharingAsked, User, Users, UsersAsked,
+        WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -281,6 +281,19 @@ pub mod kernel {
         Ok((refreshed.titles, refreshed.unavailable_plugin_ids))
     }
 
+    /// Writes a Backup of the Server (ADR 0068) named `nama-<UTC time>.tar` into the Backup
+    /// folder the Admin set, then deletes the oldest so named beyond the count the Admin keeps,
+    /// as `(name, size_bytes)`: its file name and size. A file named otherwise is never deleted,
+    /// and a Backup that fails deletes nothing. Needs `PERMISSION_BACK_UP`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused, couldn't write the Backup, or couldn't be called.
+    pub fn back_up() -> Result<(String, u64), Error> {
+        let backed_up = call::<BackedUp>("back_up", &BackUpAsked::default())?;
+        Ok((backed_up.name, backed_up.size_bytes))
+    }
+
     /// Calls the Kernel function `name` with `request` and decodes its answer.
     fn call<T: Message>(name: &str, request: &impl Message) -> Result<T, Error> {
         answer(name, &raw(name, &request.try_encode_to_vec()?)?)
@@ -322,6 +335,7 @@ pub mod kernel {
             safe fn forget_gone_plugins(request: u64) -> u64;
             safe fn list_titles_sharing(request: u64) -> u64;
             safe fn refresh_metadata(request: u64) -> u64;
+            safe fn back_up(request: u64) -> u64;
         }
 
         let import: extern "C" fn(u64) -> u64 = match name {
@@ -340,6 +354,7 @@ pub mod kernel {
             "forget_gone_plugins" => forget_gone_plugins,
             "list_titles_sharing" => list_titles_sharing,
             "refresh_metadata" => refresh_metadata,
+            "back_up" => back_up,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };
         // Freed when dropped, once the Kernel has read it.
