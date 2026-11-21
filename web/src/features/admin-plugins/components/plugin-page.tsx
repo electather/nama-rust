@@ -39,7 +39,7 @@ export function PluginPage({ id }: { id: string }) {
           <LogoChoice summary={summary} />
           <PluginSettingsSection plugin={plugin} />
           <PluginQualities plugin={plugin} />
-          <PluginJobs pluginId={summary.id} jobs={plugin.jobs} />
+          <PluginJobs summary={summary} jobs={plugin.jobs} />
           <PluginLog id={summary.id} />
         </>
       ) : (
