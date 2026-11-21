@@ -1,5 +1,7 @@
 # Similar titles are merged both ways
 
+_Superseded by [ADR 0086](0086-similar-titles-are-merged-one-way-again.md)._
+
 _Amends [ADR 0084](0084-similar-titles-come-from-similar-sources-stored-per-source-per-title.md)._
 
 A Similar source is asked about a title only when its Matches are refreshed, and ADR 0040 refreshes a title only on its first Match or when the metadata version is bumped. So a title matched last year would never list one added today, and titles Matched in the same batch, asked before any of them is stored, never list each other. When the Kernel reads a title's Similar titles it now also counts every stored answer, from any source, that names this title, with that answer's weight. The rest of ADR 0084's merge is unchanged: weights clamped to 0.0–1.0, the highest weight kept for a title suggested more than once, ties to the lower Plugin id, only titles in the reading User's Libraries, the first 20.
