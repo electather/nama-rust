@@ -1,9 +1,15 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import {
+  PlaybackMethod,
+  PlaybackService,
+  type SegmentSchema,
+  SegmentKind,
+} from "@/gen/nama/v1/playback_pb";
 import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 
@@ -17,8 +23,19 @@ const titles = new Map([
   [5, "Truths"],
 ]);
 
-/** A fake Server with Season 1 of Dark in Library 2, where Episode 4 plays after 3, if `hasNext`, and 5 after 4, if `autoplay` is on. */
-function server({ hasNext = true, autoplay = true } = {}) {
+/**
+ * A fake Server with Season 1 of Dark in Library 2, where Episode 4 plays after 3, if `hasNext`,
+ * and 5 after 4, if `autoplay` is on. Each plan has `segments`.
+ */
+function server({
+  hasNext = true,
+  autoplay = true,
+  segments = [],
+}: {
+  hasNext?: boolean;
+  autoplay?: boolean;
+  segments?: MessageInitShape<typeof SegmentSchema>[];
+} = {}) {
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
@@ -30,7 +47,7 @@ function server({ hasNext = true, autoplay = true } = {}) {
     router.service(PlaybackService, {
       getAutoplay: () => ({ on: autoplay }),
       planPlayback: ({ versionId }) => ({
-        plan: { method: PlaybackMethod.DIRECT_PLAY, url: `/media/versions/${versionId}` },
+        plan: { method: PlaybackMethod.DIRECT_PLAY, url: `/media/versions/${versionId}`, segments },
       }),
     });
     router.service(WatchStateService, { reportProgress: () => ({}) });
@@ -295,4 +312,63 @@ test("keep watching counts as input, so the count starts again", async () => {
 
   playToEnd(video);
   await expect(openedEpisode4(router)).resolves.toMatchObject({ search: { streak: 1 } });
+});
+
+/** Plays `video` to `seconds` in. */
+function playTo(video: HTMLVideoElement, seconds: number) {
+  video.currentTime = seconds;
+  fireEvent(video, new Event("timeupdate"));
+}
+
+const CREDITS_S = 2800;
+const withCredits = {
+  segments: [{ kind: SegmentKind.CREDITS, startMs: BigInt(CREDITS_S * 1000) }],
+};
+
+test("with Credits the countdown starts with them, and offers to watch them", async () => {
+  const { video } = await playEpisode3("", withCredits);
+  playTo(video, CREDITS_S - 1);
+  expect(countdown()).toBeNull();
+
+  playTo(video, CREDITS_S);
+  const shown = await findCountdown();
+  expect(within(shown).getByText("Starts in 20s")).toBeDefined();
+  expect(within(shown).getByRole("button", { name: "Watch credits" })).toBeDefined();
+});
+
+test("with Credits the next Episode opens when the countdown ends, before the video does", async () => {
+  const { router, video } = await playEpisode3("", withCredits);
+  playTo(video, CREDITS_S + 20);
+
+  const opened = await openedEpisode4(router);
+  expect(opened.pathname).toBe(EPISODE_4);
+});
+
+test("watch credits hides the countdown, and the Credits play on", async () => {
+  const { router, video } = await playEpisode3("", withCredits);
+  playTo(video, CREDITS_S + 5);
+  fireEvent.click(await screen.findByRole("button", { name: "Watch credits" }));
+  playTo(video, CREDITS_S + 25);
+
+  expect(countdown()).toBeNull();
+  await expect(pathAfterNavigating(router)).resolves.toBe(`${SHOW}/seasons/1/episodes/3/play`);
+});
+
+test("during an Intro or a Recap a button skips to where it ends, and none shows outside them", async () => {
+  const { video } = await playEpisode3("", {
+    segments: [
+      { kind: SegmentKind.RECAP, startMs: 0n, endMs: 60_000n },
+      { kind: SegmentKind.INTRO, startMs: 90_000n, endMs: 150_000n },
+    ],
+  });
+  playTo(video, 10);
+  fireEvent.click(await screen.findByRole("button", { name: "Skip recap" }));
+  expect(video.currentTime).toBe(60);
+
+  playTo(video, 70);
+  expect(screen.queryByRole("button", { name: /^Skip (?:recap|intro)$/u })).toBeNull();
+
+  playTo(video, 100);
+  fireEvent.click(await screen.findByRole("button", { name: "Skip intro" }));
+  expect(video.currentTime).toBe(150);
 });

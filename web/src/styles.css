@@ -10,6 +10,9 @@
 /* A `<video>` in a window of its own, whose box Chrome fills with a stretched, blurred frame. */
 @custom-variant picture-in-picture (&:picture-in-picture);
 
+/* An element with the `hidden` attribute: the state a fade-out ends in, such as the skip button's. */
+@custom-variant gone (&[hidden]);
+
 /* Styles the top bar's parts once it sticks (`src/app/top-bar/top-bar.tsx`). */
 @custom-variant raised (@container top-bar scroll-state(stuck: top));
 

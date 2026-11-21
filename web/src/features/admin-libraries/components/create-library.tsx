@@ -3,10 +3,11 @@ import { RecognisersField } from "@/features/admin-libraries/components/recognis
 import { useCreateLibrary } from "@/features/admin-libraries/data/use-create-library";
 import {
   foldersTyped,
-  recognisersTyped,
+  pluginOrderTyped,
   titleSourcesTyped,
 } from "@/features/admin-libraries/lib/library-form";
 import { libraryErrors } from "@/features/admin-libraries/lib/library-refusals";
+import { RECOGNISERS, SEGMENT_SOURCES } from "@/features/admin-libraries/lib/recognisers";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { formText, onSubmitted } from "@/shared/lib/forms";
@@ -26,7 +27,8 @@ export function CreateLibrary() {
             kind: formText(typed, "kind") === "shows" ? LibraryKind.SHOWS : LibraryKind.MOVIES,
             folders: foldersTyped(formText(typed, "folders")),
             titleSources: titleSourcesTyped(typed),
-            recogniserIds: recognisersTyped(typed),
+            recogniserIds: pluginOrderTyped(typed, RECOGNISERS),
+            segmentSourceIds: pluginOrderTyped(typed, SEGMENT_SOURCES),
           },
           {
             onSuccess: () => {
@@ -37,7 +39,8 @@ export function CreateLibrary() {
       })}
     >
       <NameAndFolders errors={errors} />
-      <RecognisersField error={errors.recognisers} />
+      <RecognisersField kind={RECOGNISERS} error={errors.recognisers} />
+      <RecognisersField kind={SEGMENT_SOURCES} error={errors.segmentSources} />
       <FormEnd
         action={create.isPending ? "Creating Library…" : "Create Library"}
         pending={create.isPending}

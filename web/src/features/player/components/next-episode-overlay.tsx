@@ -12,7 +12,7 @@ export function NextEpisodeOverlay({
   nextEpisode: ReturnType<typeof useNextEpisode>;
   back: LinkOptions;
 }) {
-  const { asking, keepWatching, countdown, secondsLeft, playNext, cancel } = nextEpisode;
+  const { asking, keepWatching, countdown, secondsLeft, inCredits, playNext, cancel } = nextEpisode;
   if (asking) {
     return <StillWatching back={back} onKeepWatching={keepWatching} />;
   }
@@ -23,6 +23,7 @@ export function NextEpisodeOverlay({
     <NextEpisodeCard
       episode={countdown.episode}
       secondsLeft={secondsLeft}
+      inCredits={inCredits}
       onPlayNext={playNext}
       onCancel={cancel}
     />

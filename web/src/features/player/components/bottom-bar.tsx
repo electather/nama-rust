@@ -3,6 +3,7 @@ import type { ReactNode, RefObject } from "react";
 import { ControlRow } from "@/features/player/components/control-row";
 import { SeekRow } from "@/features/player/components/seek-row";
 import type { Video } from "@/features/player/hooks/use-video";
+import type { SeekBar } from "@/features/player/lib/seek-sections";
 
 /**
  * The seek row over the control row, which holds `next` after the skips and `children` before
@@ -10,11 +11,13 @@ import type { Video } from "@/features/player/hooks/use-video";
  */
 export function BottomBar({
   video,
+  seekBar,
   refs: { playerRef, videoRef, rowsRef },
   next,
   children,
 }: {
   video: Video;
+  seekBar: SeekBar;
   refs: {
     playerRef: RefObject<HTMLDivElement | null>;
     videoRef: RefObject<HTMLVideoElement | null>;
@@ -30,7 +33,7 @@ export function BottomBar({
       className="pointer-events-auto min-w-0 bg-linear-to-t from-scrim from-30% via-scrim/50 px-5 pt-28 pb-3.5 group-data-controls-hidden:pointer-events-none"
     >
       <div ref={rowsRef} className="flex flex-col gap-1">
-        <SeekRow video={video} />
+        <SeekRow video={video} seekBar={seekBar} />
         <ControlRow video={video} refs={{ playerRef, videoRef }} next={next}>
           {children}
         </ControlRow>

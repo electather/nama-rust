@@ -1,15 +1,41 @@
 import { ExtensionPoint, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 
-/** The Plugins of `summaries` that are Recognisers. */
-export function recognisersIn(summaries: PluginSummary[] = []) {
-  return summaries.filter((plugin) => plugin.extensionPoints.includes(ExtensionPoint.RECOGNISER));
+/** One kind of Plugin a Library asks in an order an Admin sets, as the order field shows it. */
+export interface PluginOrderKind {
+  /** The field's legend, which also names its list. */
+  legend: string;
+  /** The form value sent once per Plugin id. */
+  name: string;
+  point: ExtensionPoint;
+  /** What the field says it does, or, while `noneInstalled`, what happens without any. */
+  hint: (noneInstalled: boolean) => string;
 }
 
-/** What the field says it does, which, while `noneInstalled`, is leave Matching to the Server. */
-export function recognisersHint(noneInstalled: boolean) {
-  return noneInstalled
-    ? "No Recogniser is installed, so the Server’s own Matching reads every file."
-    : "Each file goes to these Recognisers in order, and the first that can tell says what it is. The Server’s own Matching reads the rest.";
+/** The Plugins a Library asks what a file is. */
+export const RECOGNISERS: PluginOrderKind = {
+  legend: "Recognisers",
+  name: "recognisers",
+  point: ExtensionPoint.RECOGNISER,
+  hint: (noneInstalled) =>
+    noneInstalled
+      ? "No Recogniser is installed, so the Server’s own Matching reads every file."
+      : "Each file goes to these Recognisers in order, and the first that can tell says what it is. The Server’s own Matching reads the rest.",
+};
+
+/** The Plugins a Library asks where its Versions' Intro, Recap and Credits are (ADR 0075). */
+export const SEGMENT_SOURCES: PluginOrderKind = {
+  legend: "Segment sources",
+  name: "segmentSources",
+  point: ExtensionPoint.SEGMENT_SOURCE,
+  hint: (noneInstalled) =>
+    noneInstalled
+      ? "No Segment source is installed, so Segments come only from Chapter names."
+      : "After Chapter names, these Segment sources are asked in order where the Intro, Recap and Credits are, and the first answer for each wins.",
+};
+
+/** The Plugins of `summaries` that serve `point`. */
+export function pluginsIn(point: ExtensionPoint, summaries: PluginSummary[] = []) {
+  return summaries.filter((plugin) => plugin.extensionPoints.includes(point));
 }
 
 /** What admins know the Plugin `pluginId` by: the name of its `plugin`, or else its id. */

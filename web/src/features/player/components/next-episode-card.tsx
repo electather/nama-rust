@@ -5,15 +5,20 @@ import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { Button } from "@/shared/ui/button";
 import { Progress } from "@/shared/ui/progress";
 
-/** The countdown to `episode` near the end of this one, with Next Episode and Cancel. */
+/**
+ * The countdown to `episode` near the end of this one, or from the start of its Credits while
+ * `inCredits`, with Next Episode and Cancel, which is Watch credits in the Credits.
+ */
 export function NextEpisodeCard({
   episode,
   secondsLeft,
+  inCredits,
   onPlayNext,
   onCancel,
 }: {
   episode: Episode;
   secondsLeft: number;
+  inCredits: boolean;
   onPlayNext: () => void;
   onCancel: () => void;
 }) {
@@ -30,7 +35,7 @@ export function NextEpisodeCard({
       <div className="flex flex-wrap gap-2">
         <PlayNextButton onPlayNext={onPlayNext} />
         <Button variant="ghost" onClick={onCancel}>
-          Cancel
+          {inCredits ? "Watch credits" : "Cancel"}
         </Button>
       </div>
     </aside>

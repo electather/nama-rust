@@ -5,13 +5,15 @@ import { type Moves, labelOf } from "@/features/admin-libraries/lib/recognisers"
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { Button } from "@/shared/ui/button";
 
-/** One Recogniser in the order, with the buttons that move it or take it out. */
+/** One Plugin in the order, sent as the form value `name`, with the buttons that move it or take it out. */
 export function RecogniserRow({
+  name: formName,
   pluginId,
   plugin,
   listed,
   moves: { up, down, remove },
 }: {
+  name: string;
   pluginId: string;
   plugin: PluginSummary | undefined;
   listed: boolean;
@@ -25,7 +27,7 @@ export function RecogniserRow({
   ];
   return (
     <li className="flex items-center gap-1 text-sm">
-      <input type="hidden" name="recognisers" value={pluginId} />
+      <input type="hidden" name={formName} value={pluginId} />
       <span className="me-auto">
         {label}
         <RowNote plugin={plugin} listed={listed} />

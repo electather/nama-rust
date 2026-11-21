@@ -1,6 +1,8 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { cn } from "cn";
-import { type CSSProperties, type PointerEvent, useState } from "react";
+import { type CSSProperties, type PointerEvent, type ReactNode, useState } from "react";
+
+import { SliderTrack } from "@/shared/ui/slider-track";
 
 /** How far along `element` from its start edge, 0 to 1, the pointer at `clientX` is. */
 function fractionAt(element: HTMLElement, clientX: number) {
@@ -9,19 +11,30 @@ function fractionAt(element: HTMLElement, clientX: number) {
   return getComputedStyle(element).direction === "rtl" ? 1 - fromLeft : fromLeft;
 }
 
+/** Where along a slider the pointer is: how far, 0 to 1, and how wide the slider is, in pixels. */
+interface Pointed {
+  fraction: number;
+  width: number;
+}
+
 /**
- * Where along an element the pointer is, for a slider to show what's there: `text` given how far
- * along, 0 to 1, while the pointer is over it, and `--point` as a percentage from its start edge.
- * Spread the handlers and style on the element.
+ * Where along an element the pointer is, for a slider to show what's there: `at` while the pointer
+ * is over it, and `--point` as a percentage from its start edge. Spread the handlers and style on
+ * the element.
  */
-function usePointedAt(text: ((fraction: number) => string) | undefined) {
-  const [at, setAt] = useState<number>();
-  const style: CSSProperties & Record<"--point", string> = { "--point": `${(at ?? 0) * 100}%` };
+function usePointedAt() {
+  const [at, setAt] = useState<Pointed>();
+  const style: CSSProperties & Record<"--point", string> = {
+    "--point": `${(at?.fraction ?? 0) * 100}%`,
+  };
   return {
-    text: at === undefined ? undefined : text?.(at),
+    at,
     style,
     onPointerMove: ({ currentTarget, clientX }: PointerEvent<HTMLElement>) => {
-      setAt(fractionAt(currentTarget, clientX));
+      setAt({
+        fraction: fractionAt(currentTarget, clientX),
+        width: currentTarget.getBoundingClientRect().width,
+      });
     },
     onPointerLeave: () => {
       setAt(undefined);
@@ -34,13 +47,14 @@ function usePointedAt(text: ((fraction: number) => string) | undefined) {
 // as DESIGN.md says of a disabled button. Restyled from shadcn's to one value, so its thumb can
 // carry the label. As YouTube's seek bar does, the track thickens and the thumb grows under the
 // pointer (on a plain ease-out: on the exponential one a 2px change is over in a frame), and with
-// `pointText` it lights the track up to the pointer and says what's there.
+// `renderPoint` it lights the track up to the pointer and shows what's there.
 function Slider({
   className,
   label,
   valueText,
   buffered,
-  pointText,
+  renderPoint,
+  sections,
   ...props
 }: SliderPrimitive.Root.Props<number> & {
   /** Names the slider for assistive technology. */
@@ -49,10 +63,18 @@ function Slider({
   valueText?: string;
   /** How far along the track is loaded, in the slider's units, drawn under the fill. */
   buffered?: number;
-  /** What's at the pointer, given how far along the track it is, 0 to 1, such as "21:05". */
-  pointText?: (fraction: number) => string;
+  /**
+   * What's at the pointer, given where along the track it is, drawn over the track: placed from
+   * the track's start edge, such as with `inset-s-*`, and above it, with `bottom-full`.
+   */
+  renderPoint?: (at: Pointed) => ReactNode;
+  /** Where each section of the track starts, as fractions 0 to 1, the first 0, to draw them apart. */
+  sections?: number[] | undefined;
 }) {
-  const { text, ...pointer } = usePointedAt(pointText);
+  const { at, ...pointer } = usePointedAt();
+  const card = at && renderPoint?.(at);
+  // Lit only where something is shown at the pointer, as the seek bar's card; not the volume.
+  const lit = Boolean(card);
   return (
     <SliderPrimitive.Root
       className={cn("w-full", className)}
@@ -64,26 +86,14 @@ function Slider({
         className="group/slider relative flex h-6 w-full cursor-pointer touch-none items-center select-none data-disabled:cursor-default"
         {...pointer}
       >
-        <SliderPrimitive.Track
-          data-slot="slider-track"
-          className="relative h-1 grow overflow-hidden rounded-full bg-foreground/25 transition-all duration-200 ease-out select-none group-hover/slider:h-1.5 motion-reduce:transition-none"
-        >
-          {buffered !== undefined && (
-            <progress
-              aria-hidden
-              value={buffered}
-              max={props.max}
-              className="absolute inset-0 size-full appearance-none bg-transparent [&::-moz-progress-bar]:bg-foreground/25 [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:bg-foreground/25"
-            />
-          )}
-          {text !== undefined && (
-            <div
-              aria-hidden
-              className="absolute inset-y-0 inset-s-0 w-(--point) bg-foreground/25 group-data-disabled/slider:hidden"
-            />
-          )}
-          <SliderPrimitive.Indicator data-slot="slider-range" className="h-full bg-primary" />
-        </SliderPrimitive.Track>
+        <SliderTrack
+          sections={sections}
+          value={props.value}
+          max={props.max}
+          buffered={buffered}
+          point={at?.fraction}
+          lit={lit}
+        />
         {/* Focus lands on the thumb's hidden range input, so the ring follows `has-focus-visible`. */}
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
@@ -92,17 +102,12 @@ function Slider({
           className="relative block size-3.5 shrink-0 scale-75 rounded-full bg-primary ring-ring/50 transition duration-150 ease-out-expo select-none group-hover/slider:scale-100 after:absolute after:-inset-2 hover:ring-3 has-focus-visible:scale-100 has-focus-visible:ring-3 has-focus-visible:ring-ring data-dragging:scale-100 motion-reduce:transition-none data-disabled:pointer-events-none data-disabled:bg-muted-foreground"
         />
         {/* Pointer-only: the thumb's `aria-valuetext` already says where it is. */}
-        {text !== undefined && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-s-(--point) bottom-full mb-1.5 -translate-x-1/2 rounded-md bg-popover px-1.5 py-0.5 text-xs font-medium text-popover-foreground tabular-nums shadow-md group-data-disabled/slider:hidden rtl:translate-x-1/2"
-          >
-            {text}
-          </span>
-        )}
+        <div aria-hidden className="pointer-events-none group-data-disabled/slider:hidden">
+          {card}
+        </div>
       </SliderPrimitive.Control>
     </SliderPrimitive.Root>
   );
 }
 
-export { Slider };
+export { Slider, type Pointed };

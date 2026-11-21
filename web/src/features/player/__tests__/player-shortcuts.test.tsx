@@ -115,6 +115,18 @@ describe("keys seek as YouTube's do", () => {
   });
 });
 
+test("left and Right on the focused Position slider seek 5 s, as everywhere else", async () => {
+  const { video } = await playEpisode3();
+  const position = screen.getByLabelText("Position");
+  position.focus();
+
+  fireEvent.keyDown(position, { key: "ArrowRight" });
+  expect(video.currentTime).toBe(105);
+  fireEvent.keyDown(position, { key: "ArrowLeft" });
+  fireEvent.keyDown(position, { key: "ArrowLeft" });
+  expect(video.currentTime).toBe(95);
+});
+
 test("k and Space play and pause, and Caps Lock doesn't change K", async () => {
   const { video } = await playEpisode3();
   video.pause();
