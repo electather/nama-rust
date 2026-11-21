@@ -13,10 +13,13 @@ use std::{
 use super::{ASS, Error, Subtitles, WEBVTT, ass, cached, cached_name, font_name};
 use crate::{
     diagnostics,
-    ffmpeg::{Ffmpeg, RefusedWrite, RunError},
+    ffmpeg::Ffmpeg,
     images::write_atomically,
     library::Stored,
-    playback::{probing::readable, tracks::Probe},
+    playback::{
+        read_failures::{Read, ReadFailure},
+        tracks::Probe,
+    },
 };
 
 /// What a pass that would fail again leaves in the Version's cache folder, saying why, so none is
@@ -215,7 +218,7 @@ impl TextPass {
             .extract(&self.path, &subtitles, &attachments)
             .await
         {
-            if fails_again(&err, &self.path).await {
+            if ReadFailure::of(&err, Read::WholeFile, &self.path).await == ReadFailure::Lasting {
                 write_atomically(&self.folder.join(FAILED), err.to_string().as_bytes()).await?;
             }
             return Err(err.into());
@@ -239,21 +242,6 @@ impl TextPass {
             keep(read, &self.folder.join(font_name(font))).await?;
         }
         Ok(())
-    }
-}
-
-/// Whether reading the file at `path` again would fail as it just did with `err`.
-async fn fails_again(err: &RunError, path: &str) -> bool {
-    match err {
-        // ffmpeg never reached the file.
-        RunError::Unavailable(_) | RunError::Run(..) => false,
-        // The cache refused ffmpeg's write, which says nothing about the file it read.
-        RunError::Failed(_, why) if RefusedWrite::in_stderr(why).is_some() => false,
-        // ffmpeg fails fast on a file it can't open, as on a share that dropped, which may read
-        // fine once it's back.
-        RunError::Failed(..) => readable(path).await,
-        // Each try reads the whole file for up to an hour, as #850 says of keyframe listings.
-        RunError::TimedOut(_) => true,
     }
 }
 
