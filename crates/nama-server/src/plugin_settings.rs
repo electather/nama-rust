@@ -15,7 +15,7 @@ use nama_plugin_api::{
     automation::Permission,
     settings::{Choices, SettingKind, SettingValue, Settings, SettingsError},
 };
-use nama_proto::nama::v1::{PluginKind, Quality};
+use nama_proto::nama::v1::PluginKind;
 use thiserror::Error;
 use tokio::{
     sync::{Mutex, MutexGuard, mpsc},
@@ -31,12 +31,12 @@ use crate::{
         CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, Registry,
         list_jobs, log_not_enabled, read_installed,
     },
-    requests::{QualitiesInvalid, check_qualities, list_qualities, replace_qualities},
 };
 
 mod library_ids;
 mod personal;
 mod put_back;
+mod qualities;
 mod running;
 mod sent;
 mod stored;
@@ -657,41 +657,6 @@ impl PluginSettings {
         let (manifest, StoredPlugin { stored, .. }) = self.listed(id).await?;
         let settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
         self.run_check(id, settings, None).await
-    }
-
-    /// Runs the Plugin `id`'s settings check on its stored settings, and returns the choices it
-    /// offers.
-    async fn check_stored(&self, id: &PluginId) -> Result<Choices, ChangeError> {
-        let (_, StoredPlugin { stored, .. }) = self.listed(id).await?;
-        self.run_check(id, stored.settings, None).await
-    }
-
-    /// The Plugin `id`'s Qualities, in the order the admin listed them.
-    pub(crate) async fn qualities(&self, id: &PluginId) -> Result<Vec<Quality>, ChangeError> {
-        self.listed(id).await?;
-        let mut conn = self.db.reader().acquire().await?;
-        Ok(list_qualities(&mut conn, id).await?)
-    }
-
-    /// Replaces the Plugin `id`'s Qualities with `listed` and returns them as saved, or why
-    /// [`check_qualities`] refused them against the profiles its stored settings' check offers.
-    pub(crate) async fn replace_qualities(
-        &self,
-        id: &PluginId,
-        listed: Vec<Quality>,
-    ) -> Result<Result<Vec<Quality>, QualitiesInvalid>, ChangeError> {
-        // Only a list with Qualities asks the settings check, so a Fulfiller that's down can still
-        // have its list cleared.
-        let offered = if listed.is_empty() {
-            self.listed(id).await?;
-            Choices::new()
-        } else {
-            self.check_stored(id).await?
-        };
-        if let Err(invalid) = check_qualities(&listed, &offered) {
-            return Ok(Err(invalid));
-        }
-        Ok(Ok(replace_qualities(&self.db, id.clone(), listed).await?))
     }
 
     /// Runs the Plugin `id`'s settings check on `settings`, naming the choice `setting` a failed
