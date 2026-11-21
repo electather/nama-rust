@@ -302,6 +302,12 @@ fn found_show(row: SearchRow) -> Option<FoundShow> {
     })
 }
 
+/// How well `title`, of `year`, fits a search for `query`, in the bands [`Contents::search`]
+/// orders by after the kind of title: lower is better. All alike for a query without words.
+pub(crate) fn match_bands(query: &str, title: &str, year: Option<&str>) -> impl Ord + use<> {
+    SearchWords::of(query).map(|words| words.bands(title, year))
+}
+
 /// A search query's words, and the year it ends with, if any.
 #[derive(Debug, PartialEq, Eq)]
 struct SearchWords<'a> {
@@ -331,6 +337,14 @@ impl<'a> SearchWords<'a> {
             year,
             compared,
         })
+    }
+
+    /// How `title`, of `year`, fits these words, and whether the year they end with isn't its.
+    fn bands(&self, title: &str, year: Option<&str>) -> (Fit, bool) {
+        (
+            Fit::of(self, title, year),
+            self.year.is_some() && self.year != year,
+        )
     }
 
     /// The FTS5 query for `title_search` rows whose `columns`, an FTS5 column filter, have a word
@@ -370,10 +384,11 @@ impl Rank {
             _ => &row.title,
         };
         let year = row.release_date.as_deref().and_then(|date| date.get(..4));
+        let (fit, other_year) = words.bands(title, year);
         Self {
             episode: !row.by_show && row.kind == ItemKind::Episode,
-            fit: Fit::of(words, title, year),
-            other_year: words.year.is_some() && words.year != year,
+            fit,
+            other_year,
             bm25: row.rank,
             title_length: title.chars().count(),
         }

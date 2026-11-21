@@ -7,8 +7,13 @@
 #[repr(i32)]
 pub enum TitleStatus {
     TITLE_STATUS_UNSPECIFIED = 0i32,
-    /// A Library has the Movie, or at least one Episode of the Show.
+    /// A Library has the Movie, or at least one Episode of the Show: it opens in the Library
+    /// `library_id` names, by its `id`.
     TITLE_STATUS_AVAILABLE = 1i32,
+    /// No Library has it, and the caller can see its open Request, in `request`.
+    TITLE_STATUS_REQUESTED = 2i32,
+    /// Only the title source has it, and the caller may request it.
+    TITLE_STATUS_NOT_ON_THIS_SERVER = 3i32,
 }
 impl TitleStatus {
     ///Idiomatic alias for [`Self::TITLE_STATUS_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -17,6 +22,12 @@ impl TitleStatus {
     ///Idiomatic alias for [`Self::TITLE_STATUS_AVAILABLE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Available: Self = Self::TITLE_STATUS_AVAILABLE;
+    ///Idiomatic alias for [`Self::TITLE_STATUS_REQUESTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Requested: Self = Self::TITLE_STATUS_REQUESTED;
+    ///Idiomatic alias for [`Self::TITLE_STATUS_NOT_ON_THIS_SERVER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NotOnThisServer: Self = Self::TITLE_STATUS_NOT_ON_THIS_SERVER;
 }
 impl ::core::default::Default for TitleStatus {
     fn default() -> Self {
@@ -114,6 +125,8 @@ impl ::buffa::Enumeration for TitleStatus {
         match value {
             0i32 => ::core::option::Option::Some(Self::TITLE_STATUS_UNSPECIFIED),
             1i32 => ::core::option::Option::Some(Self::TITLE_STATUS_AVAILABLE),
+            2i32 => ::core::option::Option::Some(Self::TITLE_STATUS_REQUESTED),
+            3i32 => ::core::option::Option::Some(Self::TITLE_STATUS_NOT_ON_THIS_SERVER),
             _ => ::core::option::Option::None,
         }
     }
@@ -124,6 +137,8 @@ impl ::buffa::Enumeration for TitleStatus {
         match self {
             Self::TITLE_STATUS_UNSPECIFIED => "TITLE_STATUS_UNSPECIFIED",
             Self::TITLE_STATUS_AVAILABLE => "TITLE_STATUS_AVAILABLE",
+            Self::TITLE_STATUS_REQUESTED => "TITLE_STATUS_REQUESTED",
+            Self::TITLE_STATUS_NOT_ON_THIS_SERVER => "TITLE_STATUS_NOT_ON_THIS_SERVER",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -134,11 +149,22 @@ impl ::buffa::Enumeration for TitleStatus {
             "TITLE_STATUS_AVAILABLE" => {
                 ::core::option::Option::Some(Self::TITLE_STATUS_AVAILABLE)
             }
+            "TITLE_STATUS_REQUESTED" => {
+                ::core::option::Option::Some(Self::TITLE_STATUS_REQUESTED)
+            }
+            "TITLE_STATUS_NOT_ON_THIS_SERVER" => {
+                ::core::option::Option::Some(Self::TITLE_STATUS_NOT_ON_THIS_SERVER)
+            }
             _ => ::core::option::Option::None,
         }
     }
     fn values() -> &'static [Self] {
-        &[Self::TITLE_STATUS_UNSPECIFIED, Self::TITLE_STATUS_AVAILABLE]
+        &[
+            Self::TITLE_STATUS_UNSPECIFIED,
+            Self::TITLE_STATUS_AVAILABLE,
+            Self::TITLE_STATUS_REQUESTED,
+            Self::TITLE_STATUS_NOT_ON_THIS_SERVER,
+        ]
     }
 }
 #[derive(Clone, PartialEq, Default)]
@@ -600,10 +626,12 @@ pub mod search_response {
     #[doc(inline)]
     pub use super::__buffa::view::oneof::search_response::Part as PartView;
 }
-/// A batch of results, ordered on the Server: Movies and Shows before Episodes, then an exact
-/// title ("Title Year" counts as exact), then a title starting with the query, then one holding
-/// each of its words whole (in both, the year it ends with aside), then one of that year, then the
-/// better fit, then the shorter title.
+/// A batch of results, ordered on the Server. The Libraries' batch: Movies and Shows before
+/// Episodes, then an exact title ("Title Year" counts as exact), then a title starting with the
+/// query, then one holding each of its words whole (in both, the year it ends with aside), then
+/// one of that year, then the better fit, then the shorter title. The title source's batch holds
+/// none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
+/// A client lists every batch's results stably sorted by `status`.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -1441,13 +1469,26 @@ pub const __EPISODE_HIT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct Done {
+    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
+    /// The results are then only those the Libraries have.
+    ///
+    /// Field 1: `title_source_unavailable`
+    #[serde(
+        rename = "titleSourceUnavailable",
+        alias = "title_source_unavailable",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub title_source_unavailable: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for Done {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Done").finish()
+        f.debug_struct("Done")
+            .field("title_source_unavailable", &self.title_source_unavailable)
+            .finish()
     }
 }
 impl Done {
@@ -1477,6 +1518,9 @@ impl ::buffa::Message for Done {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if self.title_source_unavailable {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1487,6 +1531,9 @@ impl ::buffa::Message for Done {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if self.title_source_unavailable {
+            ::buffa::types::put_bool_field(1u32, self.title_source_unavailable, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -1500,6 +1547,13 @@ impl ::buffa::Message for Done {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.title_source_unavailable = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1508,6 +1562,7 @@ impl ::buffa::Message for Done {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.title_source_unavailable = false;
         self.__buffa_unknown_fields.clear();
     }
 }

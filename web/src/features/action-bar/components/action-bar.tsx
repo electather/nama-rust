@@ -3,6 +3,7 @@ import { type RefObject, useEffect, useId } from "react";
 import { ActionBarFooter } from "@/features/action-bar/components/action-bar-footer";
 import { ActionBarHeader } from "@/features/action-bar/components/action-bar-header";
 import { ActionBarList } from "@/features/action-bar/components/action-bar-list";
+import { TitleSourceNote } from "@/features/action-bar/components/title-source-note";
 import { useActionBar } from "@/features/action-bar/hooks/use-action-bar";
 import { useLightDismiss } from "@/features/action-bar/hooks/use-light-dismiss";
 import type { Opening } from "@/features/action-bar/lib/rows";
@@ -54,6 +55,7 @@ export function ActionBar({
     >
       <ActionBarHeader bar={bar} listId={listId} />
       <ActionBarList bar={bar} listId={listId} />
+      <TitleSourceNote shown={bar.titleSourceUnavailable} />
       <ActionBarFooter />
     </dialog>
   );

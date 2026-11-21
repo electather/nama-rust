@@ -1,3 +1,5 @@
+import type { Request } from "@/gen/nama/v1/request_pb";
+
 /** Where the action bar is: its root, a search of one kind of title, or the keyboard shortcuts. */
 export type Frame = "root" | "movie" | "show" | "shortcuts";
 
@@ -30,6 +32,8 @@ export interface Row {
   poster?: string | null;
   /** What it is or is set to, in a pill beside the label. */
   badge?: string;
+  /** A title's open Request, whose pill shows beside the label. */
+  request?: Request;
   /** The keys that pick it from anywhere, beside the label. */
   keys?: readonly string[];
   /** The keys a keyboard shortcut's row is about, at its end. */
