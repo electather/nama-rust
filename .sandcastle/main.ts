@@ -667,7 +667,11 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
 
 // A conflict needs an agent (rebase); after a red main, a PR merely behind is updated on GitHub (updateBranch).
 // merge-tree exits non-zero on a conflict (or any error, which then just rebases).
-const conflicts = (ref: string) => !ok("git", "merge-tree", "--write-tree", `origin/${BASE}`, ref);
+// GitHub's verdict counts too: it starts no CI for a PR it calls CONFLICTING, and `merge-tree` cleanly merges some
+// it can't (#1416: one side renamed a file the other edited). UNKNOWN (still computing) isn't a conflict.
+const conflicts = (ref: string) =>
+  !ok("git", "merge-tree", "--write-tree", `origin/${BASE}`, ref) ||
+  ok("sh", "-c", 'test "$(gh pr view "$1" --json mergeable --jq .mergeable)" = CONFLICTING', "-", ref.replace(/^origin\//, ""));
 const behind = (ref: string) => !ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, ref);
 
 // Another PR's merge conflicts with this one: merge main in, then push.
