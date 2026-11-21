@@ -61,7 +61,7 @@ pub(super) fn extension_points_to_proto(
 }
 
 /// Each Extension Point this API names, by its key, in the order its enum lists them.
-fn public_points() -> [(PointKey, proto::ExtensionPoint); 16] {
+pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 16] {
     use proto::ExtensionPoint as Public;
     [
         (

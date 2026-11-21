@@ -1,11 +1,11 @@
 import { CreateUser } from "@/features/admin-users/components/create-user";
 import { DefaultPermissionsEditor } from "@/features/admin-users/components/default-permissions-editor";
 import { UserRow } from "@/features/admin-users/components/user-row";
-import { useUsers } from "@/features/admin-users/data/use-users";
 import { Invites } from "@/features/invites/components/invites";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { AdminList } from "@/shared/components/admin-list/admin-list";
 import { Page } from "@/shared/components/page";
+import { useUsers } from "@/shared/hooks/use-users";
 
 /** The Users page: the Users, a form to create one, the Invites and the default Permissions. */
 export function Users({ you }: { you: User | undefined }) {

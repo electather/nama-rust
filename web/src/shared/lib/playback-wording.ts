@@ -1,6 +1,5 @@
 import type { GenEnum } from "@bufbuild/protobuf/codegenv2";
 
-import { codecName } from "@/features/player/lib/track-line";
 import { HdrFormat, HdrFormatSchema } from "@/gen/nama/v1/browse_pb";
 import {
   Container,
@@ -12,6 +11,7 @@ import {
   PlaybackReasonKind,
 } from "@/gen/nama/v1/playback_pb";
 import { HardwareAccelerationSchema } from "@/gen/nama/v1/server_pb";
+import { codecName } from "@/shared/lib/codec-name";
 import { belowOriginal, hardwareNames } from "@/shared/lib/playback-names";
 import { channelsName } from "@/shared/lib/version-facts";
 

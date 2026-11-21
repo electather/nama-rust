@@ -7,12 +7,13 @@
 //! API, redistribute them, or build a database from them.
 
 use nama_pdk::{
-    Manifest, OutsideService, Permission, Response, SegmentKind, SegmentResult, SegmentResults,
-    SegmentSearch, SegmentSource, SettingKind, TitleKind,
+    Manifest, OutsideService, Permission, Refusal, Response, SegmentKind, SegmentResult,
+    SegmentResults, SegmentSearch, SegmentSource, SettingKind, TitleKind, TryAgainIn,
     extism_pdk::{Error, HttpRequest, json},
     kernel, services,
 };
 use serde::Deserialize;
+use std::time::Duration;
 
 const THEINTRODB: OutsideService = OutsideService::new("TheIntroDB").credential("API key");
 
@@ -118,12 +119,13 @@ fn media_url(search: &SegmentSearch) -> Option<String> {
     ))
 }
 
-/// Records a request about to be sent, or refuses it when `limit` were sent in the last
+/// Records a request about to be sent, or holds it back when `limit` were sent in the last
 /// [`WINDOW_MS`], since each call is a fresh instance that can't wait. Without the Store it can't
 /// count, and sends anyway (ADR 0071: the Plugin carries on).
 ///
 /// # Errors
-/// When `limit` requests were sent in the last [`WINDOW_MS`].
+/// [`TryAgainIn`] the whole seconds until a counted request leaves the window, when `limit` were
+/// sent in the last [`WINDOW_MS`].
 fn pace(limit: usize) -> Result<(), Error> {
     let Ok(kept) = kernel::store_get(SENT_KEY, None) else {
         return Ok(());
@@ -137,11 +139,14 @@ fn pace(limit: usize) -> Result<(), Error> {
         .and_then(|kept| json::from_slice(&kept).ok())
         .unwrap_or_default();
     sent.retain(|&at| now.saturating_sub(at) < WINDOW_MS);
-    if sent.len() >= limit {
-        return Err(Error::msg(format!(
-            "not sent, to keep under TheIntroDB's limit of {limit} requests every {} seconds",
-            WINDOW_MS / 1000
-        )));
+    // Kept in the order they were sent, so this one leaving brings the count under `limit`.
+    let leaving = sent
+        .len()
+        .checked_sub(limit)
+        .and_then(|older| sent.get(older));
+    if let Some(&leaving) = leaving {
+        let leaves_in_ms = leaving.saturating_add(WINDOW_MS) - now;
+        return Err(TryAgainIn(Duration::from_secs(leaves_in_ms.div_ceil(1000))).into());
     }
     sent.push(now);
     // Unkept, this request goes uncounted, which TheIntroDB's own 429 still catches.
@@ -173,11 +178,22 @@ struct Stretch {
 /// for yet: a 404, or a 400 or 422 for an Episode or id it can't place.
 ///
 /// # Errors
-/// When TheIntroDB refused the request, such as past its rate limit, or answered something else.
+/// [`TryAgainIn`] its `Retry-After`, or else [`WINDOW_MS`], when TheIntroDB answered 429 for its
+/// rate limit; any other refusal, or an answer that isn't a `/media` one, as it is.
 fn answered(response: Response) -> Result<Media, Error> {
     match response.status_code() {
         400 | 404 | 422 => Ok(Media::default()),
-        _ => THEINTRODB.accepted(response)?.json(),
+        _ => THEINTRODB.accepted(response).map_err(rate_limited)?.json(),
+    }
+}
+
+/// `refusal` as [`TryAgainIn`] when it is TheIntroDB's 429.
+fn rate_limited(refusal: Refusal) -> Error {
+    if refusal.status() == 429 {
+        let wait = refusal.retry_after_seconds().unwrap_or(WINDOW_MS / 1000);
+        TryAgainIn(Duration::from_secs(wait)).into()
+    } else {
+        refusal.into()
     }
 }
 

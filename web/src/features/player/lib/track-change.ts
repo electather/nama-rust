@@ -1,6 +1,6 @@
-import { hdrNames } from "@/features/player/lib/playback-wording";
-import { codecName } from "@/features/player/lib/track-line";
 import type { Track } from "@/gen/nama/v1/browse_pb";
+import { codecName } from "@/shared/lib/codec-name";
+import { hdrNames } from "@/shared/lib/playback-wording";
 import { pictureOf, soundOf } from "@/shared/lib/version-facts";
 
 /**

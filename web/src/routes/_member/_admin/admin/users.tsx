@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Users } from "@/features/admin-users/components/users";
-import { usersQuery } from "@/features/admin-users/data/use-users";
 import { invitesQuery } from "@/features/invites/data/use-invites";
 import { defaultPermissionsQuery } from "@/shared/hooks/use-default-permissions";
+import { usersQuery } from "@/shared/hooks/use-users";
 
 export const Route = createFileRoute("/_member/_admin/admin/users")({
   loader: ({ context: { queryClient, transport } }) =>

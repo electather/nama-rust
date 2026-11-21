@@ -1,9 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
 
-import { usersKey } from "@/features/admin-users/data/use-users";
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { devicesKey } from "@/shared/hooks/devices-key";
 import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
+import { usersKey } from "@/shared/hooks/use-users";
 
 /** Sets a User's password, then refetches the Users and their Devices. */
 export function useResetPassword() {

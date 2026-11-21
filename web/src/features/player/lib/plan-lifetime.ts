@@ -20,12 +20,13 @@ export async function stopPlan(tellStopped: (planId: bigint) => Promise<void>, p
 /**
  * Asks for the plan `planId`'s `url` every `KEEP_ALIVE_MS`, until the page goes or the cleanup it
  * returns, either of which tells the Server it stopped, so it ends at once rather than a minute
- * later.
+ * later. A cleanup that closes the player also calls `forget`, so opening it again asks for a new
+ * plan.
  */
 export function keepPlaying(
   tellStopped: (planId: bigint) => Promise<void>,
-  planId: bigint,
-  url: string,
+  forget: (planId: bigint) => void,
+  { id: planId, url }: { id: bigint; url: string },
 ) {
   // React may clean up an effect and set it up again for the same plan, as `StrictMode` does on
   // mounting: a stop sent at once would end the plan the `<video>` goes on playing.
@@ -51,6 +52,7 @@ export function keepPlaying(
     }
     const stop = setTimeout(() => {
       letGo.delete(planId);
+      forget(planId);
       void tellStopped(planId);
     }, 0);
     letGo.set(planId, stop);

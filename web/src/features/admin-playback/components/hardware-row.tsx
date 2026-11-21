@@ -1,10 +1,10 @@
 import { CircleCheck } from "lucide-react";
 
-import { hardwareLabel } from "@/features/admin-playback/lib/hardware";
 import { toneMappings } from "@/features/admin-playback/lib/hardware-wording";
 import type { FoundHardware } from "@/gen/nama/v1/server_pb";
 import { AdminRow } from "@/shared/components/admin-list/admin-row";
 import { StateLabel } from "@/shared/components/state-label";
+import { hardwareLabel } from "@/shared/lib/playback-names";
 
 /**
  * A hardware acceleration API that passed its test encode, on its GPU if the Server names one.
