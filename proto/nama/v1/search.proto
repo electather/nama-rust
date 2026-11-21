@@ -15,8 +15,12 @@ service SearchService {
   // Show counts as of every year one of its Episodes aired. A Show is found by its own title,
   // and an Episode by its own, not its Show's. A title in two Libraries is found in each.
   //
-  // Streams one batch of what it found, then `Done`. Fails with `invalid_argument` if the query
-  // is blank (`REFUSAL_REASON_FIELD_REQUIRED`).
+  // A caller with `PERMISSION_REQUEST_MOVIE` also finds the Movies to request: the first title
+  // source in the Admin's precedence to find any is asked for the query, as it is typed.
+  //
+  // Streams the batch the Libraries found at once, then, for a caller who may request, the
+  // title source's, then `Done`. Fails with `invalid_argument` if the query is blank
+  // (`REFUSAL_REASON_FIELD_REQUIRED`).
   rpc Search(SearchRequest) returns (stream SearchResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -43,10 +47,12 @@ message SearchResponse {
   }
 }
 
-// A batch of results, ordered on the Server: Movies and Shows before Episodes, then an exact
-// title ("Title Year" counts as exact), then a title starting with the query, then one holding
-// each of its words whole (in both, the year it ends with aside), then one of that year, then the
-// better fit, then the shorter title.
+// A batch of results, ordered on the Server. The Libraries' batch: Movies and Shows before
+// Episodes, then an exact title ("Title Year" counts as exact), then a title starting with the
+// query, then one holding each of its words whole (in both, the year it ends with aside), then
+// one of that year, then the better fit, then the shorter title. The title source's batch holds
+// none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
+// A client lists every batch's results stably sorted by `status`.
 message Hits {
   repeated Hit hits = 1;
 }
@@ -54,7 +60,7 @@ message Hits {
 // A Movie, Show or Episode `Search` found, and whether the caller can watch it.
 message Hit {
   oneof title {
-    // A Movie, with the Library it is in in `library_id`.
+    // A Movie, with the Library it is in in `library_id` if one has it.
     MovieHit movie = 1;
     // A Show, with the Library it is in in `library_id`.
     ShowHit show = 2;
@@ -66,8 +72,13 @@ message Hit {
 // Whether a title a search found is one the caller can watch.
 enum TitleStatus {
   TITLE_STATUS_UNSPECIFIED = 0;
-  // A Library has the Movie, or at least one Episode of the Show.
+  // A Library has the Movie, or at least one Episode of the Show: it opens in the Library
+  // `library_id` names, by its `id`.
   TITLE_STATUS_AVAILABLE = 1;
+  // No Library has it, and the caller can see its open Request, in `request`.
+  TITLE_STATUS_REQUESTED = 2;
+  // Only the title source has it, and the caller may request it.
+  TITLE_STATUS_NOT_ON_THIS_SERVER = 3;
 }
 
 // An Episode a search found, with what a client needs to show it and open its Season with
@@ -86,4 +97,8 @@ message EpisodeHit {
 }
 
 // Marks the end of what `Search` streams.
-message Done {}
+message Done {
+  // Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
+  // The results are then only those the Libraries have.
+  bool title_source_unavailable = 1;
+}

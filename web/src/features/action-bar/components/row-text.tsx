@@ -1,7 +1,8 @@
 import { Keys } from "@/features/action-bar/components/keys";
 import type { Row } from "@/features/action-bar/lib/rows";
+import { RequestPill } from "@/shared/components/request-state/request-pill";
 
-/** A row's words: its label with its badge and keys, over its hint. */
+/** A row's words: its label with its badge or Request and keys, over its hint. */
 export function RowText({ row }: { row: Row }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -12,6 +13,7 @@ export function RowText({ row }: { row: Row }) {
             {row.badge}
           </span>
         )}
+        {row.request !== undefined && <RequestPill request={row.request} />}
         <Keys keys={row.keys} />
       </div>
       {row.hint !== "" && (

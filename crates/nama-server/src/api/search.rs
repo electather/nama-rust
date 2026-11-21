@@ -1,25 +1,31 @@
 //! Finding titles: `nama.v1.SearchService` (ADR 0080).
 
+use std::collections::HashSet;
+
 use buffa::EnumValue;
 use connectrpc::{
     ConnectError, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
 };
-use futures_util::stream;
+use futures_util::{StreamExt, future, stream};
+use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{
-    self as proto, Done, Hits, RefusalReason, SearchRequest, SearchResponse, SearchService,
-    TitleStatus,
+    self as proto, Done, Hits, Permission, RefusalReason, SearchRequest, SearchResponse,
+    SearchService, TitleStatus, search_response::Part,
 };
 
 use crate::{
     browse::Browse,
     library::{
-        Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, Role, ShownImages,
-        TitleImage, TitleKind,
+        Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, Role,
+        ShownImages, TitleImage, TitleKind, match_bands,
     },
-    requests::year_of,
+    requests::{self, Requests, year_of},
 };
 
-use super::{database_failed, external_id_to_proto, proto_number, refuse, title_kind_from_proto};
+use super::{
+    caller, database_failed, external_id_to_proto, proto_number, refuse,
+    requests::searched_to_proto, title_kind_from_proto,
+};
 
 /// How many results a batch holds when the request doesn't say.
 const DEFAULT_LIMIT: usize = 20;
@@ -30,6 +36,7 @@ const MAX_LIMIT: usize = 100;
 /// `nama.v1.SearchService`: finding titles, for any signed-in User.
 pub(super) struct SearchServiceHandler {
     pub(super) browse: Browse,
+    pub(super) requests: Requests,
     pub(super) images: ImageSources,
 }
 
@@ -41,9 +48,10 @@ pub(super) struct SearchServiceHandler {
 impl SearchService for SearchServiceHandler {
     async fn search(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, SearchRequest>,
     ) -> ServiceResult<ServiceStream<SearchResponse>> {
+        let viewer = caller(&ctx)?.user.clone();
         let request = request.to_owned_message();
         let query = searched_query(&request.query)?;
         let kind = searched_kind(request.kind)?;
@@ -54,20 +62,52 @@ impl SearchService for SearchServiceHandler {
         let found = self.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
-        let hits = Hits {
+        let sent = sent_movies(&found);
+        let library = Hits {
             hits: (found.into_iter())
                 .map(|found| hit_to_proto(found, &images))
                 .collect(),
             ..Default::default()
         };
-        let parts = [hits.into(), Done::default().into()].map(|part| {
-            Ok(SearchResponse {
-                part,
-                ..Default::default()
-            })
-        });
-        let stream: ServiceStream<SearchResponse> = Box::pin(stream::iter(parts));
+        let asks_title_source =
+            kind != Some(TitleKind::Show) && viewer.permissions.allow(Permission::RequestMovie);
+        let (requests, query) = (self.requests.clone(), query.to_owned());
+        let after_library = async move {
+            if !asks_title_source {
+                return vec![Ok(part(Done::default()))];
+            }
+            match requests.search(&viewer, query.clone()).await {
+                Ok(movies) => {
+                    let hits = (ranked_to_request(movies, &sent, &query).into_iter())
+                        .take(limit)
+                        .map(|movie| to_request_hit(movie, &images))
+                        .collect();
+                    let hits = Hits {
+                        hits,
+                        ..Default::default()
+                    };
+                    vec![Ok(part(hits)), Ok(part(Done::default()))]
+                }
+                Err(requests::Error::Unavailable) => vec![Ok(part(Done {
+                    title_source_unavailable: true,
+                    ..Default::default()
+                }))],
+                Err(error) => vec![Err(error.into())],
+            }
+        };
+        let stream: ServiceStream<SearchResponse> = Box::pin(
+            stream::once(future::ready(Ok(part(library))))
+                .chain(stream::once(after_library).flat_map(stream::iter)),
+        );
         Response::ok(stream)
+    }
+}
+
+/// `part` as one response of the stream.
+fn part(part: impl Into<Part>) -> SearchResponse {
+    SearchResponse {
+        part: Some(part.into()),
+        ..Default::default()
     }
 }
 
@@ -102,6 +142,51 @@ fn hit_to_proto(found: Found, images: &ShownImages) -> proto::Hit {
     proto::Hit {
         title,
         status: TitleStatus::TITLE_STATUS_AVAILABLE.into(),
+        ..Default::default()
+    }
+}
+
+/// Every id of each Movie in `found`, which the title source's batch leaves out.
+fn sent_movies(found: &[Found]) -> HashSet<ExternalId> {
+    (found.iter())
+        .filter_map(|found| match found {
+            Found::Movie(movie) => Some(movie.ids.iter().chain([movie.id.clone()])),
+            Found::Show(_) | Found::Episode(_) => None,
+        })
+        .flatten()
+        .collect()
+}
+
+/// The Movies the title source found for `query`, in its order, less those `sent` already, ranked
+/// as ADR 0080 says: by status, then by how well the title fits, then in the source's order.
+fn ranked_to_request(
+    found: Vec<requests::Found<Candidate>>,
+    sent: &HashSet<ExternalId>,
+    query: &str,
+) -> Vec<requests::Found<Candidate>> {
+    let mut found: Vec<_> = (found.into_iter())
+        .filter(|found| {
+            !sent.contains(&found.id) && !found.movie.ids.iter().any(|id| sent.contains(&id))
+        })
+        .collect();
+    found.sort_by_cached_key(|found| {
+        let year = found.movie.year.map(|year| year.to_string());
+        let bands = match_bands(query, &found.movie.title, year.as_deref());
+        (found.library.is_none(), found.request.is_none(), bands)
+    });
+    found
+}
+
+/// A Movie the title source found, with how close it is to being on the Server.
+fn to_request_hit(found: requests::Found<Candidate>, images: &ShownImages) -> proto::Hit {
+    let status = match (found.library, &found.request) {
+        (Some(_), _) => TitleStatus::TITLE_STATUS_AVAILABLE,
+        (None, Some(_)) => TitleStatus::TITLE_STATUS_REQUESTED,
+        (None, None) => TitleStatus::TITLE_STATUS_NOT_ON_THIS_SERVER,
+    };
+    proto::Hit {
+        title: searched_to_proto(found, images).into(),
+        status: status.into(),
         ..Default::default()
     }
 }
@@ -147,3 +232,7 @@ fn episode_hit(episode: FoundEpisode) -> proto::EpisodeHit {
         ..Default::default()
     }
 }
+
+#[cfg(test)]
+#[path = "search_tests.rs"]
+mod tests;

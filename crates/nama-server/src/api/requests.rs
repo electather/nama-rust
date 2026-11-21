@@ -458,7 +458,7 @@ impl RequestService for RequestServiceHandler {
 }
 
 /// A Movie a search found, as clients see it, with its poster offered to them.
-fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
+pub(super) fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
     let Found {
         id,
         plugin,

@@ -9,6 +9,7 @@ use super::super::{
     fixture::{MatchedMovie, decide, tmdb_movie},
     testing::Fixture,
 };
+use super::match_bands;
 use crate::library::{TitleKind, libraries::Kind};
 
 /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
@@ -308,4 +309,20 @@ async fn a_search_ending_in_a_year_ranks_titles_starting_with_its_words_by_that_
     let found = fx.search("dune 2021").await;
 
     assert_eq!(titles(&found), ["Dune Messiah", "Dune 2021 Unboxed"]);
+}
+
+#[test]
+fn match_bands_put_an_exact_title_then_a_prefix_then_all_words_then_word_starts() {
+    let bands = |title| match_bands("alien", title, None);
+
+    assert!(bands("Alien") < bands("Alien: Romulus"));
+    assert!(bands("Alien: Romulus") < bands("Planet of the Alien"));
+    assert!(bands("Planet of the Alien") < bands("Planet of Aliens"));
+}
+
+#[test]
+fn match_bands_put_a_title_of_the_year_asked_for_first() {
+    let bands = |year| match_bands("dune 2021", "Dune: Messiah", Some(year));
+
+    assert!(bands("2021") < bands("1984"));
 }

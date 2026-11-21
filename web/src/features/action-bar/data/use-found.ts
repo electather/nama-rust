@@ -11,8 +11,8 @@ import type { TitleKind } from "@/gen/nama/v1/match_pb";
 import { type SearchResponse, SearchService } from "@/gen/nama/v1/search_pb";
 
 /**
- * What a search of the signed-in User's Libraries for `words` of `kind` finds, and nothing for no
- * words. The last answer stays while the next one loads, and a new search aborts the last.
+ * What a search for `words` of `kind` finds, in the signed-in User's Libraries and to request, and
+ * nothing for no words. The last answer stays while the next one loads, and a new search aborts the last.
  */
 export function useFound(words: string, kind: TitleKind) {
   const transport = useTransport();
@@ -28,8 +28,10 @@ export function useFound(words: string, kind: TitleKind) {
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
+  const found = asked && query.data ? foundIn(query.data) : undefined;
   return {
-    found: asked && query.data ? foundIn(query.data) : undefined,
+    found,
+    titleSourceUnavailable: found?.titleSourceUnavailable === true,
     // A search that isn't asked for neither fetches nor fails.
     searching: query.isFetching,
     failed: query.isError,

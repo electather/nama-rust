@@ -11,9 +11,11 @@ mod refused;
 mod server;
 
 use browsing::{Fixture, tmdb_id};
-use connectrpc::ErrorCode;
+use buffa::EnumValue;
+use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    Done, Hit, LibraryKind, RefusalReason, TitleKind, TitleStatus, hit, search_response::Part,
+    CreateRequestRequest, Done, Hit, Hits, LibraryKind, Permission, RefusalReason,
+    RequestServiceClient, TitleKind, TitleStatus, hit, search_response::Part,
 };
 use refused::assert_refused;
 use server::{
@@ -28,7 +30,7 @@ const THE_OFFICE_US_S01E02: &str = "The Office {tmdb-2316}/Season 01/The Office 
 /// TMDB Matches it to the 2021 Dune.
 const DUNE_2021: &str = "Dune (2021)/Dune (2021).mkv";
 
-/// What the Admin's search for `query` of `kind` found in its one batch, best first.
+/// What the Admin's search for `query` of `kind` found in the Libraries' batch, best first.
 #[expect(
     clippy::unwrap_used,
     clippy::panic,
@@ -36,8 +38,8 @@ const DUNE_2021: &str = "Dune (2021)/Dune (2021).mkv";
 )]
 async fn found(fx: &Fixture, query: &str, kind: TitleKind) -> Vec<hit::Title> {
     let parts = search(&fx.server.client_config(), query, kind).await;
-    let [Part::Hits(hits), Part::Done(_)] = &parts.unwrap()[..] else {
-        panic!("one batch, then Done");
+    let Some(Part::Hits(hits)) = parts.unwrap().into_iter().next() else {
+        panic!("the Libraries' batch first");
     };
     (hits.hits.iter())
         .filter_map(|hit| hit.title.clone())
@@ -56,7 +58,8 @@ fn kinds_and_titles(found: &[hit::Title]) -> Vec<(&str, &str)> {
 }
 
 #[tokio::test]
-async fn a_search_by_any_user_streams_one_batch_of_available_library_titles_then_done() {
+async fn a_search_by_one_who_may_not_request_streams_only_the_librarys_available_titles_then_done()
+{
     let fx = Fixture::alien().await;
     let user = fx.server.user("Grace", &[]).await;
 
@@ -196,4 +199,144 @@ async fn a_blank_search_is_refused_naming_the_query() {
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert_eq!(refusal.field, "query");
+}
+
+/// Each Movie of `hits` by its title and status.
+fn movies_and_statuses(hits: &Hits) -> Vec<(&str, EnumValue<TitleStatus>)> {
+    (hits.hits.iter())
+        .filter_map(|hit| match &hit.title {
+            Some(hit::Title::Movie(movie)) => Some((movie.title.as_str(), hit.status)),
+            _ => None,
+        })
+        .collect()
+}
+
+const AVAILABLE: TitleStatus = TitleStatus::TITLE_STATUS_AVAILABLE;
+const REQUESTED: TitleStatus = TitleStatus::TITLE_STATUS_REQUESTED;
+const NOT_ON_THIS_SERVER: TitleStatus = TitleStatus::TITLE_STATUS_NOT_ON_THIS_SERVER;
+
+#[tokio::test]
+async fn a_search_by_one_who_may_request_streams_the_movies_no_library_sent_after_the_librarys() {
+    let fx = Fixture::alien().await;
+    let user = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+
+    let parts = search(
+        &user.client_config(),
+        "Alien",
+        TitleKind::TITLE_KIND_UNSPECIFIED,
+    )
+    .await
+    .unwrap();
+
+    let [
+        Part::Hits(library),
+        Part::Hits(to_request),
+        Part::Done(done),
+    ] = &parts[..]
+    else {
+        panic!("the Libraries' batch, the title source's, then Done: {parts:?}");
+    };
+    assert_eq!(movies_and_statuses(library), [("Alien", AVAILABLE.into())]);
+    assert_eq!(
+        movies_and_statuses(to_request),
+        [
+            ("Alien: Romulus", NOT_ON_THIS_SERVER.into()),
+            ("Aliens", NOT_ON_THIS_SERVER.into())
+        ]
+    );
+    assert_eq!(**done, Done::default());
+}
+
+#[tokio::test]
+async fn a_movie_with_an_open_request_the_caller_can_see_is_requested_and_carries_it() {
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, TestServer::builder()).await;
+    let ada = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+    let asked = RequestServiceClient::new(HttpClient::plaintext(), ada.client_config())
+        .create_request(CreateRequestRequest {
+            movie_id: tmdb_id(ALIEN).into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .request;
+
+    let parts = search(&ada.client_config(), "Alien", TitleKind::TITLE_KIND_MOVIE)
+        .await
+        .unwrap();
+
+    let [Part::Hits(library), Part::Hits(to_request), Part::Done(_)] = &parts[..] else {
+        panic!("the Libraries' batch, the title source's, then Done: {parts:?}");
+    };
+    assert!(library.hits.is_empty(), "{library:?}");
+    assert_eq!(
+        movies_and_statuses(to_request),
+        [
+            ("Alien", REQUESTED.into()),
+            ("Alien: Romulus", NOT_ON_THIS_SERVER.into()),
+            ("Aliens", NOT_ON_THIS_SERVER.into())
+        ]
+    );
+    let Some(hit::Title::Movie(alien)) = &to_request.hits[0].title else {
+        panic!("Alien first: {to_request:?}");
+    };
+    assert_eq!(alien.request.id, asked.id);
+    assert_eq!(alien.library_id, None);
+}
+
+#[tokio::test]
+async fn a_search_of_shows_asks_the_title_source_for_no_movies() {
+    let fx = Fixture::alien().await;
+
+    let parts = search(
+        &fx.server.client_config(),
+        "Alien",
+        TitleKind::TITLE_KIND_SHOW,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        matches!(&parts[..], [Part::Hits(_), Part::Done(done)] if **done == Done::default()),
+        "{parts:?}"
+    );
+}
+
+#[tokio::test]
+async fn with_the_title_source_down_a_search_streams_the_librarys_titles_then_done_flagging_it() {
+    let mut fx = Fixture::alien().await;
+    fx.server.stop_tmdb();
+
+    let parts = search(
+        &fx.server.client_config(),
+        "Alien",
+        TitleKind::TITLE_KIND_UNSPECIFIED,
+    )
+    .await
+    .unwrap();
+
+    let [Part::Hits(library), Part::Done(done)] = &parts[..] else {
+        panic!("the Libraries' batch, then Done: {parts:?}");
+    };
+    assert_eq!(movies_and_statuses(library), [("Alien", AVAILABLE.into())]);
+    assert!(done.title_source_unavailable);
+}
+
+#[tokio::test]
+async fn with_no_title_source_enabled_a_search_flags_it_in_done() {
+    let server = TestServer::builder().start().await;
+
+    let parts = search(
+        &server.client_config(),
+        "Alien",
+        TitleKind::TITLE_KIND_UNSPECIFIED,
+    )
+    .await
+    .unwrap();
+
+    let [Part::Hits(library), Part::Done(done)] = &parts[..] else {
+        panic!("the Libraries' batch, then Done: {parts:?}");
+    };
+    assert!(library.hits.is_empty(), "{library:?}");
+    assert!(done.title_source_unavailable);
 }
