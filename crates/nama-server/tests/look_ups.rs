@@ -17,7 +17,7 @@ use refused::assert_refused;
 use server::{
     TestServer,
     requests::{Requester, title_id, tmdb_id},
-    tmdb::{DARK, DARK_TVDB},
+    tmdb::{ALIEN, DARK, DARK_TVDB},
 };
 
 /// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
@@ -159,4 +159,19 @@ async fn looking_up_a_show_by_its_tvdb_id_finds_it_under_its_preferred_id() {
 
     assert_eq!(found.id.into_option(), Some(tmdb_id(DARK)));
     assert_eq!(found.title, "Dark");
+}
+
+#[tokio::test]
+async fn a_looked_up_movie_and_show_have_their_score_and_original_language() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    let alien = as_grace.try_look_up_movie(tmdb_id(ALIEN)).await.unwrap();
+    let dark = as_grace.try_look_up_show(tmdb_id(DARK)).await.unwrap();
+
+    let alien_language = alien.original_language.as_deref();
+    assert_eq!((alien.score, alien_language), (Some(8.2), Some("en")));
+    let dark_language = dark.original_language.as_deref();
+    assert_eq!((dark.score, dark_language), (Some(8.4), Some("de")));
 }

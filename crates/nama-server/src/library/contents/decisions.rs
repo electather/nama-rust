@@ -11,7 +11,7 @@ use sqlx::SqliteConnection;
 
 use super::{
     Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
-    sort_titles::sort_title,
+    scores, sort_titles::sort_title,
 };
 use crate::{
     db::now,
@@ -128,7 +128,7 @@ impl UnmatchedRow {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Decided {
     Matched(Box<Metadata>),
     Unmatched(Option<UnmatchedReason>),
@@ -186,7 +186,7 @@ impl From<Vec<(i64, Decided)>> for Decisions {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Metadata {
     /// The Plugin whose title source made the Match.
     pub(crate) plugin: PluginId,
@@ -214,6 +214,10 @@ pub(crate) struct Metadata {
     pub(crate) show_poster: Option<ImageRef>,
     pub(crate) show_overview: Option<String>,
     pub(crate) show_first_air_date: Option<String>,
+    /// The title's Score, stored once per title apart from the Match; for an Episode, its Show's,
+    /// as is `original_language`.
+    pub(crate) score: Option<f64>,
+    pub(crate) original_language: Option<String>,
 }
 
 /// An image a Match stores: a path the title source of `plugin` serves.
@@ -534,11 +538,11 @@ pub(super) async fn insert_decisions(
                  item_id, state, plugin, title, original_title, show_title,
                  overview, release_date, runtime_minutes, poster, poster_plugin, backdrop,
                  backdrop_plugin, titled_backdrop, titled_backdrop_plugin, logo, logo_plugin,
-                 still, genres, content_rating, show_poster, show_poster_plugin, show_overview,
-                 show_first_air_date, unmatched_reason, tied_titles, metadata_version, decided_at,
-                 sort_title)
+                 still, genres, content_rating, original_language, show_poster, show_poster_plugin,
+                 show_overview, show_first_air_date, unmatched_reason, tied_titles,
+                 metadata_version, decided_at, sort_title)
              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?
+                    ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -560,6 +564,7 @@ pub(super) async fn insert_decisions(
             row.metadata.still,
             row.metadata.genres,
             row.metadata.content_rating,
+            row.metadata.original_language,
             row.metadata.show_poster.map(|image| image.path),
             row.metadata.show_poster.map(|image| image.plugin),
             row.metadata.show_overview,
@@ -575,6 +580,9 @@ pub(super) async fn insert_decisions(
         .await?;
         if written.rows_affected() == 0 {
             continue;
+        }
+        if let Decided::Matched(metadata) = &decision {
+            scores::store(&mut *conn, metadata).await?;
         }
         // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
         sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)
@@ -692,6 +700,7 @@ struct MetadataColumns<'a> {
     /// A JSON array of their names, which `genres` in the parent module reads.
     genres: Option<String>,
     content_rating: Option<&'a str>,
+    original_language: Option<&'a str>,
     show_poster: Option<ImageColumns<'a>>,
     show_overview: Option<&'a str>,
     show_first_air_date: Option<&'a str>,
@@ -754,6 +763,7 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     still: metadata.still.as_deref(),
                     genres: Some(serde_json::Value::from(metadata.genres.clone()).to_string()),
                     content_rating: metadata.content_rating.as_deref(),
+                    original_language: metadata.original_language.as_deref(),
                     show_poster: metadata.show_poster.as_ref().map(ImageColumns::from),
                     show_overview: metadata.show_overview.as_deref(),
                     show_first_air_date: metadata.show_first_air_date.as_deref(),

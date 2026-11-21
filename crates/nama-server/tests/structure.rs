@@ -156,6 +156,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
             "match_pins",
             "title_search",
             "local_images",
+            "title_scores",
         ],
     ),
     (

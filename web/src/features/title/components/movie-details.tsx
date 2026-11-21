@@ -18,7 +18,7 @@ export function MovieDetails({ libraryId, movie }: { libraryId: bigint; movie: M
             ["Genres", listed(movie.genres)],
           ],
         },
-        ...filesDetails(movie.versions, <LibraryLink key="library" libraryId={libraryId} />),
+        ...filesDetails(movie, <LibraryLink key="library" libraryId={libraryId} />),
       ]}
     />
   );

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO item_matches (\n                 item_id, state, plugin, title, original_title, show_title,\n                 overview, release_date, runtime_minutes, poster, poster_plugin, backdrop,\n                 backdrop_plugin, titled_backdrop, titled_backdrop_plugin, logo, logo_plugin,\n                 still, genres, content_rating, original_language, show_poster, show_poster_plugin,\n                 show_overview, show_first_air_date, unmatched_reason, tied_titles,\n                 metadata_version, decided_at, sort_title)\n             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,\n                    ?, ?, ?\n             WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 31
+    },
+    "nullable": []
+  },
+  "hash": "512652c386376140af686b2e1fbe8291908d92482594f29bd45a44310928b74f"
+}

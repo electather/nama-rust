@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use nama_plugin_api::contract::{Artwork, ArtworkKind};
 
-use super::Images;
+use super::{Images, ShowDetails};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -152,4 +152,15 @@ fn every_picked_logo_has_bytes_to_download() {
             assert!(bytes.is_file(), "{images}: {}", bytes.display());
         }
     }
+}
+
+#[test]
+fn a_title_tmdb_gives_no_language_has_no_original_language() {
+    let silent = r#"{"id": 1, "name": "Silent", "original_language": "xx"}"#;
+
+    let show = serde_json::from_str::<ShowDetails>(silent)
+        .unwrap()
+        .into_show(None);
+
+    assert_eq!(show.original_language, None);
 }

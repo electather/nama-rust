@@ -598,6 +598,8 @@ impl Metadata {
             show_poster: None,
             show_overview: None,
             show_first_air_date: None,
+            score: movie.score,
+            original_language: movie.original_language,
         }
     }
 }
