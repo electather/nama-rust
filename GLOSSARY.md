@@ -148,6 +148,10 @@ _Avoid_: subtitle provider, subtitle agent, subtitle downloader
 A Provider that says where a Version's Segments are, such as from an outside service like TheIntroDB. Each Library asks its own Segment sources in its own order, after the Kernel has looked for Segments in the Version's Chapter names.
 _Avoid_: segment provider, intro detector, skipper
 
+**Similar source**:
+A Provider that answers which titles are like a given title, each by External ID with a weight, the same for every User.
+_Avoid_: recommender, recommendation provider, similar provider
+
 **Fulfiller**:
 A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
 _Avoid_: downloader, *arr, client
@@ -266,7 +270,7 @@ A video advertising a Movie or Show, kept as a link to where it is hosted. Nama 
 _Avoid_: clip, teaser, preview
 
 **Similar titles**:
-The Movies or Shows a title source says are like a title. A User sees only those in their own Libraries.
+The Movies or Shows the Similar sources say are like a title, merged into one list. A User sees only those in their own Libraries.
 _Avoid_: recommendations, related, more like this
 
 **Poster**:
