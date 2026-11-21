@@ -1,7 +1,7 @@
 import { HardDrive, Tv } from "lucide-react";
 
-import { reasonText } from "@/features/player/lib/playback-wording";
 import { type PlaybackReason, PlaybackReasonKindSchema } from "@/gen/nama/v1/playback_pb";
+import { reasonText } from "@/shared/lib/playback-wording";
 
 /** A reason a Version can't play, after an icon for whose it is: the Device's, or the Server's. */
 export function CantPlayReason({ reason }: { reason: PlaybackReason }) {

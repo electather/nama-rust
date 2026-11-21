@@ -320,6 +320,12 @@ pub(super) const POINTS: &[Point] = &[
     },
 ];
 
+/// Each Extension Point an Installed Plugin can serve, by its service's name and its key.
+#[cfg(test)]
+pub(crate) fn installed_points() -> impl Iterator<Item = (&'static str, PointKey)> {
+    POINTS.iter().map(|point| (point.service, (point.key)()))
+}
+
 /// Every export the Server may call, which loading a Plugin probes for.
 pub(super) fn known_exports() -> impl Iterator<Item = &'static str> {
     POINTS

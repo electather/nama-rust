@@ -1,13 +1,8 @@
 import { usePlaybackStatus } from "@/features/admin-playback/data/use-playback-status";
-import {
-  type Hardware,
-  hardwareLabel,
-  hardwareValue,
-  isSaved,
-  notFoundLabel,
-} from "@/features/admin-playback/lib/hardware";
+import { hardwareValue, isSaved, notFoundLabel } from "@/features/admin-playback/lib/hardware";
 import { HardwareAcceleration, type PlaybackSettings } from "@/gen/nama/v1/server_pb";
 import { FormSelect } from "@/shared/components/form-field/form-select";
+import { type Hardware, hardwareLabel } from "@/shared/lib/playback-names";
 
 /**
  * The choice of what Transcodes run on: Automatic, Off, or an API on a GPU that passed its test,

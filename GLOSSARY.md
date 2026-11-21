@@ -36,6 +36,10 @@ _Avoid_: snapshot, dump, export
 Named events recording that a feature was used, such as a Request made or playback started, with no titles or names in them. A Server sends them to Nama's developers only if its admin shares them, separately from Diagnostics.
 _Avoid_: tracking, telemetry, metrics
 
+**Backup**:
+One file holding a copy of a Server's database, config file and local Custom Images, from which an Admin can restore the Server while it is stopped. It holds every Plugin's settings, keys included, so it is as secret as the database (ADR 0068).
+_Avoid_: snapshot, export, dump
+
 ## People
 
 **User**:
@@ -241,6 +245,10 @@ _Avoid_: part
 One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions. An Unmatched Item's file is a Version too, which plays it (ADR 0069).
 _Avoid_: copy, edition, file
 
+**Edition**:
+The name of the cut a Version holds, such as Director's Cut, written in its file or folder name as `{edition-Director's Cut}`. It names the Version and plays no part in Matching; two Versions may hold the same Edition.
+_Avoid_: cut, variant
+
 **Taken along**:
 An Episode a delete removes without naming it, because a file of what was named holds it too.
 _Avoid_: collateral, doomed
@@ -318,7 +326,7 @@ Who owns an External ID's values, such as `tmdb`, `imdb` or `tvdb`: one or more 
 _Avoid_: source id, id type
 
 **ID Hint**:
-An External ID written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search, by the title source that keeps or looks up its Namespace; while no enabled source does, the Item waits undecided.
+An External ID written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`, or in the `.nfo` file beside it, as Kodi and Jellyfin write them. An `.nfo` file's ID Hints replace the name's (ADR 0087). An Item with one is Matched by that id without a search, by the title source that keeps or looks up its Namespace; while no enabled source does, the Item waits undecided.
 _Avoid_: id tag, provider id
 
 **Scan**:
