@@ -535,6 +535,9 @@ impl Scanner {
             contents.keep_nfo_files(id, batch.to_vec()).await?;
         }
         for batch in gone.chunks(BATCH_SIZE) {
+            if cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
             contents.forget_nfo_files(id, batch.to_vec()).await?;
         }
         for batch in changed.chunks(BATCH_SIZE) {
