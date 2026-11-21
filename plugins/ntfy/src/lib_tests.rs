@@ -90,10 +90,22 @@ fn a_topic_ntfy_refuses_fails_in_ntfys_words() {
     .unwrap_err();
 
     assert!(!error.is::<RecipientGone>());
-    assert_eq!(
-        error.to_string(),
-        "ntfy failed with HTTP status 403: forbidden"
-    );
+    assert_eq!(error.to_string(), "ntfy said: forbidden");
+}
+
+#[test]
+fn a_refused_access_token_is_named() {
+    let mut kernel = ntfy(401, r#"{"code":40101,"http":401,"error":"unauthorized"}"#);
+
+    let error = with(&mut kernel, || {
+        Ntfy::deliver(
+            dune_approved(),
+            user(&[("topic", "ada-topic"), ("access_token", "tk_ada")]),
+        )
+    })
+    .unwrap_err();
+
+    assert_eq!(error.to_string(), "ntfy refused the access token");
 }
 
 #[test]

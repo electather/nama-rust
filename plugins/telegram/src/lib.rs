@@ -4,9 +4,8 @@
 //! its binary.
 
 use nama_pdk::{
-    Manifest, Notification,
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
-    services,
+    Manifest, Notification, SettingField, SettingKind, services, setting_default, setting_field,
+    setting_value,
 };
 
 const BOT_TOKEN: &str = "bot_token";
@@ -20,11 +19,11 @@ const API_URL: &str = "api_url";
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
-    use std::{collections::BTreeMap, fmt};
+    use std::collections::BTreeMap;
 
     use nama_pdk::{
-        Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier, Recipient,
-        RecipientGone, Response,
+        Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier,
+        OutsideService, Recipient, RecipientGone, Refusal, Response,
         extism_pdk::{self, Error, HttpRequest, Json},
         plugin_fn,
     };
@@ -34,6 +33,10 @@ mod exports {
     };
 
     use super::{API_URL, BOT_TOKEN, CHANNEL};
+
+    const TELEGRAM: OutsideService = OutsideService::new("Telegram")
+        .credential("bot token")
+        .reader(telegrams_words);
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
@@ -50,12 +53,17 @@ mod exports {
                 return Ok(());
             };
             match recipient {
-                Recipient::Channel(_) => {
-                    channel()?.map_or(Ok(()), |chat| send_message(&chat, &text))
-                }
-                // Telegram refuses a User's own chat once they block the bot.
+                Recipient::Channel(_) => nama_pdk::setting(CHANNEL)?
+                    .map_or(Ok(()), |chat| send_message(chat.trim(), &text)),
+                // Telegram refuses a User's own chat with a 403 once they block the bot.
                 Recipient::Connection(chat_id) => match send_message(&chat_id, &text) {
-                    Err(error) if error.is::<Forbidden>() => Err(RecipientGone.into()),
+                    Err(error)
+                        if error
+                            .downcast_ref::<Refusal>()
+                            .is_some_and(|refusal| refusal.status() == 403) =>
+                    {
+                        Err(RecipientGone.into())
+                    }
                     sent => sent,
                 },
                 // Telegram declares no Personal settings, so a User sent this way has nothing to
@@ -65,14 +73,6 @@ mod exports {
                 )),
             }
         }
-    }
-
-    /// The channel setting, or `None` if it is empty.
-    fn channel() -> Result<Option<String>, Error> {
-        let channel = nama_pdk::setting(CHANNEL)?;
-        Ok(channel
-            .map(|channel| channel.trim().to_owned())
-            .filter(|channel| !channel.is_empty()))
     }
 
     nama_pdk::notifier!(Telegram);
@@ -112,59 +112,31 @@ mod exports {
 
     /// Calls the Bot API's `method` with `parameters`, and returns its result.
     fn call<T: DeserializeOwned>(method: &str, parameters: impl Serialize) -> Result<T, Error> {
-        let api_url = setting(API_URL)?;
-        let token = setting(BOT_TOKEN)?;
+        let api_url = nama_pdk::required_setting(API_URL)?;
+        let token = nama_pdk::required_setting(BOT_TOKEN)?;
         let url = format!("{}/bot{token}/{method}", api_url.trim_end_matches('/'));
         let request = HttpRequest::new(url)
             .with_method("POST")
             .with_header("Content-Type", "application/json");
-        // Not naming the URL, which holds the token.
-        let response =
-            nama_pdk::http_request(&request, Some(Json(parameters)), "Telegram didn't answer")?;
-        if !(200..300).contains(&response.status_code()) {
-            return Err(refused(&response));
+        let response = TELEGRAM.send(&request, Some(Json(parameters)))?;
+        // Telegram answers 404 to a token that isn't even shaped like one.
+        if response.status_code() == 404 {
+            return Err(Error::msg("Telegram refused the bot token"));
         }
-        response
+        TELEGRAM
+            .accepted(response)?
             .json::<Answer<T>>()
             .map(|answer| answer.result)
             .map_err(|err| Error::msg(format!("Telegram's answer made no sense: {err}")))
     }
 
-    /// The setting `key`, which the Server sets before every call.
-    fn setting(key: &str) -> Result<String, Error> {
-        nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
+    /// Telegram's own words in a refusal: the `description` of a Bot API error.
+    fn telegrams_words(response: &Response) -> Option<String> {
+        response
+            .json::<ApiError>()
+            .ok()
+            .map(|error| error.description)
     }
-
-    /// Why Telegram refused a request, in words an admin understands: a [`Forbidden`] for a 403.
-    fn refused(response: &Response) -> Error {
-        let status = response.status_code();
-        let reason = match status {
-            // Telegram answers 404 to a token that isn't even shaped like one.
-            401 | 404 => "Telegram refused the bot token".to_owned(),
-            _ => match response.json::<Refusal>() {
-                Ok(refusal) => format!("Telegram said: {}", refusal.description),
-                Err(_) => format!("Telegram failed with HTTP status {status}"),
-            },
-        };
-        if status == 403 {
-            Error::new(Forbidden(reason))
-        } else {
-            Error::msg(reason)
-        }
-    }
-
-    /// Telegram's 403: the bot may not post in that chat, as when its User blocked the bot or a
-    /// channel didn't make it an admin.
-    #[derive(Debug)]
-    struct Forbidden(String);
-
-    impl fmt::Display for Forbidden {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.write_str(&self.0)
-        }
-    }
-
-    impl std::error::Error for Forbidden {}
 
     /// What `sendMessage` takes. Plain text, so a title needs no escaping.
     #[derive(Serialize)]
@@ -212,20 +184,13 @@ mod exports {
 
     /// The body of a Bot API error.
     #[derive(Deserialize)]
-    struct Refusal {
+    struct ApiError {
         description: String,
     }
 }
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
-    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
-        ..SettingField::default()
-    };
     Manifest {
         logo_svg: include_str!("../logo.svg").to_owned(),
         points: vec![
@@ -236,14 +201,14 @@ fn manifest() -> Manifest {
         settings: vec![
             SettingField {
                 required: true,
-                ..setting(
+                ..setting_field(
                     BOT_TOKEN,
                     "Bot token",
                     "The token BotFather gave your bot, such as 123456:ABC-DEF1234ghIkl.",
                     SettingKind::SETTING_KIND_SECRET,
                 )
             },
-            setting(
+            setting_field(
                 CHANNEL,
                 "Channel",
                 "Where every Request event is posted: a chat id, such as -1001234567890, or a \
@@ -252,14 +217,10 @@ fn manifest() -> Manifest {
                 SettingKind::SETTING_KIND_TEXT,
             ),
             SettingField {
-                default_value: SettingValue {
-                    value: Some(setting_value::Value::TextValue(
-                        "https://api.telegram.org".to_owned(),
-                    )),
-                    ..SettingValue::default()
-                }
-                .into(),
-                ..setting(
+                default_value: setting_default(setting_value::Value::TextValue(
+                    "https://api.telegram.org".to_owned(),
+                )),
+                ..setting_field(
                     API_URL,
                     "Bot API URL",
                     "Where the Telegram Bot API is. Change it only for a Bot API server of \
