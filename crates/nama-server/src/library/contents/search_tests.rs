@@ -309,3 +309,15 @@ async fn a_search_ending_in_a_year_ranks_titles_starting_with_its_words_by_that_
 
     assert_eq!(titles(&found), ["Dune Messiah", "Dune 2021 Unboxed"]);
 }
+
+#[tokio::test]
+async fn a_search_by_a_show_title_skips_a_movie_whose_match_has_one() {
+    let fx = Fixture::new().await;
+    let matched = Metadata {
+        show_title: Some("Alien Saga".to_owned()),
+        ..tmdb_movie(348, "Alien")
+    };
+    MatchedMovie::store(&fx.contents, fx.library, "/media/348.mkv", matched).await;
+
+    assert!(fx.search("saga").await.is_empty());
+}

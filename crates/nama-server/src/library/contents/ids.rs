@@ -44,9 +44,9 @@ pub(super) fn primary_id_in(ids: &ExternalIds, title_sources: &str) -> Option<Ex
 /// Hands `$query!` the start of a subquery giving an Item's ids in one scope of `item_match_ids`
 /// as a JSON object of namespace to value; the caller closes it with the scope, as in `'title')`.
 /// [`ids_from_json`] reads it. A macro because sqlx reads a query from literals only; `$arg`s go
-/// to `$query!` first, so another such macro can hand on its literal too.
+/// to `$query!` first, so another such macro, such as `matched_items`, can hand on its own too.
 macro_rules! ids_sql {
-    ($query:ident $(, $arg:literal)*) => {
+    ($query:ident $(, $arg:tt)*) => {
         $query!(
             $($arg,)*
             "(SELECT json_group_object(namespace, value) FROM item_match_ids

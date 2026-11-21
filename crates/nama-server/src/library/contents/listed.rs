@@ -46,9 +46,9 @@ impl Contents {
         let (after_namespace, after_value) = after.map(|id| (id.namespace(), id.value())).unzip();
         // SQLite reads a negative LIMIT as none.
         let limit = limit.map_or(-1, |limit| i64::try_from(limit).unwrap_or(i64::MAX));
-        // ponytail: whole-Library read. Each Movie or Episode is its rows of `matched_items`
-        // sharing an own id, which splits at its first `-` as `ExternalId` reads it. `items` is
-        // MATERIALIZED, or SQLite would run `own_id`'s subquery again at each use.
+        // ponytail: whole-Library read. `own_id` splits at its first `-`, as `ExternalId` reads
+        // it, so pages stay in id order. `items` is MATERIALIZED, or SQLite would run `own_id`'s
+        // subquery again at each use.
         macro_rules! select {
             (($($matched:tt)+)) => {
                 sqlx::query!(

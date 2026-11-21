@@ -132,6 +132,9 @@ impl Contents {
                         + $($matched)+
                         + r#" AS matched_items ON matched_items.item_id = hits.item_id
                            WHERE iif(matched_items.kind = 'movie', ?3, ?4)
+                             -- A Movie's `listed_id` is its own, so a Show title its Match
+                             -- holds mustn't make it a Show.
+                             AND (NOT hits.by_show OR matched_items.kind = 'episode')
                        ),
                        grouped AS (
                            SELECT *, row_number() OVER (
@@ -180,12 +183,9 @@ impl Contents {
                 )
             };
         }
-        macro_rules! with_ids {
-            ($ids:literal) => {
-                matched_items!(select, $ids)
-            };
-        }
-        ids_sql!(with_ids).fetch_all(self.db.reader()).await
+        ids_sql!(matched_items, select)
+            .fetch_all(self.db.reader())
+            .await
     }
 }
 
@@ -235,7 +235,7 @@ impl SearchRow {
         parse_hint(&self.own_id)
     }
 
-    /// As browsing identifies an Episode's Show.
+    /// As browsing identifies the title the Item is listed under: an Episode's Show.
     fn show_primary_id(&self) -> Option<ExternalId> {
         parse_hint(&self.listed_id)
     }
