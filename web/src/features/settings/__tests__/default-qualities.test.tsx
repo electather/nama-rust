@@ -115,7 +115,8 @@ test("saving a default for Shows reads the Show Quality menu's Qualities again",
     schema: RequestService.method.listShowQualities,
     cardinality: "finite",
   });
-  // The menu below would show the new default even unfixed, as a Show page refetches on mount.
+  // Unfixed, the menu below still shows the new default if a slow run remounts the Show page over
+  // 1 s later: useSuspenseQuery keeps data fresh for at least 1 s, then refetches on mount.
   const cached = router.options.context.queryClient
     .getQueryCache()
     .findAll({ queryKey: showQualitiesKey });
