@@ -241,9 +241,10 @@ pub mod kernel {
     }
 
     /// Fetches every Matched title of every Library again from its title source, by the ids its
-    /// Match has, and stores what it got, as `(titles, unavailable_plugin_ids)`: how many titles
-    /// it stored, and each Plugin that couldn't answer, whose titles keep what they had. It never
-    /// searches or changes a Match. Needs `PERMISSION_REFRESH_METADATA`.
+    /// Match has, whatever its metadata version, and stores what it got, as
+    /// `(titles, unavailable_plugin_ids)`: how many titles it stored, and the id of each Plugin
+    /// that couldn't answer, whose titles keep what they had. It never searches or changes a
+    /// Match. Needs `PERMISSION_REFRESH_METADATA`.
     ///
     /// # Errors
     ///
