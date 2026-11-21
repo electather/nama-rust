@@ -12,7 +12,7 @@ use sqlx::SqliteConnection;
 use super::asked::{self, Asked};
 use super::followed::load_followed;
 use super::quality::stored_quality;
-use super::state::{open_request, read_state, stored};
+use super::state::{open_request, open_season_requests, read_state, stored};
 use super::{Error, Requests};
 use crate::page::Page;
 use crate::users::{User, may_see};
@@ -131,6 +131,22 @@ impl Requests {
         };
         let visible = self.visible(conn, Some(id), viewer).await?;
         Ok(visible.into_iter().next())
+    }
+
+    /// The open Request for the earliest Season of the Show with any of `ids` that has one `viewer`
+    /// may see.
+    pub(super) async fn visible_open_season_request(
+        &self,
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        ids: &metadata::ExternalIds,
+    ) -> Result<Option<Request>, sqlx::Error> {
+        for id in open_season_requests(conn, ids).await? {
+            if let Some(request) = self.visible(conn, Some(id), viewer).await?.pop() {
+                return Ok(Some(request));
+            }
+        }
+        Ok(None)
     }
 
     /// The Requests `viewer` may see, newest first, only the one with the ID `id` if given, each

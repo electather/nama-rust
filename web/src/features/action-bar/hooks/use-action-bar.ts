@@ -61,11 +61,16 @@ export function useActionBar({
     dialog.close();
     void navigate({ to });
   }
+  function openToRequest({ kind, titleId }: FoundTitle) {
+    void (kind === "movie"
+      ? navigate({ to: "/movies/$movieId", params: { movieId: titleId } })
+      : navigate({ to: "/shows/$showId", params: { showId: titleId } }));
+  }
   function open(title: FoundTitle) {
     dialog.close();
     const { libraryId, titleId, season } = title;
     if (libraryId === undefined) {
-      void navigate({ to: "/movies/$movieId", params: { movieId: titleId } });
+      openToRequest(title);
       return;
     }
     remember(title);

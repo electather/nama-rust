@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { type MovieHitSchema, RequestState } from "@/gen/nama/v1/request_pb";
+import { type MovieHitSchema, RequestState, type ShowHitSchema } from "@/gen/nama/v1/request_pb";
 import { type SearchResponseSchema, SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { modKey } from "@/shared/lib/mod-key";
@@ -83,6 +83,15 @@ function streams(...parts: Part[]): Search {
 function movies(...hits: [MessageInitShape<typeof MovieHitSchema>, TitleStatus][]): Part {
   const batch = hits.map(([value, status]) => ({
     title: { case: "movie" as const, value },
+    status,
+  }));
+  return { part: { case: "hits", value: { hits: batch } } };
+}
+
+/** A batch of Shows, each with its status. */
+function shows(...hits: [MessageInitShape<typeof ShowHitSchema>, TitleStatus][]): Part {
+  const batch = hits.map(([value, status]) => ({
+    title: { case: "show" as const, value },
     status,
   }));
   return { part: { case: "hits", value: { hits: batch } } };
@@ -284,6 +293,37 @@ test("movies to request list below the Library's, by status, and open their requ
   fireEvent.click(officeHours);
   await waitFor(() => {
     expect(router.state.location.pathname).toBe("/movies/tmdb-1");
+  });
+});
+
+test("shows to request list by status, with their Request or a Requested tag, and open their request page", async () => {
+  const toRequest = { id: tmdb("2996"), title: "The Office (UK)" };
+  const followed = { id: tmdb("1"), title: "Office Ladies" };
+  const asked = { id: tmdb("2"), title: "Office Girls", request: { state: RequestState.PENDING } };
+  const search = streams(
+    shows([theOffice.value, TitleStatus.AVAILABLE]),
+    shows(
+      [toRequest, TitleStatus.NOT_ON_THIS_SERVER],
+      [followed, TitleStatus.REQUESTED],
+      [asked, TitleStatus.REQUESTED],
+    ),
+    { part: { case: "done", value: {} } },
+  );
+  const router = openApp("/settings", serverToSearch(search));
+  const field = await openActionBar();
+
+  type(field, "office");
+  const uk = await screen.findByRole("option", { name: /^The Office \(UK\)/u });
+
+  expect(rows()).toStrictEqual([
+    "The OfficeOpen",
+    "Office LadiesRequested",
+    "Office GirlsPending approval",
+    "The Office (UK)Request",
+  ]);
+  fireEvent.click(uk);
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe("/shows/tmdb-2996");
   });
 });
 

@@ -10,7 +10,8 @@ pub enum TitleStatus {
     /// A Library has the Movie, or at least one Episode of the Show: it opens in the Library
     /// `library_id` names, by its `id`.
     TITLE_STATUS_AVAILABLE = 1i32,
-    /// No Library has it, and the caller can see its open Request, in `request`.
+    /// No Library has it, and the caller can see an open Request for it or one of the Show's
+    /// Seasons, in `request`, or the Show's open Followed Show, which alone leaves `request` unset.
     TITLE_STATUS_REQUESTED = 2i32,
     /// Only the title source has it, and the caller may request it.
     TITLE_STATUS_NOT_ON_THIS_SERVER = 3i32,
@@ -1469,8 +1470,8 @@ pub const __EPISODE_HIT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct Done {
-    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
-    /// The results are then only those the Libraries have.
+    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed,
+    /// for Movies or for Shows. The results of that kind are then only those the Libraries have.
     ///
     /// Field 1: `title_source_unavailable`
     #[serde(

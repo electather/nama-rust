@@ -519,7 +519,7 @@ fn looked_up_to_proto(found: Found<Metadata>, images: &ShownImages) -> proto::Fo
 }
 
 /// A Show a search found, as clients see it, with its poster offered to them.
-fn searched_show_to_proto(hit: Hit, images: &ShownImages) -> proto::ShowHit {
+pub(super) fn searched_show_to_proto(hit: Hit, images: &ShownImages) -> proto::ShowHit {
     let Hit {
         id,
         plugin,

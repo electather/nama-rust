@@ -18092,8 +18092,8 @@ pub struct ShowHitView<'a> {
     ///
     /// Field 5: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
-    /// The Library `SearchService.Search` found it in. `BrowseService.GetShow` opens it there, by
-    /// `id`.
+    /// The oldest Library with an Episode of it Matched, if any, or for `SearchService.Search`'s
+    /// Library batch the one it was found in. `BrowseService.GetShow` opens it there, by `id`.
     ///
     /// Field 8: `library_id`
     pub library_id: ::core::option::Option<i64>,
@@ -18101,6 +18101,11 @@ pub struct ShowHitView<'a> {
     ///
     /// Field 10: `poster_thumbhash`
     pub poster_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// For `SearchService.Search`'s title-source batch, the open Request for its earliest Season
+    /// with one the caller may see, if any.
+    ///
+    /// Field 13: `request`
+    pub request: ::buffa::MessageFieldView<super::super::__buffa::view::RequestView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowHitView<'a> {
@@ -18189,6 +18194,27 @@ impl<'a> ::buffa::MessageView<'a> for ShowHitView<'a> {
                 )?;
                 view.poster_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.request.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.request = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::RequestView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -18225,6 +18251,15 @@ impl<'a> ::buffa::MessageView<'a> for ShowHitView<'a> {
             poster_url: self.poster_url.map(|s| s.to_string()),
             library_id: self.library_id,
             poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
+            request: match self.request.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::Request,
+                        ::buffa::Inline<super::super::Request>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -18254,6 +18289,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowHitView<'a> {
         if self.id.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.request.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.request.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -18292,6 +18335,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowHitView<'a> {
                 buf,
             );
             self.id.write_to(__cache, buf);
+        }
+        if self.request.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.request.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -18337,6 +18388,11 @@ impl<'__a> ::serde::Serialize for ShowHitView<'__a> {
                     "posterThumbhash",
                     &::buffa::json_helpers::BytesJson(__v),
                 )?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.request.as_option() {
+                __map.serialize_entry("request", __v)?;
+            }
         }
         __map.end()
     }
@@ -18457,8 +18513,8 @@ impl ShowHitOwnedView {
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
     }
-    /// The Library `SearchService.Search` found it in. `BrowseService.GetShow` opens it there, by
-    /// `id`.
+    /// The oldest Library with an Episode of it Matched, if any, or for `SearchService.Search`'s
+    /// Library batch the one it was found in. `BrowseService.GetShow` opens it there, by `id`.
     ///
     /// Field 8: `library_id`
     #[must_use]
@@ -18471,6 +18527,16 @@ impl ShowHitOwnedView {
     #[must_use]
     pub fn poster_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().poster_thumbhash
+    }
+    /// For `SearchService.Search`'s title-source batch, the open Request for its earliest Season
+    /// with one the caller may see, if any.
+    ///
+    /// Field 13: `request`
+    #[must_use]
+    pub fn request(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::RequestView<'_>> {
+        &self.0.reborrow().request
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowHitView<'static>>>
