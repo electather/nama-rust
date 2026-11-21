@@ -10,4 +10,4 @@ An Admin sets the default Home layout, and each User may change their own (#999)
 ## Consequences
 
 - A User who reordered once doesn't see a later default reorder. "Reset to default" is how they pick it up.
-- A saved layout keeps entries for rows the editor didn't see, such as a disabled Plugin's rows, each after the row it followed before. They're dropped only when the Plugin is uninstalled or the User is deleted.
+- A saved layout keeps entries for rows the editor didn't see, such as a disabled Plugin's rows, each after the row it followed before, or at the end if that row is gone too. They're dropped only when the Plugin is uninstalled or the User is deleted.

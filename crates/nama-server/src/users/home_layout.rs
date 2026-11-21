@@ -21,7 +21,8 @@ pub(crate) struct UserHomeLayout {
     /// In no order: [`Self::order`] is.
     rows: Vec<PlacedRow>,
     /// `None` until the User first reorders their rows, so they follow the default's order.
-    /// Their own rows from a Plugin are placed one by one, as [`HomeRowId::Own`].
+    /// Their own rows from a Plugin are placed one by one, as [`HomeRowId::Own`], or together, as
+    /// [`HomeRowId::UsersOwn`], while that Plugin was disabled whenever they reordered.
     order: Option<Vec<HomeRowId>>,
 }
 
@@ -40,7 +41,7 @@ impl UserHomeLayout {
     ) -> Vec<((HomeRowId, T), bool)> {
         let mut arranged = default.arrange(rows);
         if let Some(order) = &self.order {
-            let place = |row: &HomeRowId| order.iter().position(|placed| placed == row);
+            let place = |row: &HomeRowId| order.iter().position(|placed| placed.places(row));
             arranged.sort_by_key(|((row, _), _)| place(row).unwrap_or(order.len()));
         }
         for ((row, _), shown) in &mut arranged {
@@ -135,6 +136,8 @@ impl UserHomeLayout {
         mut seen: Vec<HomeRowId>,
         default: HomeLayout,
     ) -> Result<(), sqlx::Error> {
+        let seen_plugins: Vec<PluginId> =
+            seen.iter().filter_map(HomeRowId::plugin).cloned().collect();
         let mut order: Vec<HomeRowId> = (asked.iter())
             .filter_map(|named| {
                 let at = seen.iter().position(|row| named.names(row))?;
@@ -151,9 +154,16 @@ impl UserHomeLayout {
                     &mut order,
                     &before.order.take().unwrap_or(defaults),
                     |named, placed| placed.places(named),
-                    // The default's entry for a Plugin's Users' own rows stands for those `order`
-                    // has, so it isn't copied: a User's own row their order lacks goes at its end.
-                    |row| !matches!(row, HomeRowId::UsersOwn { .. }),
+                    // The entry for a Plugin's Users' own rows stands for those `order` has, so
+                    // it isn't kept, and a User's own row their order lacks goes at its end. It is
+                    // kept while they see none of the Plugin's rows, as it's disabled, so their own
+                    // rows return to its place; one giving them no rows at all looks the same.
+                    |row| match row {
+                        HomeRowId::UsersOwn { plugin } => !seen_plugins.contains(plugin),
+                        HomeRowId::ContinueWatching
+                        | HomeRowId::Shared { .. }
+                        | HomeRowId::Own { .. } => true,
+                    },
                 );
                 let order = Some(order);
                 store(tx, user, &Self { order, ..before }).await
