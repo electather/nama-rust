@@ -189,6 +189,7 @@ fn ratings(choices: &[&str], default: Option<&[&str]>) -> SettingField {
     let texts = |values: &[&str]| values.iter().map(|value| (*value).to_owned()).collect();
     SettingField {
         key: "ratings".to_owned(),
+        label: "Ratings".to_owned(),
         kind: SettingKind::Choices,
         choices: choices
             .iter()

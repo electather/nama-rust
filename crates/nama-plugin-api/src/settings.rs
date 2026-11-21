@@ -60,9 +60,7 @@ impl SettingField {
         self.min.is_none_or(|min| number >= min) && self.max.is_none_or(|max| number <= max)
     }
 
-    /// Why the Kernel refuses a Plugin that declares this setting, if it does: bounds or choices
-    /// on a kind that takes none, a `min` over its `max`, a choice listed twice, or a default
-    /// outside its bounds or choices.
+    /// Why the Kernel refuses a Plugin that declares this setting, if it does.
     #[must_use]
     pub fn flaw(&self) -> Option<SettingFlaw> {
         self.bounds_flaw().or_else(|| self.choices_flaw())
@@ -185,8 +183,8 @@ pub enum SettingFlaw {
     },
 }
 
-// Words a Built-in's refusal; an Installed Plugin's names its Manifest's fields and exports
-// instead (`Refused` in nama-server's `plugins/wasm.rs`).
+// Words a Built-in's refusal: an Installed Plugin's names its wire Manifest's fields and exports
+// instead, such as `min_value`.
 impl fmt::Display for SettingFlaw {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
