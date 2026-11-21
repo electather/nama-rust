@@ -182,7 +182,10 @@ async fn a_version_whose_preview_frames_failed_on_a_full_disk_is_still_needed() 
     let version = fx.movie.version;
     fx.probe_as_video().await;
 
-    assert!(fx.frames.make(version).await.is_err());
+    assert!(matches!(
+        fx.frames.make(version).await,
+        Err(Error::Ffmpeg(_))
+    ));
 
     assert_eq!(fx.ffmpeg_runs(), 1);
     assert_eq!(fx.frames.needed().await.unwrap(), [version]);

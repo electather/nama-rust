@@ -11,7 +11,7 @@ fn failed(stderr: &str) -> RunError {
 async fn a_failed_read_means_what_its_error_kind_of_read_and_file_say() {
     let folder = tempfile::tempdir().unwrap();
     let there = folder.path().join("there.mkv");
-    std::fs::write(&there, "").unwrap();
+    std::fs::write(&there, "a byte").unwrap();
     let gone = folder.path().join("gone.mkv");
     let refused = [
         "av_interleaved_write_frame(): No space left on device",
