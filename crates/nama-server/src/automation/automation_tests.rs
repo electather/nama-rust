@@ -9,10 +9,11 @@ use std::{
 use buffa::MessageField;
 use nama_plugin_api::{
     automation::{
-        DeleteAsked, DeleteStarted, ForgetHomeRowsAsked, HomeRowsForgotten,
-        Libraries as ListedLibraries, LibrariesAsked, LibraryKind, Permission, Requesters,
-        RequestersAsked, StoreKey, StoreValue, Titles, TitlesAsked, Users as ListedUsers,
-        UsersAsked, WatchStates as ListedWatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
+        DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
+        ForgetHomeRowsAsked, HomeRowsForgotten, Libraries as ListedLibraries, LibrariesAsked,
+        LibraryKind, Permission, Requesters, RequestersAsked, StoreKey, StoreValue, Titles,
+        TitlesAsked, Users as ListedUsers, UsersAsked, WatchStates as ListedWatchStates,
+        WatchStatesAsked, Watchlist, WatchlistAsked,
     },
     contract,
     metadata::ExternalId,
@@ -735,4 +736,22 @@ async fn forget_home_rows_refuses_0_days_and_answers_how_many_users_it_forgot() 
 
     assert_eq!(refused.unwrap_err().0, "days must be at least 1");
     assert_eq!(forgotten.unwrap().users, 0, "nobody has opened home");
+}
+
+#[tokio::test]
+async fn delete_expired_sign_ins_answers_how_many_devices_and_invites_it_deleted() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let needs = Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS;
+    let (_automation, kernel) = kernel(&db, data.path(), needs);
+
+    let asked = ExpiredSignInsAsked::default();
+    let deleted = ask::<ExpiredSignInsDeleted>(&kernel, "delete_expired_sign_ins", &asked).await;
+
+    let deleted = deleted.unwrap();
+    assert_eq!(
+        (deleted.devices, deleted.invites),
+        (0, 0),
+        "nothing has expired"
+    );
 }

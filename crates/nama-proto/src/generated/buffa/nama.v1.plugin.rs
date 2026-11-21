@@ -354,6 +354,8 @@ pub enum PluginPermission {
     PLUGIN_PERMISSION_READ_WATCHLISTS = 7i32,
     /// Delete the Home rows and Featured suggestions kept for Users who stopped opening home.
     PLUGIN_PERMISSION_FORGET_HOME_ROWS = 8i32,
+    /// Delete the Devices and Invites that have expired, which no longer work.
+    PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS = 9i32,
 }
 impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -383,6 +385,9 @@ impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ForgetHomeRows: Self = Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeleteExpiredSignIns: Self = Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS;
 }
 impl ::core::default::Default for PluginPermission {
     fn default() -> Self {
@@ -493,6 +498,11 @@ impl ::buffa::Enumeration for PluginPermission {
             8i32 => {
                 ::core::option::Option::Some(Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS)
             }
+            9i32 => {
+                ::core::option::Option::Some(
+                    Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -515,6 +525,9 @@ impl ::buffa::Enumeration for PluginPermission {
             }
             Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS => {
                 "PLUGIN_PERMISSION_FORGET_HOME_ROWS"
+            }
+            Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS => {
+                "PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS"
             }
         }
     }
@@ -547,6 +560,11 @@ impl ::buffa::Enumeration for PluginPermission {
             "PLUGIN_PERMISSION_FORGET_HOME_ROWS" => {
                 ::core::option::Option::Some(Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS)
             }
+            "PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS" => {
+                ::core::option::Option::Some(
+                    Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -561,6 +579,7 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_READ_REQUESTS,
             Self::PLUGIN_PERMISSION_READ_WATCHLISTS,
             Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS,
+            Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS,
         ]
     }
 }

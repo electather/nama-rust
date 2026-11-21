@@ -19,6 +19,10 @@
 ///   list_watchlist:    WatchlistAsked   -\> Watchlist      PERMISSION_READ_WATCHLISTS
 ///   delete_media:      DeleteAsked      -\> DeleteStarted  PERMISSION_DELETE_MEDIA
 ///   forget_home_rows:  ForgetHomeRowsAsked -\> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
+///   delete_expired_sign_ins: ExpiredSignInsAsked -\> ExpiredSignInsDeleted
+/// ```text
+///                  PERMISSION_DELETE_EXPIRED_SIGN_INS
+/// ```
 ///
 /// The functions are documented here rather than declared as a service: they are not an Extension
 /// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -8660,6 +8664,535 @@ impl ::buffa::HasMessageView for super::super::HomeRowsForgotten {
     type ViewHandle = HomeRowsForgottenOwnedView;
 }
 impl ::serde::Serialize for HomeRowsForgottenOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What `delete_expired_sign_ins` takes.
+#[derive(Clone, Debug, Default)]
+pub struct ExpiredSignInsAskedView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ExpiredSignInsAskedView<'a> {
+    type Owned = super::super::ExpiredSignInsAsked;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ExpiredSignInsAsked,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ExpiredSignInsAsked,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ExpiredSignInsAsked {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ExpiredSignInsAskedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ExpiredSignInsAskedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ExpiredSignInsAskedView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ExpiredSignInsAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ExpiredSignInsAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ExpiredSignInsAsked";
+}
+::buffa::impl_default_view_instance!(ExpiredSignInsAskedView);
+::buffa::impl_view_reborrow!(ExpiredSignInsAskedView);
+/** Self-contained, `'static` owned view of a `ExpiredSignInsAsked` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ExpiredSignInsAskedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ExpiredSignInsAskedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ExpiredSignInsAskedOwnedView(
+    ::buffa::OwnedView<ExpiredSignInsAskedView<'static>>,
+);
+impl ExpiredSignInsAskedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ExpiredSignInsAskedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ExpiredSignInsAskedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ExpiredSignInsAsked,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ExpiredSignInsAskedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ExpiredSignInsAskedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ExpiredSignInsAskedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ExpiredSignInsAsked {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ExpiredSignInsAskedView<'static>>>
+for ExpiredSignInsAskedOwnedView {
+    fn from(inner: ::buffa::OwnedView<ExpiredSignInsAskedView<'static>>) -> Self {
+        ExpiredSignInsAskedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ExpiredSignInsAskedOwnedView>
+for ::buffa::OwnedView<ExpiredSignInsAskedView<'static>> {
+    fn from(wrapper: ExpiredSignInsAskedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ExpiredSignInsAskedView<'static>>>
+for ExpiredSignInsAskedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ExpiredSignInsAskedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ExpiredSignInsAsked {
+    type View<'a> = ExpiredSignInsAskedView<'a>;
+    type ViewHandle = ExpiredSignInsAskedOwnedView;
+}
+impl ::serde::Serialize for ExpiredSignInsAskedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What `delete_expired_sign_ins` answers once it deleted every Device whose session expired and
+/// every Invite past its expiry. Neither worked any more; they were only still stored.
+#[derive(Clone, Debug, Default)]
+pub struct ExpiredSignInsDeletedView<'a> {
+    /// How many Devices it deleted.
+    ///
+    /// Field 1: `devices`
+    pub devices: u32,
+    /// How many Invites it deleted.
+    ///
+    /// Field 2: `invites`
+    pub invites: u32,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ExpiredSignInsDeletedView<'a> {
+    type Owned = super::super::ExpiredSignInsDeleted;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.devices = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.invites = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ExpiredSignInsDeleted,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ExpiredSignInsDeleted,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ExpiredSignInsDeleted {
+            devices: self.devices,
+            invites: self.invites,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ExpiredSignInsDeletedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.devices != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.devices) as u64;
+        }
+        if self.invites != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.invites) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.devices != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.devices, buf);
+        }
+        if self.invites != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.invites, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ExpiredSignInsDeletedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.devices) {
+            __map
+                .serialize_entry(
+                    "devices",
+                    &::buffa::json_helpers::ProtoJson(&self.devices),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.invites) {
+            __map
+                .serialize_entry(
+                    "invites",
+                    &::buffa::json_helpers::ProtoJson(&self.invites),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ExpiredSignInsDeletedView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ExpiredSignInsDeleted";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ExpiredSignInsDeleted";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ExpiredSignInsDeleted";
+}
+::buffa::impl_default_view_instance!(ExpiredSignInsDeletedView);
+::buffa::impl_view_reborrow!(ExpiredSignInsDeletedView);
+/** Self-contained, `'static` owned view of a `ExpiredSignInsDeleted` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ExpiredSignInsDeletedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ExpiredSignInsDeletedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ExpiredSignInsDeletedOwnedView(
+    ::buffa::OwnedView<ExpiredSignInsDeletedView<'static>>,
+);
+impl ExpiredSignInsDeletedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ExpiredSignInsDeletedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ExpiredSignInsDeletedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ExpiredSignInsDeleted,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ExpiredSignInsDeletedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ExpiredSignInsDeletedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ExpiredSignInsDeletedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ExpiredSignInsDeleted {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// How many Devices it deleted.
+    ///
+    /// Field 1: `devices`
+    #[must_use]
+    pub fn devices(&self) -> u32 {
+        self.0.reborrow().devices
+    }
+    /// How many Invites it deleted.
+    ///
+    /// Field 2: `invites`
+    #[must_use]
+    pub fn invites(&self) -> u32 {
+        self.0.reborrow().invites
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ExpiredSignInsDeletedView<'static>>>
+for ExpiredSignInsDeletedOwnedView {
+    fn from(inner: ::buffa::OwnedView<ExpiredSignInsDeletedView<'static>>) -> Self {
+        ExpiredSignInsDeletedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ExpiredSignInsDeletedOwnedView>
+for ::buffa::OwnedView<ExpiredSignInsDeletedView<'static>> {
+    fn from(wrapper: ExpiredSignInsDeletedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ExpiredSignInsDeletedView<'static>>>
+for ExpiredSignInsDeletedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ExpiredSignInsDeletedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ExpiredSignInsDeleted {
+    type View<'a> = ExpiredSignInsDeletedView<'a>;
+    type ViewHandle = ExpiredSignInsDeletedOwnedView;
+}
+impl ::serde::Serialize for ExpiredSignInsDeletedOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

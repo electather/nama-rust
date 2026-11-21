@@ -19,6 +19,7 @@ use crate::{
 
 mod codes;
 mod device_names;
+mod expired;
 mod home_layout;
 mod invites;
 mod managing;
@@ -414,6 +415,7 @@ impl Users {
             })
         })
         .await
+        .map(drop)
     }
 
     /// Signs `device`, whose name has been checked, in as whoever `proved` says. A User deleted
@@ -452,12 +454,13 @@ impl Users {
             })
         })
         .await
+        .map(drop)
     }
 
-    /// Runs `write`, which deletes Devices and returns their ids, then tells the waiters in
-    /// [`Users::signed_out`] about them. Both run in a task of their own: a queued write goes
-    /// through even if the caller stops waiting, and its Devices' waiters must still hear of it.
-    async fn write_signing_out<E, F>(&self, write: F) -> Result<(), E>
+    /// Runs `write`, which deletes Devices and returns their ids, tells the waiters in
+    /// [`Users::signed_out`] about them and answers how many. Both run in a task of their own: a
+    /// queued write goes through even if the caller stops waiting, and its waiters must hear of it.
+    async fn write_signing_out<E, F>(&self, write: F) -> Result<usize, E>
     where
         E: From<sqlx::Error> + Send + 'static,
         F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<Vec<i64>, E>>
@@ -467,11 +470,12 @@ impl Users {
         let users = self.clone();
         let written = tokio::spawn(
             async move {
-                for device in users.db.write(write).await? {
+                let devices = users.db.write(write).await?;
+                for &device in &devices {
                     // Fails only when nobody is waiting, which is fine.
                     let _: Result<usize, _> = users.sign_outs.send(device);
                 }
-                Ok(())
+                Ok(devices.len())
             }
             .in_current_span(),
         );

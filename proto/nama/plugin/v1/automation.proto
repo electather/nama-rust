@@ -23,6 +23,8 @@ import "nama/plugin/v1/title_source.proto";
 //   list_watchlist:    WatchlistAsked   -> Watchlist      PERMISSION_READ_WATCHLISTS
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //   forget_home_rows:  ForgetHomeRowsAsked -> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
+//   delete_expired_sign_ins: ExpiredSignInsAsked -> ExpiredSignInsDeleted
+//                      PERMISSION_DELETE_EXPIRED_SIGN_INS
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
 // Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -58,6 +60,8 @@ enum Permission {
   // Deleting the Home rows and Featured suggestions of Users who stopped opening home:
   // `forget_home_rows`.
   PERMISSION_FORGET_HOME_ROWS = 8;
+  // Deleting the Devices and Invites that have expired: `delete_expired_sign_ins`.
+  PERMISSION_DELETE_EXPIRED_SIGN_INS = 9;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
@@ -276,4 +280,16 @@ message ForgetHomeRowsAsked {
 message HomeRowsForgotten {
   // How many Users had rows it deleted.
   uint32 users = 1;
+}
+
+// What `delete_expired_sign_ins` takes.
+message ExpiredSignInsAsked {}
+
+// What `delete_expired_sign_ins` answers once it deleted every Device whose session expired and
+// every Invite past its expiry. Neither worked any more; they were only still stored.
+message ExpiredSignInsDeleted {
+  // How many Devices it deleted.
+  uint32 devices = 1;
+  // How many Invites it deleted.
+  uint32 invites = 2;
 }

@@ -576,6 +576,9 @@ fn permission_to_proto(permission: Permission) -> proto::PluginPermission {
         Permission::PERMISSION_READ_REQUESTS => Public::PLUGIN_PERMISSION_READ_REQUESTS,
         Permission::PERMISSION_READ_WATCHLISTS => Public::PLUGIN_PERMISSION_READ_WATCHLISTS,
         Permission::PERMISSION_FORGET_HOME_ROWS => Public::PLUGIN_PERMISSION_FORGET_HOME_ROWS,
+        Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS => {
+            Public::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS
+        }
     }
 }
 
@@ -598,6 +601,9 @@ fn permission_from_proto(
         }
         Some(Public::PLUGIN_PERMISSION_FORGET_HOME_ROWS) => {
             Ok(Permission::PERMISSION_FORGET_HOME_ROWS)
+        }
+        Some(Public::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS) => {
+            Ok(Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS)
         }
         Some(Public::PLUGIN_PERMISSION_UNSPECIFIED) | None => Err(super::unknown_enum_value(
             GRANTED_PERMISSIONS,

@@ -351,6 +351,8 @@ enum PluginPermission {
   PLUGIN_PERMISSION_READ_WATCHLISTS = 7;
   // Delete the Home rows and Featured suggestions kept for Users who stopped opening home.
   PLUGIN_PERMISSION_FORGET_HOME_ROWS = 8;
+  // Delete the Devices and Invites that have expired, which no longer work.
+  PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS = 9;
 }
 
 // A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
