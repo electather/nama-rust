@@ -17,8 +17,8 @@ use connectrpc::{ErrorCode, client::HttpClient};
 use jiff::{ToSpan as _, Zoned};
 use log::Log;
 use nama_proto::nama::v1::{
-    DisablePluginRequest, EnablePluginRequest, Job, JobRunOutcome, JobServiceClient,
-    ListJobRunsRequest, ListJobsRequest, Permission,
+    DisablePluginRequest, EnablePluginRequest, GetPluginRequest, Job, JobRunOutcome,
+    JobServiceClient, ListJobRunsRequest, ListJobsRequest, Permission, PluginJob,
 };
 use server::TestServer;
 
@@ -199,4 +199,34 @@ async fn an_admin_sees_each_job_and_its_runs_a_disabled_plugins_come_back_and_ot
         .await
         .unwrap_err();
     assert_eq!(refused.code, ErrorCode::PermissionDenied);
+}
+
+#[tokio::test]
+async fn a_plugin_not_yet_enabled_shows_the_jobs_its_manifest_declares() {
+    let server = TestServer::builder().start().await;
+    server.install_test_plugin("jobs").await;
+
+    let plugin = server
+        .plugin_service()
+        .get_plugin(GetPluginRequest {
+            id: "test-plugin".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .plugin;
+    let jobs: Vec<(&str, &str, &str)> = plugin
+        .jobs
+        .iter()
+        .map(
+            |PluginJob {
+                 id, name, schedule, ..
+             }| (id.as_str(), name.as_str(), schedule.as_str()),
+        )
+        .collect();
+    assert_eq!(
+        jobs,
+        [("wait", "wait", "0 4 * * *"), ("on-ask", "on-ask", "")]
+    );
 }
