@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, plugin, job, outcome, started_ms, ended_ms, error FROM job_runs AS run\n         WHERE id = (SELECT MAX(id) FROM job_runs WHERE plugin = run.plugin AND job = run.job)",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "plugin",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "job",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "job"
+          }
+        }
+      },
+      {
+        "name": "outcome",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "outcome"
+          }
+        }
+      },
+      {
+        "name": "started_ms",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "started_ms"
+          }
+        }
+      },
+      {
+        "name": "ended_ms",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "ended_ms"
+          }
+        }
+      },
+      {
+        "name": "error",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "error"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "63931d08433b4630a01bc75349444fafc99f37a7763e9ce54b37414641a9f43b"
+}

@@ -90,7 +90,6 @@ impl Plugin for TestChoices {
             source_url: String::new(),
             license: String::new(),
             permissions: Vec::new(),
-            tick_every: None,
             jobs: Vec::new(),
             title_source: None,
         }

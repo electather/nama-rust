@@ -46,10 +46,7 @@ struct Probe {
 impl Adapter for Probe {
     type Kept = u32;
     const NOUN: &'static str = "probes";
-
-    fn methods(&self) -> &'static [HomeRowMethod] {
-        ALL
-    }
+    const METHODS: &'static [HomeRowMethod] = ALL;
 
     fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)> {
         let scope = |&method| (method, scope(method, reader).user);
@@ -114,6 +111,14 @@ impl Adapter for Probe {
         let mut stored = self.stored.lock().unwrap();
         stored.retain(|scope, _| (scope.plugin.as_str(), scope.method) != (plugin, method));
         ready(Ok(()))
+    }
+
+    // Its answers are in memory, which no test forgets by User.
+    fn delete_users_own(
+        _conn: &mut SqliteConnection,
+        _user: i64,
+    ) -> impl Future<Output = Result<bool, sqlx::Error>> + Send {
+        ready(Ok(false))
     }
 
     fn plugins(

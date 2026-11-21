@@ -144,3 +144,42 @@ fn a_minute_the_clocks_skip_fires_in_the_window_they_skip_it_in() {
     // The UK's clocks go forward from 00:59 to 02:00 on 2026-03-29.
     assert!(fires("30 1 * * *", "2026-03-29 00:59", "2026-03-29 02:00"));
 }
+
+/// The first `count` wall-clock times `cron` fires after `after`.
+fn next(cron: &str, after: &str, count: usize) -> Vec<String> {
+    let cron = Cron::parse(cron).unwrap();
+    let firings = cron.firings_after(after.parse().unwrap());
+    firings.take(count).map(|at| at.to_string()).collect()
+}
+
+#[test]
+fn the_next_firings_start_after_the_minute_given_and_skip_days_that_dont_match() {
+    assert_eq!(
+        next("0 4 * * *", "2026-11-20 04:00", 3),
+        [
+            "2026-11-21T04:00:00",
+            "2026-11-22T04:00:00",
+            "2026-11-23T04:00:00"
+        ]
+    );
+    assert_eq!(
+        next("30 4,16 * * mon", "2026-11-20 12:00", 3),
+        [
+            "2026-11-23T04:30:00",
+            "2026-11-23T16:30:00",
+            "2026-11-30T04:30:00"
+        ]
+    );
+    assert_eq!(
+        next("0 0 29 2 *", "2026-11-20 12:00", 1),
+        ["2028-02-29T00:00:00"]
+    );
+}
+
+#[test]
+fn a_schedule_naming_a_day_that_never_comes_has_no_next_firing() {
+    assert_eq!(
+        next("0 0 30 2 *", "2026-11-20 12:00", 1),
+        Vec::<String>::new()
+    );
+}

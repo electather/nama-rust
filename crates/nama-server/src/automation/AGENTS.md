@@ -9,5 +9,5 @@ The Kernel's functions any Plugin calls (ADR 0048, ADR 0071), served to each Plu
 
 ### Neighbours
 
-- Uses: `db`, `library` (`Libraries`, `Contents`, `WatchStates`, `TitleTarget`), `scanner` (`Scanner::start_delete`), `users` (`Users::list`), `requests` (`who_requested`), `watchlist` (`list`), `plugins` (`ExtensionPoints::name`).
+- Uses: `db`, `library` (`Libraries`, `Contents`, `WatchStates`, `TitleTarget`), `scanner` (`Scanner::start_delete`), `users` (`Users::list`), `requests` (`who_requested`), `watchlist` (`list`), `home_rows` (`forget_unvisited`), `plugins` (`ExtensionPoints::name`).
 - Used by: startup in `lib.rs`, through `ExtensionPoints::serve_kernel`.

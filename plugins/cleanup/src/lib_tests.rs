@@ -1,8 +1,8 @@
 use std::{cell::RefCell, collections::HashSet};
 
 use nama_pdk::{
-    Library, Manifest, Permission, Tick, Title, TitleId, TitleRef, TitleRefKind, TitleRequesters,
-    TitleWatchStates, WatchState,
+    JobRunner, Library, Manifest, Permission, RunJob, Title, TitleId, TitleRef, TitleRefKind,
+    TitleRequesters, TitleWatchStates, WatchState,
     extism_pdk::Error,
     nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
     testing::{self, with},
@@ -10,7 +10,7 @@ use nama_pdk::{
 
 use super::{
     Asked, Cutoffs, DAY_MS, DAYS, DAYS_UNWATCHED, Deleted, Key, LIBRARIES, MAX_STORED, ask_due,
-    chosen_libraries, days, decode, delete_due, encode, manifest, refusal,
+    chosen_libraries, days, decode, delete_due, encode, exports::Cleanup, manifest, refusal,
 };
 
 const NOW_MS: i64 = 1_800_000_000_000;
@@ -340,7 +340,7 @@ fn days_is_a_whole_number_of_zero_or_more() {
 }
 
 #[test]
-fn manifest_declares_days_defaulting_to_30_days_unwatched_to_90_and_libraries() {
+fn manifest_declares_its_settings_its_hourly_job_and_its_permissions() {
     let manifest = manifest();
     let settings: Vec<_> = (manifest.settings.iter())
         .map(|field| {
@@ -381,7 +381,14 @@ fn manifest_declares_days_defaulting_to_30_days_unwatched_to_90_and_libraries() 
             ),
         ]
     );
-    assert_eq!(manifest.tick_every_seconds, 3600);
+    let jobs: Vec<_> = (manifest.jobs.iter())
+        .map(|job| (job.id.as_str(), job.schedule.as_deref()))
+        .collect();
+    assert_eq!(jobs, [("clean", Some("0 * * * *"))]);
+    let points: Vec<_> = (manifest.points.iter())
+        .map(|point| point.service.as_str())
+        .collect();
+    assert_eq!(points, [nama_pdk::services::JOB]);
     let requested = Manifest {
         permissions: vec![
             Permission::PERMISSION_STORE.into(),
@@ -441,13 +448,14 @@ fn cleaning(titles: impl IntoIterator<Item = Title>) -> testing::Kernel {
     deleting(listing(library(4, "Movies"), titles))
 }
 
-/// Cleanup's `tick` at `now_ms`, with `kernel` as the Kernel.
-fn tick_at(kernel: &mut testing::Kernel, now_ms: i64) -> Result<(), String> {
-    let tick = Tick {
+/// Cleanup's Job `clean` run at `now_ms`, with `kernel` as the Kernel.
+fn run_at(kernel: &mut testing::Kernel, now_ms: i64) -> Result<(), String> {
+    let run = RunJob {
+        job_id: "clean".to_owned(),
         now_ms,
-        ..Tick::default()
+        ..RunJob::default()
     };
-    with(kernel, || super::tick(&tick)).map_err(|error| error.to_string())
+    with(kernel, || Cleanup::run(run)).map_err(|error| error.to_string())
 }
 
 /// The titles whose deletes Cleanup asked for, in order, refused or not.
@@ -490,9 +498,9 @@ fn a_movie_its_requester_watched_past_the_days_is_deleted_and_a_recent_one_kept(
     .watch_states(&alien, [played(ADA, WATCHED_LONG_AGO)])
     .watch_states(&dune, [played(ADA, NOW_MS - DAY_MS)]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
@@ -511,9 +519,9 @@ fn a_days_stored_before_days_unwatched_existed_still_applies() {
     .watch_states(&alien, [played(ADA, NOW_MS - 11 * DAY_MS)])
     .watch_states(&dune, [played(ADA, NOW_MS - 9 * DAY_MS)]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
@@ -533,31 +541,31 @@ fn a_renamed_library_is_still_cleaned() {
     .requesters(alien.clone(), [ADA])
     .requesters(dune_in_7, [ADA]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
-/// A tick keeps nothing for the next but its Store, so a Library renamed after a tick found it is
-/// one the next tick finds renamed. The first tick stored nothing, so the next starts from an
+/// A Run keeps nothing for the next but its Store, so a Library renamed after a Run found it is
+/// one the next Run finds renamed. The first Run stored nothing, so the next starts from an
 /// empty Store too.
 #[test]
-fn a_library_renamed_after_a_tick_found_it_is_still_cleaned() {
+fn a_library_renamed_after_a_run_found_it_is_still_cleaned() {
     let alien = movie("348");
     let mut found = cleaning([listed(&alien, ADDED_A_WHILE_AGO)]).requesters(alien.clone(), [ADA]);
-    let nothing_due = tick_at(&mut found, NOW_MS);
+    let nothing_due = run_at(&mut found, NOW_MS);
     let mut renamed = deleting(listing(
         library(4, "Films"),
         [listed(&alien, ADDED_A_WHILE_AGO)],
     ))
     .requesters(alien.clone(), [ADA]);
 
-    let ticked = tick_at(&mut renamed, NOW_MS + 31 * DAY_MS);
+    let ran = run_at(&mut renamed, NOW_MS + 31 * DAY_MS);
 
     assert_eq!((nothing_due, asked_to_delete(&found)), (Ok(()), vec![]));
     assert_eq!(recorded(&mut found), []);
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_eq!(
         recorded(&mut renamed),
         [asked_at(&alien, NOW_MS + 31 * DAY_MS)]
@@ -566,15 +574,15 @@ fn a_library_renamed_after_a_tick_found_it_is_still_cleaned() {
 }
 
 #[test]
-fn without_the_delete_media_permission_nothing_is_deleted_and_the_tick_says_why() {
+fn without_the_delete_media_permission_nothing_is_deleted_and_the_run_says_why() {
     let alien = movie("348");
     let mut kernel = listing(library(4, "Movies"), [listed(&alien, ADDED_LONG_AGO)])
         .requesters(alien.clone(), [ADA]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
     assert_eq!(
-        ticked,
+        ran,
         Err(
             "the Kernel refused 1 of the deletes: the Admin hasn't granted the Plugin the Delete \
              media Permission"
@@ -597,9 +605,9 @@ fn a_title_another_user_watched_is_kept_until_its_requester_had_the_days_unwatch
     .watch_states(&alien, [played(BEN, WATCHED_LONG_AGO)])
     .watch_states(&dune, [played(BEN, WATCHED_LONG_AGO)]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[dune]);
 }
 
@@ -618,9 +626,9 @@ fn a_title_two_users_requested_is_kept_until_both_are_done() {
         [played(ADA, WATCHED_LONG_AGO), played(BEN, WATCHED_LONG_AGO)],
     );
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[dune]);
 }
 
@@ -634,9 +642,9 @@ fn a_title_its_requester_never_played_is_deleted_once_the_days_unwatched_passed(
     .requesters(alien.clone(), [ADA])
     .requesters(dune.clone(), [ADA]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
@@ -651,9 +659,9 @@ fn a_title_nobody_requested_is_never_deleted() {
     .watch_states(&alien, [played(ADA, WATCHED_LONG_AGO)])
     .watch_states(&dune, [played(ADA, WATCHED_LONG_AGO)]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[dune]);
 }
 
@@ -669,9 +677,9 @@ fn a_title_whose_requesters_were_all_deleted_is_deleted_once_the_days_unwatched_
     .watch_states(&alien, [played(ADA, WATCHED_LONG_AGO)])
     .watch_states(&dune, [played(ADA, WATCHED_LONG_AGO)]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[alien]);
 }
 
@@ -689,9 +697,9 @@ fn a_title_its_requester_started_again_is_kept() {
     .watch_states(&alien, [started(ADA, NOW_MS)])
     .watch_states(&dune, [played(ADA, WATCHED_LONG_AGO)]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[dune]);
 }
 
@@ -708,9 +716,9 @@ fn an_episode_of_a_followed_show_waits_for_its_requesters() {
     .watch_states(&secrets, [played(ADA, WATCHED_LONG_AGO)])
     .watch_states(&lies, [played(ADMIN, WATCHED_LONG_AGO)]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[secrets]);
 }
 
@@ -721,12 +729,12 @@ fn a_failed_delete_is_asked_again_a_day_later() {
     let alien = movie("348");
     let mut kernel = cleaning([listed(&alien, ADDED_LONG_AGO)]).requesters(alien.clone(), [ADA]);
 
-    let ticks = [NOW_MS, NOW_MS + HOUR_MS, NOW_MS + DAY_MS].map(|now_ms| {
-        let ticked = tick_at(&mut kernel, now_ms);
-        (ticked, kernel.deletes().len())
+    let runs = [NOW_MS, NOW_MS + HOUR_MS, NOW_MS + DAY_MS].map(|now_ms| {
+        let ran = run_at(&mut kernel, now_ms);
+        (ran, kernel.deletes().len())
     });
 
-    assert_eq!(ticks, [(Ok(()), 1), (Ok(()), 1), (Ok(()), 2)]);
+    assert_eq!(runs, [(Ok(()), 1), (Ok(()), 1), (Ok(()), 2)]);
     assert_eq!(recorded(&mut kernel), [asked_at(&alien, NOW_MS + DAY_MS)]);
 }
 
@@ -740,9 +748,9 @@ fn titles_over_more_than_one_page_are_all_cleaned() {
         .requesters(first.clone(), [ADA])
         .requesters(last.clone(), [ADA]);
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
-    assert_eq!(ticked, Ok(()));
+    assert_eq!(ran, Ok(()));
     assert_deleted_at_now(&mut kernel, &[first, last]);
 }
 
@@ -761,9 +769,9 @@ fn an_episode_a_delete_took_along_is_recorded_and_not_asked_again() {
     .requesters(lies.clone(), [ADA])
     .delete_media(move |_title, _also| Ok(vec![taken_along.clone()]));
 
-    let ticks = [NOW_MS, NOW_MS + HOUR_MS].map(|now_ms| tick_at(&mut kernel, now_ms));
+    let runs = [NOW_MS, NOW_MS + HOUR_MS].map(|now_ms| run_at(&mut kernel, now_ms));
 
-    assert_eq!(ticks, [Ok(()), Ok(())]);
+    assert_eq!(runs, [Ok(()), Ok(())]);
     let asked: Vec<_> = (kernel.deletes().iter())
         .map(|delete| (delete.title.clone(), delete.also.clone()))
         .collect();
@@ -795,10 +803,10 @@ fn a_refused_delete_is_collected_while_the_rest_go_on() {
         }
     });
 
-    let ticked = tick_at(&mut kernel, NOW_MS);
+    let ran = run_at(&mut kernel, NOW_MS);
 
     assert_eq!(
-        ticked,
+        ran,
         Err(
             "the Kernel refused 1 of the deletes: media in /movies can't be deleted: the Server \
              can't write to it"

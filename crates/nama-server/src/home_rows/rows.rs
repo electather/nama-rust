@@ -34,10 +34,7 @@ type Kept = (Vec<Row>, Option<String>);
 impl Adapter for Rows {
     type Kept = Kept;
     const NOUN: &'static str = "Home rows";
-
-    fn methods(&self) -> &'static [HomeRowMethod] {
-        &[HomeRowMethod::Shared, HomeRowMethod::User]
-    }
+    const METHODS: &'static [HomeRowMethod] = &[HomeRowMethod::Shared, HomeRowMethod::User];
 
     fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)> {
         vec![
@@ -133,6 +130,13 @@ impl Adapter for Rows {
         .execute(conn)
         .await?;
         Ok(())
+    }
+
+    async fn delete_users_own(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
+        let deleted = sqlx::query!("DELETE FROM home_rows WHERE user_id = ?", user)
+            .execute(conn)
+            .await?;
+        Ok(deleted.rows_affected() > 0)
     }
 
     async fn plugins(&self, method: HomeRowMethod) -> Result<Vec<PluginId>, sqlx::Error> {

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE job_runs SET outcome = 'interrupted' WHERE outcome = 'running'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "6d100f2c56a5646871657b4566261205a7a7df6945cdfaf05c51eb7d82bbd071"
+}

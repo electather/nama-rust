@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use nama_plugin_api::{
@@ -15,6 +16,7 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{PageRequest, PageResponse, Permission, Request};
 use serde::{Deserialize, Serialize};
+use sqlx::SqliteConnection;
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver},
     task::JoinHandle,
@@ -26,12 +28,13 @@ mod placed;
 mod refreshes;
 mod rows;
 pub(crate) use featured::Suggested;
+use featured::Suggestions;
 use placed::placed_by;
 use refreshes::{Refreshes, Scope};
 use rows::Rows;
 
 use crate::{
-    db::Database,
+    db::{self, Database},
     library::{Contents, ImageRef, Libraries, LibraryError, LibraryKind, OnServer},
     page::{self, Page},
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
@@ -137,8 +140,15 @@ impl HomeRows {
     /// with no title to show `reader` and one of `reader`'s whose key a shared row has. Starts a
     /// background refresh of each of these scopes whose rows are stale or never were refreshed,
     /// and lists what is stored meanwhile. Deletes the rows of a Plugin no longer giving them.
-    /// Each row comes with what a Home layout places it by.
+    /// Each row comes with what a Home layout places it by. Records the visit first, which
+    /// [`forget_unvisited`] reads; failing to record it is logged, not answered.
     pub(crate) async fn list(&self, reader: &User) -> Result<Vec<(HomeRowId, Row)>, Error> {
+        if let Err(err) = self.refreshes.visited(reader.id).await {
+            warn!(
+                user = reader.id,
+                "could not record the visit to home: {err}"
+            );
+        }
         let rows = Rows(self.clone());
         let stored = rows.stored(reader.id).await?;
         self.refreshes.refresh_stale(&rows, reader.id).await?;
@@ -311,6 +321,35 @@ impl HomeRows {
         }
         Ok(found)
     }
+}
+
+/// Deletes the own Home rows and Featured suggestions of each User who hasn't opened home in at
+/// least `unvisited_for`, with their put-offs, so their next visit refreshes them as a stale one
+/// does. Answers how many Users had rows or suggestions.
+pub(crate) async fn forget_unvisited(
+    db: &Database,
+    unvisited_for: Duration,
+) -> Result<u32, sqlx::Error> {
+    let unvisited_for = i64::try_from(unvisited_for.as_secs()).unwrap_or(i64::MAX);
+    let before = db::now().saturating_sub(unvisited_for);
+    db.write(move |tx| {
+        Box::pin(async move {
+            let mut forgotten = 0;
+            for user in refreshes::take_unvisited(tx, before).await? {
+                forgotten += u32::from(forget_user(tx, user).await?);
+            }
+            Ok(forgotten)
+        })
+    })
+    .await
+}
+
+/// Deletes the User `user`'s own rows, suggestions and put-offs, and returns whether they had rows
+/// or suggestions.
+async fn forget_user(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
+    let had_rows = refreshes::forget_user::<Rows>(conn, user).await?;
+    let had_suggestions = refreshes::forget_user::<Suggestions>(conn, user).await?;
+    Ok(had_rows || had_suggestions)
 }
 
 impl Title {

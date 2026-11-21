@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, outcome, started_ms, ended_ms, error FROM job_runs\n         WHERE plugin = ? AND job = ? ORDER BY id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "outcome",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "outcome"
+          }
+        }
+      },
+      {
+        "name": "started_ms",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "started_ms"
+          }
+        }
+      },
+      {
+        "name": "ended_ms",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "ended_ms"
+          }
+        }
+      },
+      {
+        "name": "error",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_runs",
+            "name": "error"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "d252c061a7f899228dc8da822769cd4feec1472bb636363ab4a03e076ed20c67"
+}

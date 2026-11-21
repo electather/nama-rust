@@ -16,7 +16,6 @@ use std::{
 use buffa::{DecodeError, Message};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, Registrar,
-    automation::{Automation, Tick},
     connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Request, TryAgainIn},
     job::{JobRunner, RunJob},
@@ -29,7 +28,7 @@ use nama_plugin_proto::{
     nama::plugin::v1::{
         self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
         Delivered, Delivery, EventsObserved, Fulfilled, JobRan, PersonalSettingsChecked, Progress,
-        ProgressAsked, StopMonitoring, StoppedMonitoring, Ticked, Unfollowed, UserRecipient,
+        ProgressAsked, StopMonitoring, StoppedMonitoring, Unfollowed, UserRecipient,
     },
 };
 use semver::{Version, VersionReq};
@@ -70,7 +69,7 @@ use load::{
 use plugin_log::PluginLog;
 use services::{
     CHECK_PERSONAL_SETTINGS, CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION,
-    Point, RUN_JOB, START_CONNECTION, TICK,
+    Point, RUN_JOB, START_CONNECTION,
 };
 
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
@@ -141,12 +140,6 @@ pub(super) enum Refused {
     Jobs(String),
     #[error("its Manifest requests the Permission {0}, which this Server doesn't know")]
     UnknownPermission(String),
-    #[error(
-        "its Manifest names {}, and ticks every {seconds} seconds, under the minimum of {}",
-        nama_plugin_proto::services::AUTOMATION,
-        load::MIN_TICK_EVERY.as_secs()
-    )]
-    TickTooOften { seconds: u32 },
     #[error("its {field} names {namespace:?}, which isn't a namespace")]
     BadNamespace {
         field: &'static str,
@@ -238,6 +231,9 @@ impl Running {
         } else {
             cause
         };
+        if is_timeout(&err) {
+            return Err(TimedOut(cause).into());
+        }
         Err(cause.into())
     }
 
@@ -259,6 +255,12 @@ impl Running {
         }
     }
 }
+
+/// How a call that ran past its time limit fails, saying so, so a Job Run that did is told from
+/// one the Plugin failed itself.
+#[derive(Debug, Error)]
+#[error("{0}")]
+pub(super) struct TimedOut(pub(super) String);
 
 /// Whether a failed call trapped, timed out or ran past [`MEMORY_MAX_PAGES`], rather than the
 /// Plugin returning an error or a host function such as an HTTP request refusing it.
@@ -386,8 +388,9 @@ impl Plugin for Installed {
         // runs on, which interrupts every call running on that engine, and each compile has one.
         // A call ended so fails as `calls::Collateral`, not as a crash; a compile per call would
         // avoid it, but compiling costs too much. So a point whose calls may run long gets a
-        // compile of its own: a tick ended at its limit doesn't end a delivery running beside it,
-        // nor a delivery's timeout the tick. The other points share one, as their calls are short.
+        // compile of its own: a Job's Run ended at its limit doesn't end a delivery running beside
+        // it, nor a delivery's timeout the Run. The other points share one, as their calls are
+        // short.
         let mut shared = None;
         for point in POINTS
             .iter()
@@ -600,15 +603,6 @@ impl Observer<Events> for Running {
         Box::pin(async move {
             // `call_method` logs and counts an Observer's failure, so the Kernel only records it.
             let _: EventsObserved = self.call_method(&OBSERVE_EVENTS, event).await?;
-            Ok(())
-        })
-    }
-}
-
-impl Automation for Running {
-    fn tick<'a>(&'a self, tick: &'a Tick) -> BoxFuture<'a, Result<(), PluginError>> {
-        Box::pin(async move {
-            self.call_method::<_, Ticked>(&TICK, tick).await?;
             Ok(())
         })
     }

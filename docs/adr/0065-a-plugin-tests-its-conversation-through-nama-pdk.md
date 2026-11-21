@@ -1,5 +1,7 @@
 # A Plugin tests its conversation through nama-pdk
 
+_Amended by [ADR 0079](0079-plugins-declare-jobs-and-the-kernel-runs-them-on-cron.md): Jobs replace the Tick, so a `RunJob` carries the Kernel's clock._
+
 What the Kernel gives an Installed Plugin (HTTP, settings and the Kernel's functions) reaches it only through `nama-pdk`, which has two ends: Extism on wasm32, and off wasm32 an in-process one a test installs for one call, scripting the outside service's answers and the Plugin's settings and reading back what the Plugin sent. A Plugin's tests then call its Extension Point methods, such as `fulfill`, `deliver` or `tick`, and the conversation is tested in the Plugin's own crate, not through a wasm build and a running Server with fake services. To keep Plugins from going round it, `nama_pdk::extism_pdk` no longer exposes Extism's `config`, `http` or `HttpResponse`: settings come from `nama_pdk::setting` and an answer is `nama-pdk`'s own `Response`, since Extism's can't be built off wasm32. It is public kit surface, unstable while the `0.x` versions last, because third-party Plugins need the same tests the bundled ones have (#1198).
 
 ## Considered Options

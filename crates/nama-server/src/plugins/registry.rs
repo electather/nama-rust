@@ -21,9 +21,11 @@ use tracing::{Instrument as _, error, info};
 
 use super::{
     CheckError, CheckTimedOut, EnableError, ExtensionPoints, LastProvider, Listed,
-    SETTINGS_CHECK_TIMEOUT, contain_call, contain_sync, jobs, scope::Scope, secret_values, tick,
+    SETTINGS_CHECK_TIMEOUT, contain_call, contain_sync, jobs, scope::Scope, secret_values,
     without_secrets,
 };
+use crate::db::Database;
+
 /// Every Plugin enabled on this Server and everything they registered.
 ///
 /// Only Plugin settings and startup hold one (`crates/nama-server/AGENTS.md`, "One owner for
@@ -55,8 +57,11 @@ pub(super) struct State {
     /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
     pub(super) crashed: Option<mpsc::UnboundedSender<PluginId>>,
     /// What makes the Kernel's functions for a Plugin and the Permissions granted it, once startup
-    /// sets it with [`ExtensionPoints::serve_kernel`]. A watch, so a tick can wait for it.
+    /// sets it with [`ExtensionPoints::serve_kernel`]. A watch, so a Job's firing loop can wait for
+    /// it.
     pub(super) kernel: Arc<watch::Sender<Option<MakeKernel>>>,
+    /// Where Job Runs are recorded, once startup sets it with [`Registry::record_job_runs_in`].
+    pub(super) job_runs: Option<jobs::RunLog>,
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
     pub(super) as_installed: Vec<fn() -> Arc<dyn Plugin>>,
@@ -112,6 +117,18 @@ impl Registry {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Closes as interrupted each Job Run a stopped Server left running, then records every Job
+    /// Run in `db`. Startup calls it before enabling Plugins; a Run before then goes unrecorded.
+    ///
+    /// # Errors
+    ///
+    /// If the database fails.
+    pub async fn record_job_runs_in(&self, db: Arc<Database>) -> Result<(), sqlx::Error> {
+        jobs::interrupt_unfinished(&db).await?;
+        self.write(|state| state.job_runs = Some(jobs::RunLog::new(db)));
+        Ok(())
     }
 
     /// Enables `plugin` with no settings: calls its [`Plugin::register`] and records everything
@@ -280,7 +297,7 @@ impl Registry {
             }
             let generation = state.next_generation;
             state.next_generation += 1;
-            let scope = tick::scope(&self.points, manifest, &registrations);
+            let scope = Scope::default();
             jobs::schedule(&scope, &self.points, manifest, &registrations);
             state.plugins.insert(
                 id.clone(),
@@ -362,8 +379,8 @@ impl Registry {
         removed.map(|removed| removed.close_later(id)).is_some()
     }
 
-    /// Cancels every enabled Plugin's scope and waits for the tasks in each, for the Server
-    /// stopping. The Plugins stay enabled in memory.
+    /// Cancels every enabled Plugin's scope and waits for the tasks in each and for the Job Runs
+    /// it cuts off to be recorded, for the Server stopping. The Plugins stay enabled in memory.
     pub async fn shutdown(&self) {
         let scopes: Vec<(PluginId, Scope)> = self.read(|state| {
             let scope = |(id, enabled): (&PluginId, &Enabled)| (id.clone(), enabled.scope.clone());
@@ -373,6 +390,10 @@ impl Registry {
             .into_iter()
             .map(|(id, scope)| scope.close().instrument(self.log_span(&id)));
         futures_util::future::join_all(closing).await;
+        // A Run cut off ends in a task of its own, which must finish before the database closes.
+        if let Some(log) = self.read(|state| state.job_runs.clone()) {
+            log.ended().await;
+        }
     }
 
     /// The refusal of disabling the Plugin `id` if no other enabled Plugin provides `T`, such as

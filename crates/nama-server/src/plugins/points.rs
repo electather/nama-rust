@@ -396,8 +396,7 @@ impl ExtensionPoints {
     /// Permissions granted it. Startup calls it once, when the Kernel's parts exist; until then
     /// every Kernel function answers `refused`. A later call is ignored.
     ///
-    /// No Automation is ticked on its schedule until this is called: one enabled before then gets
-    /// its first tick when it is, and one enabled after at once.
+    /// No Job fires until this is called.
     pub(crate) fn serve_kernel(&self, make: MakeKernel) {
         let first = self
             .read(|state| Arc::clone(&state.kernel))

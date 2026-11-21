@@ -352,6 +352,8 @@ pub enum PluginPermission {
     PLUGIN_PERMISSION_READ_REQUESTS = 6i32,
     /// See what every User put on their Watchlist.
     PLUGIN_PERMISSION_READ_WATCHLISTS = 7i32,
+    /// Delete the Home rows and Featured suggestions kept for Users who stopped opening home.
+    PLUGIN_PERMISSION_FORGET_HOME_ROWS = 8i32,
 }
 impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -378,6 +380,9 @@ impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_READ_WATCHLISTS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ReadWatchlists: Self = Self::PLUGIN_PERMISSION_READ_WATCHLISTS;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ForgetHomeRows: Self = Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS;
 }
 impl ::core::default::Default for PluginPermission {
     fn default() -> Self {
@@ -485,6 +490,9 @@ impl ::buffa::Enumeration for PluginPermission {
             5i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_USERS),
             6i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_REQUESTS),
             7i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_WATCHLISTS),
+            8i32 => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -504,6 +512,9 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_READ_REQUESTS => "PLUGIN_PERMISSION_READ_REQUESTS",
             Self::PLUGIN_PERMISSION_READ_WATCHLISTS => {
                 "PLUGIN_PERMISSION_READ_WATCHLISTS"
+            }
+            Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS => {
+                "PLUGIN_PERMISSION_FORGET_HOME_ROWS"
             }
         }
     }
@@ -533,6 +544,9 @@ impl ::buffa::Enumeration for PluginPermission {
             "PLUGIN_PERMISSION_READ_WATCHLISTS" => {
                 ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_WATCHLISTS)
             }
+            "PLUGIN_PERMISSION_FORGET_HOME_ROWS" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -546,6 +560,7 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_READ_USERS,
             Self::PLUGIN_PERMISSION_READ_REQUESTS,
             Self::PLUGIN_PERMISSION_READ_WATCHLISTS,
+            Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS,
         ]
     }
 }
@@ -578,8 +593,8 @@ pub enum ExtensionPoint {
     /// Keeps the Server's stored images, such as in S3, once an Admin picks it with
     /// `ServerService.SwitchImageStore`.
     EXTENSION_POINT_BLOB_STORE = 10i32,
-    /// Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
-    /// Admin granted it allow, such as Cleanup (ADR 0048).
+    /// Runs Jobs on their schedules and asks the Server's Kernel functions, as far as the
+    /// Permissions an Admin granted it allow, such as Cleanup (ADR 0079).
     EXTENSION_POINT_AUTOMATION = 11i32,
     /// Searches an outside service, such as OpenSubtitles.com, for a Version's subtitles and
     /// downloads one a User picks (ADR 0067).

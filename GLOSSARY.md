@@ -129,7 +129,7 @@ A Provider that finds and fetches Movies and Shows by a Namespace of External ID
 _Avoid_: metadata provider, metadata agent, scraper
 
 **Search source**:
-A Provider that answers what a User types into search with titles by External ID, in its own order, such as by meaning rather than by words. The Server decides whether each is on it, Requested or not on it; it doesn't fetch titles, as a title source does.
+A Provider that answers what a User types into search with titles by External ID, in its own order, such as by meaning rather than by words. The Server decides whether each is on it, Requested or not on it; it doesn't fetch titles, as a title source does. A title it finds that no Library has counts only if a title source keeps that title's Namespace. Otherwise it is left out, and nothing looks it up in another Namespace.
 _Avoid_: search provider, search engine, search plugin
 
 **Recogniser**:
@@ -185,7 +185,7 @@ One time the Kernel runs a Job: when it started and ended, what started it, and 
 _Avoid_: execution, invocation, Tick
 
 **Plugin Permission**:
-One thing a Plugin may ask the Kernel for, such as reading Watch State or deleting media. Its Manifest requests some, and an Admin grants some or all of them when enabling it; the grants survive restarts. Not a User's Permission: it says what the Plugin itself may do, whoever it acts for (ADR 0049).
+One thing a Plugin may ask the Kernel for, such as reading Watch State or deleting media. Its Manifest requests some, and an Admin grants some or all of them when enabling it, except that a Built-in Plugin is granted all it requests when the Server first has it (ADR 0079); the grants survive restarts, and an Admin may revoke them. Not a User's Permission: it says what the Plugin itself may do, whoever it acts for (ADR 0049).
 _Avoid_: scope, capability, Permission (alone, which is a User's)
 
 **Plugin Store**:

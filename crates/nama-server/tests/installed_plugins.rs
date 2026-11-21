@@ -13,7 +13,6 @@ mod server;
 mod test_plugin;
 
 use std::{
-    collections::BTreeMap,
     path::Path,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -372,10 +371,8 @@ async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refuse
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
     );
-    assert_eq!(
-        plugin_settings::stored(started.server.db()).await.unwrap(),
-        Some(BTreeMap::new())
-    );
+    let stored = plugin_settings::stored(started.server.db()).await.unwrap();
+    assert!(!stored.unwrap().contains_key("not-wasm.wasm"));
 }
 
 #[tokio::test]
@@ -513,10 +510,8 @@ async fn a_url_setting_that_isnt_a_url_is_refused_naming_it() {
 
     assert_eq!(refusal.field, "settings.url");
     assert_eq!(refusal.params["settingKind"], "SETTING_KIND_URL");
-    assert_eq!(
-        plugin_settings::stored(started.server.db()).await.unwrap(),
-        Some(BTreeMap::new())
-    );
+    let stored = plugin_settings::stored(started.server.db()).await.unwrap();
+    assert!(!stored.unwrap().contains_key("test-plugin"));
 }
 
 #[tokio::test]

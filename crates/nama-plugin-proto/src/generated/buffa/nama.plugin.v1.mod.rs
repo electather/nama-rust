@@ -99,8 +99,6 @@ pub mod __buffa {
         reg.register_json_any(super::__SEASON_JSON_ANY);
         reg.register_json_any(super::__EPISODE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_JSON_ANY);
-        reg.register_json_any(super::__TICK_JSON_ANY);
-        reg.register_json_any(super::__TICKED_JSON_ANY);
         reg.register_json_any(super::__KERNEL_ANSWER_JSON_ANY);
         reg.register_json_any(super::__STORE_KEY_JSON_ANY);
         reg.register_json_any(super::__STORE_ENTRY_JSON_ANY);
@@ -128,6 +126,8 @@ pub mod __buffa {
         reg.register_json_any(super::__WATCHLIST_ASKED_JSON_ANY);
         reg.register_json_any(super::__WATCHLIST_JSON_ANY);
         reg.register_json_any(super::__WATCHLIST_TITLE_JSON_ANY);
+        reg.register_json_any(super::__FORGET_HOME_ROWS_ASKED_JSON_ANY);
+        reg.register_json_any(super::__HOME_ROWS_FORGOTTEN_JSON_ANY);
         reg.register_json_any(super::__BLOB_TO_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_KEY_JSON_ANY);
@@ -332,14 +332,6 @@ pub use self::__buffa::view::ImageView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::TickView;
-#[doc(inline)]
-pub use self::__buffa::view::TickOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::TickedView;
-#[doc(inline)]
-pub use self::__buffa::view::TickedOwnedView;
-#[doc(inline)]
 pub use self::__buffa::view::KernelAnswerView;
 #[doc(inline)]
 pub use self::__buffa::view::KernelAnswerOwnedView;
@@ -447,6 +439,14 @@ pub use self::__buffa::view::WatchlistOwnedView;
 pub use self::__buffa::view::WatchlistTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::WatchlistTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ForgetHomeRowsAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::ForgetHomeRowsAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowsForgottenView;
+#[doc(inline)]
+pub use self::__buffa::view::HomeRowsForgottenOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::BlobToPutView;
 #[doc(inline)]

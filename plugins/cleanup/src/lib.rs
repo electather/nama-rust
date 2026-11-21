@@ -1,12 +1,12 @@
-//! The Cleanup Installed Plugin: on each tick, deletes from the Libraries the Admin chooses the
+//! The Cleanup Installed Plugin: its hourly Job deletes from the Libraries the Admin chooses the
 //! Requested Movies and Episodes each of whose Requesters is done with them, through the Kernel's
-//! `delete_media` only (ADR 0048). A title nobody Requested is kept. The Server builds it for
-//! wasm32 and bundles it in its binary.
+//! `delete_media` only (ADR 0048, ADR 0079). A title nobody Requested is kept. The Server builds
+//! it for wasm32 and bundles it in its binary.
 
 use std::collections::HashSet;
 
 use nama_pdk::{
-    Library, Manifest, Permission, SettingField, SettingKind, Tick, TitleRef, TitleRequesters,
+    Job, Library, Manifest, Permission, SettingField, SettingKind, TitleRef, TitleRequesters,
     TitleWatchStates, extism_pdk::Error, kernel, services, setting_field, setting_value,
 };
 
@@ -14,12 +14,12 @@ const DAYS: &str = "days";
 const DAYS_UNWATCHED: &str = "days_unwatched";
 const LIBRARIES: &str = "libraries";
 
-/// How many titles the tick reads, and asks the Requesters and Watch States of, at a time.
+/// How many titles a Run reads, and asks the Requesters and Watch States of, at a time.
 const PAGE_SIZE: u32 = 200;
 /// The largest value the Kernel's Store keeps.
 const MAX_STORED: usize = 64 * 1024;
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
-/// How long after asking to delete a title the tick asks again if the title is still listed and
+/// How long after asking to delete a title a Run asks again if the title is still listed and
 /// due, since its delete, which runs in the background, must have failed.
 const ASK_AGAIN_AFTER_MS: i64 = DAY_MS;
 
@@ -30,30 +30,39 @@ const ASK_AGAIN_AFTER_MS: i64 = DAY_MS;
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
-    use nama_pdk::{Automation, Buffa, FnResult, Manifest, Tick, extism_pdk, plugin_fn};
+    use nama_pdk::{Buffa, FnResult, JobRunner, Manifest, RunJob, extism_pdk, plugin_fn};
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         Ok(Buffa(super::manifest()))
     }
 
-    /// Deletes, on each tick, what each of its Requesters is done with.
-    struct Cleanup;
+    /// Runs the one Job, `clean`, deleting what each of its Requesters is done with.
+    pub(super) struct Cleanup;
 
-    impl Automation for Cleanup {
-        fn tick(tick: Tick) -> Result<(), extism_pdk::Error> {
-            super::tick(&tick)
+    impl JobRunner for Cleanup {
+        fn run(run: RunJob) -> Result<(), extism_pdk::Error> {
+            super::clean_libraries(run.now_ms)
         }
     }
 
-    nama_pdk::automation!(Cleanup);
+    nama_pdk::job_runner!(Cleanup);
 }
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     Manifest {
         logo_svg: include_str!("../logo.svg").to_owned(),
-        points: vec![nama_pdk::point(services::AUTOMATION)],
+        points: vec![nama_pdk::point(services::JOB)],
+        jobs: vec![Job {
+            id: "clean".to_owned(),
+            name: "Clean Libraries".to_owned(),
+            description: "Deletes the Requested Movies and Episodes each of their Requesters is \
+                          done with."
+                .to_owned(),
+            schedule: Some("0 * * * *".to_owned()),
+            ..Job::default()
+        }],
         permissions: vec![
             Permission::PERMISSION_STORE.into(),
             Permission::PERMISSION_READ_LIBRARIES.into(),
@@ -61,7 +70,6 @@ fn manifest() -> Manifest {
             Permission::PERMISSION_READ_REQUESTS.into(),
             Permission::PERMISSION_DELETE_MEDIA.into(),
         ],
-        tick_every_seconds: 3600,
         settings: vec![
             days_setting(
                 setting_field(
@@ -111,23 +119,23 @@ fn days_setting(field: SettingField, default: i64) -> SettingField {
 
 /// Cleans each Library the settings choose.
 ///
-/// A refused delete doesn't stop the others: the tick fails afterwards with how many were refused
+/// A refused delete doesn't stop the others: the Run fails afterwards with how many were refused
 /// and the Kernel's words, so the Admin sees why in the log.
-fn tick(tick: &Tick) -> Result<(), Error> {
+fn clean_libraries(now_ms: i64) -> Result<(), Error> {
     let ids = nama_pdk::setting_library_ids(LIBRARIES)?;
     // Before any Kernel call, so a Plugin enabled without Libraries chosen needs no grant yet.
     if ids.is_empty() {
         return Ok(());
     }
     let cutoffs = Cutoffs::at(
-        tick.now_ms,
+        now_ms,
         days(DAYS, &nama_pdk::required_setting(DAYS)?)?,
         days(DAYS_UNWATCHED, &nama_pdk::required_setting(DAYS_UNWATCHED)?)?,
     );
     let libraries = kernel::libraries()?;
     let mut refused = Vec::new();
     for library in chosen_libraries(&ids, &libraries) {
-        refused.extend(clean(library, cutoffs, tick.now_ms)?);
+        refused.extend(clean(library, cutoffs, now_ms)?);
     }
     match refusal(&refused) {
         None => Ok(()),
@@ -328,7 +336,7 @@ fn delete_due(
     deleted
 }
 
-/// The tick's error for `refused`, the Kernel's words for each refused delete, each once; `None`
+/// The Run's error for `refused`, the Kernel's words for each refused delete, each once; `None`
 /// when nothing was refused.
 fn refusal(refused: &[String]) -> Option<String> {
     if refused.is_empty() {
@@ -382,7 +390,7 @@ impl Key {
     }
 }
 
-/// A title the tick asked the Kernel to delete, and when.
+/// A title a Run asked the Kernel to delete, and when.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Asked {
     title: Key,

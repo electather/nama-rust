@@ -67,12 +67,13 @@ async fn listed(server: &TestServer) -> PluginSummary {
         .unwrap()
 }
 
-/// Why the test Plugin's last tick failed, as `GetPlugin` shows it, once one has.
+/// Why the test Plugin's Job `kernel` last failed, as `GetPlugin` shows it, once a Run has. Each
+/// look moves the clock a minute, so the Job, due every minute, fires while it waits.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn tick_failure(server: &TestServer) -> String {
+async fn job_failure(server: &TestServer) -> String {
     let request = GetPluginRequest {
         id: "test-plugin".to_owned(),
         ..Default::default()
@@ -80,6 +81,7 @@ async fn tick_failure(server: &TestServer) -> String {
     let automation = EnumValue::from(ExtensionPoint::EXTENSION_POINT_AUTOMATION);
     let waiting = Instant::now();
     loop {
+        server.advance_clock(Duration::from_mins(1));
         let got = client(server).get_plugin(request.clone()).await.unwrap();
         let plugin = got.into_owned().plugin.into_option().unwrap();
         if let Some(failure) = plugin
@@ -91,8 +93,21 @@ async fn tick_failure(server: &TestServer) -> String {
         }
         assert!(
             waiting.elapsed() < WAIT,
-            "the test Plugin's tick never failed"
+            "the test Plugin's Job never failed"
         );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+/// Moves the clock a minute at a time, as [`job_failure`] does, until `log` has `needle`.
+async fn job_logged(server: &TestServer, log: &Log, needle: &str) {
+    let waiting = Instant::now();
+    while log.count(&[needle]) == 0 {
+        assert!(
+            waiting.elapsed() < WAIT,
+            "the test Plugin never logged {needle:?}"
+        );
+        server.advance_clock(Duration::from_mins(1));
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
@@ -214,7 +229,12 @@ async fn enabling_again_with_none_clears_the_grants() {
 #[tokio::test]
 async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
     let log = Log::global();
-    let server = with_test_plugin("automation").await;
+    let server = TestServer::builder()
+        .plugins(Registry::with_builtins())
+        .moves_clock()
+        .start()
+        .await;
+    server.install_test_plugin("automation").await;
     // The log is the binary's, and only this test's Server has a Library for its Plugin to see.
     server
         .create_library(LibraryKind::LIBRARY_KIND_MOVIES, &[])
@@ -223,11 +243,10 @@ async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
         .enable_plugin(enable_granting(&[STORE]))
         .await
         .unwrap();
-    // Waiting for the tick at enable to fail also keeps enabling again from cancelling it.
-    let refused = tick_failure(&server).await;
+    let refused = job_failure(&server).await;
     assert!(
         refused.contains("Read Libraries Permission"),
-        "the tick failed for another reason: {refused}"
+        "the Job failed for another reason: {refused}"
     );
 
     client(&server)
@@ -235,7 +254,7 @@ async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
         .await
         .unwrap();
 
-    log.wait_for(&["test-plugin sees 1 Libraries"], 1).await;
+    job_logged(&server, log, "test-plugin sees 1 Libraries").await;
 }
 
 #[tokio::test]

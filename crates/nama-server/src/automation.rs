@@ -9,17 +9,18 @@ use std::{
     collections::{HashMap, HashSet},
     future,
     sync::{Arc, Weak},
+    time::Duration,
 };
 
 use buffa::{EnumValue, Message, MessageField};
 use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
-        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Library,
-        LibraryKind, Permission, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue,
-        Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates, Titles,
-        TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist,
-        WatchlistAsked, WatchlistTitle,
+        DeleteAsked, DeleteStarted, ForgetHomeRowsAsked, HomeRowsForgotten, Kernel, KernelRefused,
+        Libraries, LibrariesAsked, Library, LibraryKind, Permission, Requesters, RequestersAsked,
+        StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters,
+        TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
+        WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
     },
     contract,
     fulfiller::TitleId,
@@ -29,6 +30,7 @@ use tracing::error;
 
 use crate::{
     db::Database,
+    home_rows,
     library::{self, Contents, ItemKind, LibraryError, TitleKind, TitleTarget, WatchStateKind},
     plugins::ExtensionPoints,
     requests,
@@ -151,6 +153,11 @@ const FUNCTIONS: &[Function] = &[
         needs: Permission::PERMISSION_DELETE_MEDIA,
         answer: |caller, request| typed(caller, request, Caller::delete_media),
     },
+    Function {
+        name: "forget_home_rows",
+        needs: Permission::PERMISSION_FORGET_HOME_ROWS,
+        answer: |caller, request| typed(caller, request, Caller::forget_home_rows),
+    },
 ];
 
 /// Decodes `request`, has `handler` answer it for `caller`, and encodes its response.
@@ -183,6 +190,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_READ_USERS => "Read Users",
         Permission::PERMISSION_READ_REQUESTS => "Read Requests",
         Permission::PERMISSION_READ_WATCHLISTS => "Read Watchlists",
+        Permission::PERMISSION_FORGET_HOME_ROWS => "Forget Home rows",
     }
 }
 
@@ -509,7 +517,7 @@ impl Caller {
 
     async fn list_requesters(self, asked: RequestersAsked) -> Result<Requesters, KernelRefused> {
         let mut titles = Vec::with_capacity(asked.titles.len());
-        // ponytail: a few queries per title; read a page's titles together if ticks get slow.
+        // ponytail: a few queries per title; read a page's titles together if Job Runs get slow.
         for title in asked.titles {
             let requesters = self.requesters(&title).await?;
             titles.push(TitleRequesters {
@@ -576,6 +584,23 @@ impl Caller {
         Ok(DeleteStarted {
             taken_along,
             ..DeleteStarted::default()
+        })
+    }
+
+    async fn forget_home_rows(
+        self,
+        asked: ForgetHomeRowsAsked,
+    ) -> Result<HomeRowsForgotten, KernelRefused> {
+        if asked.days == 0 {
+            return Err(KernelRefused("days must be at least 1".to_owned()));
+        }
+        let unvisited_for = Duration::from_hours(24 * u64::from(asked.days));
+        let users = home_rows::forget_unvisited(&self.automation.db, unvisited_for)
+            .await
+            .map_err(|err| self.database_refused("forgetting Home rows", &err))?;
+        Ok(HomeRowsForgotten {
+            users,
+            ..HomeRowsForgotten::default()
         })
     }
 }
