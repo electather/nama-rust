@@ -10,6 +10,15 @@ pub struct SimilarAskedView<'a> {
     ///
     /// Field 2: `ids`
     pub ids: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleIdView<'a>>,
+    /// Its genres' names, as its title source gave them, about to be stored or, for a title not on
+    /// the Server, just fetched.
+    ///
+    /// Field 3: `genres`
+    pub genres: ::buffa::RepeatedView<'a, &'a str>,
+    /// Its Cast, then its Crew, each in billing order, from the same answer as `genres`.
+    ///
+    /// Field 4: `roles`
+    pub roles: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleRoleView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SimilarAskedView<'a> {
@@ -69,6 +78,35 @@ impl<'a> ::buffa::MessageView<'a> for SimilarAskedView<'a> {
                         )?,
                     );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.genres.push(__elem);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleRoleView>(),
+                )?;
+                view.roles
+                    .push(
+                        <super::super::__buffa::view::TitleRoleView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -97,6 +135,12 @@ impl<'a> ::buffa::MessageView<'a> for SimilarAskedView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            genres: self.genres.iter().map(|s| s.to_string()).collect(),
+            roles: self
+                .roles
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -115,6 +159,17 @@ impl<'a> ::buffa::ViewEncode<'a> for SimilarAskedView<'a> {
             }
         }
         for v in &self.ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.roles {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -147,6 +202,17 @@ impl<'a> ::buffa::ViewEncode<'a> for SimilarAskedView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        for v in &self.roles {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -173,6 +239,12 @@ impl<'__a> ::serde::Serialize for SimilarAskedView<'__a> {
         }
         if !self.ids.is_empty() {
             __map.serialize_entry("ids", &*self.ids)?;
+        }
+        if !self.genres.is_empty() {
+            __map.serialize_entry("genres", &*self.genres)?;
+        }
+        if !self.roles.is_empty() {
+            __map.serialize_entry("roles", &*self.roles)?;
         }
         __map.end()
     }
@@ -278,6 +350,23 @@ impl SimilarAskedOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
         &self.0.reborrow().ids
+    }
+    /// Its genres' names, as its title source gave them, about to be stored or, for a title not on
+    /// the Server, just fetched.
+    ///
+    /// Field 3: `genres`
+    #[must_use]
+    pub fn genres(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().genres
+    }
+    /// Its Cast, then its Crew, each in billing order, from the same answer as `genres`.
+    ///
+    /// Field 4: `roles`
+    #[must_use]
+    pub fn roles(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleRoleView<'_>> {
+        &self.0.reborrow().roles
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SimilarAskedView<'static>>>

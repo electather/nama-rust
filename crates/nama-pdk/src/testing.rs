@@ -12,9 +12,10 @@ use nama_plugin_proto::nama::plugin::v1::{
     DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
     ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, KernelAnswer, Libraries,
     LibrariesAsked, Library, MetadataRefreshed, RefreshMetadataAsked, Requesters, RequestersAsked,
-    StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRequesters, TitleWatchStates,
-    Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
-    Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
+    SharingTitle, SharingTitles, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
+    TitleRequesters, TitleWatchStates, Titles, TitlesAsked, TitlesSharingAsked, User, Users,
+    UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
+    WatchlistTitle, kernel_answer,
 };
 
 use crate::{Response, kernel::MAX_PAGE_SIZE};
@@ -62,6 +63,9 @@ pub struct Kernel {
     refresh_metadata: Option<RefreshMetadataHandler>,
     /// Each Library's titles, by its id, answered once `libraries` is granted.
     titles: HashMap<i64, Vec<Title>>,
+    /// What `list_titles_sharing` answers once `libraries` is granted, and the asks it had.
+    sharing: Vec<SharingTitle>,
+    sharing_asked: Vec<TitlesSharingAsked>,
     deletes: Vec<Delete>,
 }
 
@@ -134,6 +138,16 @@ impl Kernel {
     pub fn titles(mut self, library_id: i64, titles: impl IntoIterator<Item = Title>) -> Self {
         self.libraries.get_or_insert_default();
         self.titles.entry(library_id).or_default().extend(titles);
+        self
+    }
+
+    /// The Kernel, the Admin having granted the Plugin Read Libraries, answering
+    /// `list_titles_sharing` with `titles` in the order given, at most the limit asked, whatever
+    /// it is asked to share.
+    #[must_use]
+    pub fn titles_sharing(mut self, titles: impl IntoIterator<Item = SharingTitle>) -> Self {
+        self.libraries.get_or_insert_default();
+        self.sharing.extend(titles);
         self
     }
 
@@ -260,6 +274,12 @@ impl Kernel {
     pub fn deletes(&self) -> &[Delete] {
         &self.deletes
     }
+
+    /// What the Plugin asked `list_titles_sharing`, in order, of those the Kernel answered.
+    #[must_use]
+    pub fn titles_sharing_asked(&self) -> &[TitlesSharingAsked] {
+        &self.sharing_asked
+    }
 }
 
 impl fmt::Debug for Kernel {
@@ -270,6 +290,8 @@ impl fmt::Debug for Kernel {
             .field("store", &self.store)
             .field("libraries", &self.libraries)
             .field("titles", &self.titles)
+            .field("sharing", &self.sharing)
+            .field("sharing_asked", &self.sharing_asked)
             .field("watch_states", &self.watch_states)
             .field("users", &self.users)
             .field("requesters", &self.requesters)
@@ -356,6 +378,7 @@ impl Kernel {
             "store_delete" => typed(request, |asked| self.store_delete(asked)),
             "list_libraries" => typed(request, |_: LibrariesAsked| self.list_libraries()),
             "list_titles" => typed(request, |asked| self.list_titles(&asked)),
+            "list_titles_sharing" => typed(request, |asked| self.list_titles_sharing(asked)),
             "list_watch_states" => typed(request, |asked| self.list_watch_states(asked)),
             "list_users" => typed(request, |_: UsersAsked| self.list_users()),
             "list_requesters" => typed(request, |asked| self.list_requesters(asked)),
@@ -431,6 +454,22 @@ impl Kernel {
                 String::new()
             },
             ..Titles::default()
+        })
+    }
+
+    fn list_titles_sharing(&mut self, asked: TitlesSharingAsked) -> Result<SharingTitles, String> {
+        granted(self.libraries.as_ref(), "Read Libraries")?;
+        let limit = match asked.limit {
+            0 => MAX_PAGE_SIZE,
+            limit => limit.min(MAX_PAGE_SIZE),
+        };
+        self.sharing_asked.push(asked);
+        Ok(SharingTitles {
+            titles: (self.sharing.iter())
+                .take(usize::try_from(limit).unwrap_or(usize::MAX))
+                .cloned()
+                .collect(),
+            ..SharingTitles::default()
         })
     }
 

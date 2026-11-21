@@ -9,5 +9,5 @@ The Kernel's functions any Plugin calls (ADR 0048, ADR 0071), served to each Plu
 
 ### Neighbours
 
-- Uses: `db`, `library` (`Libraries`, `Contents`, `WatchStates`, `TitleTarget`), `scanner` (`Scanner::start_delete`, `refresh_metadata`), `users` (`Users::list`, `Users::delete_expired`, `delete_plugins_personal_settings`), `requests` (`who_requested`), `watchlist` (`list`), `home_rows` (`forget_unvisited`), `plugin_settings` (`PluginSettings::take_gone`, and the Extension Points), `connections` (`delete_plugin`).
+- Uses: `db`, `library` (`Libraries`, `Contents`, `WatchStates`, `TitleTarget`, `title_roles`), `scanner` (`Scanner::start_delete`, `refresh_metadata`), `users` (`Users::list`, `Users::delete_expired`, `delete_plugins_personal_settings`), `requests` (`who_requested`), `watchlist` (`list`), `home_rows` (`forget_unvisited`), `plugin_settings` (`PluginSettings::take_gone`, and the Extension Points), `connections` (`delete_plugin`).
 - Used by: startup in `lib.rs`, through `ExtensionPoints::serve_kernel`.

@@ -41,6 +41,7 @@ pub(crate) const KERNEL_IMPORTS: &[&str] = &[
     "delete_expired_sign_ins",
     "forget_gone_plugins",
     "refresh_metadata",
+    "list_titles_sharing",
 ];
 
 fn refused(words: &str) -> kernel_answer::Result {

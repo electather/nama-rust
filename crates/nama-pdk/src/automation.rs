@@ -1,8 +1,8 @@
 //! The Kernel's functions, which any Plugin may call.
 
 pub use nama_plugin_proto::nama::plugin::v1::{
-    Library, LibraryKind, Permission, Title, TitleRef, TitleRefKind, TitleRequesters,
-    TitleWatchStates, Titles, User, WatchState, WatchlistTitle,
+    Library, LibraryKind, Permission, SharingTitle, Title, TitleRef, TitleRefKind, TitleRequesters,
+    TitleRole, TitleWatchStates, Titles, User, WatchState, WatchlistTitle,
 };
 
 /// The Kernel's functions, which any Plugin, whatever its Manifest's `points`, may call during any
@@ -18,9 +18,10 @@ pub mod kernel {
         DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
         ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
         KernelAnswer, Libraries, LibrariesAsked, Library, MetadataRefreshed, RefreshMetadataAsked,
-        Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
-        TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
-        WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
+        Requesters, RequestersAsked, SharingTitle, SharingTitles, StoreEntry, StoreKey, StoreValue,
+        Stored, Title, TitleId, TitleKind, TitleRef, TitleRequesters, TitleWatchStates, Titles,
+        TitlesAsked, TitlesSharingAsked, User, Users, UsersAsked, WatchStates, WatchStatesAsked,
+        Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -240,6 +241,31 @@ pub mod kernel {
         Ok(call::<GonePluginsForgotten>("forget_gone_plugins", &asked)?.plugin_ids)
     }
 
+    /// Up to `limit` (at most 1000, 0 for 1000) Movies or Shows of `kind` from every Library, each
+    /// once, sharing at least one of `people` or `genres`: those sharing the most Persons first,
+    /// then the most genres, each with its ids, genres and every Role. Needs
+    /// `PERMISSION_READ_LIBRARIES`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused, such as for a kind that is neither Movie nor Show, or couldn't be
+    /// called.
+    pub fn titles_sharing(
+        kind: TitleKind,
+        people: &[TitleId],
+        genres: &[String],
+        limit: u32,
+    ) -> Result<Vec<SharingTitle>, Error> {
+        let asked = TitlesSharingAsked {
+            kind: kind.into(),
+            people: people.to_vec(),
+            genres: genres.to_vec(),
+            limit,
+            ..TitlesSharingAsked::default()
+        };
+        Ok(call::<SharingTitles>("list_titles_sharing", &asked)?.titles)
+    }
+
     /// Fetches every Matched title of every Library again from its title source, by the ids its
     /// Match has, whatever its metadata version, and stores what it got, as
     /// `(titles, unavailable_plugin_ids)`: how many titles it stored, and the id of each Plugin
@@ -294,6 +320,7 @@ pub mod kernel {
             safe fn forget_home_rows(request: u64) -> u64;
             safe fn delete_expired_sign_ins(request: u64) -> u64;
             safe fn forget_gone_plugins(request: u64) -> u64;
+            safe fn list_titles_sharing(request: u64) -> u64;
             safe fn refresh_metadata(request: u64) -> u64;
         }
 
@@ -311,6 +338,7 @@ pub mod kernel {
             "forget_home_rows" => forget_home_rows,
             "delete_expired_sign_ins" => delete_expired_sign_ins,
             "forget_gone_plugins" => forget_gone_plugins,
+            "list_titles_sharing" => list_titles_sharing,
             "refresh_metadata" => refresh_metadata,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };

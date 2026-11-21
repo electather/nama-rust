@@ -34,7 +34,7 @@ pub mod nama {
 /// It covers the Manifest, the messages the services share and what the Kernel gives a Plugin;
 /// each service has a version of its own, in [`SERVICES`]. It is not this crate's version;
 /// `AGENTS.md` says when it changes.
-pub const CONTRACT_VERSION: &str = "0.6.4";
+pub const CONTRACT_VERSION: &str = "0.6.5";
 
 /// The full names of the `nama.plugin.v1` services, the Extension Points an Installed Plugin can
 /// serve, as a Manifest's `Point.service` names them.
@@ -89,7 +89,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::HOME_ROW, "1.4.0"),
     (services::SUBTITLE_SOURCE, "1.0.0"),
     (services::SEGMENT_SOURCE, "1.1.0"),
-    (services::SIMILAR_SOURCE, "1.0.0"),
+    (services::SIMILAR_SOURCE, "1.1.0"),
     (services::JOB, "1.0.0"),
     (services::SEARCH_SOURCE, "1.0.0"),
 ];

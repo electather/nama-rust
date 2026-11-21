@@ -271,6 +271,20 @@ pub(in crate::library) fn title_id(id: &ExternalId) -> wire::TitleId {
     }
 }
 
+/// `roles` as a Plugin reads them: the Cast, then the Crew, each in billing order.
+pub(crate) fn title_roles(roles: &Roles) -> Vec<wire::TitleRole> {
+    fn listed(crew: bool, list: &[Role]) -> impl Iterator<Item = wire::TitleRole> {
+        (list.iter().enumerate()).map(move |(billed, role)| wire::TitleRole {
+            person: title_id(&role.person).into(),
+            crew,
+            part: role.part.clone(),
+            billed: u32::try_from(billed).unwrap_or(u32::MAX),
+            ..wire::TitleRole::default()
+        })
+    }
+    (listed(false, &roles.cast).chain(listed(true, &roles.crew))).collect()
+}
+
 /// `id` as the Kernel's, or why the source's answer is no good: a source's id is checked here,
 /// at the trust boundary, since the Kernel stores and links by it.
 pub(super) fn external_id(id: &wire::TitleId) -> Result<ExternalId, MetadataError> {

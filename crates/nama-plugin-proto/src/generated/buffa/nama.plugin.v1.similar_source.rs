@@ -22,6 +22,25 @@ pub struct SimilarAsked {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub ids: ::buffa::alloc::vec::Vec<TitleId>,
+    /// Its genres' names, as its title source gave them, about to be stored or, for a title not on
+    /// the Server, just fetched.
+    ///
+    /// Field 3: `genres`
+    #[serde(
+        rename = "genres",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Its Cast, then its Crew, each in billing order, from the same answer as `genres`.
+    ///
+    /// Field 4: `roles`
+    #[serde(
+        rename = "roles",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub roles: ::buffa::alloc::vec::Vec<TitleRole>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -31,6 +50,8 @@ impl ::core::fmt::Debug for SimilarAsked {
         f.debug_struct("SimilarAsked")
             .field("kind", &self.kind)
             .field("ids", &self.ids)
+            .field("genres", &self.genres)
+            .field("roles", &self.roles)
             .finish()
     }
 }
@@ -75,6 +96,17 @@ impl ::buffa::Message for SimilarAsked {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.roles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -94,6 +126,17 @@ impl ::buffa::Message for SimilarAsked {
         for v in &self.ids {
             ::buffa::types::put_len_delimited_header(
                 2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        for v in &self.roles {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -131,6 +174,29 @@ impl ::buffa::Message for SimilarAsked {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.ids.push(elem);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.genres.push(__elem);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.roles.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -141,6 +207,8 @@ impl ::buffa::Message for SimilarAsked {
     fn clear(&mut self) {
         self.kind = ::buffa::EnumValue::from(0);
         self.ids.clear();
+        self.genres.clear();
+        self.roles.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

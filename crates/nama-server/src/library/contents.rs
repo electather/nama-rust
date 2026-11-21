@@ -30,6 +30,7 @@ mod pages;
 mod pins;
 mod roles;
 mod search;
+mod sharing;
 mod similar;
 mod sort_titles;
 #[cfg(test)]

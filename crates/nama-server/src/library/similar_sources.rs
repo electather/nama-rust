@@ -11,7 +11,7 @@ use nama_plugin_api::{
     similar_source::SimilarSource,
 };
 
-use super::title_source::{TitleKind, title_id, title_kind};
+use super::title_source::{Roles, TitleKind, title_id, title_kind, title_roles};
 use crate::plugins::ExtensionPoints;
 
 /// The most titles a merged list shows: about a row of posters.
@@ -40,15 +40,24 @@ impl SimilarSources {
         Self { plugins }
     }
 
-    /// What each enabled Similar source answers about the title of `kind` known by `ids`, all
-    /// asked at once. One that fails is logged and left out, so the answer it stored last stays.
-    pub(crate) async fn ask(&self, kind: TitleKind, ids: &ExternalIds) -> Vec<Answer> {
+    /// What each enabled Similar source answers about the title of `kind` known by `ids`, with
+    /// its `genres` and `roles`, all asked at once. One that fails is logged and left out, so the
+    /// answer it stored last stays.
+    pub(crate) async fn ask(
+        &self,
+        kind: TitleKind,
+        ids: &ExternalIds,
+        genres: &[String],
+        roles: &Roles,
+    ) -> Vec<Answer> {
         if ids.is_empty() {
             return Vec::new();
         }
         let asked = &SimilarAsked {
             kind: title_kind(kind).into(),
             ids: ids.iter().map(|id| title_id(&id)).collect(),
+            genres: genres.to_vec(),
+            roles: title_roles(roles),
             ..SimilarAsked::default()
         };
         let sources = self.plugins.providers::<dyn SimilarSource>();

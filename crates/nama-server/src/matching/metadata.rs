@@ -20,7 +20,8 @@ impl Matcher {
             let (kind, ids) = matched.title();
             let ids = ids.clone();
             if !answered.contains_key(&ids) {
-                let answers = self.similar.ask(kind, &ids).await;
+                let (genres, roles) = (&matched.genres, &matched.roles);
+                let answers = self.similar.ask(kind, &ids, genres, roles).await;
                 answered.insert(ids.clone(), answers);
             }
             matched.similar = answered.get(&ids).cloned().unwrap_or_default();

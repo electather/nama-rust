@@ -39,8 +39,8 @@ mod subtitle_source;
 pub mod testing;
 
 pub use automation::{
-    Library, LibraryKind, Permission, Title, TitleRef, TitleRefKind, TitleRequesters,
-    TitleWatchStates, Titles, User, WatchState, WatchlistTitle, kernel,
+    Library, LibraryKind, Permission, SharingTitle, Title, TitleRef, TitleRefKind, TitleRequesters,
+    TitleRole, TitleWatchStates, Titles, User, WatchState, WatchlistTitle, kernel,
 };
 pub use blob_store::{BLOB_MAX_BYTES, BlobPage, BlobStore};
 pub use home_row::{

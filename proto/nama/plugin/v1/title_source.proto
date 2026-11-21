@@ -305,6 +305,20 @@ message Role {
   optional string headshot = 4;
 }
 
+// A Person's Role in a Movie or Show as the Kernel stored it (ADR 0081), as a Similar source is
+// asked with and `list_titles_sharing` answers.
+message TitleRole {
+  // The Person's External ID in the title source that gave the Role, such as `tmdb` `500`.
+  TitleId person = 1;
+  // Crew rather than Cast.
+  bool crew = 2;
+  // The character they play, or the job they did in English, such as `Director`. Empty if the
+  // source doesn't say.
+  string part = 3;
+  // Its place in the billing order of the Cast, or of the Crew, from 0.
+  uint32 billed = 4;
+}
+
 // One Season of a Show, with its Episodes.
 message Season {
   // The Season's own ids, where the source has them.
