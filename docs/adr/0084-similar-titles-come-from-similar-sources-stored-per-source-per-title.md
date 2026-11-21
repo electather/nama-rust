@@ -1,5 +1,7 @@
 # Similar titles come from Similar sources, stored per source per title
 
+_Amended by [ADR 0085](0085-similar-titles-are-merged-both-ways.md): the merge also counts stored answers that name the title._
+
 Similar titles came only from the title source that had a title (ADR 0081), so no other Plugin could add to them. Similar titles are now their own Extension Point, a Similar source served by `SimilarSourceService`, and title sources only describe titles. The TMDB Plugin's `recommendations` move to its Similar source answer, and `similar` leaves the title-source `Movie` and `Show`, with tag 16 reserved. A Similar source receives a title and its kind, never the User, and answers titles by External ID, each with a weight. The Kernel asks every enabled Similar source when it refreshes a title's Matches (ADR 0040) and stores each source's answer once per title (ADR 0081), so a title page never waits on a Plugin. The Kernel merges the stored answers when a page reads them, using Featured's rule (ADR 0072): each weight is clamped to between 0.0 and 1.0, a title answered by more than one source keeps its highest weight, and ties go to the source with the lower Plugin id. It keeps only the titles in the reading User's Libraries, matched by any shared External ID, and shows the first 20 as one row named "Similar titles".
 
 ## Considered Options

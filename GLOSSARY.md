@@ -306,7 +306,7 @@ A Match an admin set or cleared by hand. Automatic Matching follows it instead o
 _Avoid_: locked match, override, manual lock
 
 **External ID**:
-A title's id at a title source: a Namespace and a value that Namespace's owner defines, written `tmdb-603`. A title may have several, at most one per Namespace, and any one of them identifies it.
+A title's or Person's id at a title source: a Namespace and a value that Namespace's owner defines, written `tmdb-603`. A title or Person may have several, at most one per Namespace, and any one of them identifies it.
 _Avoid_: title id (for an id the Server makes up), TMDB id (as the general word)
 
 **Namespace**:
