@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use nama_plugin_api::{
-    PluginId,
-    metadata::{ExternalId, ExternalIds},
-};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tempfile::TempDir;
 
@@ -91,28 +88,10 @@ async fn a_year_after_the_words_narrows_a_search_to_that_year_or_titles_with_it(
 /// What TMDB says of an Episode of The Office (US): its id `tmdb` and `title`.
 fn office_episode(tmdb: i64, title: &str) -> Decided {
     Decided::Matched(Box::new(Metadata {
-        plugin: PluginId::from_static("tmdb"),
-        ids: ExternalIds::from_iter([ExternalId::tmdb(tmdb)]),
         show_ids: ExternalIds::from_iter([ExternalId::tmdb(THE_OFFICE)]),
-        title: title.to_owned(),
-        original_title: None,
         show_title: Some("The Office".to_owned()),
-        overview: None,
         release_date: Some("2005-03-24".to_owned()),
-        runtime_minutes: None,
-        poster: None,
-        backdrop: None,
-        titled_backdrop: None,
-        logo: None,
-        still: None,
-        genres: Vec::new(),
-        content_rating: None,
-        show_poster: None,
-        show_overview: None,
-        show_first_air_date: None,
-        score: None,
-        original_language: None,
-        trailers: Vec::new(),
+        ..tmdb_movie(tmdb, title)
     }))
 }
 
