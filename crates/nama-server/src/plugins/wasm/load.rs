@@ -20,7 +20,9 @@ use nama_plugin_api::{
     automation::Kernel,
     job::Job,
     metadata::{ExternalId, InvalidId, SourceManifest},
-    settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
+    settings::{
+        SettingField, SettingKind, SettingValue, Settings, SettingsSchema, in_listed_order,
+    },
 };
 use nama_plugin_proto::{CONTRACT_VERSION, nama::plugin::v1 as wire, services};
 use semver::{Version, VersionReq};
@@ -564,7 +566,7 @@ fn setting_field(field: &wire::SettingField) -> Result<SettingField, Refused> {
             kind,
         });
     }
-    let field = SettingField {
+    let mut field = SettingField {
         key: field.key.clone(),
         label: field.label.clone(),
         description: field.description.clone(),
@@ -582,6 +584,10 @@ fn setting_field(field: &wire::SettingField) -> Result<SettingField, Refused> {
     };
     check_bounds(&field)?;
     check_choices(&field)?;
+    // Shaped as a save would store it, so the Plugin and the form never see a repeat.
+    if let Some(SettingValue::Texts(picked)) = &mut field.default {
+        *picked = in_listed_order(&field.choices, picked);
+    }
     Ok(field)
 }
 

@@ -276,6 +276,17 @@ fn a_choices_settings_manifest_choices_reach_its_schema() {
 }
 
 #[test]
+fn a_choices_settings_default_keeps_each_value_once_in_the_order_its_choices_are_listed() {
+    let fields = judged_settings(ratings(&["G", "PG", "R"], Some(&["R", "G", "R"]))).unwrap();
+
+    let default = match fields.first().and_then(|field| field.default.as_ref()) {
+        Some(settings::SettingValue::Texts(values)) => Some(values.as_slice()),
+        _ => None,
+    };
+    assert_eq!(default, Some(["G".to_owned(), "R".to_owned()].as_slice()));
+}
+
+#[test]
 fn a_choices_setting_without_manifest_choices_loads_only_with_a_settings_check() {
     let judged = |exported: &[&str]| {
         let mut package = Manifest {

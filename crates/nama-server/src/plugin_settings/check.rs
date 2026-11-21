@@ -1,13 +1,10 @@
 //! Running a Plugin's settings check, and refusing settings whose choices aren't offered.
 
-use std::{
-    collections::{BTreeMap, HashSet},
-    slice,
-};
+use std::{collections::BTreeMap, slice};
 
 use nama_plugin_api::{
     Manifest, PluginId,
-    settings::{Choice, Choices, SettingField, SettingKind, SettingValue, Settings},
+    settings::{Choices, SettingField, SettingKind, SettingValue, Settings, in_listed_order},
 };
 
 use super::{ChangeError, PluginSettings, StoredPlugin, sent::with_stored_secrets};
@@ -101,7 +98,8 @@ impl PluginSettings {
                 });
             }
             if field.kind == SettingKind::Choices {
-                ordered.push((field.key.clone(), in_listed_order(listed, values)));
+                let kept = SettingValue::Texts(in_listed_order(listed, values));
+                ordered.push((field.key.clone(), kept));
             }
         }
         settings.extend(ordered);
@@ -126,15 +124,4 @@ fn picked<'a>(
             Some((field, values))
         })
         .collect()
-}
-
-/// `values` as a Choices setting's value: each once, in the order `listed` lists them.
-fn in_listed_order(listed: &[Choice], values: &[String]) -> SettingValue {
-    let mut kept = HashSet::new();
-    let values = listed
-        .iter()
-        .filter(|choice| values.contains(&choice.value) && kept.insert(&choice.value))
-        .map(|choice| choice.value.clone())
-        .collect();
-    SettingValue::Texts(values)
 }

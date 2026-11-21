@@ -12,7 +12,10 @@
 //! [`Plugin::register`]: crate::Plugin::register
 //! [`Registrar::settings`]: crate::Registrar::settings
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt,
+};
 
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -329,6 +332,18 @@ pub struct Choice {
 
 /// The choices for each [`SettingKind::Choice`] or [`SettingKind::Choices`] setting, by key.
 pub type Choices = BTreeMap<String, Vec<Choice>>;
+
+/// `values` as a [`SettingKind::Choices`] setting keeps them: each once, in the order `choices`
+/// lists them, leaving out any it doesn't list.
+#[must_use]
+pub fn in_listed_order(choices: &[Choice], values: &[String]) -> Vec<String> {
+    let mut kept = HashSet::new();
+    choices
+        .iter()
+        .filter(|choice| values.contains(&choice.value) && kept.insert(&choice.value))
+        .map(|choice| choice.value.clone())
+        .collect()
+}
 
 /// A Plugin's check of its settings against the outside service they are for.
 pub trait SettingsCheck: Send + Sync {
