@@ -611,7 +611,9 @@ impl Probing {
     /// the file changes or the probe failure version is bumped. Unlike a probe, a timeout isn't
     /// tried again: each try reads the whole file for up to `WHOLE_FILE_TIMEOUT` (#850).
     async fn list_claimed(&self, path: &str, claim: Claim<Listed>) -> Result<(), sqlx::Error> {
-        let listed = (self.inner.reader)
+        let listed = self
+            .inner
+            .reader
             .keyframes(path.to_owned())
             .await
             .map_err(Arc::new);
