@@ -4,13 +4,15 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { PluginLogLine } from "./plugin_pb";
+import { file_nama_v1_plugin } from "./plugin_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/v1/job.proto.
  */
 export const file_nama_v1_job: GenFile = /*@__PURE__*/
-  fileDesc("ChFuYW1hL3YxL2pvYi5wcm90bxIHbmFtYS52MSIRCg9MaXN0Sm9ic1JlcXVlc3QiLgoQTGlzdEpvYnNSZXNwb25zZRIaCgRqb2JzGAEgAygLMgwubmFtYS52MS5Kb2IiqgEKA0pvYhIRCglwbHVnaW5faWQYASABKAkSEwoLcGx1Z2luX25hbWUYAiABKAkSCgoCaWQYAyABKAkSDAoEbmFtZRgEIAEoCRITCgtkZXNjcmlwdGlvbhgFIAEoCRIQCghzY2hlZHVsZRgGIAEoCRIXCg9uZXh0X3J1bnNfYXRfbXMYByADKAMSIQoIbGFzdF9ydW4YCCABKAsyDy5uYW1hLnYxLkpvYlJ1biI3ChJMaXN0Sm9iUnVuc1JlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJEg4KBmpvYl9pZBgCIAEoCSI0ChNMaXN0Sm9iUnVuc1Jlc3BvbnNlEh0KBHJ1bnMYASADKAsyDy5uYW1hLnYxLkpvYlJ1biKNAQoGSm9iUnVuEgoKAmlkGAEgASgDEicKB291dGNvbWUYAiABKA4yFi5uYW1hLnYxLkpvYlJ1bk91dGNvbWUSFQoNc3RhcnRlZF9hdF9tcxgDIAEoAxIYCgtlbmRlZF9hdF9tcxgEIAEoA0gAiAEBEg0KBWVycm9yGAUgASgJQg4KDF9lbmRlZF9hdF9tcyrIAQoNSm9iUnVuT3V0Y29tZRIfChtKT0JfUlVOX09VVENPTUVfVU5TUEVDSUZJRUQQABIbChdKT0JfUlVOX09VVENPTUVfUlVOTklORxABEh0KGUpPQl9SVU5fT1VUQ09NRV9TVUNDRUVERUQQAhIaChZKT0JfUlVOX09VVENPTUVfRkFJTEVEEAMSHQoZSk9CX1JVTl9PVVRDT01FX1RJTUVEX09VVBAEEh8KG0pPQl9SVU5fT1VUQ09NRV9JTlRFUlJVUFRFRBAFMqEBCgpKb2JTZXJ2aWNlEkQKCExpc3RKb2JzEhgubmFtYS52MS5MaXN0Sm9ic1JlcXVlc3QaGS5uYW1hLnYxLkxpc3RKb2JzUmVzcG9uc2UiA5ACARJNCgtMaXN0Sm9iUnVucxIbLm5hbWEudjEuTGlzdEpvYlJ1bnNSZXF1ZXN0GhwubmFtYS52MS5MaXN0Sm9iUnVuc1Jlc3BvbnNlIgOQAgFiBnByb3RvMw");
+  fileDesc("ChFuYW1hL3YxL2pvYi5wcm90bxIHbmFtYS52MSIRCg9MaXN0Sm9ic1JlcXVlc3QiLgoQTGlzdEpvYnNSZXNwb25zZRIaCgRqb2JzGAEgAygLMgwubmFtYS52MS5Kb2IiqgEKA0pvYhIRCglwbHVnaW5faWQYASABKAkSEwoLcGx1Z2luX25hbWUYAiABKAkSCgoCaWQYAyABKAkSDAoEbmFtZRgEIAEoCRITCgtkZXNjcmlwdGlvbhgFIAEoCRIQCghzY2hlZHVsZRgGIAEoCRIXCg9uZXh0X3J1bnNfYXRfbXMYByADKAMSIQoIbGFzdF9ydW4YCCABKAsyDy5uYW1hLnYxLkpvYlJ1biI3ChJMaXN0Sm9iUnVuc1JlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJEg4KBmpvYl9pZBgCIAEoCSI0ChNMaXN0Sm9iUnVuc1Jlc3BvbnNlEh0KBHJ1bnMYASADKAsyDy5uYW1hLnYxLkpvYlJ1biK4AQoGSm9iUnVuEgoKAmlkGAEgASgDEicKB291dGNvbWUYAiABKA4yFi5uYW1hLnYxLkpvYlJ1bk91dGNvbWUSFQoNc3RhcnRlZF9hdF9tcxgDIAEoAxIYCgtlbmRlZF9hdF9tcxgEIAEoA0gAiAEBEg0KBWVycm9yGAUgASgJEikKCWxvZ19saW5lcxgGIAMoCzIWLm5hbWEudjEuUGx1Z2luTG9nTGluZUIOCgxfZW5kZWRfYXRfbXMqyAEKDUpvYlJ1bk91dGNvbWUSHwobSk9CX1JVTl9PVVRDT01FX1VOU1BFQ0lGSUVEEAASGwoXSk9CX1JVTl9PVVRDT01FX1JVTk5JTkcQARIdChlKT0JfUlVOX09VVENPTUVfU1VDQ0VFREVEEAISGgoWSk9CX1JVTl9PVVRDT01FX0ZBSUxFRBADEh0KGUpPQl9SVU5fT1VUQ09NRV9USU1FRF9PVVQQBBIfChtKT0JfUlVOX09VVENPTUVfSU5URVJSVVBURUQQBTKhAQoKSm9iU2VydmljZRJECghMaXN0Sm9icxIYLm5hbWEudjEuTGlzdEpvYnNSZXF1ZXN0GhkubmFtYS52MS5MaXN0Sm9ic1Jlc3BvbnNlIgOQAgESTQoLTGlzdEpvYlJ1bnMSGy5uYW1hLnYxLkxpc3RKb2JSdW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdEpvYlJ1bnNSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_plugin]);
 
 /**
  * @generated from message nama.v1.ListJobsRequest
@@ -196,6 +198,15 @@ export type JobRun = Message<"nama.v1.JobRun"> & {
    * @generated from field: string error = 5;
    */
   error: string;
+
+  /**
+   * The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
+   * Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
+   * `Job.last_run`.
+   *
+   * @generated from field: repeated nama.v1.PluginLogLine log_lines = 6;
+   */
+  logLines: PluginLogLine[];
 };
 
 /**
