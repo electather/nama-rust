@@ -21,31 +21,24 @@ use nama_proto::nama::v1::{
 
 use crate::{
     db::Database,
-    ffmpeg::Abilities,
     playback::{
-        self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, DownloadError, Method,
-        NAMED_LIMITS, PickedLimit, Planned, Preferred, PreviewFrames, Probing, ProbingError,
-        RunningPlans, Segment, SegmentKind, StartError, StartedPlan, SubtitleAppearance,
-        SubtitleDownloads, SubtitleOffsets, SubtitlePreference, Track, TrackKind,
-        TrackPreferenceError, TrackPreferences, is_autoplay_on, is_language, limit_to_proto,
-        method_to_proto, reason_to_proto, segments_of, set_autoplay, set_subtitle_background,
-        set_subtitle_offset, set_subtitle_size, subtitle_appearance_of, subtitle_offsets_of,
+        Asked, AskedSubtitle, Description, DeviceDecoding, DownloadError, Method, NAMED_LIMITS,
+        Pick, PickError, PickedLimit, Planned, Plans, Preferred, Segment, SegmentKind, StartError,
+        StartedPlan, SubtitleAppearance, SubtitleDownloads, SubtitlePreference, TrackPreferences,
+        is_autoplay_on, is_language, limit_to_proto, method_to_proto, reason_to_proto,
+        set_autoplay, set_subtitle_background, set_subtitle_size, subtitle_appearance_of,
         track_to_proto,
     },
-    server_settings::{PlaybackLimit, PlaybackSettings},
+    server_settings::PlaybackLimit,
 };
 
 use super::{caller, client_ip, database_failed, refuse, unknown_enum_value};
 
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 pub(super) struct PlaybackServiceHandler {
-    pub(super) probing: Probing,
-    pub(super) abilities: Abilities,
-    pub(super) running: RunningPlans,
-    pub(super) settings: PlaybackSettings,
+    pub(super) plans: Plans,
     pub(super) preferences: TrackPreferences,
     pub(super) downloads: SubtitleDownloads,
-    pub(super) preview_frames: PreviewFrames,
     pub(super) db: Arc<Database>,
 }
 
@@ -61,7 +54,6 @@ impl PlaybackService for PlaybackServiceHandler {
         request: ServiceRequest<'_, PlanPlaybackRequest>,
     ) -> ServiceResult<PlanPlaybackResponse> {
         let caller = caller(&ctx)?;
-        let user = caller.user.id;
         let client = client_ip(&ctx)?;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
@@ -72,15 +64,8 @@ impl PlaybackService for PlaybackServiceHandler {
                 usize::try_from(place).map_or(AskedSubtitle::None, AskedSubtitle::BurnIn)
             }
             (None, true) => AskedSubtitle::None,
-            (None, false) => AskedSubtitle::Preferred(
-                (self.preferences)
-                    .subtitle(caller.user.id, request.version_id)
-                    .await
-                    .map_err(database_failed)?,
-            ),
+            (None, false) => AskedSubtitle::Preferred,
         };
-        let audio =
-            (self.asked_audio(caller.user.id, request.version_id, request.audio_track)).await?;
         let asked = Asked {
             version: request.version_id,
             decoding: DeviceDecoding {
@@ -96,35 +81,18 @@ impl PlaybackService for PlaybackServiceHandler {
             failed: (request.failed_methods.iter())
                 .filter_map(|method| method_from_proto(*method))
                 .collect(),
-            audio,
+            // A place past `usize::MAX` is in no file, so the Server chooses.
+            audio: (request.audio_track).and_then(|place| usize::try_from(place).ok()),
             subtitle,
             limit: picked_limit(request.playback_limit),
             // Past `i64::MAX` is past the end of any Version, so it plays from its last segment.
             start_ms: i64::try_from(request.start_position_ms).unwrap_or(i64::MAX),
             client,
         };
-        let plan = playback::plan(
-            &self.probing,
-            &self.abilities,
-            &self.running,
-            caller,
-            asked,
-            self.settings.now(),
-        )
-        .await
-        .map_err(|err| plan_failed(err, request.version_id))?
-        .ok_or_else(version_not_found)?;
-        let segments =
-            (segments_of(&self.db, request.version_id).await).map_err(database_failed)?;
-        let preview_frames =
-            (self.preview_frames.of(request.version_id).await).map_err(database_failed)?;
-        let offsets = (subtitle_offsets_of(&self.db, user, request.version_id).await)
-            .map_err(database_failed)?;
-        let mut response = planned_to_proto(plan, segments, &offsets, self.downloads.has_source());
-        if let Some(shown) = response.plan.as_option_mut() {
-            shown.preview_frames = preview_frames.into();
-        }
-        Response::ok(response)
+        let planned = (self.plans.plan(caller, asked).await)
+            .map_err(|err| plan_failed(err, request.version_id))?
+            .ok_or_else(version_not_found)?;
+        Response::ok(planned_to_proto(planned, self.downloads.has_source()))
     }
 
     async fn stop_playback(
@@ -133,7 +101,7 @@ impl PlaybackService for PlaybackServiceHandler {
         request: ServiceRequest<'_, StopPlaybackRequest>,
     ) -> ServiceResult<StopPlaybackResponse> {
         let device = caller(&ctx)?.device.id;
-        self.running.stop_for(request.plan_id, device).await;
+        self.plans.stop(request.plan_id, device).await;
         Response::ok(StopPlaybackResponse::default())
     }
 
@@ -145,10 +113,10 @@ impl PlaybackService for PlaybackServiceHandler {
         let user = caller(&ctx)?.user.id;
         let pick = match (request.kind, request.track) {
             (EnumValue::Known(PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE), track) => {
-                Pick::Subtitle(track)
+                Pick::Subtitle(track.map(picked_place))
             }
             (EnumValue::Known(PickedTrackKind::PICKED_TRACK_KIND_AUDIO), Some(track)) => {
-                Pick::Audio(track)
+                Pick::Audio(picked_place(track))
             }
             (EnumValue::Known(PickedTrackKind::PICKED_TRACK_KIND_AUDIO), None) => {
                 return Err(refuse(
@@ -165,35 +133,9 @@ impl PlaybackService for PlaybackServiceHandler {
                 ));
             }
         };
-        let kept_for =
-            (self.preferences.kept_for(request.version_id).await).map_err(|err| match err {
-                TrackPreferenceError::NoSuchVersion => version_not_found(),
-                TrackPreferenceError::Database(err) => database_failed(err),
-            })?;
-        // An Unmatched Item keeps nothing, as it keeps no Watch State (ADR 0013): its Tracks aren't
-        // read, so the pick never fails, whatever it names.
-        let Some(kept_for) = kept_for else {
-            return Response::ok(ReportTrackPickResponse::default());
-        };
-        let version = request.version_id;
-        let stored = match pick {
-            Pick::Subtitle(None) => {
-                (self.preferences)
-                    .keep_subtitle(user, kept_for, SubtitlePreference::Off)
-                    .await
-            }
-            Pick::Subtitle(Some(place)) => {
-                let picked = self.picked(version, place, is_subtitle).await?;
-                (self.preferences)
-                    .keep_subtitle(user, kept_for, SubtitlePreference::Like(picked))
-                    .await
-            }
-            Pick::Audio(place) => {
-                let picked = self.picked(version, place, is_audio).await?;
-                self.preferences.keep_audio(user, kept_for, picked).await
-            }
-        };
-        stored.map_err(database_failed)?;
+        (self.plans.keep_pick(user, request.version_id, pick))
+            .await
+            .map_err(pick_failed)?;
         Response::ok(ReportTrackPickResponse::default())
     }
 
@@ -405,10 +347,11 @@ impl PlaybackService for PlaybackServiceHandler {
             offset_ms,
             ..
         } = request.to_owned_message();
-        let (place, track) = self.track_at(version, track, is_subtitle).await?;
-        set_subtitle_offset(&self.db, user, version, (place, &track), offset_ms)
-            .await
-            .map_err(database_failed)?;
+        (self
+            .plans
+            .keep_offset(user, version, picked_place(track), offset_ms))
+        .await
+        .map_err(pick_failed)?;
         Response::ok(SetSubtitleOffsetResponse::default())
     }
 }
@@ -433,6 +376,20 @@ fn subtitles_failed(err: DownloadError, language_field: &str) -> ConnectError {
             tracing::error!("keeping a downloaded subtitle failed: {err}");
             ConnectError::internal("the Server couldn't keep the subtitle")
         }
+    }
+}
+
+/// The error a Track pick or Subtitle Offset that couldn't be kept is answered with.
+fn pick_failed(err: PickError) -> ConnectError {
+    match err {
+        PickError::NoSuchVersion => version_not_found(),
+        err @ PickError::TrackNotFound => refuse(
+            RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
+            err.to_string(),
+        )
+        .field("track")
+        .into(),
+        PickError::Database(err) => database_failed(err),
     }
 }
 
@@ -553,84 +510,9 @@ fn checked_language(language: &str, field: &str) -> Result<String, ConnectError>
     Ok(language.to_ascii_lowercase())
 }
 
-/// The Track a `ReportTrackPick` call says the User picked, by its place in the Version's Tracks.
-enum Pick {
-    /// A subtitle, or `None` for subtitles turned off.
-    Subtitle(Option<u32>),
-    Audio(u32),
-}
-
-const fn is_subtitle(kind: &TrackKind) -> bool {
-    matches!(kind, TrackKind::Subtitle { .. })
-}
-
-const fn is_audio(kind: &TrackKind) -> bool {
-    matches!(kind, TrackKind::Audio { .. })
-}
-
-impl PlaybackServiceHandler {
-    /// What a plan request from the User `user` for the Version `version` asks of audio: the
-    /// Track at `place`, or else the Server's choice by their Audio Preference.
-    async fn asked_audio(
-        &self,
-        user: i64,
-        version: i64,
-        place: Option<u32>,
-    ) -> Result<AskedAudio, ConnectError> {
-        Ok(match place {
-            // As for subtitles, a place past `usize::MAX` is in no file.
-            Some(place) => {
-                usize::try_from(place).map_or(AskedAudio::Preferred(None), AskedAudio::Chosen)
-            }
-            None => AskedAudio::Preferred(
-                (self.preferences)
-                    .audio(user, version)
-                    .await
-                    .map_err(database_failed)?,
-            ),
-        })
-    }
-
-    /// What describes the Track at `place` in the Version `version`'s Tracks, as [`Self::track_at`]
-    /// finds it.
-    async fn picked(
-        &self,
-        version: i64,
-        place: u32,
-        is_kind: fn(&TrackKind) -> bool,
-    ) -> Result<Description, ConnectError> {
-        let (_, track) = self.track_at(version, place, is_kind).await?;
-        Ok(Description::of(&track))
-    }
-
-    /// The Track at `place` in the Version `version`'s Tracks, with that place, probing it first if
-    /// they aren't current. Refused unless `is_kind` says it is of the kind asked for.
-    async fn track_at(
-        &self,
-        version: i64,
-        place: u32,
-        is_kind: fn(&TrackKind) -> bool,
-    ) -> Result<(usize, Track), ConnectError> {
-        let probe = match self.probing.current(version).await {
-            Ok(probe) => Some(probe),
-            // Its Tracks aren't known, so no plan offered one to pick.
-            Err(ProbingError::Probe(_)) => None,
-            Err(ProbingError::NoSuchVersion(_)) => return Err(version_not_found()),
-            Err(ProbingError::Database(err)) => return Err(database_failed(err)),
-        };
-        let found = (probe.as_ref())
-            .zip(usize::try_from(place).ok())
-            .and_then(|(probe, place)| Some((place, probe.tracks.get(place)?.clone())))
-            .filter(|(_, track)| is_kind(&track.kind));
-        found.ok_or_else(|| {
-            refuse(
-                RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
-                "the Version has no Track of the kind picked at that place",
-            )
-            .field("track")
-            .into()
-        })
-    }
+/// The place in a Version's Tracks a pick names, a place past `usize::MAX` being past every Track.
+fn picked_place(place: u32) -> usize {
+    usize::try_from(place).unwrap_or(usize::MAX)
 }
 
 /// The Playback Limit `limit` names, `None` being Original, as is one not picked or one newer
@@ -670,12 +552,7 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
     }
 }
 
-fn planned_to_proto(
-    planned: Planned,
-    segments: Vec<Segment>,
-    offsets: &SubtitleOffsets,
-    can_search_subtitles: bool,
-) -> PlanPlaybackResponse {
+fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybackResponse {
     let (id, url, plan, playable_versions) = match planned {
         Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan, vec![]),
         // The API's plan id 0 is no plan.
@@ -709,7 +586,7 @@ fn planned_to_proto(
                 url: subtitle.url.clone(),
                 format: subtitle.format.into(),
                 font_urls: subtitle.font_urls.clone(),
-                offset_ms: offsets.of(subtitle.place, &subtitle.track),
+                offset_ms: plan.subtitle_offsets.of(subtitle.place, &subtitle.track),
                 ..Default::default()
             })
             .collect(),
@@ -721,7 +598,8 @@ fn planned_to_proto(
                 ..Default::default()
             })
             .collect(),
-        segments: segments.into_iter().map(segment_to_proto).collect(),
+        segments: plan.segments.into_iter().map(segment_to_proto).collect(),
+        preview_frames: plan.preview_frames.into(),
         can_search_subtitles,
         ..Default::default()
     };

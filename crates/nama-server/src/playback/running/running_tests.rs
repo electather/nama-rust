@@ -643,6 +643,9 @@ pub(super) fn direct_play_of(version: i64) -> crate::playback::Plan {
         starting_subtitle: None,
         offers: crate::playback::Offers::default(),
         chapters: vec![],
+        segments: vec![],
+        preview_frames: None,
+        subtitle_offsets: crate::playback::SubtitleOffsets::default(),
     }
 }
 

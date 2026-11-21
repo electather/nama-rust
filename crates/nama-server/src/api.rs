@@ -29,7 +29,7 @@ use crate::{
         TitleSources, artwork_router, custom_images_router, local_images_router,
     },
     playback::{
-        PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
+        Plans, PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
         preview_frames_router, running_router,
     },
     plugin_settings::PluginSettings,
@@ -125,7 +125,6 @@ pub(crate) fn router(
     };
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
-    let playback = settings.playback();
     let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
@@ -170,13 +169,16 @@ pub(crate) fn router(
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
-            probing,
-            abilities,
-            running,
-            settings: playback,
+            plans: Plans::new(
+                probing,
+                abilities,
+                running,
+                settings.playback(),
+                preview_frames,
+                Arc::clone(&db),
+            ),
             preferences: TrackPreferences::new(Arc::clone(&db)),
             downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
-            preview_frames,
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(RequestServiceHandler {

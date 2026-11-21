@@ -55,8 +55,7 @@ function server(permissions: Permission[], source: Source = {}) {
     downloaded: [],
   };
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const getServerInfo = () => ({ name: "Living Room", searchesSubtitles: source.enabled ?? true });
-  const state = { signedIn: permissions, libraries, serverService: { getServerInfo } };
+  const state = { signedIn: permissions, libraries };
   const transport = fakeServer(state, {}, {}, (router) => {
     router.service(BrowseService, {
       getMovie: () => ({
@@ -86,7 +85,12 @@ function server(permissions: Permission[], source: Source = {}) {
           format: SubtitleFormat.WEBVTT,
         }));
         const subtitles = [english, ...downloads];
-        const plan = { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7", subtitles };
+        const plan = {
+          method: PlaybackMethod.DIRECT_PLAY,
+          url: "/media/versions/7",
+          subtitles,
+          canSearchSubtitles: source.enabled ?? true,
+        };
         return { plan: { ...plan, startingSubtitle: calls.plans === 1 ? 2 : undefined } };
       },
       searchSubtitles: ({ languages }) => {

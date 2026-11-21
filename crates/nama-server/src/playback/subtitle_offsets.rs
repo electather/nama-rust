@@ -7,7 +7,7 @@ use super::{Track, TrackKind};
 use crate::db::Database;
 
 /// One User's Subtitle Offsets for one Version's Tracks.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct SubtitleOffsets(HashMap<String, i64>);
 
 impl SubtitleOffsets {
