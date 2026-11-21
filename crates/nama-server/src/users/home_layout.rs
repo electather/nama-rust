@@ -80,14 +80,25 @@ impl UserHomeLayout {
         Self::stored(db.reader(), user).await
     }
 
-    /// Saves what `user` asks for in `asked` over `default`, naming each row they see as
-    /// [`UserHomeLayout::arrange`] got it.
+    /// Saves what `user` asks for in `asked` over `default`. Of `asked`'s rows, only those that
+    /// name one of the rows `user` sees, `seen` as [`UserHomeLayout::arrange`] got them, count.
     pub(crate) async fn save(
         db: &Database,
         user: i64,
-        asked: HomeLayout,
+        asked: &HomeLayout,
+        seen: Vec<HomeRowId>,
         default: HomeLayout,
     ) -> Result<(), sqlx::Error> {
+        let asked = HomeLayout {
+            featured_shown: asked.featured_shown,
+            rows: (seen.into_iter())
+                .filter_map(|row| {
+                    let named = asked.rows.iter().find(|named| named.row.names(&row))?;
+                    let shown = named.shown;
+                    Some(PlacedRow { row, shown })
+                })
+                .collect(),
+        };
         db.write(move |tx| {
             Box::pin(async move {
                 let before = Self::stored(&mut **tx, user).await?;

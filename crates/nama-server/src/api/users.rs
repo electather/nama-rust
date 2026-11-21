@@ -33,7 +33,7 @@ use crate::{
     images::PluginLogos,
     library::{CustomImageUrls, CustomImages},
     plugin_settings::{Personal, PluginSettings},
-    server_settings::{HomeLayout, PlacedRow, ServerUrl, Settings},
+    server_settings::{ServerUrl, Settings},
     users::{
         self, Caller, Permissions, User, UserHomeLayout, Users, notification_preferences_of,
         set_notification_preference,
@@ -479,20 +479,9 @@ impl UserService for UserServiceHandler {
         let reader = &caller(&ctx)?.user;
         let asked = home_layout_from_proto(request.to_owned_message().layout.into_option())?;
         let seen = home_rows_of(&self.home_rows, reader).await?;
-        let asked = HomeLayout {
-            featured_shown: asked.featured_shown,
-            rows: (seen.into_iter())
-                .filter_map(|(row, _)| {
-                    let named = asked.rows.iter().find(|named| named.row.names(&row))?;
-                    Some(PlacedRow {
-                        row,
-                        shown: named.shown,
-                    })
-                })
-                .collect(),
-        };
+        let seen = seen.into_iter().map(|(row, _)| row).collect();
         let default = self.settings.now().default_home_layout;
-        (UserHomeLayout::save(&self.db, reader.id, asked, default).await)
+        (UserHomeLayout::save(&self.db, reader.id, &asked, seen, default).await)
             .map_err(database_failed)?;
         Response::ok(SetHomeLayoutResponse {
             layout: self.home_layout(reader).await?.into(),
