@@ -11,6 +11,8 @@ use nama_server::plugins::Registry;
 
 /// Alien, a Movie.
 pub(crate) const ALIEN: i64 = 348;
+/// Alien's IMDb id, as the fake TMDB gives it.
+pub(crate) const ALIEN_IMDB: &str = "tt0078748";
 /// Heat, a Movie.
 pub(crate) const HEAT: i64 = 949;
 /// Dune, a Movie.

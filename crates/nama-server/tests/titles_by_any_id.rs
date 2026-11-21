@@ -17,10 +17,7 @@ use nama_proto::nama::v1::{
     WatchStateServiceClient, media_to_delete, set_played_request::Target,
 };
 use nama_server::ffmpeg::Ffmpeg;
-use server::tmdb::{DARK, DARK_TVDB};
-
-/// Alien's IMDb id, as the fake TMDB gives it.
-const ALIEN_IMDB: &str = "tt0078748";
+use server::tmdb::{ALIEN_IMDB, DARK, DARK_TVDB};
 
 fn id(namespace: &str, value: &str) -> ExternalId {
     ExternalId {
