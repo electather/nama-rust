@@ -49,10 +49,15 @@ fn until_four() -> Duration {
     now.duration_until(&four).unsigned_abs()
 }
 
-/// A Server moving the clock, with the test Plugin built with Jobs enabled.
+/// A Server moving the clock, with the test Plugin built with Jobs enabled and none of its lines
+/// kept from an earlier test.
 async fn with_jobs() -> TestServer {
     let server = TestServer::builder().moves_clock().start().await;
     server.enable_test_plugin("jobs").await;
+    // Kept Plugin Log lines are process-wide and enabling keeps those it finds, so an earlier
+    // test's Server that left the Plugin enabled left its Runs' lines, under the ids this Server's
+    // Runs reuse (#1615). Disabling forgets them.
+    disable_and_enable(&server).await;
     server
 }
 
