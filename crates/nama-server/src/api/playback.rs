@@ -123,6 +123,7 @@ impl PlaybackService for PlaybackServiceHandler {
         let mut response = planned_to_proto(plan, segments, &offsets);
         if let Some(shown) = response.plan.as_option_mut() {
             shown.preview_frames = preview_frames.into();
+            shown.can_search_subtitles = self.downloads.has_source();
         }
         Response::ok(response)
     }

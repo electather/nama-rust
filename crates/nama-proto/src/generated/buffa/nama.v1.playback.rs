@@ -7903,6 +7903,18 @@ pub struct PlaybackPlan {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub segments: ::buffa::alloc::vec::Vec<Segment>,
+    /// Whether at least one enabled Plugin serves `EXTENSION_POINT_SUBTITLE_SOURCE`, so
+    /// `SearchSubtitles` won't refuse with `REFUSAL_REASON_NO_SUBTITLE_SOURCE` for lack of one. It
+    /// says nothing of `PERMISSION_DOWNLOAD_SUBTITLES`. Set on every plan, also one that can't play.
+    ///
+    /// Field 18: `can_search_subtitles`
+    #[serde(
+        rename = "canSearchSubtitles",
+        alias = "can_search_subtitles",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub can_search_subtitles: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7926,6 +7938,7 @@ impl ::core::fmt::Debug for PlaybackPlan {
             .field("preview_frames", &self.preview_frames)
             .field("chapters", &self.chapters)
             .field("segments", &self.segments)
+            .field("can_search_subtitles", &self.can_search_subtitles)
             .finish()
     }
 }
@@ -8078,6 +8091,9 @@ impl ::buffa::Message for PlaybackPlan {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.can_search_subtitles {
+            size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8195,6 +8211,9 @@ impl ::buffa::Message for PlaybackPlan {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.can_search_subtitles {
+            ::buffa::types::put_bool_field(18u32, self.can_search_subtitles, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8457,6 +8476,13 @@ impl ::buffa::Message for PlaybackPlan {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.segments.push(elem);
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.can_search_subtitles = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -8481,6 +8507,7 @@ impl ::buffa::Message for PlaybackPlan {
         self.chapters.clear();
         self.preview_frames = ::buffa::MessageField::none();
         self.segments.clear();
+        self.can_search_subtitles = false;
         self.__buffa_unknown_fields.clear();
     }
 }
