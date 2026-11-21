@@ -639,8 +639,8 @@ impl Caller {
     }
 
     /// Deletes, in one write, what each Plugin the Server hasn't had for `asked.days` left behind:
-    /// its settings, Store entries, Personal settings, Plugin Connections, and the Scores,
-    /// Trailers, Similar titles, Roles and air dates its title source gave.
+    /// its settings, Store entries, Personal settings, Plugin Connections, and what its title
+    /// source gave.
     async fn forget_gone_plugins(
         self,
         asked: ForgetGonePluginsAsked,
