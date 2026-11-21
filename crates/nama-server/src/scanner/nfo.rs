@@ -124,17 +124,24 @@ impl FoundNfos {
             }
             let file = match stored.remove(&found.path) {
                 Some(old) if (old.size, old.modified_ns) == (found.size, found.modified_ns) => old,
-                _ => {
-                    let ids = read_ids(Path::new(&found.path)).await;
-                    let file = NfoFile {
-                        path: found.path,
-                        size: found.size,
-                        modified_ns: found.modified_ns,
-                        ids,
-                    };
-                    changes.files.push(file.clone());
-                    file
-                }
+                old => match read_ids(Path::new(&found.path)).await {
+                    Some(ids) => {
+                        let file = NfoFile {
+                            path: found.path,
+                            size: found.size,
+                            modified_ns: found.modified_ns,
+                            ids,
+                        };
+                        changes.files.push(file.clone());
+                        file
+                    }
+                    // Not stored, so the next scan reads it again, as once it's readable its
+                    // modified time may be as it was.
+                    None => match old {
+                        Some(old) => old,
+                        None => continue,
+                    },
+                },
             };
             current.push(file);
         }
@@ -232,15 +239,19 @@ fn show_folder<'p>(path: &'p Path, item: &Item) -> Option<&'p Path> {
     }
 }
 
-/// The IDs the `.nfo` file at `path` names, strongest first. None, with a warning naming the file,
-/// for one that is a link, isn't a regular file, is over [`MAX_BYTES`], can't be read or names
-/// none.
-async fn read_ids(path: &Path) -> Vec<ExternalId> {
+/// The IDs the `.nfo` file at `path` names, strongest first, with a warning naming the file where
+/// that's none. None for one that is a link, isn't a regular file or is over [`MAX_BYTES`]; `None`
+/// for one that couldn't be read.
+async fn read_ids(path: &Path) -> Option<Vec<ExternalId>> {
     let ids = match read(path).await {
-        Ok(text) => ids_in(&text),
+        Ok(Ok(text)) => ids_in(&text),
+        Ok(Err(skipped)) => {
+            tracing::warn!("skipped {}: {skipped}", path.display());
+            return Some(Vec::new());
+        }
         Err(err) => {
-            tracing::warn!("skipped {}: {err}", path.display());
-            return Vec::new();
+            tracing::warn!("could not read {}: {err}", path.display());
+            return None;
         }
     };
     if ids.is_empty() {
@@ -249,35 +260,35 @@ async fn read_ids(path: &Path) -> Vec<ExternalId> {
             path.display()
         );
     }
-    ids
+    Some(ids)
 }
 
 /// The text of the `.nfo` file at `path`, decoded as its byte-order mark or XML declaration says,
-/// else as UTF-8.
-async fn read(path: &Path) -> io::Result<String> {
+/// else as UTF-8, or why it's skipped.
+async fn read(path: &Path) -> io::Result<Result<String, &'static str>> {
     let path = path.to_owned();
     let bytes = tokio::task::spawn_blocking(move || read_bytes(&path))
         .await
         .map_err(io::Error::other)??;
-    Ok(decode(&bytes))
+    Ok(bytes.map(|bytes| decode(&bytes)))
 }
 
 /// Blocks, so call it from `spawn_blocking`.
-fn read_bytes(path: &Path) -> io::Result<Vec<u8>> {
+fn read_bytes(path: &Path) -> io::Result<Result<Vec<u8>, &'static str>> {
     let metadata = std::fs::symlink_metadata(path)?;
     if metadata.is_symlink() {
-        return Err(io::Error::other("it's a link, which isn't followed"));
+        return Ok(Err("it's a link, which isn't followed"));
     }
     if !metadata.is_file() {
-        return Err(io::Error::other("it isn't a regular file"));
+        return Ok(Err("it isn't a regular file"));
     }
     if metadata.len() > MAX_BYTES {
-        return Err(io::Error::other("it's over 4 MiB"));
+        return Ok(Err("it's over 4 MiB"));
     }
     let mut bytes = Vec::new();
     // Taken short of the limit, in case it grew since.
     (std::fs::File::open(path)?.take(MAX_BYTES)).read_to_end(&mut bytes)?;
-    Ok(bytes)
+    Ok(Ok(bytes))
 }
 
 fn decode(bytes: &[u8]) -> String {
@@ -323,7 +334,7 @@ fn xml_ids(text: &str) -> Vec<(u8, String, String)> {
     let block = end.and_then(|end| text.get(..end)).unwrap_or(text);
     let block = NOT_THE_TITLES.replace_all(block, "");
     // A legacy numeric `<id>` is TVDB's in a Show's or Episode's file, as Kodi wrote them.
-    let numeric_id = match root.as_str() {
+    let numeric_namespace = match root.as_str() {
         "tvshow" | "episodedetails" => TVDB,
         _ => TMDB,
     };
@@ -345,7 +356,7 @@ fn xml_ids(text: &str) -> Vec<(u8, String, String)> {
                 (strength, namespace_of(typed.as_str()))
             }
             ("uniqueid", None) if imdb => (2, IMDB.to_owned()),
-            ("id", _) => (4, if imdb { IMDB } else { numeric_id }.to_owned()),
+            ("id", _) => (4, if imdb { IMDB } else { numeric_namespace }.to_owned()),
             ("uniqueid", None) => continue,
             (other, _) => (3, other.trim_end_matches("_id").to_owned()),
         };

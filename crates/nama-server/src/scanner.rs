@@ -523,17 +523,21 @@ impl Scanner {
         let contents = &self.inner.contents;
         let stored = contents.nfo_files(id).await?;
         let items = contents.nfo_items(id).await?;
-        let NfoChanges { files, gone, items } = found.changes(stored, items).await;
+        let NfoChanges {
+            files,
+            gone,
+            items: changed,
+        } = found.changes(stored, items).await;
         for batch in files.chunks(BATCH_SIZE) {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
             contents.keep_nfo_files(id, batch.to_vec()).await?;
         }
-        if !gone.is_empty() {
-            contents.forget_nfo_files(id, gone).await?;
+        for batch in gone.chunks(BATCH_SIZE) {
+            contents.forget_nfo_files(id, batch.to_vec()).await?;
         }
-        for batch in items.chunks(BATCH_SIZE) {
+        for batch in changed.chunks(BATCH_SIZE) {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }

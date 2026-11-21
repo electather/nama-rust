@@ -178,9 +178,11 @@ async fn a_video_takes_its_own_nfo_then_its_stacks_then_movie_nfo_in_a_folder_of
 async fn tvshow_nfo_names_the_show_and_an_episodes_own_nfo_its_episode() {
     let show = "tmdb-70523";
     let source = ScriptedSource::new("tmdb", &SourcesAsked::default())
-        .with_show(&[show], "Dark", &[1, 2])
+        .with_show(&[show], "Dark", &[0, 1, 2])
+        .with_season(show, 0, &[1])
         .with_season(show, 1, &[1, 2])
         .with_season(show, 2, &[1])
+        .episode_id(show, 0, 1, "tmdb-3003")
         .episode_id(show, 2, 1, "tmdb-1001");
     let media = library(LibraryKind::Shows, source).await;
     put(
@@ -197,6 +199,13 @@ async fn tvshow_nfo_names_the_show_and_an_episodes_own_nfo_its_episode() {
         "Kingdom/Season 01/Kingdom - S01E09.nfo",
         "<episodedetails><uniqueid type=\"tmdb\">1001</uniqueid></episodedetails>\n\
          <episodedetails><uniqueid type=\"tmdb\">2002</uniqueid></episodedetails>",
+    );
+    // Or a Special.
+    put(&media, "Kingdom/Season 01/Kingdom - S01E10.mkv", "video");
+    put(
+        &media,
+        "Kingdom/Season 01/Kingdom - S01E10.nfo",
+        "<episodedetails><uniqueid type=\"tmdb\">3003</uniqueid></episodedetails>",
     );
     put(&media, "Elsewhere/Elsewhere - S01E01.mkv", "video");
 
@@ -216,6 +225,8 @@ async fn tvshow_nfo_names_the_show_and_an_episodes_own_nfo_its_episode() {
         ("tmdb-70523".to_owned(), "tmdb-70523".to_owned())
     );
     assert_eq!(ninth.ids.get("tmdb"), Some(ExternalId::tmdb(1001)));
+    let special = recorded("Kingdom - S01E10.mkv").unwrap();
+    assert_eq!(special.ids.get("tmdb"), Some(ExternalId::tmdb(3003)));
     assert_eq!(
         outcome(recorded("Elsewhere - S01E01.mkv").as_ref()),
         "unmatched"
@@ -243,6 +254,51 @@ async fn adding_editing_or_deleting_an_nfo_matches_an_unchanged_video_again() {
     fs::remove_file(media.path(NFO)).unwrap();
     media.scan().await;
     assert_eq!(got().await, "tmdb-348");
+}
+
+#[tokio::test]
+async fn an_nfo_naming_the_title_already_matched_keeps_the_match_without_asking_again() {
+    let asked = SourcesAsked::default();
+    let media = library(LibraryKind::Movies, movies(&asked)).await;
+    put(&media, "Alien (1979) {tmdb-348}/Alien (1979).mkv", "video");
+    media.scan().await;
+    let before = asked.lines().len();
+
+    put(
+        &media,
+        "Alien (1979) {tmdb-348}/Alien (1979).nfo",
+        tmdb_nfo("348"),
+    );
+    media.scan().await;
+
+    assert_eq!(matched(&media).await[0].1, "tmdb-348");
+    assert_eq!(asked.lines().get(before..), Some(&[][..]));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn an_nfo_that_cant_be_read_is_read_again_on_the_next_scan() {
+    use std::os::unix::fs::PermissionsExt as _;
+    const NFO: &str = "Home Video (2001)/Home Video (2001).nfo";
+    let media = movies_library().await;
+    put(&media, "Home Video (2001)/Home Video (2001).mkv", "video");
+    put(&media, NFO, tmdb_nfo("679"));
+    let set_mode = |mode| fs::set_permissions(media.path(NFO), fs::Permissions::from_mode(mode));
+    set_mode(0o000).unwrap();
+
+    let log = CapturedLog::start();
+    media.scan().await;
+    let log = log.finish();
+    assert_eq!(matched(&media).await[0].1, "unmatched");
+    assert!(
+        log.contains("WARN") && log.contains("Home Video (2001).nfo"),
+        "{log}"
+    );
+
+    // Its modified time is as it was, so only a failed read being forgotten reads it again.
+    set_mode(0o644).unwrap();
+    media.scan().await;
+    assert_eq!(matched(&media).await[0].1, "tmdb-679");
 }
 
 #[tokio::test]

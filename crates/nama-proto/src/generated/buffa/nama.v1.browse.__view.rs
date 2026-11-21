@@ -1162,7 +1162,7 @@ pub struct VersionView<'a> {
     /// Field 4: `tracks`
     pub tracks: ::buffa::RepeatedView<'a, super::super::__buffa::view::TrackView<'a>>,
     /// The Edition it holds, such as "Director's Cut", as its file or folder name writes it. A
-    /// client shows it where it lists a title's Versions, and the file name where it's unset.
+    /// client shows it where it lists a title's Versions. Unset on an Unmatched Item's Version.
     ///
     /// Field 5: `edition`
     pub edition: ::core::option::Option<&'a str>,
@@ -1496,7 +1496,7 @@ impl VersionOwnedView {
         &self.0.reborrow().tracks
     }
     /// The Edition it holds, such as "Director's Cut", as its file or folder name writes it. A
-    /// client shows it where it lists a title's Versions, and the file name where it's unset.
+    /// client shows it where it lists a title's Versions. Unset on an Unmatched Item's Version.
     ///
     /// Field 5: `edition`
     #[must_use]

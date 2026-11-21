@@ -116,8 +116,8 @@ impl Contents {
     }
 
     /// Gives each Item its new ID Hints from `.nfo` files, and forgets what Matching decided
-    /// about it, so the scan Matches it again (ADR 0087). An Item whose name an admin pinned keeps
-    /// its decision.
+    /// about it, so the scan Matches it again, unless its Match agrees with them (ADR 0087). An
+    /// Item whose name an admin pinned keeps its decision.
     pub(crate) async fn set_nfo_hints(&self, changed: Vec<(i64, NfoHints)>) -> sqlx::Result<()> {
         self.db
             .write(move |tx| Box::pin(set_hints(tx, changed)))
@@ -197,6 +197,8 @@ async fn set_hints(conn: &mut SqliteConnection, changed: Vec<(i64, NfoHints)>) -
         )
         .execute(&mut *conn)
         .await?;
+        // Kept when Matched to a title, and for an Episode an Episode, its new hints name, as on
+        // the first scan to read an `.nfo` the name already Matched by.
         sqlx::query!(
             "DELETE FROM item_matches
              WHERE item_id = ?1
@@ -208,8 +210,25 @@ async fn set_hints(conn: &mut SqliteConnection, changed: Vec<(i64, NfoHints)>) -
                                   AND match_pins.title = library_items.title
                                   AND match_pins.year IS library_items.year
                                   AND match_pins.hint IS library_items.hint
-                   WHERE library_items.id = ?1)",
-            item
+                   WHERE library_items.id = ?1)
+               AND NOT (
+                   state = 'matched'
+                   AND EXISTS (
+                       SELECT 1 FROM item_match_ids AS ids
+                       JOIN library_items ON library_items.id = ids.item_id
+                       JOIN json_each(?2) AS hint
+                         ON hint.value = ids.namespace || '-' || ids.value
+                       WHERE ids.item_id = ?1
+                         AND ids.scope = CASE library_items.kind
+                                             WHEN 'episode' THEN 'show' ELSE 'title' END)
+                   AND (?3 IS NULL OR EXISTS (
+                       SELECT 1 FROM item_match_ids AS ids
+                       JOIN json_each(?3) AS hint
+                         ON hint.value = ids.namespace || '-' || ids.value
+                       WHERE ids.item_id = ?1 AND ids.scope = 'title')))",
+            item,
+            title,
+            episode
         )
         .execute(&mut *conn)
         .await?;

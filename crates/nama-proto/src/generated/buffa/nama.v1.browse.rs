@@ -2004,7 +2004,7 @@ pub struct Version {
     )]
     pub tracks: ::buffa::alloc::vec::Vec<Track>,
     /// The Edition it holds, such as "Director's Cut", as its file or folder name writes it. A
-    /// client shows it where it lists a title's Versions, and the file name where it's unset.
+    /// client shows it where it lists a title's Versions. Unset on an Unmatched Item's Version.
     ///
     /// Field 5: `edition`
     #[serde(rename = "edition", skip_serializing_if = "::core::option::Option::is_none")]

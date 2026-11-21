@@ -335,6 +335,7 @@ impl Matcher {
                 let show = sources::fetch_show(&self.metadata, id, ExternalIds::default())
                     .await
                     .map_err(ManualError::looking_up(id))?;
+                // ponytail: whole-Library read, for the Episodes of one Show.
                 let hints = self.contents.nfo_hints(named.library).await?;
                 let episodes: Vec<PendingEpisode> = named
                     .items
@@ -544,6 +545,10 @@ impl Matcher {
         let listed = show.seasons.iter().filter(|&&number| number > 0);
         let mut numbers: BTreeSet<i64> = listed.map(|&number| number.into()).collect();
         numbers.extend(episodes.iter().map(|pending| pending.season));
+        // An Episode's own `.nfo` file may name a Special.
+        if show.seasons.contains(&0) && episodes.iter().any(|pending| !pending.ids.is_empty()) {
+            numbers.insert(0);
+        }
         let mut seasons = BTreeMap::new();
         for number in numbers {
             seasons.insert(number, sources::season(&self.metadata, found, number).await);

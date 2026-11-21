@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM item_matches\n             WHERE item_id = ?1\n               AND NOT EXISTS (\n                   SELECT 1 FROM library_items\n                   JOIN library_files ON library_files.id = library_items.file_id\n                   JOIN match_pins ON match_pins.library_id = library_files.library_id\n                                  AND match_pins.kind = library_items.kind\n                                  AND match_pins.title = library_items.title\n                                  AND match_pins.year IS library_items.year\n                                  AND match_pins.hint IS library_items.hint\n                   WHERE library_items.id = ?1)\n               AND NOT (\n                   state = 'matched'\n                   AND EXISTS (\n                       SELECT 1 FROM item_match_ids AS ids\n                       JOIN library_items ON library_items.id = ids.item_id\n                       JOIN json_each(?2) AS hint\n                         ON hint.value = ids.namespace || '-' || ids.value\n                       WHERE ids.item_id = ?1\n                         AND ids.scope = CASE library_items.kind\n                                             WHEN 'episode' THEN 'show' ELSE 'title' END)\n                   AND (?3 IS NULL OR EXISTS (\n                       SELECT 1 FROM item_match_ids AS ids\n                       JOIN json_each(?3) AS hint\n                         ON hint.value = ids.namespace || '-' || ids.value\n                       WHERE ids.item_id = ?1 AND ids.scope = 'title')))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8efc430a17abb0f4f2deab4c095eaf4a5c97d5eca506cb5f54623abd5dcdee33"
+}

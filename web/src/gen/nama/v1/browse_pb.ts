@@ -253,7 +253,7 @@ export type Version = Message<"nama.v1.Version"> & {
 
   /**
    * The Edition it holds, such as "Director's Cut", as its file or folder name writes it. A
-   * client shows it where it lists a title's Versions, and the file name where it's unset.
+   * client shows it where it lists a title's Versions. Unset on an Unmatched Item's Version.
    *
    * @generated from field: optional string edition = 5;
    */
