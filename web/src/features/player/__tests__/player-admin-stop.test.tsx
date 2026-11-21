@@ -13,7 +13,7 @@ const MESSAGE = "Restarting the Server for an upgrade";
 
 /**
  * A Server whose Library 1 has The Matrix, each plan for it numbered from 1 in `plans`, and whose
- * Events `events` sends. `moviesAsked` counts `GetMovie`.
+ * Events `events` sends. `moviesAsked` counts `GetMovie`, each of which finds the Movie changed.
  */
 function matrixServer() {
   const events = eventFeed();
@@ -36,9 +36,9 @@ function matrixServer() {
         getMovie: () => {
           moviesAsked += 1;
           const versions = [{ id: 7n, fileName: "Matrix.mkv", size: 1n }];
-          return {
-            movie: { id: { namespace: "tmdb", value: "603" }, title: "The Matrix", versions },
-          };
+          const watchState = { positionMs: BigInt(moviesAsked) };
+          const id = { namespace: "tmdb", value: "603" };
+          return { movie: { id, title: "The Matrix", versions, watchState } };
         },
       });
     },
@@ -100,17 +100,23 @@ test("playing again after an Admin's stop starts a new plan", async () => {
   await screen.findByRole("heading", { name: "An Admin stopped playback" });
 
   fireEvent.click(screen.getByRole("link", { name: "Back" }));
-  const play = await screen.findByRole("link", { name: /^(?:Play|Resume)/u });
-  // React Query keeps even a `gcTime: 0` suspense query a second after its player goes (#1636).
-  await act(async () => {
-    await new Promise((resolve) => {
-      setTimeout(resolve, 1000);
-    });
-  });
-  fireEvent.click(play);
+  fireEvent.click(await screen.findByRole("link", { name: /^(?:Play|Resume)/u }));
 
   await expect(screen.findByLabelText("The Matrix")).resolves.toBeDefined();
   expect(server.plans()).toBe(2);
+});
+
+test("an Admin's stop stays shown, and asks for no new plan, when the Movie changes after it", async () => {
+  const server = matrixServer();
+  openApp(PLAYER, server.transport);
+  await screen.findByLabelText("The Matrix");
+  ended(server, 1n, MESSAGE);
+  await screen.findByRole("heading", { name: "An Admin stopped playback" });
+
+  await eventsApplied(server);
+
+  expect(screen.getByRole("heading", { name: "An Admin stopped playback" })).toBeDefined();
+  expect(server.plans()).toBe(1);
 });
 
 test("a stop kept from before the Server restarted doesn't close a new plan given its id", async () => {
