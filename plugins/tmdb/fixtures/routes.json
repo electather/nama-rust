@@ -23,6 +23,7 @@
   "/3/tv/2996/season/1?append_to_response=external_ids": "tv-2996-season-1.json",
   "/3/search/movie?query=Alien&year=1980": "search-empty.json",
   "/3/search/movie?query=Alien": "search-movie-alien-1979.json",
+  "/3/search/movie?query=Le huitième passager": "search-movie-alien-1979.json",
   "/3/search/movie?query=Home Movies": "search-empty.json",
   "/3/search/movie?query=Lost Reel": "search-empty.json",
   "/3/find/tt0078748?external_source=imdb_id": "find-imdb-tt0078748.json",

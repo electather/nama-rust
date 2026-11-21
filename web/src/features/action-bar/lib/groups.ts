@@ -32,14 +32,31 @@ export interface BarActions {
 
 const badges = { movie: "Movie", show: "Show", episode: "Episode" } as const;
 
-function titleRows(titles: readonly FoundTitle[], open: BarActions["open"]): Row[] {
+/** What a row of Recent says beside its label: its kind, as Recent mixes them. */
+function kindBadge(title: FoundTitle): Pick<Row, "badge" | "request"> {
+  return { badge: badges[title.kind] };
+}
+
+/** What a search result says beside its label: nothing when Available, else its Request. */
+function statusBadge({ libraryId, request }: FoundTitle): Pick<Row, "badge" | "request"> {
+  if (libraryId !== undefined) {
+    return {};
+  }
+  return request === undefined ? { badge: "Request" } : { request };
+}
+
+function titleRows(
+  titles: readonly FoundTitle[],
+  open: BarActions["open"],
+  badgeOf = statusBadge,
+): Row[] {
   return titles.map((title) => ({
     id: title.id,
     label: title.label,
     hint: title.hint,
     icon: title.kind === "movie" ? "movie" : "show",
     poster: title.poster ?? null,
-    badge: badges[title.kind],
+    ...badgeOf(title),
     action: "Open",
     run: () => {
       open(title);
@@ -111,7 +128,7 @@ function rootGroups(state: BarState, actions: BarActions): Group[] {
   ];
   return [
     ...section("Search", blank ? search : []),
-    ...section("Recent", blank ? titleRows(state.recents, actions.open) : []),
+    ...section("Recent", blank ? titleRows(state.recents, actions.open, kindBadge) : []),
     ...section("Jump to", matching(state.query, jumps)),
     ...(blank ? [] : results(state, actions)),
     ...section("Actions", matching(state.query, [shortcuts])),
@@ -133,5 +150,5 @@ export function groupsOf(state: BarState, actions: BarActions): Group[] {
   // lists what you opened lately of that kind. Give it a real list when the Server grows one.
   const kind = state.frame;
   const recent = state.recents.filter((title) => (title.kind === "movie") === (kind === "movie"));
-  return section("Recent", titleRows(recent, actions.open));
+  return section("Recent", titleRows(recent, actions.open, kindBadge));
 }

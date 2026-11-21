@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-21, #1464
+
+- None that `buf breaking` reports: in `nama/v1/search.proto`, `TitleStatus` gains `TITLE_STATUS_REQUESTED` (2) and `TITLE_STATUS_NOT_ON_THIS_SERVER` (3), and `Done` gains `title_source_unavailable` (1).
+- For a caller with `PERMISSION_REQUEST_MOVIE`, `Search` now streams a second batch, the title source's Movies, before `Done`. A Movie no Library has comes without `library_id`, Requested with its `request`; `Done.title_source_unavailable` says the title source couldn't be searched.
+- A client built before lists those Movies as if a Library had them, with no Library to open them in; it must regenerate, sort its rows by `status`, and open a Movie without `library_id` on its request page. The web app is the only client.
+
 ## 2026-11-20, #1462
 
 - `RPC_NO_DELETE`, `nama/v1/browse.proto`: `BrowseService.SearchLibraries`.
