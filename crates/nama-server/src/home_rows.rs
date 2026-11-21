@@ -140,7 +140,8 @@ impl HomeRows {
     /// with no title to show `reader` and one of `reader`'s whose key a shared row has. Starts a
     /// background refresh of each of these scopes whose rows are stale or never were refreshed,
     /// and lists what is stored meanwhile. Deletes the rows of a Plugin no longer giving them.
-    /// Each row comes with what a Home layout places it by.
+    /// Each row comes with what a Home layout places it by. Records the visit first, which
+    /// [`forget_unvisited`] reads; failing to record it is logged, not answered.
     pub(crate) async fn list(&self, reader: &User) -> Result<Vec<(HomeRowId, Row)>, Error> {
         if let Err(err) = self.refreshes.visited(reader.id).await {
             warn!(

@@ -429,14 +429,16 @@ pub(super) async fn forget_user<A: Adapter>(
             HomeRowMethod::Featured => {
                 sqlx::query!("DELETE FROM featured_refreshes WHERE user_id = ?", user)
                     .execute(&mut *conn)
-                    .await?
+                    .await?;
             }
-            HomeRowMethod::Shared | HomeRowMethod::User => {
+            HomeRowMethod::User => {
                 sqlx::query!("DELETE FROM home_row_refreshes WHERE user_id = ?", user)
                     .execute(&mut *conn)
-                    .await?
+                    .await?;
             }
-        };
+            // A shared scope's put-offs belong to no User.
+            HomeRowMethod::Shared => {}
+        }
     }
     A::delete_users_own(conn, user).await
 }

@@ -129,11 +129,11 @@ impl Started {
             .map(connectrpc::UnaryResponse::into_owned)
     }
 
+    /// What is stored for each Plugin but Upkeep, which a start stores with its first grant.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    /// What is stored for each Plugin but Upkeep, which a start stores with its first grant.
     async fn stored(&self) -> BTreeMap<String, PluginConfig> {
         let mut stored = plugin_settings::stored(self.server.db())
             .await
