@@ -70,6 +70,12 @@ async fn only_a_changed_job_has_a_row_and_turning_it_on_at_its_default_deletes_i
         None,
         "its default, as written, is no change"
     );
+    configure(true, "0  4\t* * *").await.unwrap();
+    assert_eq!(
+        tidy(&db).await,
+        None,
+        "its default, spaced otherwise, is no change"
+    );
 
     configure(true, "*/15 * * * *").await.unwrap();
     let every_quarter = Some("*/15 * * * *".to_owned());

@@ -76,9 +76,12 @@ pub(crate) async fn configure_job(
             Some((it.id.to_string(), declared))
         })
         .ok_or(ConfigureError::NotFound)?;
-    let schedule = Some(schedule.trim())
-        .filter(|it| !it.is_empty() && Some(*it) != declared.schedule.as_deref())
-        .map(str::to_owned);
+    // Compared field by field, so the default spaced otherwise stores no row and still follows
+    // a Plugin update's.
+    let fields = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let default = declared.schedule.as_deref().map(fields);
+    let schedule =
+        Some(fields(schedule)).filter(|it| !it.is_empty() && Some(it) != default.as_ref());
     if let Some(schedule) = &schedule {
         if declared.schedule.is_none() {
             return Err(ConfigureError::Unscheduled);
