@@ -45,8 +45,8 @@ pub(crate) use fulfilling::{
     AskedAbout, FulfillerOutcome, RETRIES, ask_fulfiller, enabled_fulfiller, tell_fulfiller,
 };
 pub(crate) use jobs::list_jobs;
-pub use jobs::{JobRun, JobRunOutcome, ListedJob, RunRefused, job_runs};
-pub(crate) use jobs::{log_jobs_time_zone, run_now};
+pub use jobs::{JobRun, JobRunOutcome, ListedJob, job_runs};
+pub(crate) use jobs::{RunRefused, log_jobs_time_zone, run_now};
 pub use points::ExtensionPoints;
 pub use registry::Registry;
 #[cfg(test)]

@@ -237,7 +237,7 @@ fn until_next_minute() -> Duration {
 
 /// Why an Admin's Run of a Job didn't start.
 #[derive(Debug, PartialEq, Eq)]
-pub enum RunRefused {
+pub(crate) enum RunRefused {
     /// No enabled Plugin with the id declares a Job with the id.
     NotDeclared,
     /// The Job has a Run going.

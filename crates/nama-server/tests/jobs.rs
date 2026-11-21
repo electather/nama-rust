@@ -220,7 +220,8 @@ fn run_request(job: &str) -> RunJobRequest {
 }
 
 #[tokio::test]
-async fn an_admin_runs_a_job_now_as_themselves_once_at_a_time_and_only_one_a_plugin_declares() {
+async fn an_admin_runs_a_job_now_as_themselves_once_at_a_time_and_only_one_an_enabled_plugin_declares()
+ {
     let server = with_jobs().await;
     // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
     let log = Log::global();
@@ -254,4 +255,18 @@ async fn an_admin_runs_a_job_now_as_themselves_once_at_a_time_and_only_one_a_plu
     let on_ask = log.count(ON_ASK_ENDED);
     service.run_job(run_request("on-ask")).await.unwrap();
     log.wait_for(ON_ASK_ENDED, on_ask + 1).await;
+
+    (server
+        .plugin_service()
+        .disable_plugin(DisablePluginRequest {
+            id: "test-plugin".to_owned(),
+            ..Default::default()
+        }))
+    .await
+    .unwrap();
+    assert_refused(
+        service.run_job(run_request("on-ask")).await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_JOB_NOT_FOUND,
+    );
 }
