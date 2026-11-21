@@ -28,12 +28,12 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
     ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest, ReportProgressRequest,
-    RequestServiceClient, SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show,
-    TitleKind, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
+    SetMatchRequest, Show, TitleKind, WatchStateServiceClient,
+    continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
 use server::{
-    TestServer,
+    TestServer, search,
     tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, THE_OFFICE},
 };
 
@@ -116,10 +116,6 @@ impl Fixture {
             .unwrap()
             .into_owned()
             .entries
-    }
-
-    fn requests(&self) -> RequestServiceClient<HttpClient> {
-        RequestServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 }
 
@@ -595,26 +591,9 @@ async fn a_custom_poster_kept_under_a_search_hits_id_shows_on_the_hit() {
         assert_eq!(uploaded.status, 204, "{path}");
     }
 
-    let movies = fx
-        .requests()
-        .search_movies(SearchMoviesRequest {
-            title: "Alien".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .movies;
-    let shows = fx
-        .requests()
-        .search_shows(SearchShowsRequest {
-            title: "The Office".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .shows;
+    let as_admin = fx.server.client_config();
+    let movies = search::movies(&as_admin, "Alien").await;
+    let shows = search::shows(&as_admin, "The Office").await;
 
     let alien = movies.iter().find(|it| *it.id == tmdb_id(ALIEN)).unwrap();
     let office = (shows.iter())
@@ -709,16 +688,8 @@ async fn a_custom_poster_kept_under_another_id_of_a_search_hit_shows_on_the_hit(
     let uploaded = fx.upload(&path, &image(ImageFormat::Png, 2, 3)).await;
     assert_eq!(uploaded.status, 204);
 
-    let found = fx
-        .requests()
-        .search_shows(SearchShowsRequest {
-            title: "The Office".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .shows;
+    // A word the Library's title lacks, so the hit comes from the title source.
+    let found = search::shows(&fx.server.client_config(), "Bureau").await;
 
     let [hit] = found.as_slice() else {
         panic!("{found:?}");

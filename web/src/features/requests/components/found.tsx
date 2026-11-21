@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { PosterGrid } from "@/shared/components/poster/poster-grid";
 
-/** The `kind` of titles a `search` for `title` found, once it's done: `children`, one card each. */
+/** The `kind` of titles a `search` for `title` found, as they arrive: `children`, one card each. */
 export function Found({
   kind,
   title,
@@ -11,24 +11,24 @@ export function Found({
 }: {
   kind: "Movies" | "Shows";
   title: string;
-  search: { isPending: boolean; isError: boolean };
-  children: ReactNode[] | undefined;
+  search: { searching: boolean; failed: boolean };
+  children: ReactNode[];
 }) {
   const heading = `${kind} for “${title}”`;
+  const nothingYet = search.searching ? "Searching…" : `No ${kind} found.`;
   return (
     <section aria-label={heading} className="mt-10">
       <h2 className="font-medium">{heading}</h2>
-      {search.isPending && <p className="mt-8 text-muted-foreground">Searching…</p>}
-      {search.isError && (
+      {search.failed && (
         <p role="alert" className="mt-8 text-muted-foreground">
           Couldn’t search for {kind}. Try again in a moment.
         </p>
       )}
-      {children && (
-        <PosterGrid empty={<p className="mt-8 text-muted-foreground">No {kind} found.</p>}>
-          {children}
-        </PosterGrid>
-      )}
+      <PosterGrid
+        empty={!search.failed && <p className="mt-8 text-muted-foreground">{nothingYet}</p>}
+      >
+        {children}
+      </PosterGrid>
     </section>
   );
 }

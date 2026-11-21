@@ -22,8 +22,7 @@ use kept_artwork::{kept, until_kept};
 use nama_plugin_api::PluginId;
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
-    ClearMatchRequest, DeleteLibraryRequest, LibraryKind, LibraryServiceClient,
-    RequestServiceClient, SearchMoviesRequest, SetMatchRequest,
+    ClearMatchRequest, DeleteLibraryRequest, LibraryKind, LibraryServiceClient, SetMatchRequest,
 };
 use nama_server::{
     Artwork, ArtworkError,
@@ -32,7 +31,7 @@ use nama_server::{
     plugins::{ExtensionPoints, Registry},
 };
 use server::{
-    TestServer,
+    TestServer, search,
     tmdb::{ALIEN, HEAT},
 };
 
@@ -184,15 +183,7 @@ async fn deleting_a_library_drops_the_images_only_its_items_used() {
 #[tokio::test]
 async fn a_search_results_image_is_cached_apart_from_the_kept_ones() {
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, TestServer::builder()).await;
-    let found = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
-        .search_movies(SearchMoviesRequest {
-            title: "Alien".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .movies;
+    let found = search::movies(&fx.server.client_config(), "Alien").await;
     let poster = found[0].poster_url.clone().unwrap();
 
     let viewed = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;

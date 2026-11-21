@@ -1,5 +1,6 @@
 import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
 import type { EpisodeHit, SearchResponse, TitleStatus } from "@/gen/nama/v1/search_pb";
+import { hitsIn, titleSourceUnavailable } from "@/shared/lib/search-hits";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
@@ -80,15 +81,9 @@ function episodeFound(episode: EpisodeHit): FoundTitle {
   };
 }
 
-/**
- * What `Search` has streamed so far, as the action bar lists it: each kind by status (Available,
- * Requested, then Not on this Server, as their numbers go), and in the Server's order within one.
- */
+/** What `Search` has streamed so far, as the action bar lists it: each kind in `hitsIn`'s order. */
 export function foundIn(responses: readonly SearchResponse[]): Found {
-  const titles = responses
-    .flatMap(({ part }) => (part.case === "hits" ? part.value.hits : []))
-    // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array just built, and the lib target has no toSorted
-    .sort((a, b) => a.status - b.status);
+  const titles = hitsIn(responses);
   return {
     movies: titles.flatMap(({ title, status }) =>
       title.case === "movie" ? [movieFound(title.value, status)] : [],
@@ -99,9 +94,7 @@ export function foundIn(responses: readonly SearchResponse[]): Found {
     episodes: titles.flatMap(({ title }) =>
       title.case === "episode" ? [episodeFound(title.value)] : [],
     ),
-    titleSourceUnavailable: responses.some(
-      ({ part }) => part.case === "done" && part.value.titleSourceUnavailable,
-    ),
+    titleSourceUnavailable: titleSourceUnavailable(responses),
   };
 }
 

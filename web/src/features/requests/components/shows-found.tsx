@@ -1,15 +1,21 @@
 import { Found } from "@/features/requests/components/found";
-import { useSearchShows } from "@/features/requests/data/use-search-shows";
+import type { ShowHit } from "@/gen/nama/v1/request_pb";
+import type { TitleStatus } from "@/gen/nama/v1/search_pb";
 import { ShowCard } from "@/shared/components/title-cards/show-card";
 import { titleParam } from "@/shared/lib/title-param";
 
-/** The Shows found for `title`, each opening its page to pick Seasons. */
-export function ShowsFound({ title }: { title: string }) {
-  const search = useSearchShows(title);
+/** The Shows a `search` for `title` found, each opening its page to watch or pick Seasons. */
+export function ShowsFound({
+  title,
+  search,
+}: {
+  title: string;
+  search: { shows: { show: ShowHit; status: TitleStatus }[]; searching: boolean; failed: boolean };
+}) {
   return (
     <Found kind="Shows" title={title} search={search}>
-      {search.data?.shows.map((show) => (
-        <ShowCard key={titleParam(show.id)} show={show} />
+      {search.shows.map(({ show, status }) => (
+        <ShowCard key={titleParam(show.id)} show={show} status={status} />
       ))}
     </Found>
   );

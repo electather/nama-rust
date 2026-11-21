@@ -1,14 +1,9 @@
-import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import {
-  experimental_streamedQuery as streamedQuery,
-  keepPreviousData,
-  useQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { foundIn } from "@/features/action-bar/lib/titles";
 import type { TitleKind } from "@/gen/nama/v1/match_pb";
-import { type SearchResponse, SearchService } from "@/gen/nama/v1/search_pb";
+import { searchQuery } from "@/shared/hooks/search-query";
 
 /**
  * What a search for `words` of `kind` finds, in the signed-in User's Libraries and to request, and
@@ -19,14 +14,9 @@ export function useFound(words: string, kind: TitleKind) {
   const asked = words !== "";
   // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the list keeps its last results, and offers Retry as one of its rows, while it searches
   const query = useQuery({
-    queryKey: ["search", words, kind],
-    queryFn: streamedQuery<SearchResponse>({
-      streamFn: ({ signal }) =>
-        createClient(SearchService, transport).search({ query: words, kind }, { signal }),
-    }),
+    ...searchQuery(words, kind, transport),
     enabled: asked,
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
   });
   const found = asked && query.data ? foundIn(query.data) : undefined;
   return {

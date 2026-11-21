@@ -1,14 +1,21 @@
 import { Found } from "@/features/requests/components/found";
-import { useSearchMovies } from "@/features/requests/data/use-search-movies";
+import type { MovieHit } from "@/gen/nama/v1/request_pb";
 import { MovieCard } from "@/shared/components/title-cards/movie-card";
 import { titleParam } from "@/shared/lib/title-param";
 
-/** The Movies found for `title`, each with where it is on its way here. */
-export function MoviesFound({ title, you }: { title: string; you: bigint | undefined }) {
-  const search = useSearchMovies(title);
+/** The Movies a `search` for `title` found, each with where it is on its way here. */
+export function MoviesFound({
+  title,
+  search,
+  you,
+}: {
+  title: string;
+  search: { movies: MovieHit[]; searching: boolean; failed: boolean };
+  you: bigint | undefined;
+}) {
   return (
     <Found kind="Movies" title={title} search={search}>
-      {search.data?.movies.map((movie) => (
+      {search.movies.map((movie) => (
         <MovieCard key={titleParam(movie.id)} movie={movie} you={you} />
       ))}
     </Found>

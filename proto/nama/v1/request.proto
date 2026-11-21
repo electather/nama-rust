@@ -86,23 +86,11 @@ service RequestService {
   rpc CountPendingRequests(CountPendingRequestsRequest) returns (CountPendingRequestsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Searches the title source for Movies to ask for, best fit first. Unlike
-  // `MatchService.SearchTitles`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
-  // `invalid_argument` if the title is blank, and `unavailable` if no title source is
-  // enabled, or one failed.
-  rpc SearchMovies(SearchMoviesRequest) returns (SearchMoviesResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-  }
   // Returns one Movie from the title source, for its page when no Library has it. Needs
   // `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no title source has a Movie with the
   // id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
   // title source is enabled, or one failed.
   rpc LookUpMovie(LookUpMovieRequest) returns (LookUpMovieResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-  }
-  // Searches the title source for Shows to ask for Seasons of, best fit first. Needs
-  // `PERMISSION_REQUEST_TV`. Fails as `SearchMovies` does.
-  rpc SearchShows(SearchShowsRequest) returns (SearchShowsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Returns one Show from the title source with each of its Seasons, for picking which to ask
@@ -657,15 +645,6 @@ message FoundMovie {
   optional string original_language = 14;
 }
 
-message SearchMoviesRequest {
-  // Must not be blank.
-  string title = 1;
-}
-
-message SearchMoviesResponse {
-  repeated MovieHit movies = 1;
-}
-
 message LookUpMovieRequest {
   reserved 1;
   reserved "movie_tmdb_id";
@@ -747,15 +726,6 @@ message FoundSeason {
   bool in_library = 3;
   // The Season's open Request, if it has one the caller may see.
   Request request = 4;
-}
-
-message SearchShowsRequest {
-  // Must not be blank.
-  string title = 1;
-}
-
-message SearchShowsResponse {
-  repeated ShowHit shows = 1;
 }
 
 message LookUpShowRequest {
