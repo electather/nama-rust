@@ -123,6 +123,26 @@ async fn deleting_a_user_deletes_their_suggestions() {
     assert!(stored.is_empty());
 }
 
+#[tokio::test]
+async fn changing_personal_settings_lists_the_old_suggestions_until_the_plugin_answers_again() {
+    let (_dir, db, home, calls) = recorded(FEATURED).await;
+    let ada = insert_user(&db, "ada").await;
+    set_handle(&db, ada, "1").await;
+    refreshed(&home, ada).await;
+
+    set_handle(&db, ada, "2").await;
+
+    assert_eq!(home.featured(ada).await.unwrap(), movies(&[(1, 0.5)]));
+    // Not `refreshed`: listing again while that listing's refresh is ending reads the old
+    // suggestions and asks the Plugin a second time (#1506).
+    home.refreshes.settled().await;
+    assert_eq!(home.featured(ada).await.unwrap(), movies(&[(2, 0.5)]));
+    assert_eq!(
+        *calls.featured_asked.lock().unwrap(),
+        [handle("1"), handle("2")]
+    );
+}
+
 #[test]
 fn a_title_suggested_twice_keeps_its_heaviest_weight() {
     let mut suggested = Suggested::new();
