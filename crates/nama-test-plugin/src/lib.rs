@@ -397,7 +397,6 @@ mod exports {
     #[cfg(feature = "automation")]
     nama_pdk::automation!(TestAutomation);
 
-    /// The Job `id`, run on `schedule`.
     #[cfg(feature = "jobs")]
     fn job(id: &str, schedule: Option<&str>) -> nama_pdk::Job {
         nama_pdk::Job {

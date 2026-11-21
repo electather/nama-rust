@@ -13,10 +13,9 @@ mod test_plugin;
 
 use std::time::Duration;
 
-use connectrpc::client::HttpClient;
 use jiff::{ToSpan as _, Zoned};
 use log::Log;
-use nama_proto::nama::v1::{DisablePluginRequest, PluginServiceClient};
+use nama_proto::nama::v1::DisablePluginRequest;
 use server::TestServer;
 
 const STARTED: &[&str] = &["test-plugin's Job wait started"];
@@ -78,7 +77,8 @@ async fn a_job_fires_on_its_schedule_drops_a_firing_due_while_it_runs_and_stops_
     log.wait_for(ENDED, ended + 2).await;
     assert_eq!(log.count(&["test-plugin's Job on-ask"]), 0);
 
-    PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
+    server
+        .plugin_service()
         .disable_plugin(DisablePluginRequest {
             id: "test-plugin".to_owned(),
             ..Default::default()

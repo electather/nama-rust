@@ -350,7 +350,7 @@ fn job_runner(jobs: Vec<Job>) -> Manifest {
             ..Default::default()
         }],
         jobs,
-        ..title_source("upkeep")
+        ..title_source("chores")
     }
 }
 

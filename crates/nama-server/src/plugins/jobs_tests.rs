@@ -7,7 +7,7 @@ use nama_plugin_api::{
 
 use crate::plugins::Registry;
 
-const ID: PluginId = PluginId::from_static("upkeep");
+const ID: PluginId = PluginId::from_static("chores");
 
 /// A Built-in Plugin running the Jobs it declares, each of which does nothing.
 struct Declaring(Vec<Job>);
@@ -56,7 +56,7 @@ fn a_builtin_declaring_no_jobs_or_a_bad_schedule_is_refused_as_an_installed_one_
     assert_eq!(
         enabling(Vec::new()),
         Err(
-            "the Server refused plugin upkeep: its Manifest names nama.plugin.v1.JobService and \
+            "the Server refused plugin chores: its Manifest names nama.plugin.v1.JobService and \
              declares no Jobs"
                 .to_owned()
         )
@@ -64,7 +64,7 @@ fn a_builtin_declaring_no_jobs_or_a_bad_schedule_is_refused_as_an_installed_one_
     assert_eq!(
         enabling(vec![job(Some("0 4 * *"))]),
         Err(
-            "the Server refused plugin upkeep: its Job tidy's schedule \"0 4 * *\" has 4 fields; \
+            "the Server refused plugin chores: its Job tidy's schedule \"0 4 * *\" has 4 fields; \
              a schedule has 5: minute, hour, day of month, month and day of week"
                 .to_owned()
         )
