@@ -361,17 +361,18 @@ fn accepted(response: Response) -> Result<Response, Error> {
     struct Quota {
         reset_time: Option<String>,
     }
-    let refused = match response.status_code() {
-        403 => Refused::ApiKey,
-        406 => Refused::Quota {
+    match response.status_code() {
+        403 => Err(Refused::ApiKey.into()),
+        406 => Err(Refused::Quota {
             renews_in: (response.json::<Quota>().ok()).and_then(|quota| quota.reset_time),
-        },
-        _ => return Ok(API.accepted(response)?),
-    };
-    Err(refused.into())
+        }
+        .into()),
+        _ => Ok(API.accepted(response)?),
+    }
 }
 
-/// Why OpenSubtitles refused a request, which the Plugins page shows as the call's failure.
+/// The refusals only OpenSubtitles means, which the Plugins page shows as the call's failure;
+/// every other status is the kit's refusal.
 #[derive(Debug, PartialEq, Eq)]
 enum Refused {
     /// The API key is wrong.
