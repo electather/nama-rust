@@ -1,15 +1,21 @@
+use std::sync::Arc;
+
 use nama_plugin_api::{
     PluginId,
     metadata::{ExternalId, ExternalIds},
 };
+use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tempfile::TempDir;
 
 use super::super::{
-    Change, Decided, Found, Item, Metadata,
+    Change, Contents, Decided, Found, Item, Metadata,
     fixture::{MatchedMovie, decide, tmdb_movie},
     testing::Fixture,
 };
-use crate::library::{TitleKind, libraries::Kind};
+use crate::{
+    db::{self, Database},
+    library::{TitleKind, libraries::Kind},
+};
 
 /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
 fn released_movie(tmdb: i64, title: &str, release_date: &str) -> Metadata {
@@ -322,4 +328,81 @@ async fn a_search_by_a_show_title_skips_a_movie_whose_match_has_one() {
     MatchedMovie::store(&fx.contents, fx.library, "/media/348.mkv", matched).await;
 
     assert!(fx.search("saga").await.is_empty());
+}
+
+/// What TMDB says of the Movie `tmdb`, called `title` here and `original_title` where it was made.
+fn translated_movie(tmdb: i64, title: &str, original_title: &str) -> Metadata {
+    Metadata {
+        original_title: Some(original_title.to_owned()),
+        ..tmdb_movie(tmdb, title)
+    }
+}
+
+#[tokio::test]
+async fn a_search_finds_a_movie_by_its_original_title_and_its_start() {
+    let fx = Fixture::new().await;
+    let matched = translated_movie(71_446, "Money Heist", "La casa de papel");
+    MatchedMovie::store(&fx.contents, fx.library, "/media/71446.mkv", matched).await;
+
+    assert_eq!(fx.found_movies("casa de papel").await, ["Money Heist"]);
+    assert_eq!(fx.found_movies("la cas").await, ["Money Heist"]);
+}
+
+#[tokio::test]
+async fn a_search_forgets_an_original_title_once_its_item_is_matched_again_or_removed() {
+    let fx = Fixture::new().await;
+    let heist = translated_movie(71_446, "Money Heist", "La casa de papel");
+    let item = MatchedMovie::store(&fx.contents, fx.library, "/media/heist.mkv", heist)
+        .await
+        .item;
+    let amelie = translated_movie(194, "Amélie", "Le Fabuleux Destin d'Amélie Poulain");
+    let amelie = MatchedMovie::store(&fx.contents, fx.library, "/media/amelie.mkv", amelie).await;
+
+    assert_eq!(fx.found_movies("casa").await, ["Money Heist"]);
+    assert_eq!(fx.found_movies("fabuleux").await, ["Amélie"]);
+
+    let ronin = Decided::Matched(Box::new(tmdb_movie(8195, "Ronin")));
+    fx.contents.record(vec![(item, ronin)]).await.unwrap();
+    assert_eq!(fx.found_movies("casa").await, Vec::<String>::new());
+
+    let removed = vec![Change::Remove(amelie.version)];
+    fx.contents.apply(fx.library, removed).await.unwrap();
+    assert_eq!(fx.found_movies("fabuleux").await, Vec::<String>::new());
+}
+
+/// The version of the migration that adds `original_title` to `title_search`.
+const ORIGINAL_TITLES: i64 = 20_261_121_012_705;
+
+#[tokio::test]
+async fn upgrading_to_original_titles_finds_a_movie_matched_before_by_its_original_title() {
+    let data = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = (migrations.iter().map(|migration| migration.version))
+        .filter(|&version| version < ORIGINAL_TITLES)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    sqlx::raw_sql(
+        "INSERT INTO libraries (id, name, kind) VALUES (1, 'Movies', 'movies');
+         INSERT INTO library_files (id, library_id, path, size, modified_ns)
+         VALUES (1, 1, '/media/Money Heist.mkv', 10, 0);
+         INSERT INTO library_items (id, file_id, kind, title, year)
+         VALUES (1, 1, 'movie', 'Money Heist', NULL);
+         INSERT INTO item_matches (item_id, state, plugin, title, original_title, decided_at)
+         VALUES (1, 'matched', 'tmdb', 'Money Heist', 'La casa de papel', 0);
+         INSERT INTO item_match_ids (item_id, scope, namespace, value)
+         VALUES (1, 'title', 'tmdb', '71446');",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let contents = Contents::new(Arc::new(Database::open(data.path()).await.unwrap()));
+    let found = contents.search("casa de papel", None, 20).await.unwrap();
+
+    assert_eq!(titles(&found), ["Money Heist"]);
 }
