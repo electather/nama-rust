@@ -1,8 +1,9 @@
 //! An in-memory stand-in for ffprobe, which Probing's unit tests read files with. A test says in
 //! Rust what a probe or a listing of a file answers, rather than write a program that poses as
-//! ffprobe.
+//! ffprobe, or has it forward to the real ffprobe while counting what it reads.
 
 use std::{
+    collections::VecDeque,
     fmt, fs, future,
     sync::{Arc, Mutex},
     time::Duration,
@@ -38,8 +39,16 @@ pub(super) struct FakeReader {
     forward: Option<Ffprobe>,
     can_read: bool,
     seen: Arc<watch::Sender<Seen>>,
-    /// What each read waits on before it answers; already cancelled unless reads are held.
-    released: Mutex<CancellationToken>,
+    hold: Mutex<Hold>,
+}
+
+/// What each read waits on before it answers.
+struct Hold {
+    /// Already cancelled unless reads are held; each held read waits on a child of it.
+    all: CancellationToken,
+    /// What each read held waits on, earliest first, so [`FakeReader::release_one`] frees them in
+    /// the order they started.
+    reads: VecDeque<CancellationToken>,
 }
 
 #[derive(Default)]
@@ -93,8 +102,8 @@ impl FakeReader {
         can_read: bool,
         answer: impl Fn(&str) -> Result<Probe, ProbeError> + Send + Sync + 'static,
     ) -> Self {
-        let released = CancellationToken::new();
-        released.cancel();
+        let all = CancellationToken::new();
+        all.cancel();
         Self {
             answer: Mutex::new(Box::new(answer)),
             listing: Mutex::new(Box::new(|_| {
@@ -103,7 +112,10 @@ impl FakeReader {
             forward: None,
             can_read,
             seen: Arc::default(),
-            released: Mutex::new(released),
+            hold: Mutex::new(Hold {
+                all,
+                reads: VecDeque::new(),
+            }),
         }
     }
 
@@ -125,16 +137,25 @@ impl FakeReader {
 
     /// Keeps the reads it starts from now on pending until [`Self::release`].
     pub(super) fn hold(&self) {
-        let mut released = lock(&self.released);
+        let mut hold = lock(&self.hold);
         // A token still pending is kept, so `release` frees the reads held before this too.
-        if released.is_cancelled() {
-            *released = CancellationToken::new();
+        if hold.all.is_cancelled() {
+            hold.all = CancellationToken::new();
         }
     }
 
     /// Lets every held read finish, and holds no more.
     pub(super) fn release(&self) {
-        lock(&self.released).cancel();
+        let mut hold = lock(&self.hold);
+        hold.all.cancel();
+        hold.reads.clear();
+    }
+
+    /// Lets the earliest read still held finish, and keeps holding the rest and those to come.
+    /// Panics if no read is held.
+    pub(super) fn release_one(&self) {
+        let read = lock(&self.hold).reads.pop_front();
+        read.expect("no read is held").cancel();
     }
 
     /// How many probes it started.
@@ -183,7 +204,14 @@ impl FakeReader {
             seen.most_at_once = seen.most_at_once.max(seen.running);
         });
         let running = Running(Arc::clone(&self.seen));
-        let released = lock(&self.released).clone();
+        let released = {
+            let mut hold = lock(&self.hold);
+            let released = hold.all.child_token();
+            if !released.is_cancelled() {
+                hold.reads.push_back(released.clone());
+            }
+            released
+        };
         Box::pin(async move {
             // Moved in, so the read stops counting as running only once Probing drops it.
             let _running = running;
