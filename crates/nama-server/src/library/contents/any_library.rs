@@ -82,3 +82,7 @@ pub(crate) async fn matched_episodes(
     .await?;
     Ok(numbers.into_iter().collect())
 }
+
+#[cfg(test)]
+#[path = "any_library_tests.rs"]
+mod tests;
