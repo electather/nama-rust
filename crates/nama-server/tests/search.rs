@@ -285,6 +285,39 @@ async fn a_movie_with_an_open_request_the_caller_can_see_is_requested_and_carrie
 }
 
 #[tokio::test]
+async fn a_movie_a_library_holds_that_its_search_missed_comes_from_the_title_source_as_available() {
+    let fx = Fixture::alien().await;
+    let user = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+
+    // Alien's French title, which the Libraries' search doesn't index.
+    let parts = search(
+        &user.client_config(),
+        "Le huitième passager",
+        TitleKind::TITLE_KIND_MOVIE,
+    )
+    .await
+    .unwrap();
+
+    let [Part::Hits(library), Part::Hits(to_request), Part::Done(_)] = &parts[..] else {
+        panic!("the Libraries' batch, the title source's, then Done: {parts:?}");
+    };
+    assert!(library.hits.is_empty(), "{library:?}");
+    assert_eq!(
+        movies_and_statuses(to_request),
+        [
+            ("Alien", AVAILABLE.into()),
+            ("Alien: Romulus", NOT_ON_THIS_SERVER.into()),
+            ("Aliens", NOT_ON_THIS_SERVER.into())
+        ]
+    );
+    let Some(hit::Title::Movie(alien)) = &to_request.hits[0].title else {
+        panic!("Alien first: {to_request:?}");
+    };
+    assert_eq!(alien.library_id, Some(fx.library));
+    assert_eq!(*alien.id, tmdb_id(ALIEN));
+}
+
+#[tokio::test]
 async fn a_search_of_shows_asks_the_title_source_for_no_movies() {
     let fx = Fixture::alien().await;
 

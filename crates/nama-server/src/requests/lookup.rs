@@ -6,7 +6,9 @@ use nama_plugin_api::{
     PluginId,
     metadata::{ExternalId, TitleMethod},
 };
-use nama_proto::nama::v1::{FollowedShow, FoundSeason, Request, RequestState, RequestedQuality};
+use nama_proto::nama::v1::{
+    FollowedShow, FoundSeason, Permission, Request, RequestState, RequestedQuality,
+};
 use sqlx::SqliteConnection;
 
 use super::asking::kept_under;
@@ -99,15 +101,19 @@ impl Requests {
     }
 
     /// The Movies the title source finds for a search for `query`, as `viewer` sees them, less any
-    /// with an id in `in_libraries`, ranked as ADR 0080 says: see [`ranked`].
+    /// with an id in `in_libraries`, ranked as ADR 0080 says: see [`ranked`]. `None`, without
+    /// asking, when `viewer` may not request Movies, so has none to find.
     pub(crate) async fn search_to_request(
         &self,
         viewer: &User,
         query: &str,
         in_libraries: &HashSet<ExternalId>,
-    ) -> Result<Vec<Found<Candidate>>, Error> {
+    ) -> Result<Option<Vec<Found<Candidate>>>, Error> {
+        if !viewer.permissions.allow(Permission::RequestMovie) {
+            return Ok(None);
+        }
         let found = self.search(viewer, query.to_owned()).await?;
-        Ok(ranked(found, in_libraries, query))
+        Ok(Some(ranked(found, in_libraries, query)))
     }
 
     /// The Shows the title source finds titled like `title`, best fit first.

@@ -9,8 +9,8 @@ use connectrpc::{
 use futures_util::{StreamExt, future, stream};
 use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{
-    self as proto, Done, Hits, Permission, RefusalReason, SearchRequest, SearchResponse,
-    SearchService, TitleStatus, search_response::Part,
+    self as proto, Done, Hits, RefusalReason, SearchRequest, SearchResponse, SearchService,
+    TitleStatus, search_response::Part,
 };
 
 use crate::{
@@ -69,15 +69,15 @@ impl SearchService for SearchServiceHandler {
                 .collect(),
             ..Default::default()
         };
-        let asks_title_source =
-            kind != Some(TitleKind::Show) && viewer.permissions.allow(Permission::RequestMovie);
         let (requests, query) = (self.requests.clone(), query.to_owned());
         let after_library = async move {
-            if !asks_title_source {
-                return vec![Ok(part(Done::default()))];
+            let done = Done::default();
+            if kind == Some(TitleKind::Show) {
+                return vec![Ok(response(done))];
             }
             match (requests.search_to_request(&viewer, &query, &in_libraries)).await {
-                Ok(movies) => {
+                Ok(None) => vec![Ok(response(done))],
+                Ok(Some(movies)) => {
                     let hits = (movies.into_iter())
                         .take(limit)
                         .map(|movie| movie_to_request_hit(movie, &images))
@@ -86,25 +86,25 @@ impl SearchService for SearchServiceHandler {
                         hits,
                         ..Default::default()
                     };
-                    vec![Ok(part(hits)), Ok(part(Done::default()))]
+                    vec![Ok(response(hits)), Ok(response(done))]
                 }
-                Err(requests::Error::Unavailable) => vec![Ok(part(Done {
+                Err(requests::Error::Unavailable) => vec![Ok(response(Done {
                     title_source_unavailable: true,
-                    ..Default::default()
+                    ..done
                 }))],
                 Err(error) => vec![Err(error.into())],
             }
         };
         let stream: ServiceStream<SearchResponse> = Box::pin(
-            stream::once(future::ready(Ok(part(library))))
+            stream::once(future::ready(Ok(response(library))))
                 .chain(stream::once(after_library).flat_map(stream::iter)),
         );
         Response::ok(stream)
     }
 }
 
-/// `part` as one response of the stream.
-fn part(part: impl Into<Part>) -> SearchResponse {
+/// The response of the stream that carries `part`.
+fn response(part: impl Into<Part>) -> SearchResponse {
     SearchResponse {
         part: Some(part.into()),
         ..Default::default()
