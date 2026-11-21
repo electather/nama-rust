@@ -123,5 +123,6 @@ pub(crate) fn tmdb_movie(tmdb: i64, title: &str) -> Metadata {
         score: None,
         original_language: None,
         similar: Vec::new(),
+        trailers: Vec::new(),
     }
 }

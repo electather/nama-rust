@@ -10,12 +10,12 @@ use nama_proto::nama::v1::{Event, PageResponse, SortDirection, UnmatchedItemSort
 use sqlx::SqliteConnection;
 
 use super::{
-    Contents, Item, ItemKind, ItemRow, Pin, air_dates, ids_from_json, ids_sql, parse_hint,
-    per_title, primary_id_in, sort_titles::sort_title,
+    Contents, Item, ItemKind, ItemRow, Pin, air_dates, details, ids_from_json, ids_sql, parse_hint,
+    primary_id_in, sort_titles::sort_title,
 };
 use crate::{
     db::now,
-    library::title_source::{Candidate, Season},
+    library::title_source::{Candidate, Season, Trailer},
     library::versions::METADATA_VERSION,
     page::Page,
     requests::{make_available, make_seasons_available},
@@ -216,10 +216,10 @@ pub(crate) struct Metadata {
     pub(crate) show_overview: Option<String>,
     pub(crate) show_first_air_date: Option<String>,
     /// The title's Score, stored once per title apart from the Match; for an Episode, its Show's,
-    /// as is `original_language`.
+    /// as are `original_language`, `trailers` and `similar`, the Similar titles, most alike first.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
-    /// Its Similar titles, most alike first, kept once per title; for an Episode, its Show's.
+    pub(crate) trailers: Vec<Trailer>,
     pub(crate) similar: Vec<ExternalId>,
 }
 
@@ -584,7 +584,7 @@ pub(super) async fn insert_decisions(
             continue;
         }
         if let Decided::Matched(metadata) = &decision {
-            per_title::store(&mut *conn, metadata).await?;
+            details::store(&mut *conn, metadata).await?;
         }
         insert_match_ids(&mut *conn, item, &row).await?;
     }

@@ -233,7 +233,9 @@ message Movie {
   optional string original_language = 12;
   // Its Similar titles: the Movies this source says are like it, most alike first, each by one
   // id. The Kernel keeps the first 20 and drops a malformed one.
-  repeated TitleId similar = 13;
+  repeated TitleId similar = 14;
+  // Its Trailers, in the order to show them. The Kernel keeps the first 5 it can link to.
+  repeated Trailer trailers = 13;
 }
 
 // A Show's details.
@@ -263,7 +265,21 @@ message Show {
   // As `Movie.original_language`.
   optional string original_language = 12;
   // As `Movie.similar`, the Shows this source says are like it.
-  repeated TitleId similar = 13;
+  repeated TitleId similar = 14;
+  // As `Movie.trailers`.
+  repeated Trailer trailers = 13;
+}
+
+// A video advertising a Movie or Show, which the Kernel only ever links to where it is hosted.
+message Trailer {
+  // The site hosting it: `YouTube` or `Vimeo`. The Kernel drops one on any other site.
+  string site = 1;
+  // Its id on that site, such as YouTube's `LjLamj-b0I8`.
+  string key = 2;
+  // What it is called, such as `Official Trailer`.
+  string name = 3;
+  // Whether the title's makers released it.
+  bool official = 4;
 }
 
 // One Season of a Show, with its Episodes.

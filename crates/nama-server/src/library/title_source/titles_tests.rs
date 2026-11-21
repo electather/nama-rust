@@ -4,8 +4,8 @@ use nama_plugin_api::{
 };
 
 use super::{
-    Artwork, ArtworkKind, SearchQuery, TitleKind, artwork, candidate, episode, movie, search_query,
-    season, show,
+    Artwork, ArtworkKind, SearchQuery, TitleKind, Trailer, artwork, candidate, episode, movie,
+    search_query, season, show,
 };
 
 fn id(namespace: &str, value: &str) -> wire::TitleId {
@@ -109,6 +109,77 @@ fn a_score_outside_0_to_10_is_dropped_not_stored() {
         [scored(10.5), scored(-1.0), scored(f64::NAN)],
         [None, None, None]
     );
+}
+
+fn trailer(site: &str, key: &str, name: &str) -> wire::Trailer {
+    wire::Trailer {
+        site: site.to_owned(),
+        key: key.to_owned(),
+        name: name.to_owned(),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_trailer_becomes_a_link_to_youtube_or_vimeo() {
+    let trailers = vec![
+        trailer("YouTube", "LjLamj-b0I8", "Official Trailer"),
+        trailer("Vimeo", "123456789", "Teaser"),
+    ];
+
+    let movie = movie(wire::Movie {
+        trailers,
+        ..Default::default()
+    });
+
+    assert_eq!(
+        movie.unwrap().trailers,
+        [
+            Trailer {
+                name: "Official Trailer".to_owned(),
+                url: "https://www.youtube.com/watch?v=LjLamj-b0I8".to_owned(),
+            },
+            Trailer {
+                name: "Teaser".to_owned(),
+                url: "https://vimeo.com/123456789".to_owned(),
+            },
+        ]
+    );
+}
+
+#[test]
+fn a_trailer_on_another_site_or_whose_key_would_change_the_link_is_dropped() {
+    let trailers = vec![
+        trailer("Dailymotion", "x8abc", "Elsewhere"),
+        trailer("YouTube", "abc&list=evil", "Smuggled"),
+        trailer("YouTube", "../../evil", "Escaped"),
+        trailer("YouTube", "", "Keyless"),
+    ];
+
+    let show = show(wire::Show {
+        trailers,
+        ..Default::default()
+    });
+
+    assert_eq!(show.unwrap().trailers, []);
+}
+
+#[test]
+fn a_title_keeps_its_first_5_trailers_and_names_a_nameless_one() {
+    let trailers = (1..=7)
+        .map(|n| trailer("YouTube", &format!("key{n}"), ""))
+        .collect();
+
+    let movie = movie(wire::Movie {
+        trailers,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let urls: Vec<&str> = movie.trailers.iter().map(|t| t.url.as_str()).collect();
+    assert_eq!(urls.len(), 5);
+    assert_eq!(urls[4], "https://www.youtube.com/watch?v=key5");
+    assert!(movie.trailers.iter().all(|t| t.name == "Trailer"));
 }
 
 #[test]

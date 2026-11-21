@@ -338,6 +338,7 @@ fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::
         score: None,
         original_language: None,
         similar: Vec::new(),
+        trailers: Vec::new(),
     };
     let episode = SourceEpisode {
         ids: ExternalIds::default(),

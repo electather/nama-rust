@@ -1,7 +1,5 @@
-//! What is stored once per title rather than on each of its Matches (ADR 0081): a title's Score,
-//! in `title_scores`, and its Similar titles, in `similar_titles`, both keyed alike.
-//! [`Contents::movies`](super::Contents::movies) and [`Contents::shows`](super::Contents::shows)
-//! read the Score back, and [`Contents::similar`] the Similar titles.
+//! A title's Similar titles, stored once per title in `similar_titles` rather than on each of its
+//! Matches (ADR 0081), keyed as `title_details` is. [`Contents::similar`] reads them back.
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
@@ -9,7 +7,7 @@ use sqlx::SqliteConnection;
 use super::{Contents, Metadata};
 use crate::library::TitleKind;
 
-/// Stores the Score and Similar titles that `matched` gives its title, a Movie or an Episode's
+/// Stores the Similar titles that `matched` gives its title, a Movie or an Episode's
 /// Show, in place of what the same title source gave it before.
 pub(super) async fn store(
     conn: &mut SqliteConnection,
@@ -24,17 +22,6 @@ pub(super) async fn store(
         return Ok(());
     };
     let (plugin, namespace, value) = (matched.plugin.as_str(), id.namespace(), id.value());
-    sqlx::query!(
-        "INSERT OR REPLACE INTO title_scores (plugin, kind, namespace, value, score)
-         VALUES (?, ?, ?, ?, ?)",
-        plugin,
-        kind,
-        namespace,
-        value,
-        matched.score,
-    )
-    .execute(&mut *conn)
-    .await?;
     let similar: Vec<String> = matched.similar.iter().map(ToString::to_string).collect();
     let similar = serde_json::Value::from(similar).to_string();
     sqlx::query!(
@@ -105,8 +92,8 @@ impl Contents {
     }
 }
 
-/// The kind and the first of `ids` in namespace order, which a title's rows are kept under and
-/// `movies` and `shows` look its Score up by. `None` for a title with no id.
+/// The kind and the first of `ids` in namespace order, which a title's row is kept under and
+/// `similar` looks them up by. `None` for a title with no id.
 fn key(kind: TitleKind, ids: &ExternalIds) -> Option<(&'static str, ExternalId)> {
     let kind = match kind {
         TitleKind::Movie => "movie",
@@ -116,5 +103,5 @@ fn key(kind: TitleKind, ids: &ExternalIds) -> Option<(&'static str, ExternalId)>
 }
 
 #[cfg(test)]
-#[path = "per_title_tests.rs"]
+#[path = "similar_tests.rs"]
 mod tests;

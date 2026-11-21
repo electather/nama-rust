@@ -163,14 +163,14 @@ impl Client {
             .await
     }
 
-    /// The details of the Movie or Show at `path`, with `ratings`, the field its ratings by
-    /// country are appended as, and `recommendations`, its Similar titles.
+    /// The details of the Movie or Show at `path`, with its videos, `ratings`, the field its
+    /// ratings by country are appended as, and `recommendations`, its Similar titles.
     async fn title_details<T: DeserializeOwned>(
         &self,
         path: &str,
         ratings: &str,
     ) -> Result<Option<T>, MetadataError> {
-        let append = format!("external_ids,{ratings},recommendations");
+        let append = format!("external_ids,{ratings},videos,recommendations");
         self.api(path, &[("append_to_response", append.as_str())])
             .await
     }

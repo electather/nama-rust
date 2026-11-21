@@ -171,6 +171,7 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
+        reg.register_json_any(super::__TRAILER_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SHOW_HIT_JSON_ANY);
@@ -846,6 +847,10 @@ pub use self::__buffa::view::MovieHitOwnedView;
 pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TrailerView;
+#[doc(inline)]
+pub use self::__buffa::view::TrailerOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpMovieRequestView;
 #[doc(inline)]

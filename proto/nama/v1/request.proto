@@ -650,7 +650,18 @@ message FoundMovie {
   // As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
   bool on_watchlist = 17;
   // As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
-  repeated MovieHit similar = 18;
+  repeated MovieHit similar = 19;
+  // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
+  repeated Trailer trailers = 18;
+}
+
+// A video advertising a Movie or Show, as a link to where it is hosted. A client only links to
+// it, so showing a title tells the host nothing until a User opens one.
+message Trailer {
+  // What it is called, such as `Official Trailer`.
+  string name = 1;
+  // Where it is hosted: a `https` URL on YouTube or Vimeo.
+  string url = 2;
 }
 
 message LookUpMovieRequest {
@@ -727,7 +738,9 @@ message FoundShow {
   // As `FoundMovie.on_watchlist`.
   bool on_watchlist = 17;
   // As `FoundMovie.similar`, for the Show.
-  repeated ShowHit similar = 18;
+  repeated ShowHit similar = 19;
+  // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
+  repeated Trailer trailers = 18;
 }
 
 // A Season of a Show in the title source, and how close it is to being on the Server: in a

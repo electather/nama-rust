@@ -103,6 +103,13 @@ pub struct MovieView<'a> {
     ///
     /// Field 22: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
+    /// Its Trailers, as the title source it is Matched to gives them, at most 5.
+    ///
+    /// Field 23: `trailers`
+    pub trailers: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TrailerView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -334,6 +341,24 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
+            23u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TrailerView>(),
+                )?;
+                view.trailers
+                    .push(
+                        <super::super::__buffa::view::TrailerView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -400,6 +425,11 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 .map(|b| (b).to_vec()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
+            trailers: self
+                .trailers
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -492,6 +522,14 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.original_language {
             size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.trailers {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -583,6 +621,14 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(22u32, v, buf);
+        }
+        for v in &self.trailers {
+            ::buffa::types::put_len_delimited_header(
+                23u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -690,6 +736,9 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
+        }
+        if !self.trailers.is_empty() {
+            __map.serialize_entry("trailers", &*self.trailers)?;
         }
         __map.end()
     }
@@ -943,6 +992,15 @@ impl MovieOwnedView {
     #[must_use]
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
+    }
+    /// Its Trailers, as the title source it is Matched to gives them, at most 5.
+    ///
+    /// Field 23: `trailers`
+    #[must_use]
+    pub fn trailers(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrailerView<'_>> {
+        &self.0.reborrow().trailers
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -5591,6 +5649,13 @@ pub struct ShowView<'a> {
     ///
     /// Field 19: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
+    /// As `Movie.trailers`.
+    ///
+    /// Field 20: `trailers`
+    pub trailers: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TrailerView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -5776,6 +5841,24 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TrailerView>(),
+                )?;
+                view.trailers
+                    .push(
+                        <super::super::__buffa::view::TrailerView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5827,6 +5910,11 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 .map(|b| (b).to_vec()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
+            trailers: self
+                .trailers
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5900,6 +5988,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.original_language {
             size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.trailers {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5972,6 +6068,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(19u32, v, buf);
+        }
+        for v in &self.trailers {
+            ::buffa::types::put_len_delimited_header(
+                20u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6068,6 +6172,9 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
+        }
+        if !self.trailers.is_empty() {
+            __map.serialize_entry("trailers", &*self.trailers)?;
         }
         __map.end()
     }
@@ -6291,6 +6398,15 @@ impl ShowOwnedView {
     #[must_use]
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
+    }
+    /// As `Movie.trailers`.
+    ///
+    /// Field 20: `trailers`
+    #[must_use]
+    pub fn trailers(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrailerView<'_>> {
+        &self.0.reborrow().trailers
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {

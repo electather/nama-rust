@@ -284,6 +284,7 @@ pub(super) fn matched(ids: ExternalIds, show_ids: ExternalIds) -> Decided {
         score: None,
         original_language: None,
         similar: Vec::new(),
+        trailers: Vec::new(),
     }))
 }
 

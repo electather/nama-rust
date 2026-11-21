@@ -362,7 +362,8 @@ fn an_installed_plugins_clock_follows_the_servers_advanced_clock() {
     )
     .unwrap();
 
-    db::advance_clock(Duration::from_hours(30 * 24));
+    // The offset is process-wide: a step near `ASK_AGAIN_AFTER` races the Segments tests.
+    db::advance_clock(Duration::from_secs(2));
     let before = db::now_ms();
     let log = CapturedLog::start();
     extism::Plugin::new_from_compiled(&compiled)

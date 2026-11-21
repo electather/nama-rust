@@ -31,7 +31,7 @@ use crate::{
 
 use super::{
     ImageSources, caller, database_failed, external_id_to_proto, proto_number,
-    requests::{missing_movie_to_proto, missing_show_to_proto},
+    requests::{missing_movie_to_proto, missing_show_to_proto, trailers_to_proto},
     required_id,
     search::{movie_hits, show_hits},
 };
@@ -606,6 +606,7 @@ fn movie_to_proto(
         content_rating: movie.content_rating,
         score: movie.score,
         original_language: movie.original_language,
+        trailers: trailers_to_proto(movie.trailers),
         custom_poster: poster.custom,
         custom_backdrop: backdrop.custom,
         poster_url: poster.url,
@@ -667,6 +668,7 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         content_rating: show.content_rating.clone(),
         score: show.score,
         original_language: show.original_language.clone(),
+        trailers: trailers_to_proto(show.trailers.clone()),
         overview: show.overview.clone(),
         first_air_date: show.first_air_date.clone(),
         season_count: u32::try_from(season_count(show)).unwrap_or(u32::MAX),

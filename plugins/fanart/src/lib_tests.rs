@@ -31,7 +31,7 @@ fn manifest_serves_the_title_source_looking_up_by_tmdb_imdb_and_tvdb() {
 
     let points: Vec<_> = manifest.points.iter().map(|point| &point.service).collect();
     assert_eq!(points, [services::TITLE_SOURCE]);
-    assert_eq!(manifest.points[0].version, "^1.5.0");
+    assert_eq!(manifest.points[0].version, "^1.6.0");
     assert_eq!(manifest.title_namespace, "fanart");
     assert_eq!(manifest.title_lookup_namespaces, ["tmdb", "imdb", "tvdb"]);
     let settings: Vec<_> = manifest

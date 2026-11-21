@@ -113,6 +113,7 @@ fn office_episode(tmdb: i64, title: &str) -> Decided {
         score: None,
         original_language: None,
         similar: Vec::new(),
+        trailers: Vec::new(),
     }))
 }
 

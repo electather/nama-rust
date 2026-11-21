@@ -30,6 +30,15 @@
       ]}
     ]
   },
+  "videos": {
+    "results": [
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Alien (1979) Fan Trailer", "key": "fanTrail01", "site": "YouTube", "type": "Trailer", "official": false},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "The Making of Alien", "key": "making0001", "site": "YouTube", "type": "Featurette", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Official Trailer", "key": "LjLamj-b0I8", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Chestburster", "key": "chestbust1", "site": "YouTube", "type": "Clip", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Teaser", "key": "teaser0001", "site": "YouTube", "type": "Teaser", "official": true}
+    ]
+  },
   "recommendations": {
     "page": 1,
     "results": [
