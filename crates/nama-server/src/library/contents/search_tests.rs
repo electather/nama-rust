@@ -423,3 +423,89 @@ async fn upgrading_to_original_titles_finds_a_movie_matched_before_by_its_origin
 
     assert_eq!(titles(&found), ["Money Heist"]);
 }
+
+#[tokio::test]
+async fn a_search_with_a_typo_finds_the_title_nearest_by_one_edit() {
+    let fx = Fixture::new().await;
+    fx.match_movie(71_446, "Money Heist", "2017-05-02").await;
+    fx.match_movie(157_336, "Interstellar", "2014-11-05").await;
+
+    assert_eq!(fx.found_movies("Mony Heist").await, ["Money Heist"]);
+    assert_eq!(fx.found_movies("Interstelar").await, ["Interstellar"]);
+}
+
+#[tokio::test]
+async fn a_search_never_corrects_a_word_of_three_letters() {
+    let fx = Fixture::new().await;
+    fx.match_movie(11_645, "Ran", "1985-06-01").await;
+
+    assert_eq!(fx.found_movies("Rab").await, Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn a_search_corrects_one_edit_up_to_seven_letters_and_two_from_eight() {
+    let fx = Fixture::new().await;
+    fx.match_movie(949, "Heat", "1995-12-15").await;
+    fx.match_movie(157_336, "Interstellar", "2014-11-05").await;
+
+    assert_eq!(fx.found_movies("Hxat").await, ["Heat"]);
+    assert_eq!(fx.found_movies("Hxxt").await, Vec::<String>::new());
+    assert_eq!(fx.found_movies("Intrstelar").await, ["Interstellar"]);
+    assert_eq!(fx.found_movies("Intrstlar").await, Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn a_search_corrects_to_the_word_most_titles_hold_then_the_first_alphabetically() {
+    let fx = Fixture::new().await;
+    for (tmdb, title) in [
+        (1, "Hell"),
+        (2, "Heal"),
+        (3, "Heal Me"),
+        (4, "Bolt"),
+        (5, "Belt"),
+    ] {
+        fx.match_movie(tmdb, title, "2001-01-01").await;
+    }
+
+    assert_eq!(fx.found_movies("Hexl").await, ["Heal", "Heal Me"]);
+    assert_eq!(fx.found_movies("Bxlt").await, ["Belt"]);
+}
+
+#[tokio::test]
+async fn a_search_keeps_a_word_some_indexed_word_starts_with() {
+    let fx = Fixture::new().await;
+    fx.match_movie(1, "Heats", "2001-01-01").await;
+    fx.match_movie(2, "Heal", "2002-01-01").await;
+
+    assert_eq!(fx.found_movies("heat").await, ["Heats"]);
+}
+
+#[tokio::test]
+async fn a_search_finding_five_titles_lists_no_corrected_ones() {
+    let fx = Fixture::new().await;
+    for (tmdb, title) in [
+        (1, "Heist"),
+        (2, "Heist Two"),
+        (3, "Heist Three"),
+        (4, "Heist Four"),
+        (5, "Heist Five"),
+        (6, "Hers"),
+    ] {
+        fx.match_movie(tmdb, title, "2001-01-01").await;
+    }
+
+    assert_eq!(fx.found_movies("heis").await.len(), 5);
+}
+
+#[tokio::test]
+async fn a_search_lists_corrected_titles_within_its_limit() {
+    let fx = Fixture::new().await;
+    for (tmdb, title) in [(1, "Money"), (2, "Money Heist"), (3, "Money Monster")] {
+        fx.match_movie(tmdb, title, "2001-01-01").await;
+    }
+
+    let found = fx.contents.search("mony", None, 2).await.unwrap();
+
+    assert_eq!(titles(&found)[..1], ["Money"], "the best first");
+    assert_eq!(found.len(), 2);
+}
