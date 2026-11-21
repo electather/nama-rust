@@ -296,3 +296,13 @@ test("a Show someone else follows shows its state, and Requesting the Whole Show
   });
   expect(followed).toStrictEqual(["tmdb-70523"]);
 });
+
+test("a Show to Request shows its Score among its facts, and its Original audio in Details", async () => {
+  const { transport } = showServer({ ...dark, score: 8.4, originalLanguage: "de" });
+  openApp("/shows/tmdb-70523", transport);
+
+  const score = await screen.findByText("Score");
+  expect(score.closest("p")?.textContent).toBe("Score8.42017");
+  const audio = screen.getByText("Original audio", { selector: "dt" });
+  expect(audio.nextElementSibling?.textContent).toBe("German");
+});

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id, suggestions FROM featured_suggestions WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "featured_suggestions",
+            "name": "plugin_id"
+          }
+        }
+      },
+      {
+        "name": "suggestions",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "featured_suggestions",
+            "name": "suggestions"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "e09d3dbe79700d9529d02778a27f2167d5dbc0353e35d0b1f7218a31a6eca53b"
+}

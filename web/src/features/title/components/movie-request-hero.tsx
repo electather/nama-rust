@@ -19,6 +19,7 @@ export function MovieRequestHero({ movie, you }: { movie: FoundMovie; you: bigin
       <TitleGenres kind="Movie" genres={[]} />
       {movie.overview !== undefined && <Overview text={movie.overview} />}
       <TitleFacts
+        score={movie.score}
         facts={[movie.year?.toString(), runtimeOf(movie.runtimeMinutes, "short")]}
         boxed={[]}
       />

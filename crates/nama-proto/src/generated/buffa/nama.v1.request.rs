@@ -9732,6 +9732,24 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// As `nama.v1.Movie.score`, from the title source it was looked up in.
+    ///
+    /// Field 13: `score`
+    #[serde(
+        rename = "score",
+        with = "::buffa::json_helpers::opt_double",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub score: ::core::option::Option<f64>,
+    /// As `nama.v1.Movie.original_language`.
+    ///
+    /// Field 14: `original_language`
+    #[serde(
+        rename = "originalLanguage",
+        alias = "original_language",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub original_language: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -9750,6 +9768,8 @@ impl ::core::fmt::Debug for FoundMovie {
             .field("request", &self.request)
             .field("poster_thumbhash", &self.poster_thumbhash)
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
+            .field("score", &self.score)
+            .field("original_language", &self.original_language)
             .finish()
     }
 }
@@ -9832,6 +9852,23 @@ impl FoundMovie {
         self.backdrop_thumbhash = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::score`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_score(mut self, value: f64) -> Self {
+        self.score = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::original_language`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_original_language(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.original_language = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(FoundMovie);
 impl ::buffa::MessageName for FoundMovie {
@@ -9896,6 +9933,12 @@ impl ::buffa::Message for FoundMovie {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.score.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.original_language {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9948,6 +9991,12 @@ impl ::buffa::Message for FoundMovie {
                 buf,
             );
             self.id.write_to(__cache, buf);
+        }
+        if let Some(v) = self.score {
+            ::buffa::types::put_double_field(13u32, v, buf);
+        }
+        if let Some(ref v) = self.original_language {
+            ::buffa::types::put_string_field(14u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10078,6 +10127,27 @@ impl ::buffa::Message for FoundMovie {
                     ctx,
                 )?;
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.score = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .original_language
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10097,6 +10167,8 @@ impl ::buffa::Message for FoundMovie {
         self.poster_thumbhash = ::core::option::Option::None;
         self.backdrop_thumbhash = ::core::option::Option::None;
         self.id = ::buffa::MessageField::none();
+        self.score = ::core::option::Option::None;
+        self.original_language = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -11099,6 +11171,24 @@ pub struct FoundShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// As `nama.v1.Movie.score`, from the title source it was looked up in.
+    ///
+    /// Field 13: `score`
+    #[serde(
+        rename = "score",
+        with = "::buffa::json_helpers::opt_double",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub score: ::core::option::Option<f64>,
+    /// As `nama.v1.Movie.original_language`.
+    ///
+    /// Field 14: `original_language`
+    #[serde(
+        rename = "originalLanguage",
+        alias = "original_language",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub original_language: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -11117,6 +11207,8 @@ impl ::core::fmt::Debug for FoundShow {
             .field("quality", &self.quality)
             .field("poster_thumbhash", &self.poster_thumbhash)
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
+            .field("score", &self.score)
+            .field("original_language", &self.original_language)
             .finish()
     }
 }
@@ -11183,6 +11275,23 @@ impl FoundShow {
         value: impl Into<::buffa::alloc::vec::Vec<u8>>,
     ) -> Self {
         self.backdrop_thumbhash = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::score`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_score(mut self, value: f64) -> Self {
+        self.score = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::original_language`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_original_language(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.original_language = Some(value.into());
         self
     }
 }
@@ -11259,6 +11368,12 @@ impl ::buffa::Message for FoundShow {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.score.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.original_language {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -11321,6 +11436,12 @@ impl ::buffa::Message for FoundShow {
                 buf,
             );
             self.id.write_to(__cache, buf);
+        }
+        if let Some(v) = self.score {
+            ::buffa::types::put_double_field(13u32, v, buf);
+        }
+        if let Some(ref v) = self.original_language {
+            ::buffa::types::put_string_field(14u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -11456,6 +11577,27 @@ impl ::buffa::Message for FoundShow {
                     ctx,
                 )?;
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.score = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .original_language
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -11475,6 +11617,8 @@ impl ::buffa::Message for FoundShow {
         self.poster_thumbhash = ::core::option::Option::None;
         self.backdrop_thumbhash = ::core::option::Option::None;
         self.id = ::buffa::MessageField::none();
+        self.score = ::core::option::Option::None;
+        self.original_language = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -25,6 +25,7 @@ use crate::{
     },
     playback::track_to_proto,
     server_settings::{HomeRowId, Settings},
+    users::{User, UserHomeLayout},
     watchlist,
 };
 
@@ -49,8 +50,35 @@ pub(super) struct BrowseServiceHandler {
     /// Holds the default Home layout, which orders and hides the Home rows and Featured.
     pub(super) settings: Settings,
     pub(super) images: ImageSources,
-    /// Holds the Watchlists that say whether a Movie or Show is on the caller's.
+    /// Holds the Watchlists that say whether a Movie or Show is on the caller's, and each User's
+    /// Home layout.
     pub(super) db: Arc<Database>,
+}
+
+/// Every Home row `reader` could see now, in no layout's order: Continue Watching, then the
+/// Plugins' rows.
+pub(super) async fn home_rows_of(
+    home_rows: &HomeRows,
+    reader: &User,
+) -> Result<Vec<(HomeRowId, KernelOrPlugin)>, ConnectError> {
+    let plugin_rows = home_rows.list(reader).await.map_err(home_rows_refused)?;
+    let plugin_rows = plugin_rows.into_iter().map(|(id, row)| {
+        let row = proto::PluginHomeRow {
+            plugin_id: id.plugin().map_or_default(ToString::to_string),
+            key: row.key,
+            heading: row.heading,
+            ..Default::default()
+        };
+        (id, row.into())
+    });
+    let continue_watching = proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING;
+    let continue_watching = (
+        HomeRowId::ContinueWatching,
+        KernelOrPlugin::Kernel(continue_watching.into()),
+    );
+    Ok(std::iter::once(continue_watching)
+        .chain(plugin_rows)
+        .collect())
 }
 
 impl BrowseServiceHandler {
@@ -322,7 +350,9 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListFeaturedRequest>,
     ) -> ServiceResult<ListFeaturedResponse> {
         let user = caller(&ctx)?.user.id;
-        if !self.settings.now().default_home_layout.featured_shown {
+        let own = UserHomeLayout::of(&self.db, user).await;
+        let own = own.map_err(database_failed)?;
+        if !own.shows_featured(&self.settings.now().default_home_layout) {
             return Response::ok(ListFeaturedResponse::default());
         }
         let suggested = self.home_rows.featured(user).await;
@@ -352,27 +382,10 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListHomeRowsRequest>,
     ) -> ServiceResult<ListHomeRowsResponse> {
         let reader = &caller(&ctx)?.user;
-        let plugin_rows = self.home_rows.list(reader).await;
-        let plugin_rows = plugin_rows.map_err(home_rows_refused)?;
-        let plugin_rows = plugin_rows.into_iter().map(|(id, row)| {
-            let row = proto::PluginHomeRow {
-                plugin_id: id.plugin().map_or_default(ToString::to_string),
-                key: row.key,
-                heading: row.heading,
-                ..Default::default()
-            };
-            (id, row.into())
-        });
-        let continue_watching = proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING;
-        let continue_watching = (
-            HomeRowId::ContinueWatching,
-            KernelOrPlugin::Kernel(continue_watching.into()),
-        );
-        let rows = std::iter::once(continue_watching)
-            .chain(plugin_rows)
-            .collect();
-        let layout = self.settings.now().default_home_layout;
-        let rows = layout.arrange(rows);
+        let rows = home_rows_of(&self.home_rows, reader).await?;
+        let own = UserHomeLayout::of(&self.db, reader.id).await;
+        let own = own.map_err(database_failed)?;
+        let rows = own.arrange(&self.settings.now().default_home_layout, rows);
         Response::ok(ListHomeRowsResponse {
             rows: (rows.into_iter())
                 .filter(|&(_, shown)| shown)
@@ -575,6 +588,8 @@ fn movie_to_proto(
         title_logo_url: downloaded(movie.logo.as_ref()).url,
         genres: movie.genres,
         content_rating: movie.content_rating,
+        score: movie.score,
+        original_language: movie.original_language,
         custom_poster: poster.custom,
         custom_backdrop: backdrop.custom,
         poster_url: poster.url,
@@ -634,6 +649,8 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         title_logo_url: downloaded(show.logo.as_ref()).url,
         genres: show.genres.clone(),
         content_rating: show.content_rating.clone(),
+        score: show.score,
+        original_language: show.original_language.clone(),
         overview: show.overview.clone(),
         first_air_date: show.first_air_date.clone(),
         season_count: u32::try_from(season_count(show)).unwrap_or(u32::MAX),

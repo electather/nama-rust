@@ -47,7 +47,7 @@ mod exports {
     }
 
     /// Publishes each notification for a User to the topic they set.
-    struct Ntfy;
+    pub(super) struct Ntfy;
 
     impl Notifier for Ntfy {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {

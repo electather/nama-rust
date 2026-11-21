@@ -40,6 +40,7 @@ export function ShowHero({
       <TitleGenres kind="Show" genres={show.genres} />
       {show.overview !== undefined && <Overview text={show.overview} />}
       <TitleFacts
+        score={show.score}
         facts={[yearOf(show.firstAirDate), seasonsOf(show.seasonCount)]}
         boxed={[show.contentRating, ...titleBadges(episodes.flatMap(({ versions }) => versions))]}
       />

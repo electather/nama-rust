@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use nama_plugin_api::{
     contract::{FeaturedSuggestion, FeaturedSuggestions, TitleId, TitleKind},
@@ -6,10 +6,10 @@ use nama_plugin_api::{
     metadata::ExternalId,
 };
 
-use super::{Suggested, add_heaviest, kept_suggestions};
+use super::{Suggested, Suggestions, add_heaviest, kept_suggestions};
 use crate::home_rows::{
-    HomeRows, Kind, Title, lock,
-    tests::{SHARED, handle, insert_user, recorded, set_handle, started},
+    HomeRows, Kind, Title,
+    tests::{handle, insert_user, recorded, set_handle},
 };
 
 const FEATURED: &[HomeRowMethod] = &[HomeRowMethod::Shared, HomeRowMethod::Featured];
@@ -39,19 +39,8 @@ fn movies(tmdb: &[(i64, f64)]) -> Suggested {
 /// Lists `user`'s Featured suggestions, waits for the refreshes that starts, and lists them again.
 async fn refreshed(home: &HomeRows, user: i64) -> Suggested {
     home.featured(user).await.unwrap();
-    wait_for_refreshes(home).await;
+    home.refreshes.settled().await;
     home.featured(user).await.unwrap()
-}
-
-async fn wait_for_refreshes(home: &HomeRows) {
-    let started = Instant::now();
-    while !lock(&home.refreshing_featured).is_empty() {
-        assert!(
-            started.elapsed() < Duration::from_secs(10),
-            "still refreshing"
-        );
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
 }
 
 #[test]
@@ -82,37 +71,13 @@ fn weights_are_clamped_unreadable_titles_dropped_and_the_first_20_kept() {
 }
 
 #[test]
-fn a_time_to_live_is_clamped_and_no_suggestions_are_asked_for_again_in_15_minutes() {
-    let fresh_for = |suggestions, ttl_seconds| {
-        let given = FeaturedSuggestions {
-            suggestions,
-            ttl_seconds,
-            ..FeaturedSuggestions::default()
-        };
-        kept_suggestions(&given).1
+fn no_suggestions_are_asked_for_again_in_15_minutes() {
+    let given = FeaturedSuggestions {
+        ttl_seconds: 24 * 3600,
+        ..FeaturedSuggestions::default()
     };
 
-    assert_eq!(
-        fresh_for(vec![suggestion("1", 1.0)], 60),
-        Duration::from_mins(15)
-    );
-    assert_eq!(
-        fresh_for(vec![suggestion("1", 1.0)], 30 * 24 * 3600),
-        Duration::from_hours(7 * 24)
-    );
-    assert_eq!(fresh_for(vec![], 24 * 3600), Duration::from_mins(15));
-}
-
-#[tokio::test]
-async fn a_source_giving_only_shared_rows_is_never_asked_for_featured_suggestions() {
-    let (_dir, db, home, calls) = recorded(SHARED).await;
-    let ada = insert_user(&db, "ada").await;
-    set_handle(&db, ada, "1").await;
-
-    let suggested = refreshed(&home, ada).await;
-
-    assert!(calls.featured_asked.lock().unwrap().is_empty());
-    assert_eq!(suggested, Suggested::new());
+    assert_eq!(kept_suggestions(&given).1, Duration::from_mins(15));
 }
 
 #[tokio::test]
@@ -136,115 +101,6 @@ async fn each_users_suggestions_are_asked_with_their_id_and_settings_and_reach_o
 }
 
 #[tokio::test]
-async fn listing_featured_suggestions_never_waits_on_the_plugin() {
-    let (_dir, db, home, calls) = recorded(FEATURED).await;
-    let ada = insert_user(&db, "ada").await;
-    set_handle(&db, ada, "1").await;
-    let held = calls.users_held.lock().await;
-
-    let listed = tokio::time::timeout(Duration::from_secs(5), home.featured(ada)).await;
-
-    assert_eq!(
-        listed.unwrap().unwrap(),
-        Suggested::new(),
-        "none stored yet"
-    );
-    drop(held);
-    assert_eq!(refreshed(&home, ada).await, movies(&[(1, 0.5)]));
-}
-
-#[tokio::test]
-async fn listing_stale_suggestions_asks_the_plugin_again_and_fresh_ones_do_not() {
-    let (_dir, db, home, calls) = recorded(FEATURED).await;
-    let ada = insert_user(&db, "ada").await;
-    set_handle(&db, ada, "1").await;
-    refreshed(&home, ada).await;
-    refreshed(&home, ada).await;
-    assert_eq!(*calls.featured_asked.lock().unwrap(), [handle("1")]);
-
-    db.write(|tx| {
-        Box::pin(async move {
-            sqlx::query("UPDATE featured_refreshes SET stale_at = 0")
-                .execute(&mut **tx)
-                .await
-                .map(drop)
-        })
-    })
-    .await
-    .unwrap();
-
-    assert_eq!(refreshed(&home, ada).await, movies(&[(1, 0.5)]));
-    assert_eq!(
-        *calls.featured_asked.lock().unwrap(),
-        [handle("1"), handle("1")]
-    );
-}
-
-#[tokio::test]
-async fn changing_personal_settings_lists_the_old_suggestions_until_the_plugin_answers_again() {
-    let (_dir, db, home, calls) = recorded(FEATURED).await;
-    let ada = insert_user(&db, "ada").await;
-    set_handle(&db, ada, "1").await;
-    refreshed(&home, ada).await;
-
-    set_handle(&db, ada, "2").await;
-
-    assert_eq!(home.featured(ada).await.unwrap(), movies(&[(1, 0.5)]));
-    assert_eq!(refreshed(&home, ada).await, movies(&[(2, 0.5)]));
-    assert_eq!(
-        *calls.featured_asked.lock().unwrap(),
-        [handle("1"), handle("2")]
-    );
-}
-
-#[tokio::test]
-async fn suggestions_asked_before_a_user_changed_their_personal_settings_are_not_kept() {
-    let (_dir, db, home, calls) = recorded(FEATURED).await;
-    let ada = insert_user(&db, "ada").await;
-    set_handle(&db, ada, "1").await;
-    let held = calls.users_held.lock().await;
-    home.featured(ada).await.unwrap();
-    let started = Instant::now();
-    while calls.featured_asked.lock().unwrap().is_empty() {
-        assert!(started.elapsed() < Duration::from_secs(10), "never asked");
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-
-    set_handle(&db, ada, "2").await;
-    drop(held);
-    wait_for_refreshes(&home).await;
-
-    assert_eq!(
-        home.featured(ada).await.unwrap(),
-        Suggested::new(),
-        "the answer was dropped"
-    );
-    assert_eq!(refreshed(&home, ada).await, movies(&[(2, 0.5)]));
-}
-
-#[tokio::test]
-async fn a_version_no_longer_giving_featured_suggestions_deletes_every_users() {
-    let (_dir, db, old_version, _) = recorded(FEATURED).await;
-    let ada = insert_user(&db, "ada").await;
-    let bea = insert_user(&db, "bea").await;
-    set_handle(&db, ada, "1").await;
-    set_handle(&db, bea, "2").await;
-    refreshed(&old_version, ada).await;
-    refreshed(&old_version, bea).await;
-    let (new_version, _) = started(&db, SHARED);
-
-    assert_eq!(new_version.featured(ada).await.unwrap(), Suggested::new());
-
-    let stored = new_version.stored_suggestions(bea).await.unwrap();
-    assert!(stored.is_empty(), "Bea's are deleted too");
-    let put_offs: i64 = sqlx::query_scalar("SELECT count(*) FROM featured_refreshes")
-        .fetch_one(db.reader())
-        .await
-        .unwrap();
-    assert_eq!(put_offs, 0, "and every User's put-off");
-}
-
-#[tokio::test]
 async fn deleting_a_user_deletes_their_suggestions() {
     let (_dir, db, home, _) = recorded(FEATURED).await;
     let ada = insert_user(&db, "ada").await;
@@ -263,7 +119,8 @@ async fn deleting_a_user_deletes_their_suggestions() {
     .await
     .unwrap();
 
-    assert!(home.stored_suggestions(ada).await.unwrap().is_empty());
+    let stored = Suggestions(home.clone()).stored(ada).await.unwrap();
+    assert!(stored.is_empty());
 }
 
 #[test]

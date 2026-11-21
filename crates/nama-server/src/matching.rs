@@ -294,6 +294,8 @@ impl Metadata {
                 .or_else(|| ImageRef::of(plugin, show.poster.as_ref())),
             show_overview: show.overview.clone(),
             show_first_air_date: show.first_air_date.clone(),
+            score: show.score,
+            original_language: show.original_language.clone(),
         }
     }
 }

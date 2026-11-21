@@ -983,7 +983,8 @@ export type HomeLayoutRow = Message<"nama.v1.HomeLayoutRow"> & {
     case: "kernel";
   } | {
     /**
-     * A row the Plugin gives every User. `SetDefaultHomeLayout` reads only its Plugin id and key.
+     * A row the Plugin gives every User or, in a User's own layout, one it gives them alone.
+     * Saving a layout reads only its Plugin id and key.
      *
      * @generated from field: nama.v1.PluginHomeRow plugin = 2;
      */

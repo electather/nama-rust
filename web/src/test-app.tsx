@@ -74,6 +74,7 @@ const defaultUsers: Partial<ServiceImpl<typeof UserService>> = {
   listPluginConnections: () => ({}),
   listPersonalSettings: () => ({}),
   listNotificationPreferences: () => ({}),
+  getHomeLayout: () => ({}),
   getDefaultPermissions: () => ({ permissions: newUser }),
   listInvites: () => ({}),
 };

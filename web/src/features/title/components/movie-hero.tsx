@@ -41,6 +41,7 @@ export function MovieHero({
       <TitleGenres kind="Movie" genres={movie.genres} />
       {movie.overview !== undefined && <Overview text={movie.overview} />}
       <TitleFacts
+        score={movie.score}
         facts={[yearOf(movie.releaseDate), runtimeOf(movie.runtimeMinutes, "short")]}
         boxed={[movie.contentRating, ...titleBadges(movie.versions)]}
       />

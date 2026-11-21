@@ -32,7 +32,9 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use super::{
-    StoredTracks, subtitles,
+    StoredTracks,
+    read_failures::{Read, ReadFailure},
+    subtitles,
     tracks::{
         Keyframes, LastingReason, ListedKeyframes, PassingReason, Probe, ProbeFailure, Tracks,
     },
@@ -532,7 +534,7 @@ impl Probing {
                 Ok(probe)
             }
             Err(err) => {
-                let failure = failure(&err, path).await;
+                let failure = failure(&err, Read::Probe, path).await;
                 self.inner.tracks.store_failure(file, failure).await?;
                 Err(Unprobed::Probe(Arc::new(err), failure))
             }
@@ -605,8 +607,8 @@ impl Probing {
                 // The plan that started it may have stopped waiting, and so won't log it.
                 tracing::warn!("could not list the keyframes of {path}: {err}");
                 matches!(
-                    failure(err, path).await,
-                    ProbeFailure::Lasting(_) | ProbeFailure::Passing(_)
+                    failure(err, Read::WholeFile, path).await,
+                    ProbeFailure::Lasting(_)
                 )
                 .then_some(Keyframes::Unlisted)
             }
@@ -633,37 +635,25 @@ fn plausible(listed: &ListedKeyframes, first_ms: i64, duration_ms: Option<i64>) 
         && (keyframes.last().zip(duration_ms)).is_some_and(|(last, duration)| *last <= duration)
 }
 
-/// What failing to probe the file at `path` with `err` means for trying it again.
-async fn failure(err: &ProbeError, path: &str) -> ProbeFailure {
+/// What failing to `read` the file at `path` with `err` means for trying it again.
+async fn failure(err: &ProbeError, read: Read, path: &str) -> ProbeFailure {
     match err {
-        // ffprobe never reached the file, so counting it against the file would skip a whole
-        // Library after one bad pass, such as during a package upgrade.
-        ProbeError::Run(RunError::Run(..)) => ProbeFailure::StopsPass,
-        // Nothing was read, so what's stored isn't known to be wrong, and a Server without
-        // ffprobe keeps it, as it never probes in the background.
-        ProbeError::Run(RunError::Unavailable(_)) => ProbeFailure::Retried,
-        // ffprobe fails fast on a file it can't open, as on a share that dropped or an NFS handle
-        // gone stale since the scan, which may read fine once it's back unchanged.
-        ProbeError::Run(RunError::Failed(..)) if !readable(path).await => ProbeFailure::Retried,
-        // ffprobe read the file and refused it, or said something it can't parse: it will again.
-        // Only `Probing::keyframes` returns `UnlistedBefore` and `NotListedYet`, never ffprobe, so
-        // no probe or listing gets here with them.
-        ProbeError::Run(RunError::Failed(..))
-        | ProbeError::UnlistedBefore
-        | ProbeError::NotListedYet => ProbeFailure::Lasting(LastingReason::Failed),
+        ProbeError::Run(err) => match ReadFailure::of(err, read, path).await {
+            // Says nothing about the file, so what's stored isn't known to be wrong, and a Server
+            // without ffprobe keeps it, as it never probes in the background.
+            ReadFailure::NoProgram | ReadFailure::NotTheFile => ProbeFailure::Retried,
+            // Counting it against the file would skip a whole Library after one bad pass, such
+            // as during a package upgrade.
+            ReadFailure::WontRun => ProbeFailure::StopsPass,
+            ReadFailure::Passing => ProbeFailure::Passing(PassingReason::TimedOut),
+            ReadFailure::Lasting => ProbeFailure::Lasting(LastingReason::Failed),
+        },
+        // Only `Probing::keyframes` returns these, never ffprobe, so no probe or listing gets
+        // here with them.
+        ProbeError::UnlistedBefore | ProbeError::NotListedYet => {
+            ProbeFailure::Lasting(LastingReason::Failed)
+        }
         ProbeError::Output(_) => ProbeFailure::Lasting(LastingReason::UnreadableOutput),
-        // A slow or unmounted share, or a busy disk, may not be slow next time.
-        ProbeError::Run(RunError::TimedOut(_)) => ProbeFailure::Passing(PassingReason::TimedOut),
-    }
-}
-
-/// Whether the file at `path` can be opened and read from now.
-pub(super) async fn readable(path: &str) -> bool {
-    use tokio::io::AsyncReadExt;
-
-    match tokio::fs::File::open(path).await {
-        Ok(mut file) => file.read(&mut [0; 1]).await.is_ok(),
-        Err(_) => false,
     }
 }
 

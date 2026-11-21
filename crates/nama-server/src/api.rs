@@ -152,7 +152,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
-            home_rows,
+            home_rows: home_rows.clone(),
             settings: settings.clone(),
             images: images.clone(),
             db: Arc::clone(&db),
@@ -185,9 +185,10 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(PluginServiceHandler {
             plugin_settings: plugin_settings.clone(),
-            settings,
+            settings: settings.clone(),
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(Arc::clone(&db)),
@@ -210,6 +211,8 @@ pub(crate) fn router(
             plugin_logos: plugin_logos.clone(),
             db,
             server_url,
+            home_rows,
+            settings,
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);
@@ -370,6 +373,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_GET_HOME_LAYOUT_SPEC.procedure,          Access::SignedIn),
+    (proto::USER_SERVICE_SET_HOME_LAYOUT_SPEC.procedure,          Access::SignedIn),
+    (proto::USER_SERVICE_RESET_HOME_LAYOUT_SPEC.procedure,        Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
