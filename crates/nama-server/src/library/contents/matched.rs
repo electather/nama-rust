@@ -14,7 +14,7 @@ use super::{
 /// stores. Browse hands it out with Versions of its own, which have Tracks.
 #[derive(Debug)]
 pub(crate) struct Movie<V = Version> {
-    /// Its `listed_id` in `library_titles`.
+    /// Its preferred id, its `listed_id` in `library_titles`.
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Version gives it.
     pub(crate) ids: ExternalIds,
@@ -110,7 +110,7 @@ pub(crate) enum TitlesIn {
 /// stores.
 #[derive(Debug, Clone)]
 pub(crate) struct Show<V = Version> {
-    /// Its `listed_id` in `library_titles`.
+    /// Its preferred id, its `listed_id` in `library_titles`.
     pub(crate) id: ExternalId,
     /// Every Show id that Match gives it.
     pub(crate) ids: ExternalIds,
@@ -189,7 +189,7 @@ pub(crate) struct Season<V = Version> {
 /// Version stores.
 #[derive(Debug, Clone)]
 pub(crate) struct Episode<V = Version> {
-    /// Its `own_id` in `library_titles`.
+    /// Its preferred id, its `own_id` in `library_titles`.
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Version gives it.
     pub(crate) ids: ExternalIds,

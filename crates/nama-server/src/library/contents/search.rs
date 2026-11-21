@@ -28,7 +28,7 @@ pub(crate) enum Found {
 #[derive(Debug, Clone)]
 pub(crate) struct FoundMovie {
     pub(crate) library: i64,
-    /// Its `own_id` in `matched_items`.
+    /// Its preferred id, its `own_id` in `matched_items`.
     pub(crate) id: ExternalId,
     /// Every id its Match gives it.
     pub(crate) ids: ExternalIds,
@@ -41,7 +41,7 @@ pub(crate) struct FoundMovie {
 #[derive(Debug, Clone)]
 pub(crate) struct FoundShow {
     pub(crate) library: i64,
-    /// Its `listed_id` in `matched_items`.
+    /// Its preferred id, its `listed_id` in `matched_items`.
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Episode found gives it.
     pub(crate) ids: ExternalIds,
@@ -55,7 +55,7 @@ pub(crate) struct FoundShow {
 #[derive(Debug)]
 pub(crate) struct FoundEpisode {
     pub(crate) library: i64,
-    /// Its `own_id` in `matched_items`.
+    /// Its preferred id, its `own_id` in `matched_items`.
     pub(crate) id: ExternalId,
     /// Its Show's preferred id, its `listed_id` in `matched_items`.
     pub(crate) show: ExternalId,
