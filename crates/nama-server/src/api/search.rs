@@ -134,7 +134,7 @@ fn hit_to_proto(found: Found, images: &ShownImages) -> proto::Hit {
     let title = match found {
         Found::Movie(movie) => movie_hit(movie, images).into(),
         Found::Show(show) => show_hit(show, images).into(),
-        Found::Episode(episode) => episode_hit(episode).into(),
+        Found::Episode(episode) => episode_hit(episode, images).into(),
     };
     proto::Hit {
         title,
@@ -256,7 +256,11 @@ fn show_hit(show: FoundShow, images: &ShownImages) -> proto::ShowHit {
     }
 }
 
-fn episode_hit(episode: FoundEpisode) -> proto::EpisodeHit {
+fn episode_hit(episode: FoundEpisode, images: &ShownImages) -> proto::EpisodeHit {
+    let still = images.downloaded(episode.still.as_ref().map(Downloaded::stored));
+    let downloaded = episode.show_poster.as_ref().map(Downloaded::stored);
+    let role = TitleImage::Show(Role::Poster);
+    let show_poster = images.of_title(&episode.show, &episode.show_ids, role, downloaded);
     proto::EpisodeHit {
         library_id: episode.library,
         id: external_id_to_proto(&episode.id).into(),
@@ -265,6 +269,10 @@ fn episode_hit(episode: FoundEpisode) -> proto::EpisodeHit {
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
         title: episode.title,
+        still_url: still.url,
+        still_thumbhash: still.thumbhash,
+        show_poster_url: show_poster.url,
+        show_poster_thumbhash: show_poster.thumbhash,
         ..Default::default()
     }
 }

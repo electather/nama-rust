@@ -96,6 +96,15 @@ message EpisodeHit {
   uint32 season_number = 5;
   uint32 episode_number = 6;
   string title = 7;
+  // As `Episode.still_url`.
+  optional string still_url = 8;
+  // As `Episode.still_thumbhash`.
+  optional bytes still_thumbhash = 9;
+  // Its Show's Poster's URL on this Server, as `ShowHit.poster_url`, to show in place of a
+  // missing Still.
+  optional string show_poster_url = 10;
+  // As `ShowHit.poster_thumbhash`.
+  optional bytes show_poster_thumbhash = 11;
 }
 
 // Marks the end of what `Search` streams.

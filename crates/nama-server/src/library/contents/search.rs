@@ -59,11 +59,16 @@ pub(crate) struct FoundEpisode {
     pub(crate) id: ExternalId,
     /// Its Show's id, as browsing identifies it.
     pub(crate) show: ExternalId,
+    /// Every id its Match gives its Show.
+    pub(crate) show_ids: ExternalIds,
     pub(crate) show_title: String,
+    /// As [`show_poster`] picks it, from the Match and the Episode's Season.
+    pub(crate) show_poster: Option<ImageRef>,
     pub(crate) season: i64,
     /// The episode number within its Season.
     pub(crate) number: i64,
     pub(crate) title: String,
+    pub(crate) still: Option<ImageRef>,
 }
 
 impl Contents {
@@ -158,7 +163,7 @@ impl Contents {
                         + r#"'title') AS "ids?: String", "#
                         + $ids
                         + r#"'show') AS "show_ids?: String", item_matches.title AS "title!",
-                              item_matches.show_title, item_matches.release_date,
+                              item_matches.show_title, item_matches.release_date, plugin, still,
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.show_poster, item_matches.show_poster_plugin,
                               item_matches.metadata_version,
@@ -212,6 +217,9 @@ struct SearchRow {
     title: String,
     show_title: Option<String>,
     release_date: Option<String>,
+    /// The Plugin whose title source made the Match, which the Still's path is for.
+    plugin: Option<String>,
+    still: Option<String>,
     poster: Option<String>,
     poster_plugin: Option<String>,
     show_poster: Option<String>,
@@ -259,20 +267,9 @@ fn found(row: SearchRow) -> Option<Found> {
         return found_show(row).map(Found::Show);
     }
     let id = row.primary_id()?;
-    match (row.kind, row.season, row.episode, row.show_primary_id()) {
-        (ItemKind::Episode, Some(season), Some(number), Some(show)) => {
-            Some(Found::Episode(FoundEpisode {
-                library: row.library,
-                id,
-                show,
-                show_title: row.show_title.unwrap_or_default(),
-                season,
-                number,
-                title: row.title,
-            }))
-        }
-        (ItemKind::Episode, ..) => None,
-        (ItemKind::Movie, ..) => Some(Found::Movie(FoundMovie {
+    match row.kind {
+        ItemKind::Episode => found_episode(row, id).map(Found::Episode),
+        ItemKind::Movie => Some(Found::Movie(FoundMovie {
             library: row.library,
             id,
             ids: row.ids(),
@@ -281,6 +278,28 @@ fn found(row: SearchRow) -> Option<Found> {
             poster: ImageRef::stored(row.poster, row.poster_plugin),
         })),
     }
+}
+
+/// The Episode `id` that `row` found by its own title, unless browsing couldn't open it.
+fn found_episode(row: SearchRow, id: ExternalId) -> Option<FoundEpisode> {
+    let (season, number, show) = (row.season?, row.episode?, row.show_primary_id()?);
+    let show_ids = row.show_ids();
+    // ponytail: a Match stored before Matches had a Show's own Poster stands for it with this
+    // Episode's Season's, where the Show's grid takes its first Season's.
+    let season_poster = ImageRef::stored(row.poster, row.poster_plugin);
+    let own = ImageRef::stored(row.show_poster, row.show_poster_plugin);
+    Some(FoundEpisode {
+        library: row.library,
+        id,
+        show,
+        show_ids,
+        show_title: row.show_title.unwrap_or_default(),
+        show_poster: show_poster(own, row.metadata_version, [(season, season_poster)]),
+        season,
+        number,
+        title: row.title,
+        still: ImageRef::stored(row.still, row.plugin),
+    })
 }
 
 /// The Show that `row`, found by the Show's title, is an Episode of.

@@ -4,9 +4,15 @@ import { hitsIn, titleSourceUnavailable } from "@/shared/lib/search-hits";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
+/** An Episode's Still, and its thumbhash. */
+export interface StillArt {
+  url: string;
+  thumbhash: Uint8Array | undefined;
+}
+
 /**
  * A Movie, Show or Episode, as the action bar lists it, opens it and remembers it. One in a Library
- * is plain data, so Recent can keep it in `localStorage`.
+ * is plain data, so Recent can keep it in `localStorage`, all but its Still's thumbhash.
  */
 export interface FoundTitle {
   /** Unique among titles: the same title in two Libraries is two of these. */
@@ -24,7 +30,10 @@ export interface FoundTitle {
   season?: number;
   label: string;
   hint: string;
+  /** A Movie's or Show's Poster, or an Episode's Show's. */
   poster?: string | undefined;
+  /** An Episode's Still. */
+  still?: StillArt | undefined;
 }
 
 /** What a search found, by kind, each in the order to list it. */
@@ -78,6 +87,11 @@ function episodeFound(episode: EpisodeHit): FoundTitle {
     season: episode.seasonNumber,
     label: `${episode.episodeNumber}. ${episode.title}`,
     hint: metadataLine(episode.showTitle, seasonName(episode.seasonNumber)),
+    poster: episode.showPosterUrl,
+    still:
+      episode.stillUrl === undefined
+        ? undefined
+        : { url: episode.stillUrl, thumbhash: episode.stillThumbhash },
   };
 }
 
