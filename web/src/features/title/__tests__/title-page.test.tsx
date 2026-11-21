@@ -214,6 +214,28 @@ test("a Show's page shows its own overview, first air year, Score and Original a
   expect(screen.queryByRole("link", { name: /^(?:Resume|Play)/u })).toBeNull();
 });
 
+test("a Show's Details count its Episodes here, Specials aside, of those aired", async () => {
+  const episodes = [
+    { seasonNumber: 0, episodeNumber: 1 },
+    { seasonNumber: 1, episodeNumber: 1 },
+    { seasonNumber: 1, episodeNumber: 2 },
+  ];
+  const transport = server({
+    getShow: () => ({
+      show: { ...dark, seasonCount: 1 },
+      seasons: [{ number: 0 }, { number: 1 }],
+      airedEpisodeCount: 10,
+    }),
+    listEpisodes: ({ seasonNumber }) => ({
+      episodes: episodes.filter((episode) => episode.seasonNumber === seasonNumber),
+    }),
+  });
+  openApp("/libraries/2/shows/tmdb-70523", transport);
+
+  await screen.findByRole("heading", { level: 1, name: "Dark" });
+  expect(detail("Episodes")).toBe("2 of 10, in 1 Season");
+});
+
 test("a Show whose Episode has Atmos audio shows Atmos, and marks both Tracks under Languages", async () => {
   const episode = { seasonNumber: 1, episodeNumber: 1, versions: [atmosAndAudioDescription] };
   const transport = server({

@@ -231,6 +231,8 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let on_watchlist = (self.on_watchlist(user, TitleKind::Show, &show.ids)).await?;
+        let aired = self.browse.aired_episodes(&show).await;
+        let aired_episode_count = aired.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
         let seasons = (show.seasons.iter())
             .map(|(&number, season)| {
@@ -253,6 +255,7 @@ impl BrowseService for BrowseServiceHandler {
             }
             .into(),
             seasons,
+            aired_episode_count,
             ..Default::default()
         })
     }

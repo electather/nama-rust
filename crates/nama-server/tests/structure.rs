@@ -158,6 +158,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
             "title_search_vocab",
             "local_images",
             "title_scores",
+            "episode_air_dates",
         ],
     ),
     (

@@ -190,6 +190,11 @@ impl Browse {
         Ok(self.titles(&self.library(library).await?).await?.show(id)?)
     }
 
+    /// How many of `show`'s Episodes have aired: see [`Contents::aired_episodes`].
+    pub(crate) async fn aired_episodes(&self, show: &Show) -> Result<u32, sqlx::Error> {
+        self.contents.aired_episodes(show).await
+    }
+
     /// Season `number` of the Show `show` of the Shows Library `library`.
     pub(crate) async fn season(
         &self,

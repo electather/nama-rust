@@ -501,6 +501,9 @@ message GetShowResponse {
   Show show = 1;
   // The Seasons the Library has Episodes of, by number.
   repeated Season seasons = 2;
+  // How many of the Show's Episodes, Specials aside, have aired by today, by the air dates its
+  // title source gave when the Show was last fetched. 0 if it gave none.
+  uint32 aired_episode_count = 3;
 }
 
 message ListEpisodesRequest {

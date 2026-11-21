@@ -692,6 +692,16 @@ async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_content_ra
 }
 
 #[tokio::test]
+async fn a_show_counts_its_aired_episodes_without_its_specials_or_those_yet_to_air() {
+    let fx = Fixture::shows().await;
+
+    let got = fx.get_show(fx.library, DARK).await.unwrap();
+
+    // Season 1's three, Season 2's one and the first of Season 3's two.
+    assert_eq!(got.aired_episode_count, 5);
+}
+
+#[tokio::test]
 async fn list_episodes_lists_one_seasons_episodes_in_episode_order() {
     let fx = Fixture::shows().await;
 
