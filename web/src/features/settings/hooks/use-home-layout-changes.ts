@@ -5,7 +5,7 @@ import { useReorderHomeRows } from "@/features/settings/data/use-reorder-home-ro
 import { useSetHomeLayout } from "@/features/settings/data/use-set-home-layout";
 import { type HomeLayout, type HomeLayoutRow, HomeLayoutSchema } from "@/gen/nama/v1/server_pb";
 import { ReorderHomeRowsRequestSchema } from "@/gen/nama/v1/user_pb";
-import { moved, movedTo, rowKey } from "@/shared/lib/home-layout";
+import { moved, moveAnnouncement, rowKey } from "@/shared/lib/home-layout";
 
 /**
  * The signed-in User's Home layout as they change it from `saved`, each change saved as it's made
@@ -17,7 +17,7 @@ export function useHomeLayoutChanges(saved: HomeLayout) {
   const reorder = useReorderHomeRows();
   const [announced, setAnnounced] = useState("");
   const ordered = reorder.isPending
-    ? { ...saved, rows: create(ReorderHomeRowsRequestSchema, reorder.variables).rows }
+    ? inOrder(saved, create(ReorderHomeRowsRequestSchema, reorder.variables).rows)
     : saved;
   const layout = save.isPending
     ? saving(ordered, create(HomeLayoutSchema, save.variables.layout))
@@ -39,7 +39,7 @@ export function useHomeLayoutChanges(saved: HomeLayout) {
     const rows = moved(layout.rows, from, before);
     if (row !== undefined && rows.indexOf(row) !== from) {
       reorder.mutate({ rows });
-      setAnnounced(movedTo(row, rows));
+      setAnnounced(moveAnnouncement(row, rows));
     }
   };
   return {
@@ -50,6 +50,15 @@ export function useHomeLayoutChanges(saved: HomeLayout) {
     announced,
     error: save.error ?? reorder.error,
   };
+}
+
+/**
+ * `saved` with its rows in the order of `order`, each shown as `saved` has it, since a switch
+ * flipped after the move may have saved since.
+ */
+function inOrder(saved: HomeLayout, order: HomeLayoutRow[]): HomeLayout {
+  const rows = new Map(saved.rows.map((row) => [rowKey(row), row]));
+  return { ...saved, rows: order.map((row) => rows.get(rowKey(row)) ?? row) };
 }
 
 /** `saved` with what `asked` changes in it. */

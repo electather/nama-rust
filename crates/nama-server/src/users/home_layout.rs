@@ -126,15 +126,18 @@ impl UserHomeLayout {
 
     /// Saves `asked` as `user`'s order of the rows they see, `seen` as [`UserHomeLayout::arrange`]
     /// got them, so the default's order no longer moves them. Only the rows of `asked` that name
-    /// one of `seen` count.
+    /// one of `seen` count, each once.
     pub(crate) async fn reorder(
         db: &Database,
         user: i64,
         asked: &[HomeRowId],
-        seen: Vec<HomeRowId>,
+        mut seen: Vec<HomeRowId>,
     ) -> Result<(), sqlx::Error> {
         let order: Vec<HomeRowId> = (asked.iter())
-            .filter_map(|named| seen.iter().find(|row| named.names(row)).cloned())
+            .filter_map(|named| {
+                let at = seen.iter().position(|row| named.names(row))?;
+                Some(seen.swap_remove(at))
+            })
             .collect();
         db.write(move |tx| {
             Box::pin(async move {

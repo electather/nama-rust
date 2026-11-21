@@ -44,7 +44,11 @@ export function moved<T>(rows: readonly T[], from: number, before: number) {
 }
 
 /** What assistive technology announces once `row` has moved to its place in `rows`. */
-export function movedTo(row: HomeLayoutRow, rows: HomeLayoutRow[], names?: Map<string, string>) {
+export function moveAnnouncement(
+  row: HomeLayoutRow,
+  rows: HomeLayoutRow[],
+  names?: Map<string, string>,
+) {
   const { label } = rowName(row, names);
   return `${label} moved to place ${rows.indexOf(row) + 1} of ${rows.length}.`;
 }

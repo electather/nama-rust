@@ -1481,12 +1481,12 @@ export const UserService: GenService<{
   },
   /**
    * Saves which Home rows, and whether Featured, the caller shows. Only the flags count, not the
-   * order, which `ReorderHomeRows` saves. A row or Featured the caller hasn't set apart from the default Home layout follows the
-   * default while it's saved as the default shows it. Once they show or hide one otherwise, it
-   * keeps their flag, whatever the default does, until `ResetHomeLayout`. A row the caller can't
-   * see now, such as a disabled Plugin's, keeps its flag. Rows are named as `GetHomeLayout` names
-   * them, and one it doesn't list is ignored. A request without a layout is
-   * refused with `REFUSAL_REASON_FIELD_REQUIRED` naming `layout`.
+   * order, which `ReorderHomeRows` saves. A row or Featured the caller hasn't set apart from the
+   * default Home layout follows the default while it's saved as the default shows it. Once they
+   * show or hide one otherwise, it keeps their flag, whatever the default does, until
+   * `ResetHomeLayout`. A row the caller can't see now, such as a disabled Plugin's, keeps its flag.
+   * Rows are named as `GetHomeLayout` names them, and one it doesn't list is ignored. A request
+   * without a layout is refused with `REFUSAL_REASON_FIELD_REQUIRED` naming `layout`.
    *
    * @generated from rpc nama.v1.UserService.SetHomeLayout
    */

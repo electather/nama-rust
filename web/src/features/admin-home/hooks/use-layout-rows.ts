@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { HomeLayoutRow } from "@/gen/nama/v1/server_pb";
-import { moved, movedTo } from "@/shared/lib/home-layout";
+import { moved, moveAnnouncement } from "@/shared/lib/home-layout";
 
 /**
  * The rows of a Home layout as an Admin changes them, from `saved`: moving one, which says where
@@ -16,7 +16,7 @@ export function useLayoutRows(saved: HomeLayoutRow[], names: Map<string, string>
     const next = moved(rows, from, before);
     setRows(next);
     if (row !== undefined && next.indexOf(row) !== from) {
-      setAnnounced(movedTo(row, next, names));
+      setAnnounced(moveAnnouncement(row, next, names));
     }
   };
   const setShown = (index: number, shown: boolean) => {

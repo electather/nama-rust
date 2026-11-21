@@ -8,6 +8,8 @@ import { UserService } from "@/gen/nama/v1/user_pb";
 export function useReorderHomeRows() {
   const queryClient = useQueryClient();
   return useMutation(UserService.method.reorderHomeRows, {
+    // One at a time, so each move's whole order reaches the Server after the one before it.
+    scope: { id: "reorder-home-rows" },
     onSettled: async () => {
       await refetchHomeLayout(queryClient);
     },
