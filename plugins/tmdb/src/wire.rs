@@ -154,7 +154,7 @@ impl MovieDetails {
             original_language: original_language(self.original_language),
             cast: self.credits.cast.into_iter().map(Role::from).collect(),
             crew: (self.credits.crew.into_iter())
-                .filter(|person| MOVIE_CREW_JOBS.contains(&person.job.as_str()))
+                .filter(|person| CREW_JOBS.contains(&person.job.as_str()))
                 .map(Role::from)
                 .collect(),
             ..Default::default()
@@ -162,8 +162,9 @@ impl MovieDetails {
     }
 }
 
-/// The jobs of a Movie's Crew the Plugin gives, of the hundreds TMDB lists.
-const MOVIE_CREW_JOBS: [&str; 3] = ["Director", "Screenplay", "Writer"];
+/// The jobs of a title's Crew the Plugin gives, of the hundreds TMDB lists. A Show's creators come
+/// first, as `Creator`.
+const CREW_JOBS: [&str; 3] = ["Director", "Screenplay", "Writer"];
 
 /// `/tv/{id}?append_to_response=external_ids,content_ratings,aggregate_credits`.
 #[derive(Debug, Deserialize)]
@@ -219,6 +220,12 @@ impl ShowDetails {
                 .collect(),
             crew: (self.created_by.into_iter())
                 .map(|person| person.role("Creator".to_owned()))
+                .chain(
+                    self.aggregate_credits
+                        .crew
+                        .into_iter()
+                        .flat_map(ShowCrewMember::roles),
+                )
                 .collect(),
             ..Default::default()
         }
@@ -234,16 +241,18 @@ struct Credits {
     crew: Vec<CrewMember>,
 }
 
-/// `aggregate_credits`, appended to a Show's details: its Cast over its whole run, in billing
-/// order, without one Episode's guest stars.
+/// `aggregate_credits`, appended to a Show's details: its Cast and Crew over its whole run, in
+/// billing order, without one Episode's guest stars.
 #[derive(Debug, Default, Deserialize)]
 struct AggregateCredits {
     #[serde(default)]
     cast: Vec<ShowCastMember>,
+    #[serde(default)]
+    crew: Vec<ShowCrewMember>,
 }
 
 /// A Person as TMDB lists them in a title's credits.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Person {
     id: i64,
     name: String,
@@ -300,6 +309,30 @@ struct ShowCastMember {
 #[derive(Debug, Deserialize)]
 struct Character {
     character: String,
+}
+
+/// A Show's Crew member, with each job they did over its run.
+#[derive(Debug, Deserialize)]
+struct ShowCrewMember {
+    #[serde(flatten)]
+    person: Person,
+    #[serde(default)]
+    jobs: Vec<Job>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Job {
+    job: String,
+}
+
+impl ShowCrewMember {
+    /// A Role for each of their jobs among [`CREW_JOBS`].
+    fn roles(self) -> impl Iterator<Item = Role> {
+        let person = self.person;
+        (self.jobs.into_iter())
+            .filter(|job| CREW_JOBS.contains(&job.job.as_str()))
+            .map(move |job| person.clone().role(job.job))
+    }
 }
 
 impl From<ShowCastMember> for Role {

@@ -681,7 +681,7 @@ async fn a_movie_has_its_cast_and_crew_and_its_casts_headshots_are_served() {
 }
 
 #[tokio::test]
-async fn a_show_has_its_cast_and_its_creators() {
+async fn a_show_has_its_cast_and_crew_with_its_creators_first() {
     let fx = Fixture::shows().await;
 
     let dark = fx.get_show(fx.library, DARK).await.unwrap();
@@ -692,8 +692,12 @@ async fn a_show_has_its_cast_and_its_creators() {
         ("Lisa Vicari", "Martha Nielsen"),
     ];
     assert_eq!(parts(&dark.cast), cast);
-    let creators = [("Baran bo Odar", "Creator"), ("Jantje Friese", "Creator")];
-    assert_eq!(parts(&dark.crew), creators);
+    let crew = [
+        ("Baran bo Odar", "Creator"),
+        ("Jantje Friese", "Creator"),
+        ("Baran bo Odar", "Director"),
+    ];
+    assert_eq!(parts(&dark.crew), crew);
     assert_eq!(
         dark.cast[0].headshot_url.as_deref(),
         Some("/media/artwork/tmdb/%2Fhofmann.jpg")

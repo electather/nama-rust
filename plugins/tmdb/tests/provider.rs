@@ -331,7 +331,7 @@ async fn a_movie_has_its_cast_in_billing_order_and_its_directors_and_writers() {
 }
 
 #[tokio::test]
-async fn a_show_has_its_whole_runs_cast_and_its_creators() {
+async fn a_show_has_its_whole_runs_cast_and_crew_with_its_creators_first() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
@@ -350,6 +350,7 @@ async fn a_show_has_its_whole_runs_cast_and_its_creators() {
         [
             ("1191428".to_owned(), "Baran bo Odar", "Creator"),
             ("1191429".to_owned(), "Jantje Friese", "Creator"),
+            ("1191428".to_owned(), "Baran bo Odar", "Director"),
         ]
     );
 }
