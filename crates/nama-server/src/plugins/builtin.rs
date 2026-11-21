@@ -6,6 +6,7 @@ use nama_plugin_api::Plugin;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
+use nama_plugin_upkeep::Upkeep;
 use nama_proto::nama::v1::PluginKind;
 
 use super::{Registry, drop_flawed_presentation, kept_logo, registry::Described, what_it_says};
@@ -15,6 +16,7 @@ fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
         || Arc::new(LocalAuth),
         || Arc::new(LogEvents),
         || Arc::new(Tmdb::new()),
+        || Arc::new(Upkeep),
         #[cfg(feature = "testing")]
         || Arc::new(nama_plugin_test_choices::TestChoices),
     ]

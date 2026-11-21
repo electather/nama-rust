@@ -232,6 +232,9 @@ impl Running {
         } else {
             cause
         };
+        if is_timeout(&err) {
+            return Err(TimedOut(cause).into());
+        }
         Err(cause.into())
     }
 
@@ -253,6 +256,12 @@ impl Running {
         }
     }
 }
+
+/// How a call that ran past its time limit fails, saying so, so a Job Run that did is told from
+/// one the Plugin failed itself.
+#[derive(Debug, Error)]
+#[error("{0}")]
+pub(super) struct TimedOut(pub(super) String);
 
 /// Whether a failed call trapped, timed out or ran past [`MEMORY_MAX_PAGES`], rather than the
 /// Plugin returning an error or a host function such as an HTTP request refusing it.

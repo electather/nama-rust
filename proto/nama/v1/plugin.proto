@@ -349,6 +349,8 @@ enum PluginPermission {
   PLUGIN_PERMISSION_READ_REQUESTS = 6;
   // See what every User put on their Watchlist.
   PLUGIN_PERMISSION_READ_WATCHLISTS = 7;
+  // Delete the Home rows and Featured suggestions kept for Users who stopped opening home.
+  PLUGIN_PERMISSION_FORGET_HOME_ROWS = 8;
 }
 
 // A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin

@@ -37,6 +37,7 @@ pub(crate) const KERNEL_IMPORTS: &[&str] = &[
     "list_requesters",
     "list_watchlist",
     "delete_media",
+    "forget_home_rows",
 ];
 
 fn refused(words: &str) -> kernel_answer::Result {

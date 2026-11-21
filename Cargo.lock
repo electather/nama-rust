@@ -2369,6 +2369,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-upkeep"
+version = "0.1.0"
+dependencies = [
+ "buffa",
+ "nama-plugin-api",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "nama-plugin-webhook"
 version = "0.1.0"
 dependencies = [
@@ -2429,6 +2439,7 @@ dependencies = [
  "nama-plugin-proto",
  "nama-plugin-test-choices",
  "nama-plugin-tmdb",
+ "nama-plugin-upkeep",
  "nama-proto",
  "nama-server",
  "notify",

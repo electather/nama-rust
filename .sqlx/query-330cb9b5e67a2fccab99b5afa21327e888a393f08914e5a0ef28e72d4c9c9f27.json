@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM featured_refreshes WHERE user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "330cb9b5e67a2fccab99b5afa21327e888a393f08914e5a0ef28e72d4c9c9f27"
+}

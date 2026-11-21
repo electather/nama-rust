@@ -192,7 +192,7 @@ test("a Movie to Request shows its Score, genres and Content Rating, its Origina
   expect(screen.getByText("Movie · Science Fiction · Adventure")).toBeDefined();
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("English");
-  expect(screen.getByRole("link", { name: /^Official Trailer/u }).getAttribute("href")).toBe(
+  expect(screen.getByRole("link", { name: "Official Trailer" }).getAttribute("href")).toBe(
     "https://www.youtube.com/watch?v=n9xhJrPXop4",
   );
 });

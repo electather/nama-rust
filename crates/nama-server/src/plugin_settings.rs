@@ -28,8 +28,8 @@ use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
     plugins::{
-        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, Registry, log_not_enabled,
-        read_installed,
+        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, Registry,
+        list_jobs, log_not_enabled, read_installed,
     },
     requests::{QualitiesInvalid, check_qualities, list_qualities, replace_qualities},
 };
@@ -44,8 +44,11 @@ mod title_sources;
 
 pub(crate) use personal::Personal;
 use sent::{check_fits, with_stored_secrets};
+use stored::{
+    first_grants, import, never_stored, save, save_first_grants, set_enabled, set_enabled_granting,
+    with_stored,
+};
 pub use stored::{grants, stored};
-use stored::{import, never_stored, save, set_enabled, set_enabled_granting, with_stored};
 
 /// The Plugin Permissions granted each stored Plugin, by Plugin id.
 type Grants = BTreeMap<String, HashSet<Permission>>;
@@ -112,6 +115,9 @@ pub enum StartError {
     /// On the first start, the config's tables couldn't be imported.
     #[error("could not import the plugin settings: {0}")]
     Import(sqlx::Error),
+    /// The Plugin Permissions granted the Built-in Plugins on their first start couldn't be saved.
+    #[error("could not save the permissions granted the built-in plugins: {0}")]
+    Grant(sqlx::Error),
 }
 
 /// Why a Plugin couldn't be changed or its settings checked.
@@ -196,7 +202,8 @@ impl PluginSettings {
     /// Makes the Installed Plugins in `config`'s data directory known beside those `registry`
     /// knows, and enables each one stored as enabled, with its stored settings. On the first start
     /// nothing is stored yet, so it uses `config`'s `[plugins.*]` tables, and imports them once
-    /// the Plugins have started.
+    /// the Plugins have started. A Built-in Plugin nothing is stored for is granted the Plugin
+    /// Permissions it requests, and saved with them, since it is compiled in (ADR 0079).
     ///
     /// A Plugin that fails to enable, such as one missing a required setting, is logged and left
     /// off.
@@ -212,7 +219,9 @@ impl PluginSettings {
         config: &Config,
     ) -> Result<Self, StartError> {
         let stored = stored(&db).await.map_err(StartError::Read)?;
-        let grants = grants(&db).await.map_err(StartError::Read)?;
+        let mut grants = grants(&db).await.map_err(StartError::Read)?;
+        let first_grants = first_grants(&registry, &grants);
+        grants.extend(first_grants.clone());
         let in_config: Vec<&str> = config.plugins.ids().collect();
         let importing = stored.is_none();
         let settings = match stored {
@@ -228,6 +237,10 @@ impl PluginSettings {
             }
             None => config.plugins.parse()?,
         };
+        registry
+            .record_job_runs_in(Arc::clone(&db))
+            .await
+            .map_err(StartError::Read)?;
         let plugins = Self::new(db, registry, config.data_dir.clone());
         let starting = plugins.clone();
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
@@ -247,6 +260,10 @@ impl PluginSettings {
                 .map_err(StartError::Import)?;
             info!(imported = ?in_config, "imported plugin settings from the config");
         }
+        // After the import, which would otherwise find these Plugins' rows already stored.
+        save_first_grants(&plugins.db, &first_grants)
+            .await
+            .map_err(StartError::Grant)?;
         let crashed = plugins.registry.crashed();
         let saving_crashed = task::spawn(plugins.clone().save_crashed(crashed));
         *lock_ignoring_poison(&plugins.saving_crashed) = Some(saving_crashed);
@@ -410,6 +427,16 @@ impl PluginSettings {
             .into_iter()
             .map(|plugin| with_stored(plugin, &mut stored))
             .collect())
+    }
+
+    /// The Jobs of every enabled Plugin, by Plugin id, each with when it next fires and its newest
+    /// Job Run.
+    ///
+    /// # Errors
+    ///
+    /// If the Job Runs can't be read.
+    pub async fn jobs(&self) -> Result<Vec<ListedJob>, sqlx::Error> {
+        list_jobs(self.registry.plugins(), &self.db).await
     }
 
     /// Whether a Plugin has the id `id`, refused or not, as [`PluginSettings::get`] decides.

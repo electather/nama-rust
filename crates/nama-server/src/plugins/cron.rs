@@ -1,6 +1,9 @@
 //! A Job's schedule: a standard 5-field cron expression, read to the minute (ADR 0079).
 
-use jiff::{ToSpan as _, civil::DateTime};
+use jiff::{
+    ToSpan as _,
+    civil::{Date, DateTime, Time},
+};
 
 /// A parsed schedule: for each field, a bit per value it names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,21 +112,40 @@ impl Cron {
             .any(|minute| self.matches(minute))
     }
 
+    /// The wall-clock minutes the schedule names that start after `after`, soonest first. It
+    /// looks 400 years ahead, when the calendar repeats, so a schedule naming a day that never
+    /// comes, such as 30 February, ends there.
+    pub(super) fn firings_after(self, after: DateTime) -> impl Iterator<Item = DateTime> {
+        let days = after.date().series(1.day()).take(400 * 366);
+        days.filter(move |day| self.names_day(*day))
+            .flat_map(|day| {
+                day.to_datetime(Time::midnight())
+                    .series(1.minute())
+                    .take(24 * 60)
+            })
+            .filter(move |minute| *minute > after && self.matches(*minute))
+    }
+
     /// Whether the schedule names the minute `at` is in.
     pub(super) fn matches(&self, at: DateTime) -> bool {
-        let has = |bits: u64, value: i8| bits >> value & 1 == 1;
-        let day = has(self.days, at.day());
-        let weekday = has(self.weekdays, at.weekday().to_sunday_zero_offset());
-        let day_matches = if self.any_day {
-            day && weekday
-        } else {
-            day || weekday
-        };
-        has(self.minutes, at.minute())
-            && has(self.hours, at.hour())
-            && has(self.months, at.month())
-            && day_matches
+        has(self.minutes, at.minute()) && has(self.hours, at.hour()) && self.names_day(at.date())
     }
+
+    /// Whether the schedule names a minute of `day`.
+    fn names_day(&self, day: Date) -> bool {
+        let day_of_month = has(self.days, day.day());
+        let weekday = has(self.weekdays, day.weekday().to_sunday_zero_offset());
+        let either = if self.any_day {
+            day_of_month && weekday
+        } else {
+            day_of_month || weekday
+        };
+        has(self.months, day.month()) && either
+    }
+}
+
+fn has(bits: u64, value: i8) -> bool {
+    bits >> value & 1 == 1
 }
 
 /// A bit per value of `field` that `text`, such as `*/15` or `1-5,7`, names, or why it can't.

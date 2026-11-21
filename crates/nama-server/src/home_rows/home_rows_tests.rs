@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use nama_plugin_api::{
@@ -14,9 +15,9 @@ use nama_plugin_api::{
 };
 use tempfile::TempDir;
 
-use super::{HomeRows as Kept, Kind, OnServer, Row, Title, rows::Rows, shown};
+use super::{HomeRows as Kept, Kind, OnServer, Row, Title, forget_unvisited, rows::Rows, shown};
 use crate::{
-    db::Database,
+    db::{self, Database},
     events::EventBus,
     library::FoundMovie,
     plugins::Registry,
@@ -195,6 +196,11 @@ impl HomeRowSource for Recorded {
 
 pub(super) const SHARED: &[HomeRowMethod] = &[HomeRowMethod::Shared];
 const BOTH: &[HomeRowMethod] = &[HomeRowMethod::Shared, HomeRowMethod::User];
+const EVERY: &[HomeRowMethod] = &[
+    HomeRowMethod::Shared,
+    HomeRowMethod::User,
+    HomeRowMethod::Featured,
+];
 
 /// Home rows over a fresh database, with [`Recorded`] enabled, giving the rows `gives` names.
 pub(super) async fn recorded(
@@ -347,4 +353,35 @@ async fn deleting_a_user_deletes_their_rows() {
     .unwrap();
 
     assert_eq!(stored_keys(&home, ada).await, ["shared"]);
+}
+
+#[tokio::test]
+async fn forgetting_unvisited_users_deletes_their_own_rows_and_suggestions_until_they_open_home_again()
+ {
+    let (_dir, db, home, _) = recorded(EVERY).await;
+    let ada = insert_user(&db, "ada").await;
+    let bea = insert_user(&db, "bea").await;
+    for (user, tmdb) in [(ada, "603"), (bea, "604")] {
+        set_handle(&db, user, tmdb).await;
+    }
+    open_home(&home, ada).await;
+    home.featured(ada).await.unwrap();
+    wait_for_refreshes(&home).await;
+    // Lib tests share the clock, so they step it by seconds only; the margin outlasts their steps.
+    db::advance_clock(Duration::from_secs(10));
+    open_home(&home, bea).await;
+    home.featured(bea).await.unwrap();
+    wait_for_refreshes(&home).await;
+
+    let forgotten = forget_unvisited(&db, Duration::from_secs(5)).await.unwrap();
+
+    assert_eq!(forgotten, 1, "only Ada had rows to forget");
+    assert_eq!(stored_keys(&home, ada).await, ["shared"]);
+    assert_eq!(stored_keys(&home, bea).await, ["shared", "theirs"]);
+    assert_eq!(home.featured(bea).await.unwrap().len(), 1);
+    assert!(home.featured(ada).await.unwrap().is_empty());
+    wait_for_refreshes(&home).await;
+    open_home(&home, ada).await;
+    assert_eq!(stored_keys(&home, ada).await, ["shared", "theirs"]);
+    assert_eq!(home.featured(ada).await.unwrap().len(), 1);
 }

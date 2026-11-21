@@ -10449,8 +10449,8 @@ pub const __FOUND_MOVIE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
     from_json: ::buffa::type_registry::any_from_json::<FoundMovie>,
     is_wkt: false,
 };
-/// A video advertising a Movie or Show, as a link to where it is hosted. A client only links to
-/// it, so showing a title tells the host nothing until a User opens one.
+/// A video advertising a Movie or Show, as a link to where it is hosted. A client plays it only in
+/// the host's own player, so showing a title tells the host nothing until a User opens one.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

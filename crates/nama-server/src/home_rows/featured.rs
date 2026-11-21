@@ -56,10 +56,7 @@ pub(super) struct Suggestions(pub(super) HomeRows);
 impl Adapter for Suggestions {
     type Kept = Vec<Suggestion>;
     const NOUN: &'static str = "Featured suggestions";
-
-    fn methods(&self) -> &'static [HomeRowMethod] {
-        &[HomeRowMethod::Featured]
-    }
+    const METHODS: &'static [HomeRowMethod] = &[HomeRowMethod::Featured];
 
     fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)> {
         vec![(HomeRowMethod::Featured, Some(reader))]
@@ -114,6 +111,13 @@ impl Adapter for Suggestions {
         .execute(conn)
         .await?;
         Ok(())
+    }
+
+    async fn delete_users_own(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
+        let deleted = sqlx::query!("DELETE FROM featured_suggestions WHERE user_id = ?", user)
+            .execute(conn)
+            .await?;
+        Ok(deleted.rows_affected() > 0)
     }
 
     async fn plugins(&self, _method: HomeRowMethod) -> Result<Vec<PluginId>, sqlx::Error> {
