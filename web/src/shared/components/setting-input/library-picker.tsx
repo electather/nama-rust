@@ -1,7 +1,6 @@
-import { useId } from "react";
-
 import type { Setting } from "@/gen/nama/v1/plugin_pb";
-import { LibraryBox } from "@/shared/components/setting-input/library-box";
+import { PickBox } from "@/shared/components/setting-input/pick-box";
+import { PickList } from "@/shared/components/setting-input/pick-list";
 import { UnlistedLibraries } from "@/shared/components/setting-input/unlisted-libraries";
 import { useLibrariesToPick } from "@/shared/hooks/use-libraries-to-pick";
 
@@ -19,34 +18,31 @@ export function LibraryPicker({
   hint: string;
   error: string | undefined;
 }) {
-  const id = useId();
   const { data, isError } = useLibrariesToPick();
   const held = setting.value?.value.case === "libraryIds" ? setting.value.value.value.ids : [];
-  const described = `${id}-hint ${id}-error`;
   return (
-    <fieldset className="flex flex-col gap-2" aria-describedby={described}>
-      <legend className="mb-2 text-sm font-medium">{setting.label}</legend>
-      {data === undefined ? (
-        <UnlistedLibraries name={setting.key} held={held} failed={isError} />
-      ) : (
-        data.libraries.map((library) => (
-          <LibraryBox
-            key={String(library.id)}
-            library={library}
-            name={setting.key}
-            checked={held.includes(library.id)}
-            invalid={error !== undefined}
-            described={described}
-          />
-        ))
-      )}
-      <p id={`${id}-hint`} className="text-sm text-pretty text-muted-foreground empty:hidden">
-        {data?.libraries.length === 0 ? "There are no Libraries yet." : hint}
-      </p>
-      {/* Always there, so screen readers announce an error as it appears. */}
-      <p id={`${id}-error`} role="alert" className="text-sm text-destructive empty:hidden">
-        {error}
-      </p>
-    </fieldset>
+    <PickList
+      label={setting.label}
+      hint={data?.libraries.length === 0 ? "There are no Libraries yet." : hint}
+      error={error}
+    >
+      {(box) =>
+        data === undefined ? (
+          <UnlistedLibraries name={setting.key} held={held} failed={isError} />
+        ) : (
+          data.libraries.map((library) => (
+            <PickBox
+              key={String(library.id)}
+              name={setting.key}
+              value={String(library.id)}
+              checked={held.includes(library.id)}
+              {...box}
+            >
+              {library.name}
+            </PickBox>
+          ))
+        )
+      }
+    </PickList>
   );
 }

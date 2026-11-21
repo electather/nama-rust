@@ -1,31 +1,33 @@
-import type { Library } from "@/gen/nama/v1/library_pb";
+import type { ReactNode } from "react";
 
-/** One Library's checkbox, sending its id as a `name` form value when ticked. */
-export function LibraryBox({
-  library,
+/** One checkbox of a `PickList`, labelled `children`, sending `value` as a `name` form value when ticked. */
+export function PickBox({
   name,
+  value,
   checked,
   invalid,
   described,
+  children,
 }: {
-  library: Library;
   name: string;
+  value: string;
   checked: boolean;
   invalid: boolean;
   described: string;
+  children: ReactNode;
 }) {
   return (
     <label className="flex items-center gap-3 text-sm">
       <input
         type="checkbox"
         name={name}
-        value={String(library.id)}
+        value={value}
         defaultChecked={checked}
         aria-invalid={invalid}
         aria-describedby={described}
         className="size-4 accent-foreground"
       />
-      {library.name}
+      {children}
     </label>
   );
 }
