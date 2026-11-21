@@ -44,7 +44,7 @@ pub struct ListedJob {
     /// The Job, as the Plugin's Manifest declares it.
     pub job: Job,
     /// The next times its schedule fires, soonest first, in milliseconds since the Unix epoch:
-    /// up to [`NEXT_RUNS`], and none without a schedule.
+    /// up to 3, and none without a schedule.
     pub next_runs_ms: Vec<i64>,
     /// Its newest Run, if it has run.
     pub last_run: Option<JobRun>,

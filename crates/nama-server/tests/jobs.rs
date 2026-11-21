@@ -174,10 +174,7 @@ async fn an_admin_sees_each_job_with_its_runs_and_a_disabled_plugins_jobs_come_b
     let [run] = &runs[..] else {
         panic!("not one Run: {runs:?}");
     };
-    assert!(
-        run.ended_at_ms
-            .is_some_and(|end| end > run.started_at_ms)
-    );
+    assert!(run.ended_at_ms.is_some_and(|end| end > run.started_at_ms));
 
     let plugins = server.plugin_service();
     let id = "test-plugin".to_owned();
