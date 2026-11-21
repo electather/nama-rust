@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/job.proto.
  */
 export const file_nama_v1_job: GenFile = /*@__PURE__*/
-  fileDesc("ChFuYW1hL3YxL2pvYi5wcm90bxIHbmFtYS52MSIRCg9MaXN0Sm9ic1JlcXVlc3QiLgoQTGlzdEpvYnNSZXNwb25zZRIaCgRqb2JzGAEgAygLMgwubmFtYS52MS5Kb2IiqgEKA0pvYhIRCglwbHVnaW5faWQYASABKAkSEwoLcGx1Z2luX25hbWUYAiABKAkSCgoCaWQYAyABKAkSDAoEbmFtZRgEIAEoCRITCgtkZXNjcmlwdGlvbhgFIAEoCRIQCghzY2hlZHVsZRgGIAEoCRIXCg9uZXh0X3J1bnNfYXRfbXMYByADKAMSIQoIbGFzdF9ydW4YCCABKAsyDy5uYW1hLnYxLkpvYlJ1biI3ChJMaXN0Sm9iUnVuc1JlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJEg4KBmpvYl9pZBgCIAEoCSI0ChNMaXN0Sm9iUnVuc1Jlc3BvbnNlEh0KBHJ1bnMYASADKAsyDy5uYW1hLnYxLkpvYlJ1biIyCg1SdW5Kb2JSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRIOCgZqb2JfaWQYAiABKAkiEAoOUnVuSm9iUmVzcG9uc2UizAEKBkpvYlJ1bhIKCgJpZBgBIAEoAxInCgdvdXRjb21lGAIgASgOMhYubmFtYS52MS5Kb2JSdW5PdXRjb21lEhUKDXN0YXJ0ZWRfYXRfbXMYAyABKAMSGAoLZW5kZWRfYXRfbXMYBCABKANIAIgBARINCgVlcnJvchgFIAEoCRISCgpzdGFydGVkX2J5GAYgASgJEikKCWxvZ19saW5lcxgHIAMoCzIWLm5hbWEudjEuUGx1Z2luTG9nTGluZUIOCgxfZW5kZWRfYXRfbXMqyAEKDUpvYlJ1bk91dGNvbWUSHwobSk9CX1JVTl9PVVRDT01FX1VOU1BFQ0lGSUVEEAASGwoXSk9CX1JVTl9PVVRDT01FX1JVTk5JTkcQARIdChlKT0JfUlVOX09VVENPTUVfU1VDQ0VFREVEEAISGgoWSk9CX1JVTl9PVVRDT01FX0ZBSUxFRBADEh0KGUpPQl9SVU5fT1VUQ09NRV9USU1FRF9PVVQQBBIfChtKT0JfUlVOX09VVENPTUVfSU5URVJSVVBURUQQBTLcAQoKSm9iU2VydmljZRJECghMaXN0Sm9icxIYLm5hbWEudjEuTGlzdEpvYnNSZXF1ZXN0GhkubmFtYS52MS5MaXN0Sm9ic1Jlc3BvbnNlIgOQAgESTQoLTGlzdEpvYlJ1bnMSGy5uYW1hLnYxLkxpc3RKb2JSdW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdEpvYlJ1bnNSZXNwb25zZSIDkAIBEjkKBlJ1bkpvYhIWLm5hbWEudjEuUnVuSm9iUmVxdWVzdBoXLm5hbWEudjEuUnVuSm9iUmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_plugin]);
+  fileDesc("ChFuYW1hL3YxL2pvYi5wcm90bxIHbmFtYS52MSIRCg9MaXN0Sm9ic1JlcXVlc3QiLgoQTGlzdEpvYnNSZXNwb25zZRIaCgRqb2JzGAEgAygLMgwubmFtYS52MS5Kb2Ii1QEKA0pvYhIRCglwbHVnaW5faWQYASABKAkSEwoLcGx1Z2luX25hbWUYAiABKAkSCgoCaWQYAyABKAkSDAoEbmFtZRgEIAEoCRITCgtkZXNjcmlwdGlvbhgFIAEoCRIQCghzY2hlZHVsZRgGIAEoCRIXCg9uZXh0X3J1bnNfYXRfbXMYByADKAMSIQoIbGFzdF9ydW4YCCABKAsyDy5uYW1hLnYxLkpvYlJ1bhIYChBkZWZhdWx0X3NjaGVkdWxlGAkgASgJEg8KB2VuYWJsZWQYCiABKAgiWwoTQ29uZmlndXJlSm9iUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkSDgoGam9iX2lkGAIgASgJEg8KB2VuYWJsZWQYAyABKAgSEAoIc2NoZWR1bGUYBCABKAkiFgoUQ29uZmlndXJlSm9iUmVzcG9uc2UiLQoZUHJldmlld0pvYlNjaGVkdWxlUmVxdWVzdBIQCghzY2hlZHVsZRgBIAEoCSI1ChpQcmV2aWV3Sm9iU2NoZWR1bGVSZXNwb25zZRIXCg9uZXh0X3J1bnNfYXRfbXMYASADKAMiNwoSTGlzdEpvYlJ1bnNSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRIOCgZqb2JfaWQYAiABKAkiNAoTTGlzdEpvYlJ1bnNSZXNwb25zZRIdCgRydW5zGAEgAygLMg8ubmFtYS52MS5Kb2JSdW4iMgoNUnVuSm9iUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkSDgoGam9iX2lkGAIgASgJIhAKDlJ1bkpvYlJlc3BvbnNlIswBCgZKb2JSdW4SCgoCaWQYASABKAMSJwoHb3V0Y29tZRgCIAEoDjIWLm5hbWEudjEuSm9iUnVuT3V0Y29tZRIVCg1zdGFydGVkX2F0X21zGAMgASgDEhgKC2VuZGVkX2F0X21zGAQgASgDSACIAQESDQoFZXJyb3IYBSABKAkSEgoKc3RhcnRlZF9ieRgGIAEoCRIpCglsb2dfbGluZXMYByADKAsyFi5uYW1hLnYxLlBsdWdpbkxvZ0xpbmVCDgoMX2VuZGVkX2F0X21zKsgBCg1Kb2JSdW5PdXRjb21lEh8KG0pPQl9SVU5fT1VUQ09NRV9VTlNQRUNJRklFRBAAEhsKF0pPQl9SVU5fT1VUQ09NRV9SVU5OSU5HEAESHQoZSk9CX1JVTl9PVVRDT01FX1NVQ0NFRURFRBACEhoKFkpPQl9SVU5fT1VUQ09NRV9GQUlMRUQQAxIdChlKT0JfUlVOX09VVENPTUVfVElNRURfT1VUEAQSHwobSk9CX1JVTl9PVVRDT01FX0lOVEVSUlVQVEVEEAUykgMKCkpvYlNlcnZpY2USRAoITGlzdEpvYnMSGC5uYW1hLnYxLkxpc3RKb2JzUmVxdWVzdBoZLm5hbWEudjEuTGlzdEpvYnNSZXNwb25zZSIDkAIBEk0KC0xpc3RKb2JSdW5zEhsubmFtYS52MS5MaXN0Sm9iUnVuc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3RKb2JSdW5zUmVzcG9uc2UiA5ACARJQCgxDb25maWd1cmVKb2ISHC5uYW1hLnYxLkNvbmZpZ3VyZUpvYlJlcXVlc3QaHS5uYW1hLnYxLkNvbmZpZ3VyZUpvYlJlc3BvbnNlIgOQAgISYgoSUHJldmlld0pvYlNjaGVkdWxlEiIubmFtYS52MS5QcmV2aWV3Sm9iU2NoZWR1bGVSZXF1ZXN0GiMubmFtYS52MS5QcmV2aWV3Sm9iU2NoZWR1bGVSZXNwb25zZSIDkAIBEjkKBlJ1bkpvYhIWLm5hbWEudjEuUnVuSm9iUmVxdWVzdBoXLm5hbWEudjEuUnVuSm9iUmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_plugin]);
 
 /**
  * @generated from message nama.v1.ListJobsRequest
@@ -84,8 +84,9 @@ export type Job = Message<"nama.v1.Job"> & {
   description: string;
 
   /**
-   * Its standard 5-field cron schedule, such as `0 4 * * *`, read in the Server's time zone, or
-   * empty for a Job that runs only when an Admin starts it.
+   * The standard 5-field cron schedule it runs on, such as `0 4 * * *`, read in the Server's
+   * time zone: an Admin's in place of `default_schedule`, or that. Empty for a Job that runs only
+   * when an Admin starts it.
    *
    * @generated from field: string schedule = 6;
    */
@@ -93,7 +94,7 @@ export type Job = Message<"nama.v1.Job"> & {
 
   /**
    * When its schedule next fires, soonest first, in milliseconds since the Unix epoch: up to 3,
-   * and none without a schedule.
+   * and none without a schedule or while it is off.
    *
    * @generated from field: repeated int64 next_runs_at_ms = 7;
    */
@@ -105,6 +106,20 @@ export type Job = Message<"nama.v1.Job"> & {
    * @generated from field: nama.v1.JobRun last_run = 8;
    */
   lastRun?: JobRun | undefined;
+
+  /**
+   * The schedule its Plugin's Manifest declares, or empty for none.
+   *
+   * @generated from field: string default_schedule = 9;
+   */
+  defaultSchedule: string;
+
+  /**
+   * Whether it runs on its schedule. An Admin turns it off with `ConfigureJob`.
+   *
+   * @generated from field: bool enabled = 10;
+   */
+  enabled: boolean;
 };
 
 /**
@@ -113,6 +128,97 @@ export type Job = Message<"nama.v1.Job"> & {
  */
 export const JobSchema: GenMessage<Job> = /*@__PURE__*/
   messageDesc(file_nama_v1_job, 2);
+
+/**
+ * @generated from message nama.v1.ConfigureJobRequest
+ */
+export type ConfigureJobRequest = Message<"nama.v1.ConfigureJobRequest"> & {
+  /**
+   * The id of the Plugin declaring the Job, such as `upkeep`.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+
+  /**
+   * The Job's id, such as `forget-home-rows`.
+   *
+   * @generated from field: string job_id = 2;
+   */
+  jobId: string;
+
+  /**
+   * Whether it runs on its schedule.
+   *
+   * @generated from field: bool enabled = 3;
+   */
+  enabled: boolean;
+
+  /**
+   * A standard 5-field cron schedule to run it on in place of its Manifest's, or empty for that.
+   *
+   * @generated from field: string schedule = 4;
+   */
+  schedule: string;
+};
+
+/**
+ * Describes the message nama.v1.ConfigureJobRequest.
+ * Use `create(ConfigureJobRequestSchema)` to create a new message.
+ */
+export const ConfigureJobRequestSchema: GenMessage<ConfigureJobRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_job, 3);
+
+/**
+ * @generated from message nama.v1.ConfigureJobResponse
+ */
+export type ConfigureJobResponse = Message<"nama.v1.ConfigureJobResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.ConfigureJobResponse.
+ * Use `create(ConfigureJobResponseSchema)` to create a new message.
+ */
+export const ConfigureJobResponseSchema: GenMessage<ConfigureJobResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_job, 4);
+
+/**
+ * @generated from message nama.v1.PreviewJobScheduleRequest
+ */
+export type PreviewJobScheduleRequest = Message<"nama.v1.PreviewJobScheduleRequest"> & {
+  /**
+   * A standard 5-field cron schedule, such as `*\/15 * * * *`.
+   *
+   * @generated from field: string schedule = 1;
+   */
+  schedule: string;
+};
+
+/**
+ * Describes the message nama.v1.PreviewJobScheduleRequest.
+ * Use `create(PreviewJobScheduleRequestSchema)` to create a new message.
+ */
+export const PreviewJobScheduleRequestSchema: GenMessage<PreviewJobScheduleRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_job, 5);
+
+/**
+ * @generated from message nama.v1.PreviewJobScheduleResponse
+ */
+export type PreviewJobScheduleResponse = Message<"nama.v1.PreviewJobScheduleResponse"> & {
+  /**
+   * When it next fires, soonest first, in milliseconds since the Unix epoch: up to 3.
+   *
+   * @generated from field: repeated int64 next_runs_at_ms = 1;
+   */
+  nextRunsAtMs: bigint[];
+};
+
+/**
+ * Describes the message nama.v1.PreviewJobScheduleResponse.
+ * Use `create(PreviewJobScheduleResponseSchema)` to create a new message.
+ */
+export const PreviewJobScheduleResponseSchema: GenMessage<PreviewJobScheduleResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_job, 6);
 
 /**
  * @generated from message nama.v1.ListJobRunsRequest
@@ -138,7 +244,7 @@ export type ListJobRunsRequest = Message<"nama.v1.ListJobRunsRequest"> & {
  * Use `create(ListJobRunsRequestSchema)` to create a new message.
  */
 export const ListJobRunsRequestSchema: GenMessage<ListJobRunsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_job, 3);
+  messageDesc(file_nama_v1_job, 7);
 
 /**
  * @generated from message nama.v1.ListJobRunsResponse
@@ -157,7 +263,7 @@ export type ListJobRunsResponse = Message<"nama.v1.ListJobRunsResponse"> & {
  * Use `create(ListJobRunsResponseSchema)` to create a new message.
  */
 export const ListJobRunsResponseSchema: GenMessage<ListJobRunsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_job, 4);
+  messageDesc(file_nama_v1_job, 8);
 
 /**
  * @generated from message nama.v1.RunJobRequest
@@ -183,7 +289,7 @@ export type RunJobRequest = Message<"nama.v1.RunJobRequest"> & {
  * Use `create(RunJobRequestSchema)` to create a new message.
  */
 export const RunJobRequestSchema: GenMessage<RunJobRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_job, 5);
+  messageDesc(file_nama_v1_job, 9);
 
 /**
  * @generated from message nama.v1.RunJobResponse
@@ -196,7 +302,7 @@ export type RunJobResponse = Message<"nama.v1.RunJobResponse"> & {
  * Use `create(RunJobResponseSchema)` to create a new message.
  */
 export const RunJobResponseSchema: GenMessage<RunJobResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_job, 6);
+  messageDesc(file_nama_v1_job, 10);
 
 /**
  * One time the Server ran a Job.
@@ -261,7 +367,7 @@ export type JobRun = Message<"nama.v1.JobRun"> & {
  * Use `create(JobRunSchema)` to create a new message.
  */
 export const JobRunSchema: GenMessage<JobRun> = /*@__PURE__*/
-  messageDesc(file_nama_v1_job, 7);
+  messageDesc(file_nama_v1_job, 11);
 
 /**
  * How a Job Run ended, or that it hasn't.
@@ -352,6 +458,32 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof ListJobRunsRequestSchema;
     output: typeof ListJobRunsResponseSchema;
+  },
+  /**
+   * Turns a Job on or off and sets the schedule it runs on in place of its Manifest's, taking
+   * effect at once. A Job on and on its Manifest's schedule has nothing stored, so a Plugin
+   * update's new schedule reaches it: that is how a Job is reset to its default. Fails with
+   * `REFUSAL_REASON_JOB_NOT_FOUND` if no Plugin the Server has declares it, and
+   * `REFUSAL_REASON_SCHEDULE_INVALID` if `schedule` doesn't parse or is set for a Job without one
+   * of its own.
+   *
+   * @generated from rpc nama.v1.JobService.ConfigureJob
+   */
+  configureJob: {
+    methodKind: "unary";
+    input: typeof ConfigureJobRequestSchema;
+    output: typeof ConfigureJobResponseSchema;
+  },
+  /**
+   * Returns when `schedule` next fires, for showing before it is saved. Fails with
+   * `REFUSAL_REASON_SCHEDULE_INVALID` if it doesn't parse.
+   *
+   * @generated from rpc nama.v1.JobService.PreviewJobSchedule
+   */
+  previewJobSchedule: {
+    methodKind: "unary";
+    input: typeof PreviewJobScheduleRequestSchema;
+    output: typeof PreviewJobScheduleResponseSchema;
   },
   /**
    * Starts a Run of a Job now, scheduled or not, recorded as started by the caller, and returns
