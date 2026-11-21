@@ -125,6 +125,7 @@ impl Contents {
     /// The best [`CANDIDATES`] titles whose `title_search` rows fit `words`, of `kind` only if
     /// it's set, by FTS5's rank: each Movie, Show and Episode once per Library, by the row of its
     /// best-fitting Item.
+    #[expect(clippy::too_many_lines, reason = "one query, whose SQL is most of it")]
     async fn search_rows(
         &self,
         words: &SearchWords<'_>,
