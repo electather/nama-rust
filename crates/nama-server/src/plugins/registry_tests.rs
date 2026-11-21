@@ -292,7 +292,7 @@ fn a_builtin_with_a_default_not_among_its_choices_is_refused() {
 }
 
 #[test]
-fn a_builtin_with_a_choices_setting_without_choices_is_refused_without_a_settings_check() {
+fn a_builtin_with_a_choices_setting_without_choices_and_no_settings_check_is_refused() {
     assert_eq!(
         refused(ratings(&[], None), false).as_deref(),
         Some(
@@ -300,6 +300,10 @@ fn a_builtin_with_a_choices_setting_without_choices_is_refused_without_a_setting
              some"
         )
     );
+}
+
+#[test]
+fn a_builtin_with_a_choices_setting_without_choices_and_a_settings_check_is_not_refused() {
     assert_eq!(refused(ratings(&[], None), true), None);
 }
 
@@ -314,6 +318,7 @@ fn a_builtin_with_a_flawed_personal_setting_is_refused() {
 
     assert!(matches!(
         refuse_flawed(&manifest, false),
-        Err(EnableError::Refused { .. })
+        Err(EnableError::Refused { reason, .. })
+            if reason == "its setting days's min 7 is over its max 1"
     ));
 }

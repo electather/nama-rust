@@ -183,8 +183,8 @@ pub enum SettingFlaw {
     },
 }
 
-// Words a Built-in's refusal: an Installed Plugin's names its wire Manifest's fields and exports
-// instead, such as `min_value`.
+// Words a Built-in's refusal. An Installed Plugin's refusal names its wire Manifest's fields and
+// exports instead, such as `min_value`.
 impl fmt::Display for SettingFlaw {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
