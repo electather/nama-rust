@@ -9768,7 +9768,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
-    /// As `nama.v1.Movie.on_watchlist`, under any of the ids the title source gave it.
+    /// As `nama.v1.Movie.on_watchlist`, under `id` or any other id the title source gave it.
     ///
     /// Field 17: `on_watchlist`
     #[serde(

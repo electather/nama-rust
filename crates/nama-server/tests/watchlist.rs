@@ -18,13 +18,11 @@ use nama_proto::nama::v1::{
 use server::{
     TestServer,
     requests::title_id,
-    tmdb::{ALIEN, DARK, DARK_TVDB, HEAT, UNLISTED},
+    tmdb::{ALIEN, ALIEN_IMDB, DARK, DARK_TVDB, HEAT, UNLISTED},
 };
 
 const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
 const HEAT_FILE: &str = "Heat (1995) {tmdb-949}/Heat (1995).mkv";
-/// Alien's IMDb id, which its Match holds beside its TMDB id.
-const ALIEN_IMDB: &str = "tt0078748";
 
 /// A Server with Alien and Heat in a Movies Library and Dark in a Shows Library, and their ids.
 struct Fixture {

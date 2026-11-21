@@ -20,11 +20,8 @@ use refused::assert_refused;
 use server::{
     TestServer,
     requests::{Requester, title_id, tmdb_id},
-    tmdb::{ALIEN, DARK, DARK_TVDB},
+    tmdb::{ALIEN, ALIEN_IMDB, DARK, DARK_TVDB},
 };
-
-/// Alien's IMDb id, which TMDB gives beside its TMDB id.
-const ALIEN_IMDB: &str = "tt0078748";
 
 /// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
 const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
