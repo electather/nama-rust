@@ -103,8 +103,11 @@ describe("the Jobs page", () => {
     expect(
       within(lines)
         .getAllByRole("listitem")
-        .map((line) => line.lastChild?.textContent),
-    ).toStrictEqual(["forgetting Home rows", "giving up: the database was busy"]);
+        .map((line) => line.textContent),
+    ).toStrictEqual([
+      expect.stringMatching(/Info.*forgetting Home rows/u),
+      expect.stringMatching(/Error.*giving up: the database was busy/u),
+    ]);
     expect(sheet.getByText(/^No lines kept\./u)).toBeDefined();
   });
 
