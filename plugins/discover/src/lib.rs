@@ -218,12 +218,12 @@ struct Api {
 /// A page of TMDB's titles.
 #[derive(Deserialize)]
 struct Page {
-    results: Vec<Item>,
+    results: Vec<Listing>,
 }
 
 /// One title in a page, or a person in a trending one.
 #[derive(Deserialize)]
-struct Item {
+struct Listing {
     id: u64,
     media_type: String,
 }
@@ -259,9 +259,9 @@ impl Api {
     }
 }
 
-/// The Home row title of `item`, or `None` for a person.
-fn title(item: &Item) -> Option<HomeRowTitle> {
-    let kind = match item.media_type.as_str() {
+/// The Home row title of `listing`, or `None` for a person.
+fn title(listing: &Listing) -> Option<HomeRowTitle> {
+    let kind = match listing.media_type.as_str() {
         "movie" => TitleKind::TITLE_KIND_MOVIE,
         "tv" => TitleKind::TITLE_KIND_SHOW,
         _ => return None,
@@ -270,7 +270,7 @@ fn title(item: &Item) -> Option<HomeRowTitle> {
         kind: kind.into(),
         id: TitleId {
             namespace: "tmdb".to_owned(),
-            value: item.id.to_string(),
+            value: listing.id.to_string(),
             ..TitleId::default()
         }
         .into(),
