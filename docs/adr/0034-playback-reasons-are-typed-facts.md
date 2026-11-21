@@ -1,6 +1,6 @@
 # A Playback Plan's reasons are typed facts
 
-_Amended by [ADR 0077](0077-a-reason-for-converted-audio-names-its-codec.md): the reasons for audio converted to fewer channels also name the codec it's converted to._
+_Amended by [ADR 0082](0082-a-reason-for-converted-audio-names-its-codec.md): the reasons for audio converted to fewer channels also name the codec it's converted to._
 
 ADR 0027 had every step record why in an English sentence, even a step that ruled nothing out. A client couldn't translate the sentences, couldn't tell the two that decided a plan from the nine that didn't, and showed whatever wording the Server had. Now a plan carries Playback Reasons. Each is one fact: a `PlaybackReasonKind` with the values it mentions in `params`, shaped as a Refusal is (ADR 0019). The client owns the wording, and the Server's English `text` rides beside each for a client that doesn't know the kind.
 

@@ -4,6 +4,8 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use nama_plugin_api::{
     contract as wire,
     metadata::{ExternalId, ExternalIds, MetadataError},
@@ -78,6 +80,8 @@ pub(crate) struct Movie {
     pub(crate) score: Option<f64>,
     /// The ISO 639-1 code of the language it was made in, such as `ja`.
     pub(crate) original_language: Option<String>,
+    /// Its Trailers, at most [`MAX_TRAILERS`], in the order to show them.
+    pub(crate) trailers: Vec<Trailer>,
 }
 
 /// A Show's details.
@@ -107,7 +111,21 @@ pub(crate) struct Show {
     pub(crate) score: Option<f64>,
     /// As [`Movie::original_language`].
     pub(crate) original_language: Option<String>,
+    /// As [`Movie::trailers`].
+    pub(crate) trailers: Vec<Trailer>,
 }
+
+/// A Trailer, as a link to where it is hosted: Nama never embeds or plays one (`GLOSSARY.md`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Trailer {
+    /// What it is called, such as `Official Trailer`.
+    pub(crate) name: String,
+    /// Its `https` URL on `YouTube` or Vimeo.
+    pub(crate) url: String,
+}
+
+/// How many Trailers a title keeps, whatever its source sends.
+const MAX_TRAILERS: usize = 5;
 
 /// One Season of a Show, with its Episodes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -269,6 +287,7 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         content_rating: movie.content_rating,
         score: valid_score(movie.score),
         original_language: movie.original_language,
+        trailers: trailers(movie.trailers),
     })
 }
 
@@ -286,6 +305,7 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         content_rating: show.content_rating,
         score: valid_score(show.score),
         original_language: show.original_language,
+        trailers: trailers(show.trailers),
     })
 }
 
@@ -293,6 +313,32 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
 /// Match's write on it.
 fn valid_score(score: Option<f64>) -> Option<f64> {
     score.filter(|score| (0.0..=10.0).contains(score))
+}
+
+/// The first [`MAX_TRAILERS`] of `trailers` the Kernel can link to.
+fn trailers(trailers: Vec<wire::Trailer>) -> Vec<Trailer> {
+    (trailers.into_iter().filter_map(trailer))
+        .take(MAX_TRAILERS)
+        .collect()
+}
+
+/// `trailer` as a link to its site, unless the Kernel doesn't link to that site or its key could
+/// make the link point anywhere else.
+fn trailer(trailer: wire::Trailer) -> Option<Trailer> {
+    let key = trailer.key;
+    let safe = !key.is_empty()
+        && (key.bytes()).all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_');
+    let url = match trailer.site.as_str() {
+        "YouTube" if safe => format!("https://www.youtube.com/watch?v={key}"),
+        "Vimeo" if safe => format!("https://vimeo.com/{key}"),
+        _ => return None,
+    };
+    let name = if trailer.name.trim().is_empty() {
+        "Trailer".to_owned()
+    } else {
+        trailer.name
+    };
+    Some(Trailer { name, url })
 }
 
 pub(super) fn season(season: wire::Season) -> Result<Season, MetadataError> {

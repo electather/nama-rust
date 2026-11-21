@@ -241,3 +241,23 @@ async fn a_looked_up_title_no_match_ties_to_the_id_it_was_added_under_is_not_on_
     // Its page's Remove would clear only `tmdb-348`, and leave it on.
     assert!(!alien.on_watchlist);
 }
+
+#[tokio::test]
+async fn a_looked_up_movie_and_show_have_their_trailers() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    let alien = as_grace.try_look_up_movie(tmdb_id(ALIEN)).await.unwrap();
+    let dark = as_grace.try_look_up_show(tmdb_id(DARK)).await.unwrap();
+
+    let official = &alien.trailers[0];
+    assert_eq!(
+        (official.name.as_str(), official.url.as_str()),
+        (
+            "Official Trailer",
+            "https://www.youtube.com/watch?v=LjLamj-b0I8"
+        )
+    );
+    assert_eq!((alien.trailers.len(), dark.trailers.len()), (2, 5));
+}

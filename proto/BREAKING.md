@@ -16,6 +16,12 @@ CI counts those headings, so a break passes only with one more than main has: ed
 - `UserService.SetHomeLayout` with `featured_hidden` unset leaves the caller's Featured as it is, where it read unset as shown. `SetDefaultHomeLayout` still reads unset as shown, and every response sets it.
 - A client built before sends a shown Featured as unset, since `false` was its default, so its `SetHomeLayout` can hide Featured but not show it again, and still pins a hidden Featured when it saves a row. It must regenerate, send `featured_hidden` when it changes Featured, and leave it unset otherwise. The web app is the only client.
 
+## 2026-11-21, #1528
+
+- None that `buf breaking` reports: in `nama/v1/server.proto`, `GetServerInfoResponse.searches_subtitles` (6) is deleted with its number and name reserved.
+- `GetServerInfo` answers before sign-in, so it no longer says whether a subtitle source is enabled; `PlaybackPlan.can_search_subtitles` says it to signed-in callers on each plan.
+- A client built before reads it as false, so it never offers a subtitle search; it must regenerate and read `PlaybackPlan.can_search_subtitles`. The web app is the only client.
+
 ## 2026-11-21, #1466
 
 - `RPC_NO_DELETE`, `nama/v1/request.proto`: `RequestService.SearchMovies` and `RequestService.SearchShows`.

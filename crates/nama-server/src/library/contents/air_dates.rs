@@ -15,7 +15,7 @@ pub(super) async fn store(
     show: &ExternalIds,
     season: &Season,
 ) -> Result<(), sqlx::Error> {
-    // The first id in namespace order, which `aired_episodes` looks it up by, as `title_scores`.
+    // The first id in namespace order, which `aired_episodes` looks it up by, as `title_details`.
     let Some(id) = show.iter().next() else {
         return Ok(());
     };
