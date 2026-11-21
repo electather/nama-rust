@@ -1634,7 +1634,7 @@ impl ::serde::Serialize for FeaturedSuggestionOwnedView {
 /// What the `shared_rows` and `user_rows` exports return.
 #[derive(Clone, Debug, Default)]
 pub struct HomeRowsView<'a> {
-    /// The rows, in the order home shows them. The Kernel keeps the first 3.
+    /// The rows, in the order home shows them. The Kernel keeps the first 20.
     ///
     /// Field 1: `rows`
     pub rows: ::buffa::RepeatedView<'a, super::super::__buffa::view::HomeRowView<'a>>,
@@ -1866,7 +1866,7 @@ impl HomeRowsOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The rows, in the order home shows them. The Kernel keeps the first 3.
+    /// The rows, in the order home shows them. The Kernel keeps the first 20.
     ///
     /// Field 1: `rows`
     #[must_use]

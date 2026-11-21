@@ -61,7 +61,7 @@ pub(super) const BLOB_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How long a Home row refresh may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`],
-/// since a refresh may page an outside service for 3 rows of 200 titles each (ADR 0058).
+/// since a refresh may page an outside service for 20 rows of 200 titles each (ADR 0091).
 pub(super) const HOME_ROWS_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.

@@ -4,28 +4,46 @@ use nama_plugin_api::contract::{HomeRow, TitleKind};
 
 use super::kept;
 use crate::home_rows::{
-    Kind, Title,
+    Kind, Row, Title,
     tests::{given, movie, row, titled},
 };
 
+/// An answer of `count` rows keyed `row-1` on, each with no titles.
+fn numbered(count: usize) -> Vec<HomeRow> {
+    (1..=count)
+        .map(|n| row(&format!("row-{n}"), 3600, vec![]))
+        .collect()
+}
+
+fn keys(kept: &[Row]) -> Vec<&str> {
+    kept.iter().map(|row| row.key.as_str()).collect()
+}
+
 #[test]
-fn rows_past_three_titles_past_200_and_headings_past_40_characters_are_cut() {
+fn an_answer_of_21_rows_keeps_the_first_20_in_order() {
+    let (kept, _) = kept(given(numbered(21)));
+
+    let first_20: Vec<String> = (1..=20).map(|n| format!("row-{n}")).collect();
+    assert_eq!(keys(&kept), first_20);
+}
+
+#[test]
+fn an_answer_of_20_rows_keeps_them_all() {
+    let (kept, _) = kept(given(numbered(20)));
+
+    assert_eq!(kept.len(), 20);
+}
+
+#[test]
+fn titles_past_200_and_headings_past_40_characters_are_cut() {
     let many = (1..=250).map(|n| movie(&n.to_string())).collect();
     let long = HomeRow {
         heading: "Ü".repeat(45),
         ..row("long", 3600, many)
     };
-    let rows = vec![
-        long,
-        row("b", 3600, vec![]),
-        row("c", 3600, vec![]),
-        row("d", 3600, vec![]),
-    ];
 
-    let (kept, _) = kept(given(rows));
+    let (kept, _) = kept(given(vec![long]));
 
-    let keys: Vec<&str> = kept.iter().map(|row| row.key.as_str()).collect();
-    assert_eq!(keys, ["long", "b", "c"]);
     assert_eq!(kept[0].heading, "Ü".repeat(40));
     assert_eq!(kept[0].titles.len(), 200);
     assert_eq!(

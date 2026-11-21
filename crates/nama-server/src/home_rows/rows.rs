@@ -330,10 +330,10 @@ fn scope(plugin: PluginId, user: Option<i64>) -> Scope {
     }
 }
 
-/// What of `given` the Kernel keeps (ADR 0058): the first [`MAX_ROWS`] rows whose keys don't
-/// repeat, each with its first [`MAX_TITLES`] titles less those it can't read, and its heading
-/// cut to [`MAX_HEADING`] characters; and how long they stay fresh, the shortest of their times
-/// to live, or [`MIN_TTL`] for none.
+/// What of `given` the Kernel keeps (ADR 0058, ADR 0091): the first [`MAX_ROWS`] rows whose keys
+/// don't repeat, each with its first [`MAX_TITLES`] titles less those it can't read, and its
+/// heading cut to [`MAX_HEADING`] characters; and how long they stay fresh, the shortest of their
+/// times to live, or [`MIN_TTL`] for none.
 fn kept(given: Given) -> (Vec<Row>, Duration) {
     let mut keys = HashSet::new();
     let given_rows = (given.rows.into_iter())

@@ -74,7 +74,7 @@ message FeaturedSuggestion {
 
 // What the `shared_rows` and `user_rows` exports return.
 message HomeRows {
-  // The rows, in the order home shows them. The Kernel keeps the first 3.
+  // The rows, in the order home shows them. The Kernel keeps the first 20.
   repeated HomeRow rows = 1;
 }
 
