@@ -11,7 +11,7 @@ import { PlaybackPlanSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { adminStopQuery } from "@/shared/hooks/admin-stop-query";
 
 /** What every plan's query key starts with. */
-export const planKeyRoot = "planPlayback";
+export const planKey = ["planPlayback"] as const;
 
 /**
  * The plan for Version `versionId` as `asking` says, asked for once and never reused after, once
@@ -27,7 +27,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
   const { replacing } = asking;
   return useSuspenseQuery({
     queryKey: [
-      planKeyRoot,
+      ...planKey,
       String(versionId),
       failedMethods,
       String(startPositionMs),
