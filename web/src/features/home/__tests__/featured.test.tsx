@@ -163,3 +163,24 @@ test("the Watchlist button turns to Remove as you press it, and back if the Serv
     screen.findByRole("button", { name: "Add to your Watchlist" }),
   ).resolves.toBeDefined();
 });
+
+test("clicking the open panel opens its title's page, and a tap on a closed one only opens it", async () => {
+  openHome([
+    { libraryId: 1n, movieOrShow: { case: "movie", value: arrival } },
+    { libraryId: 2n, movieOrShow: { case: "show", value: severance } },
+  ]);
+
+  const severancePanel = await screen.findByRole("button", { name: "Show Severance" });
+  fireEvent.pointerDown(severancePanel);
+  fireEvent.mouseEnter(severancePanel);
+  fireEvent.click(severancePanel, { detail: 1 });
+  expect(panelOf("Severance").dataset["open"]).toBe("");
+  expect(location.pathname).toBe("/");
+
+  fireEvent.pointerDown(severancePanel);
+  fireEvent.click(severancePanel, { detail: 1 });
+
+  await waitFor(() => {
+    expect(location.pathname).toBe("/libraries/2/shows/tmdb-95396");
+  });
+});

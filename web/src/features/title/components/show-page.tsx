@@ -70,9 +70,12 @@ export function ShowPage({
         current={season}
         onPick={pick}
       />
-      <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
-      <TitleTrailers trailers={data.show.trailers} />
+      <TitleTrailers
+        trailers={data.show.trailers}
+        art={{ url: data.show.backdropUrl, thumbhash: data.show.backdropThumbhash }}
+      />
       <SimilarTitles heading="Similar titles" titles={similarShows(data.similar)} />
+      <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
       <ShowDetails
         libraryId={libraryId}
         show={data.show}

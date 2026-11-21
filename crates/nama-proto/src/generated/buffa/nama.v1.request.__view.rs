@@ -17261,8 +17261,8 @@ impl ::serde::Serialize for FoundMovieOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A video advertising a Movie or Show, as a link to where it is hosted. A client only links to
-/// it, so showing a title tells the host nothing until a User opens one.
+/// A video advertising a Movie or Show, as a link to where it is hosted. A client plays it only in
+/// the host's own player, so showing a title tells the host nothing until a User opens one.
 #[derive(Clone, Debug, Default)]
 pub struct TrailerView<'a> {
     /// What it is called, such as `Official Trailer`.

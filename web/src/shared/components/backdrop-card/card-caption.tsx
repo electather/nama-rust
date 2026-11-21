@@ -8,11 +8,8 @@ import type { ReactNode } from "react";
 export function CardCaption({ caption, menu }: { caption: ReactNode; menu: ReactNode }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0">
-      <div aria-hidden className="absolute inset-0 mask-t-from-60% backdrop-blur-lg" />
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-linear-to-b from-transparent via-scrim/80 via-35% to-scrim"
-      />
+      <div aria-hidden className="absolute inset-0 mask-t-from-20% backdrop-blur-sm" />
+      <div aria-hidden className="absolute inset-0 caption-scrim" />
       <div className="relative flex items-end gap-2 px-1 pt-14 pb-1">
         <div aria-hidden className="flex min-w-0 flex-1 flex-col gap-0.5 ps-2.5 pb-3">
           {caption}

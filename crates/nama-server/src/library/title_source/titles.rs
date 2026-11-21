@@ -123,7 +123,7 @@ pub(crate) struct Show {
     pub(crate) roles: Roles,
 }
 
-/// A Trailer, as a link to where it is hosted: Nama never embeds or plays one (`GLOSSARY.md`).
+/// A Trailer, as a link to where it is hosted: Nama plays one only in its host's player (`GLOSSARY.md`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Trailer {
     /// What it is called, such as `Official Trailer`.
