@@ -2,9 +2,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type ReactNode, useRef } from "react";
 
 import { useLoadAtEnd } from "@/features/home/hooks/use-load-at-end";
-import { shelfBleed } from "@/features/home/lib/shelf-bleed";
 import type { ShelfTile } from "@/features/home/lib/shelf-tiles";
 import { paddingFor } from "@/shared/lib/padding-for";
+import { shelfBleed } from "@/shared/lib/shelf-bleed";
 
 declare module "react" {
   interface CSSProperties {
