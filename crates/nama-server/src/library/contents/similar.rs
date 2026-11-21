@@ -25,11 +25,7 @@ pub(super) async fn store(
     conn: &mut SqliteConnection,
     matched: &Metadata,
 ) -> Result<(), sqlx::Error> {
-    let (kind, ids) = if matched.show_title.is_some() {
-        (TitleKind::Show, &matched.show_ids)
-    } else {
-        (TitleKind::Movie, &matched.ids)
-    };
+    let (kind, ids) = matched.title();
     let Some((kind, id)) = key(kind, ids) else {
         return Ok(());
     };

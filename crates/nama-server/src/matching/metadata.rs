@@ -7,7 +7,7 @@ use nama_plugin_api::{PluginId, metadata::ExternalIds};
 
 use super::{Matcher, Outcomes};
 use crate::library::{
-    ImageRef, Metadata, Picked, SimilarAnswer, SourceEpisode, SourceSeason, SourceShow, TitleKind,
+    ImageRef, Metadata, Picked, SimilarAnswer, SourceEpisode, SourceSeason, SourceShow,
 };
 
 impl Matcher {
@@ -17,11 +17,8 @@ impl Matcher {
         let mut answered: HashMap<ExternalIds, Vec<SimilarAnswer>> = HashMap::new();
         for (_, outcome) in &mut outcomes.items {
             let Ok(matched) = outcome else { continue };
-            let (kind, ids) = if matched.show_title.is_some() {
-                (TitleKind::Show, matched.show_ids.clone())
-            } else {
-                (TitleKind::Movie, matched.ids.clone())
-            };
+            let (kind, ids) = matched.title();
+            let ids = ids.clone();
             if !answered.contains_key(&ids) {
                 let answers = self.similar.ask(kind, &ids).await;
                 answered.insert(ids.clone(), answers);
