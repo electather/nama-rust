@@ -648,9 +648,13 @@ impl Caller {
         self,
         _asked: RefreshMetadataAsked,
     ) -> Result<MetadataRefreshed, KernelRefused> {
-        let refreshed = (self.automation.scanner.refresh_metadata())
-            .await
-            .map_err(|err| self.database_refused("refreshing metadata", &err))?;
+        let refreshed = match self.automation.scanner.refresh_metadata().await {
+            Ok(refreshed) => refreshed,
+            Err(scanner::Error::Cancelled) => {
+                return Err(KernelRefused("the Server is stopping".to_owned()));
+            }
+            Err(err) => return Err(self.database_refused("refreshing metadata", &err)),
+        };
         Ok(MetadataRefreshed {
             titles: refreshed.titles,
             unavailable_plugin_ids: (refreshed.unavailable.iter())

@@ -38,6 +38,7 @@ use crate::{
     library::{
         Contents, Libraries, Metadata, MovieOrEpisode, Progress, TitleKind, WatchStates,
         fixture::{self, MatchedMovie, tmdb_movie},
+        scripted::{ScriptedSource, SourcesAsked},
     },
     plugins::{ExtensionPoints, KERNEL_IMPORTS, Registry},
     requests::Requests,
@@ -772,23 +773,18 @@ async fn refresh_metadata_answers_how_many_titles_it_fetched_again() {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     movies(&db, media.path(), &[ALIEN_TMDB_ID]).await;
     let (automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_REFRESH_METADATA);
-    let tmdb = FakeTmdb::start().await;
-    let settings = Settings::new(BTreeMap::from([(
-        "api_key".to_owned(),
-        SettingValue::Text(API_KEY.to_owned()),
-    )]));
-    let registry = automation.plugins.registry();
-    let source = Arc::new(Tmdb::with_endpoints(tmdb.endpoints()));
-    registry.enable_with_settings(source, settings).unwrap();
+    let tmdb =
+        ScriptedSource::new("tmdb", &SourcesAsked::default()).with_movie(&["tmdb-348"], "Alien");
+    automation
+        .plugins
+        .registry()
+        .enable(Arc::new(tmdb))
+        .unwrap();
 
-    let refreshed = ask::<MetadataRefreshed>(
-        &kernel,
-        "refresh_metadata",
-        &RefreshMetadataAsked::default(),
-    )
-    .await
-    .unwrap();
+    let asked = RefreshMetadataAsked::default();
+    let refreshed = ask::<MetadataRefreshed>(&kernel, "refresh_metadata", &asked).await;
 
+    let refreshed = refreshed.unwrap();
     assert_eq!(
         (refreshed.titles, refreshed.unavailable_plugin_ids),
         (1, vec![])

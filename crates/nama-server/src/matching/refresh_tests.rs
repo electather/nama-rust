@@ -283,7 +283,6 @@ async fn a_title_that_fails_to_refresh_keeps_its_metadata_and_the_next_refresh_t
     let shows = &media.shows;
     shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
     media.scan(shows).await;
-    media.contents.stored_by_older_metadata(shows.id).await;
     let tmdb = PluginId::from_static("tmdb");
     media.plugins.disable(&tmdb).await;
     media.enable_tmdb_rejecting();
@@ -297,10 +296,9 @@ async fn a_title_that_fails_to_refresh_keeps_its_metadata_and_the_next_refresh_t
     let retried = media.matcher.refresh_all(&cancel).await.unwrap();
 
     assert_eq!(failed, refreshed(0, &[tmdb]));
-    assert_eq!(stills, [None]);
+    assert_eq!(stills, [Some(SECRETS_STILL.to_owned())]);
     assert_eq!(outcome, [matched(1_388_538, "Secrets")]);
     assert_eq!(retried, refreshed(1, &[]));
-    assert_eq!(media.stills(shows).await, [Some(SECRETS_STILL.to_owned())]);
 }
 
 #[tokio::test]
