@@ -1136,6 +1136,18 @@ pub struct JobRun {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub error: ::buffa::alloc::string::String,
+    /// The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
+    /// Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
+    /// `Job.last_run`.
+    ///
+    /// Field 6: `log_lines`
+    #[serde(
+        rename = "logLines",
+        alias = "log_lines",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub log_lines: ::buffa::alloc::vec::Vec<PluginLogLine>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1148,6 +1160,7 @@ impl ::core::fmt::Debug for JobRun {
             .field("started_at_ms", &self.started_at_ms)
             .field("ended_at_ms", &self.ended_at_ms)
             .field("error", &self.error)
+            .field("log_lines", &self.log_lines)
             .finish()
     }
 }
@@ -1183,7 +1196,7 @@ impl ::buffa::Message for JobRun {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -1205,12 +1218,20 @@ impl ::buffa::Message for JobRun {
         if !self.error.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.error) as u64;
         }
+        for v in &self.log_lines {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -1232,6 +1253,14 @@ impl ::buffa::Message for JobRun {
         }
         if !self.error.is_empty() {
             ::buffa::types::put_string_field(5u32, &self.error, buf);
+        }
+        for v in &self.log_lines {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1285,6 +1314,18 @@ impl ::buffa::Message for JobRun {
                 )?;
                 ::buffa::types::merge_string(&mut self.error, buf)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.log_lines.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1298,6 +1339,7 @@ impl ::buffa::Message for JobRun {
         self.started_at_ms = 0i64;
         self.ended_at_ms = ::core::option::Option::None;
         self.error.clear();
+        self.log_lines.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

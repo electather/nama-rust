@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/plugin.proto";
+
 // The Jobs the enabled Plugins declare, which the Server runs on their schedules, and their Job
 // Runs (ADR 0079). Needs `PERMISSION_ADMIN`, and fails with `permission_denied` without it.
 service JobService {
@@ -69,6 +71,10 @@ message JobRun {
   optional int64 ended_at_ms = 4;
   // Why it failed, in the Plugin's words or saying it crashed, for `JOB_RUN_OUTCOME_FAILED`.
   string error = 5;
+  // The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
+  // Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
+  // `Job.last_run`.
+  repeated PluginLogLine log_lines = 6;
 }
 
 // How a Job Run ended, or that it hasn't.

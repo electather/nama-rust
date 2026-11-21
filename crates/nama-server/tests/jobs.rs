@@ -127,7 +127,8 @@ async fn waits_last_outcome(server: &TestServer) -> JobRunOutcome {
 }
 
 #[tokio::test]
-async fn an_admin_sees_each_job_and_its_runs_a_disabled_plugins_come_back_and_others_are_refused() {
+async fn an_admin_sees_each_job_and_its_runs_with_their_lines_a_disabled_plugins_come_back_and_others_are_refused()
+ {
     let server = with_jobs().await;
     // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
     let log = Log::global();
@@ -175,6 +176,16 @@ async fn an_admin_sees_each_job_and_its_runs_a_disabled_plugins_come_back_and_ot
         panic!("not one Run: {runs:?}");
     };
     assert!(run.ended_at_ms.is_some_and(|end| end > run.started_at_ms));
+    let texts: Vec<&str> = run
+        .log_lines
+        .iter()
+        .map(|line| line.text.as_str())
+        .collect();
+    let [started_line, ended_line] = texts[..] else {
+        panic!("not the Run's two lines: {texts:?}");
+    };
+    assert!(started_line.starts_with(STARTED[0]), "{started_line}");
+    assert_eq!(ended_line, ENDED[0]);
 
     let plugins = server.plugin_service();
     let id = "test-plugin".to_owned();

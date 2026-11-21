@@ -531,7 +531,7 @@ fn plugin_to_proto(
     }
 }
 
-fn plugin_line_to_proto(line: PluginLine) -> proto::PluginLogLine {
+pub(super) fn plugin_line_to_proto(line: PluginLine) -> proto::PluginLogLine {
     let level = match line.level {
         Level::ERROR => proto::PluginLogLevel::PLUGIN_LOG_LEVEL_ERROR,
         Level::WARN => proto::PluginLogLevel::PLUGIN_LOG_LEVEL_WARN,

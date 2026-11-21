@@ -1591,6 +1591,15 @@ pub struct JobRunView<'a> {
     ///
     /// Field 5: `error`
     pub error: &'a str,
+    /// The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
+    /// Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
+    /// `Job.last_run`.
+    ///
+    /// Field 6: `log_lines`
+    pub log_lines: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::PluginLogLineView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for JobRunView<'a> {
@@ -1660,6 +1669,26 @@ impl<'a> ::buffa::MessageView<'a> for JobRunView<'a> {
                 )?;
                 view.error = ::buffa::types::borrow_str(&mut cur)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::PluginLogLineView,
+                    >(),
+                )?;
+                view.log_lines
+                    .push(
+                        <super::super::__buffa::view::PluginLogLineView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1687,6 +1716,11 @@ impl<'a> ::buffa::MessageView<'a> for JobRunView<'a> {
             started_at_ms: self.started_at_ms,
             ended_at_ms: self.ended_at_ms,
             error: self.error.to_string(),
+            log_lines: self
+                .log_lines
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1694,7 +1728,7 @@ impl<'a> ::buffa::MessageView<'a> for JobRunView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for JobRunView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -1716,13 +1750,21 @@ impl<'a> ::buffa::ViewEncode<'a> for JobRunView<'a> {
         if !self.error.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.error) as u64;
         }
+        for v in &self.log_lines {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -1744,6 +1786,14 @@ impl<'a> ::buffa::ViewEncode<'a> for JobRunView<'a> {
         }
         if !self.error.is_empty() {
             ::buffa::types::put_string_field(5u32, &self.error, buf);
+        }
+        for v in &self.log_lines {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1784,6 +1834,9 @@ impl<'__a> ::serde::Serialize for JobRunView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.error) {
             __map.serialize_entry("error", self.error)?;
+        }
+        if !self.log_lines.is_empty() {
+            __map.serialize_entry("logLines", &*self.log_lines)?;
         }
         __map.end()
     }
@@ -1905,6 +1958,17 @@ impl JobRunOwnedView {
     #[must_use]
     pub fn error(&self) -> &'_ str {
         self.0.reborrow().error
+    }
+    /// The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
+    /// Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
+    /// `Job.last_run`.
+    ///
+    /// Field 6: `log_lines`
+    #[must_use]
+    pub fn log_lines(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::PluginLogLineView<'_>> {
+        &self.0.reborrow().log_lines
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<JobRunView<'static>>> for JobRunOwnedView {

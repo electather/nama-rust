@@ -5,7 +5,7 @@ use tracing_subscriber::layer::SubscriberExt as _;
 
 use super::{
     MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, PluginLine, following_current, forget_plugin_lines,
-    keep_plugin_lines, layer, plugin_lines, plugin_lines_layer, push_plugin_line,
+    job_run_span, keep_plugin_lines, layer, plugin_lines, plugin_lines_layer, push_plugin_line,
     service_and_method,
 };
 
@@ -66,6 +66,7 @@ fn line(at_ms: i64) -> PluginLine {
         at_ms,
         level: Level::INFO,
         text: format!("line {at_ms}"),
+        run: None,
     }
 }
 
@@ -173,4 +174,33 @@ fn an_installed_plugins_line_named_by_a_str_is_kept() {
     });
 
     assert_eq!(kept, ["hello"]);
+}
+
+#[test]
+fn a_line_written_during_a_job_run_carries_its_id_and_one_outside_carries_none() {
+    let plugin = PluginId::from_static("runs-jobs");
+    keep_plugin_lines(&plugin);
+    let subscriber = tracing_subscriber::registry().with(plugin_lines_layer());
+    tracing::subscriber::with_default(subscriber, || {
+        tracing::info!(target: PLUGIN_TARGET, plugin = %plugin, "before");
+        job_run_span(7).in_scope(|| {
+            tracing::info!(target: PLUGIN_TARGET, plugin = %plugin, "installed");
+            let builtin = tracing::error_span!(target: PLUGIN_TARGET, "plugin", plugin = %plugin);
+            builtin.in_scope(|| tracing::info!(target: "nama_plugin_upkeep", "built-in"));
+        });
+    });
+
+    let runs: Vec<(String, Option<i64>)> = plugin_lines(&plugin)
+        .into_iter()
+        .rev()
+        .map(|line| (line.text, line.run))
+        .collect();
+    assert_eq!(
+        runs,
+        [
+            ("before".to_owned(), None),
+            ("installed".to_owned(), Some(7)),
+            ("built-in".to_owned(), Some(7)),
+        ]
+    );
 }
