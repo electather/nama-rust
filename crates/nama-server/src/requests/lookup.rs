@@ -50,6 +50,13 @@ pub(crate) struct ShowToRequest {
     pub(crate) followed: bool,
 }
 
+impl ShowToRequest {
+    /// Whether the viewer sees it Requested: through a Season Request or its Followed Show.
+    pub(crate) fn requested(&self) -> bool {
+        self.request.is_some() || self.followed
+    }
+}
+
 /// A title a search found, which a Request can name by its id.
 #[derive(Debug)]
 pub(crate) struct Hit {
@@ -423,8 +430,11 @@ fn movie_standing(found: &Found<Candidate>) -> Standing<'_> {
 }
 
 fn show_standing(found: &ShowToRequest) -> Standing<'_> {
-    let requested = found.request.is_some() || found.followed;
-    (&found.hit.candidate, found.library.is_some(), requested)
+    (
+        &found.hit.candidate,
+        found.library.is_some(),
+        found.requested(),
+    )
 }
 
 /// `found`, in the title source's order, less any with an id in `in_libraries`: those a Library

@@ -77,13 +77,13 @@ impl SearchService for SearchServiceHandler {
         };
         let (requests, query) = (self.requests.clone(), query.to_owned());
         let after_library = async move {
-            let asks = |of| kind.is_none_or(|kind| kind == of);
+            let searches = |of| kind.is_none_or(|kind| kind == of);
             let movies = OptionFuture::from(
-                asks(TitleKind::Movie)
+                searches(TitleKind::Movie)
                     .then(|| requests.search_to_request(&viewer, &query, &movie_ids)),
             );
             let shows = OptionFuture::from(
-                asks(TitleKind::Show)
+                searches(TitleKind::Show)
                     .then(|| requests.search_shows_to_request(&viewer, &query, &show_ids)),
             );
             let (movies, shows) = future::join(movies, shows).await;
@@ -214,14 +214,14 @@ fn movie_to_request_hit(found: requests::Found<Candidate>, images: &ShownImages)
 
 /// A Show the title source found, with how close it is to being on the Server.
 fn show_to_request_hit(found: ShowToRequest, images: &ShownImages) -> proto::Hit {
-    let requested = found.request.is_some() || found.followed;
+    let status = status(found.library, found.requested());
     let show = proto::ShowHit {
         library_id: found.library,
         request: found.request.into(),
         ..searched_show_to_proto(found.hit, images)
     };
     proto::Hit {
-        status: status(found.library, requested).into(),
+        status: status.into(),
         title: show.into(),
         ..Default::default()
     }

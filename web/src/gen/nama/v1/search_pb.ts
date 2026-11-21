@@ -302,8 +302,8 @@ export const SearchService: GenService<{
    * precedence to find any is asked for the query, as it is typed.
    *
    * Streams the batch the Libraries found at once, then, for a caller who may request, the
-   * title source's for each kind it answered, Movies first, then `Done`. Fails with `invalid_argument` if the query is blank
-   * (`REFUSAL_REASON_FIELD_REQUIRED`).
+   * title source's for each kind it answered, Movies first, then `Done`. Fails with
+   * `invalid_argument` if the query is blank (`REFUSAL_REASON_FIELD_REQUIRED`).
    *
    * @generated from rpc nama.v1.SearchService.Search
    */
