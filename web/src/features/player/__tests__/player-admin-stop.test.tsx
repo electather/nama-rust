@@ -54,6 +54,17 @@ function ended({ events }: Server, planId: bigint, message?: string) {
   events.send({ event: { case: "playbackEnded", value: { playback: { planId }, adminStop } } });
 }
 
+/** Waits until the app has applied every Event sent so far and rendered what they change. */
+async function eventsApplied({ events, moviesAsked }: Server) {
+  const asked = moviesAsked();
+  // Events apply in order, so once this later one refetches the Movie, the earlier ones are in.
+  events.send({ event: { case: "libraryItemRemoved", value: { libraryId: 1n } } });
+  await waitFor(() => {
+    expect(moviesAsked()).toBeGreaterThan(asked);
+  });
+  await act(async () => {});
+}
+
 test("an Admin's stop closes the player and shows what they said", async () => {
   const server = matrixServer();
   openApp(PLAYER, server.transport);
@@ -72,16 +83,10 @@ test("another plan's stop, or this plan ending without an Admin, leaves the play
   const server = matrixServer();
   openApp(PLAYER, server.transport);
   await screen.findByLabelText("The Matrix");
-  const asked = server.moviesAsked();
 
   ended(server, 2n, MESSAGE);
   ended(server, 1n);
-  // Refetches the Movie once the Events before it are applied.
-  server.events.send({ event: { case: "libraryItemRemoved", value: { libraryId: 1n } } });
-  await waitFor(() => {
-    expect(server.moviesAsked()).toBeGreaterThan(asked);
-  });
-  await act(async () => {});
+  await eventsApplied(server);
 
   expect(screen.queryByRole("heading", { name: "An Admin stopped playback" })).toBeNull();
   expect(screen.getByLabelText("The Matrix")).toBeDefined();
@@ -112,13 +117,9 @@ test("a stop kept from before the Server restarted doesn't close a new plan give
   const server = matrixServer();
   openApp("/libraries/1/movies/tmdb-603", server.transport);
   const play = await screen.findByRole("link", { name: /^(?:Play|Resume)/u });
-  const asked = server.moviesAsked();
   // Plan ids start again at 1 when the Server restarts.
   ended(server, 1n, MESSAGE);
-  server.events.send({ event: { case: "libraryItemRemoved", value: { libraryId: 1n } } });
-  await waitFor(() => {
-    expect(server.moviesAsked()).toBeGreaterThan(asked);
-  });
+  await eventsApplied(server);
 
   fireEvent.click(play);
 
