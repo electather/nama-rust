@@ -13,7 +13,7 @@ use nama_plugin_api::{
     Registration, Stop,
     automation::{Kernel, KernelRefused, Permission},
     fulfiller::{Fulfiller, Movies, Shows},
-    settings::{Choices, SettingKind, Settings, SettingsSchema},
+    settings::{Choices, SettingField, SettingKind, Settings, SettingsSchema},
 };
 use nama_proto::nama::v1::PluginKind;
 use tokio::sync::{mpsc, watch};
@@ -251,7 +251,7 @@ impl Registry {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
-        refuse_flawed(manifest)?;
+        refuse_flawed(manifest, plugin.settings_check().is_some())?;
         let schema = &manifest.settings;
         let settings = settings
             .resolve(schema)
@@ -659,10 +659,18 @@ pub(super) fn personal_settings_refusal(manifest: &Manifest) -> Option<String> {
     })
 }
 
-/// Refuses `manifest` if [`personal_settings_refusal`] or [`jobs::refusal`] says why, as loading
-/// an Installed Plugin does.
-fn refuse_flawed(manifest: &Manifest) -> Result<(), EnableError> {
-    let refusal = personal_settings_refusal(manifest).or_else(|| jobs::refusal(manifest));
+/// Refuses `manifest` for a flawed setting, or if [`personal_settings_refusal`] or
+/// [`jobs::refusal`] says why, as loading an Installed Plugin does. `offers_choices` is whether
+/// its Plugin has a settings check to offer a Choices setting's choices.
+fn refuse_flawed(manifest: &Manifest, offers_choices: bool) -> Result<(), EnableError> {
+    let flaw_in = |schema: &SettingsSchema| schema.fields.iter().find_map(SettingField::flaw);
+    let flaw = flaw_in(&manifest.settings)
+        .or_else(|| manifest.settings.unoffered_choices(offers_choices))
+        .or_else(|| flaw_in(&manifest.personal_settings));
+    let refusal = flaw
+        .map(|flaw| flaw.to_string())
+        .or_else(|| personal_settings_refusal(manifest))
+        .or_else(|| jobs::refusal(manifest));
     refusal.map_or(Ok(()), |reason| {
         Err(EnableError::Refused {
             plugin: manifest.id.clone(),
