@@ -1,6 +1,6 @@
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{add, has};
+use super::{add, has, list, remove};
 use crate::{db::Database, library::TitleKind};
 
 async fn insert_user(db: &Database) -> i64 {
@@ -46,4 +46,22 @@ async fn deleting_a_user_deletes_their_watchlist() {
         .await
         .unwrap();
     assert_eq!(rows, 0);
+}
+
+#[tokio::test]
+async fn list_answers_the_newest_added_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Database::open(dir.path()).await.unwrap();
+    let ada = insert_user(&db).await;
+    let [alien, heat, up] = ["348", "949", "14160"].map(|id| ExternalId::new("tmdb", id).unwrap());
+    for id in [&up, &alien, &heat] {
+        add(&db, ada, TitleKind::Movie, id).await.unwrap();
+    }
+    remove(&db, ada, TitleKind::Movie, &up).await.unwrap();
+    add(&db, ada, TitleKind::Movie, &up).await.unwrap();
+
+    let listed = list(&db, ada).await.unwrap();
+
+    let ids: Vec<_> = listed.iter().map(|(_, id)| id.to_string()).collect();
+    assert_eq!(ids, ["tmdb-14160", "tmdb-949", "tmdb-348"]);
 }

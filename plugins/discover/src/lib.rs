@@ -1,14 +1,19 @@
 //! The Discover Installed Plugin: a Home row source of rows every User sees, such as Trending this
-//! week, from TMDB, the Admin picking which it offers. The Server builds it for wasm32 and bundles
-//! it in its binary.
+//! week, from TMDB, and of each User's own, such as their Watchlist, the Admin picking which it
+//! offers. The Server builds it for wasm32 and bundles it in its binary.
 
-use std::time::Duration;
+use std::{
+    cmp::Reverse,
+    collections::{HashMap, HashSet},
+    time::{Duration, UNIX_EPOCH},
+};
 
 use nama_pdk::{
     CheckedSettings, HomeRow, HomeRowSource, HomeRowTitle, HomeRows, Manifest, OutsideService,
-    Permission, SettingField, SettingKind, TitleId, TitleKind, checked_settings,
-    choices_setting_field,
+    Permission, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind, UserRowsAsked,
+    WatchState, WatchlistTitle, checked_settings, choices_setting_field,
     extism_pdk::{Error, HttpRequest, json},
+    kernel,
     nama_plugin_proto::nama::plugin::v1::Texts,
     services, setting_default, setting_field, setting_value,
 };
@@ -18,6 +23,7 @@ use url::Url;
 const API_KEY: &str = "api_key";
 const REGION: &str = "region";
 const SHARED_ROWS: &str = "shared_rows";
+const USER_ROWS: &str = "user_rows";
 
 /// The most rows the Kernel keeps from one answer (ADR 0091): picking more would lose some.
 const MOST_PICKS: usize = 20;
@@ -55,6 +61,26 @@ const SHARED: [(&str, &str); 18] = [
 /// How long a shared row stays fresh: TMDB's charts move daily at most.
 const FRESH_FOR: Duration = Duration::from_hours(24);
 
+const WATCH_AGAIN: &str = "watch-again";
+const WATCHLIST: &str = "watchlist";
+
+/// Every row Discover offers each User, by key and heading, as [`SHARED`] lists its rows. Because
+/// you watched and More genre each stand for several rows, headed by what they follow.
+const PER_USER: [(&str, &str); 6] = [
+    ("because", "Because you watched"),
+    ("more-genre", "More genre"),
+    ("starring", "Starring"),
+    ("from", "From"),
+    (WATCH_AGAIN, "Watch it again"),
+    (WATCHLIST, "Your Watchlist"),
+];
+
+/// How long a User's row stays fresh. The Kernel asks again sooner once they play something.
+const USER_FRESH_FOR: Duration = Duration::from_hours(6);
+
+/// How long since a title was last played before Watch it again offers it.
+const WATCH_AGAIN_AFTER: Duration = Duration::from_hours(365 * 24);
+
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
 #[expect(
@@ -79,13 +105,19 @@ mod exports {
 /// so a key TMDB refuses fails the check.
 ///
 /// # Errors
-/// If more than [`MOST_PICKS`] shared rows are picked, or TMDB refuses the key or can't answer.
+/// If more than [`MOST_PICKS`] shared rows, or rows for each User, are picked, or TMDB refuses
+/// the key or can't answer.
 fn check_settings() -> Result<CheckedSettings, Error> {
-    let picked = nama_pdk::setting_picked(SHARED_ROWS)?.len();
-    if picked > MOST_PICKS {
-        return Err(Error::msg(format!(
-            "pick at most {MOST_PICKS} shared rows, not {picked}"
-        )));
+    for (key, rows) in [
+        (SHARED_ROWS, "shared rows"),
+        (USER_ROWS, "rows for each User"),
+    ] {
+        let picked = nama_pdk::setting_picked(key)?.len();
+        if picked > MOST_PICKS {
+            return Err(Error::msg(format!(
+                "pick at most {MOST_PICKS} {rows}, not {picked}"
+            )));
+        }
     }
     let mut countries: Vec<Country> = Api::from_settings()?.get(&["configuration", "countries"])?;
     countries.sort_by(|a, b| a.english_name.cmp(&b.english_name));
@@ -106,7 +138,7 @@ const SETUP: &str = "\
 1. Sign in to [TMDB](https://www.themoviedb.org/), or sign up there for free.
 2. Under [Settings, API](https://www.themoviedb.org/settings/api), ask for an API key, then copy its API Key, not its Read Access Token, into the TMDB API key setting below.
 3. Press Test to check the key and list the countries Region offers.
-4. Pick up to 20 Shared rows. Users hide or reorder them in their Home layout.
+4. Pick up to 20 Shared rows, and up to 20 Your rows. Users hide or reorder them in their Home layout.
 ";
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
@@ -130,15 +162,12 @@ fn manifest() -> Manifest {
             SettingKind::SETTING_KIND_CHOICE,
         )
     };
-    let defaults = [TRENDING, "top-rated-movies", "top-rated-shows"].map(str::to_owned);
     let shared_rows = SettingField {
-        default_value: setting_default(
-            Texts {
-                values: defaults.to_vec(),
-                ..Texts::default()
-            }
-            .into(),
-        ),
+        default_value: setting_default(picked_choices([
+            TRENDING,
+            "top-rated-movies",
+            "top-rated-shows",
+        ])),
         ..choices_setting_field(
             SHARED_ROWS,
             "Shared rows",
@@ -146,10 +175,23 @@ fn manifest() -> Manifest {
             SHARED,
         )
     };
+    let user_rows = SettingField {
+        default_value: setting_default(picked_choices(["because", "more-genre", WATCHLIST])),
+        ..choices_setting_field(
+            USER_ROWS,
+            "Your rows",
+            format!(
+                "The rows each User gets from what they watch and their Watchlist, at most \
+                 {MOST_PICKS}."
+            ),
+            PER_USER,
+        )
+    };
     Manifest {
         name: "Discover".to_owned(),
-        description: "Shows rows such as Trending this week on the home page. This product uses \
-                      the TMDB API but is not endorsed or certified by TMDB."
+        description: "Shows rows such as Trending this week, and each User's Watchlist, on the \
+                      home page. This product uses the TMDB API but is not endorsed or certified \
+                      by TMDB."
             .to_owned(),
         logo_svg: include_str!("../logo.svg").to_owned(),
         points: vec![nama_pdk::point(services::HOME_ROW)],
@@ -162,13 +204,22 @@ fn manifest() -> Manifest {
             Permission::PERMISSION_READ_WATCHLISTS.into(),
             Permission::PERMISSION_STORE.into(),
         ],
-        settings: vec![api_key, region, shared_rows],
+        settings: vec![api_key, region, shared_rows, user_rows],
         setup_markdown: SETUP.to_owned(),
         homepage_url: "https://www.themoviedb.org/".to_owned(),
         source_url: concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/main/plugins/discover").to_owned(),
         license: env!("CARGO_PKG_LICENSE").to_owned(),
         ..nama_pdk::manifest("discover", env!("CARGO_PKG_VERSION"))
     }
+}
+
+/// The picked choices `values`, as a several-choices setting holds them.
+fn picked_choices<const N: usize>(values: [&str; N]) -> setting_value::Value {
+    Texts {
+        values: values.map(str::to_owned).to_vec(),
+        ..Texts::default()
+    }
+    .into()
 }
 
 /// Serves the rows the Admin picks.
@@ -184,22 +235,36 @@ impl HomeRowSource for Discover {
         let api = Api::from_settings()?;
         let picked = nama_pdk::setting_picked(SHARED_ROWS)?;
         let mut rows = Vec::new();
-        for (key, heading) in SHARED
-            .into_iter()
-            .filter(|(key, _)| picked.iter().any(|pick| pick == key))
-        {
+        for (key, heading) in picked_rows(&SHARED, &picked) {
             // ponytail: a picked row Discover doesn't answer yet is left out until it's built.
             let titles = match key {
                 TRENDING => api.titles(&["trending", "all", "week"])?,
                 _ => continue,
             };
-            rows.push(HomeRow {
-                key: key.to_owned(),
-                heading: heading.to_owned(),
-                ttl_seconds: FRESH_FOR.as_secs().try_into()?,
-                titles,
-                ..HomeRow::default()
-            });
+            rows.push(row(key, heading, FRESH_FOR, titles)?);
+        }
+        Ok(HomeRows {
+            rows,
+            ..HomeRows::default()
+        })
+    }
+
+    /// A row for each of the User's rows picked, in [`PER_USER`]'s order.
+    ///
+    /// # Errors
+    /// If the Kernel refuses to list the Libraries, the User's Watch States or their Watchlist.
+    fn user_rows(asked: UserRowsAsked) -> Result<HomeRows, Error> {
+        let picked = nama_pdk::setting_picked(USER_ROWS)?;
+        let history = History::of(asked.user_id)?;
+        let mut rows = Vec::new();
+        for (key, heading) in picked_rows(&PER_USER, &picked) {
+            // ponytail: a picked row Discover doesn't answer yet is left out until it's built.
+            let titles = match key {
+                WATCH_AGAIN => history.played_long_ago()?,
+                WATCHLIST => history.unstarted(&kernel::watchlist(asked.user_id)?),
+                _ => continue,
+            };
+            rows.push(row(key, heading, USER_FRESH_FOR, titles)?);
         }
         Ok(HomeRows {
             rows,
@@ -208,7 +273,190 @@ impl HomeRowSource for Discover {
     }
 }
 
-nama_pdk::home_row_source!(Discover, [shared_rows]);
+nama_pdk::home_row_source!(Discover, [shared_rows, user_rows]);
+
+/// The rows of `offered` whose key is `picked`, in `offered`'s order.
+fn picked_rows<'a>(
+    offered: &'a [(&'a str, &'a str)],
+    picked: &'a [String],
+) -> impl Iterator<Item = (&'a str, &'a str)> {
+    (offered.iter().copied()).filter(|(key, _)| picked.iter().any(|pick| pick == key))
+}
+
+/// The row `key` headed `heading`, of `titles`, fresh for `fresh_for`.
+fn row(
+    key: &str,
+    heading: &str,
+    fresh_for: Duration,
+    titles: Vec<HomeRowTitle>,
+) -> Result<HomeRow, Error> {
+    Ok(HomeRow {
+        key: key.to_owned(),
+        heading: heading.to_owned(),
+        ttl_seconds: fresh_for.as_secs().try_into()?,
+        titles,
+        ..HomeRow::default()
+    })
+}
+
+/// A Movie, or a Show by its Episodes' `show_id`, as a row names it.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct Key {
+    kind: TitleKind,
+    namespace: String,
+    value: String,
+}
+
+impl Key {
+    fn of(kind: TitleKind, id: &TitleId) -> Self {
+        Self {
+            kind,
+            namespace: id.namespace.clone(),
+            value: id.value.clone(),
+        }
+    }
+
+    /// The Movie `title` is, or the Show whose Episode it is; `None` for an Episode without its
+    /// Show's id.
+    fn of_title(title: &Title) -> Option<Self> {
+        let title_ref = title.title_ref.as_option()?;
+        match title_ref.kind.as_known()? {
+            TitleRefKind::TITLE_REF_KIND_MOVIE => Some(Self::of(
+                TitleKind::TITLE_KIND_MOVIE,
+                title_ref.id.as_option()?,
+            )),
+            TitleRefKind::TITLE_REF_KIND_EPISODE => Some(Self::of(
+                TitleKind::TITLE_KIND_SHOW,
+                title.show_id.as_option()?,
+            )),
+            TitleRefKind::TITLE_REF_KIND_UNSPECIFIED => None,
+        }
+    }
+
+    fn row_title(&self) -> HomeRowTitle {
+        HomeRowTitle {
+            kind: self.kind.into(),
+            id: TitleId {
+                namespace: self.namespace.clone(),
+                value: self.value.clone(),
+                ..TitleId::default()
+            }
+            .into(),
+            ..HomeRowTitle::default()
+        }
+    }
+}
+
+/// What one User did with each Movie and Show on the Server, in the order the Kernel lists them.
+struct History {
+    titles: Vec<Watched>,
+}
+
+/// One User's Watch State of a Movie, or of every Episode of a Show the Server has.
+struct Watched {
+    key: Key,
+    genres: Vec<String>,
+    /// The Movie's 1, or the Show's Episodes the Server has.
+    episodes: usize,
+    played_episodes: usize,
+    started: bool,
+    /// When the Watch State, or any Episode's, last changed, in milliseconds since the Unix epoch.
+    last_changed_ms: i64,
+}
+
+impl History {
+    /// The User `user`'s history of every title in every Library. A title whose Watch State isn't
+    /// paired with it is left out.
+    fn of(user: i64) -> Result<Self, Error> {
+        let mut titles = Vec::new();
+        for library in kernel::libraries()? {
+            titles.extend(kernel::titles(library.id)?);
+        }
+        let refs: Vec<_> = (titles.iter())
+            .map(|title| (*title.title_ref).clone())
+            .collect();
+        // ponytail: one call for every title on the Server, as Top Picks makes; ask a page at a
+        // time if a large Server's answer outgrows the Plugin's memory.
+        let states = kernel::watch_states(&refs, Some(user))?;
+        let mut order = Vec::new();
+        let mut watched: HashMap<Key, Watched> = HashMap::new();
+        for (title, state) in titles.iter().zip(&states) {
+            let Some(key) = Key::of_title(title).filter(|_| state.title_ref == title.title_ref)
+            else {
+                continue;
+            };
+            let entry = watched.entry(key.clone()).or_insert_with(|| {
+                order.push(key.clone());
+                Watched {
+                    key,
+                    genres: title.genres.clone(),
+                    episodes: 0,
+                    played_episodes: 0,
+                    started: false,
+                    last_changed_ms: 0,
+                }
+            });
+            entry.add(&state.states);
+        }
+        Ok(Self {
+            titles: (order.iter())
+                .filter_map(|key| watched.remove(key))
+                .collect(),
+        })
+    }
+
+    /// The titles of `watchlist` the User hasn't started or played, in its order.
+    ///
+    /// ponytail: a Watchlist title matches only by the id the Kernel lists it under, so one added
+    /// under another id shows even once started; match every id when the Kernel lists them.
+    fn unstarted(&self, watchlist: &[WatchlistTitle]) -> Vec<HomeRowTitle> {
+        let started: HashSet<&Key> = (self.titles.iter())
+            .filter(|title| title.started)
+            .map(|title| &title.key)
+            .collect();
+        (watchlist.iter())
+            .filter_map(|title| Some(Key::of(title.kind.as_known()?, title.id.as_option()?)))
+            .filter(|key| !started.contains(key))
+            .map(|key| key.row_title())
+            .collect()
+    }
+
+    /// The titles the User played through and last played over [`WATCH_AGAIN_AFTER`] ago, those
+    /// of the genre they played most first.
+    fn played_long_ago(&self) -> Result<Vec<HomeRowTitle>, Error> {
+        let long_ago = nama_pdk::now() - WATCH_AGAIN_AFTER;
+        let long_ago_ms = i64::try_from(long_ago.duration_since(UNIX_EPOCH)?.as_millis())?;
+        let mut genre_plays: HashMap<&str, usize> = HashMap::new();
+        for genre in (self.titles.iter().filter(|title| title.played_episodes > 0))
+            .flat_map(|title| &title.genres)
+        {
+            *genre_plays.entry(genre).or_default() += 1;
+        }
+        let mut again: Vec<&Watched> = (self.titles.iter())
+            .filter(|title| {
+                title.played_episodes == title.episodes && title.last_changed_ms < long_ago_ms
+            })
+            .collect();
+        again.sort_by_key(|title| {
+            let plays = (title.genres.iter()).filter_map(|genre| genre_plays.get(genre.as_str()));
+            Reverse(plays.max())
+        });
+        Ok(again.iter().map(|title| title.key.row_title()).collect())
+    }
+}
+
+impl Watched {
+    /// Adds `states`, the User's Watch State of the Movie or of one of the Show's Episodes.
+    fn add(&mut self, states: &[WatchState]) {
+        let played = states.iter().any(|state| state.played);
+        self.episodes += 1;
+        self.played_episodes += usize::from(played);
+        self.started |= played || states.iter().any(|state| state.position_ms > 0);
+        self.last_changed_ms = (states.iter())
+            .map(|state| state.updated_at_ms)
+            .fold(self.last_changed_ms, i64::max);
+    }
+}
 
 /// TMDB's API, asked with the Admin's key.
 struct Api {
