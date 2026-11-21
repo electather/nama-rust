@@ -292,7 +292,7 @@ nama_pdk::blob_store!(Bucket);
 
 ## 9. HTTP
 
-Describe the outside service once, as an `OutsideService` constant: its name as the subject of a sentence, the name of its credential if a 401 means it was refused, and a reader that picks the service's own error message from a refusal, its message field alone and never the whole body. `send` sends a request, failing with "{name} didn't answer" when nothing answers; `accepted` gives back a 2xx response and turns any other into a refusal (section 11), and `found` does the same except that a 404 gives `None`. Match the statuses that mean something to your Plugin before handing the rest to them:
+Describe the outside service once, as an `OutsideService` constant: its name as the subject of a sentence, the name of its credential if a 401 means it was refused, a reader that picks the service's own error message from a refusal, its message field alone and never the whole body, and a `retry_after` that picks the seconds to wait from a refusal without a `Retry-After` header, such as Telegram's `parameters.retry_after`. `send` sends a request, failing with "{name} didn't answer" when nothing answers; `accepted` gives back a 2xx response and turns any other into a refusal (section 11), and `found` does the same except that a 404 gives `None`. Match the statuses that mean something to your Plugin before handing the rest to them:
 
 ```rust
 use nama_pdk::{OutsideService, RecipientGone, Response, extism_pdk::{Error, HttpRequest}};
@@ -332,11 +332,11 @@ An `OutsideService` words a refusal the same way in every Plugin, taking the fir
 | Response | Wording |
 |---|---|
 | 401, with a credential named | "{name} refused the {credential}" |
-| 429 | "{name} is limiting this Server's requests; try again in {n} s", or "…; try again in a few seconds" when `Retry-After` doesn't give whole seconds |
+| 429 | "{name} is limiting this Server's requests; try again in {n} s", or "…; try again in a few seconds" when neither `Retry-After` nor the service's `retry_after` gives whole seconds |
 | the reader finds words | "{name} said: {words}" |
 | anything else | "{name} failed with HTTP status {status}" |
 
-The refusal is a `nama_pdk::Refusal`, which keeps the status and the `Retry-After` seconds, so a Plugin that learns what a status meant only later reads them back from the `Error`:
+The refusal is a `nama_pdk::Refusal`, which keeps the status and the seconds to wait, so a Plugin that learns what a status meant only later reads them back from the `Error`:
 
 ```rust
 use nama_pdk::{Refusal, extism_pdk::Error};
