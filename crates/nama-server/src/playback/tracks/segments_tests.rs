@@ -210,10 +210,10 @@ fn fake(id: &'static str, answer: Option<Vec<SegmentResult>>) -> Fake {
     }
 }
 
-/// The Plugin `id`'s Segment source, saying to try again in a second once, then answering `answer`.
-fn limited(id: &'static str, answer: Vec<SegmentResult>) -> Fake {
+/// The Plugin `id`'s Segment source, saying to try again in `wait` once, then answering `answer`.
+fn limited(id: &'static str, wait: Duration, answer: Vec<SegmentResult>) -> Fake {
     Fake {
-        waits: Arc::new(Mutex::new(vec![Duration::from_secs(1)])),
+        waits: Arc::new(Mutex::new(vec![wait])),
         ..fake(id, Some(answer))
     }
 }
@@ -358,7 +358,12 @@ async fn segments_found_before_the_file_changed_and_was_probed_again_are_not_kep
 #[tokio::test]
 async fn a_version_a_source_said_to_try_again_for_is_asked_again_once_the_wait_is_over() {
     let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
-    let fx = Fixture::new(vec![], &["limited"], vec![limited("limited", intro)]).await;
+    let fx = Fixture::new(
+        vec![],
+        &["limited"],
+        vec![limited("limited", Duration::from_secs(1), intro)],
+    )
+    .await;
 
     fx.segments.ask_due(&mut Waits::default()).await;
 
@@ -373,7 +378,11 @@ async fn a_version_a_source_said_to_try_again_for_is_asked_again_once_the_wait_i
 async fn while_one_source_waits_the_version_stays_due_and_the_librarys_other_sources_are_asked_once()
  {
     let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
-    let fakes = vec![limited("limited", intro), fake("other", Some(vec![]))];
+    let fakes = vec![
+        // Far longer than a test run, so no delay between the two asks ends it.
+        limited("limited", Duration::from_mins(5), intro),
+        fake("other", Some(vec![])),
+    ];
     let fx = Fixture::new(vec![], &["limited", "other"], fakes).await;
     let mut waits = Waits::default();
 
@@ -389,7 +398,10 @@ async fn while_one_source_waits_the_version_stays_due_and_the_librarys_other_sou
 async fn a_source_that_failed_is_not_asked_again_while_another_waits_and_the_version_waits_an_hour()
 {
     let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
-    let fakes = vec![limited("limited", intro), fake("down", None)];
+    let fakes = vec![
+        limited("limited", Duration::from_secs(1), intro),
+        fake("down", None),
+    ];
     let fx = Fixture::new(vec![], &["limited", "down"], fakes).await;
 
     fx.segments.ask_due(&mut Waits::default()).await;
