@@ -2,8 +2,11 @@ import { TitleOrLogo } from "@/features/home/components/title-or-logo";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { PlayProgress } from "@/shared/components/backdrop-card/play-progress";
 
-/** A card's Title Logo: up to 48px tall and 60% of the card wide (DESIGN.md, "Backdrop cards"). */
-const cardLogo = { className: "max-h-12 max-w-3/5", sizes: "264px" };
+/**
+ * A card's Title Logo: up to 48px tall and 60% of the card wide (DESIGN.md, "Backdrop cards"), with
+ * room under it before the ▶ line.
+ */
+const cardLogo = { className: "mb-2 max-h-12 max-w-3/5", sizes: "264px" };
 
 /**
  * A Continue Watching card's title over its art, unless the art carries it, and under it ▶ and its

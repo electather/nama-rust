@@ -7,20 +7,20 @@ import { useSrcSet } from "@/shared/hooks/use-src-set";
 export function RoleCard({ role }: { role: Role }) {
   const srcSet = useSrcSet(role.headshotUrl);
   return (
-    <li className="flex w-24 snap-start flex-col items-center gap-2 text-center text-sm">
+    <li className="flex w-32 snap-start flex-col items-center gap-2 text-center text-sm">
       {role.headshotUrl === undefined ? (
-        <span className="flex size-24 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <UserRound aria-hidden className="size-10" />
+        <span className="flex size-32 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <UserRound aria-hidden className="size-12" />
         </span>
       ) : (
         // Its name is under it, so the image itself says nothing more.
         <img
           src={role.headshotUrl}
           srcSet={srcSet}
-          sizes="96px"
+          sizes="128px"
           alt=""
           loading="lazy"
-          className="size-24 rounded-full bg-muted object-cover outline -outline-offset-1 outline-input"
+          className="size-32 rounded-full bg-muted object-cover outline -outline-offset-1 outline-input"
         />
       )}
       <span className="line-clamp-2 font-medium">{role.name}</span>

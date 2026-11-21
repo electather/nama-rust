@@ -38,4 +38,9 @@ export const pluginPermissions: Partial<
     about:
       "It deletes the Home rows and Featured suggestions kept for Users who stopped opening home. They get fresh ones when they come back.",
   },
+  [PluginPermission.FORGET_GONE_PLUGINS]: {
+    label: "Forget removed Plugins",
+    about:
+      "It deletes the settings, Plugin Store entries, Personal settings and Plugin Connections of Plugins the Server stopped having a while ago. A disabled Plugin is kept.",
+  },
 };

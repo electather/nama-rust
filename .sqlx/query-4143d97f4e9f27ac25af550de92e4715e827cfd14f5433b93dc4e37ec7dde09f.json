@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT had_at FROM plugins_had WHERE plugin_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "had_at",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugins_had",
+            "name": "had_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4143d97f4e9f27ac25af550de92e4715e827cfd14f5433b93dc4e37ec7dde09f"
+}

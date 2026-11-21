@@ -193,22 +193,21 @@ test("a Season 2 Episode's card shows its Show's Backdrop, not a Season's Poster
   expect(card.parentElement?.textContent).not.toContain("left");
 });
 
-/** `title` with its Backdrop, Title Logo and, only if `titled`, its titled Backdrop. */
-function withArt(title: string, titled: boolean) {
-  return {
-    title,
-    backdropUrl: `/${title}-backdrop.jpg`,
-    backdropThumbhash: backdropHash,
-    titleLogoUrl: `/${title}-logo.png`,
-    titledBackdropUrl: titled ? `/${title}-titled.jpg` : undefined,
-    titledBackdropThumbhash: titled ? titledHash : undefined,
-  };
+/** Which Backdrops a title has: its plain one, its titled one, or both. */
+type Backdrops = "plain" | "titled" | "both";
+
+/** `title` with its Title Logo and the Backdrops `backdrops` names. */
+function withArt(title: string, backdrops: Backdrops) {
+  const plain = { backdropUrl: `/${title}-backdrop.jpg`, backdropThumbhash: backdropHash };
+  const titled = { titledBackdropUrl: `/${title}-titled.jpg`, titledBackdropThumbhash: titledHash };
+  const art = { plain, titled, both: { ...plain, ...titled } }[backdrops];
+  return { title, titleLogoUrl: `/${title}-logo.png`, ...art };
 }
 
-/** What Alien's and Dark's Episode 2's cards show, with their titled Backdrops only if `titled`. */
-async function cardsWithArt(titled: boolean) {
-  const movie = { id: alien, ...withArt("Alien", titled) };
-  const dark = { id: { namespace: "tmdb", value: "70523" }, ...withArt("Dark", titled) };
+/** What Alien's and Dark's Episode 2's cards show, with the Backdrops `backdrops` names. */
+async function cardsWithArt(backdrops: Backdrops) {
+  const movie = { id: alien, ...withArt("Alien", backdrops) };
+  const dark = { id: { namespace: "tmdb", value: "70523" }, ...withArt("Dark", backdrops) };
   const alienEntry = { libraryId: 1n, movieOrEpisode: { case: "movie", value: movie } } as const;
   openHome(alienEntry, episodeEntry(dark, 1, 2));
   return [
@@ -217,19 +216,22 @@ async function cardsWithArt(titled: boolean) {
   ];
 }
 
-test("a card shows its titled Backdrop and its preview, without its Title Logo or title", async () => {
-  const preview = thumbHashToDataURL(titledHash);
-  await expect(cardsWithArt(true)).resolves.toStrictEqual([
-    { art: "/Alien-titled.jpg", preview, logo: undefined, text: "" },
-    { art: "/Dark-titled.jpg", preview, logo: undefined, text: "S1, E2" },
-  ]);
-});
-
-test("a card without a titled Backdrop shows its Backdrop under its Title Logo", async () => {
+test("a card shows its Backdrop under its Title Logo, even with a titled Backdrop", async () => {
   const preview = thumbHashToDataURL(backdropHash);
-  await expect(cardsWithArt(false)).resolves.toStrictEqual([
+  const underLogo = [
     { art: "/Alien-backdrop.jpg", preview, logo: "/Alien-logo.png", text: "" },
     { art: "/Dark-backdrop.jpg", preview, logo: "/Dark-logo.png", text: "S1, E2" },
+  ];
+  await expect(cardsWithArt("both")).resolves.toStrictEqual(underLogo);
+  cleanup();
+  await expect(cardsWithArt("plain")).resolves.toStrictEqual(underLogo);
+});
+
+test("a card with only a titled Backdrop shows it, without its Title Logo or title", async () => {
+  const preview = thumbHashToDataURL(titledHash);
+  await expect(cardsWithArt("titled")).resolves.toStrictEqual([
+    { art: "/Alien-titled.jpg", preview, logo: undefined, text: "" },
+    { art: "/Dark-titled.jpg", preview, logo: undefined, text: "S1, E2" },
   ]);
 });
 

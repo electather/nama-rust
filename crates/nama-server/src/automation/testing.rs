@@ -15,7 +15,8 @@ use nama_plugin_api::{
 
 use super::Automation;
 use crate::{
-    db::Database,
+    connections,
+    db::{self, Database},
     events::EventBus,
     images::ImageStore,
     library::{
@@ -24,11 +25,12 @@ use crate::{
         fixture::{self, MatchedMovie, tmdb_movie},
     },
     playback::RunningPlans,
-    plugins::{ExtensionPoints, Registry},
+    plugin_settings::PluginSettings,
+    plugins::Registry,
     requests::Requests,
     scanner::Scanner,
     server_settings::ServerUrl,
-    users::{Permissions, User, Users},
+    users::{self, Permissions, User, Users},
 };
 
 #[path = "../../tests/support/kernel.rs"]
@@ -39,12 +41,13 @@ pub(super) const ALIEN_TMDB_ID: i64 = 348;
 
 /// The Automation of a Server on `db`, whose Scanner deletes and publishes nowhere.
 pub(super) fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
-    let points = ExtensionPoints::default();
+    let plugins = PluginSettings::for_tests(Arc::clone(db), Registry::new());
+    let points = plugins.extension_points();
     let images = ImageStore::new(data, Arc::clone(db));
     let events = EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default());
     let scanner = Scanner::new(
         Arc::clone(db),
-        crate::plugin_settings::PluginSettings::for_tests(Arc::clone(db), Registry::new()),
+        plugins.clone(),
         Artwork::new(images.clone(), points.clone()),
         CustomImages::new(Arc::clone(db), images.clone()),
         LocalImages::new(Arc::clone(db), images),
@@ -53,8 +56,8 @@ pub(super) fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
         RunningPlans::for_tests(db, events.clone(), data),
         Requests::new(Arc::clone(db), events, points.clone()),
     );
-    let users = Users::new(Arc::clone(db), points.clone());
-    Automation::serve(Arc::clone(db), scanner, points, users)
+    let users = Users::new(Arc::clone(db), points);
+    Automation::serve(Arc::clone(db), scanner, plugins, users)
 }
 
 /// The Kernel's functions for the cleanup Plugin on `db`, granted only `permission`, and the
@@ -219,4 +222,65 @@ pub(super) async fn delete(
         ..DeleteAsked::default()
     };
     ask(kernel, "delete_media", &asked).await
+}
+
+/// Leaves a row of `plugin`'s in each table `forget_gone_plugins` deletes from, one of them the
+/// User `user`'s, as if the Server last had `plugin` `days_ago`.
+pub(super) async fn leave_behind(db: &Database, plugin: &'static str, user: i64, days_ago: i64) {
+    let id = PluginId::from_static(plugin);
+    let had_at = db::now() - days_ago * 24 * 60 * 60;
+    super::store::put(db, &id, None, "key".to_owned(), b"value".to_vec())
+        .await
+        .unwrap();
+    let personal = vec![("topic".to_owned(), "mine".to_owned(), false)];
+    (users::replace_personal_settings(db, user, &id, personal))
+        .await
+        .unwrap();
+    // No owner writes these as a test needs: settings go through an enable, connections a link.
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query!(
+                "INSERT INTO plugin_settings (plugin_id, enabled, settings) VALUES (?, 0, '{}')",
+                plugin
+            )
+            .execute(&mut **tx)
+            .await?;
+            sqlx::query!(
+                "INSERT INTO plugin_connections (user_id, plugin_id, connection, created_at)
+                 VALUES (?, ?, 'chat', 0)",
+                user,
+                plugin
+            )
+            .execute(&mut **tx)
+            .await?;
+            sqlx::query!(
+                "INSERT INTO plugins_had (plugin_id, had_at) VALUES (?, ?)
+                 ON CONFLICT (plugin_id) DO UPDATE SET had_at = excluded.had_at",
+                plugin,
+                had_at
+            )
+            .execute(&mut **tx)
+            .await
+            .map(drop)
+        })
+    })
+    .await
+    .unwrap();
+}
+
+/// Which of the rows [`leave_behind`] leaves for `plugin` and the User `user` are still there:
+/// its settings, Store entry, Personal settings and Plugin Connection.
+pub(super) async fn left_behind(db: &Database, plugin: &'static str, user: i64) -> [bool; 4] {
+    let id = PluginId::from_static(plugin);
+    // Read through the grants, since a Server that never imported its config lists no settings.
+    let settings = crate::plugin_settings::grants(db).await.unwrap();
+    let stored = super::store::get(db, &id, None, "key").await.unwrap();
+    let personal = users::personal_settings_of(db, user, &id).await.unwrap();
+    let connected = connections::connected(db, &id).await.unwrap();
+    [
+        settings.contains_key(plugin),
+        stored.is_some(),
+        !personal.is_empty(),
+        !connected.is_empty(),
+    ]
 }
