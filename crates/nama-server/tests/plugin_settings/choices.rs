@@ -162,13 +162,13 @@ async fn a_choices_setting_picking_a_value_not_offered_is_refused_and_saves_noth
 async fn a_settings_checks_choices_replace_the_manifests() {
     let server = with_rater(true).await;
 
-    let manifests = assert_refused(
+    let refused = assert_refused(
         rate(&server, &["G"]).await,
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
     );
     rate(&server, &["R"]).await.unwrap();
 
-    assert_eq!(manifests.field, "settings.ratings");
+    assert_eq!(refused.field, "settings.ratings");
     assert_eq!(rated(&server).await, Some(vec!["R".to_owned()]));
 }
