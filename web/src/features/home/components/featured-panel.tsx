@@ -1,3 +1,6 @@
+import { useNavigate } from "@tanstack/react-router";
+import { useRef } from "react";
+
 import { FeaturedArt } from "@/features/home/components/featured-art";
 import { FeaturedCopy } from "@/features/home/components/featured-copy";
 import { driftOf, openGrow, tiltOf } from "@/features/home/lib/accordion";
@@ -15,8 +18,9 @@ declare module "react" {
 }
 
 /**
- * One Featured title's panel: open, its art in colour under its copy; closed, a grey sliver
- * turned toward the open one, which opens it when hovered, focused or pressed.
+ * One Featured title's panel: open, its art in colour under its copy, opening its page when
+ * clicked; closed, a grey sliver turned toward the open one, which opens it when hovered, focused or
+ * pressed.
  */
 export function FeaturedPanel({
   panel,
@@ -29,6 +33,10 @@ export function FeaturedPanel({
 }) {
   const offset = index - open;
   const isOpen = offset === 0;
+  const navigate = useNavigate();
+  // Whether it was open as it was pressed: a tap opens a closed panel by the hover it fakes first,
+  // and should only open it, not go on to its page.
+  const openWhenPressed = useRef(false);
   return (
     <li
       data-open={isOpen ? "" : undefined}
@@ -40,16 +48,24 @@ export function FeaturedPanel({
       }}
     >
       <FeaturedArt panel={panel} first={index === 0} />
-      {/* The whole panel is its button, so hovering anywhere on it opens it. It opens on hover and
-          focus, never navigates, so it keeps the arrow the app's buttons otherwise swap for a hand. */}
+      {/* The whole panel is its button, so hovering anywhere on it opens it, and clicking the open
+          one opens its page. A key press has no pointer, so it goes by whether it's open. */}
       <button
         type="button"
         aria-label={`Show ${panel.title}`}
         aria-current={isOpen ? "true" : undefined}
-        onClick={onOpen}
+        onPointerDown={() => {
+          openWhenPressed.current = isOpen;
+        }}
+        onClick={(event) => {
+          if (event.detail === 0 ? isOpen : openWhenPressed.current) {
+            void navigate(panel.page);
+          }
+          onOpen();
+        }}
         onFocus={onOpen}
         onMouseEnter={onOpen}
-        className="absolute inset-0 cursor-default rounded-3xl outline-none focus-visible:outline-2 focus-visible:-outline-offset-3 focus-visible:outline-ring"
+        className="absolute inset-0 cursor-pointer rounded-3xl outline-none focus-visible:outline-2 focus-visible:-outline-offset-3 focus-visible:outline-ring"
       />
       <FeaturedCopy panel={panel} />
     </li>

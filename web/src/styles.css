@@ -36,6 +36,22 @@
   scrollbar-width: none;
 }
 
+/* A card caption's band, darkening toward the scrim along an eased curve: a straight ramp bends
+   sharply where it starts, which shows as a line across the art. */
+@utility caption-scrim {
+  background-image: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--scrim) 5%, transparent) 10%,
+    color-mix(in oklab, var(--scrim) 17%, transparent) 20%,
+    color-mix(in oklab, var(--scrim) 36%, transparent) 30%,
+    color-mix(in oklab, var(--scrim) 56%, transparent) 40%,
+    color-mix(in oklab, var(--scrim) 74%, transparent) 50%,
+    color-mix(in oklab, var(--scrim) 86%, transparent) 60%,
+    var(--scrim)
+  );
+}
+
 @theme {
   --color-*: initial;
   /* DESIGN.md's Display: Movie and Show titles over their backdrops. */

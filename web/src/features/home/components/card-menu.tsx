@@ -3,12 +3,18 @@ import { CardMenuTrigger } from "@/features/home/components/card-menu-trigger";
 import type { CardActions } from "@/features/home/lib/card-actions";
 import { DropdownMenu } from "@/shared/ui/dropdown-menu";
 
-/** A Continue Watching card's menu, at the end of its caption over the art. */
+/**
+ * A Continue Watching card's menu, at the end of its caption over the art, and the same items as
+ * its right-click menu (`BackdropFrame`).
+ */
 export function CardMenu({ title, actions }: { title: string; actions: CardActions }) {
   return (
-    <DropdownMenu>
-      <CardMenuTrigger title={title} />
-      <CardMenuContent {...actions} />
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <CardMenuTrigger title={title} />
+        <CardMenuContent {...actions} />
+      </DropdownMenu>
+      <CardMenuContent {...actions} context />
+    </>
   );
 }

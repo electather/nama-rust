@@ -16,23 +16,26 @@ use buffa::{EnumValue, Message, MessageField};
 use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
-        DeleteAsked, DeleteStarted, ForgetHomeRowsAsked, HomeRowsForgotten, Kernel, KernelRefused,
-        Libraries, LibrariesAsked, Library, LibraryKind, Permission, Requesters, RequestersAsked,
-        StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters,
-        TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
-        WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
+        DeleteAsked, DeleteStarted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
+        GonePluginsForgotten, HomeRowsForgotten, Kernel, KernelRefused, Libraries, LibrariesAsked,
+        Library, LibraryKind, Permission, Requesters, RequestersAsked, StoreEntry, StoreKey,
+        StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates,
+        Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
+        Watchlist, WatchlistAsked, WatchlistTitle,
     },
     contract,
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
 };
+use sqlx::SqliteConnection;
 use tracing::error;
 
 use crate::{
+    connections,
     db::Database,
     home_rows,
     library::{self, Contents, ItemKind, LibraryError, TitleKind, TitleTarget, WatchStateKind},
-    plugins::ExtensionPoints,
+    plugin_settings::PluginSettings,
     requests,
     scanner::{self, Scanner, ToDelete},
     users, watchlist,
@@ -43,32 +46,33 @@ const MAX_PAGE_SIZE: usize = 1000;
 
 /// What makes the Kernel's functions for each enabled Plugin.
 ///
-/// The Plugins it serves hold it only weakly, since it holds them in turn through the Scanner, the
-/// Extension Points and `Users`: whoever starts the Server holds it, until the Plugins have stopped.
+/// The Plugins it serves hold it only weakly, since it holds them in turn through the Scanner,
+/// `plugins` and `Users`: whoever starts the Server holds it, until the Plugins have stopped.
 pub(crate) struct Automation {
     db: Arc<Database>,
     scanner: Scanner,
-    points: ExtensionPoints,
+    plugins: PluginSettings,
     users: users::Users,
 }
 
 impl Automation {
-    /// Serves the Kernel's functions to each Plugin enabled in `points`.
+    /// Serves the Kernel's functions to each Plugin enabled in `plugins`.
     pub(crate) fn serve(
         db: Arc<Database>,
         scanner: Scanner,
-        points: ExtensionPoints,
+        plugins: PluginSettings,
         users: users::Users,
     ) -> Arc<Self> {
         let automation = Arc::new(Self {
             db,
             scanner,
-            points,
+            plugins,
             users,
         });
         let kernels = Arc::downgrade(&automation);
         automation
-            .points
+            .plugins
+            .extension_points()
             .serve_kernel(Arc::new(move |plugin, granted| {
                 Self::kernel(&kernels, plugin, granted)
             }));
@@ -158,6 +162,11 @@ const FUNCTIONS: &[Function] = &[
         needs: Permission::PERMISSION_FORGET_HOME_ROWS,
         answer: |caller, request| typed(caller, request, Caller::forget_home_rows),
     },
+    Function {
+        name: "forget_gone_plugins",
+        needs: Permission::PERMISSION_FORGET_GONE_PLUGINS,
+        answer: |caller, request| typed(caller, request, Caller::forget_gone_plugins),
+    },
 ];
 
 /// Decodes `request`, has `handler` answer it for `caller`, and encodes its response.
@@ -191,6 +200,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_READ_REQUESTS => "Read Requests",
         Permission::PERMISSION_READ_WATCHLISTS => "Read Watchlists",
         Permission::PERMISSION_FORGET_HOME_ROWS => "Forget Home rows",
+        Permission::PERMISSION_FORGET_GONE_PLUGINS => "Forget removed Plugins",
     }
 }
 
@@ -566,7 +576,13 @@ impl Caller {
             .filter(|named| named.library_id == library)
             .filter_map(|named| titled(named, |_| None, Some).ok().flatten())
             .collect();
-        let by = format!("the {} Plugin", self.automation.points.name(&self.plugin));
+        let by = format!(
+            "the {} Plugin",
+            self.automation
+                .plugins
+                .extension_points()
+                .name(&self.plugin)
+        );
         // Only started: the delete waits for the Library's scan lock, which could outrun the
         // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029). On the
         // Scanner's tracker, not in the Plugin's scope, since it never calls the Plugin back,
@@ -591,10 +607,7 @@ impl Caller {
         self,
         asked: ForgetHomeRowsAsked,
     ) -> Result<HomeRowsForgotten, KernelRefused> {
-        if asked.days == 0 {
-            return Err(KernelRefused("days must be at least 1".to_owned()));
-        }
-        let unvisited_for = Duration::from_hours(24 * u64::from(asked.days));
+        let unvisited_for = at_least_a_day(asked.days)?;
         let users = home_rows::forget_unvisited(&self.automation.db, unvisited_for)
             .await
             .map_err(|err| self.database_refused("forgetting Home rows", &err))?;
@@ -603,6 +616,49 @@ impl Caller {
             ..HomeRowsForgotten::default()
         })
     }
+
+    /// Deletes, in one write, what each Plugin the Server hasn't had for `asked.days` left behind:
+    /// its settings, Store entries, Personal settings and Plugin Connections.
+    async fn forget_gone_plugins(
+        self,
+        asked: ForgetGonePluginsAsked,
+    ) -> Result<GonePluginsForgotten, KernelRefused> {
+        let gone_for = at_least_a_day(asked.days)?;
+        let plugins = self.automation.plugins.clone();
+        let forgotten = (self.automation.db)
+            .write(move |tx| Box::pin(async move { forget_gone(tx, &plugins, gone_for).await }));
+        let plugin_ids = forgotten.await.map_err(|err: sqlx::Error| {
+            self.database_refused("forgetting removed Plugins", &err)
+        })?;
+        Ok(GonePluginsForgotten {
+            plugin_ids,
+            ..GonePluginsForgotten::default()
+        })
+    }
+}
+
+/// Deletes, in `conn`'s write, what each Plugin the Server hasn't had for `gone_for` left behind,
+/// each table through its owner, and returns their ids.
+async fn forget_gone(
+    conn: &mut SqliteConnection,
+    plugins: &PluginSettings,
+    gone_for: Duration,
+) -> Result<Vec<String>, sqlx::Error> {
+    let gone = plugins.take_gone(conn, gone_for).await?;
+    for plugin in &gone {
+        store::delete_plugin(conn, plugin).await?;
+        users::delete_plugins_personal_settings(conn, plugin).await?;
+        connections::delete_plugin(conn, plugin).await?;
+    }
+    Ok(gone)
+}
+
+/// `days` as a span of time, refusing 0.
+fn at_least_a_day(days: u32) -> Result<Duration, KernelRefused> {
+    if days == 0 {
+        return Err(KernelRefused("days must be at least 1".to_owned()));
+    }
+    Ok(Duration::from_hours(24 * u64::from(days)))
 }
 
 /// `id` of a Movie or Episode of the Library `library`, as a Plugin names it.
