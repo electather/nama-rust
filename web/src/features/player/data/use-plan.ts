@@ -10,10 +10,14 @@ import { stopPlan } from "@/features/player/lib/plan-lifetime";
 import { PlaybackPlanSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { adminStopQuery } from "@/shared/hooks/admin-stop-query";
 
+/** What every plan's query key starts with. */
+export const planKeyRoot = "planPlayback";
+
 /**
  * The plan for Version `versionId` as `asking` says, asked for once and never reused after, once
- * the Server is told the plan it replaces stopped, so that one's Transcode leaves room for it. A
- * Server too busy to Transcode it, or that fails to plan it, gives a plan that can't play, saying so.
+ * the Server is told the plan it replaces stopped, so that one's Transcode leaves room for it. Its
+ * player forgets it on closing (`keepPlaying`). A Server too busy to Transcode it, or that fails to
+ * plan it, gives a plan that can't play, saying so.
  */
 export function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
@@ -23,7 +27,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
   const { replacing } = asking;
   return useSuspenseQuery({
     queryKey: [
-      "planPlayback",
+      planKeyRoot,
       String(versionId),
       failedMethods,
       String(startPositionMs),
@@ -63,6 +67,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
       }
     },
     staleTime: "static",
+    // Suspense raises it to 1 s, so `keepPlaying` drops the plan.
     gcTime: 0,
   }).data;
 }

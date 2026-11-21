@@ -113,18 +113,36 @@ test.each([
   },
 );
 
-test("a plan its player still plays is never stopped, though React sets up its effects twice", async () => {
+test("a plan its player still plays is asked for once and never stopped, though React sets up its effects twice", async () => {
   const stopped: bigint[] = [];
+  const stoppedWhenAsked: bigint[][] = [];
   openApp(
     "/libraries/1/movies/tmdb-603/play",
-    planning(PlaybackMethod.REMUX, PLAYLIST, stopped),
+    planning(PlaybackMethod.REMUX, PLAYLIST, stopped, stoppedWhenAsked),
     (app) => <StrictMode>{app}</StrictMode>,
   );
   await screen.findByLabelText("The Matrix");
 
   await afterAWhile();
 
+  expect(stoppedWhenAsked).toStrictEqual([[]]);
   expect(stopped).toStrictEqual([]);
+});
+
+// Leaving stops the plan, and the Server no longer serves a stopped one.
+test("playing again at once after leaving asks for a new plan", async () => {
+  const stoppedWhenAsked: bigint[][] = [];
+  openApp(
+    "/libraries/1/movies/tmdb-603/play",
+    planning(PlaybackMethod.REMUX, PLAYLIST, [], stoppedWhenAsked),
+  );
+  await screen.findByLabelText("The Matrix");
+
+  fireEvent.click(screen.getByRole("link", { name: "Back" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Play" }));
+  await screen.findByLabelText("The Matrix");
+
+  expect(stoppedWhenAsked).toHaveLength(2);
 });
 
 test("the Server is told a plan stopped once a new plan replaces it, and once the player closes", async () => {

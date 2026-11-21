@@ -1,5 +1,6 @@
 import { type RefObject, useEffect } from "react";
 
+import { useForgetPlan } from "@/features/player/data/use-forget-plan";
 import { useStopPlan } from "@/features/player/data/use-stop-plan";
 import { playsHlsNatively } from "@/features/player/lib/device-decoding";
 import { keepPlaying } from "@/features/player/lib/plan-lifetime";
@@ -18,11 +19,12 @@ export function usePlaybackSource(
   onCantPlay: (video: HTMLVideoElement) => void,
 ) {
   const tellStopped = useStopPlan();
+  const forget = useForgetPlan();
   const throughHlsJs = method !== PlaybackMethod.DIRECT_PLAY && !playsHlsNatively();
   useEffect(() => {
     const video = videoRef.current;
     return throughHlsJs && video ? playThroughHlsJs(video, url, onCantPlay) : undefined;
   }, [videoRef, throughHlsJs, url, onCantPlay]);
-  useEffect(() => keepPlaying(tellStopped, id, url), [tellStopped, id, url]);
+  useEffect(() => keepPlaying(tellStopped, forget, { id, url }), [tellStopped, forget, id, url]);
   return throughHlsJs ? undefined : url;
 }
