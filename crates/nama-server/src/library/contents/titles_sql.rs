@@ -34,8 +34,9 @@ pub(super) use listed_id_sql;
 /// Hands `$query!` a subquery with one row per Item a Library lists: `library_id`, `item_id`,
 /// `kind`, `path`, `season`, `episode`, `added_at`, `own_id` (its preferred `title` id) and
 /// `listed_id` (the preferred id of the title it is listed under: a Movie's own, an Episode's
-/// Show's). It keeps an Item whose Match is Matched and has both ids, and for an Episode a season
-/// and an episode number. With no window or aggregate, SQLite flattens it into a reader's join.
+/// Show's). It keeps an Item of the kind its Library lists whose Match is Matched and has both
+/// ids, and for an Episode a season and an episode number. With no window or aggregate, SQLite
+/// flattens it into a reader's join.
 macro_rules! matched_items {
     ([$($query:tt)::+ $(, $arg:tt)*], $listed_id:literal) => {
         $($query)::+!(
@@ -52,6 +53,7 @@ macro_rules! matched_items {
                JOIN library_files ON library_files.id = library_items.file_id
                JOIN libraries ON libraries.id = library_files.library_id
                WHERE item_matches.state = 'matched'
+                 AND library_items.kind = IIF(libraries.kind = 'movies', 'movie', 'episode')
                  AND own_id IS NOT NULL AND listed_id IS NOT NULL
                  AND (library_items.kind = 'movie'
                       OR (library_items.season IS NOT NULL

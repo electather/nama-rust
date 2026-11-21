@@ -437,12 +437,9 @@ impl Contents {
                 )
             };
         }
-        macro_rules! with_ids {
-            ($ids:literal) => {
-                library_titles!(select, $ids)
-            };
-        }
-        let rows = ids_sql!(with_ids).fetch_all(self.db.reader()).await?;
+        let rows = ids_sql!(library_titles, select)
+            .fetch_all(self.db.reader())
+            .await?;
         // By title, then place in it, so each Movie's rows are adjacent, its first Version first.
         let mut movies: Vec<Movie> = Vec::new();
         for row in rows {
@@ -521,17 +518,12 @@ impl Contents {
                         + r#"'show') AS "show_ids?: String",
                               item_matches.title AS "title!",
                               item_matches.show_title AS "show_title!",
-                              item_matches.overview, item_matches.release_date,
-                              item_matches.runtime_minutes, item_matches.poster,
-                              item_matches.poster_plugin, item_matches.backdrop,
-                              item_matches.backdrop_plugin, item_matches.titled_backdrop,
-                              item_matches.titled_backdrop_plugin, item_matches.logo,
-                              item_matches.logo_plugin, item_matches.still, item_matches.genres,
-                              item_matches.content_rating, item_matches.show_poster,
-                              item_matches.show_poster_plugin, item_matches.show_overview,
-                              item_matches.show_first_air_date, item_matches.metadata_version,
-                              item_matches.original_language, title_scores.score AS "score?",
-                              titles.added_at AS "added_at!: i64"
+                              overview, release_date, runtime_minutes, poster, poster_plugin,
+                              backdrop, backdrop_plugin, titled_backdrop, titled_backdrop_plugin,
+                              logo, logo_plugin, still, genres,
+                              content_rating, show_poster, show_poster_plugin, show_overview,
+                              show_first_air_date, metadata_version, item_matches.original_language,
+                              title_scores.score AS "score?", titles.added_at AS "added_at!: i64"
                        FROM titles
                        JOIN item_matches ON item_matches.item_id = titles.item_id
                        JOIN library_items ON library_items.id = titles.item_id
@@ -558,12 +550,9 @@ impl Contents {
                 )
             };
         }
-        macro_rules! with_ids {
-            ($ids:literal) => {
-                library_titles!(select, $ids)
-            };
-        }
-        let rows = ids_sql!(with_ids).fetch_all(self.db.reader()).await?;
+        let rows = ids_sql!(library_titles, select)
+            .fetch_all(self.db.reader())
+            .await?;
         // By title, then season, episode and path, so each Show's rows are adjacent, its first
         // Episode first, and within a Season the rows of one Episode are adjacent, by path.
         let mut shows: Vec<Show> = Vec::new();

@@ -228,7 +228,7 @@ async fn a_movie_with_a_made_up_and_a_tmdb_id_is_identified_by_tmdb_and_found_by
 
 #[tokio::test]
 async fn an_episode_of_a_show_with_only_a_made_up_id_is_grouped_and_found_under_it() {
-    let fx = Fixture::new().await;
+    let fx = Fixture::shows().await;
     let mal = made_up("mal", "1");
     let path = "/media/Cowboy Bebop/Season 01/Cowboy Bebop - S01E01.mkv";
     let episode = Item::Episode {
@@ -300,7 +300,7 @@ async fn sqlite_refuses_an_id_whose_namespace_is_not_lowercase_letters_and_digit
 }
 
 #[tokio::test]
-async fn movies_only_an_id_one_version_holds_returns_the_movie_with_both_versions() {
+async fn movies_only_an_id_one_version_holds_returns_both_versions_and_the_first_ones_ids() {
     let fx = Fixture::new().await;
     // Sorts before `ALIEN`, so it is the first Version, whose Match lacks the asked id.
     let cut = "/media/Alien (1979)/Alien (1979) - Director's Cut.mkv";
@@ -396,7 +396,7 @@ async fn a_title_logo_is_stored_read_back_and_kept() {
 
 #[tokio::test]
 async fn a_seasons_poster_keeps_the_plugin_it_was_stored_under() {
-    let fx = Fixture::new().await;
+    let fx = Fixture::shows().await;
     let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
     let episode = Item::Episode {
         show: "Firefly".to_owned(),
@@ -570,8 +570,7 @@ async fn a_versions_titles_come_with_every_id_and_an_unmatched_episode_as_none()
     let alien = fx.contents.movies(fx.library, None).await.unwrap()[0].versions[0]
         .file
         .id;
-    let shows = fx.contents.shows(fx.library, None).await.unwrap();
-    let both = shows[0].seasons[&1].episodes[0].versions[0].file.id;
+    let both = fx.contents.stored(fx.library).await.unwrap()[path].id;
 
     let movie = fx.contents.titles_in(alien).await.unwrap();
     let episodes = fx.contents.titles_in(both).await.unwrap();
@@ -626,7 +625,7 @@ async fn movies_whose_titles_differ_only_in_case_come_in_their_order_as_written(
 
 #[tokio::test]
 async fn shows_come_in_title_order_ignoring_case() {
-    let fx = Fixture::new().await;
+    let fx = Fixture::shows().await;
     for (show, mal_id) in [("BEEF", "1"), ("Band of Brothers", "2")] {
         let path = format!("/media/{show}/Season 01/{show} - S01E01.mkv");
         let episode = Item::Episode {
@@ -686,8 +685,7 @@ async fn a_version_is_named_by_its_movie_or_its_first_episodes_show_and_number()
         .record(vec![(first, Decided::Matched(Box::new(metadata)))])
         .await
         .unwrap();
-    let shows = fx.contents.shows(fx.library, None).await.unwrap();
-    let both = shows[0].seasons[&1].episodes[0].versions[0].file.id;
+    let both = fx.contents.stored(fx.library).await.unwrap()[path].id;
 
     let matched = fx.contents.version_title(both).await.unwrap();
     fx.contents
