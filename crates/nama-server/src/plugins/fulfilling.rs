@@ -4,12 +4,9 @@
 
 use std::{sync::Arc, time::Duration};
 
-use nama_plugin_api::{
-    BoxFuture, PluginError, PluginId,
-    fulfiller::{Fulfiller, TryAgainIn},
-};
+use nama_plugin_api::{BoxFuture, PluginError, PluginId, fulfiller::Fulfiller};
 
-use super::{ExtensionPoints, Failure, FailureKind, ProviderError};
+use super::{ExtensionPoints, Failure, Retryable};
 
 /// How many times in a row the Kernel asks a Fulfiller again after it said to try again, for one
 /// Request, unfollowed Show or deleted title, before it gives up (ADR 0047).
@@ -210,25 +207,6 @@ fn missing(plugin: &PluginId, word: &str, needs: &[String]) -> String {
         [] => format!("the {word}'s id"),
     };
     format!("{plugin} needs {ids}, and none is known for it")
-}
-
-/// A Fulfiller's error, whose kind is how long it said to wait when it said to try again.
-pub(super) struct Retryable(pub(super) PluginError);
-
-/// A failure unless the Fulfiller said to try again, since the service can't act yet.
-impl FailureKind for Option<Duration> {
-    fn is_failure(&self) -> bool {
-        self.is_none()
-    }
-}
-
-impl ProviderError<Option<Duration>> for Retryable {
-    fn failure(self) -> Failure<Option<Duration>> {
-        Failure {
-            kind: self.0.downcast_ref::<TryAgainIn>().map(|wait| wait.0),
-            message: self.0.to_string(),
-        }
-    }
 }
 
 #[cfg(test)]

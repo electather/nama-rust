@@ -12,7 +12,7 @@
 //! kind another enabled Plugin already provides one for. Once enabled, a Fulfiller is handed every
 //! Approved Request of its kind that was waiting for one.
 
-use std::{collections::HashMap, error::Error, fmt, time::Duration};
+use std::collections::HashMap;
 
 pub use nama_plugin_proto::nama::plugin::v1::{
     Download, DownloadStatus, EpisodeNumber, EpisodeNumbers, Fulfilled, MovieDeleted, Request,
@@ -20,19 +20,6 @@ pub use nama_plugin_proto::nama::plugin::v1::{
 };
 
 use crate::{BoxFuture, PluginError};
-
-/// The error a [`Fulfiller`] returns when the service can't act yet, such as Sonarr still adding a
-/// Show: the Kernel asks again with the same input after this long.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TryAgainIn(pub Duration);
-
-impl fmt::Display for TryAgainIn {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "try again in {} seconds", self.0.as_secs())
-    }
-}
-
-impl Error for TryAgainIn {}
 
 /// The kind a [`Fulfiller`] of Movie Requests is registered under.
 #[derive(Debug)]
@@ -67,6 +54,8 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     /// when the service didn't take the Request, such as when it is unreachable or doesn't know
     /// the title or the quality profile `request` names, or the Fulfiller can't follow a Show it
     /// was asked to. The error is the reason.
+    ///
+    /// [`TryAgainIn`]: crate::TryAgainIn
     fn fulfill<'a>(&'a self, request: &'a Request)
     -> BoxFuture<'a, Result<Fulfilled, PluginError>>;
 
@@ -77,6 +66,8 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     ///
     /// [`TryAgainIn`] when the service can't be told yet: ask again after that long. Otherwise
     /// when the service couldn't be told. The Kernel only logs it.
+    ///
+    /// [`TryAgainIn`]: crate::TryAgainIn
     fn unfollow<'a>(&'a self, _request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async { Ok(()) })
     }
@@ -91,6 +82,8 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     /// [`TryAgainIn`] when the service can't be told yet: ask again after that long. Otherwise
     /// when the service couldn't be told. The delete goes ahead and names this Fulfiller, and the
     /// Kernel doesn't try it again.
+    ///
+    /// [`TryAgainIn`]: crate::TryAgainIn
     fn stop_monitoring<'a>(
         &'a self,
         _title: &'a StopMonitoring,

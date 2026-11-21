@@ -291,9 +291,10 @@ pub trait Fulfiller {
     fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
 }
 
-/// The error a [`Fulfiller`] returns from `fulfill`, `unfollow` or `stop_monitoring` when the
-/// service can't act yet, such as Sonarr still adding a Show: the Server asks again with the same
-/// input after this long, clamped to 1 to 300 seconds, while the Plugin stays enabled.
+/// The error a [`Fulfiller`] returns from `fulfill`, `unfollow` or `stop_monitoring`, or a
+/// [`SegmentSource`] from `search`, when the service can't act yet, such as Sonarr still adding a
+/// Show or a rate limit reached: the Server asks again with the same input after this long,
+/// clamped to 1 to 300 seconds, while the Plugin stays enabled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TryAgainIn(pub Duration);
 
@@ -306,7 +307,7 @@ impl fmt::Display for TryAgainIn {
 impl std::error::Error for TryAgainIn {}
 
 impl TryAgainIn {
-    /// The `retry_after_seconds` a [`fulfiller!`] export answers for `error`: its whole seconds
+    /// The `retry_after_seconds` an export answers for `error`: its whole seconds
     /// if it is a [`TryAgainIn`], saturating at `u32::MAX`, or `None` for any other error.
     #[doc(hidden)]
     #[must_use]

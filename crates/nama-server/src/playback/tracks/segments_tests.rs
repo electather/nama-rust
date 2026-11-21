@@ -1,7 +1,11 @@
-use std::sync::{Arc, Mutex, PoisonError};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex, PoisonError},
+    time::Duration,
+};
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, TryAgainIn,
     contract::{
         self,
         SegmentKind::{SEGMENT_KIND_CREDITS, SEGMENT_KIND_INTRO, SEGMENT_KIND_RECAP},
@@ -28,11 +32,13 @@ const DURATION_MS: i64 = 3_600_000;
 /// The ids of the sources asked, in the order asked.
 type Asked = Arc<Mutex<Vec<&'static str>>>;
 
-/// The Plugin `id`'s Segment source, answering `answer`, or failing when it's `None`.
+/// The Plugin `id`'s Segment source, saying to try again after each of `waits` in turn, then
+/// answering `answer`, or failing when it's `None`.
 #[derive(Clone)]
 struct Fake {
     id: &'static str,
     answer: Option<Vec<SegmentResult>>,
+    waits: Arc<Mutex<Vec<Duration>>>,
     asked: Asked,
 }
 
@@ -42,12 +48,14 @@ impl SegmentSource for Fake {
         _search: &'a SegmentSearch,
     ) -> BoxFuture<'a, Result<SegmentResults, PluginError>> {
         (self.asked.lock().unwrap_or_else(PoisonError::into_inner)).push(self.id);
-        let answer = match &self.answer {
-            Some(segments) => Ok(SegmentResults {
+        let wait = (self.waits.lock().unwrap_or_else(PoisonError::into_inner)).pop();
+        let answer = match (wait, &self.answer) {
+            (Some(wait), _) => Err(TryAgainIn(wait).into()),
+            (None, Some(segments)) => Ok(SegmentResults {
                 segments: segments.clone(),
                 ..SegmentResults::default()
             }),
-            None => Err("the service is down".into()),
+            (None, None) => Err("the service is down".into()),
         };
         Box::pin(std::future::ready(answer))
     }
@@ -133,7 +141,10 @@ impl Fixture {
     }
 
     async fn ask(&self) {
-        self.segments.ask(self.version).await.unwrap();
+        self.segments
+            .ask(self.version, &mut HashMap::new())
+            .await
+            .unwrap();
     }
 
     async fn stored(&self) -> Vec<Segment> {
@@ -182,7 +193,16 @@ fn fake(id: &'static str, answer: Option<Vec<SegmentResult>>) -> Fake {
     Fake {
         id,
         answer,
+        waits: Arc::default(),
         asked: Asked::default(),
+    }
+}
+
+/// The Plugin `id`'s Segment source, saying to try again in a second once, then answering `answer`.
+fn limited(id: &'static str, answer: Vec<SegmentResult>) -> Fake {
+    Fake {
+        waits: Arc::new(Mutex::new(vec![Duration::from_secs(1)])),
+        ..fake(id, Some(answer))
     }
 }
 
@@ -328,5 +348,34 @@ async fn segments_found_before_the_file_changed_and_was_probed_again_are_not_kep
         .unwrap();
 
     assert_eq!(fx.stored().await, []);
+    assert_eq!(fx.segments.due().await.unwrap(), [fx.version]);
+}
+
+#[tokio::test]
+async fn a_version_a_source_said_to_try_again_for_is_asked_again_once_the_wait_is_over() {
+    let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
+    let fx = Fixture::new(vec![], &["limited"], vec![limited("limited", intro)]).await;
+
+    fx.segments.ask_due().await;
+
+    assert_eq!(fx.asked(), ["limited", "limited"]);
+    assert_eq!(
+        fx.stored().await,
+        [segment(SegmentKind::Intro, 5_000, Some(10_000))]
+    );
+}
+
+#[tokio::test]
+async fn while_one_source_waits_the_version_stays_due_and_the_librarys_other_sources_are_asked() {
+    let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
+    let fakes = vec![limited("limited", intro), fake("other", Some(vec![]))];
+    let fx = Fixture::new(vec![], &["limited", "other"], fakes).await;
+    let mut paused = HashMap::new();
+
+    for _ in 0..2 {
+        (fx.segments.ask(fx.version, &mut paused)).await.unwrap();
+    }
+
+    assert_eq!(fx.asked(), ["limited", "other", "other"]);
     assert_eq!(fx.segments.due().await.unwrap(), [fx.version]);
 }

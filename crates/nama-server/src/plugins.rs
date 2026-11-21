@@ -26,7 +26,7 @@ use std::{
 
 use futures_util::FutureExt;
 use nama_plugin_api::{
-    Manifest, Plugin, PluginId,
+    Manifest, Plugin, PluginError, PluginId, TryAgainIn,
     settings::{SettingKind, Settings, SettingsError, SettingsSchema},
 };
 use nama_proto::nama::v1::PluginKind;
@@ -144,6 +144,26 @@ impl ProviderError<()> for Box<dyn std::error::Error + Send + Sync + '_> {
         Failure {
             kind: (),
             message: self.to_string(),
+        }
+    }
+}
+
+/// A Provider's error, whose kind is how long it said to wait when it said to try again
+/// ([`TryAgainIn`]).
+pub(crate) struct Retryable(pub(crate) PluginError);
+
+/// A failure unless the Provider said to try again, since its service can't act yet.
+impl FailureKind for Option<Duration> {
+    fn is_failure(&self) -> bool {
+        self.is_none()
+    }
+}
+
+impl ProviderError<Option<Duration>> for Retryable {
+    fn failure(self) -> Failure<Option<Duration>> {
+        Failure {
+            kind: self.0.downcast_ref::<TryAgainIn>().map(|wait| wait.0),
+            message: self.0.to_string(),
         }
     }
 }

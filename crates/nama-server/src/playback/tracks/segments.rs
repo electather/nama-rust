@@ -3,11 +3,12 @@
 //! the Library's order for the kinds still missing (ADR 0075).
 //!
 //! Asking is split so a jobs system can take it over: [`Segments::due`] works out from what's
-//! stored which Versions to ask about, and [`Segments::ask`] asks about one, needing nothing else
-//! and safe to run twice. The loop [`Segments::start`] runs joins them, in the background after a
-//! probe pass and every so often, never while a Version plays.
+//! stored which Versions to ask about, and [`Segments::ask`] asks about one, needing only which
+//! sources said to wait, and safe to run twice. The loop [`Segments::start`] runs joins them, in
+//! the background after a probe pass and every so often, never while a Version plays.
 
 use std::{
+    collections::HashMap,
     sync::{Arc, LazyLock},
     time::Duration,
 };
@@ -27,7 +28,7 @@ use super::{Chapter, ignore_removed};
 use crate::{
     db::{self, Database},
     library::{Contents, ItemKind, Libraries, LibraryError},
-    plugins::{Answer, ExtensionPoints},
+    plugins::{ExtensionPoints, Failure, Retryable},
 };
 
 /// How long a Version still missing a kind waits to be asked about again, as crowdsourced
@@ -39,6 +40,31 @@ const ASK_AGAIN_AFTER: Duration = Duration::from_hours(30 * 24);
 /// How long a Version a Segment source failed for waits to be asked about again, so a service
 /// that's down or limiting its rate isn't asked about every Version on every pass.
 const ASK_AGAIN_AFTER_FAILING: Duration = Duration::from_hours(1);
+
+/// Until when, in [`db::now_ms`]'s milliseconds, each Segment source that said to try again is
+/// asked about no Version.
+type Paused = HashMap<PluginId, i64>;
+
+/// What a Version's Segment sources came to, later ones outranking earlier ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SourcesSaid {
+    /// Each asked answered, if only that it doesn't know.
+    Answered,
+    /// One failed.
+    Failed,
+    /// One said to try again, or was skipped while it waits, so the Version stays due.
+    Waiting,
+}
+
+impl SourcesSaid {
+    fn ask_again_after(self) -> Duration {
+        match self {
+            Self::Answered => ASK_AGAIN_AFTER,
+            Self::Failed => ASK_AGAIN_AFTER_FAILING,
+            Self::Waiting => Duration::ZERO,
+        }
+    }
+}
 
 /// What a Segment is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
@@ -154,21 +180,38 @@ impl Segments {
         self.inner.tasks.wait().await;
     }
 
+    /// Asks about each Version due, then, while a source's wait left any due, waits for the first
+    /// wait to end and asks about those again.
     async fn ask_due(&self) {
-        let due = match self.due().await {
-            Ok(due) => due,
-            Err(err) => {
-                tracing::error!("could not read which Versions' Segments to look for: {err}");
+        let mut paused = Paused::new();
+        loop {
+            let due = match self.due().await {
+                Ok(due) => due,
+                Err(err) => {
+                    tracing::error!("could not read which Versions' Segments to look for: {err}");
+                    return;
+                }
+            };
+            let mut waiting = false;
+            for version in due {
+                match self.ask(version, &mut paused).await {
+                    Ok(left_due) => waiting |= left_due,
+                    Err(err) => tracing::error!(
+                        version,
+                        "could not keep where a Version's Segments are: {err}"
+                    ),
+                }
+            }
+            if !waiting {
                 return;
             }
-        };
-        for version in due {
-            if let Err(err) = self.ask(version).await {
-                tracing::error!(
-                    version,
-                    "could not keep where a Version's Segments are: {err}"
-                );
-            }
+            let now = db::now_ms();
+            let first_ends = (paused.values().copied())
+                .filter(|&until| until > now)
+                .min()
+                .unwrap_or(now);
+            let wait_ms = u64::try_from(first_ends - now).unwrap_or_default();
+            tokio::time::sleep(Duration::from_millis(wait_ms)).await;
         }
     }
 
@@ -193,16 +236,17 @@ impl Segments {
     }
 
     /// Finds the Segments of the kinds the Version `version` lacks, from its Chapter names, then
-    /// from the Segment sources its Library lists, in order, keeping the first found of each kind,
-    /// and records when to ask about it again. Does nothing for a Version gone or not probed.
-    async fn ask(&self, version: i64) -> sqlx::Result<()> {
+    /// from the Segment sources its Library lists, in order, skipping those `paused`, keeping the
+    /// first found of each kind, and records when to ask about it again. Whether a source's wait
+    /// left it due. Does nothing for a Version gone or not probed.
+    async fn ask(&self, version: i64, paused: &mut Paused) -> sqlx::Result<bool> {
         let Some(Probed {
             duration_ms,
             chapters,
             stamp,
         }) = self.probed(version).await?
         else {
-            return Ok(());
+            return Ok(false);
         };
         let stored = self.kinds_stored(version).await?;
         let mut found = Found {
@@ -216,19 +260,14 @@ impl Segments {
         for segment in named_by(&chapters) {
             found.offer(segment, None);
         }
-        let failed = self.ask_sources(version, &mut found).await?;
-        let wait = if failed {
-            ASK_AGAIN_AFTER_FAILING
-        } else {
-            ASK_AGAIN_AFTER
-        };
-        let due_ms =
-            db::now_ms().saturating_add(i64::try_from(wait.as_millis()).unwrap_or(i64::MAX));
+        let said = self.ask_sources(version, &mut found, paused).await?;
+        let due_ms = db::now_ms().saturating_add(millis(said.ask_again_after()));
         let Found { segments, .. } = found;
         let kept = (self.inner.db)
             .write(move |tx| Box::pin(keep(tx, version, stamp, segments, due_ms)))
             .await;
-        ignore_removed(kept)
+        ignore_removed(kept)?;
+        Ok(said == SourcesSaid::Waiting)
     }
 
     /// The Version `version`'s probe, if it's probed and its length is known.
@@ -276,23 +315,32 @@ impl Segments {
     }
 
     /// Asks the Segment sources the Version `version`'s Library lists, in its order, for the kinds
-    /// `found` still lacks, until none is. Whether one failed. Asks none about a Version whose
-    /// title has no ids, as Unmatched, since a source finds Segments by them.
-    async fn ask_sources(&self, version: i64, found: &mut Found) -> sqlx::Result<bool> {
+    /// `found` still lacks, until none is, skipping those `paused` and pausing those that say to
+    /// try again. Asks none about a Version whose title has no ids, as Unmatched, since a source
+    /// finds Segments by them.
+    // ponytail: a Version left waiting asks the Library's other sources again on the next pass;
+    // record which sources each ask reached if that costs a service too much.
+    async fn ask_sources(
+        &self,
+        version: i64,
+        found: &mut Found,
+        paused: &mut Paused,
+    ) -> sqlx::Result<SourcesSaid> {
+        let mut said = SourcesSaid::Answered;
         if found.missing.is_empty() {
-            return Ok(false);
+            return Ok(said);
         }
         let Some(item) = self.inner.contents.first_item(version).await? else {
-            return Ok(false);
+            return Ok(said);
         };
         if item.ids.is_empty() {
-            return Ok(false);
+            return Ok(said);
         }
         let sources = match self.inner.libraries.get(item.library).await {
             Ok(library) => library.segment_sources,
             Err(LibraryError::Database(err)) => return Err(err),
             // Gone since, and its Versions with it.
-            Err(_) => return Ok(false),
+            Err(_) => return Ok(said),
         };
         let (season, episode) = item.episode.unzip();
         let search = SegmentSearch {
@@ -313,37 +361,50 @@ impl Segments {
             duration_ms: u64::try_from(found.duration_ms).unwrap_or_default(),
             ..SegmentSearch::default()
         };
-        let mut failed = false;
         for plugin in sources.into_iter().map(PluginId::from) {
             if found.missing.is_empty() {
                 break;
             }
+            if paused
+                .get(&plugin)
+                .is_some_and(|&until| until > db::now_ms())
+            {
+                said = SourcesSaid::Waiting;
+                continue;
+            }
             let search = &search;
             let answer = (self.inner.points)
                 .ask(&plugin, move |source: Arc<dyn SegmentSource>| async move {
-                    source.search(search).await
+                    source.search(search).await.map_err(Retryable)
                 })
                 .await;
-            match answer {
-                Some(Answer {
-                    result: Ok(results),
-                    ..
-                }) => (results.segments.iter().filter_map(from_result))
+            match answer.map(|answer| answer.result) {
+                Some(Ok(results)) => (results.segments.iter().filter_map(from_result))
                     .for_each(|segment| found.offer(segment, Some(&plugin))),
+                Some(Err(Failure {
+                    kind: Some(wait), ..
+                })) => {
+                    paused.insert(plugin, db::now_ms().saturating_add(millis(wait)));
+                    said = SourcesSaid::Waiting;
+                }
                 // The Plugins page shows the failure; logged on every Version, it would flood.
-                Some(Answer {
-                    result: Err(failure),
-                    ..
-                }) => {
-                    tracing::debug!(%plugin, version, "a Segment source failed: {}", failure.message);
-                    failed = true;
+                Some(Err(Failure {
+                    kind: None,
+                    message,
+                })) => {
+                    tracing::debug!(%plugin, version, "a Segment source failed: {message}");
+                    said = said.max(SourcesSaid::Failed);
                 }
                 // Not enabled, or it panicked and is disabled now.
                 None => {}
             }
         }
-        Ok(failed)
+        Ok(said)
     }
+}
+
+fn millis(wait: Duration) -> i64 {
+    i64::try_from(wait.as_millis()).unwrap_or(i64::MAX)
 }
 
 /// The Segments the Version `version` has, earliest first.

@@ -11,7 +11,7 @@ pub use nama_plugin_proto::nama::plugin::v1::{
 ///
 /// The Server asks in the background after probing a Version, only for the kinds it doesn't know
 /// yet, and stores the answer itself. The Plugin keeps to its service's rate limits: the Server
-/// doesn't count calls.
+/// doesn't count calls, but waits out a [`TryAgainIn`](crate::TryAgainIn).
 ///
 /// ```
 /// use nama_pdk::{
@@ -43,27 +43,39 @@ pub trait SegmentSource {
     ///
     /// # Errors
     ///
-    /// When it couldn't ask, such as past its service's rate limit: the Server asks again later.
+    /// [`TryAgainIn`](crate::TryAgainIn) when it can't ask yet, such as past its service's rate
+    /// limit: the Server asks it about no Version until then, and about this one again after.
+    /// Otherwise when it couldn't ask: the Server asks again later.
     fn search(search: SegmentSearch) -> Result<SegmentResults, Error>;
 }
 
 /// Exports a [`SegmentSource`] as the Plugin's `segment_search`, taking the `nama.plugin.v1`
-/// message the Server sends it and returning its answer.
+/// message the Server sends it and returning its answer. A
+/// [`TryAgainIn`](crate::TryAgainIn) error becomes the answer's `retry_after_seconds`.
 #[macro_export]
 macro_rules! segment_source {
     ($source:ty) => {
         const _: () = {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
-                Buffa, FnResult, SegmentResults, SegmentSearch, SegmentSource, extism_pdk,
-                plugin_fn,
+                Buffa, FnResult, SegmentResults, SegmentSearch, SegmentSource, TryAgainIn,
+                extism_pdk, plugin_fn,
             };
 
             #[plugin_fn]
             pub fn segment_search(
                 Buffa(search): Buffa<SegmentSearch>,
             ) -> FnResult<Buffa<SegmentResults>> {
-                Ok(Buffa(<$source as SegmentSource>::search(search)?))
+                match <$source as SegmentSource>::search(search) {
+                    Ok(results) => Ok(Buffa(results)),
+                    Err(error) => match TryAgainIn::seconds_in(&error) {
+                        Some(seconds) => Ok(Buffa(SegmentResults {
+                            retry_after_seconds: Some(seconds),
+                            ..SegmentResults::default()
+                        })),
+                        None => Err(error.into()),
+                    },
+                }
             }
         };
     };

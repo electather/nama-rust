@@ -7,13 +7,16 @@ use nama_plugin_api::{
     segment_source::SegmentSource,
 };
 
-use super::{Running, services::SEGMENT_SEARCH};
+use super::{Running, services::SEGMENT_SEARCH, try_again};
 
 impl SegmentSource for Running {
     fn search<'a>(
         &'a self,
         search: &'a SegmentSearch,
     ) -> BoxFuture<'a, Result<SegmentResults, PluginError>> {
-        Box::pin(self.call_method(&SEGMENT_SEARCH, search))
+        Box::pin(async move {
+            let results: SegmentResults = self.call_method(&SEGMENT_SEARCH, search).await?;
+            try_again(results.retry_after_seconds).map_or(Ok(results), |wait| Err(wait.into()))
+        })
     }
 }

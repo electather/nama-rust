@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use nama_plugin_api::fulfiller::TryAgainIn;
+use nama_plugin_api::TryAgainIn;
 
 use super::try_again;
 
