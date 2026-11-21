@@ -141,11 +141,8 @@ impl UserHomeLayout {
                 Some(seen.swap_remove(at))
             })
             .collect();
-        // The default's entry for a Plugin's Users' own rows places none of them one by one, so
-        // it isn't copied: a User's own row their order lacks goes at its end.
         let defaults: Vec<HomeRowId> = (default.rows.into_iter())
             .map(|placed| placed.row)
-            .filter(|row| !matches!(row, HomeRowId::UsersOwn { .. }))
             .collect();
         db.write(move |tx| {
             Box::pin(async move {
@@ -154,6 +151,9 @@ impl UserHomeLayout {
                     &mut order,
                     &before.order.take().unwrap_or(defaults),
                     PartialEq::eq,
+                    // The default's entry for a Plugin's Users' own rows places none of them one
+                    // by one, so it isn't copied: a User's own row their order lacks goes at its end.
+                    |row| !matches!(row, HomeRowId::UsersOwn { .. }),
                 );
                 let order = Some(order);
                 store(tx, user, &Self { order, ..before }).await

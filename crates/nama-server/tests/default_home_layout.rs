@@ -680,7 +680,8 @@ async fn reordering_while_a_plugin_is_disabled_keeps_its_rows_where_they_were() 
     let ada = server.user_with_default_permissions("ada").await;
     let missing_first = vec![shared("missing", "", false), continue_watching(false)];
     set_default(&server, layout(false, missing_first)).await;
-    let kept = ["missing", "continue-watching", "picks", "again"];
+    set_own(&ada, layout(false, vec![shared("again", "", true)])).await;
+    let kept = ["missing", "continue-watching", "picks"];
 
     disable(&server).await;
     reorder(&ada, vec![continue_watching(false)]).await;
@@ -693,6 +694,25 @@ async fn reordering_while_a_plugin_is_disabled_keeps_its_rows_where_they_were() 
     reorder(&ada, vec![continue_watching(false)]).await;
     enable(&server).await;
     wait_for_rows(ada.client_config(), &kept).await;
+    assert_eq!(
+        get_own(&ada).await.rows[3],
+        shared("again", "Alien again", true)
+    );
+}
+
+#[tokio::test]
+async fn a_row_whose_predecessor_is_also_gone_returns_at_the_end() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    let missing = shared("missing", "", false);
+    set_default(&server, layout(false, vec![users_rows(false), missing])).await;
+
+    disable(&server).await;
+    reorder(&ada, vec![continue_watching(false)]).await;
+    enable(&server).await;
+
+    let at_the_end = ["continue-watching", "missing", "picks", "again"];
+    wait_for_rows(ada.client_config(), &at_the_end).await;
 }
 
 #[tokio::test]
