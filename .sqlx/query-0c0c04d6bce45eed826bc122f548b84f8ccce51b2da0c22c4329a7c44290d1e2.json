@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT CAST(genre.value AS TEXT) AS \"genre!: String\"\n                       FROM (SELECT library_id, item_id, kind, path, season, episode, own_id, listed_id,\n                      ROW_NUMBER() OVER title AS nth, MIN(item_id) OVER title AS title_item,\n                      MIN(added_at) OVER title AS first_added_at,\n                      MAX(added_at) OVER title AS newest_added_at,\n                      IIF(kind = 'movie', MIN(added_at) OVER title, MAX(added_at) OVER title)\n                          AS added_at\n               FROM (SELECT library_files.library_id, library_items.id AS item_id, library_items.kind,\n                      library_files.path, library_items.season, library_items.episode,\n                      library_items.added_at, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = 'title') AS own_id, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               JOIN libraries ON libraries.id = library_files.library_id\n               WHERE item_matches.state = 'matched'\n                 AND library_items.kind = IIF(libraries.kind = 'movies', 'movie', 'episode')\n                 AND own_id IS NOT NULL AND listed_id IS NOT NULL\n                 AND (library_items.kind = 'movie'\n                      OR (library_items.season IS NOT NULL\n                          AND library_items.episode IS NOT NULL)))\n               WINDOW title AS (PARTITION BY library_id, listed_id\n                                ORDER BY season, episode, path\n                                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)) AS library_titles\n                       JOIN item_matches ON item_matches.item_id = library_titles.item_id\n                       JOIN json_each(item_matches.genres) AS genre\n                       WHERE library_titles.library_id = ? AND library_titles.nth = 1\n                       ORDER BY genre.value",
+  "describe": {
+    "columns": [
+      {
+        "name": "genre!: String",
+        "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0c0c04d6bce45eed826bc122f548b84f8ccce51b2da0c22c4329a7c44290d1e2"
+}
