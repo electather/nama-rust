@@ -37,6 +37,10 @@ impl Matcher {
     pub(crate) async fn refresh_all(&self, cancel: &CancellationToken) -> Result<Refreshed, Error> {
         let mut all = Refreshed::default();
         for library in self.libraries.list().await? {
+            // A Library with no Matches never reaches `refresh`'s own check.
+            if cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
             let _scan = self.locks.lock(library.id).await;
             let ordered = self.metadata.in_order(library.title_sources);
             let refreshed = self.refresh(library.id, &ordered, i64::MAX, cancel).await?;
@@ -143,3 +147,7 @@ impl Matcher {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "refresh_tests.rs"]
+mod tests;

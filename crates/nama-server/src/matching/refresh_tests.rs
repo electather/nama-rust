@@ -1,11 +1,14 @@
 use nama_plugin_api::{PluginId, metadata::ExternalId};
 use tokio_util::sync::CancellationToken;
 
-use super::{
-    Refreshed,
-    testing::{Fixture, episode, matched, movie},
+use super::Refreshed;
+use crate::{
+    library::ImageRef,
+    matching::{
+        Error,
+        testing::{Fixture, episode, matched, movie},
+    },
 };
-use crate::library::ImageRef;
 
 const SECRETS: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
 /// TMDB has no Still for it.
@@ -248,32 +251,31 @@ async fn refreshing_every_match_fetches_each_title_again_by_its_id_whatever_its_
 #[tokio::test]
 async fn refreshing_every_match_keeps_pinned_and_automatic_matches_on_their_titles() {
     let media = Fixture::new().await;
-    let (movies, shows) = (&media.movies, &media.shows);
+    let movies = &media.movies;
+    // TMDB finds nothing for it, so only its pin Matches it to Heat.
+    let home_movies = "Home Movies (2019)/Home Movies (2019).mkv";
     movies
         .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
         .await;
-    shows.write(SECRETS, &[episode("Dark", 2017, 1, 1)]).await;
+    movies
+        .write(home_movies, &[movie("Home Movies", 2019)])
+        .await;
     media.scan(movies).await;
-    media.scan(shows).await;
-    let item = media.item(shows, SECRETS).await;
-    let pin = ExternalId::tmdb(70523);
-    media.matcher.set_match(item, &pin).await.unwrap();
-    media.contents.stored_by_older_metadata(shows.id).await;
-    let searches = media.searches();
-
+    let item = media.item(movies, home_movies).await;
     media
         .matcher
-        .refresh_all(&CancellationToken::new())
+        .set_match(item, &ExternalId::tmdb(949))
         .await
         .unwrap();
-    let refreshed = media.stills(shows).await;
-    // A changed file is Matched again, which follows a pin rather than searching.
-    shows.replace(SECRETS).await;
-    media.scan(shows).await;
+    let searches = media.searches();
 
-    assert_eq!(refreshed, [Some(SECRETS_STILL.to_owned())]);
-    assert_eq!(media.outcomes(movies).await, [matched(348, "Alien")]);
-    assert_eq!(media.outcomes(shows).await, [matched(1_388_538, "Secrets")]);
+    let all = media.matcher.refresh_all(&CancellationToken::new()).await;
+
+    assert_eq!(all.unwrap(), refreshed(2, &[]));
+    assert_eq!(
+        media.outcomes(movies).await,
+        [matched(348, "Alien"), matched(949, "Heat")]
+    );
     assert_eq!(media.searches(), searches);
 }
 
@@ -323,4 +325,15 @@ async fn refreshing_every_match_skips_only_an_unavailable_sources_titles() {
         media.stills(shows).await,
         [Some(SECRETS_STILL.to_owned()), None]
     );
+}
+
+#[tokio::test]
+async fn refreshing_every_match_stops_once_cancelled_even_with_nothing_matched() {
+    let media = Fixture::new().await;
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+
+    let all = media.matcher.refresh_all(&cancel).await;
+
+    assert!(matches!(all, Err(Error::Cancelled)), "{all:?}");
 }
