@@ -181,8 +181,19 @@ pub(super) async fn delete_invites_by(
     Ok(())
 }
 
-/// Stores an Invite made by `by`, with the hash of its token, and forgets expired ones, which
-/// nothing else deletes.
+/// Deletes the Invites expired by `now`, answering how many.
+pub(super) async fn delete_expired_invites(
+    conn: &mut SqliteConnection,
+    now: i64,
+) -> Result<u64, sqlx::Error> {
+    let deleted = sqlx::query!("DELETE FROM invites WHERE expires_at <= ?", now)
+        .execute(conn)
+        .await?;
+    Ok(deleted.rows_affected())
+}
+
+/// Stores an Invite made by `by`, with the hash of its token, and forgets expired ones, in case
+/// Upkeep doesn't.
 async fn insert_invite(
     conn: &mut SqliteConnection,
     by: User,
@@ -192,9 +203,7 @@ async fn insert_invite(
 ) -> Result<Invite, sqlx::Error> {
     let created_at = now();
     let expires_at = created_at + INVITE_LIFETIME;
-    sqlx::query!("DELETE FROM invites WHERE expires_at <= ?", created_at)
-        .execute(&mut *conn)
-        .await?;
+    delete_expired_invites(&mut *conn, created_at).await?;
     let token_hash = token_hash.as_slice();
     let id = sqlx::query_scalar!(
         r#"INSERT INTO invites (token_hash, note, permissions, created_by, created_at, expires_at)

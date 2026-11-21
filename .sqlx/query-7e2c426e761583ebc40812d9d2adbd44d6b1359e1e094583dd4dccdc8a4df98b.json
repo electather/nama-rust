@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO job_overrides (plugin, job, enabled, schedule) VALUES (?, ?, ?, ?)\n                     ON CONFLICT (plugin, job)\n                     DO UPDATE SET enabled = excluded.enabled, schedule = excluded.schedule",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "7e2c426e761583ebc40812d9d2adbd44d6b1359e1e094583dd4dccdc8a4df98b"
+}

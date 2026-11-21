@@ -47,6 +47,7 @@ impl Users {
             )
         })
         .await
+        .map(drop)
     }
 
     /// Checks that `password` is `user`'s, refusing it with [`Error::WrongPassword`] if not.
@@ -95,6 +96,7 @@ impl Users {
             })
         })
         .await
+        .map(drop)
     }
 
     /// The User named `name`, ignoring case, and the id of their password Sign-in Method, if
