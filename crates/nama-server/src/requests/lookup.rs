@@ -1,5 +1,7 @@
 //! Looking titles up in the title source for Requests, as a viewer sees them.
 
+use std::collections::HashSet;
+
 use nama_plugin_api::{
     PluginId,
     metadata::{ExternalId, TitleMethod},
@@ -15,7 +17,7 @@ use super::{Error, Requests};
 use crate::{
     library::{
         Candidate, ImageRef, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind,
-        Unanswered, library_with_movie, matched_episodes,
+        Unanswered, library_with_movie, match_bands, matched_episodes,
     },
     users::User,
 };
@@ -94,6 +96,18 @@ impl Requests {
             found.push(movie);
         }
         Ok(found)
+    }
+
+    /// The Movies the title source finds for a search for `query`, as `viewer` sees them, less any
+    /// with an id in `in_libraries`, ranked as ADR 0080 says: see [`ranked`].
+    pub(crate) async fn search_to_request(
+        &self,
+        viewer: &User,
+        query: &str,
+        in_libraries: &HashSet<ExternalId>,
+    ) -> Result<Vec<Found<Candidate>>, Error> {
+        let found = self.search(viewer, query.to_owned()).await?;
+        Ok(ranked(found, in_libraries, query))
     }
 
     /// The Shows the title source finds titled like `title`, best fit first.
@@ -331,3 +345,29 @@ pub(super) fn looking_up(err: Unanswered, missing: Error) -> Error {
         Unanswered::Unavailable => Error::Unavailable,
     }
 }
+
+/// `found`, in the title source's order, less any with an id in `in_libraries`: those a Library
+/// has first, then those with an open Request, then the rest, each by how well the title fits
+/// `query`, as the Libraries' search bands it, then in the source's order.
+fn ranked(
+    found: Vec<Found<Candidate>>,
+    in_libraries: &HashSet<ExternalId>,
+    query: &str,
+) -> Vec<Found<Candidate>> {
+    let mut found: Vec<_> = (found.into_iter())
+        .filter(|found| {
+            !in_libraries.contains(&found.id)
+                && !found.movie.ids.iter().any(|id| in_libraries.contains(&id))
+        })
+        .collect();
+    found.sort_by_cached_key(|found| {
+        let year = found.movie.year.map(|year| year.to_string());
+        let bands = match_bands(query, &found.movie.title, year.as_deref());
+        (found.library.is_none(), found.request.is_none(), bands)
+    });
+    found
+}
+
+#[cfg(test)]
+#[path = "lookup_tests.rs"]
+mod tests;

@@ -17,7 +17,7 @@ use crate::{
     browse::Browse,
     library::{
         Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, Role,
-        ShownImages, TitleImage, TitleKind, match_bands,
+        ShownImages, TitleImage, TitleKind,
     },
     requests::{self, Requests, year_of},
 };
@@ -62,7 +62,7 @@ impl SearchService for SearchServiceHandler {
         let found = self.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
-        let sent = sent_movies(&found);
+        let in_libraries = library_movie_ids(&found);
         let library = Hits {
             hits: (found.into_iter())
                 .map(|found| hit_to_proto(found, &images))
@@ -76,11 +76,11 @@ impl SearchService for SearchServiceHandler {
             if !asks_title_source {
                 return vec![Ok(part(Done::default()))];
             }
-            match requests.search(&viewer, query.clone()).await {
+            match (requests.search_to_request(&viewer, &query, &in_libraries)).await {
                 Ok(movies) => {
-                    let hits = (ranked_to_request(movies, &sent, &query).into_iter())
+                    let hits = (movies.into_iter())
                         .take(limit)
-                        .map(|movie| to_request_hit(movie, &images))
+                        .map(|movie| movie_to_request_hit(movie, &images))
                         .collect();
                     let hits = Hits {
                         hits,
@@ -147,7 +147,7 @@ fn hit_to_proto(found: Found, images: &ShownImages) -> proto::Hit {
 }
 
 /// Every id of each Movie in `found`, which the title source's batch leaves out.
-fn sent_movies(found: &[Found]) -> HashSet<ExternalId> {
+fn library_movie_ids(found: &[Found]) -> HashSet<ExternalId> {
     (found.iter())
         .filter_map(|found| match found {
             Found::Movie(movie) => Some(movie.ids.iter().chain([movie.id.clone()])),
@@ -157,28 +157,8 @@ fn sent_movies(found: &[Found]) -> HashSet<ExternalId> {
         .collect()
 }
 
-/// The Movies the title source found for `query`, in its order, less those `sent` already, ranked
-/// as ADR 0080 says: by status, then by how well the title fits, then in the source's order.
-fn ranked_to_request(
-    found: Vec<requests::Found<Candidate>>,
-    sent: &HashSet<ExternalId>,
-    query: &str,
-) -> Vec<requests::Found<Candidate>> {
-    let mut found: Vec<_> = (found.into_iter())
-        .filter(|found| {
-            !sent.contains(&found.id) && !found.movie.ids.iter().any(|id| sent.contains(&id))
-        })
-        .collect();
-    found.sort_by_cached_key(|found| {
-        let year = found.movie.year.map(|year| year.to_string());
-        let bands = match_bands(query, &found.movie.title, year.as_deref());
-        (found.library.is_none(), found.request.is_none(), bands)
-    });
-    found
-}
-
 /// A Movie the title source found, with how close it is to being on the Server.
-fn to_request_hit(found: requests::Found<Candidate>, images: &ShownImages) -> proto::Hit {
+fn movie_to_request_hit(found: requests::Found<Candidate>, images: &ShownImages) -> proto::Hit {
     let status = match (found.library, &found.request) {
         (Some(_), _) => TitleStatus::TITLE_STATUS_AVAILABLE,
         (None, Some(_)) => TitleStatus::TITLE_STATUS_REQUESTED,
@@ -232,7 +212,3 @@ fn episode_hit(episode: FoundEpisode) -> proto::EpisodeHit {
         ..Default::default()
     }
 }
-
-#[cfg(test)]
-#[path = "search_tests.rs"]
-mod tests;
