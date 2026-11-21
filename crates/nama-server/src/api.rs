@@ -1,6 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::{net::IpAddr, sync::Arc};
+use std::sync::Arc;
 
 use axum::{http::header::SET_COOKIE, middleware};
 use buffa::{EnumValue, MessageName};
@@ -16,12 +16,12 @@ use crate::{
     diagnostics::{self, BrowserSpans, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
-    forwarded::{RequestSource, identify_source},
+    forwarded::identify_source,
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, TitleKind,
-        TitleSources, artwork_router, custom_images_router, local_images_router,
+        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, SimilarSources,
+        TitleKind, TitleSources, artwork_router, custom_images_router, local_images_router,
     },
     playback::{
         Plans, PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
@@ -135,6 +135,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(browse::BrowseServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
+            similar: SimilarSources::new(plugins.clone()),
             home_rows: home_rows.clone(),
             settings: settings.clone(),
             images: images.clone(),
@@ -168,6 +169,7 @@ pub(crate) fn router(
         .add_service(Arc::new(requests::RequestServiceHandler {
             requests,
             browse: Browse::new(Arc::clone(&db)),
+            similar: SimilarSources::new(plugins.clone()),
             images: images.clone(),
             db: Arc::clone(&db),
         }))
@@ -503,15 +505,6 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
     } else {
         ConnectError::internal("the Server's database failed")
     }
-}
-
-/// The client IP address `ctx` came from, which rate limits count by.
-fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
-    let source = ctx.extensions().get::<RequestSource>();
-    source.map(|source| source.client_ip).ok_or_else(|| {
-        tracing::error!("a request came without its peer's address");
-        ConnectError::internal("the Server failed")
-    })
 }
 
 #[cfg(test)]

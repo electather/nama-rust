@@ -21,7 +21,8 @@ use crate::{
     home_rows::{HomeRows, RowTitle},
     library::{
         Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, OnServer, Role,
-        ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
+        ShownImages, SimilarSources, TitleImage, TitleKind, TitleSort, Unmatched, WatchState,
+        Watched,
     },
     playback::track_to_proto,
     server_settings::{HomeRowId, Settings},
@@ -48,6 +49,8 @@ pub(super) use titles::{roles_to_proto, trailers_to_proto};
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct BrowseServiceHandler {
     pub(super) browse: Browse,
+    /// Says which Similar sources' stored answers a title's page shows.
+    pub(super) similar: SimilarSources,
     pub(super) home_rows: HomeRows,
     /// Holds the default Home layout, which orders and hides the Home rows and Featured.
     pub(super) settings: Settings,
@@ -156,7 +159,7 @@ impl BrowseService for BrowseServiceHandler {
         let on_watchlist = (self.on_watchlist(user.id, TitleKind::Movie, &movie.ids)).await?;
         let similar = (self
             .browse
-            .similar(request.library_id, TitleKind::Movie, &movie.ids))
+            .similar(TitleKind::Movie, &movie.ids, &self.similar))
         .await;
         let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let roles = self.browse.movie_roles(&movie).await;
@@ -250,7 +253,7 @@ impl BrowseService for BrowseServiceHandler {
         let aired_episode_count = aired.map_err(database_failed)?;
         let similar = (self
             .browse
-            .similar(request.library_id, TitleKind::Show, &show.ids))
+            .similar(TitleKind::Show, &show.ids, &self.similar))
         .await;
         let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;

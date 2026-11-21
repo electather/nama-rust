@@ -12,6 +12,7 @@ mod local_images;
 mod recognisers;
 mod scan_locks;
 mod shown_images;
+mod similar_sources;
 mod title_source;
 mod titles;
 mod versions;
@@ -43,6 +44,9 @@ pub(crate) use local_images::{FoundImages, LocalImages, router as local_images_r
 pub(crate) use recognisers::{RecogniserFailed, Recognisers};
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
 pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage};
+pub(crate) use similar_sources::{
+    Answer as SimilarAnswer, MAX_SIMILAR, SimilarSources, merged as merged_similar,
+};
 #[cfg(test)]
 pub(crate) use title_source::scripted;
 pub(crate) use title_source::{

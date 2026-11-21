@@ -11,13 +11,14 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_plugin_api::{
-    BoxFuture,
+    BoxFuture, PluginError,
     contract::{
         ArtworkAnswer, ArtworkAsked, Candidate, EpisodeAnswer, EpisodeAsked, Image, ImageAnswer,
         ImageAsked, MovieAnswer, SearchQuery, SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer,
-        TitleAsked, TitleId, TitleKind,
+        SimilarAsked, SimilarTitles, TitleAsked, TitleId, TitleKind,
     },
     metadata::{IMDB, MetadataError, TMDB, TVDB, TitleSource},
+    similar_source::SimilarSource,
 };
 use serde::de::DeserializeOwned;
 use url::Url;
@@ -25,8 +26,8 @@ use url::Url;
 use crate::{
     Endpoints,
     wire::{
-        EpisodeDetails, Found, Images, MovieDetails, MovieResult, Page, SeasonDetails, ShowDetails,
-        ShowResult,
+        EpisodeDetails, Found, Images, MovieDetails, MovieResult, Page, Recommendations,
+        SeasonDetails, ShowDetails, ShowResult,
     },
 };
 
@@ -164,14 +165,13 @@ impl Client {
     }
 
     /// The details of the Movie or Show at `path`, with `appended`, the fields its ratings by
-    /// country, its credits and its videos are appended as, and `recommendations`, its Similar
-    /// titles.
+    /// country, its credits and its videos are appended as.
     async fn title_details<T: DeserializeOwned>(
         &self,
         path: &str,
         appended: &str,
     ) -> Result<Option<T>, MetadataError> {
-        let append = format!("external_ids,{appended},recommendations");
+        let append = format!("external_ids,{appended}");
         self.api(path, &[("append_to_response", append.as_str())])
             .await
     }
@@ -259,13 +259,42 @@ fn candidates<T: Into<Candidate>>(page: Option<Page<T>>) -> Vec<Candidate> {
 }
 
 /// A failure worth trying again later, such as TMDB being unreachable.
-fn failed(error: impl Into<nama_plugin_api::PluginError>) -> MetadataError {
+fn failed(error: impl Into<PluginError>) -> MetadataError {
     MetadataError::Failed(error.into())
 }
 
 /// The namespaces TMDB looks titles up by, which its Manifest declares too.
 pub(crate) fn looks_up() -> Vec<String> {
     vec![IMDB.to_owned(), TVDB.to_owned()]
+}
+
+/// TMDB's recommendations as Similar titles, one more call than the title's own (ADR 0084).
+impl SimilarSource for Client {
+    fn similar<'a>(
+        &'a self,
+        asked: &'a SimilarAsked,
+    ) -> BoxFuture<'a, Result<SimilarTitles, PluginError>> {
+        Box::pin(async move {
+            let kind = match asked.kind.as_known() {
+                Some(TitleKind::TITLE_KIND_MOVIE) => "movie",
+                Some(TitleKind::TITLE_KIND_SHOW) => "tv",
+                _ => return Ok(SimilarTitles::default()),
+            };
+            // ponytail: asks only by a TMDB id, which every title TMDB Matched has; look the
+            // others up with `find` once another title source's titles should get TMDB's.
+            let tmdb = asked
+                .ids
+                .iter()
+                .find(|id| id.namespace == TMDB)
+                .map(tmdb_id);
+            let Some(Lookup::Found(id)) = tmdb else {
+                return Ok(SimilarTitles::default());
+            };
+            let path = format!("/{kind}/{id}/recommendations");
+            let found: Option<Recommendations> = self.api(&path, &[]).await?;
+            Ok(found.unwrap_or_default().similar())
+        })
+    }
 }
 
 impl TitleSource for Client {

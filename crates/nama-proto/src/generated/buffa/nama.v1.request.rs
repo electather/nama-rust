@@ -9778,7 +9778,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub on_watchlist: bool,
-    /// As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+    /// As `nama.v1.GetMovieResponse.similar`, as the enabled Similar sources answer them now.
     ///
     /// Field 21: `similar`
     #[serde(

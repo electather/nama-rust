@@ -4,7 +4,9 @@
 //! Enabled with an API key in its settings, it registers a title source,
 //! [`nama_plugin_api::metadata::TitleSource`], that searches TMDB and fetches
 //! Movie, Show, Season and Episode details and images by TMDB id, along with the IMDb and TVDB ids
-//! TMDB knows. Without an API key the Kernel doesn't enable it.
+//! TMDB knows, and a Similar source,
+//! [`nama_plugin_api::similar_source::SimilarSource`], answering TMDB's recommendations. Without
+//! an API key the Kernel doesn't enable it.
 //!
 //! This product uses the TMDB API but is not endorsed or certified by TMDB.
 
@@ -19,6 +21,7 @@ use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     metadata::{SourceManifest, TMDB, TitleSource},
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
+    similar_source::SimilarSource,
 };
 
 use crate::client::Client;
@@ -114,7 +117,10 @@ impl Plugin for Tmdb {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings,
             personal_settings: SettingsSchema::default(),
-            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
+            extension_points: vec![
+                PointKey::provide::<dyn TitleSource>(),
+                PointKey::provide::<dyn SimilarSource>(),
+            ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             setup_markdown: SETUP.to_owned(),
             homepage_url: "https://www.themoviedb.org/".to_owned(),
@@ -139,8 +145,10 @@ impl Plugin for Tmdb {
         let language = settings.text(LANGUAGE).unwrap_or(DEFAULT_LANGUAGE);
         let client = Client::new(self.endpoints.clone(), api_key, language)
             .map_err(|err| format!("could not set up HTTPS for TMDB: {err}"))?;
-        let source: Arc<dyn TitleSource> = Arc::new(client);
+        let client = Arc::new(client);
+        let source: Arc<dyn TitleSource> = Arc::<Client>::clone(&client);
         registrar.provide::<dyn TitleSource>(Priority::DEFAULT, source);
+        registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, client);
         Ok(())
     }
 }

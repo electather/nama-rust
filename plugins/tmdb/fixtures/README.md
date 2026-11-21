@@ -32,6 +32,8 @@ own `poster_path` and `backdrop_path`, since those are the only images whose byt
 besides Alien's and Dark Season 1's second English posters, which tests pick as Custom Images. Heat has no logos.
 `wire_tests.rs` checks this; the picked logos' bytes are 1x1 PNGs.
 
+Only Alien and Dark have recommendations (`movie-348-recommendations.json`, `tv-70523-recommendations.json`), which the Plugin's Similar source asks for on their own route; every other title's gets TMDB's 404.
+
 Only Alien (`movie-348.json`) and Dark (`tv-70523.json`) have credits, trimmed to a few people; a Producer among Alien's crew, and Dark's Executive Producer, are jobs the Plugin leaves out. The headshots of those billed first are among `images/`, as stand-in bytes.
 
 `movie-949.json` has no US release, so tests have a title with no rating in the Language

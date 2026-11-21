@@ -4709,8 +4709,9 @@ pub struct GetMovieResponse {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub read_only_folder: ::core::option::Option<::buffa::alloc::string::String>,
-    /// Its Similar titles that are in a Library, most alike first, each with `library_id` set to
-    /// the oldest Library it is in. Its title source names them, and one in no Library is left out.
+    /// Its Similar titles that are in a Library, most alike first, at most 20, each with `library_id`
+    /// set to the oldest Library it is in. The Similar sources name them (ADR 0084), and one in no
+    /// Library is left out.
     ///
     /// Field 3: `similar`
     #[serde(

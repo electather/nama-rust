@@ -12,6 +12,7 @@ import {
   ScanSearch,
   Search,
   Server,
+  Shapes,
   SkipForward,
   Tv,
 } from "lucide-react";
@@ -36,6 +37,7 @@ export const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.SUBTITLE_SOURCE]: { label: "Subtitle source", Icon: Captions },
   [ExtensionPoint.SEGMENT_SOURCE]: { label: "Segment source", Icon: SkipForward },
   [ExtensionPoint.SEARCH_SOURCE]: { label: "Search source", Icon: Search },
+  [ExtensionPoint.SIMILAR_SOURCE]: { label: "Similar source", Icon: Shapes },
 };
 
 /** What a point's failing calls leave undone, for the points where that isn't plain. */

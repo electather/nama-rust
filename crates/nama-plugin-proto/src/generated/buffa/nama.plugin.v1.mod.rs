@@ -14,6 +14,7 @@ include!("nama.plugin.v1.notifier.rs");
 include!("nama.plugin.v1.recogniser.rs");
 include!("nama.plugin.v1.search_source.rs");
 include!("nama.plugin.v1.segment_source.rs");
+include!("nama.plugin.v1.similar_source.rs");
 include!("nama.plugin.v1.subtitle_source.rs");
 #[allow(
     non_camel_case_types,
@@ -46,6 +47,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.recogniser.__view.rs");
         include!("nama.plugin.v1.search_source.__view.rs");
         include!("nama.plugin.v1.segment_source.__view.rs");
+        include!("nama.plugin.v1.similar_source.__view.rs");
         include!("nama.plugin.v1.subtitle_source.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
@@ -217,6 +219,9 @@ pub mod __buffa {
         reg.register_json_any(super::__SEGMENT_SEARCH_JSON_ANY);
         reg.register_json_any(super::__SEGMENT_RESULTS_JSON_ANY);
         reg.register_json_any(super::__SEGMENT_RESULT_JSON_ANY);
+        reg.register_json_any(super::__SIMILAR_ASKED_JSON_ANY);
+        reg.register_json_any(super::__SIMILAR_TITLES_JSON_ANY);
+        reg.register_json_any(super::__SIMILAR_TITLE_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_SEARCH_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_RESULTS_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_RESULT_JSON_ANY);
@@ -804,6 +809,18 @@ pub use self::__buffa::view::SegmentResultsOwnedView;
 pub use self::__buffa::view::SegmentResultView;
 #[doc(inline)]
 pub use self::__buffa::view::SegmentResultOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SimilarAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::SimilarAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SimilarTitlesView;
+#[doc(inline)]
+pub use self::__buffa::view::SimilarTitlesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SimilarTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::SimilarTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SubtitleSearchView;
 #[doc(inline)]

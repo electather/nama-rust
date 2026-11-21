@@ -2,20 +2,20 @@
 #![expect(
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::indexing_slicing,
     reason = "test helpers fail their test by panicking"
 )]
 
 use std::{collections::BTreeMap, sync::Arc};
 
 use nama_plugin_api::{
-    Plugin, Registrar,
+    Plugin, Registrar, Registration,
     contract::{
         ArtworkAsked, ArtworkKind, Candidate, EpisodeAsked, ImageAsked, Role, SearchQuery,
-        SeasonAsked, TitleAsked, TitleId, TitleKind, Trailer,
+        SeasonAsked, SimilarAsked, TitleAsked, TitleId, TitleKind, Trailer,
     },
     metadata::{ExternalId, ExternalIds, IMDB, MetadataError, TMDB, TVDB, TitleSource},
     settings::{SettingKind, SettingValue, Settings},
+    similar_source::SimilarSource,
 };
 use nama_plugin_tmdb::{
     Tmdb,
@@ -29,6 +29,21 @@ fn provider(fake: &FakeTmdb, api_key: &str) -> Arc<dyn TitleSource> {
 
 /// The title source the Plugin registers when enabled with `settings`, talking to `fake`.
 fn provider_with(fake: &FakeTmdb, settings: &[(&str, &str)]) -> Arc<dyn TitleSource> {
+    registered(fake, settings, Registration::provider)
+}
+
+/// The Similar source the Plugin registers when enabled with an API key, talking to `fake`.
+fn similar_source(fake: &FakeTmdb) -> Arc<dyn SimilarSource> {
+    registered(fake, &[("api_key", API_KEY)], Registration::provider)
+}
+
+/// The one Provider `pick` finds among those the Plugin registers when enabled with `settings`,
+/// talking to `fake`.
+fn registered<T: ?Sized>(
+    fake: &FakeTmdb,
+    settings: &[(&str, &str)],
+    pick: impl Fn(&Registration) -> Option<Arc<T>>,
+) -> Arc<T> {
     let plugin = Tmdb::with_endpoints(fake.endpoints());
     let settings = (settings.iter())
         .map(|&(key, value)| (key.to_owned(), SettingValue::Text(value.to_owned())))
@@ -39,10 +54,10 @@ fn provider_with(fake: &FakeTmdb, settings: &[(&str, &str)]) -> Arc<dyn TitleSou
     let mut registrar = Registrar::with_settings(settings);
     plugin.register(&mut registrar).unwrap();
     let registrations = registrar.into_registrations();
-    assert_eq!(registrations.len(), 1);
-    registrations[0]
-        .provider::<dyn TitleSource>()
-        .expect("a TitleSource")
+    let mut picked = registrations.iter().filter_map(pick);
+    let provider = picked.next().expect("a Provider");
+    assert!(picked.next().is_none(), "one Provider of a kind");
+    provider
 }
 
 fn query(kind: TitleKind, title: &str, year: Option<i32>) -> SearchQuery {
@@ -356,26 +371,41 @@ async fn a_show_has_its_whole_runs_cast_and_crew_with_its_creators_first() {
 }
 
 #[tokio::test]
-async fn a_title_has_its_recommendations_as_similar_titles_in_order() {
+async fn its_similar_titles_are_its_recommendations_weighed_by_rank_and_none_without_a_tmdb_id() {
     let fake = FakeTmdb::start().await;
-    let tmdb = provider(&fake, API_KEY);
-
-    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
-    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
-
-    let similar = |ids: &[TitleId]| -> Vec<ExternalId> {
-        (ids.iter())
-            .map(|id| ExternalId::new(&id.namespace, id.value.clone()).unwrap())
+    let similar = similar_source(&fake);
+    let ask = |kind: TitleKind, ids: &[ExternalId]| SimilarAsked {
+        kind: kind.into(),
+        ids: ids.iter().map(title_id).collect(),
+        ..SimilarAsked::default()
+    };
+    let answered = async |asked: SimilarAsked| -> Vec<(ExternalId, f32)> {
+        let answer = similar.similar(&asked).await.unwrap();
+        (answer.titles.iter())
+            .map(|title| {
+                let id = title.id.as_option().unwrap();
+                let id = ExternalId::new(&id.namespace, id.value.clone()).unwrap();
+                (id, title.weight)
+            })
             .collect()
     };
+
+    let alien = ask(TitleKind::TITLE_KIND_MOVIE, &[ExternalId::tmdb(348)]);
+    let dark = ask(TitleKind::TITLE_KIND_SHOW, &[ExternalId::tmdb(70523)]);
+    let by_tvdb = ask(TitleKind::TITLE_KIND_SHOW, &[ExternalId::tvdb(334_824)]);
+
     assert_eq!(
-        similar(&alien.movie.unwrap().similar),
-        [ExternalId::tmdb(679), ExternalId::tmdb(949)]
+        answered(alien).await,
+        [(ExternalId::tmdb(679), 1.0), (ExternalId::tmdb(949), 0.5)]
     );
     assert_eq!(
-        similar(&dark.show.unwrap().similar),
-        [ExternalId::tmdb(66732), ExternalId::tmdb(2316)]
+        answered(dark).await,
+        [
+            (ExternalId::tmdb(66732), 1.0),
+            (ExternalId::tmdb(2316), 0.5)
+        ]
     );
+    assert_eq!(answered(by_tvdb).await, []);
 }
 
 #[tokio::test]
