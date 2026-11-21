@@ -2,7 +2,11 @@
 //! due, in the Plugin's scope (ADR 0047, ADR 0079), so disabling the Plugin stops its Jobs, and
 //! records each Job Run.
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
+};
 
 use jiff::{Timestamp, civil::DateTime, tz::TimeZone};
 use nama_plugin_api::{
@@ -15,7 +19,7 @@ use tokio_util::task::TaskTracker;
 use tracing::{info, warn};
 
 use super::{
-    ExtensionPoints, Failure, FailureKind, Listed, ProviderError,
+    Answer, ExtensionPoints, Failure, FailureKind, Listed, ProviderError,
     cron::Cron,
     job_overrides::{self, ConfigureError, job_override},
     points::Asked,
@@ -38,6 +42,8 @@ pub struct JobRun {
     pub ended_ms: Option<i64>,
     /// How it ended, or that it hasn't.
     pub outcome: JobRunOutcome,
+    /// The name of the Admin who started it, as it was then, or `None` if its schedule did.
+    pub started_by: Option<String>,
 }
 
 /// A Job an enabled Plugin declares, as the Jobs page lists it.
@@ -174,8 +180,8 @@ pub(super) fn schedule(
 
 /// Runs the Job `job` each time its schedule comes due on the Server's wall clock, from when the
 /// Kernel serves until its scope is cancelled or the Plugin no longer runs Jobs. The schedule is
-/// `declared` unless an Admin turned the Job off or gave it another, which it reads each minute. It
-/// awaits each Run and counts from its end, so a firing due while one runs is dropped, and from its
+/// `declared` unless an Admin turned the Job off or gave it another, which it reads each minute. A
+/// firing due while a Run of the Job goes, its own or an Admin's, is dropped, and it counts from its
 /// start, so firings missed before are not made up.
 async fn firing(points: ExtensionPoints, plugin: PluginId, job: String, declared: Cron) {
     points.kernel_served().await;
@@ -191,14 +197,13 @@ async fn firing(points: ExtensionPoints, plugin: PluginId, job: String, declared
         if !due {
             continue;
         }
-        match run_recorded(&points, &plugin, &job).await {
-            Asked::Answered(answer) => {
-                if let Err(failure) = answer.result {
-                    warn!(plugin = %plugin, job, error = failure.message, "job run failed");
-                }
-            }
+        // `None` while an Admin's Run of it goes, which drops this firing.
+        let Some(run) = Run::start(&points, &plugin, &job, None).await else {
+            continue;
+        };
+        if let Asked::Absent | Asked::Panicked = run.finish(&points).await {
             // The Plugin is disabled, or panicked, which disabled it.
-            Asked::Absent | Asked::Panicked => return,
+            return;
         }
         seen = seen.max(wall_clock());
     }
@@ -267,29 +272,147 @@ fn until_next_minute() -> Duration {
     Duration::from_millis((60_000 - into_minute).unsigned_abs())
 }
 
-/// Runs `plugin`'s Job `job` once, now, recording the Run if the Registry records them, and
-/// returns how the Plugin was asked.
-pub(super) async fn run_recorded(
+/// Why an Admin's Run of a Job didn't start.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum RunRefused {
+    /// No enabled Plugin with the id declares a Job with the id.
+    NotDeclared,
+    /// The Job has a Run going.
+    Running,
+}
+
+/// Starts a Run of `plugin`'s Job `job` now in the Plugin's scope, recorded as started by the
+/// Admin named `admin`, and returns once its row is written, without waiting for it to end.
+///
+/// # Errors
+///
+/// [`RunRefused`] says why it didn't start.
+pub(crate) async fn run_now(
     points: &ExtensionPoints,
     plugin: &PluginId,
     job: &str,
-) -> Asked<(), RunFailed> {
-    let recording =
-        Recording::start(points.read(|state| state.job_runs.clone()), plugin, job).await;
-    let run = RunJob {
-        job_id: job.to_owned(),
-        // db's clock, not the system's, so a test's clock reaches Plugins.
-        now_ms: db::now_ms(),
-        ..RunJob::default()
-    };
-    let run = &run;
-    let asked = points
-        .ask_one(plugin, |runner: Arc<dyn JobRunner>| async move {
-            runner.run(run).await.map_err(RunError)
+    admin: String,
+) -> Result<(), RunRefused> {
+    if !declares(points, plugin, job) {
+        return Err(RunRefused::NotDeclared);
+    }
+    let run = Run::start(points, plugin, job, Some(admin))
+        .await
+        .ok_or(RunRefused::Running)?;
+    let running = points.clone();
+    // Its row is written, so it started: a Plugin disabled since drops it unasked, which records
+    // it interrupted, as a disable mid-Run does.
+    points.spawn_in(plugin, async move {
+        run.finish(&running).await;
+    });
+    Ok(())
+}
+
+/// Whether `plugin` is enabled and its Manifest declares the Job `job`.
+fn declares(points: &ExtensionPoints, plugin: &PluginId, job: &str) -> bool {
+    points.read(|state| {
+        let manifest = state
+            .known
+            .get(plugin)
+            .and_then(|it| it.plugin.as_ref().ok());
+        state.plugins.contains_key(plugin)
+            && manifest.is_some_and(|(_, manifest)| manifest.jobs.iter().any(|it| it.id == job))
+    })
+}
+
+/// The Jobs with a Run going, by Plugin and Job id, so a Job runs once at a time whether its
+/// schedule or an Admin started it.
+#[derive(Clone, Default)]
+pub(super) struct RunningJobs(Arc<Mutex<HashSet<(PluginId, String)>>>);
+
+impl RunningJobs {
+    /// Marks `plugin`'s Job `job` running until the returned [`Claim`] drops, or `None` if it
+    /// already is.
+    fn claim(&self, plugin: &PluginId, job: &str) -> Option<Claim> {
+        let key = (plugin.clone(), job.to_owned());
+        self.lock().insert(key.clone()).then(|| Claim {
+            running: self.clone(),
+            key,
         })
-        .await;
-    recording.close(outcome(&asked)).await;
-    asked
+    }
+
+    // Nothing panics while it is held, so a poisoned set is still whole.
+    fn lock(&self) -> MutexGuard<'_, HashSet<(PluginId, String)>> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// A Job marked running in [`RunningJobs`] until this drops.
+struct Claim {
+    running: RunningJobs,
+    key: (PluginId, String),
+}
+
+impl Drop for Claim {
+    fn drop(&mut self) {
+        self.running.lock().remove(&self.key);
+    }
+}
+
+/// A Job Run under way: its Job claimed, so no other Run of it starts, and its row written.
+pub(super) struct Run {
+    plugin: PluginId,
+    job: String,
+    recording: Recording,
+    claim: Claim,
+}
+
+impl Run {
+    /// Claims `plugin`'s Job `job` and records a Run of it starting now, by the Admin named
+    /// `started_by` or else its schedule. `None` while the Job has a Run going.
+    pub(super) async fn start(
+        points: &ExtensionPoints,
+        plugin: &PluginId,
+        job: &str,
+        started_by: Option<String>,
+    ) -> Option<Self> {
+        let claim = points.read(|state| state.running_jobs.claim(plugin, job))?;
+        let log = points.read(|state| state.job_runs.clone());
+        Some(Self {
+            plugin: plugin.clone(),
+            job: job.to_owned(),
+            recording: Recording::start(log, plugin, job, started_by).await,
+            claim,
+        })
+    }
+
+    /// Asks the Plugin to run the Job, records how the Run ended and logs a failure. Returns how
+    /// the Plugin was asked.
+    pub(super) async fn finish(self, points: &ExtensionPoints) -> Asked<(), RunFailed> {
+        let Self {
+            plugin,
+            job,
+            recording,
+            claim,
+        } = self;
+        let run = RunJob {
+            job_id: job.clone(),
+            // db's clock, not the system's, so a test's clock reaches Plugins.
+            now_ms: db::now_ms(),
+            ..RunJob::default()
+        };
+        let run = &run;
+        let asked = points
+            .ask_one(&plugin, |runner: Arc<dyn JobRunner>| async move {
+                runner.run(run).await.map_err(RunError)
+            })
+            .await;
+        recording.close(outcome(&asked)).await;
+        drop(claim);
+        if let Asked::Answered(Answer {
+            result: Err(failure),
+            ..
+        }) = &asked
+        {
+            warn!(plugin = %plugin, job, error = failure.message, "job run failed");
+        }
+        asked
+    }
 }
 
 /// How a Run the Plugin was `asked` to make ended.
@@ -352,10 +475,15 @@ impl RunLog {
 pub(super) struct Recording(Option<(RunLog, i64)>);
 
 impl Recording {
-    /// Writes a row for a Run of `plugin`'s Job `job` starting now, in `log` if there is one, and
-    /// deletes the Job's Runs but the newest [`RUNS_KEPT`]. A Run whose row can't be written runs
-    /// unrecorded.
-    pub(super) async fn start(log: Option<RunLog>, plugin: &PluginId, job: &str) -> Self {
+    /// Writes a row for a Run of `plugin`'s Job `job` starting now, which the Admin named
+    /// `started_by` started or else its schedule, in `log` if there is one, and deletes the Job's
+    /// Runs but the newest [`RUNS_KEPT`]. A Run whose row can't be written runs unrecorded.
+    pub(super) async fn start(
+        log: Option<RunLog>,
+        plugin: &PluginId,
+        job: &str,
+        started_by: Option<String>,
+    ) -> Self {
         let Some(log) = log else {
             return Self(None);
         };
@@ -365,11 +493,12 @@ impl Recording {
             .write(move |tx| {
                 Box::pin(async move {
                     let id = sqlx::query_scalar!(
-                        "INSERT INTO job_runs (plugin, job, outcome, started_ms)
-                         VALUES (?, ?, 'running', ?) RETURNING id",
+                        "INSERT INTO job_runs (plugin, job, outcome, started_ms, started_by)
+                         VALUES (?, ?, 'running', ?, ?) RETURNING id",
                         plugin,
                         job,
-                        now
+                        now,
+                        started_by
                     )
                     .fetch_one(&mut **tx)
                     .await?;
@@ -535,7 +664,8 @@ fn next_runs_ms(cron: Cron, now: DateTime) -> Vec<i64> {
 /// The newest Run of each Job that has one, by Plugin and Job id.
 async fn last_runs(db: &Database) -> Result<HashMap<(String, String), JobRun>, sqlx::Error> {
     let rows = sqlx::query!(
-        "SELECT id, plugin, job, outcome, started_ms, ended_ms, error FROM job_runs AS run
+        "SELECT id, plugin, job, outcome, started_ms, ended_ms, error, started_by
+         FROM job_runs AS run
          WHERE id = (SELECT MAX(id) FROM job_runs WHERE plugin = run.plugin AND job = run.job)"
     )
     .fetch_all(db.reader())
@@ -548,6 +678,7 @@ async fn last_runs(db: &Database) -> Result<HashMap<(String, String), JobRun>, s
                 started_ms: row.started_ms,
                 ended_ms: row.ended_ms,
                 outcome: stored_outcome(&row.outcome, row.error),
+                started_by: row.started_by,
             };
             ((row.plugin, row.job), run)
         })
@@ -566,7 +697,7 @@ pub async fn job_runs(
 ) -> Result<Vec<JobRun>, sqlx::Error> {
     let plugin = plugin.as_str();
     let rows = sqlx::query!(
-        "SELECT id, outcome, started_ms, ended_ms, error FROM job_runs
+        "SELECT id, outcome, started_ms, ended_ms, error, started_by FROM job_runs
          WHERE plugin = ? AND job = ? ORDER BY id DESC",
         plugin,
         job
@@ -580,6 +711,7 @@ pub async fn job_runs(
             started_ms: row.started_ms,
             ended_ms: row.ended_ms,
             outcome: stored_outcome(&row.outcome, row.error),
+            started_by: row.started_by,
         })
         .collect())
 }

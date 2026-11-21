@@ -1,6 +1,6 @@
 import { CircleCheck, CircleMinus, CircleX, LoaderCircle, Timer } from "lucide-react";
 
-import { JobRunOutcome } from "@/gen/nama/v1/job_pb";
+import { type JobRun, JobRunOutcome } from "@/gen/nama/v1/job_pb";
 import type { Shown } from "@/shared/components/state-label";
 
 /** How a Job Run's outcome is shown, and how much it stands out. */
@@ -13,3 +13,11 @@ export const outcomes: Partial<
   [JobRunOutcome.TIMED_OUT]: { label: "Timed out", Icon: Timer, tone: "warning" },
   [JobRunOutcome.INTERRUPTED]: { label: "Interrupted", Icon: CircleMinus, tone: "warning" },
 };
+
+/** How often to look again while a Run is going, to show how it ends. */
+export const RUNNING_POLL_MS = 2000;
+
+/** Whether `run` is still going. */
+export function isRunning(run: JobRun | undefined) {
+  return run?.outcome === JobRunOutcome.RUNNING;
+}

@@ -19,49 +19,59 @@ const runs = [
     endedAtMs: START + 75_000n,
     error: "the database was busy",
   },
-  { id: 2n, outcome: JobRunOutcome.INTERRUPTED, startedAtMs: START - DAY },
+  { id: 2n, outcome: JobRunOutcome.INTERRUPTED, startedAtMs: START - DAY, startedBy: "Ada" },
 ];
 
-const jobs = [
-  {
-    pluginId: "upkeep",
-    pluginName: "Upkeep",
-    id: "forget-home-rows",
-    name: "Forget Home rows",
-    description: "Forgets the Home rows of Users who stopped visiting.",
-    schedule: "0 4 * * *",
-    defaultSchedule: "0 4 * * *",
-    enabled: true,
-    nextRunsAtMs: [START + DAY, START + 2n * DAY, START + 3n * DAY],
-    lastRun: runs[0],
-  },
-  {
-    pluginId: "upkeep",
-    pluginName: "Upkeep",
-    id: "delete-expired",
-    name: "Delete expired sign-ins",
-    schedule: "10 4 * * *",
-    defaultSchedule: "10 4 * * *",
-  },
-  {
-    pluginId: "cleanup",
-    pluginName: "Cleanup",
-    id: "clean",
-    name: "Clean up",
-    schedule: "",
-    enabled: true,
-  },
-];
+const forgetHomeRows = {
+  pluginId: "upkeep",
+  pluginName: "Upkeep",
+  id: "forget-home-rows",
+  name: "Forget Home rows",
+  description: "Forgets the Home rows of Users who stopped visiting.",
+  schedule: "0 4 * * *",
+  defaultSchedule: "0 4 * * *",
+  enabled: true,
+  nextRunsAtMs: [START + DAY, START + 2n * DAY, START + 3n * DAY],
+  lastRun: runs[0],
+};
+
+const deleteExpired = {
+  pluginId: "upkeep",
+  pluginName: "Upkeep",
+  id: "delete-expired",
+  name: "Delete expired sign-ins",
+  schedule: "10 4 * * *",
+  defaultSchedule: "10 4 * * *",
+  nextRunsAtMs: [START + DAY],
+};
+
+const cleanUp = {
+  pluginId: "cleanup",
+  pluginName: "Cleanup",
+  id: "clean",
+  name: "Clean up",
+  schedule: "",
+  enabled: true,
+};
+
+/** The Run "Run now" starts of "Delete expired sign-ins". */
+const ranNow = { id: 4n, outcome: JobRunOutcome.RUNNING, startedAtMs: START, startedBy: "Ada" };
 
 function openJobs(configured: Partial<ConfigureJobRequest>[] = []) {
+  let ran: typeof ranNow | undefined;
   openApp(
     "/admin/jobs",
     fakeServer({ signedIn: admin }, {}, {}, (router) => {
       router.service(JobService, {
-        listJobs: () => ({ jobs }),
+        listJobs: () => ({
+          jobs: [forgetHomeRows, { ...deleteExpired, lastRun: ran }, cleanUp],
+        }),
         listJobRuns: ({ jobId }) => {
           if (jobId === "clean") {
             throw new ConnectError("the database is locked", Code.Internal);
+          }
+          if (jobId === "delete-expired") {
+            return { runs: ran ? [ran] : [] };
           }
           return { runs: jobId === "forget-home-rows" ? runs : [] };
         },
@@ -77,6 +87,15 @@ function openJobs(configured: Partial<ConfigureJobRequest>[] = []) {
             });
           }
           return { nextRunsAtMs: [START, START + HOUR, START + 2n * HOUR] };
+        },
+        runJob: ({ jobId }) => {
+          if (jobId === "forget-home-rows") {
+            throw refused(Code.FailedPrecondition, "it is running already", {
+              reason: RefusalReason.JOB_RUNNING,
+            });
+          }
+          ran = ranNow;
+          return {};
         },
       });
     }),
@@ -94,7 +113,7 @@ describe("the Jobs page", () => {
     expect(screen.getByText("Every day at 04:10 Server time")).toBeDefined();
     expect(screen.getByText("Only when an Admin runs it")).toBeDefined();
     expect(screen.getByText(/^Next run .* · Last run /u)).toBeDefined();
-    expect(screen.queryByText(/^Next run .* · Never run$/u)).toBeNull();
+    expect(screen.getByText(/^Next run .* · Never run$/u)).toBeDefined();
     expect(screen.getAllByText("Off")).toHaveLength(1);
     expect(screen.getByText("Failed")).toBeDefined();
     expect(screen.queryByRole("searchbox")).toBeNull();
@@ -110,7 +129,8 @@ describe("the Jobs page", () => {
     const next = sheet.getByRole("list", { name: "Next runs" });
     expect(within(next).getAllByRole("listitem")).toHaveLength(3);
     await expect(sheet.findByText("the database was busy")).resolves.toBeDefined();
-    expect(sheet.getAllByText("Schedule")).toHaveLength(2);
+    expect(sheet.getAllByText("Schedule")).toHaveLength(1);
+    expect(sheet.getByText("Ada")).toBeDefined();
     expect(sheet.getByText("1 minute 15 seconds")).toBeDefined();
     expect(sheet.getByText("Interrupted")).toBeDefined();
     expect(sheet.getByText("Not known: the Server stopped during it")).toBeDefined();
@@ -133,6 +153,26 @@ describe("the Jobs page", () => {
     const sheet = within(await screen.findByRole("dialog", { name: "Clean up" }));
     await expect(sheet.findByText(/^Couldn’t load its Runs/u)).resolves.toBeDefined();
     expect(screen.getByRole("link", { name: "Upkeep" })).toBeDefined();
+  });
+
+  test("run now starts a Job, and its list and sheet show the new Run without a reload", async () => {
+    openJobs();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Run Delete expired sign-ins now" }));
+
+    await expect(screen.findByText("Running")).resolves.toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Delete expired sign-ins" }));
+    const sheet = within(await screen.findByRole("dialog", { name: "Delete expired sign-ins" }));
+    await expect(sheet.findByText("Running")).resolves.toBeDefined();
+  });
+
+  test("run now on a Job with a Run going says why it didn't start", async () => {
+    openJobs();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Run Forget Home rows now" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("It’s running now. Run it again once that Run ends.");
   });
 });
 

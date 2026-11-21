@@ -4,7 +4,7 @@ import { scheduleWords } from "@/features/admin-jobs/lib/schedule-words";
 import type { Job } from "@/gen/nama/v1/job_pb";
 import { AdminRow } from "@/shared/components/admin-list/admin-row";
 
-/** One Job on the list: its name, which opens its sheet, its schedule, and its next and last Runs. */
+/** One Job on the list: its name, which opens its sheet, its schedule, its next and last Runs and Run now. */
 export function JobRow({ job, onOpen }: { job: Job; onOpen: (job: Job) => void }) {
   return (
     <AdminRow end={<JobRowEnd job={job} />}>

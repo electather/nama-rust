@@ -47,8 +47,8 @@ pub(crate) use fulfilling::{
 };
 pub use job_overrides::ConfigureError;
 pub(crate) use job_overrides::{configure_job, forget_undeclared_jobs};
-pub(crate) use jobs::log_jobs_time_zone;
 pub use jobs::{JobRun, JobRunOutcome, ListedJob, job_runs};
+pub(crate) use jobs::{RunRefused, log_jobs_time_zone, run_now};
 pub(crate) use jobs::{list_jobs, preview_schedule};
 pub use points::ExtensionPoints;
 pub use registry::Registry;

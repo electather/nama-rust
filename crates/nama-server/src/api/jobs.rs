@@ -7,22 +7,24 @@ use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     self as proto, ConfigureJobRequest, ConfigureJobResponse, JobService, ListJobRunsRequest,
     ListJobRunsResponse, ListJobsRequest, ListJobsResponse, PreviewJobScheduleRequest,
-    PreviewJobScheduleResponse, RefusalReason,
+    PreviewJobScheduleResponse, RefusalReason, RunJobRequest, RunJobResponse,
 };
 
 use crate::{
     db::Database,
     plugin_settings::PluginSettings,
     plugins::{
-        ConfigureError, JobRun, JobRunOutcome, ListedJob, configure_job, job_runs, preview_schedule,
+        ConfigureError, ExtensionPoints, JobRun, JobRunOutcome, ListedJob, RunRefused,
+        configure_job, job_runs, preview_schedule, run_now,
     },
 };
 
-use super::{database_failed, refuse};
+use super::{caller, database_failed, refuse};
 
 /// `nama.v1.JobService`: the Jobs of the enabled Plugins and their Runs, for Admins.
 pub(super) struct JobServiceHandler {
     pub(super) plugin_settings: PluginSettings,
+    pub(super) plugins: ExtensionPoints,
     pub(super) db: Arc<Database>,
 }
 
@@ -102,6 +104,28 @@ impl JobService for JobServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn run_job(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RunJobRequest>,
+    ) -> ServiceResult<RunJobResponse> {
+        let admin = caller(&ctx)?.user.name.clone();
+        let plugin = PluginId::from(request.plugin_id.to_owned());
+        let started = run_now(&self.plugins, &plugin, request.job_id, admin).await;
+        started.map_err(|refused| match refused {
+            RunRefused::NotDeclared => refuse(
+                RefusalReason::REFUSAL_REASON_JOB_NOT_FOUND,
+                "no enabled Plugin with that id declares that Job",
+            )
+            .field("job_id"),
+            RunRefused::Running => refuse(
+                RefusalReason::REFUSAL_REASON_JOB_RUNNING,
+                "it is running already; run it again once that Run ends",
+            ),
+        })?;
+        Response::ok(RunJobResponse::default())
+    }
 }
 
 /// Refuses `schedule`, which `why` says can't be used.
@@ -155,6 +179,7 @@ fn run_to_proto(run: JobRun) -> proto::JobRun {
         started_at_ms: run.started_ms,
         ended_at_ms: run.ended_ms,
         error,
+        started_by: run.started_by.unwrap_or_default(),
         ..Default::default()
     }
 }

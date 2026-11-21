@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/job.proto.
  */
 export const file_nama_v1_job: GenFile = /*@__PURE__*/
-  fileDesc("ChFuYW1hL3YxL2pvYi5wcm90bxIHbmFtYS52MSIRCg9MaXN0Sm9ic1JlcXVlc3QiLgoQTGlzdEpvYnNSZXNwb25zZRIaCgRqb2JzGAEgAygLMgwubmFtYS52MS5Kb2Ii1QEKA0pvYhIRCglwbHVnaW5faWQYASABKAkSEwoLcGx1Z2luX25hbWUYAiABKAkSCgoCaWQYAyABKAkSDAoEbmFtZRgEIAEoCRITCgtkZXNjcmlwdGlvbhgFIAEoCRIQCghzY2hlZHVsZRgGIAEoCRIXCg9uZXh0X3J1bnNfYXRfbXMYByADKAMSIQoIbGFzdF9ydW4YCCABKAsyDy5uYW1hLnYxLkpvYlJ1bhIYChBkZWZhdWx0X3NjaGVkdWxlGAkgASgJEg8KB2VuYWJsZWQYCiABKAgiWwoTQ29uZmlndXJlSm9iUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkSDgoGam9iX2lkGAIgASgJEg8KB2VuYWJsZWQYAyABKAgSEAoIc2NoZWR1bGUYBCABKAkiFgoUQ29uZmlndXJlSm9iUmVzcG9uc2UiLQoZUHJldmlld0pvYlNjaGVkdWxlUmVxdWVzdBIQCghzY2hlZHVsZRgBIAEoCSI1ChpQcmV2aWV3Sm9iU2NoZWR1bGVSZXNwb25zZRIXCg9uZXh0X3J1bnNfYXRfbXMYASADKAMiNwoSTGlzdEpvYlJ1bnNSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRIOCgZqb2JfaWQYAiABKAkiNAoTTGlzdEpvYlJ1bnNSZXNwb25zZRIdCgRydW5zGAEgAygLMg8ubmFtYS52MS5Kb2JSdW4ijQEKBkpvYlJ1bhIKCgJpZBgBIAEoAxInCgdvdXRjb21lGAIgASgOMhYubmFtYS52MS5Kb2JSdW5PdXRjb21lEhUKDXN0YXJ0ZWRfYXRfbXMYAyABKAMSGAoLZW5kZWRfYXRfbXMYBCABKANIAIgBARINCgVlcnJvchgFIAEoCUIOCgxfZW5kZWRfYXRfbXMqyAEKDUpvYlJ1bk91dGNvbWUSHwobSk9CX1JVTl9PVVRDT01FX1VOU1BFQ0lGSUVEEAASGwoXSk9CX1JVTl9PVVRDT01FX1JVTk5JTkcQARIdChlKT0JfUlVOX09VVENPTUVfU1VDQ0VFREVEEAISGgoWSk9CX1JVTl9PVVRDT01FX0ZBSUxFRBADEh0KGUpPQl9SVU5fT1VUQ09NRV9USU1FRF9PVVQQBBIfChtKT0JfUlVOX09VVENPTUVfSU5URVJSVVBURUQQBTLXAgoKSm9iU2VydmljZRJECghMaXN0Sm9icxIYLm5hbWEudjEuTGlzdEpvYnNSZXF1ZXN0GhkubmFtYS52MS5MaXN0Sm9ic1Jlc3BvbnNlIgOQAgESTQoLTGlzdEpvYlJ1bnMSGy5uYW1hLnYxLkxpc3RKb2JSdW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdEpvYlJ1bnNSZXNwb25zZSIDkAIBElAKDENvbmZpZ3VyZUpvYhIcLm5hbWEudjEuQ29uZmlndXJlSm9iUmVxdWVzdBodLm5hbWEudjEuQ29uZmlndXJlSm9iUmVzcG9uc2UiA5ACAhJiChJQcmV2aWV3Sm9iU2NoZWR1bGUSIi5uYW1hLnYxLlByZXZpZXdKb2JTY2hlZHVsZVJlcXVlc3QaIy5uYW1hLnYxLlByZXZpZXdKb2JTY2hlZHVsZVJlc3BvbnNlIgOQAgFiBnByb3RvMw");
+  fileDesc("ChFuYW1hL3YxL2pvYi5wcm90bxIHbmFtYS52MSIRCg9MaXN0Sm9ic1JlcXVlc3QiLgoQTGlzdEpvYnNSZXNwb25zZRIaCgRqb2JzGAEgAygLMgwubmFtYS52MS5Kb2Ii1QEKA0pvYhIRCglwbHVnaW5faWQYASABKAkSEwoLcGx1Z2luX25hbWUYAiABKAkSCgoCaWQYAyABKAkSDAoEbmFtZRgEIAEoCRITCgtkZXNjcmlwdGlvbhgFIAEoCRIQCghzY2hlZHVsZRgGIAEoCRIXCg9uZXh0X3J1bnNfYXRfbXMYByADKAMSIQoIbGFzdF9ydW4YCCABKAsyDy5uYW1hLnYxLkpvYlJ1bhIYChBkZWZhdWx0X3NjaGVkdWxlGAkgASgJEg8KB2VuYWJsZWQYCiABKAgiWwoTQ29uZmlndXJlSm9iUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkSDgoGam9iX2lkGAIgASgJEg8KB2VuYWJsZWQYAyABKAgSEAoIc2NoZWR1bGUYBCABKAkiFgoUQ29uZmlndXJlSm9iUmVzcG9uc2UiLQoZUHJldmlld0pvYlNjaGVkdWxlUmVxdWVzdBIQCghzY2hlZHVsZRgBIAEoCSI1ChpQcmV2aWV3Sm9iU2NoZWR1bGVSZXNwb25zZRIXCg9uZXh0X3J1bnNfYXRfbXMYASADKAMiNwoSTGlzdEpvYlJ1bnNSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRIOCgZqb2JfaWQYAiABKAkiNAoTTGlzdEpvYlJ1bnNSZXNwb25zZRIdCgRydW5zGAEgAygLMg8ubmFtYS52MS5Kb2JSdW4iMgoNUnVuSm9iUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkSDgoGam9iX2lkGAIgASgJIhAKDlJ1bkpvYlJlc3BvbnNlIqEBCgZKb2JSdW4SCgoCaWQYASABKAMSJwoHb3V0Y29tZRgCIAEoDjIWLm5hbWEudjEuSm9iUnVuT3V0Y29tZRIVCg1zdGFydGVkX2F0X21zGAMgASgDEhgKC2VuZGVkX2F0X21zGAQgASgDSACIAQESDQoFZXJyb3IYBSABKAkSEgoKc3RhcnRlZF9ieRgGIAEoCUIOCgxfZW5kZWRfYXRfbXMqyAEKDUpvYlJ1bk91dGNvbWUSHwobSk9CX1JVTl9PVVRDT01FX1VOU1BFQ0lGSUVEEAASGwoXSk9CX1JVTl9PVVRDT01FX1JVTk5JTkcQARIdChlKT0JfUlVOX09VVENPTUVfU1VDQ0VFREVEEAISGgoWSk9CX1JVTl9PVVRDT01FX0ZBSUxFRBADEh0KGUpPQl9SVU5fT1VUQ09NRV9USU1FRF9PVVQQBBIfChtKT0JfUlVOX09VVENPTUVfSU5URVJSVVBURUQQBTKSAwoKSm9iU2VydmljZRJECghMaXN0Sm9icxIYLm5hbWEudjEuTGlzdEpvYnNSZXF1ZXN0GhkubmFtYS52MS5MaXN0Sm9ic1Jlc3BvbnNlIgOQAgESTQoLTGlzdEpvYlJ1bnMSGy5uYW1hLnYxLkxpc3RKb2JSdW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdEpvYlJ1bnNSZXNwb25zZSIDkAIBElAKDENvbmZpZ3VyZUpvYhIcLm5hbWEudjEuQ29uZmlndXJlSm9iUmVxdWVzdBodLm5hbWEudjEuQ29uZmlndXJlSm9iUmVzcG9uc2UiA5ACAhJiChJQcmV2aWV3Sm9iU2NoZWR1bGUSIi5uYW1hLnYxLlByZXZpZXdKb2JTY2hlZHVsZVJlcXVlc3QaIy5uYW1hLnYxLlByZXZpZXdKb2JTY2hlZHVsZVJlc3BvbnNlIgOQAgESOQoGUnVuSm9iEhYubmFtYS52MS5SdW5Kb2JSZXF1ZXN0GhcubmFtYS52MS5SdW5Kb2JSZXNwb25zZWIGcHJvdG8z");
 
 /**
  * @generated from message nama.v1.ListJobsRequest
@@ -264,6 +264,45 @@ export const ListJobRunsResponseSchema: GenMessage<ListJobRunsResponse> = /*@__P
   messageDesc(file_nama_v1_job, 8);
 
 /**
+ * @generated from message nama.v1.RunJobRequest
+ */
+export type RunJobRequest = Message<"nama.v1.RunJobRequest"> & {
+  /**
+   * The id of the Plugin declaring the Job, such as `upkeep`.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+
+  /**
+   * The Job's id, such as `forget-home-rows`.
+   *
+   * @generated from field: string job_id = 2;
+   */
+  jobId: string;
+};
+
+/**
+ * Describes the message nama.v1.RunJobRequest.
+ * Use `create(RunJobRequestSchema)` to create a new message.
+ */
+export const RunJobRequestSchema: GenMessage<RunJobRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_job, 9);
+
+/**
+ * @generated from message nama.v1.RunJobResponse
+ */
+export type RunJobResponse = Message<"nama.v1.RunJobResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.RunJobResponse.
+ * Use `create(RunJobResponseSchema)` to create a new message.
+ */
+export const RunJobResponseSchema: GenMessage<RunJobResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_job, 10);
+
+/**
  * One time the Server ran a Job.
  *
  * @generated from message nama.v1.JobRun
@@ -302,6 +341,14 @@ export type JobRun = Message<"nama.v1.JobRun"> & {
    * @generated from field: string error = 5;
    */
   error: string;
+
+  /**
+   * The name of the Admin who started it with `RunJob`, as it was then, or empty for a Run its
+   * schedule started.
+   *
+   * @generated from field: string started_by = 6;
+   */
+  startedBy: string;
 };
 
 /**
@@ -309,7 +356,7 @@ export type JobRun = Message<"nama.v1.JobRun"> & {
  * Use `create(JobRunSchema)` to create a new message.
  */
 export const JobRunSchema: GenMessage<JobRun> = /*@__PURE__*/
-  messageDesc(file_nama_v1_job, 9);
+  messageDesc(file_nama_v1_job, 11);
 
 /**
  * How a Job Run ended, or that it hasn't.
@@ -426,6 +473,19 @@ export const JobService: GenService<{
     methodKind: "unary";
     input: typeof PreviewJobScheduleRequestSchema;
     output: typeof PreviewJobScheduleResponseSchema;
+  },
+  /**
+   * Starts a Run of a Job now, scheduled or not, recorded as started by the caller, and returns
+   * once its Run is listed, without waiting for it to end. Fails with `failed_precondition` and
+   * `REFUSAL_REASON_JOB_RUNNING` while the Job has a Run going, and `not_found` and
+   * `REFUSAL_REASON_JOB_NOT_FOUND` if no enabled Plugin declares it.
+   *
+   * @generated from rpc nama.v1.JobService.RunJob
+   */
+  runJob: {
+    methodKind: "unary";
+    input: typeof RunJobRequestSchema;
+    output: typeof RunJobResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_job, 0);

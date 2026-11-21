@@ -139,7 +139,7 @@ async fn a_schedule_that_doesnt_parse_one_for_a_job_without_one_or_an_unknown_jo
 /// Records one Run of `plugin`'s Job `job` in `db`.
 async fn ran(db: &Arc<Database>, plugin: &PluginId, job: &str) {
     let log = Some(RunLog::new(Arc::clone(db)));
-    let recording = Recording::start(log, plugin, job).await;
+    let recording = Recording::start(log, plugin, job, None).await;
     drop(recording);
 }
 
