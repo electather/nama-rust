@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO episode_air_dates\n                             (plugin, namespace, value, season, episode, air_date)\n                         VALUES (?, 'tmdb', '1396', 1, 1, '2008-01-20')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d91ae74347189c410bb6a4e16697f294bf5b7836763a6376ec3166ba899f89eb"
+}

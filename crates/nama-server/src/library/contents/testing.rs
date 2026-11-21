@@ -226,11 +226,27 @@ impl Contents {
             .unwrap();
     }
 
-    /// Stores Similar titles and a Role for a Movie as if `plugin`'s title source had Matched it.
+    /// Stores a Score, Similar titles and a Role for a Movie, and an air date for a Show's
+    /// Episode, as if `plugin`'s title source had Matched them.
     pub(crate) async fn leave_title_rows(&self, plugin: &'static str) {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO title_details (plugin, kind, namespace, value, score)
+                         VALUES (?, 'movie', 'tmdb', '348', 8.1)",
+                        plugin
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query!(
+                        "INSERT INTO episode_air_dates
+                             (plugin, namespace, value, season, episode, air_date)
+                         VALUES (?, 'tmdb', '1396', 1, 1, '2008-01-20')",
+                        plugin
+                    )
+                    .execute(&mut **tx)
+                    .await?;
                     sqlx::query!(
                         "INSERT INTO similar_titles (plugin, kind, namespace, value, similar)
                          VALUES (?, 'movie', 'tmdb', '348', '[\"tmdb-679\"]')",
@@ -254,23 +270,26 @@ impl Contents {
             .unwrap();
     }
 
-    /// Whether `plugin` still has Similar titles and Roles stored, in that order.
-    pub(crate) async fn title_rows_of(&self, plugin: &str) -> [bool; 2] {
-        let similar = sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM similar_titles WHERE plugin = ?) AS "exists: bool""#,
+    /// Whether `plugin` still has Score and Trailers, Similar titles, Roles and air dates stored,
+    /// in that order.
+    pub(crate) async fn title_rows_of(&self, plugin: &str) -> [bool; 4] {
+        let stored = sqlx::query!(
+            r#"SELECT EXISTS (SELECT 1 FROM title_details WHERE plugin = ?1) AS "details: bool",
+                      EXISTS (SELECT 1 FROM similar_titles WHERE plugin = ?1) AS "similar: bool",
+                      EXISTS (SELECT 1 FROM title_roles WHERE plugin = ?1) AS "roles: bool",
+                      EXISTS (SELECT 1 FROM episode_air_dates WHERE plugin = ?1)
+                          AS "air_dates: bool""#,
             plugin
         )
         .fetch_one(self.db.reader())
         .await
         .unwrap();
-        let roles = sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM title_roles WHERE plugin = ?) AS "exists: bool""#,
-            plugin
-        )
-        .fetch_one(self.db.reader())
-        .await
-        .unwrap();
-        [similar, roles]
+        [
+            stored.details,
+            stored.similar,
+            stored.roles,
+            stored.air_dates,
+        ]
     }
 }
 

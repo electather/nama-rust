@@ -51,6 +51,17 @@ pub(super) async fn store(
     Ok(())
 }
 
+/// Deletes the air dates `plugin`'s title source gave.
+pub(super) async fn forget_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM episode_air_dates WHERE plugin = ?", plugin)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 impl Contents {
     /// How many of `show`'s Episodes, Specials aside, aired by today, going by the air dates its
     /// title source last gave. 0 when it gave none.

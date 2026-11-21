@@ -35,6 +35,17 @@ pub(super) async fn store(
     similar::store(conn, matched).await
 }
 
+/// Deletes the Scores and Trailers `plugin`'s title source gave.
+pub(super) async fn forget_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM title_details WHERE plugin = ?", plugin)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 /// What a per-title store keeps the title `matched` gives under: the Plugin that Matched it, Movie
 /// or Show, and its first id in namespace order, which reads look it up by. `None` without ids.
 pub(super) fn title_key(matched: &Metadata) -> Option<(&str, &'static str, ExternalId)> {
