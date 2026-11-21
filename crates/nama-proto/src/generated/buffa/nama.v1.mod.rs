@@ -223,6 +223,8 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_EPISODES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_NEXT_EPISODE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_NEXT_EPISODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_PREVIOUS_EPISODE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_PREVIOUS_EPISODE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
         reg.register_json_any(super::__CONTINUE_WATCHING_EPISODE_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
@@ -1047,6 +1049,14 @@ pub use self::__buffa::view::GetNextEpisodeRequestOwnedView;
 pub use self::__buffa::view::GetNextEpisodeResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetNextEpisodeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPreviousEpisodeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPreviousEpisodeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPreviousEpisodeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPreviousEpisodeResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ContinueWatchingEntryView;
 #[doc(inline)]

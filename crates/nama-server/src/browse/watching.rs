@@ -179,14 +179,7 @@ impl Browse {
         (season, number): (i64, i64),
     ) -> Result<Option<(Episode, Option<WatchState>)>, Error> {
         let show = self.show(library, show).await?;
-        let season_episodes = &show
-            .seasons
-            .get(&season)
-            .ok_or(NotFound::NoSuchSeason)?
-            .episodes;
-        let from = (season_episodes.iter())
-            .find(|episode| episode.number == number)
-            .ok_or(NotFound::NoSuchEpisode)?;
+        let from = numbered_episode(&show, (season, number))?;
         let later: Vec<_> = (show.episodes())
             .filter(|episode| (episode.season, episode.number) > (season, number))
             .collect();
@@ -195,11 +188,42 @@ impl Browse {
         let Some((next, state)) = unplayed_after(from, later.into_iter().zip(states)) else {
             return Ok(None);
         };
-        let probes = self.probes(next.versions.iter()).await?;
-        Ok(Some((
-            next.clone().map_versions(with_tracks(&probes)),
-            state,
-        )))
+        Ok(Some((self.with_its_tracks(next).await?, state)))
+    }
+
+    /// The Episode just before Episode `number` of Season `season` of the Show `show` of the Shows
+    /// Library `library`, in aired order and played or not, with the User `user`'s Watch State of
+    /// it. `None` for the Show's first Episode and for a Special. Fails as [`Self::episode_after`]
+    /// does.
+    pub(crate) async fn episode_before(
+        &self,
+        user: i64,
+        library: i64,
+        show: &ExternalId,
+        (season, number): (i64, i64),
+    ) -> Result<Option<(Episode, Option<WatchState>)>, Error> {
+        let show = self.show(library, show).await?;
+        numbered_episode(&show, (season, number))?;
+        // Only Specials come before a Special, and they aren't in aired order.
+        let previous = (show.episodes())
+            .take_while(|episode| (episode.season, episode.number) < (season, number))
+            .filter(|episode| is_aired(episode))
+            .last();
+        let Some(previous) = previous else {
+            return Ok(None);
+        };
+        let state = self.states_of(user, vec![episode_ids(previous)]).await?;
+        let state = state.into_iter().next().flatten();
+        Ok(Some((self.with_its_tracks(previous).await?, state)))
+    }
+
+    /// `episode`, its Versions with the Tracks of their files.
+    async fn with_its_tracks(
+        &self,
+        episode: &LibraryEpisode<LibraryVersion>,
+    ) -> Result<Episode, Error> {
+        let probes = self.probes(episode.versions.iter()).await?;
+        Ok(episode.clone().map_versions(with_tracks(&probes)))
     }
 
     /// The whole of [`Self::continue_watching`], without Tracks, each title with its recency.
@@ -377,6 +401,17 @@ pub(super) fn show_entry<'a, V>(
         Some((episode, (state, _))) => Some((episode, Some(state))),
         None => next_episode(watched).map(|episode| (episode, None)),
     }
+}
+
+/// Episode `number` of Season `season` of `show`, or which of the two it lacks.
+fn numbered_episode(
+    show: &Show,
+    (season, number): (i64, i64),
+) -> Result<&LibraryEpisode<LibraryVersion>, NotFound> {
+    let season = show.seasons.get(&season).ok_or(NotFound::NoSuchSeason)?;
+    (season.episodes.iter())
+        .find(|episode| episode.number == number)
+        .ok_or(NotFound::NoSuchEpisode)
 }
 
 /// Season 0, which isn't in aired order.

@@ -43,11 +43,14 @@ export function showOnLockScreen(
   };
 }
 
-/** Has the Next Track media key and button `playNext`, until the cleanup it returns. */
-export function nextTrackPlays(session: MediaSession, playNext: () => void) {
-  session.setActionHandler("nexttrack", playNext);
+/** The media keys and buttons that open another Episode. */
+export type TrackKey = Extract<MediaSessionAction, "nexttrack" | "previoustrack">;
+
+/** Has the `track` media key and button call `open`, until the cleanup it returns. */
+export function trackKeyPlays(session: MediaSession, track: TrackKey, open: () => void) {
+  session.setActionHandler(track, open);
   return () => {
-    session.setActionHandler("nexttrack", null);
+    session.setActionHandler(track, null);
   };
 }
 

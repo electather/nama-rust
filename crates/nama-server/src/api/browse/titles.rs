@@ -1,13 +1,32 @@
-//! Continue Watching and Featured entries, and a title's Roles and Trailers, as clients see them.
+//! Continue Watching and Featured entries, the Episodes either side of one, and a title's Roles
+//! and Trailers, as clients see them.
 
+use connectrpc::ConnectError;
 use nama_proto::nama::v1 as proto;
 
 use crate::{
-    browse::{Featured, Started},
-    library::{Roles, ShownImages, Trailer},
+    api::{ImageSources, database_failed},
+    browse::{self, Episode, Featured, Started},
+    library::{Roles, ShownImages, Trailer, WatchState},
 };
 
-use super::{episode_to_proto, movie_to_proto, show_to_proto};
+use super::{Fields, episode_to_proto, movie_to_proto, refused, show_to_proto};
+
+/// The Episode `GetNextEpisode` or `GetPreviousEpisode` `found` beside the one asked about, with
+/// its images as `images` shows them, or the Refusal for the request.
+pub(super) async fn episode_beside_to_proto(
+    found: Result<Option<(Episode, Option<WatchState>)>, browse::Error>,
+    images: &ImageSources,
+) -> Result<Option<proto::Episode>, ConnectError> {
+    let found = found.map_err(refused(Fields {
+        title: "show_id",
+        season: "season_number",
+        episode: "episode_number",
+        ..Fields::LIBRARY
+    }))?;
+    let images = images.shown().await.map_err(database_failed)?;
+    Ok(found.map(|(episode, state)| episode_to_proto(episode, state, &images)))
+}
 
 /// A Continue Watching entry as clients see it, with its images as `images` gives them, its Movie
 /// or Show `on_watchlist` or not.

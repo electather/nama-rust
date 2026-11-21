@@ -202,6 +202,19 @@ async fn a_special_is_never_the_next_episode() {
 }
 
 #[tokio::test]
+async fn nothing_is_before_a_special_not_even_the_special_before_it() {
+    let knight = Knight::with(&[(0, 1), (0, 2), (1, 1)]).await;
+    let show = ExternalId::tmdb(KNIGHT_TMDB_ID);
+
+    let previous = (knight.browse)
+        .episode_before(knight.user, knight.library, &show, (0, 2))
+        .await
+        .unwrap();
+
+    assert!(previous.is_none());
+}
+
+#[tokio::test]
 async fn a_show_pages_among_the_rest_by_its_latest_watch_state_change() {
     let knight = Knight::with(&EPISODES).await;
     let movies = tempfile::tempdir().unwrap();

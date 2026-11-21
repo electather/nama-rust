@@ -34,7 +34,8 @@ function episode(episodeNumber: number, title: string) {
   };
 }
 
-/** A fake Server with Dark's Episode 3, at 25 frames a second with English subtitles, then 4. */
+/** A fake Server with Dark's Episode 3, at 25 frames a second with English subtitles, between 2
+ * and 4. */
 const server = fakeServer(
   { signedIn: newUser, libraries: [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }] },
   {},
@@ -43,10 +44,12 @@ const server = fakeServer(
     router.service(BrowseService, {
       getShow: () => ({ show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" } }),
       listEpisodes: () => ({
-        episodes: [episode(3, "Past and Present"), episode(4, "Double Lives")],
+        episodes: [episode(2, "Lies"), episode(3, "Past and Present"), episode(4, "Double Lives")],
       }),
       getNextEpisode: ({ episodeNumber }) =>
         episodeNumber === 3 ? { next: episode(4, "Double Lives") } : {},
+      getPreviousEpisode: ({ episodeNumber }) =>
+        episodeNumber === 3 ? { previous: episode(2, "Lies") } : {},
     });
     router.service(PlaybackService, {
       getAutoplay: () => ({ on: false }),
@@ -69,7 +72,8 @@ const server = fakeServer(
   },
 );
 
-/** Opens Episode 3's player, its `<video>` 100 seconds into 1000, once the next Episode is known. */
+/** Opens Episode 3's player, its `<video>` 100 seconds into 1000, once the Episodes either side
+ * of it are known. */
 async function playEpisode3() {
   const router = openApp(`${SHOW}/seasons/1/episodes/3/play`, server);
   const video = await screen.findByLabelText<HTMLVideoElement>("Past and Present");
@@ -184,16 +188,22 @@ test("c turns the first subtitle on, and off again", async () => {
   expect(rowIn("Subtitles", "Off").getAttribute("aria-checked")).toBe("true");
 });
 
-test("shift+N plays the next Episode", async () => {
+test.each([
+  ["N", 4, "Double Lives"],
+  ["P", 2, "Lies"],
+])("shift+%s plays Episode %i, the one beside", async (key, episodeNumber, title) => {
   const { router } = await playEpisode3();
 
-  press("N", true);
+  press(key, true);
 
-  await screen.findByLabelText("Double Lives");
-  expect(router.state.location.pathname).toBe(`${SHOW}/seasons/1/episodes/4/play`);
+  await screen.findByLabelText(title);
+  expect(router.state.location.pathname).toBe(`${SHOW}/seasons/1/episodes/${episodeNumber}/play`);
 });
 
-test("the Next Track media key plays the next Episode", async () => {
+test.each([
+  ["nexttrack", "Double Lives"],
+  ["previoustrack", "Lies"],
+] as const)("the %s media key plays that Episode", async (track, title) => {
   const handlers = new Map<MediaSessionAction, MediaSessionActionHandler | null>();
   Object.defineProperty(navigator, "mediaSession", {
     value: {
@@ -208,10 +218,10 @@ test("the Next Track media key plays the next Episode", async () => {
   await playEpisode3();
 
   act(() => {
-    handlers.get("nexttrack")?.({ action: "nexttrack" });
+    handlers.get(track)?.({ action: track });
   });
 
-  await expect(screen.findByLabelText("Double Lives")).resolves.toBeDefined();
+  await expect(screen.findByLabelText(title)).resolves.toBeDefined();
   Reflect.deleteProperty(navigator, "mediaSession");
 });
 

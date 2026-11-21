@@ -56,6 +56,13 @@ service BrowseService {
   rpc GetNextEpisode(GetNextEpisodeRequest) returns (GetNextEpisodeResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Returns the Episode just before the one asked about, with its Versions and the caller's Watch
+  // State: the one before it in aired order, Specials aside, played or not, since going back is to
+  // watch it again. Only Episodes in the Library count. `previous` is unset for the Show's first
+  // Episode, or if the Episode asked about is a Special. Fails like `GetNextEpisode`.
+  rpc GetPreviousEpisode(GetPreviousEpisodeRequest) returns (GetPreviousEpisodeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Lists a page of the caller's Continue Watching, most recent first by when their Watch State
   // last changed: the Movies whose position is past 0 and that they haven't played, and one
   // Episode of each Show they've watched, listed by its latest Watch State of any Episode. That
@@ -551,6 +558,22 @@ message GetNextEpisodeRequest {
 message GetNextEpisodeResponse {
   // The Episode that plays after the one asked about, unset if none does.
   optional Episode next = 1;
+}
+
+message GetPreviousEpisodeRequest {
+  // The Shows Library the Show is in.
+  int64 library_id = 1;
+  // The Show's id, as `ListShows` gave it.
+  ExternalId show_id = 2;
+  // The Episode's Season's number, as `GetShow` gave it.
+  uint32 season_number = 3;
+  // The Episode's number, as `ListEpisodes` gave it.
+  uint32 episode_number = 4;
+}
+
+message GetPreviousEpisodeResponse {
+  // The Episode just before the one asked about, unset if there is none.
+  optional Episode previous = 1;
 }
 
 // A Movie or Episode in the caller's Continue Watching, with what a client needs to show it and
