@@ -61,10 +61,10 @@ enum Permission {
   // Deleting the Home rows and Featured suggestions of Users who stopped opening home:
   // `forget_home_rows`.
   PERMISSION_FORGET_HOME_ROWS = 8;
-  // Deleting the Devices and Invites that have expired: `delete_expired_sign_ins`.
-  PERMISSION_DELETE_EXPIRED_SIGN_INS = 10;
   // Deleting what Plugins the Server no longer has left behind: `forget_gone_plugins`.
   PERMISSION_FORGET_GONE_PLUGINS = 9;
+  // Deleting the Devices and Invites that have expired: `delete_expired_sign_ins`.
+  PERMISSION_DELETE_EXPIRED_SIGN_INS = 10;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
