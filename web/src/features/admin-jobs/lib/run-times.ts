@@ -1,4 +1,4 @@
-import { type Job, type JobRun, JobRunOutcome } from "@/gen/nama/v1/job_pb";
+import { type Job, JobRunOutcome } from "@/gen/nama/v1/job_pb";
 
 /** `ms`, milliseconds since the Unix epoch, as a date and time in the browser's time zone. */
 export function formatAt(ms: bigint) {
@@ -15,11 +15,8 @@ export function nextAndLast({ nextRunsAtMs, lastRun }: Job) {
   return next === undefined ? last : `Next run ${formatAt(next)} · ${last}`;
 }
 
-/** When `run` ended, or why that isn't known. */
-export function ended({ outcome, endedAtMs }: JobRun) {
-  if (endedAtMs !== undefined) {
-    return formatAt(endedAtMs);
-  }
+/** Why a Run with `outcome` has no end time. */
+export function endUnknown(outcome: JobRunOutcome) {
   return outcome === JobRunOutcome.RUNNING
     ? "Still running"
     : "Not known: the Server stopped during it";

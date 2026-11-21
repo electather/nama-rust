@@ -127,7 +127,7 @@ async fn waits_last_outcome(server: &TestServer) -> JobRunOutcome {
 }
 
 #[tokio::test]
-async fn an_admin_sees_each_job_with_its_runs_and_a_disabled_plugins_jobs_come_back_with_them() {
+async fn an_admin_sees_each_job_and_its_runs_a_disabled_plugins_come_back_and_others_are_refused() {
     let server = with_jobs().await;
     // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
     let log = Log::global();
