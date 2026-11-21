@@ -9778,6 +9778,15 @@ pub struct FoundMovie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub on_watchlist: bool,
+    /// As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+    ///
+    /// Field 21: `similar`
+    #[serde(
+        rename = "similar",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub similar: ::buffa::alloc::vec::Vec<MovieHit>,
     /// As `nama.v1.Movie.trailers`, from the title source it was looked up in.
     ///
     /// Field 18: `trailers`
@@ -9828,6 +9837,7 @@ impl ::core::fmt::Debug for FoundMovie {
             .field("genres", &self.genres)
             .field("content_rating", &self.content_rating)
             .field("on_watchlist", &self.on_watchlist)
+            .field("similar", &self.similar)
             .field("trailers", &self.trailers)
             .field("cast", &self.cast)
             .field("crew", &self.crew)
@@ -10043,6 +10053,14 @@ impl ::buffa::Message for FoundMovie {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10130,6 +10148,14 @@ impl ::buffa::Message for FoundMovie {
         for v in &self.crew {
             ::buffa::types::put_len_delimited_header(
                 20u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                21u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -10351,6 +10377,18 @@ impl ::buffa::Message for FoundMovie {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.crew.push(elem);
             }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10378,6 +10416,7 @@ impl ::buffa::Message for FoundMovie {
         self.trailers.clear();
         self.cast.clear();
         self.crew.clear();
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -11371,6 +11410,15 @@ pub struct FoundShow {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub on_watchlist: bool,
+    /// As `FoundMovie.similar`, for the Show.
+    ///
+    /// Field 21: `similar`
+    #[serde(
+        rename = "similar",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub similar: ::buffa::alloc::vec::Vec<ShowHit>,
     /// As `nama.v1.Movie.trailers`, from the title source it was looked up in.
     ///
     /// Field 18: `trailers`
@@ -11405,6 +11453,7 @@ impl ::core::fmt::Debug for FoundShow {
             .field("genres", &self.genres)
             .field("content_rating", &self.content_rating)
             .field("on_watchlist", &self.on_watchlist)
+            .field("similar", &self.similar)
             .field("trailers", &self.trailers)
             .finish()
     }
@@ -11614,6 +11663,14 @@ impl ::buffa::Message for FoundShow {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -11711,6 +11768,14 @@ impl ::buffa::Message for FoundShow {
         for v in &self.crew {
             ::buffa::types::put_len_delimited_header(
                 20u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                21u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -11937,6 +12002,18 @@ impl ::buffa::Message for FoundShow {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.crew.push(elem);
             }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -11964,6 +12041,7 @@ impl ::buffa::Message for FoundShow {
         self.trailers.clear();
         self.cast.clear();
         self.crew.clear();
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

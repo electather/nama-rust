@@ -80,6 +80,8 @@ pub(crate) struct Movie {
     pub(crate) score: Option<f64>,
     /// The ISO 639-1 code of the language it was made in, such as `ja`.
     pub(crate) original_language: Option<String>,
+    /// Its Similar titles, Movies, most alike first.
+    pub(crate) similar: Vec<ExternalId>,
     /// Its Trailers, at most [`MAX_TRAILERS`], in the order to show them.
     pub(crate) trailers: Vec<Trailer>,
     /// Its Cast and Crew.
@@ -113,6 +115,8 @@ pub(crate) struct Show {
     pub(crate) score: Option<f64>,
     /// As [`Movie::original_language`].
     pub(crate) original_language: Option<String>,
+    /// As [`Movie::similar`], Shows.
+    pub(crate) similar: Vec<ExternalId>,
     /// As [`Movie::trailers`].
     pub(crate) trailers: Vec<Trailer>,
     /// Its Roles over its whole run.
@@ -318,6 +322,7 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         content_rating: movie.content_rating,
         score: valid_score(movie.score),
         original_language: movie.original_language,
+        similar: similar(&movie.similar),
         trailers: trailers(movie.trailers),
         roles: roles(movie.cast, movie.crew),
     })
@@ -337,6 +342,7 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         content_rating: show.content_rating,
         score: valid_score(show.score),
         original_language: show.original_language,
+        similar: similar(&show.similar),
         trailers: trailers(show.trailers),
         roles: roles(show.cast, show.crew),
     })
@@ -346,6 +352,18 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
 /// Match's write on it.
 fn valid_score(score: Option<f64>) -> Option<f64> {
     score.filter(|score| (0.0..=10.0).contains(score))
+}
+
+/// The most Similar titles the Kernel keeps of one title, about a row of posters.
+const MAX_SIMILAR: usize = 20;
+
+/// The first [`MAX_SIMILAR`] well-formed ids of `given`. A malformed one is dropped rather than
+/// failing the title, which is whole without them.
+fn similar(given: &[wire::TitleId]) -> Vec<ExternalId> {
+    (given.iter())
+        .filter_map(|id| ExternalId::new(&id.namespace, id.value.clone()).ok())
+        .take(MAX_SIMILAR)
+        .collect()
 }
 
 /// The Roles the Kernel keeps of `cast` and `crew`: at most [`MAX_ROLES`] of each, the Crew

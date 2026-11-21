@@ -4709,6 +4709,16 @@ pub struct GetMovieResponse {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub read_only_folder: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Its Similar titles that are in a Library, most alike first, each with `library_id` set to
+    /// the oldest Library it is in. Its title source names them, and one in no Library is left out.
+    ///
+    /// Field 3: `similar`
+    #[serde(
+        rename = "similar",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub similar: ::buffa::alloc::vec::Vec<MovieHit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4718,6 +4728,7 @@ impl ::core::fmt::Debug for GetMovieResponse {
         f.debug_struct("GetMovieResponse")
             .field("movie", &self.movie)
             .field("read_only_folder", &self.read_only_folder)
+            .field("similar", &self.similar)
             .finish()
     }
 }
@@ -4771,6 +4782,14 @@ impl ::buffa::Message for GetMovieResponse {
         if let Some(ref v) = self.read_only_folder {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4791,6 +4810,14 @@ impl ::buffa::Message for GetMovieResponse {
         }
         if let Some(ref v) = self.read_only_folder {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4828,6 +4855,18 @@ impl ::buffa::Message for GetMovieResponse {
                     buf,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4838,6 +4877,7 @@ impl ::buffa::Message for GetMovieResponse {
     fn clear(&mut self) {
         self.movie = ::buffa::MessageField::none();
         self.read_only_folder = ::core::option::Option::None;
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7925,6 +7965,15 @@ pub struct GetShowResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub aired_episode_count: u32,
+    /// As `GetMovieResponse.similar`, for the Show.
+    ///
+    /// Field 4: `similar`
+    #[serde(
+        rename = "similar",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub similar: ::buffa::alloc::vec::Vec<ShowHit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7935,6 +7984,7 @@ impl ::core::fmt::Debug for GetShowResponse {
             .field("show", &self.show)
             .field("seasons", &self.seasons)
             .field("aired_episode_count", &self.aired_episode_count)
+            .field("similar", &self.similar)
             .finish()
     }
 }
@@ -7987,6 +8037,14 @@ impl ::buffa::Message for GetShowResponse {
                     + ::buffa::types::uint32_encoded_len(self.aired_episode_count)
                         as u64;
         }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8015,6 +8073,14 @@ impl ::buffa::Message for GetShowResponse {
         }
         if self.aired_episode_count != 0u32 {
             ::buffa::types::put_uint32_field(3u32, self.aired_episode_count, buf);
+        }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8059,6 +8125,18 @@ impl ::buffa::Message for GetShowResponse {
                 )?;
                 self.aired_episode_count = ::buffa::types::decode_uint32(buf)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.similar.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -8070,6 +8148,7 @@ impl ::buffa::Message for GetShowResponse {
         self.show = ::buffa::MessageField::none();
         self.seasons.clear();
         self.aired_episode_count = 0u32;
+        self.similar.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

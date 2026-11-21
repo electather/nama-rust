@@ -347,6 +347,9 @@ message GetMovieResponse {
   // last scanned the Library, if there is one, in which case deleting the Movie is refused. Set
   // only for a caller with `PERMISSION_DELETE_MEDIA`.
   optional string read_only_folder = 2;
+  // Its Similar titles that are in a Library, most alike first, each with `library_id` set to
+  // the oldest Library it is in. Its title source names them, and one in no Library is left out.
+  repeated MovieHit similar = 3;
 }
 
 // A Show some items of a Library are Matched to Episodes of.
@@ -516,6 +519,8 @@ message GetShowResponse {
   // How many of the Show's Episodes, Specials aside, have aired by today, by the air dates its
   // title source gave when the Show was last fetched. 0 if it gave none.
   uint32 aired_episode_count = 3;
+  // As `GetMovieResponse.similar`, for the Show.
+  repeated ShowHit similar = 4;
 }
 
 message ListEpisodesRequest {

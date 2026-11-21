@@ -5,11 +5,11 @@
 use nama_plugin_api::metadata::ExternalId;
 use sqlx::SqliteConnection;
 
-use super::Metadata;
+use super::{Metadata, similar};
 use crate::library::title_source::Trailer;
 
 /// Stores the Score and Trailers that `matched` gives its title, a Movie or an Episode's Show, in
-/// place of what the same title source gave it before.
+/// place of what the same title source gave it before, and its Similar titles with them.
 pub(super) async fn store(
     conn: &mut SqliteConnection,
     matched: &Metadata,
@@ -30,9 +30,9 @@ pub(super) async fn store(
         matched.score,
         trailers,
     )
-    .execute(conn)
+    .execute(&mut *conn)
     .await?;
-    Ok(())
+    similar::store(conn, matched).await
 }
 
 /// What a per-title store keeps the title `matched` gives under: the Plugin that Matched it, Movie

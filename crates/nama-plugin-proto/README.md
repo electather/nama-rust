@@ -84,6 +84,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `TitleSourceService` 1.4.0 adds `score` and `original_language` to `Movie` and `Show`: the title's Score from 0 to 10, unset if nobody has voted, and the ISO 639-1 code of the language it was made in.
   `TitleSourceService` 1.5.0 adds `trailers` to `Movie` and `Show`, with `Trailer`: each a video's site, key, name and whether it is official. The Kernel keeps the first 5 on YouTube or Vimeo, and clients only link to them.
   `TitleSourceService` 1.6.0 adds `cast` and `crew` to `Movie` and `Show`, each a list of `Role`s in billing order: the Person's id, name, character or job, and headshot. A Show's span its whole run, and its creators have the job `Creator`. The Kernel keeps a headshot only for the first 15 of the Cast.
+  `TitleSourceService` 1.7.0 adds `similar` to `Movie` and `Show`: the title's Similar titles, most alike first, each by one id. The Kernel keeps the first 20 and drops a malformed one. A Plugin built before gives none.
   `CONTRACT_VERSION` 0.5.5: the Manifest adds the optional `setup_markdown`, `homepage_url`, `source_url` and `license`, which the Server sends clients with the Plugin; the Kernel drops a flawed one, logging why, and still loads the Plugin.
 
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.

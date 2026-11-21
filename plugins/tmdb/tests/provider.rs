@@ -356,6 +356,29 @@ async fn a_show_has_its_whole_runs_cast_and_crew_with_its_creators_first() {
 }
 
 #[tokio::test]
+async fn a_title_has_its_recommendations_as_similar_titles_in_order() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+
+    let similar = |ids: &[TitleId]| -> Vec<ExternalId> {
+        (ids.iter())
+            .map(|id| ExternalId::new(&id.namespace, id.value.clone()).unwrap())
+            .collect()
+    };
+    assert_eq!(
+        similar(&alien.movie.unwrap().similar),
+        [ExternalId::tmdb(679), ExternalId::tmdb(949)]
+    );
+    assert_eq!(
+        similar(&dark.show.unwrap().similar),
+        [ExternalId::tmdb(66732), ExternalId::tmdb(2316)]
+    );
+}
+
+#[tokio::test]
 async fn a_title_has_only_its_trailers_on_youtube_or_vimeo_official_first_and_at_most_5() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);

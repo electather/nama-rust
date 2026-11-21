@@ -16345,6 +16345,13 @@ pub struct FoundMovieView<'a> {
     ///
     /// Field 17: `on_watchlist`
     pub on_watchlist: bool,
+    /// As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+    ///
+    /// Field 21: `similar`
+    pub similar: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::MovieHitView<'a>,
+    >,
     /// As `nama.v1.Movie.trailers`, from the title source it was looked up in.
     ///
     /// Field 18: `trailers`
@@ -16536,6 +16543,24 @@ impl<'a> ::buffa::MessageView<'a> for FoundMovieView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::MovieHitView>(),
+                )?;
+                view.similar
+                    .push(
+                        <super::super::__buffa::view::MovieHitView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             18u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -16644,6 +16669,11 @@ impl<'a> ::buffa::MessageView<'a> for FoundMovieView<'a> {
             genres: self.genres.iter().map(|s| s.to_string()).collect(),
             content_rating: self.content_rating.map(|s| s.to_string()),
             on_watchlist: self.on_watchlist,
+            similar: self
+                .similar
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             trailers: self
                 .trailers
                 .iter()
@@ -16752,6 +16782,14 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundMovieView<'a> {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.similar {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -16845,6 +16883,14 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundMovieView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                21u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -16929,6 +16975,9 @@ impl<'__a> ::serde::Serialize for FoundMovieView<'__a> {
         }
         if self.on_watchlist {
             __map.serialize_entry("onWatchlist", &self.on_watchlist)?;
+        }
+        if !self.similar.is_empty() {
+            __map.serialize_entry("similar", &*self.similar)?;
         }
         if !self.trailers.is_empty() {
             __map.serialize_entry("trailers", &*self.trailers)?;
@@ -17144,6 +17193,15 @@ impl FoundMovieOwnedView {
     #[must_use]
     pub fn on_watchlist(&self) -> bool {
         self.0.reborrow().on_watchlist
+    }
+    /// As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+    ///
+    /// Field 21: `similar`
+    #[must_use]
+    pub fn similar(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::MovieHitView<'_>> {
+        &self.0.reborrow().similar
     }
     /// As `nama.v1.Movie.trailers`, from the title source it was looked up in.
     ///
@@ -18646,6 +18704,10 @@ pub struct FoundShowView<'a> {
     ///
     /// Field 17: `on_watchlist`
     pub on_watchlist: bool,
+    /// As `FoundMovie.similar`, for the Show.
+    ///
+    /// Field 21: `similar`
+    pub similar: ::buffa::RepeatedView<'a, super::super::__buffa::view::ShowHitView<'a>>,
     /// As `nama.v1.Movie.trailers`, from the title source it was looked up in.
     ///
     /// Field 18: `trailers`
@@ -18892,6 +18954,24 @@ impl<'a> ::buffa::MessageView<'a> for FoundShowView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::ShowHitView>(),
+                )?;
+                view.similar
+                    .push(
+                        <super::super::__buffa::view::ShowHitView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             18u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -18986,6 +19066,11 @@ impl<'a> ::buffa::MessageView<'a> for FoundShowView<'a> {
             genres: self.genres.iter().map(|s| s.to_string()).collect(),
             content_rating: self.content_rating.map(|s| s.to_string()),
             on_watchlist: self.on_watchlist,
+            similar: self
+                .similar
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             trailers: self
                 .trailers
                 .iter()
@@ -19087,6 +19172,14 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundShowView<'a> {
                     + inner_size as u64;
         }
         for v in &self.crew {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.similar {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -19197,6 +19290,14 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundShowView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        for v in &self.similar {
+            ::buffa::types::put_len_delimited_header(
+                21u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -19285,6 +19386,9 @@ impl<'__a> ::serde::Serialize for FoundShowView<'__a> {
         }
         if self.on_watchlist {
             __map.serialize_entry("onWatchlist", &self.on_watchlist)?;
+        }
+        if !self.similar.is_empty() {
+            __map.serialize_entry("similar", &*self.similar)?;
         }
         if !self.trailers.is_empty() {
             __map.serialize_entry("trailers", &*self.trailers)?;
@@ -19522,6 +19626,15 @@ impl FoundShowOwnedView {
     #[must_use]
     pub fn on_watchlist(&self) -> bool {
         self.0.reborrow().on_watchlist
+    }
+    /// As `FoundMovie.similar`, for the Show.
+    ///
+    /// Field 21: `similar`
+    #[must_use]
+    pub fn similar(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::ShowHitView<'_>> {
+        &self.0.reborrow().similar
     }
     /// As `nama.v1.Movie.trailers`, from the title source it was looked up in.
     ///

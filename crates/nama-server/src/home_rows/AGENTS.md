@@ -7,5 +7,5 @@ The answers Plugins give ahead of time through `HomeRowSource`, stored per Plugi
 
 ### Neighbours
 
-- Uses: `db`, `library` (`Libraries`, `Contents`), `page`, `plugins` (`ExtensionPoints`, `Answer`, `without_secrets`), `requests` (`listed_movie`, `listed_show`, `open_movie_request`), `server_settings` (`HomeRowId`) and `users` (`User`, a User's Personal settings).
+- Uses: `db`, `library` (`Libraries`, `Contents`, `OnServer`), `page`, `plugins` (`ExtensionPoints`, `Answer`, `without_secrets`), `requests` (`listed_movie`, `listed_show`, `open_movie_request`), `server_settings` (`HomeRowId`) and `users` (`User`, a User's Personal settings).
 - Used by: the `api` parts for browse and the Server (`HomeRows`), `browse` (`Suggested`) and startup in `lib.rs`.

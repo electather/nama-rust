@@ -1,5 +1,5 @@
-import { shelfBleed } from "@/features/home/lib/shelf-bleed";
 import type { ShelfTile } from "@/features/home/lib/shelf-tiles";
+import { shelfBleed } from "@/shared/lib/shelf-bleed";
 
 /** Where a shelf's first tiles will be while they load: boxes of their shape, in the same row. */
 export function ShelfSkeleton({

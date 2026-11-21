@@ -20,8 +20,8 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::Browse,
     library::{
-        Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, Role,
-        ShownImages, TitleImage, TitleKind,
+        Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, OnServer,
+        Role, ShownImages, TitleImage, TitleKind,
     },
     requests::{self, Requests, ShowToRequest, year_of},
 };
@@ -225,6 +225,27 @@ fn show_to_request_hit(found: ShowToRequest, images: &ShownImages) -> proto::Hit
         title: show.into(),
         ..Default::default()
     }
+}
+
+/// The Movies among `titles`, each as a hit that opens it in its Library, such as a title page's
+/// Similar titles.
+pub(super) fn movie_hits(titles: Vec<OnServer>, images: &ShownImages) -> Vec<proto::MovieHit> {
+    (titles.into_iter())
+        .filter_map(|title| match title {
+            OnServer::Movie(movie) => Some(movie_hit(movie, images)),
+            OnServer::Show(_) => None,
+        })
+        .collect()
+}
+
+/// As [`movie_hits`], for the Shows among `titles`.
+pub(super) fn show_hits(titles: Vec<OnServer>, images: &ShownImages) -> Vec<proto::ShowHit> {
+    (titles.into_iter())
+        .filter_map(|title| match title {
+            OnServer::Show(show) => Some(show_hit(show, images)),
+            OnServer::Movie(_) => None,
+        })
+        .collect()
 }
 
 fn movie_hit(movie: FoundMovie, images: &ShownImages) -> proto::MovieHit {

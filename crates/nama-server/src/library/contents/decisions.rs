@@ -219,6 +219,7 @@ pub(crate) struct Metadata {
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
     pub(crate) trailers: Vec<Trailer>,
+    pub(crate) similar: Vec<ExternalId>,
     pub(crate) roles: Roles,
 }
 
@@ -664,13 +665,12 @@ impl ReasonColumn {
 }
 
 fn parse_tied(json: &str) -> Result<Vec<TiedTitle>, sqlx::Error> {
-    let decode = |err: Box<dyn std::error::Error + Send + Sync>| sqlx::Error::Decode(err);
     let rows: Vec<(String, String, Option<String>, Option<i32>)> =
-        serde_json::from_str(json).map_err(|err| decode(err.into()))?;
+        serde_json::from_str(json).map_err(|err| sqlx::Error::Decode(err.into()))?;
     rows.into_iter()
         .map(|(id, title, original_title, year)| {
-            let id =
-                parse_hint(&id).ok_or_else(|| decode(format!("bad tied title id {id}").into()))?;
+            let bad = || sqlx::Error::Decode(format!("bad tied title id {id}").into());
+            let id = parse_hint(&id).ok_or_else(bad)?;
             Ok(TiedTitle {
                 id,
                 title,

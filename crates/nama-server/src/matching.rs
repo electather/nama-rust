@@ -297,6 +297,7 @@ impl Metadata {
             show_first_air_date: show.first_air_date.clone(),
             score: show.score,
             original_language: show.original_language.clone(),
+            similar: show.similar.clone(),
             trailers: show.trailers.clone(),
             roles: show.roles.clone(),
         }

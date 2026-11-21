@@ -18,9 +18,9 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
     db::Database,
-    home_rows::{HomeRows, OnServer, RowTitle},
+    home_rows::{HomeRows, RowTitle},
     library::{
-        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
+        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, OnServer, Role,
         ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
@@ -31,8 +31,9 @@ use crate::{
 
 use super::{
     ImageSources, caller, database_failed, external_id_to_proto, proto_number,
-    requests::{missing_movie_to_proto, missing_show_to_proto, roles_to_proto, trailers_to_proto},
+    requests::{missing_movie_to_proto, missing_show_to_proto},
     required_id,
+    search::{movie_hits, show_hits},
 };
 
 mod refusals;
@@ -41,6 +42,7 @@ mod titles;
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
 use titles::{featured_to_proto, started_to_proto};
+pub(super) use titles::{roles_to_proto, trailers_to_proto};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -152,11 +154,17 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let on_watchlist = (self.on_watchlist(user.id, TitleKind::Movie, &movie.ids)).await?;
+        let similar = (self
+            .browse
+            .similar(request.library_id, TitleKind::Movie, &movie.ids))
+        .await;
+        let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let roles = self.browse.movie_roles(&movie).await;
         let roles = roles.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         let (cast, crew) = roles_to_proto(roles, stored_by(&movie.plugin, &images));
         Response::ok(GetMovieResponse {
+            similar: movie_hits(similar, &images),
             movie: proto::Movie {
                 on_watchlist,
                 cast,
@@ -240,6 +248,11 @@ impl BrowseService for BrowseServiceHandler {
         let roles = roles.map_err(refused(Fields::LIBRARY))?;
         let aired = self.browse.aired_episodes(&show).await;
         let aired_episode_count = aired.map_err(database_failed)?;
+        let similar = (self
+            .browse
+            .similar(request.library_id, TitleKind::Show, &show.ids))
+        .await;
+        let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         // Without a Plugin it has no Episodes, so no Roles to show headshots of.
         let plugin = show.plugin().unwrap_or_default();
@@ -268,6 +281,7 @@ impl BrowseService for BrowseServiceHandler {
             .into(),
             seasons,
             aired_episode_count,
+            similar: show_hits(similar, &images),
             ..Default::default()
         })
     }

@@ -50,7 +50,7 @@ pub(crate) use title_source::{
     Show as SourceShow, Source, TitleKind, TitleSources, Trailer, Unanswered,
 };
 pub(crate) use titles::{
-    NotFound, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,
+    NotFound, OnServer, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,
 };
 pub(crate) use versions::PARSER_VERSION;
 // Matching names it only in its docs, so outside rustdoc nothing would use it.

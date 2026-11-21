@@ -32,10 +32,7 @@ use rows::Rows;
 
 use crate::{
     db::Database,
-    library::{
-        Contents, FoundMovie, FoundShow, ImageRef, Libraries, LibraryError, LibraryKind,
-        LibraryMovie, LibraryShow,
-    },
+    library::{Contents, ImageRef, Libraries, LibraryError, LibraryKind, OnServer},
     page::{self, Page},
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
     requests::{Listed, Requests},
@@ -92,13 +89,6 @@ struct Title(Kind, String);
 enum Kind {
     Movie,
     Show,
-}
-
-/// A title a row names that is on the Server, in the oldest Library that has it.
-#[derive(Debug, Clone)]
-pub(crate) enum OnServer {
-    Movie(FoundMovie),
-    Show(FoundShow),
 }
 
 /// Why the rows couldn't be read.
@@ -301,35 +291,23 @@ impl HomeRows {
 
     /// Those of `titles` that are on the Server, each in the oldest Library Matched to it.
     async fn on_server(&self, titles: &[Title]) -> Result<HashMap<Title, OnServer>, Error> {
-        let ids_of = |kind: Kind| -> Vec<ExternalId> {
-            (titles.iter())
-                .filter(|title| title.0 == kind)
-                .filter_map(Title::id)
-                .collect()
-        };
-        let (movies, shows) = (ids_of(Kind::Movie), ids_of(Kind::Show));
         let mut found = HashMap::new();
         if titles.is_empty() {
             return Ok(found);
         }
-        // Oldest first, so a title in two Libraries is found in the older.
-        for library in self.libraries.list().await? {
-            let (kind, wanted, listed) = match library.kind {
-                LibraryKind::Movies if !movies.is_empty() => {
-                    let listed = self.contents.movies(library.id, Some(&movies)).await?;
-                    let listed = listed.iter().map(|movie| found_movie(library.id, movie));
-                    (Kind::Movie, &movies, listed.collect::<Vec<_>>())
-                }
-                LibraryKind::Shows if !shows.is_empty() => {
-                    let listed = self.contents.shows(library.id, Some(&shows)).await?;
-                    let listed = listed.iter().map(|show| found_show(library.id, show));
-                    (Kind::Show, &shows, listed.collect())
-                }
-                LibraryKind::Movies | LibraryKind::Shows => continue,
-            };
-            for title in listed {
-                add_found(&mut found, kind, wanted, &title);
-            }
+        let libraries = self.libraries.list().await?;
+        for (kind, in_libraries) in [
+            (Kind::Movie, LibraryKind::Movies),
+            (Kind::Show, LibraryKind::Shows),
+        ] {
+            let ids: Vec<ExternalId> = (titles.iter())
+                .filter(|title| title.0 == kind)
+                .filter_map(Title::id)
+                .collect();
+            let on_server = OnServer::find(&self.contents, &libraries, in_libraries, &ids).await?;
+            found.extend(
+                (on_server.into_iter()).map(|(id, title)| (Title(kind, id.to_string()), title)),
+            );
         }
         Ok(found)
     }
@@ -419,45 +397,6 @@ fn from_json<T: for<'de> Deserialize<'de>>(json: &str) -> Vec<T> {
 
 fn to_json(value: &impl Serialize) -> Result<String, sqlx::Error> {
     serde_json::to_string(value).map_err(|err| sqlx::Error::Encode(err.into()))
-}
-
-fn found_movie(library: i64, movie: &LibraryMovie) -> OnServer {
-    OnServer::Movie(FoundMovie {
-        library,
-        id: movie.id.clone(),
-        ids: movie.ids.clone(),
-        title: movie.title.clone(),
-        release_date: movie.release_date.clone(),
-        poster: movie.poster.clone(),
-    })
-}
-
-fn found_show(library: i64, show: &LibraryShow) -> OnServer {
-    OnServer::Show(FoundShow {
-        library,
-        id: show.id.clone(),
-        ids: show.ids.clone(),
-        title: show.title.clone(),
-        poster: show.poster().cloned(),
-    })
-}
-
-/// Adds `title` to `found` under each of its ids `wanted` names that an older Library's title
-/// didn't take.
-fn add_found(
-    found: &mut HashMap<Title, OnServer>,
-    kind: Kind,
-    wanted: &[ExternalId],
-    title: &OnServer,
-) {
-    let ids = match title {
-        OnServer::Movie(movie) => &movie.ids,
-        OnServer::Show(show) => &show.ids,
-    };
-    for id in ids.iter().filter(|id| wanted.contains(id)) {
-        let key = Title(kind, id.to_string());
-        found.entry(key).or_insert_with(|| title.clone());
-    }
 }
 
 // No code that could panic runs while one is held, so a poisoned lock's value is still whole.

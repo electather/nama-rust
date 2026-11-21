@@ -107,7 +107,7 @@ impl WireIds {
     }
 }
 
-/// `/movie/{id}?append_to_response=external_ids,release_dates,credits,videos`.
+/// `/movie/{id}?append_to_response=external_ids,release_dates,credits,videos,recommendations`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieDetails {
     id: i64,
@@ -132,6 +132,8 @@ pub(crate) struct MovieDetails {
     credits: Credits,
     #[serde(default)]
     videos: Videos,
+    #[serde(default)]
+    recommendations: Recommendations,
 }
 
 impl MovieDetails {
@@ -157,6 +159,7 @@ impl MovieDetails {
             score: self.votes.score(),
             original_language: original_language(self.original_language),
             trailers: self.videos.trailers(),
+            similar: self.recommendations.ids(),
             cast: self.credits.cast.into_iter().map(Role::from).collect(),
             crew: (self.credits.crew.into_iter())
                 .filter(|person| CREW_JOBS.contains(&person.job.as_str()))
@@ -171,7 +174,7 @@ impl MovieDetails {
 /// first, as `Creator`.
 const CREW_JOBS: [&str; 3] = ["Director", "Screenplay", "Writer"];
 
-/// `/tv/{id}?append_to_response=external_ids,content_ratings,aggregate_credits,videos`.
+/// `/tv/{id}?append_to_response=external_ids,content_ratings,aggregate_credits,videos,recommendations`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowDetails {
     id: i64,
@@ -198,6 +201,8 @@ pub(crate) struct ShowDetails {
     aggregate_credits: AggregateCredits,
     #[serde(default)]
     videos: Videos,
+    #[serde(default)]
+    recommendations: Recommendations,
 }
 
 #[derive(Debug, Deserialize)]
@@ -223,6 +228,7 @@ impl ShowDetails {
             score: self.votes.score(),
             original_language: original_language(self.original_language),
             trailers: self.videos.trailers(),
+            similar: self.recommendations.ids(),
             cast: (self.aggregate_credits.cast.into_iter())
                 .map(Role::from)
                 .collect(),
@@ -347,6 +353,22 @@ impl From<ShowCastMember> for Role {
     fn from(cast: ShowCastMember) -> Self {
         let character = cast.roles.into_iter().next().map(|role| role.character);
         cast.person.role(character.unwrap_or_default())
+    }
+}
+
+/// `recommendations`, appended to a Movie's or Show's details: the first page of the titles of its
+/// kind TMDB recommends with it, most alike first.
+#[derive(Debug, Default, Deserialize)]
+struct Recommendations {
+    #[serde(default)]
+    results: Vec<FoundTitle>,
+}
+
+impl Recommendations {
+    fn ids(self) -> Vec<TitleId> {
+        (self.results.iter())
+            .map(|title| title_id(&ExternalId::tmdb(title.id)))
+            .collect()
     }
 }
 
