@@ -31,9 +31,11 @@ export function ShowDetails({
             ["Genres", listed(show.genres)],
           ],
         },
-        ...filesDetails(versions, <LibraryLink key="library" libraryId={libraryId} />, [
-          ["Episodes", episodesHere(episodes.length, show.seasonCount)],
-        ]),
+        ...filesDetails(
+          { versions, originalLanguage: show.originalLanguage },
+          <LibraryLink key="library" libraryId={libraryId} />,
+          [["Episodes", episodesHere(episodes.length, show.seasonCount)]],
+        ),
       ]}
     />
   );

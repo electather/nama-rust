@@ -30,6 +30,9 @@ function server(request: Request, permissions: Permission[] = newUser, retried: 
   const movie = create(FoundMovieSchema, {
     id: { namespace: "tmdb", value: "438631" },
     title: "Dune",
+    year: 2021,
+    score: 7.8,
+    originalLanguage: "en",
     request,
   });
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
@@ -173,4 +176,13 @@ test("a Request manager retries a Failed Season from its row", async () => {
   });
   expect(season2.getAttribute("aria-describedby")).not.toBeNull();
   expect(screen.getByRole("checkbox", { description: "Failed" })).toBe(season2);
+});
+
+test("a Movie to Request shows its Score among its facts, and its Original audio in Details", async () => {
+  openApp("/movies/tmdb-438631", server({}));
+
+  const score = await screen.findByText("Score");
+  expect(score.closest("p")?.textContent).toBe("Score7.82021");
+  const audio = screen.getByText("Original audio", { selector: "dt" });
+  expect(audio.nextElementSibling?.textContent).toBe("English");
 });

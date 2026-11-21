@@ -53,6 +53,27 @@ test("a Movie's page shows its Title Logo with its genres, year, runtime and Con
   expect(screen.getByText("2019 · 2h 13m").closest("p")?.textContent).toBe("2019 · 2h 13mR");
 });
 
+/** The Details fact named `term`, as its value reads. */
+function detail(term: string) {
+  return screen.getByText(term, { selector: "dt" }).nextElementSibling?.textContent;
+}
+
+test("a Movie's page shows its Score among its facts, and its Original audio in Details", async () => {
+  openMovie({ releaseDate: "2019-05-30", score: 8.5, originalLanguage: "ko" });
+
+  const score = await screen.findByText("Score");
+  expect(score.closest("p")?.textContent).toBe("Score8.52019");
+  expect(detail("Original audio")).toBe("Korean");
+});
+
+test("a title nobody has voted on shows no Score, not 0", async () => {
+  openMovie({ releaseDate: "2019-05-30" });
+
+  await expect(screen.findByRole("heading", { level: 1, name: "Parasite" })).resolves.toBeDefined();
+  expect(screen.queryByText("Score")).toBeNull();
+  expect(screen.queryByText("Original audio")).toBeNull();
+});
+
 test("a title without a Title Logo shows its title as text", async () => {
   openMovie({});
 
@@ -132,6 +153,8 @@ function openDark(...entries: MessageInitShape<typeof ContinueWatchingEntrySchem
     overview: "A missing child sets four families on a hunt.",
     firstAirDate: "2017-12-01",
     genres: ["Drama"],
+    score: 8.4,
+    originalLanguage: "de",
   };
   const transport = server({
     getShow: () => ({ show, seasons: [{ number: 1 }] }),
@@ -157,7 +180,7 @@ function episodeEntry(
   } as const;
 }
 
-test("a Show's page shows its own overview and first air year, and no Play without Episodes", async () => {
+test("a Show's page shows its own overview, first air year, Score and Original audio, and no Play without Episodes", async () => {
   openDark();
 
   await expect(
@@ -166,6 +189,8 @@ test("a Show's page shows its own overview and first air year, and no Play witho
   expect(screen.getByText("Show · Drama")).toBeDefined();
   // In its facts, and as Released in its Details.
   expect(screen.getAllByText("2017")).toHaveLength(2);
+  expect(screen.getByText("Score").parentElement?.textContent).toBe("Score8.4");
+  expect(detail("Original audio")).toBe("German");
   expect(screen.queryByRole("link", { name: /^(?:Resume|Play)/u })).toBeNull();
 });
 
