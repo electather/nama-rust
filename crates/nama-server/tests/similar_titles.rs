@@ -1,7 +1,8 @@
 //! A title's Similar titles in the Libraries (ADR 0081, ADR 0084), on its page and its request
 //! page alike, over a real socket with the TMDB Plugin enabled against a fake TMDB, whose Similar
 //! source answers Alien's as Aliens and Heat, and Dark's as Stranger Things and the US Office, and
-//! with the test Plugin as a second Similar source.
+//! with the test Plugin as a second Similar source. A title source of this file's own has a Movie
+//! for every id, for a Library with more Movies than a row holds.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -17,16 +18,22 @@ mod server;
 #[path = "support/test_plugin.rs"]
 mod test_plugin;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, future, sync::Arc};
 
 use browsing::{ALIEN_1080P, tmdb_id};
 use connectrpc::client::HttpClient;
 use home_row_plugin::{PLUGIN, disable, enable, text};
+use nama_plugin_api::{
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    contract::{Movie, MovieAnswer, SearchQuery, SearchResults, TitleAsked, TitleId},
+    metadata::{MetadataError, SourceManifest, TitleMethod, TitleSource},
+};
 use nama_proto::nama::v1::{
     BrowseServiceClient, GetMovieRequest, GetShowRequest, LibraryKind, LookUpMovieRequest,
     LookUpShowRequest, MatchServiceClient, MovieHit, RequestServiceClient, SetMatchRequest,
     ShowHit, UpdatePluginSettingsRequest,
 };
+use nama_server::plugins::Registry;
 use server::{
     TestServer,
     tmdb::{ALIEN, DARK, HEAT, THE_OFFICE},
@@ -289,4 +296,106 @@ async fn a_request_page_asks_the_sources_live_and_leaves_out_one_running_past_it
         ["Heat"],
         "a title page reads what's stored"
     );
+}
+
+/// The namespace and Plugin id of [`Numbered`].
+const NUMBERED: &str = "numbered";
+
+/// A title source with a Movie for every id in its namespace, titled `Movie <id>`. It finds
+/// nothing by searching, which it answers only since a Library's order needs a source that does.
+struct Numbered;
+
+impl TitleSource for Numbered {
+    fn namespace(&self) -> &str {
+        NUMBERED
+    }
+
+    fn search<'a>(
+        &'a self,
+        _query: &'a SearchQuery,
+    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
+        Box::pin(future::ready(Ok(SearchResults::default())))
+    }
+
+    fn movie<'a>(
+        &'a self,
+        asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
+        let value = (asked.id.as_option()).map_or_else(String::new, |id| id.value.clone());
+        let movie = Movie {
+            title: format!("Movie {value}"),
+            ids: vec![TitleId {
+                namespace: NUMBERED.to_owned(),
+                value,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        Box::pin(future::ready(Ok(MovieAnswer {
+            movie: movie.into(),
+            ..Default::default()
+        })))
+    }
+
+    fn answers(&self, method: TitleMethod) -> bool {
+        matches!(method, TitleMethod::Search | TitleMethod::Movie)
+    }
+}
+
+impl Plugin for Numbered {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
+            title_source: Some(SourceManifest {
+                namespace: NUMBERED.to_owned(),
+                looks_up: Vec::new(),
+                searches: true,
+            }),
+            ..Manifest::new(PluginId::from_static(NUMBERED))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(Self));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_row_holds_the_20_heaviest_titles_in_a_library() {
+    let plugins = Registry::new();
+    // Described too, as a Library's order names only sources the Server describes.
+    plugins.describe_builtin(|| Arc::new(Numbered));
+    plugins.enable(Arc::new(Numbered)).unwrap();
+    let server = TestServer::builder().plugins(plugins).start().await;
+    server.enable_test_plugin("similar-source").await;
+    // Movie n weighs n / 100, so the heaviest 20 are Movies 25 down to 6.
+    let answer: Vec<String> = (1..=25)
+        .map(|n| format!("{NUMBERED}-{n}@{}", f64::from(n) / 100.0))
+        .collect();
+    answer_with(&server, &answer.join(",")).await;
+    let files: Vec<String> = (1..=25)
+        .map(|n| format!("Movie {n} (2000) {{{NUMBERED}-{n}}}/Movie {n} (2000).mkv"))
+        .collect();
+    let files: Vec<&str> = files.iter().map(String::as_str).collect();
+    let movies = (server)
+        .create_library_searching(LibraryKind::LIBRARY_KIND_MOVIES, &files, &[NUMBERED])
+        .await;
+    server.scan_and_match(&movies).await;
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let page = browse.get_movie(GetMovieRequest {
+        library_id: movies.id,
+        movie_id: nama_proto::nama::v1::ExternalId {
+            namespace: NUMBERED.to_owned(),
+            value: "1".to_owned(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    });
+    let page = titles(&page.await.unwrap().into_owned().similar);
+
+    let heaviest: Vec<String> = (6..=25).rev().map(|n| format!("Movie {n}")).collect();
+    assert_eq!(page, heaviest);
 }
