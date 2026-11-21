@@ -3,7 +3,7 @@ use nama_pdk::{
     TitleRef, TitleRefKind, TitleWatchStates, UserFeaturedAsked, UserRowsAsked, WatchState,
     WatchlistTitle,
     extism_pdk::Error,
-    nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
+    nama_plugin_proto::nama::plugin::v1::{SettingKind, Texts, setting_value::Value},
     services,
     testing::{Kernel, with},
 };
@@ -95,7 +95,7 @@ fn top_picks(
     states: &[TitleWatchStates],
     watchlist: &[WatchlistTitle],
 ) -> Vec<String> {
-    let rows = rows(&ranked(titles, states, watchlist), DEFAULT_FAMILY_RATINGS);
+    let rows = rows(&ranked(titles, states, watchlist), &DEFAULT_FAMILY_RATINGS);
     summary(&rows)[0]
         .1
         .iter()
@@ -171,7 +171,7 @@ fn a_title_the_user_started_or_played_is_in_neither_row() {
         watched(&titles[4], false, 1_000),
     ];
 
-    let rows = rows(&ranked(&titles, &states, &[]), DEFAULT_FAMILY_RATINGS);
+    let rows = rows(&ranked(&titles, &states, &[]), &DEFAULT_FAMILY_RATINGS);
 
     assert_eq!(
         summary(&rows),
@@ -184,7 +184,7 @@ fn a_shows_episodes_pick_the_show_once_by_its_id() {
     let titles = [episode("10", "s1"), episode("11", "s1")];
     let states = [unwatched(&titles[0]), unwatched(&titles[1])];
 
-    let rows = rows(&ranked(&titles, &states, &[]), DEFAULT_FAMILY_RATINGS);
+    let rows = rows(&ranked(&titles, &states, &[]), &DEFAULT_FAMILY_RATINGS);
 
     let show = &rows.rows[0].titles[0];
     assert_eq!(rows.rows[0].titles.len(), 1);
@@ -204,8 +204,8 @@ fn family_night_holds_only_titles_rated_in_the_setting() {
     let states: Vec<_> = titles.iter().map(unwatched).collect();
     let picks = ranked(&titles, &states, &[]);
 
-    let by_default = rows(&picks, DEFAULT_FAMILY_RATINGS);
-    let by_admin = rows(&picks, " R ,TV-MA");
+    let by_default = rows(&picks, &DEFAULT_FAMILY_RATINGS);
+    let by_admin = rows(&picks, &["R", "TV-MA"]);
 
     assert_eq!(summary(&by_default)[1], ("family-night", vec!["1", "4"]));
     assert_eq!(summary(&by_admin)[1], ("family-night", vec!["2", "5"]));
@@ -244,7 +244,7 @@ fn a_user_with_no_history_is_suggested_nothing_for_featured() {
 }
 
 #[test]
-fn manifest_is_a_home_row_source_with_the_permissions_and_family_ratings_setting() {
+fn manifest_is_a_home_row_source_with_the_permissions_and_family_content_ratings_setting() {
     let manifest = manifest();
 
     let points: Vec<_> = manifest.points.iter().map(|point| &point.service).collect();
@@ -257,25 +257,29 @@ fn manifest_is_a_home_row_source_with_the_permissions_and_family_ratings_setting
             Permission::PERMISSION_READ_WATCHLISTS,
         ]
     );
-    let settings: Vec<_> = (manifest.settings.iter())
-        .map(|field| {
-            let default = field.default_value.as_option();
-            (
-                field.key.as_str(),
-                field.kind.as_known(),
-                default.and_then(|default| default.value.clone()),
-            )
-        })
+    let [field] = manifest.settings.as_slice() else {
+        panic!("{:?}", manifest.settings);
+    };
+    assert_eq!(field.key, "family_content_ratings");
+    assert_eq!(field.kind, SettingKind::SETTING_KIND_CHOICES);
+    let choices: Vec<_> = (field.choices.iter())
+        .map(|choice| (choice.value.as_str(), choice.label.as_str()))
         .collect();
     assert_eq!(
-        settings,
-        [(
-            FAMILY_RATINGS,
-            Some(SettingKind::SETTING_KIND_TEXT),
-            Some(Value::TextValue(
-                "G, PG, PG-13, TV-Y, TV-G, TV-PG".to_owned()
-            )),
-        )]
+        choices,
+        [
+            "G", "PG", "PG-13", "R", "NC-17", "TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"
+        ]
+        .map(|rating| (rating, rating))
+    );
+    assert_eq!(
+        field.default_value.value,
+        Some(Value::Texts(Box::new(Texts {
+            values: ["G", "PG", "PG-13", "TV-Y", "TV-G", "TV-PG"]
+                .map(str::to_owned)
+                .into(),
+            ..Texts::default()
+        })))
     );
 }
 
@@ -287,7 +291,10 @@ fn refusing_watchlists(titles: &[Title]) -> Kernel {
         ..Library::default()
     };
     Kernel::new()
-        .setting(FAMILY_RATINGS, DEFAULT_FAMILY_RATINGS)
+        .setting(
+            FAMILY_RATINGS,
+            &nama_pdk::extism_pdk::json::to_string(&DEFAULT_FAMILY_RATINGS).unwrap(),
+        )
         .libraries([library])
         .titles(1, titles.iter().cloned())
         .watch_states(&TitleRef::default(), [])
@@ -409,7 +416,7 @@ fn user_rows_family_night_holds_only_titles_rated_in_the_setting() {
         rated("4", Some("tv-pg")),
         rated("5", Some("TV-MA")),
     ];
-    let mut by_admin = granting_watchlists(&titles).setting(FAMILY_RATINGS, " R ,TV-MA");
+    let mut by_admin = granting_watchlists(&titles).setting(FAMILY_RATINGS, r#"["R","TV-MA"]"#);
 
     let by_default = user_rows(&mut granting_watchlists(&titles), ADA).unwrap();
     let by_admin = user_rows(&mut by_admin, ADA).unwrap();
