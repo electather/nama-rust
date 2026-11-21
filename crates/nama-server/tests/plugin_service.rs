@@ -129,7 +129,7 @@ impl Started {
             .map(connectrpc::UnaryResponse::into_owned)
     }
 
-    /// What is stored for each Plugin but Upkeep, which a start stores with its first grant.
+    /// What is stored for each Plugin but Upkeep, which each start stores with its grants.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
