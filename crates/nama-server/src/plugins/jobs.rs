@@ -109,9 +109,9 @@ pub(crate) fn log_jobs_time_zone() {
     log_zone(TimeZone::try_system());
 }
 
-/// Logs `system`, the Server's time zone or why it has none, which leaves Jobs in UTC.
-fn log_zone(system: Result<TimeZone, jiff::Error>) {
-    match system {
+/// Logs `found`, the Server's time zone or why it has none, which leaves Jobs in UTC.
+fn log_zone(found: Result<TimeZone, jiff::Error>) {
+    match found {
         Ok(zone) => info!(
             zone = zone.iana_name().unwrap_or("unnamed"),
             "reading job schedules in this time zone"
@@ -119,7 +119,7 @@ fn log_zone(system: Result<TimeZone, jiff::Error>) {
         Err(error) => warn!(
             %error,
             "reading job schedules in UTC, as the server's time zone can't be found; \
-             set TZ or, in docker, mount /etc/localtime"
+             set TZ to one such as Europe/London or, in docker, mount /etc/localtime"
         ),
     }
 }
