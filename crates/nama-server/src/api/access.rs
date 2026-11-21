@@ -178,6 +178,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_LIST_PLUGIN_LOG_LINES_SPEC.procedure,  ADMIN),
     (proto::JOB_SERVICE_LIST_JOBS_SPEC.procedure,                 ADMIN),
     (proto::JOB_SERVICE_LIST_JOB_RUNS_SPEC.procedure,             ADMIN),
+    (proto::JOB_SERVICE_CONFIGURE_JOB_SPEC.procedure,             ADMIN),
+    (proto::JOB_SERVICE_PREVIEW_JOB_SCHEDULE_SPEC.procedure,      ADMIN),
     (proto::JOB_SERVICE_RUN_JOB_SPEC.procedure,                   ADMIN),
 ];
 

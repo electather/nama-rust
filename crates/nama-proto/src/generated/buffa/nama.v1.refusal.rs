@@ -277,6 +277,10 @@ pub enum RefusalReason {
     REFUSAL_REASON_JOB_RUNNING = 93i32,
     /// `not_found`: no enabled Plugin with the ID declares a Job with the ID. `field` is `job_id`.
     REFUSAL_REASON_JOB_NOT_FOUND = 94i32,
+    /// `invalid_argument`: a Job's schedule isn't a standard 5-field cron schedule, or the Job has
+    /// none of its own to replace, as it runs only when an Admin starts it. The message says why.
+    /// `field` is `schedule`. Params: `schedule`, as sent.
+    REFUSAL_REASON_SCHEDULE_INVALID = 95i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -555,6 +559,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_JOB_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const JobNotFound: Self = Self::REFUSAL_REASON_JOB_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SCHEDULE_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ScheduleInvalid: Self = Self::REFUSAL_REASON_SCHEDULE_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -854,6 +861,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             93i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_JOB_RUNNING),
             94i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_JOB_NOT_FOUND),
+            95i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SCHEDULE_INVALID),
             _ => ::core::option::Option::None,
         }
     }
@@ -1040,6 +1048,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_JOB_RUNNING => "REFUSAL_REASON_JOB_RUNNING",
             Self::REFUSAL_REASON_JOB_NOT_FOUND => "REFUSAL_REASON_JOB_NOT_FOUND",
+            Self::REFUSAL_REASON_SCHEDULE_INVALID => "REFUSAL_REASON_SCHEDULE_INVALID",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1346,6 +1355,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_JOB_NOT_FOUND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_JOB_NOT_FOUND)
             }
+            "REFUSAL_REASON_SCHEDULE_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SCHEDULE_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1443,6 +1455,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SEGMENT_SOURCES_INVALID,
             Self::REFUSAL_REASON_JOB_RUNNING,
             Self::REFUSAL_REASON_JOB_NOT_FOUND,
+            Self::REFUSAL_REASON_SCHEDULE_INVALID,
         ]
     }
 }

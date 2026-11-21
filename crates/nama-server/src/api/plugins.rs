@@ -510,6 +510,17 @@ fn plugin_to_proto(
         .flat_map(|manifest| &manifest.settings.fields)
         .map(|field| setting_to_proto(field, stored.get(&field.key)))
         .collect();
+    let jobs = plugin
+        .manifest
+        .iter()
+        .flat_map(|manifest| &manifest.jobs)
+        .map(|job| proto::PluginJob {
+            id: job.id.clone(),
+            name: job.name.clone(),
+            schedule: job.schedule.clone().unwrap_or_default(),
+            ..Default::default()
+        })
+        .collect();
     let [setup_markdown, homepage_url, source_url, license] =
         plugin.manifest.as_ref().map_or_default(|manifest| {
             [
@@ -526,12 +537,13 @@ fn plugin_to_proto(
         homepage_url,
         source_url,
         license,
+        jobs,
         summary: plugin_summary_to_proto(plugin, stored, granted, logo).into(),
         ..Default::default()
     }
 }
 
-fn plugin_line_to_proto(line: PluginLine) -> proto::PluginLogLine {
+pub(super) fn plugin_line_to_proto(line: PluginLine) -> proto::PluginLogLine {
     let level = match line.level {
         Level::ERROR => proto::PluginLogLevel::PLUGIN_LOG_LEVEL_ERROR,
         Level::WARN => proto::PluginLogLevel::PLUGIN_LOG_LEVEL_WARN,
@@ -576,6 +588,9 @@ fn permission_to_proto(permission: Permission) -> proto::PluginPermission {
         Permission::PERMISSION_READ_REQUESTS => Public::PLUGIN_PERMISSION_READ_REQUESTS,
         Permission::PERMISSION_READ_WATCHLISTS => Public::PLUGIN_PERMISSION_READ_WATCHLISTS,
         Permission::PERMISSION_FORGET_HOME_ROWS => Public::PLUGIN_PERMISSION_FORGET_HOME_ROWS,
+        Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS => {
+            Public::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS
+        }
         Permission::PERMISSION_FORGET_GONE_PLUGINS => Public::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS,
     }
 }
@@ -599,6 +614,9 @@ fn permission_from_proto(
         }
         Some(Public::PLUGIN_PERMISSION_FORGET_HOME_ROWS) => {
             Ok(Permission::PERMISSION_FORGET_HOME_ROWS)
+        }
+        Some(Public::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS) => {
+            Ok(Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS)
         }
         Some(Public::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS) => {
             Ok(Permission::PERMISSION_FORGET_GONE_PLUGINS)

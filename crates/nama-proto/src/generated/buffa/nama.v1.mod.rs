@@ -116,6 +116,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLUGIN_LOG_LINE_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_SUMMARY_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_JOB_JSON_ANY);
         reg.register_json_any(super::__EXTENSION_POINT_FAILURE_JSON_ANY);
         reg.register_json_any(super::__SETTING_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
@@ -314,6 +315,10 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_JOBS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_JOBS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__JOB_JSON_ANY);
+        reg.register_json_any(super::__CONFIGURE_JOB_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CONFIGURE_JOB_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_JOB_SCHEDULE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_JOB_SCHEDULE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_JOB_RUNS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_JOB_RUNS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__RUN_JOB_REQUEST_JSON_ANY);
@@ -630,6 +635,10 @@ pub use self::__buffa::view::PluginSummaryOwnedView;
 pub use self::__buffa::view::PluginView;
 #[doc(inline)]
 pub use self::__buffa::view::PluginOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginJobView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginJobOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ExtensionPointFailureView;
 #[doc(inline)]
@@ -1406,6 +1415,22 @@ pub use self::__buffa::view::ListJobsResponseOwnedView;
 pub use self::__buffa::view::JobView;
 #[doc(inline)]
 pub use self::__buffa::view::JobOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListJobRunsRequestView;
 #[doc(inline)]

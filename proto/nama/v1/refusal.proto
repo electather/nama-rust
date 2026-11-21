@@ -309,4 +309,8 @@ enum RefusalReason {
   REFUSAL_REASON_JOB_RUNNING = 93;
   // `not_found`: no enabled Plugin with the ID declares a Job with the ID. `field` is `job_id`.
   REFUSAL_REASON_JOB_NOT_FOUND = 94;
+  // `invalid_argument`: a Job's schedule isn't a standard 5-field cron schedule, or the Job has
+  // none of its own to replace, as it runs only when an Admin starts it. The message says why.
+  // `field` is `schedule`. Params: `schedule`, as sent.
+  REFUSAL_REASON_SCHEDULE_INVALID = 95;
 }
