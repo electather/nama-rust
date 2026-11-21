@@ -8,7 +8,7 @@ use nama_proto::nama::v1::Request;
 
 use crate::library::Candidate;
 
-use super::{Found, ranked};
+use super::{Found, movie_standing, ranked};
 
 /// The Movie TMDB knows as `tmdb`, titled `title`, as a search of the title source finds it.
 fn found(tmdb: i64, title: &str) -> Found<Candidate> {
@@ -56,7 +56,7 @@ fn the_title_sources_movies_rank_available_then_requested_then_by_fit_then_in_it
         in_library,
     ];
 
-    let listed = ranked(source_order, &HashSet::new(), "alien");
+    let listed = ranked(source_order, &HashSet::new(), "alien", movie_standing);
 
     assert_eq!(
         titles(&listed),
@@ -81,6 +81,7 @@ fn a_movie_the_librarys_batch_sent_under_any_of_its_ids_is_left_out() {
         vec![found(1, "Aliens"), also_imdb, found(3, "Alien: Romulus")],
         &sent,
         "alien",
+        movie_standing,
     );
 
     assert_eq!(titles(&listed), ["Alien: Romulus"]);

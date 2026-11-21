@@ -690,11 +690,14 @@ message ShowHit {
   optional int32 year = 3;
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;
-  // The Library `SearchService.Search` found it in. `BrowseService.GetShow` opens it there, by
-  // `id`.
+  // The oldest Library with an Episode of it Matched, if any, or for `SearchService.Search`'s
+  // Library batch the one it was found in. `BrowseService.GetShow` opens it there, by `id`.
   optional int64 library_id = 8;
   // As `nama.v1.Movie.poster_thumbhash`.
   optional bytes poster_thumbhash = 10;
+  // For `SearchService.Search`'s title-source batch, the open Request for its earliest Season
+  // with one the caller may see, if any.
+  Request request = 13;
 }
 
 // A Show looked up in the title source, whose Seasons `CreateSeasonRequests` asks for.

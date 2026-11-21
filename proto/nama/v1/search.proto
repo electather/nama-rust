@@ -15,11 +15,12 @@ service SearchService {
   // Show counts as of every year one of its Episodes aired. A Show is found by its own title,
   // and an Episode by its own, not its Show's. A title in two Libraries is found in each.
   //
-  // A caller with `PERMISSION_REQUEST_MOVIE` also finds the Movies to request: the first title
-  // source in the Admin's precedence to find any is asked for the query, as it is typed.
+  // A caller with `PERMISSION_REQUEST_MOVIE` also finds the Movies to request, and one with
+  // `PERMISSION_REQUEST_TV` the Shows: for each kind, the first title source in the Admin's
+  // precedence to find any is asked for the query, as it is typed.
   //
   // Streams the batch the Libraries found at once, then, for a caller who may request, the
-  // title source's, then `Done`. Fails with `invalid_argument` if the query is blank
+  // title source's for each kind it answered, Movies first, then `Done`. Fails with `invalid_argument` if the query is blank
   // (`REFUSAL_REASON_FIELD_REQUIRED`).
   rpc Search(SearchRequest) returns (stream SearchResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -62,7 +63,7 @@ message Hit {
   oneof title {
     // A Movie, with the Library it is in in `library_id` if one has it.
     MovieHit movie = 1;
-    // A Show, with the Library it is in in `library_id`.
+    // A Show, with the Library it is in in `library_id` if one has an Episode of it.
     ShowHit show = 2;
     EpisodeHit episode = 3;
   }
@@ -75,7 +76,8 @@ enum TitleStatus {
   // A Library has the Movie, or at least one Episode of the Show: it opens in the Library
   // `library_id` names, by its `id`.
   TITLE_STATUS_AVAILABLE = 1;
-  // No Library has it, and the caller can see its open Request, in `request`.
+  // No Library has it, and the caller can see an open Request for it or one of the Show's
+  // Seasons, in `request`, or the Show's open Followed Show, which alone leaves `request` unset.
   TITLE_STATUS_REQUESTED = 2;
   // Only the title source has it, and the caller may request it.
   TITLE_STATUS_NOT_ON_THIS_SERVER = 3;
@@ -98,7 +100,7 @@ message EpisodeHit {
 
 // Marks the end of what `Search` streams.
 message Done {
-  // Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
-  // The results are then only those the Libraries have.
+  // Whether the title source was to be asked and couldn't be: none is enabled, or each failed,
+  // for Movies or for Shows. The results of that kind are then only those the Libraries have.
   bool title_source_unavailable = 1;
 }

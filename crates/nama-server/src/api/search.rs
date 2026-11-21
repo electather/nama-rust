@@ -6,7 +6,11 @@ use buffa::EnumValue;
 use connectrpc::{
     ConnectError, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
 };
-use futures_util::{StreamExt, future, stream};
+use futures_util::{
+    StreamExt,
+    future::{self, OptionFuture},
+    stream,
+};
 use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{
     self as proto, Done, Hits, RefusalReason, SearchRequest, SearchResponse, SearchService,
@@ -19,12 +23,13 @@ use crate::{
         Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, Role,
         ShownImages, TitleImage, TitleKind,
     },
-    requests::{self, Requests, year_of},
+    requests::{self, Requests, ShowToRequest, year_of},
 };
 
 use super::{
     caller, database_failed, external_id_to_proto, proto_number, refuse,
-    requests::searched_to_proto, title_kind_from_proto,
+    requests::{searched_show_to_proto, searched_to_proto},
+    title_kind_from_proto,
 };
 
 /// How many results a batch holds when the request doesn't say.
@@ -62,7 +67,8 @@ impl SearchService for SearchServiceHandler {
         let found = self.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
-        let in_libraries = library_movie_ids(&found);
+        let movie_ids = library_ids(&found, TitleKind::Movie);
+        let show_ids = library_ids(&found, TitleKind::Show);
         let library = Hits {
             hits: (found.into_iter())
                 .map(|found| hit_to_proto(found, &images))
@@ -71,29 +77,20 @@ impl SearchService for SearchServiceHandler {
         };
         let (requests, query) = (self.requests.clone(), query.to_owned());
         let after_library = async move {
-            let done = Done::default();
-            if kind == Some(TitleKind::Show) {
-                return vec![Ok(response(done))];
-            }
-            match (requests.search_to_request(&viewer, &query, &in_libraries)).await {
-                Ok(None) => vec![Ok(response(done))],
-                Ok(Some(movies)) => {
-                    let hits = (movies.into_iter())
-                        .take(limit)
-                        .map(|movie| movie_to_request_hit(movie, &images))
-                        .collect();
-                    let hits = Hits {
-                        hits,
-                        ..Default::default()
-                    };
-                    vec![Ok(response(hits)), Ok(response(done))]
-                }
-                Err(requests::Error::Unavailable) => vec![Ok(response(Done {
-                    title_source_unavailable: true,
-                    ..done
-                }))],
-                Err(error) => vec![Err(error.into())],
-            }
+            let asks = |of| kind.is_none_or(|kind| kind == of);
+            let movies = OptionFuture::from(
+                asks(TitleKind::Movie)
+                    .then(|| requests.search_to_request(&viewer, &query, &movie_ids)),
+            );
+            let shows = OptionFuture::from(
+                asks(TitleKind::Show)
+                    .then(|| requests.search_shows_to_request(&viewer, &query, &show_ids)),
+            );
+            let (movies, shows) = future::join(movies, shows).await;
+            to_request_parts([
+                batch(movies, limit, |movie| movie_to_request_hit(movie, &images)),
+                batch(shows, limit, |show| show_to_request_hit(show, &images)),
+            ])
         };
         let stream: ServiceStream<SearchResponse> = Box::pin(
             stream::once(future::ready(Ok(response(library))))
@@ -146,27 +143,86 @@ fn hit_to_proto(found: Found, images: &ShownImages) -> proto::Hit {
     }
 }
 
-/// Every id of each Movie in `found`, which the title source's batch leaves out.
-fn library_movie_ids(found: &[Found]) -> HashSet<ExternalId> {
+/// Every id of each title of `kind` in `found`, which the title source's batch of that kind
+/// leaves out. Kept apart by kind, since a title source may give a Movie and a Show one id.
+fn library_ids(found: &[Found], kind: TitleKind) -> HashSet<ExternalId> {
     (found.iter())
-        .filter_map(|found| match found {
-            Found::Movie(movie) => Some(movie.ids.iter().chain([movie.id.clone()])),
-            Found::Show(_) | Found::Episode(_) => None,
+        .filter_map(|found| match (found, kind) {
+            (Found::Movie(movie), TitleKind::Movie) => {
+                Some(movie.ids.iter().chain([movie.id.clone()]))
+            }
+            (Found::Show(show), TitleKind::Show) => Some(show.ids.iter().chain([show.id.clone()])),
+            _ => None,
         })
         .flatten()
         .collect()
 }
 
+/// The first `limit` of what the title source's search of one kind `searched` found, ranked, as a
+/// batch; `None` if it wasn't asked, or the caller may not request that kind.
+fn batch<T>(
+    searched: Option<Result<Option<Vec<T>>, requests::Error>>,
+    limit: usize,
+    to_hit: impl FnMut(T) -> proto::Hit,
+) -> Result<Option<Hits>, requests::Error> {
+    let found = searched.transpose()?.flatten();
+    Ok(found.map(|found| Hits {
+        hits: found.into_iter().take(limit).map(to_hit).collect(),
+        ..Default::default()
+    }))
+}
+
+/// What the stream sends after the Libraries' batch: each kind's `batches`, then `Done`, flagging
+/// a kind the title source couldn't search. A kind that failed otherwise ends it with its error,
+/// after the batches before it.
+fn to_request_parts(
+    batches: [Result<Option<Hits>, requests::Error>; 2],
+) -> Vec<Result<SearchResponse, ConnectError>> {
+    let mut parts = Vec::new();
+    let mut done = Done::default();
+    for searched in batches {
+        match searched {
+            Ok(hits) => parts.extend(hits.map(|hits| Ok(response(hits)))),
+            Err(requests::Error::Unavailable) => done.title_source_unavailable = true,
+            Err(error) => {
+                parts.push(Err(error.into()));
+                return parts;
+            }
+        }
+    }
+    parts.push(Ok(response(done)));
+    parts
+}
+
+/// How close a title the title source found is to being on the Server.
+fn status(library: Option<i64>, requested: bool) -> TitleStatus {
+    match (library, requested) {
+        (Some(_), _) => TitleStatus::TITLE_STATUS_AVAILABLE,
+        (None, true) => TitleStatus::TITLE_STATUS_REQUESTED,
+        (None, false) => TitleStatus::TITLE_STATUS_NOT_ON_THIS_SERVER,
+    }
+}
+
 /// A Movie the title source found, with how close it is to being on the Server.
 fn movie_to_request_hit(found: requests::Found<Candidate>, images: &ShownImages) -> proto::Hit {
-    let status = match (found.library, &found.request) {
-        (Some(_), _) => TitleStatus::TITLE_STATUS_AVAILABLE,
-        (None, Some(_)) => TitleStatus::TITLE_STATUS_REQUESTED,
-        (None, None) => TitleStatus::TITLE_STATUS_NOT_ON_THIS_SERVER,
+    proto::Hit {
+        status: status(found.library, found.request.is_some()).into(),
+        title: searched_to_proto(found, images).into(),
+        ..Default::default()
+    }
+}
+
+/// A Show the title source found, with how close it is to being on the Server.
+fn show_to_request_hit(found: ShowToRequest, images: &ShownImages) -> proto::Hit {
+    let requested = found.request.is_some() || found.followed;
+    let show = proto::ShowHit {
+        library_id: found.library,
+        request: found.request.into(),
+        ..searched_show_to_proto(found.hit, images)
     };
     proto::Hit {
-        title: searched_to_proto(found, images).into(),
-        status: status.into(),
+        status: status(found.library, requested).into(),
+        title: show.into(),
         ..Default::default()
     }
 }

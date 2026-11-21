@@ -10784,8 +10784,8 @@ pub struct ShowHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The Library `SearchService.Search` found it in. `BrowseService.GetShow` opens it there, by
-    /// `id`.
+    /// The oldest Library with an Episode of it Matched, if any, or for `SearchService.Search`'s
+    /// Library batch the one it was found in. `BrowseService.GetShow` opens it there, by `id`.
     ///
     /// Field 8: `library_id`
     #[serde(
@@ -10805,6 +10805,15 @@ pub struct ShowHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// For `SearchService.Search`'s title-source batch, the open Request for its earliest Season
+    /// with one the caller may see, if any.
+    ///
+    /// Field 13: `request`
+    #[serde(
+        rename = "request",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub request: ::buffa::MessageField<Request, ::buffa::Inline<Request>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -10818,6 +10827,7 @@ impl ::core::fmt::Debug for ShowHit {
             .field("poster_url", &self.poster_url)
             .field("library_id", &self.library_id)
             .field("poster_thumbhash", &self.poster_thumbhash)
+            .field("request", &self.request)
             .finish()
     }
 }
@@ -10907,6 +10917,14 @@ impl ::buffa::Message for ShowHit {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.request.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.request.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10939,6 +10957,14 @@ impl ::buffa::Message for ShowHit {
                 buf,
             );
             self.id.write_to(__cache, buf);
+        }
+        if self.request.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.request.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -11013,6 +11039,17 @@ impl ::buffa::Message for ShowHit {
                     ctx,
                 )?;
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.request.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -11027,6 +11064,7 @@ impl ::buffa::Message for ShowHit {
         self.library_id = ::core::option::Option::None;
         self.poster_thumbhash = ::core::option::Option::None;
         self.id = ::buffa::MessageField::none();
+        self.request = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

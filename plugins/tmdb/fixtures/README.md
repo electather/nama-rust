@@ -20,6 +20,9 @@ have a Season still airing.
 `tv-2316.json` departs from TMDB on purpose: the US Office has only Seasons 1 and 3, so a Season 3
 Episode fits it and not the UK Office, which ties with it in a search.
 
+`search-tv-unreadable.json` is made up: its `results` isn't a list, so tests have a Show search
+TMDB answers with a page the Plugin can't read.
+
 `tv-900001.json` and its Season are made up: a Show with neither a TVDB nor an IMDb id, so tests
 have a Show a Fulfiller needing one cannot take.
 

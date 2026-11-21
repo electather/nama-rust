@@ -129,7 +129,7 @@ export type Hit = Message<"nama.v1.Hit"> & {
     case: "movie";
   } | {
     /**
-     * A Show, with the Library it is in in `library_id`.
+     * A Show, with the Library it is in in `library_id` if one has an Episode of it.
      *
      * @generated from field: nama.v1.ShowHit show = 2;
      */
@@ -219,8 +219,8 @@ export const EpisodeHitSchema: GenMessage<EpisodeHit> = /*@__PURE__*/
  */
 export type Done = Message<"nama.v1.Done"> & {
   /**
-   * Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
-   * The results are then only those the Libraries have.
+   * Whether the title source was to be asked and couldn't be: none is enabled, or each failed,
+   * for Movies or for Shows. The results of that kind are then only those the Libraries have.
    *
    * @generated from field: bool title_source_unavailable = 1;
    */
@@ -254,7 +254,8 @@ export const TitleStatus = {
   AVAILABLE: 1,
 
   /**
-   * No Library has it, and the caller can see its open Request, in `request`.
+   * No Library has it, and the caller can see an open Request for it or one of the Show's
+   * Seasons, in `request`, or the Show's open Followed Show, which alone leaves `request` unset.
    *
    * @generated from enum value: TITLE_STATUS_REQUESTED = 2;
    */
@@ -296,11 +297,12 @@ export const SearchService: GenService<{
    * Show counts as of every year one of its Episodes aired. A Show is found by its own title,
    * and an Episode by its own, not its Show's. A title in two Libraries is found in each.
    *
-   * A caller with `PERMISSION_REQUEST_MOVIE` also finds the Movies to request: the first title
-   * source in the Admin's precedence to find any is asked for the query, as it is typed.
+   * A caller with `PERMISSION_REQUEST_MOVIE` also finds the Movies to request, and one with
+   * `PERMISSION_REQUEST_TV` the Shows: for each kind, the first title source in the Admin's
+   * precedence to find any is asked for the query, as it is typed.
    *
    * Streams the batch the Libraries found at once, then, for a caller who may request, the
-   * title source's, then `Done`. Fails with `invalid_argument` if the query is blank
+   * title source's for each kind it answered, Movies first, then `Done`. Fails with `invalid_argument` if the query is blank
    * (`REFUSAL_REASON_FIELD_REQUIRED`).
    *
    * @generated from rpc nama.v1.SearchService.Search
