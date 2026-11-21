@@ -106,7 +106,7 @@ impl Plugin for Upkeep {
     }
 }
 
-/// A setting of how many days something is kept, from 1 to 10 years.
+/// A setting of how many days something is kept, from 1 day to 10 years.
 fn days_field(key: &str, label: &str, description: &str, default: u32) -> SettingField {
     SettingField {
         key: key.to_owned(),
