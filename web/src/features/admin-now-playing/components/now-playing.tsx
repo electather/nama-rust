@@ -1,5 +1,6 @@
 import { PlayRow } from "@/features/admin-now-playing/components/play-row";
 import { usePlays } from "@/features/admin-now-playing/data/use-plays";
+import { isKnown } from "@/features/admin-now-playing/lib/play-words";
 import { AdminList } from "@/shared/components/admin-list/admin-list";
 import { Page } from "@/shared/components/page";
 
@@ -15,12 +16,11 @@ export function NowPlaying() {
       </p>
       {plays.length > 0 && (
         <AdminList>
-          {plays.map(
-            (play) =>
-              play.playback && (
-                <PlayRow key={play.playback.planId} play={play} playback={play.playback} />
-              ),
-          )}
+          {plays
+            .filter((play) => isKnown(play))
+            .map((play) => (
+              <PlayRow key={play.playback.planId} play={play} />
+            ))}
         </AdminList>
       )}
     </Page>

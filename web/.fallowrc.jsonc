@@ -120,9 +120,6 @@
         "from": "admin-now-playing",
         "allow": [
           "admin-now-playing",
-          "admin-playback",
-          "admin-users",
-          "player",
           "shared-components",
           "shared-ui",
           "shared-hooks",

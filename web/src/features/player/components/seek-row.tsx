@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { Video } from "@/features/player/hooks/use-video";
-import { clock } from "@/features/player/lib/video-actions";
+import { clock } from "@/shared/lib/clock";
 import { Slider } from "@/shared/ui/slider";
 
 const HOUR_SECONDS = 3600;

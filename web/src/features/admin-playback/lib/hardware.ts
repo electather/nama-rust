@@ -1,19 +1,5 @@
-import {
-  type FoundHardware,
-  HardwareAcceleration,
-  type PlaybackSettings,
-} from "@/gen/nama/v1/server_pb";
-import { hardwareName } from "@/shared/lib/playback-names";
-
-/** What Transcodes may run on: an API, on a GPU if one is named. */
-export type Hardware = Pick<FoundHardware, "api" | "gpu">;
-
-/** An API on a GPU, such as "AMD Radeon RX 9070 XT · VAAPI", or the API alone without one. */
-export function hardwareLabel({ api, gpu }: Hardware) {
-  const label = gpu === undefined ? hardwareName(api) : `${gpu.name} · ${hardwareName(api)}`;
-  // A GPU's name may start lowercase, to sit mid-sentence in the Server's reasons.
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
+import { HardwareAcceleration, type PlaybackSettings } from "@/gen/nama/v1/server_pb";
+import { type Hardware, hardwareLabel } from "@/shared/lib/playback-names";
 
 /**
  * Whether `choice` is what `saved` chose: its API on its GPU, or, saved with no GPU, on the first

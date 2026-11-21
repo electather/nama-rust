@@ -1,21 +1,30 @@
-import { type Hardware, hardwareLabel } from "@/features/admin-playback/lib/hardware";
-import { methodName } from "@/features/player/lib/playback-wording";
-import { clock } from "@/features/player/lib/video-actions";
-import { HardwareAcceleration, type Play } from "@/gen/nama/v1/server_pb";
+import type { Playback } from "@/gen/nama/v1/event_pb";
+import { HardwareAcceleration, type Play, type TranscodeHardware } from "@/gen/nama/v1/server_pb";
 import type { Device, User } from "@/gen/nama/v1/sign_in_pb";
+import { clock } from "@/shared/lib/clock";
+import { hardwareLabel } from "@/shared/lib/playback-names";
+import { methodName } from "@/shared/lib/playback-wording";
 
-/** How `play` plays, and where its Transcode runs, such as "Transcode on the CPU". */
-export function howItPlays({ playback, transcodesOn }: Play) {
-  const method = methodName(playback?.method ?? 0);
-  return transcodesOn === undefined ? method : `${method} on ${where(transcodesOn)}`;
+/** A play with the Playback it plays, which the Server always sends. */
+export type KnownPlay = Play & { playback: Playback };
+
+/** Whether `play` carries its Playback, so the page can show it. */
+export function isKnown(play: Play): play is KnownPlay {
+  return play.playback !== undefined;
 }
 
-function where(hardware: Hardware) {
+/** How `play` plays, and where its Transcode runs, such as "Transcode on the CPU". */
+export function howItPlays({ playback, transcodesOn }: KnownPlay) {
+  const method = methodName(playback.method);
+  return transcodesOn === undefined ? method : `${method} on ${hardwareWords(transcodesOn)}`;
+}
+
+function hardwareWords(hardware: TranscodeHardware) {
   return hardware.api === HardwareAcceleration.OFF ? "the CPU" : hardwareLabel(hardware);
 }
 
 /** How far into its Version `play` is, such as "12:34 of 52:05", or `""` till it says. */
-export function progress({ positionMs, durationMs }: Play) {
+export function positionWords({ positionMs, durationMs }: Play) {
   if (positionMs === undefined) {
     return "";
   }
