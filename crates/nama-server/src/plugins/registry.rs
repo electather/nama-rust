@@ -24,6 +24,8 @@ use super::{
     SETTINGS_CHECK_TIMEOUT, contain_call, contain_sync, jobs, scope::Scope, secret_values, tick,
     without_secrets,
 };
+use crate::db::Database;
+
 /// Every Plugin enabled on this Server and everything they registered.
 ///
 /// Only Plugin settings and startup hold one (`crates/nama-server/AGENTS.md`, "One owner for
@@ -57,6 +59,8 @@ pub(super) struct State {
     /// What makes the Kernel's functions for a Plugin and the Permissions granted it, once startup
     /// sets it with [`ExtensionPoints::serve_kernel`]. A watch, so a tick can wait for it.
     pub(super) kernel: Arc<watch::Sender<Option<MakeKernel>>>,
+    /// Where Job Runs are recorded, once startup sets it with [`Registry::record_job_runs_in`].
+    pub(super) job_runs: Option<Arc<Database>>,
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
     pub(super) as_installed: Vec<fn() -> Arc<dyn Plugin>>,
@@ -112,6 +116,18 @@ impl Registry {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Closes as interrupted each Job Run a stopped Server left running, then records every Job
+    /// Run in `db`. Startup calls it before enabling Plugins; a Run before then goes unrecorded.
+    ///
+    /// # Errors
+    ///
+    /// If the database fails.
+    pub async fn record_job_runs_in(&self, db: Arc<Database>) -> Result<(), sqlx::Error> {
+        jobs::interrupt_unfinished(&db).await?;
+        self.write(|state| state.job_runs = Some(db));
+        Ok(())
     }
 
     /// Enables `plugin` with no settings: calls its [`Plugin::register`] and records everything

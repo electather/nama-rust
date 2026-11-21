@@ -45,6 +45,8 @@ pub use failing::Failing;
 pub(crate) use fulfilling::{
     AskedAbout, FulfillerOutcome, RETRIES, ask_fulfiller, enabled_fulfiller, tell_fulfiller,
 };
+pub(crate) use jobs::list_jobs;
+pub use jobs::{JobRun, JobRunOutcome, ListedJob, job_runs};
 pub use points::ExtensionPoints;
 pub use registry::Registry;
 #[cfg(test)]

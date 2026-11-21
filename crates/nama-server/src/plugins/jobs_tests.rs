@@ -1,16 +1,21 @@
-use std::sync::Arc;
+use std::{future::pending, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     job::{Job, JobRunner, RunJob},
 };
+use tempfile::TempDir;
 
-use crate::plugins::Registry;
+use super::{JobRun, JobRunOutcome, Recording, job_runs, run_recorded};
+use crate::{
+    db::Database,
+    plugins::{Registry, wasm::TimedOut},
+};
 
 const ID: PluginId = PluginId::from_static("chores");
 
-/// A Built-in Plugin running the Jobs it declares, each of which does nothing.
-struct Declaring(Vec<Job>);
+/// A Built-in Plugin running the Jobs it declares with its runner, [`Idle`] unless it names one.
+struct Declaring(Vec<Job>, Arc<dyn JobRunner>);
 
 impl Plugin for Declaring {
     fn manifest(&self) -> Manifest {
@@ -23,7 +28,7 @@ impl Plugin for Declaring {
     }
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        registrar.provide::<dyn JobRunner>(Priority::DEFAULT, Arc::new(Idle));
+        registrar.provide::<dyn JobRunner>(Priority::DEFAULT, Arc::clone(&self.1));
         Ok(())
     }
 }
@@ -47,7 +52,7 @@ fn job(schedule: Option<&str>) -> Job {
 
 fn enabling(jobs: Vec<Job>) -> Result<(), String> {
     let registry = Registry::new();
-    let enabled = registry.enable(Arc::new(Declaring(jobs)));
+    let enabled = registry.enable(Arc::new(Declaring(jobs, Arc::new(Idle))));
     enabled.map(drop).map_err(|refused| refused.to_string())
 }
 
@@ -75,4 +80,133 @@ fn a_builtin_declaring_no_jobs_or_a_bad_schedule_is_refused_as_an_installed_one_
 fn a_builtin_declaring_jobs_with_and_without_a_schedule_is_enabled() {
     assert_eq!(enabling(vec![job(Some("0 4 * * *"))]), Ok(()));
     assert_eq!(enabling(vec![job(None)]), Ok(()));
+}
+
+/// A Job runner that ends each Run as `ends` says, which may panic.
+struct Ending(fn() -> Result<(), PluginError>);
+
+impl JobRunner for Ending {
+    fn run<'a>(&'a self, _: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async { (self.0)() })
+    }
+}
+
+/// A Job runner whose Runs never end.
+struct Endless;
+
+impl JobRunner for Endless {
+    fn run<'a>(&'a self, _: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(pending())
+    }
+}
+
+/// A Registry recording Job Runs in a fresh database, with `runner` running the Job `tidy`.
+async fn recording(runner: Arc<dyn JobRunner>) -> (Registry, Arc<Database>, TempDir) {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let registry = Registry::new();
+    registry.record_job_runs_in(Arc::clone(&db)).await.unwrap();
+    registry
+        .enable(Arc::new(Declaring(vec![job(None)], runner)))
+        .unwrap();
+    (registry, db, data_dir)
+}
+
+async fn runs(db: &Database) -> Vec<JobRun> {
+    job_runs(db, &ID, "tidy").await.unwrap()
+}
+
+async fn outcome_of_running(ends: fn() -> Result<(), PluginError>) -> JobRunOutcome {
+    let (registry, db, _dir) = recording(Arc::new(Ending(ends))).await;
+    run_recorded(&registry, &ID, "tidy").await;
+    let [run] = &runs(&db).await[..] else {
+        panic!("not one run recorded");
+    };
+    assert!(run.ended_ms.is_some_and(|ended| ended >= run.started_ms));
+    run.outcome.clone()
+}
+
+#[tokio::test]
+async fn a_run_is_recorded_as_succeeded_failed_with_the_plugins_message_or_timed_out() {
+    assert_eq!(
+        outcome_of_running(|| Ok(())).await,
+        JobRunOutcome::Succeeded
+    );
+    assert_eq!(
+        outcome_of_running(|| Err("the disk is full".into())).await,
+        JobRunOutcome::Failed {
+            error: "the disk is full".to_owned()
+        }
+    );
+    assert_eq!(
+        outcome_of_running(|| Err(TimedOut("it didn't answer within 60s".to_owned()).into())).await,
+        JobRunOutcome::TimedOut
+    );
+}
+
+#[tokio::test]
+async fn a_run_whose_plugin_panics_is_recorded_as_failed() {
+    let outcome = outcome_of_running(|| panic!("tidying went wrong")).await;
+    assert!(
+        matches!(outcome, JobRunOutcome::Failed { .. }),
+        "{outcome:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_run_its_plugin_is_disabled_during_is_recorded_as_interrupted() {
+    let (registry, db, _dir) = recording(Arc::new(Endless)).await;
+    let points = registry.extension_points();
+    assert!(registry.spawn_in(&ID, async move {
+        run_recorded(&points, &ID, "tidy").await;
+    }));
+    while runs(&db).await.is_empty() {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    registry.disable(&ID).await;
+
+    while runs(&db).await[0].outcome == JobRunOutcome::Running {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(runs(&db).await[0].outcome, JobRunOutcome::Interrupted);
+}
+
+#[tokio::test]
+async fn a_run_a_stopped_server_left_running_is_interrupted_at_the_next_start() {
+    let (_registry, db, _dir) = recording(Arc::new(Idle)).await;
+    let recording = Recording::start(Some(Arc::clone(&db)), &ID, "tidy").await;
+    #[expect(
+        clippy::mem_forget,
+        reason = "a Server that stops mid-Run never drops its Recording, leaving its row running"
+    )]
+    std::mem::forget(recording);
+
+    Registry::new()
+        .record_job_runs_in(Arc::clone(&db))
+        .await
+        .unwrap();
+
+    let [run] = &runs(&db).await[..] else {
+        panic!("not one run recorded");
+    };
+    assert_eq!(run.outcome, JobRunOutcome::Interrupted);
+}
+
+#[tokio::test]
+async fn a_job_keeps_its_newest_50_runs() {
+    let (registry, db, _dir) = recording(Arc::new(Idle)).await;
+    for _ in 0..51 {
+        run_recorded(&registry, &ID, "tidy").await;
+    }
+
+    let kept = runs(&db).await;
+
+    assert_eq!(kept.len(), 50);
+    let ids: Vec<i64> = kept.iter().map(|run| run.id).collect();
+    assert_eq!(
+        ids,
+        (2..=51).rev().collect::<Vec<_>>(),
+        "not the newest, newest first"
+    );
 }

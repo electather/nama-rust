@@ -28,8 +28,8 @@ use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
     plugins::{
-        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, Registry, log_not_enabled,
-        read_installed,
+        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, Registry,
+        list_jobs, log_not_enabled, read_installed,
     },
     requests::{QualitiesInvalid, check_qualities, list_qualities, replace_qualities},
 };
@@ -228,6 +228,10 @@ impl PluginSettings {
             }
             None => config.plugins.parse()?,
         };
+        registry
+            .record_job_runs_in(Arc::clone(&db))
+            .await
+            .map_err(StartError::Read)?;
         let plugins = Self::new(db, registry, config.data_dir.clone());
         let starting = plugins.clone();
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
@@ -410,6 +414,16 @@ impl PluginSettings {
             .into_iter()
             .map(|plugin| with_stored(plugin, &mut stored))
             .collect())
+    }
+
+    /// The Jobs of every enabled Plugin, by Plugin id, each with when it next fires and its newest
+    /// Job Run.
+    ///
+    /// # Errors
+    ///
+    /// If the Job Runs can't be read.
+    pub async fn jobs(&self) -> Result<Vec<ListedJob>, sqlx::Error> {
+        list_jobs(self.registry.plugins(), &self.db).await
     }
 
     /// Whether a Plugin has the id `id`, refused or not, as [`PluginSettings::get`] decides.
