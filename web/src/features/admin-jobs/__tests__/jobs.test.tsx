@@ -3,6 +3,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
 import { type ConfigureJobRequest, JobRunOutcome, JobService } from "@/gen/nama/v1/job_pb";
+import { PluginLogLevel } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { admin, fakeServer, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
@@ -18,6 +19,14 @@ const runs = [
     startedAtMs: START,
     endedAtMs: START + 75_000n,
     error: "the database was busy",
+    logLines: [
+      { atMs: START, level: PluginLogLevel.INFO, text: "forgetting Home rows" },
+      {
+        atMs: START + 75_000n,
+        level: PluginLogLevel.ERROR,
+        text: "giving up: the database was busy",
+      },
+    ],
   },
   { id: 2n, outcome: JobRunOutcome.INTERRUPTED, startedAtMs: START - DAY, startedBy: "Ada" },
 ];
@@ -126,7 +135,7 @@ describe("the Jobs page", () => {
     expect(job.id).toBe("upkeep/forget-home-rows");
   });
 
-  test("a Job's sheet shows what it does, its next 3 times and each Run's detail", async () => {
+  test("a Job's sheet shows what it does, its next 3 times and each Run's detail and Plugin Log", async () => {
     openJobs();
 
     fireEvent.click(await screen.findByRole("button", { name: "Forget Home rows" }));
@@ -141,6 +150,17 @@ describe("the Jobs page", () => {
     expect(sheet.getByText("1 minute 15 seconds")).toBeDefined();
     expect(sheet.getByText("Interrupted")).toBeDefined();
     expect(sheet.getByText("Not known: the Server stopped during it")).toBeDefined();
+    // Only the failed Run has lines; the interrupted one says it has none.
+    const lines = sheet.getByRole("list", { name: "Plugin Log" });
+    expect(
+      within(lines)
+        .getAllByRole("listitem")
+        .map((line) => line.textContent),
+    ).toStrictEqual([
+      expect.stringMatching(/Info.*forgetting Home rows/u),
+      expect.stringMatching(/Error.*giving up: the database was busy/u),
+    ]);
+    expect(sheet.getByText(/^No lines kept\./u)).toBeDefined();
   });
 
   test("a Job that never ran says so in its sheet", async () => {
