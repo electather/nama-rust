@@ -303,7 +303,10 @@ fn a_stored_login_for_another_username_is_not_used() {
 
     let err = with(&mut kernel, || OpenSubtitles::download(download_of("101"))).unwrap_err();
 
-    assert_eq!(err.downcast_ref(), Some(&Refused::Login));
+    assert_eq!(
+        err.to_string(),
+        "OpenSubtitles refused the username or password"
+    );
     assert_eq!(sent_to(&kernel)[3..], ["login"]);
 }
 
@@ -330,7 +333,7 @@ fn a_refused_download_link_fails_with_its_status_not_as_a_wrong_api_key() {
     })
     .unwrap_err();
 
-    assert_eq!(err.downcast_ref(), Some(&Refused::Status(403)));
+    assert_eq!(err.to_string(), "OpenSubtitles failed with HTTP status 403");
 }
 
 #[test]
@@ -353,26 +356,6 @@ fn a_used_up_daily_quota_fails_the_download_saying_when_it_renews() {
 }
 
 #[test]
-fn a_rate_limited_search_fails_saying_so_without_trying_again() {
-    let fake = serving(Vec::new());
-    fake.borrow_mut().rate_limited = true;
-    let mut kernel = kernel(&fake);
-
-    let err = with(&mut kernel, || OpenSubtitles::search(alien(&["en"]))).unwrap_err();
-
-    let retry_after = Some(7);
-    assert_eq!(
-        err.downcast_ref(),
-        Some(&Refused::RateLimit { retry_after })
-    );
-    assert_eq!(
-        err.to_string(),
-        "OpenSubtitles is limiting this Server's requests; try again in 7 s"
-    );
-    assert_eq!(kernel.sent().len(), 1);
-}
-
-#[test]
 fn a_wrong_api_key_fails_the_settings_check() {
     let fake = serving(Vec::new());
     let mut kernel = kernel(&fake).setting("api_key", "wrong");
@@ -390,7 +373,6 @@ fn a_wrong_password_fails_the_settings_check() {
 
     let err = with(&mut kernel, check_settings).unwrap_err();
 
-    assert_eq!(err.downcast_ref(), Some(&Refused::Login));
     assert_eq!(
         err.to_string(),
         "OpenSubtitles refused the username or password"

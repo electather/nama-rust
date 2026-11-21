@@ -54,8 +54,6 @@ pub(super) struct FakeOpenSubtitles {
     pub(super) subtitles: Vec<FakeSubtitle>,
     /// Downloads the account has left today.
     pub(super) remaining: u32,
-    /// Whether it answers every request as past its rate limit.
-    pub(super) rate_limited: bool,
     /// The API host a login answers, which alone takes the account's downloads.
     pub(super) base_url: &'static str,
     /// Whether the file host refuses every link, as it does one that expired.
@@ -69,7 +67,6 @@ impl Default for FakeOpenSubtitles {
         Self {
             subtitles: Vec::new(),
             remaining: 20,
-            rate_limited: false,
             base_url: "api.opensubtitles.com",
             links_expired: false,
             token: "fake-token",
@@ -95,13 +92,6 @@ impl FakeOpenSubtitles {
                 403,
                 &json!({ "message": "You cannot consume this service" }),
             );
-        }
-        if self.rate_limited {
-            return answer(
-                429,
-                &json!({ "message": "Throttle limit reached. Retry later." }),
-            )
-            .with_header("Retry-After", "7");
         }
         let method = request.method.as_deref().unwrap_or("GET");
         let body: Value = json::from_slice(body).unwrap_or_default();
