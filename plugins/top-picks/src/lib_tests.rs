@@ -1,11 +1,17 @@
 use nama_pdk::{
-    HomeRows, Permission, Title, TitleId, TitleKind, TitleRef, TitleRefKind, TitleWatchStates,
-    WatchState, WatchlistTitle,
+    FeaturedSuggestions, HomeRowSource, HomeRows, Library, Permission, Title, TitleId, TitleKind,
+    TitleRef, TitleRefKind, TitleWatchStates, UserFeaturedAsked, UserRowsAsked, WatchState,
+    WatchlistTitle,
+    extism_pdk::Error,
     nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
     services,
+    testing::{Kernel, with},
 };
 
-use super::{DEFAULT_FAMILY_RATINGS, FAMILY_RATINGS, featured, manifest, ranked, rows};
+use super::{DEFAULT_FAMILY_RATINGS, FAMILY_RATINGS, TopPicks, featured, manifest, ranked, rows};
+
+const ADA: i64 = 1;
+const BEN: i64 = 2;
 
 fn id(value: &str) -> TitleId {
     TitleId {
@@ -59,12 +65,7 @@ fn episode(value: &str, show: &str) -> Title {
 fn watched(title: &Title, played: bool, position_ms: u64) -> TitleWatchStates {
     TitleWatchStates {
         title_ref: title.title_ref.clone(),
-        states: vec![WatchState {
-            user_id: 1,
-            played,
-            position_ms,
-            ..WatchState::default()
-        }],
+        states: vec![state(ADA, played, position_ms)],
         ..TitleWatchStates::default()
     }
 }
@@ -100,6 +101,14 @@ fn top_picks(
         .iter()
         .map(|&id| id.to_owned())
         .collect()
+}
+
+fn watchlisted_movie(value: &str) -> WatchlistTitle {
+    WatchlistTitle {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        id: id(value).into(),
+        ..WatchlistTitle::default()
+    }
 }
 
 #[test]
@@ -139,13 +148,10 @@ fn a_watchlisted_title_outranks_the_users_genres() {
         unwatched(&titles[1]),
         unwatched(&titles[2]),
     ];
-    let watchlist = WatchlistTitle {
-        kind: TitleKind::TITLE_KIND_MOVIE.into(),
-        id: id("2").into(),
-        ..WatchlistTitle::default()
-    };
-
-    assert_eq!(top_picks(&titles, &states, &[watchlist]), ["2", "3"]);
+    assert_eq!(
+        top_picks(&titles, &states, &[watchlisted_movie("2")]),
+        ["2", "3"]
+    );
 }
 
 #[test]
@@ -271,4 +277,171 @@ fn manifest_is_a_home_row_source_with_the_permissions_and_family_ratings_setting
             )),
         )]
     );
+}
+
+/// A Kernel listing `titles` in Library 1, granting Read Libraries and Read Watch States, with
+/// no Watch State yet and the default Family Content Ratings.
+fn refusing_watchlists(titles: &[Title]) -> Kernel {
+    let library = Library {
+        id: 1,
+        ..Library::default()
+    };
+    Kernel::new()
+        .setting(FAMILY_RATINGS, DEFAULT_FAMILY_RATINGS)
+        .libraries([library])
+        .titles(1, titles.iter().cloned())
+        .watch_states(&TitleRef::default(), [])
+}
+
+/// [`refusing_watchlists`], granting Read Watchlists too, every Watchlist empty.
+fn granting_watchlists(titles: &[Title]) -> Kernel {
+    refusing_watchlists(titles).watchlist(ADA, [])
+}
+
+/// `kernel` with the User `user_id` having played `title`, or stopped `position_ms` in.
+fn watching(kernel: Kernel, title: &Title, user_id: i64, played: bool, position_ms: u64) -> Kernel {
+    kernel.watch_states(&title.title_ref, [state(user_id, played, position_ms)])
+}
+
+/// The User `user_id`'s Watch State: `played`, or stopped `position_ms` in.
+fn state(user_id: i64, played: bool, position_ms: u64) -> WatchState {
+    WatchState {
+        user_id,
+        played,
+        position_ms,
+        ..WatchState::default()
+    }
+}
+
+fn user_rows(kernel: &mut Kernel, user_id: i64) -> Result<HomeRows, Error> {
+    let asked = UserRowsAsked {
+        user_id,
+        ..UserRowsAsked::default()
+    };
+    with(kernel, || TopPicks::user_rows(asked))
+}
+
+fn user_featured(kernel: &mut Kernel, user_id: i64) -> Result<FeaturedSuggestions, Error> {
+    let asked = UserFeaturedAsked {
+        user_id,
+        ..UserFeaturedAsked::default()
+    };
+    with(kernel, || TopPicks::user_featured(asked))
+}
+
+#[test]
+fn user_rows_differ_for_two_users_with_different_histories() {
+    let titles = [
+        movie("1", &["Horror"]),
+        movie("2", &["Comedy"]),
+        movie("3", &["Horror", "Thriller"]),
+        movie("4", &["Comedy"]),
+    ];
+    let kernel = watching(granting_watchlists(&titles), &titles[0], ADA, true, 0);
+    let mut kernel = watching(kernel, &titles[1], BEN, true, 0);
+
+    let adas = user_rows(&mut kernel, ADA).unwrap();
+    let bens = user_rows(&mut kernel, BEN).unwrap();
+
+    assert_eq!(
+        summary(&adas),
+        [
+            ("top-picks", vec!["3", "2", "4"]),
+            ("family-night", vec!["3", "2", "4"])
+        ]
+    );
+    assert_eq!(
+        summary(&bens),
+        [
+            ("top-picks", vec!["4", "1", "3"]),
+            ("family-night", vec!["4", "1", "3"])
+        ]
+    );
+}
+
+#[test]
+fn user_rows_and_featured_put_a_watchlisted_title_above_the_users_genres() {
+    let titles = [
+        movie("1", &["Horror"]),
+        movie("2", &["Comedy"]),
+        movie("3", &["Horror"]),
+    ];
+    let kernel = granting_watchlists(&titles).watchlist(ADA, [watchlisted_movie("2")]);
+    let mut kernel = watching(kernel, &titles[0], ADA, true, 0);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+    let suggested = user_featured(&mut kernel, ADA).unwrap();
+
+    assert_eq!(summary(&rows)[0], ("top-picks", vec!["2", "3"]));
+    let ids: Vec<_> = (suggested.suggestions.iter())
+        .map(|suggestion| suggestion.id.value.as_str())
+        .collect();
+    assert_eq!(ids, ["2", "3"]);
+}
+
+#[test]
+fn user_rows_leave_out_a_title_the_user_started_or_played() {
+    let titles = [
+        rated("1", Some("G")),
+        rated("2", Some("G")),
+        rated("3", Some("G")),
+        episode("10", "s1"),
+        episode("11", "s1"),
+    ];
+    let kernel = watching(granting_watchlists(&titles), &titles[0], ADA, true, 0);
+    let kernel = watching(kernel, &titles[1], ADA, false, 60_000);
+    let mut kernel = watching(kernel, &titles[4], ADA, false, 1_000);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows),
+        [("top-picks", vec!["3"]), ("family-night", vec!["3"])]
+    );
+}
+
+#[test]
+fn user_rows_family_night_holds_only_titles_rated_in_the_setting() {
+    let titles = [
+        rated("1", Some("G")),
+        rated("2", Some("R")),
+        rated("3", None),
+        rated("4", Some("tv-pg")),
+        rated("5", Some("TV-MA")),
+    ];
+    let mut by_admin = granting_watchlists(&titles).setting(FAMILY_RATINGS, " R ,TV-MA");
+
+    let by_default = user_rows(&mut granting_watchlists(&titles), ADA).unwrap();
+    let by_admin = user_rows(&mut by_admin, ADA).unwrap();
+
+    assert_eq!(summary(&by_default)[1], ("family-night", vec!["1", "4"]));
+    assert_eq!(summary(&by_admin)[1], ("family-night", vec!["2", "5"]));
+}
+
+#[test]
+fn user_rows_rank_by_genres_when_the_kernel_refuses_the_watchlist() {
+    let titles = [
+        movie("1", &["Horror"]),
+        movie("2", &["Comedy"]),
+        movie("3", &["Horror"]),
+    ];
+    let mut kernel = watching(refusing_watchlists(&titles), &titles[0], ADA, true, 0);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(summary(&rows)[0], ("top-picks", vec!["3", "2"]));
+}
+
+#[test]
+fn user_rows_and_featured_fail_naming_a_permission_not_granted() {
+    let mut kernel = Kernel::new()
+        .libraries([Library::default()])
+        .watchlist(ADA, []);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap_err();
+    let suggested = user_featured(&mut kernel, ADA).unwrap_err();
+
+    let refused = "the Admin hasn't granted the Plugin the Read Watch States Permission";
+    assert_eq!(rows.to_string(), refused);
+    assert_eq!(suggested.to_string(), refused);
 }
