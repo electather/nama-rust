@@ -80,12 +80,12 @@ impl RunningPlans {
     }
 
     /// Whether any plan is playing, a Direct Play included.
-    pub(crate) fn any_playing(&self) -> bool {
+    fn any_playing(&self) -> bool {
         !lock(&self.inner.plans).is_empty()
     }
 
     /// Returns once whether any plan plays is `playing`, for background work that waits it out.
-    pub(crate) async fn until_playing(&self, playing: bool) {
+    pub(in crate::playback) async fn until_playing(&self, playing: bool) {
         while self.any_playing() != playing {
             tokio::time::sleep(PLAYING_CHECK).await;
         }

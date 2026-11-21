@@ -449,7 +449,11 @@ impl Cache {
         start: impl FnOnce(tokio::sync::OwnedMutexGuard<()>),
     ) -> bool {
         let making_lock = Arc::clone(self.making_locks().entry(folder.to_owned()).or_default());
-        let started = Arc::clone(&making_lock).try_lock_owned().map(start).is_ok();
+        let making = Arc::clone(&making_lock).try_lock_owned();
+        let started = making.is_ok();
+        if let Ok(making) = making {
+            start(making);
+        }
         drop(making_lock.lock().await);
         drop(making_lock);
         self.making_locks()

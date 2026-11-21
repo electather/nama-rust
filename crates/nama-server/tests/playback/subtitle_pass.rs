@@ -100,6 +100,21 @@ async fn until_runs(bin: &Path, n: usize) {
     );
 }
 
+/// Waits until `fx`'s one Version has `name` in its subtitle cache, failing after [`WAIT`].
+async fn until_cached(fx: &Fixture, name: &str) {
+    let cached = async {
+        while !matches!(&fx.cached_subtitles()[..], [cached] if cached.join(name).is_file()) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    };
+    let waited = tokio::time::timeout(WAIT, cached).await;
+    assert!(
+        waited.is_ok(),
+        "{name} isn't cached: {:?}",
+        fx.cached_subtitles()
+    );
+}
+
 /// Starts a Server with `ffmpeg` and a Movies Library holding Alien, scanned and Matched, and
 /// returns it with Alien's Version's id.
 #[expect(
@@ -167,6 +182,8 @@ async fn probing_reads_every_text_track_and_font_out_in_one_run_that_fetches_are
     let bin = tempfile::tempdir().unwrap();
     let ffmpeg = ffmpeg_reading_text_subtitles_after(bin.path(), "");
     let (fx, version) = alien_read_out_with(bin.path(), ffmpeg).await;
+    // Its last step caches the font.
+    until_cached(&fx, "fonts/0").await;
 
     let srt = fx.fetched(&subtitle_url(version, SRT)).await;
     let ass = fx
