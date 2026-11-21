@@ -1,12 +1,14 @@
-use std::sync::Arc;
+use std::{fs, path::Path, sync::Arc};
 
 use nama_plugin_api::automation::{
-    ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
-    GonePluginsForgotten, HomeRowsForgotten, MetadataRefreshed, Permission, RefreshMetadataAsked,
+    BackUpAsked, BackedUp, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
+    ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, MetadataRefreshed, Permission,
+    RefreshMetadataAsked,
 };
 
 use super::testing::{ALIEN_TMDB_ID, ask, kernel, leave_behind, left_behind, movies, users};
 use crate::{
+    backup,
     db::Database,
     library::scripted::{ScriptedSource, SourcesAsked},
 };
@@ -96,4 +98,96 @@ async fn refresh_metadata_answers_how_many_titles_it_fetched_again() {
         (refreshed.titles, refreshed.unavailable_plugin_ids),
         (1, vec![])
     );
+}
+
+#[tokio::test]
+async fn back_up_writes_a_backup_named_by_the_time_into_the_data_directory_that_restores() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_BACK_UP);
+
+    let backed_up = ask::<BackedUp>(&kernel, "back_up", &BackUpAsked::default()).await;
+
+    let backed_up = backed_up.unwrap();
+    let name = &backed_up.name;
+    assert!(
+        name.starts_with("nama-2") && name.ends_with("Z.tar"),
+        "{name}"
+    );
+    let path = data.path().join("backups").join(name);
+    assert_eq!(fs::metadata(&path).unwrap().len(), backed_up.size_bytes);
+    let restored = tempfile::tempdir().unwrap();
+    let config = restored.path().join("nama.toml");
+    backup::restore(restored.path(), &config, &path)
+        .await
+        .unwrap();
+    assert!(restored.path().join("nama.db").is_file());
+}
+
+#[tokio::test]
+async fn back_up_keeps_the_newest_7_it_wrote_and_never_deletes_another_file() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_BACK_UP);
+    let folder = data.path().join("backups");
+    let older = older_backups(&folder, 7);
+    let others = [
+        "before-upgrade.tar",
+        "nama-by-hand.tar",
+        "nama-2020Z.tar",
+        "notes.txt",
+    ];
+    for other in others {
+        fs::write(folder.join(other), "mine").unwrap();
+    }
+
+    let backed_up = ask::<BackedUp>(&kernel, "back_up", &BackUpAsked::default()).await;
+
+    let mut kept = older[1..].to_vec();
+    kept.push(backed_up.unwrap().name);
+    kept.extend(others.map(str::to_owned));
+    kept.sort();
+    assert_eq!(names_in(&folder), kept);
+}
+
+#[tokio::test]
+async fn a_back_up_that_fails_deletes_nothing_and_leaves_no_backup() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    // A data directory holding no database, so the copy fails.
+    let elsewhere = tempfile::tempdir().unwrap();
+    let (_automation, kernel) = kernel(&db, elsewhere.path(), Permission::PERMISSION_BACK_UP);
+    let folder = elsewhere.path().join("backups");
+    let older = older_backups(&folder, 8);
+
+    let refused = ask::<BackedUp>(&kernel, "back_up", &BackUpAsked::default()).await;
+
+    let refused = refused.unwrap_err().0;
+    assert!(
+        refused.starts_with("writing the Backup failed: "),
+        "{refused}"
+    );
+    assert_eq!(names_in(&folder), older);
+}
+
+/// Writes `count` Backups named as the Server names them into `folder`, from years ago, and gives
+/// their names, oldest first.
+fn older_backups(folder: &Path, count: u32) -> Vec<String> {
+    fs::create_dir_all(folder).unwrap();
+    (1..=count)
+        .map(|day| {
+            let name = format!("nama-202001{day:02}T030000Z.tar");
+            fs::write(folder.join(&name), "old").unwrap();
+            name
+        })
+        .collect()
+}
+
+/// The name of everything in `folder`, sorted.
+fn names_in(folder: &Path) -> Vec<String> {
+    let mut names: Vec<String> = (fs::read_dir(folder).unwrap())
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    names
 }

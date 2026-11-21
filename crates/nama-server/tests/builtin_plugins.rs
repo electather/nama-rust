@@ -121,6 +121,7 @@ async fn a_builtin_plugin_holds_what_it_requests_even_once_enabled_granting_none
         Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS,
         Permission::PERMISSION_FORGET_GONE_PLUGINS,
         Permission::PERMISSION_REFRESH_METADATA,
+        Permission::PERMISSION_BACK_UP,
     ]);
     assert_eq!(upkeep_granted(&plugins).await, requested);
 

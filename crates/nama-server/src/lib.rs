@@ -37,6 +37,7 @@ use tokio::net::TcpListener;
 
 use crate::{
     automation::Automation,
+    backup::Backups,
     config::Config,
     db::Database,
     events::EventBus,
@@ -150,6 +151,7 @@ pub fn serve(
         scanner.clone(),
         plugins.clone(),
         users.clone(),
+        Backups::new(&config.data_dir, &config.file, settings.clone()),
     );
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let load_settings = load_settings(

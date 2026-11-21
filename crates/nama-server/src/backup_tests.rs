@@ -7,7 +7,7 @@ use std::{
 use nama_plugin_api::PluginId;
 use tempfile::TempDir;
 
-use super::{Error, restore, write};
+use super::{Backups, Error, restore, write};
 use crate::{
     db::{self, Database},
     server_settings::Settings,
@@ -182,6 +182,73 @@ async fn a_backup_leaves_custom_images_out_when_a_plugin_stores_images() {
             .any(|entry| entry.starts_with("custom-images")),
         "{entries:?}"
     );
+}
+
+#[tokio::test]
+async fn backups_go_to_the_folder_the_settings_name_keeping_the_count_they_set() {
+    let server = Server::new();
+    let db = Arc::new(Database::open(&server.data_dir).await.unwrap());
+    let settings = Settings::new(Arc::clone(&db), server.path("segments"));
+    let folder = server.path("share/nama");
+    (settings.change_backups(folder.to_str().unwrap(), Some(1)))
+        .await
+        .unwrap();
+    let older = folder.join("nama-20200101T030000Z.tar");
+    fs::write(&older, "old").unwrap();
+    let backups = Backups::new(&server.data_dir, &server.config, settings);
+
+    let written = backups.write().await.unwrap();
+
+    let (listed_folder, listed) = backups.list().await.unwrap();
+    let names: Vec<_> = listed.iter().map(|listed| listed.name.as_str()).collect();
+    assert_eq!(names, [written.name.as_str()]);
+    assert_eq!(listed[0].size, written.size_bytes);
+    assert_eq!(listed_folder, folder);
+}
+
+#[tokio::test]
+async fn a_backup_named_for_a_later_time_never_gets_the_one_just_written_deleted() {
+    let server = Server::new();
+    let db = Arc::new(Database::open(&server.data_dir).await.unwrap());
+    let settings = Settings::new(Arc::clone(&db), server.path("segments"));
+    let folder = server.path("share/nama");
+    (settings.change_backups(folder.to_str().unwrap(), Some(1)))
+        .await
+        .unwrap();
+    // As the clock going back leaves it, and a folder named like a Backup, which isn't one.
+    fs::write(folder.join("nama-29990101T030000Z.tar"), "later").unwrap();
+    fs::create_dir(folder.join("nama-20200101T030000Z.tar")).unwrap();
+    let backups = Backups::new(&server.data_dir, &server.config, settings);
+
+    let written = backups.write().await.unwrap();
+
+    let (_, listed) = backups.list().await.unwrap();
+    let names: Vec<_> = listed.iter().map(|listed| listed.name.as_str()).collect();
+    assert_eq!(names, [written.name.as_str()]);
+    assert!(folder.join("nama-20200101T030000Z.tar").is_dir());
+}
+
+#[tokio::test]
+async fn backups_list_every_tar_in_the_folder_newest_first_and_none_while_it_is_missing() {
+    let server = Server::new();
+    let db = Arc::new(Database::open(&server.data_dir).await.unwrap());
+    let settings = Settings::new(Arc::clone(&db), server.path("segments"));
+    let backups = Backups::new(&server.data_dir, &server.config, settings);
+    assert_eq!(backups.list().await.unwrap().1, []);
+    let folder = server.data_dir.join("backups");
+    fs::create_dir_all(folder.join("folder.tar")).unwrap();
+    for (name, modified_s) in [("old.tar", 1_000), ("new.tar", 3_000), ("notes.txt", 2_000)] {
+        let file = File::create(folder.join(name)).unwrap();
+        let modified = std::time::UNIX_EPOCH + std::time::Duration::from_secs(modified_s);
+        file.set_modified(modified).unwrap();
+    }
+
+    let (_, listed) = backups.list().await.unwrap();
+
+    let listed: Vec<_> = (listed.iter())
+        .map(|listed| (listed.name.as_str(), listed.modified_ms))
+        .collect();
+    assert_eq!(listed, [("new.tar", 3_000_000), ("old.tar", 1_000_000)]);
 }
 
 #[tokio::test]

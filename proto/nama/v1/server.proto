@@ -79,6 +79,20 @@ service ServerService {
   rpc SetDefaultHomeLayout(SetDefaultHomeLayoutRequest) returns (SetDefaultHomeLayoutResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns where the Server writes its Backups, how many it keeps, and the `.tar` files in that
+  // folder. Needs `PERMISSION_ADMIN`. Upkeep's `back-up` Job writes them (`JobService.RunJob`
+  // backs up now); `nama-server restore`, run with the Server stopped, restores one (ADR 0068).
+  rpc GetBackups(GetBackupsRequest) returns (GetBackupsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces where the Server writes its Backups and how many it keeps, from the next Backup.
+  // Needs `PERMISSION_ADMIN`. A `folder` that isn't an absolute path is refused with
+  // `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE`, a `keep` of 0 with `REFUSAL_REASON_FIELD_REQUIRED`, and
+  // a `folder` the Server can't create or write a file in with
+  // `REFUSAL_REASON_FOLDER_NOT_WRITABLE`, each naming it, and nothing changes.
+  rpc UpdateBackupSettings(UpdateBackupSettingsRequest) returns (UpdateBackupSettingsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Lists every plan playing now, on every User's Device, oldest first. Needs `PERMISSION_ADMIN`.
   // The Playback events follow each from here on, by plan id.
   rpc ListPlays(ListPlaysRequest) returns (ListPlaysResponse) {
@@ -378,6 +392,51 @@ message ImageStoreSwitch {
   uint32 total = 3;
   // Why the switch stopped, the old store still in use, or empty while it runs.
   string failure = 4;
+}
+
+message GetBackupsRequest {}
+
+message GetBackupsResponse {
+  BackupSettings settings = 1;
+  // The folder Backups are written to: `settings.folder`, or `backups` in the Server's data
+  // folder while that is empty.
+  string folder = 2;
+  // Every `.tar` file in `folder`, newest first: the Server's own and any other, such as one
+  // `nama-server backup` wrote there. Empty while the folder doesn't exist.
+  repeated Backup backups = 3;
+}
+
+// A `.tar` file in the Backup folder.
+message Backup {
+  // Its file name, such as `nama-20261121T030000Z.tar`.
+  string name = 1;
+  // Its size, in bytes.
+  uint64 size_bytes = 2;
+  // When it was last written, in milliseconds since the Unix epoch.
+  int64 modified_at_ms = 3;
+}
+
+message UpdateBackupSettingsRequest {
+  // Required: a request without it is refused, so leaving it out can't reset every setting.
+  BackupSettings settings = 1;
+}
+
+message UpdateBackupSettingsResponse {
+  // The settings as saved.
+  BackupSettings settings = 1;
+}
+
+// What an admin sets about the Server's Backups. A Backup holds every Plugin's settings, API keys
+// included, so the folder is as secret as the data folder.
+message BackupSettings {
+  // The folder Backups are written to, an absolute path such as a mounted share's, for copies off
+  // the machine. Empty, the default, for `backups` in the Server's data folder. Saving one creates
+  // it and checks the Server can write a file there.
+  string folder = 1;
+  // How many of the Backups the Server wrote, named `nama-<UTC time>.tar`, are kept, at least 1:
+  // after each new one, the oldest beyond it are deleted. Other files in the folder are never
+  // deleted. Unset for the default, 7.
+  optional uint32 keep = 2;
 }
 
 message GetDefaultHomeLayoutRequest {}

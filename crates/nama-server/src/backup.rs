@@ -1,24 +1,43 @@
 //! Backups of a Server (ADR 0068): one uncompressed `.tar` holding a copy of its database, its
 //! config file, its Custom Images while the image store is local disk, and a manifest saying what
-//! wrote it. Caches stay out, since the Server makes them again.
+//! wrote it. Caches stay out, since the Server makes them again. `Backups` are those the Server
+//! writes by itself.
 
 use std::{
     fs::{self, File},
     io,
+    num::NonZeroU32,
     path::{Path, PathBuf},
+    time::UNIX_EPOCH,
 };
 
+use jiff::{Timestamp, civil::DateTime};
+use nama_plugin_api::automation::BackedUp;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection as _;
 use tempfile::TempDir;
 
-use crate::{db, images::CUSTOM_IMAGES_DIR, server_settings};
+use crate::{
+    db,
+    images::CUSTOM_IMAGES_DIR,
+    server_settings::{self, BackupValues, Settings},
+};
 
 /// The backup's first entry, so a restore can refuse it before unpacking the rest.
 const MANIFEST: &str = "manifest.json";
 
 /// The config file's name inside a backup, whatever it was called on the Server.
 const CONFIG: &str = "nama.toml";
+
+/// The folder in the data directory the Server's own Backups go to while no other is set.
+const DEFAULT_FOLDER: &str = "backups";
+
+/// How many of the Server's own Backups are kept while no count is set.
+const DEFAULT_KEPT: u32 = 7;
+
+/// The UTC time a Backup the Server wrote is named by, `nama-<time>Z.tar`: fixed width, so its
+/// names sort by time, and without `:`, which Windows and SMB shares refuse in a name.
+const NAME_TIME: &str = "%Y%m%dT%H%M%S";
 
 /// Why a backup or a restore failed.
 #[derive(Debug, thiserror::Error)]
@@ -53,6 +72,160 @@ struct Manifest {
     highest_migration: i64,
 }
 
+/// The Backups the Server writes by itself into the folder the Server settings name, keeping the
+/// newest of them. Clones share the settings.
+#[derive(Debug, Clone)]
+pub(crate) struct Backups {
+    data_dir: PathBuf,
+    config_file: PathBuf,
+    settings: Settings,
+}
+
+/// A `.tar` file in the Backup folder.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Listed {
+    pub(crate) name: String,
+    /// Its size in bytes.
+    pub(crate) size: u64,
+    /// When it was last written, in milliseconds since the Unix epoch.
+    pub(crate) modified_ms: i64,
+}
+
+impl Backups {
+    /// The Backups of the Server whose data directory is `data_dir` and whose config file, if
+    /// there is one, is `config_file`, written where `settings` say.
+    pub(crate) fn new(data_dir: &Path, config_file: &Path, settings: Settings) -> Self {
+        Self {
+            data_dir: data_dir.to_owned(),
+            config_file: config_file.to_owned(),
+            settings,
+        }
+    }
+
+    /// Writes a Backup named `nama-<UTC time>Z.tar` into the Backup folder, creating it if it's
+    /// missing, then deletes the oldest files so named there beyond the count kept, never the one
+    /// it wrote. Answers as the Kernel function `back_up` does.
+    ///
+    /// # Errors
+    ///
+    /// If the Backup can't be written, which deletes nothing and leaves no file under its name,
+    /// or an old one can't be deleted.
+    pub(crate) async fn write(&self) -> Result<BackedUp, Error> {
+        let settings = self.settings.now().backups;
+        let folder = self.folder_of(&settings);
+        let time = Timestamp::from_second(db::now()).map_err(io::Error::other)?;
+        let name = format!("nama-{}Z.tar", time.strftime(NAME_TIME));
+        let path = folder.join(&name);
+        tokio::fs::create_dir_all(&folder).await?;
+        write(&self.data_dir, &self.config_file, &path).await?;
+        let size = tokio::fs::metadata(&path).await?.len();
+        let kept = settings.kept.map_or(DEFAULT_KEPT, NonZeroU32::get);
+        let written = name.clone();
+        tokio::task::spawn_blocking(move || delete_oldest(&folder, &written, kept))
+            .await
+            .map_err(io::Error::other)??;
+        Ok(BackedUp {
+            name,
+            size_bytes: size,
+            ..BackedUp::default()
+        })
+    }
+
+    /// The Backup folder in use now, and every `.tar` file in it, newest first, or none while
+    /// it's missing. The folder is read once, so the files are always that folder's.
+    ///
+    /// # Errors
+    ///
+    /// If the folder can't be read.
+    pub(crate) async fn list(&self) -> io::Result<(PathBuf, Vec<Listed>)> {
+        let folder = self.folder_of(&self.settings.now().backups);
+        let listed_in = folder.clone();
+        let listed = tokio::task::spawn_blocking(move || list(&listed_in))
+            .await
+            .map_err(io::Error::other)??;
+        Ok((folder, listed))
+    }
+
+    fn folder_of(&self, settings: &BackupValues) -> PathBuf {
+        if settings.folder.is_empty() {
+            return self.data_dir.join(DEFAULT_FOLDER);
+        }
+        PathBuf::from(&settings.folder)
+    }
+}
+
+/// Every `.tar` file in `folder`, newest first, or none if there's no `folder`.
+fn list(folder: &Path) -> io::Result<Vec<Listed>> {
+    let entries = match fs::read_dir(folder) {
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        entries => entries?,
+    };
+    let mut listed = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        let Some(name) = entry
+            .file_name()
+            .into_string()
+            .ok()
+            .filter(|name| is_tar(name))
+        else {
+            continue;
+        };
+        let meta = entry.metadata()?;
+        if !meta.is_file() {
+            continue;
+        }
+        let modified = meta
+            .modified()?
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        listed.push(Listed {
+            name,
+            size: meta.len(),
+            modified_ms: i64::try_from(modified.as_millis()).unwrap_or(i64::MAX),
+        });
+    }
+    listed.sort_by(|a, b| b.modified_ms.cmp(&a.modified_ms).then(b.name.cmp(&a.name)));
+    Ok(listed)
+}
+
+/// Whether `name` is a `.tar` file's, whatever its case.
+fn is_tar(name: &str) -> bool {
+    (Path::new(name).extension()).is_some_and(|extension| extension.eq_ignore_ascii_case("tar"))
+}
+
+/// Deletes the oldest of the Backups the Server wrote in `folder` beyond the newest `kept`, counting
+/// the one just `written` as the newest whatever its name: a Backup named for a later time, after
+/// the clock went back, must not get it deleted.
+fn delete_oldest(folder: &Path, written: &str, kept: u32) -> io::Result<()> {
+    let mut own = Vec::new();
+    for entry in fs::read_dir(folder)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if name
+            .to_str()
+            .is_some_and(|name| name != written && is_own(name))
+            && entry.file_type()?.is_file()
+        {
+            own.push(name);
+        }
+    }
+    own.sort_unstable_by(|a, b| b.cmp(a));
+    let older_kept = usize::try_from(kept.saturating_sub(1)).unwrap_or(usize::MAX);
+    for name in own.iter().skip(older_kept) {
+        fs::remove_file(folder.join(name))?;
+    }
+    Ok(())
+}
+
+/// Whether `name` is one [`Backups::write`] gives, so a file the Admin put beside them, such as a
+/// Backup `nama-server backup` wrote under another name, is never deleted.
+fn is_own(name: &str) -> bool {
+    (name.strip_prefix("nama-"))
+        .and_then(|rest| rest.strip_suffix("Z.tar"))
+        .is_some_and(|time| DateTime::strptime(NAME_TIME, time).is_ok())
+}
+
 /// Writes a backup of the Server whose data directory is `data_dir` and whose config file, if
 /// there is one, is `config_file`, to the `.tar` at `to`, replacing any file there. Safe while
 /// the Server serves: the database is copied through a connection of its own.
@@ -62,8 +235,12 @@ struct Manifest {
 /// If `data_dir` has no database, or a file can't be read or written. A failed backup leaves the
 /// file at `to` as it was.
 pub async fn write(data_dir: &Path, config_file: &Path, to: &Path) -> Result<(), Error> {
-    // Beside `to`, so the finished `.tar` is renamed into place, never copied.
-    let staging = TempDir::new_in(to.parent().unwrap_or_else(|| Path::new("")))?;
+    // Beside `to`, so the finished `.tar` is renamed into place, never copied. Off the runtime: the
+    // Server's own Backup folder may be a slow share, and playback shares the runtime.
+    let parent = to.parent().unwrap_or_else(|| Path::new("")).to_owned();
+    let staging = tokio::task::spawn_blocking(move || TempDir::new_in(parent))
+        .await
+        .map_err(io::Error::other)??;
     let db_copy = staging.path().join(db::FILE_NAME);
     let images_are_local = copy_database(data_dir, &db_copy, staging.path()).await?;
     let mut parts = vec![

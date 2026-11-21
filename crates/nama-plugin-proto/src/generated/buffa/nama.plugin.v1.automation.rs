@@ -31,6 +31,8 @@ pub enum Permission {
     PERMISSION_DELETE_EXPIRED_SIGN_INS = 10i32,
     /// Fetching every Matched title again from its title source: `refresh_metadata`.
     PERMISSION_REFRESH_METADATA = 11i32,
+    /// Writing a Backup of the Server into the folder its settings name: `back_up`.
+    PERMISSION_BACK_UP = 12i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -69,6 +71,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_REFRESH_METADATA`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RefreshMetadata: Self = Self::PERMISSION_REFRESH_METADATA;
+    ///Idiomatic alias for [`Self::PERMISSION_BACK_UP`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const BackUp: Self = Self::PERMISSION_BACK_UP;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -178,6 +183,7 @@ impl ::buffa::Enumeration for Permission {
                 ::core::option::Option::Some(Self::PERMISSION_DELETE_EXPIRED_SIGN_INS)
             }
             11i32 => ::core::option::Option::Some(Self::PERMISSION_REFRESH_METADATA),
+            12i32 => ::core::option::Option::Some(Self::PERMISSION_BACK_UP),
             _ => ::core::option::Option::None,
         }
     }
@@ -200,6 +206,7 @@ impl ::buffa::Enumeration for Permission {
                 "PERMISSION_DELETE_EXPIRED_SIGN_INS"
             }
             Self::PERMISSION_REFRESH_METADATA => "PERMISSION_REFRESH_METADATA",
+            Self::PERMISSION_BACK_UP => "PERMISSION_BACK_UP",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -238,6 +245,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_REFRESH_METADATA" => {
                 ::core::option::Option::Some(Self::PERMISSION_REFRESH_METADATA)
             }
+            "PERMISSION_BACK_UP" => {
+                ::core::option::Option::Some(Self::PERMISSION_BACK_UP)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -255,6 +265,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_FORGET_GONE_PLUGINS,
             Self::PERMISSION_DELETE_EXPIRED_SIGN_INS,
             Self::PERMISSION_REFRESH_METADATA,
+            Self::PERMISSION_BACK_UP,
         ]
     }
 }
@@ -587,6 +598,7 @@ impl ::buffa::Enumeration for TitleRefKind {
 ///   forget_gone_plugins: ForgetGonePluginsAsked -\> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
 ///   refresh_metadata:  RefreshMetadataAsked -\> MetadataRefreshed  PERMISSION_REFRESH_METADATA
 ///   list_titles_sharing: TitlesSharingAsked -\> SharingTitles  PERMISSION_READ_LIBRARIES
+///   back_up:           BackUpAsked      -\> BackedUp       PERMISSION_BACK_UP
 ///
 /// The functions are documented here rather than declared as a service: they are not an Extension
 /// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -6239,6 +6251,268 @@ pub const __METADATA_REFRESHED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = 
     type_url: "type.googleapis.com/nama.plugin.v1.MetadataRefreshed",
     to_json: ::buffa::type_registry::any_to_json::<MetadataRefreshed>,
     from_json: ::buffa::type_registry::any_from_json::<MetadataRefreshed>,
+    is_wkt: false,
+};
+/// What `back_up` takes. It names no folder: the Admin sets where Backups go, so no Plugin chooses
+/// where a file holding every Plugin's keys is written.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct BackUpAsked {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for BackUpAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("BackUpAsked").finish()
+    }
+}
+impl BackUpAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.BackUpAsked";
+}
+::buffa::impl_default_instance!(BackUpAsked);
+impl ::buffa::MessageName for BackUpAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "BackUpAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.BackUpAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.BackUpAsked";
+}
+impl ::buffa::Message for BackUpAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for BackUpAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.BackUpAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for BackUpAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __BACK_UP_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.BackUpAsked",
+    to_json: ::buffa::type_registry::any_to_json::<BackUpAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<BackUpAsked>,
+    is_wkt: false,
+};
+/// What `back_up` answers once it wrote a Backup (ADR 0068) named `nama-<UTC time>.tar`, such as
+/// `nama-20261121T030000Z.tar`, into the Backup folder, and then deleted the oldest so named
+/// beyond the count the Admin keeps. A file named otherwise is never deleted, and a Backup that
+/// fails deletes nothing.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct BackedUp {
+    /// Its file name.
+    ///
+    /// Field 1: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// Its size, in bytes.
+    ///
+    /// Field 2: `size_bytes`
+    #[serde(
+        rename = "sizeBytes",
+        alias = "size_bytes",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub size_bytes: u64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for BackedUp {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("BackedUp")
+            .field("name", &self.name)
+            .field("size_bytes", &self.size_bytes)
+            .finish()
+    }
+}
+impl BackedUp {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.BackedUp";
+}
+::buffa::impl_default_instance!(BackedUp);
+impl ::buffa::MessageName for BackedUp {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "BackedUp";
+    const FULL_NAME: &'static str = "nama.plugin.v1.BackedUp";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.BackedUp";
+}
+impl ::buffa::Message for BackedUp {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if self.size_bytes != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.size_bytes) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.name, buf);
+        }
+        if self.size_bytes != 0u64 {
+            ::buffa::types::put_uint64_field(2u32, self.size_bytes, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.size_bytes = ::buffa::types::decode_uint64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.name.clear();
+        self.size_bytes = 0u64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for BackedUp {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.BackedUp";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for BackedUp {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __BACKED_UP_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.BackedUp",
+    to_json: ::buffa::type_registry::any_to_json::<BackedUp>,
+    from_json: ::buffa::type_registry::any_from_json::<BackedUp>,
     is_wkt: false,
 };
 /// What `list_titles_sharing` takes: Persons and genres to find the Movies or Shows sharing them.

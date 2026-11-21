@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,\n                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,\n                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout\n             FROM server_settings",
+  "query": "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,\n                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,\n                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout,\n                    backup_folder, backups_kept\n             FROM server_settings",
   "describe": {
     "columns": [
       {
@@ -134,6 +134,28 @@
             "name": "default_home_layout"
           }
         }
+      },
+      {
+        "name": "backup_folder",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "backup_folder"
+          }
+        }
+      },
+      {
+        "name": "backups_kept",
+        "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "backups_kept"
+          }
+        }
       }
     ],
     "parameters": {
@@ -151,8 +173,10 @@
       false,
       true,
       false,
+      true,
+      false,
       true
     ]
   },
-  "hash": "3f8d04743c69b20864f5926c07ffdba0bb1ef92f9cde012eed7d9491ea969473"
+  "hash": "4676ff2555c7a31c8c8549fef1261e942c5b19bdca68850a16b412be1e9094b1"
 }

@@ -9,6 +9,7 @@ use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{self as proto, Refusal, RefusalReason};
 
 use crate::{
+    backup::Backups,
     browse::Browse,
     config::Config,
     connections::Connections,
@@ -121,6 +122,7 @@ pub(crate) fn router(
             points: plugins.clone(),
             home_rows: home_rows.clone(),
             data_dir: config.data_dir.clone(),
+            backups: Backups::new(&config.data_dir, &config.file, settings.clone()),
             exports_diagnostics: config.otlp_endpoint.is_some(),
             running: running.clone(),
         }))

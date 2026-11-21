@@ -68,6 +68,12 @@ pub struct Config {
     #[serde(skip)]
     #[schemars(skip)]
     pub otlp_endpoint: Option<String>,
+    /// The config file the Server was started with, which its Backups hold: the one `--config` or
+    /// `NAMA_CONFIG` names, or else `nama.toml` in the folder it starts in, whether or not it
+    /// exists. `nama-server` sets it, never a key in the file.
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub file: PathBuf,
 }
 
 /// The `[plugins.<id>]` tables in the file, by Plugin id, as written.
@@ -170,6 +176,7 @@ impl Default for Config {
             ffprobe: None,
             watch_folders: true,
             otlp_endpoint: None,
+            file: PathBuf::from(DEFAULT_FILE),
         }
     }
 }

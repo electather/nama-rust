@@ -28,6 +28,7 @@ import "nama/plugin/v1/title_source.proto";
 //   forget_gone_plugins: ForgetGonePluginsAsked -> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
 //   refresh_metadata:  RefreshMetadataAsked -> MetadataRefreshed  PERMISSION_REFRESH_METADATA
 //   list_titles_sharing: TitlesSharingAsked -> SharingTitles  PERMISSION_READ_LIBRARIES
+//   back_up:           BackUpAsked      -> BackedUp       PERMISSION_BACK_UP
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
 // Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -69,6 +70,8 @@ enum Permission {
   PERMISSION_DELETE_EXPIRED_SIGN_INS = 10;
   // Fetching every Matched title again from its title source: `refresh_metadata`.
   PERMISSION_REFRESH_METADATA = 11;
+  // Writing a Backup of the Server into the folder its settings name: `back_up`.
+  PERMISSION_BACK_UP = 12;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
@@ -326,6 +329,21 @@ message MetadataRefreshed {
   uint64 titles = 1;
   // The id of each Plugin that couldn't answer, whose titles it left as they were.
   repeated string unavailable_plugin_ids = 2;
+}
+
+// What `back_up` takes. It names no folder: the Admin sets where Backups go, so no Plugin chooses
+// where a file holding every Plugin's keys is written.
+message BackUpAsked {}
+
+// What `back_up` answers once it wrote a Backup (ADR 0068) named `nama-<UTC time>.tar`, such as
+// `nama-20261121T030000Z.tar`, into the Backup folder, and then deleted the oldest so named
+// beyond the count the Admin keeps. A file named otherwise is never deleted, and a Backup that
+// fails deletes nothing.
+message BackedUp {
+  // Its file name.
+  string name = 1;
+  // Its size, in bytes.
+  uint64 size_bytes = 2;
 }
 
 // What `list_titles_sharing` takes: Persons and genres to find the Movies or Shows sharing them.

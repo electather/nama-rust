@@ -17,13 +17,13 @@ use buffa::{EnumValue, Message, MessageField};
 use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
-        DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
-        ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
-        Kernel, KernelRefused, Libraries, LibrariesAsked, Library, LibraryKind, MetadataRefreshed,
-        Permission, RefreshMetadataAsked, Requesters, RequestersAsked, StoreEntry, StoreKey,
-        StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates,
-        Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
-        Watchlist, WatchlistAsked, WatchlistTitle,
+        BackUpAsked, BackedUp, DeleteAsked, DeleteStarted, ExpiredSignInsAsked,
+        ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten,
+        HomeRowsForgotten, Kernel, KernelRefused, Libraries, LibrariesAsked, Library, LibraryKind,
+        MetadataRefreshed, Permission, RefreshMetadataAsked, Requesters, RequestersAsked,
+        StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters,
+        TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
+        WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
     },
     contract,
     fulfiller::TitleId,
@@ -33,6 +33,7 @@ use sqlx::SqliteConnection;
 use tracing::error;
 
 use crate::{
+    backup::Backups,
     connections,
     db::Database,
     home_rows,
@@ -55,6 +56,7 @@ pub(crate) struct Automation {
     scanner: Scanner,
     plugins: PluginSettings,
     users: users::Users,
+    backups: Backups,
 }
 
 impl Automation {
@@ -64,12 +66,14 @@ impl Automation {
         scanner: Scanner,
         plugins: PluginSettings,
         users: users::Users,
+        backups: Backups,
     ) -> Arc<Self> {
         let automation = Arc::new(Self {
             db,
             scanner,
             plugins,
             users,
+            backups,
         });
         let kernels = Arc::downgrade(&automation);
         automation
@@ -184,6 +188,11 @@ const FUNCTIONS: &[Function] = &[
         needs: Permission::PERMISSION_READ_LIBRARIES,
         answer: |caller, request| typed(caller, request, Caller::list_titles_sharing),
     },
+    Function {
+        name: "back_up",
+        needs: Permission::PERMISSION_BACK_UP,
+        answer: |caller, request| typed(caller, request, Caller::back_up),
+    },
 ];
 
 /// Decodes `request`, has `handler` answer it for `caller`, and encodes its response.
@@ -220,6 +229,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS => "Delete expired sign-ins",
         Permission::PERMISSION_FORGET_GONE_PLUGINS => "Forget removed Plugins",
         Permission::PERMISSION_REFRESH_METADATA => "Refresh metadata",
+        Permission::PERMISSION_BACK_UP => "Back up",
     }
 }
 
@@ -690,6 +700,13 @@ impl Caller {
                 .collect(),
             ..MetadataRefreshed::default()
         })
+    }
+
+    /// Writes a Backup where the Server settings say, refusing with why it failed, which the
+    /// Admin reads in the failed Job Run: the folder is theirs to fix.
+    async fn back_up(self, _asked: BackUpAsked) -> Result<BackedUp, KernelRefused> {
+        (self.automation.backups.write().await)
+            .map_err(|err| KernelRefused(format!("writing the Backup failed: {err}")))
     }
 }
 

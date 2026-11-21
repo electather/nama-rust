@@ -360,6 +360,8 @@ pub enum PluginPermission {
     PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS = 10i32,
     /// Fetch every Matched title's metadata again from its title source.
     PLUGIN_PERMISSION_REFRESH_METADATA = 11i32,
+    /// Write a Backup of the Server, every Plugin's keys included, into the folder the Admin set.
+    PLUGIN_PERMISSION_BACK_UP = 12i32,
 }
 impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -398,6 +400,9 @@ impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_REFRESH_METADATA`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RefreshMetadata: Self = Self::PLUGIN_PERMISSION_REFRESH_METADATA;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_BACK_UP`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const BackUp: Self = Self::PLUGIN_PERMISSION_BACK_UP;
 }
 impl ::core::default::Default for PluginPermission {
     fn default() -> Self {
@@ -519,6 +524,7 @@ impl ::buffa::Enumeration for PluginPermission {
             11i32 => {
                 ::core::option::Option::Some(Self::PLUGIN_PERMISSION_REFRESH_METADATA)
             }
+            12i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_BACK_UP),
             _ => ::core::option::Option::None,
         }
     }
@@ -551,6 +557,7 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_REFRESH_METADATA => {
                 "PLUGIN_PERMISSION_REFRESH_METADATA"
             }
+            Self::PLUGIN_PERMISSION_BACK_UP => "PLUGIN_PERMISSION_BACK_UP",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -593,6 +600,9 @@ impl ::buffa::Enumeration for PluginPermission {
             "PLUGIN_PERMISSION_REFRESH_METADATA" => {
                 ::core::option::Option::Some(Self::PLUGIN_PERMISSION_REFRESH_METADATA)
             }
+            "PLUGIN_PERMISSION_BACK_UP" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_BACK_UP)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -610,6 +620,7 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS,
             Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS,
             Self::PLUGIN_PERMISSION_REFRESH_METADATA,
+            Self::PLUGIN_PERMISSION_BACK_UP,
         ]
     }
 }

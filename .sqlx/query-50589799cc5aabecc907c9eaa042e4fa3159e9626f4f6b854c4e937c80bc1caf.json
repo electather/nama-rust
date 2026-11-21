@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings (id, url, backup_folder, backups_kept)\n                         VALUES (1, '', ?, ?)\n                         ON CONFLICT (id) DO UPDATE SET\n                             backup_folder = excluded.backup_folder,\n                             backups_kept = excluded.backups_kept",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "50589799cc5aabecc907c9eaa042e4fa3159e9626f4f6b854c4e937c80bc1caf"
+}
