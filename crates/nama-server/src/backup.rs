@@ -102,14 +102,9 @@ impl Backups {
         }
     }
 
-    /// The folder Backups are written to now.
-    pub(crate) fn folder(&self) -> PathBuf {
-        self.folder_of(&self.settings.now().backups)
-    }
-
-    /// Writes a Backup named `nama-<UTC time>Z.tar` into [`Backups::folder`], creating it if it's
-    /// missing, then deletes the oldest files so named there beyond the count kept. Answers as the
-    /// Kernel function `back_up` does.
+    /// Writes a Backup named `nama-<UTC time>Z.tar` into the Backup folder, creating it if it's
+    /// missing, then deletes the oldest files so named there beyond the count kept, never the one
+    /// it wrote. Answers as the Kernel function `back_up` does.
     ///
     /// # Errors
     ///
@@ -125,7 +120,8 @@ impl Backups {
         write(&self.data_dir, &self.config_file, &path).await?;
         let size = tokio::fs::metadata(&path).await?.len();
         let kept = settings.kept.map_or(DEFAULT_KEPT, NonZeroU32::get);
-        tokio::task::spawn_blocking(move || delete_oldest(&folder, kept))
+        let written = name.clone();
+        tokio::task::spawn_blocking(move || delete_oldest(&folder, &written, kept))
             .await
             .map_err(io::Error::other)??;
         Ok(BackedUp {
@@ -135,16 +131,19 @@ impl Backups {
         })
     }
 
-    /// Every `.tar` file in [`Backups::folder`], newest first, or none while it's missing.
+    /// The Backup folder in use now, and every `.tar` file in it, newest first, or none while
+    /// it's missing. The folder is read once, so the files are always that folder's.
     ///
     /// # Errors
     ///
     /// If the folder can't be read.
-    pub(crate) async fn list(&self) -> io::Result<Vec<Listed>> {
-        let folder = self.folder();
-        tokio::task::spawn_blocking(move || list(&folder))
+    pub(crate) async fn list(&self) -> io::Result<(PathBuf, Vec<Listed>)> {
+        let folder = self.folder_of(&self.settings.now().backups);
+        let listed_in = folder.clone();
+        let listed = tokio::task::spawn_blocking(move || list(&listed_in))
             .await
-            .map_err(io::Error::other)?
+            .map_err(io::Error::other)??;
+        Ok((folder, listed))
     }
 
     fn folder_of(&self, settings: &BackupValues) -> PathBuf {
@@ -195,17 +194,25 @@ fn is_tar(name: &str) -> bool {
     (Path::new(name).extension()).is_some_and(|extension| extension.eq_ignore_ascii_case("tar"))
 }
 
-/// Deletes the oldest of the Backups the Server wrote in `folder` beyond the newest `kept`.
-fn delete_oldest(folder: &Path, kept: u32) -> io::Result<()> {
+/// Deletes the oldest of the Backups the Server wrote in `folder` beyond the newest `kept`, counting
+/// the one just `written` as the newest whatever its name: a Backup named for a later time, after
+/// the clock went back, must not get it deleted.
+fn delete_oldest(folder: &Path, written: &str, kept: u32) -> io::Result<()> {
     let mut own = Vec::new();
     for entry in fs::read_dir(folder)? {
-        let name = entry?.file_name();
-        if name.to_str().is_some_and(is_own) {
+        let entry = entry?;
+        let name = entry.file_name();
+        if name
+            .to_str()
+            .is_some_and(|name| name != written && is_own(name))
+            && entry.file_type()?.is_file()
+        {
             own.push(name);
         }
     }
     own.sort_unstable_by(|a, b| b.cmp(a));
-    for name in own.iter().skip(usize::try_from(kept).unwrap_or(usize::MAX)) {
+    let older_kept = usize::try_from(kept.saturating_sub(1)).unwrap_or(usize::MAX);
+    for name in own.iter().skip(older_kept) {
         fs::remove_file(folder.join(name))?;
     }
     Ok(())
@@ -228,8 +235,12 @@ fn is_own(name: &str) -> bool {
 /// If `data_dir` has no database, or a file can't be read or written. A failed backup leaves the
 /// file at `to` as it was.
 pub async fn write(data_dir: &Path, config_file: &Path, to: &Path) -> Result<(), Error> {
-    // Beside `to`, so the finished `.tar` is renamed into place, never copied.
-    let staging = TempDir::new_in(to.parent().unwrap_or_else(|| Path::new("")))?;
+    // Beside `to`, so the finished `.tar` is renamed into place, never copied. Off the runtime: the
+    // Server's own Backup folder may be a slow share, and playback shares the runtime.
+    let parent = to.parent().unwrap_or_else(|| Path::new("")).to_owned();
+    let staging = tokio::task::spawn_blocking(move || TempDir::new_in(parent))
+        .await
+        .map_err(io::Error::other)??;
     let db_copy = staging.path().join(db::FILE_NAME);
     let images_are_local = copy_database(data_dir, &db_copy, staging.path()).await?;
     let mut parts = vec![

@@ -235,7 +235,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetBackupsRequest>,
     ) -> ServiceResult<GetBackupsResponse> {
-        let listed = self.backups.list().await.map_err(|err| {
+        let (folder, listed) = self.backups.list().await.map_err(|err| {
             tracing::error!("listing the Backups failed: {err}");
             ConnectError::internal("the Server couldn't read the Backup folder")
         })?;
@@ -249,7 +249,7 @@ impl ServerService for ServerServiceHandler {
             .collect();
         Response::ok(GetBackupsResponse {
             settings: backup_settings_to_proto(self.settings.now().backups).into(),
-            folder: self.backups.folder().display().to_string(),
+            folder: folder.display().to_string(),
             backups,
             ..Default::default()
         })
