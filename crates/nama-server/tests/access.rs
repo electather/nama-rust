@@ -364,8 +364,8 @@ fn needing_a_permission() -> impl Iterator<Item = &'static &'static str> {
 }
 
 /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code as
-/// `every_generated_rpc_has_an_access_entry` in `src/api.rs` reads it, so a new RPC shows up here
-/// without anyone listing it.
+/// `every_generated_rpc_has_an_access_entry` in `src/api/access_tests.rs` reads it, so a new RPC
+/// shows up here without anyone listing it.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
