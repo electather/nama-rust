@@ -113,7 +113,9 @@ function mounted(): Set<string> {
 export function sweepLeftovers(root: string, { dryRun = false } = {}): string[] {
   const left = leftovers(root);
   const numbers = [...left.worktrees.map((w) => w.branch), ...left.branches, ...left.claims.map((c) => c.ref)]
-    .map((name) => Number(/-(\d+)$/.exec(name)?.[1]))
+    // Issue and PR numbers only: a main-red claim ends in a workflow run's id, too big for GraphQL's Int, and one
+    // such field fails the whole query.
+    .map((name) => Number(/(?:issue|pr|triage)-(\d+)$/.exec(name)?.[1]))
     .filter(Number.isInteger);
   const found = dead(left, { host: hostname(), alive, done: done([...new Set(numbers)]), mounted: mounted() });
   const containers = lines(sh("docker", "ps", "-aq", "--filter", "name=sandcastle-", "--filter", "status=exited"));
