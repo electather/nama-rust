@@ -129,7 +129,8 @@ impl TextPasses {
         });
     }
 
-    /// Stops the background work, ffmpeg included, and waits for it.
+    /// Stops the background work, ffmpeg included, and waits for the loop; ffmpeg runs on
+    /// [`Probing`], whose shutdown waits for it.
     pub(crate) async fn shutdown(&self) {
         self.cancel.cancel();
         self.tasks.close();
@@ -152,7 +153,7 @@ impl TextPasses {
     /// Runs the pass of each Version that needs one, one at a time.
     async fn read_needed(&self) -> Result<(), Error> {
         for version in self.needed().await? {
-            if let Err(err) = self.read_out(version).await {
+            if let Err(err) = self.pass_while_nothing_plays(version).await {
                 tracing::error!(version, "could not run a Version's text pass: {err}");
             }
         }
@@ -190,7 +191,7 @@ impl TextPasses {
 
     /// Runs the Version `version`'s pass while nothing plays: playback starting stops it, and it
     /// runs again once nothing plays. A finished or failed pass makes it do nothing.
-    async fn read_out(&self, version: i64) -> Result<(), Error> {
+    async fn pass_while_nothing_plays(&self, version: i64) -> Result<(), Error> {
         loop {
             self.running.until_playing(false).await;
             let Some(probed) = probed(&self.subtitles, version).await? else {

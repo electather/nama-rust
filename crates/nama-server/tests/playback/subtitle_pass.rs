@@ -178,7 +178,7 @@ fn subtitle_url(version: i64, track: usize) -> String {
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
-async fn probing_reads_every_text_track_and_font_out_in_one_run_that_fetches_are_answered_from() {
+async fn a_pass_after_probing_reads_every_text_track_and_font_in_one_run_fetches_are_served_from() {
     let bin = tempfile::tempdir().unwrap();
     let ffmpeg = ffmpeg_reading_text_subtitles_after(bin.path(), "");
     let (fx, version) = alien_read_out_with(bin.path(), ffmpeg).await;

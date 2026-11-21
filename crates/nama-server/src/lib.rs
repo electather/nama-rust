@@ -214,7 +214,7 @@ pub fn serve(
             events.close();
         })
         .await;
-        // First, so its ffmpeg doesn't start on a Version as the plans stop.
+        // First, so their ffmpeg doesn't start on a Version as the plans stop.
         preview_frames.shutdown().await;
         text_passes.shutdown().await;
         running.shutdown().await;
