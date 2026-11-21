@@ -1,15 +1,25 @@
+import { RunNowButton } from "@/features/admin-jobs/components/run-now-button";
 import { RunOutcome } from "@/features/admin-jobs/components/run-outcome";
 import { nextAndLast } from "@/features/admin-jobs/lib/run-times";
-import { scheduleWords } from "@/features/admin-jobs/lib/schedule-words";
 import type { Job } from "@/gen/nama/v1/job_pb";
 import { AdminRow } from "@/shared/components/admin-list/admin-row";
+import { jobAnchor } from "@/shared/lib/job-anchor";
+import { scheduleWords } from "@/shared/lib/schedule-words";
 
-/** One Job on the list: its name, which opens its sheet, its schedule, and its next and last Runs. */
+/** One Job on the list: its name, which opens its sheet, its schedule, its next and last Runs and Run now. */
 export function JobRow({ job, onOpen }: { job: Job; onOpen: (job: Job) => void }) {
   return (
-    <AdminRow end={job.lastRun && <RunOutcome outcome={job.lastRun.outcome} />}>
+    <AdminRow
+      end={
+        <>
+          {job.lastRun && <RunOutcome outcome={job.lastRun.outcome} />}
+          <RunNowButton job={job} />
+        </>
+      }
+    >
       <button
         type="button"
+        id={jobAnchor(job.pluginId, job.id)}
         aria-haspopup="dialog"
         onClick={() => {
           onOpen(job);

@@ -116,6 +116,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLUGIN_LOG_LINE_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_SUMMARY_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_JOB_JSON_ANY);
         reg.register_json_any(super::__EXTENSION_POINT_FAILURE_JSON_ANY);
         reg.register_json_any(super::__SETTING_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
@@ -316,6 +317,8 @@ pub mod __buffa {
         reg.register_json_any(super::__JOB_JSON_ANY);
         reg.register_json_any(super::__LIST_JOB_RUNS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_JOB_RUNS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__RUN_JOB_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RUN_JOB_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__JOB_RUN_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__LAST_SCAN_JSON_ANY);
@@ -628,6 +631,10 @@ pub use self::__buffa::view::PluginSummaryOwnedView;
 pub use self::__buffa::view::PluginView;
 #[doc(inline)]
 pub use self::__buffa::view::PluginOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginJobView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginJobOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ExtensionPointFailureView;
 #[doc(inline)]
@@ -1412,6 +1419,14 @@ pub use self::__buffa::view::ListJobRunsRequestOwnedView;
 pub use self::__buffa::view::ListJobRunsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListJobRunsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::JobRunView;
 #[doc(inline)]
