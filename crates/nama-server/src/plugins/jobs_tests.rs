@@ -133,7 +133,7 @@ async fn runs(db: &Database) -> Vec<JobRun> {
     job_runs(db, &ID, "tidy").await.unwrap()
 }
 
-/// A Registry recording Job Runs whose Job `tidy` is running in its Plugin's scope and never ends.
+/// A Registry recording Job Runs, returned once a Run of Job `tidy` that never ends has started in its Plugin's scope.
 async fn running_tidy_forever() -> (Registry, Arc<Database>, TempDir) {
     let started = Arc::new(Notify::new());
     let (registry, db, dir) = recording(Arc::new(Endless {
