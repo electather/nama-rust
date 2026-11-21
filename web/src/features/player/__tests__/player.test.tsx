@@ -78,19 +78,23 @@ const remux = () => ({
   recipe: "remux/fmp4/aac",
 });
 const directPlayFailed = "Direct Play failed on this Device";
+/** Direct Plays Version 9, and says any other can't play. */
+const onlyVersion9: Planned = (request) => (request.versionId === 9n ? directPlay(request) : {});
 /**
  * A Server whose Library 1 has The Matrix in three Versions, the largest being Version 8, and
  * whose plans are `planned`'s, by default Direct Playing each from an address of its own with
  * `plannedTracks`. As the real Server does, a plan asked for after Direct Play failed says it can't
  * play, unless the Server `ignoresFailures`. Each plan request goes in `asked`. The Movie's Watch
- * State is `watchState`.
+ * State is `watchState`. A plan that can't play lists `playable` as the Versions that would.
  */
 const serverPlanning = ({
   planned = directPlay,
   asked = [],
   ignoresFailures = false,
   watchState,
+  playable = [],
 }: {
+  playable?: bigint[];
   planned?: Planned;
   asked?: PlanPlaybackRequest[];
   ignoresFailures?: boolean;
@@ -104,7 +108,8 @@ const serverPlanning = ({
         if (failed) {
           return { plan: { reasons: saying(directPlayFailed) } };
         }
-        return { plan: planned(request) };
+        const plan = planned(request);
+        return { plan, playableVersions: (plan.url ?? "") === "" ? playable : [] };
       },
     });
     router.service(BrowseService, {
@@ -116,7 +121,12 @@ const serverPlanning = ({
           versions: [
             { id: 7n, fileName: "The Matrix (1999) 720p.mkv", size: 2_000_000_000n },
             { id: 8n, fileName: "The Matrix (1999) 2160p.mkv", size: 40_000_000_000n },
-            { id: 9n, fileName: "The Matrix (1999) 1080p.mkv", size: 9_000_000_000n },
+            {
+              id: 9n,
+              fileName: "The Matrix (1999) 1080p.mkv",
+              size: 9_000_000_000n,
+              tracks: plannedTracks,
+            },
           ],
         },
       }),
@@ -271,6 +281,30 @@ test("a Version whose plan says it can't play shows the reasons that decided it 
   expect(screen.queryByText("Hardware acceleration is off")).toBeNull();
   expect(screen.queryByText(/This browser can’t play it/u)).toBeNull();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
+});
+
+test("a Version that can't play offers the title's other Version that plays here, and plays it", async () => {
+  const asked: PlanPlaybackRequest[] = [];
+  openApp(
+    "/libraries/1/movies/tmdb-603/play",
+    serverPlanning({ planned: onlyVersion9, asked, playable: [9n, 7n] }),
+  );
+
+  await expect(
+    screen.findByText("Its other Version, 1080p, plays on this Device."),
+  ).resolves.toBeDefined();
+  fireEvent.click(screen.getByRole("link", { name: "Play 1080p Version" }));
+
+  await expect(findVideo()).resolves.toBeDefined();
+  expect(asked.map(({ versionId }) => versionId)).toStrictEqual([8n, 9n]);
+});
+
+test("a Version that can't play, with no other that plays here, offers none", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: cantPlay }));
+
+  await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();
+  expect(screen.queryByText(/Its other Version/u)).toBeNull();
+  expect(screen.queryByRole("link", { name: /Version$/u })).toBeNull();
 });
 
 test("the plan request says what this Device decodes", async () => {

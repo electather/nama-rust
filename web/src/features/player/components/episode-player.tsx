@@ -51,6 +51,7 @@ export function EpisodePlayer({
       {...heading}
       versionId={id}
       tracks={tracks}
+      versions={episode.versions}
       watchState={episode.watchState}
       backdropUrl={episode.stillUrl}
       {...lockScreen}

@@ -14,10 +14,16 @@ export function PlannedPlayer(props: PlannedProps) {
     return <StoppedByAdmin message={adminStop.message} back={props.back} />;
   }
   if (plan.url === "") {
-    return <CantPlay {...props} reasons={plan.reasons.filter(({ decided }) => decided)} />;
+    return (
+      <CantPlay
+        {...props}
+        reasons={plan.reasons.filter(({ decided }) => decided)}
+        playable={planned.playableVersions}
+      />
+    );
   }
   if (planned.gaveUp) {
-    return <CantPlay {...props} reasons={[]} />;
+    return <CantPlay {...props} reasons={[]} playable={[]} />;
   }
   return <PlayingPlan {...props} planned={planned} />;
 }
