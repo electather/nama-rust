@@ -225,9 +225,7 @@ impl Contents {
             .await
             .unwrap();
     }
-}
 
-impl Contents {
     /// Stores Similar titles and a Role for a Movie as if `plugin`'s title source had Matched it.
     pub(crate) async fn leave_title_rows(&self, plugin: &'static str) {
         self.db
