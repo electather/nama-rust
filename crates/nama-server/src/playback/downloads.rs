@@ -61,6 +61,11 @@ impl SubtitleDownloads {
         }
     }
 
+    /// Whether a subtitle source is enabled, so [`Self::search`] has one to ask.
+    pub(crate) fn has_source(&self) -> bool {
+        !self.points.providers::<dyn SubtitleSource>().is_empty()
+    }
+
     /// What every enabled subtitle source finds for the Version `version` in `languages`, BCP 47
     /// tags, each found by the Plugin whose source it is, each source's best first. A source that
     /// fails is left out.
