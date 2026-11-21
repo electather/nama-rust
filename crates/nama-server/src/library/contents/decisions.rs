@@ -607,8 +607,8 @@ async fn insert_match_ids(
     sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)
         .execute(&mut *conn)
         .await?;
-    let ids = (row.ids.iter().map(|id| ("title", id)))
-        .chain(row.show_ids.iter().map(|id| ("show", id)));
+    let ids =
+        (row.ids.iter().map(|id| ("title", id))).chain(row.show_ids.iter().map(|id| ("show", id)));
     for (scope, id) in ids {
         let (namespace, value) = (id.namespace(), id.value());
         sqlx::query!(
