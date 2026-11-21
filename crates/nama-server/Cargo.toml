@@ -47,6 +47,7 @@ nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" 
 nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }
 nama-plugin-test-choices = { version = "0.1.0", path = "../../plugins/test-choices", optional = true }
 nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb" }
+nama-plugin-upkeep = { version = "0.1.0", path = "../../plugins/upkeep" }
 nama-plugin-proto = { version = "0.2.0", path = "../nama-plugin-proto" }
 nama-proto = { version = "0.2.0", path = "../nama-proto" }
 notify = "8.2.2"

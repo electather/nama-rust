@@ -312,7 +312,10 @@ fn plugin_settings_are_imported_from_the_config_once_and_the_config_is_ignored_a
             .lines()
             .find(|line| line.contains("enabled plugins"))
             .unwrap();
-        assert!(enabled.contains(r#"["local-auth", "tmdb"]"#), "{enabled}");
+        assert!(
+            enabled.contains(r#"["local-auth", "tmdb", "upkeep"]"#),
+            "{enabled}"
+        );
         assert!(!log.contains(API_KEY), "a setting value was logged: {log}");
     }
     assert!(

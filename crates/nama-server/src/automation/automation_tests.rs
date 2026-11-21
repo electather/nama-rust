@@ -9,10 +9,10 @@ use std::{
 use buffa::MessageField;
 use nama_plugin_api::{
     automation::{
-        DeleteAsked, DeleteStarted, Libraries as ListedLibraries, LibrariesAsked, LibraryKind,
-        Permission, Requesters, RequestersAsked, StoreKey, StoreValue, Titles, TitlesAsked,
-        Users as ListedUsers, UsersAsked, WatchStates as ListedWatchStates, WatchStatesAsked,
-        Watchlist, WatchlistAsked,
+        DeleteAsked, DeleteStarted, ForgetHomeRowsAsked, HomeRowsForgotten,
+        Libraries as ListedLibraries, LibrariesAsked, LibraryKind, Permission, Requesters,
+        RequestersAsked, StoreKey, StoreValue, Titles, TitlesAsked, Users as ListedUsers,
+        UsersAsked, WatchStates as ListedWatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
     },
     contract,
     metadata::ExternalId,
@@ -718,4 +718,21 @@ async fn list_watchlist_gives_that_users_watchlist_only() {
         (movie, ALIEN_TMDB_ID.to_string()),
     ]);
     assert_eq!(listed, expected);
+}
+
+#[tokio::test]
+async fn forget_home_rows_refuses_0_days_and_answers_how_many_users_it_forgot() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_FORGET_HOME_ROWS);
+    let asked = |days| ForgetHomeRowsAsked {
+        days,
+        ..ForgetHomeRowsAsked::default()
+    };
+
+    let refused = ask::<HomeRowsForgotten>(&kernel, "forget_home_rows", &asked(0)).await;
+    let forgotten = ask::<HomeRowsForgotten>(&kernel, "forget_home_rows", &asked(30)).await;
+
+    assert_eq!(refused.unwrap_err().0, "days must be at least 1");
+    assert_eq!(forgotten.unwrap().users, 0, "nobody has opened home");
 }

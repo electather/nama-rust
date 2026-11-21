@@ -1,21 +1,28 @@
 //! The Built-in Plugins: which ship in the Server, how config turns them on and off at startup,
 //! and what they may depend on.
 
-use std::{collections::BTreeMap, path::Path, process::Command, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::Path,
+    process::Command,
+    sync::Arc,
+};
 
 use figment::{
     Figment,
     providers::{Format, Serialized, Toml},
 };
 use nama_plugin_api::{
-    Plugin, PluginId, Registrar, Registration,
+    BoxFuture, Plugin, PluginId, Registrar, Registration,
     auth::Authenticator,
+    automation::{Kernel, KernelRefused, Permission},
     settings::{SettingValue, Settings},
 };
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_test_choices::TestChoices;
 use nama_plugin_tmdb::Tmdb;
+use nama_plugin_upkeep::Upkeep;
 use nama_server::{
     config::Config, db::Database, plugin_settings::PluginSettings, plugins::Registry,
 };
@@ -28,15 +35,34 @@ use nama_server::{
 async fn started(toml: &str) -> Vec<PluginId> {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let plugins = start(&db, data_dir.path(), toml).await;
+    plugins.registry().enabled()
+}
+
+/// The Built-in Plugins started on `db` as a Server in `data_dir` starts them, with the
+/// `[plugins.*]` tables in `toml`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn start(db: &Arc<Database>, data_dir: &Path, toml: &str) -> PluginSettings {
     let config: Config = Figment::from(Serialized::defaults(Config::default()))
         .merge(Toml::string(toml))
-        .merge(Serialized::default("data_dir", data_dir.path()))
+        .merge(Serialized::default("data_dir", data_dir))
         .extract()
         .unwrap();
-    let plugins = PluginSettings::start(Arc::clone(&db), Registry::with_builtins(), &config)
+    PluginSettings::start(Arc::clone(db), Registry::with_builtins(), &config)
         .await
-        .unwrap();
-    plugins.registry().enabled()
+        .unwrap()
+}
+
+/// The Plugin Permissions granted Upkeep.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn upkeep_granted(plugins: &PluginSettings) -> HashSet<Permission> {
+    plugins.get(&Upkeep::ID).await.unwrap().unwrap().granted
 }
 
 #[tokio::test]
@@ -49,7 +75,8 @@ async fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_
         without_settings,
         [
             PluginId::from_static("local-auth"),
-            PluginId::from_static("log-events")
+            PluginId::from_static("log-events"),
+            Upkeep::ID,
         ]
     );
     assert_eq!(
@@ -57,7 +84,8 @@ async fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_
         [
             PluginId::from_static("local-auth"),
             PluginId::from_static("log-events"),
-            PluginId::from_static("tmdb")
+            PluginId::from_static("tmdb"),
+            Upkeep::ID,
         ]
     );
 }
@@ -66,7 +94,7 @@ async fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_
 async fn config_can_disable_a_builtin_plugin() {
     let enabled = started("[plugins.log-events]\nenabled = false").await;
 
-    assert_eq!(enabled, [PluginId::from_static("local-auth")]);
+    assert_eq!(enabled, [PluginId::from_static("local-auth"), Upkeep::ID]);
 }
 
 #[tokio::test]
@@ -77,9 +105,29 @@ async fn config_for_a_plugin_the_server_does_not_have_is_ignored() {
         enabled,
         [
             PluginId::from_static("local-auth"),
-            PluginId::from_static("log-events")
+            PluginId::from_static("log-events"),
+            Upkeep::ID,
         ]
     );
+}
+
+#[tokio::test]
+async fn a_builtin_plugin_is_granted_what_it_requests_on_its_first_start_and_an_admin_may_revoke_it()
+ {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let first = start(&db, data_dir.path(), "").await;
+    let requested = HashSet::from([Permission::PERMISSION_FORGET_HOME_ROWS]);
+    assert_eq!(upkeep_granted(&first).await, requested);
+
+    first
+        .enable_granting(&Upkeep::ID, HashSet::new())
+        .await
+        .unwrap();
+    first.shutdown().await;
+    let restarted = start(&db, data_dir.path(), "").await;
+
+    assert_eq!(upkeep_granted(&restarted).await, HashSet::new());
 }
 
 #[test]
@@ -100,12 +148,18 @@ fn a_plugin_that_isnt_running_may_be_disabled_only_while_another_provides_an_aut
 
 #[test]
 fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_names() {
-    let plugins: [Arc<dyn Plugin>; 4] = [
+    let plugins: [Arc<dyn Plugin>; 5] = [
         Arc::new(LocalAuth),
         Arc::new(LogEvents),
         Arc::new(TestChoices),
         Arc::new(Tmdb::new()),
+        Arc::new(Upkeep),
     ];
+    // Upkeep needs the Kernel's functions to register, though none is called here.
+    let refusing = |_: &str, _: Vec<u8>| -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
+        Box::pin(async { Err(KernelRefused("not called".to_owned())) })
+    };
+    let kernel: Arc<dyn Kernel> = Arc::new(refusing);
     // So a Built-in Plugin added later can't miss this test.
     let builtins: Vec<_> = Registry::with_builtins()
         .plugins()
@@ -121,7 +175,8 @@ fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_na
             "api_key".to_owned(),
             SettingValue::Text(nama_plugin_test_choices::API_KEY.to_owned()),
         )]);
-        let mut registrar = Registrar::with_settings(Settings::new(api_key));
+        let mut registrar =
+            Registrar::with_settings(Settings::new(api_key)).with_kernel(Arc::clone(&kernel));
         plugin.register(&mut registrar).unwrap();
 
         let registered: Vec<_> = registrar

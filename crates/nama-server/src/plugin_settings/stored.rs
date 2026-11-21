@@ -7,7 +7,11 @@ use nama_plugin_api::{automation::Permission, settings::SettingValue};
 use nama_proto::nama::v1::PluginKind;
 
 use super::{Grants, StoredPlugin};
-use crate::{config::PluginConfig, db::Database, plugins::Listed};
+use crate::{
+    config::PluginConfig,
+    db::Database,
+    plugins::{Listed, Registry},
+};
 
 /// The `schema_meta` key whose presence records that the config was imported.
 const IMPORTED_KEY: &str = "plugin_settings_imported";
@@ -162,10 +166,7 @@ pub(super) async fn set_enabled_granting(
     granted: &HashSet<Permission>,
 ) -> Result<(), sqlx::Error> {
     let plugin_id = plugin_id.to_owned();
-    let mut names: Vec<_> = granted.iter().collect();
-    // Sorted so the same grants always read the same in the database.
-    names.sort_by_key(|permission| **permission as i32);
-    let names = serde_json::to_string(&names).map_err(|err| sqlx::Error::Encode(err.into()))?;
+    let names = granted_names(granted)?;
     db.write(move |tx| {
         Box::pin(async move {
             sqlx::query!(
@@ -182,6 +183,56 @@ pub(super) async fn set_enabled_granting(
         })
     })
     .await
+}
+
+/// The Plugin Permissions each Built-in Plugin `registry` knows requests, of those `grants` stores
+/// nothing for and that request any.
+pub(super) fn first_grants(registry: &Registry, grants: &Grants) -> Grants {
+    (registry.plugins().into_iter())
+        .filter(|plugin| plugin.kind == PluginKind::PLUGIN_KIND_BUILT_IN)
+        .filter(|plugin| !grants.contains_key(plugin.id.as_str()))
+        .filter_map(|plugin| {
+            let requested: HashSet<_> = plugin.manifest.ok()?.permissions.into_iter().collect();
+            (!requested.is_empty()).then(|| (plugin.id.to_string(), requested))
+        })
+        .collect()
+}
+
+/// Saves each Plugin `first` names with the Plugin Permissions it holds, keeping whether it is
+/// enabled and its settings if they are stored, or else as a Built-in with nothing stored starts.
+pub(super) async fn save_first_grants(db: &Database, first: &Grants) -> Result<(), sqlx::Error> {
+    let rows = (first.iter())
+        .map(|(plugin_id, granted)| Ok((plugin_id.clone(), granted_names(granted)?)))
+        .collect::<Result<Vec<_>, sqlx::Error>>()?;
+    if rows.is_empty() {
+        return Ok(());
+    }
+    db.write(move |tx| {
+        Box::pin(async move {
+            for (plugin_id, names) in rows {
+                sqlx::query!(
+                    "INSERT INTO plugin_settings (plugin_id, enabled, settings, granted_permissions)
+                     VALUES (?, TRUE, '{}', ?)
+                     ON CONFLICT (plugin_id) DO UPDATE
+                     SET granted_permissions = excluded.granted_permissions",
+                    plugin_id,
+                    names
+                )
+                .execute(&mut **tx)
+                .await?;
+            }
+            Ok(())
+        })
+    })
+    .await
+}
+
+/// `granted` as `plugin_settings.granted_permissions` stores them: a JSON array of their names.
+fn granted_names(granted: &HashSet<Permission>) -> Result<String, sqlx::Error> {
+    let mut names: Vec<_> = granted.iter().collect();
+    // Sorted so the same grants always read the same in the database.
+    names.sort_by_key(|permission| **permission as i32);
+    serde_json::to_string(&names).map_err(|err| sqlx::Error::Encode(err.into()))
 }
 
 /// `plugin` with what `stored` holds for it, taken out of `stored`.

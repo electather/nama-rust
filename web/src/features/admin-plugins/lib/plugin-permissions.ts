@@ -33,4 +33,9 @@ export const pluginPermissions: Partial<
     label: "Read Watchlists",
     about: "It sees the Movies and Shows on every User's Watchlist.",
   },
+  [PluginPermission.FORGET_HOME_ROWS]: {
+    label: "Forget Home rows",
+    about:
+      "It deletes the Home rows and Featured suggestions kept for Users who stopped opening home. They get fresh ones when they come back.",
+  },
 };
