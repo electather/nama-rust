@@ -185,23 +185,27 @@ pub(super) async fn set_enabled_granting(
     .await
 }
 
-/// The Plugin Permissions each Built-in Plugin `registry` knows requests, of those `grants` stores
-/// nothing for and that request any.
-pub(super) fn first_grants(registry: &Registry, grants: &Grants) -> Grants {
+/// The Plugin Permissions each Built-in Plugin `registry` knows requests, which it always holds
+/// (ADR 0079), of those that request any or that `grants` stores some for.
+pub(super) fn builtin_grants(registry: &Registry, grants: &Grants) -> Grants {
     (registry.plugins().into_iter())
         .filter(|plugin| plugin.kind == PluginKind::PLUGIN_KIND_BUILT_IN)
-        .filter(|plugin| !grants.contains_key(plugin.id.as_str()))
         .filter_map(|plugin| {
             let requested: HashSet<_> = plugin.manifest.ok()?.permissions.into_iter().collect();
-            (!requested.is_empty()).then(|| (plugin.id.to_string(), requested))
+            let stored = grants.contains_key(plugin.id.as_str());
+            (stored || !requested.is_empty()).then(|| (plugin.id.to_string(), requested))
         })
         .collect()
 }
 
-/// Saves each Plugin `first` names with the Plugin Permissions it holds, keeping whether it is
-/// enabled and its settings if they are stored, or else as a Built-in with nothing stored starts.
-pub(super) async fn save_first_grants(db: &Database, first: &Grants) -> Result<(), sqlx::Error> {
-    let rows = (first.iter())
+/// Saves each Plugin `builtin` names with the Plugin Permissions it holds, replacing those stored
+/// and keeping whether it is enabled and its settings if they are stored, or else as a Built-in
+/// with nothing stored starts.
+pub(super) async fn save_builtin_grants(
+    db: &Database,
+    builtin: &Grants,
+) -> Result<(), sqlx::Error> {
+    let rows = (builtin.iter())
         .map(|(plugin_id, granted)| Ok((plugin_id.clone(), granted_names(granted)?)))
         .collect::<Result<Vec<_>, sqlx::Error>>()?;
     if rows.is_empty() {

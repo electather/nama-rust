@@ -2,7 +2,7 @@ import { Ban } from "lucide-react";
 
 import { EnableOrDisable } from "@/features/admin-plugins/components/enable-or-disable";
 import { GrantAndEnable } from "@/features/admin-plugins/components/grant-and-enable";
-import type { PluginSummary, Setting } from "@/gen/nama/v1/plugin_pb";
+import { PluginKind, type PluginSummary, type Setting } from "@/gen/nama/v1/plugin_pb";
 import { StateLabel } from "@/shared/components/state-label";
 
 /**
@@ -20,9 +20,20 @@ export function PluginToggle({
   if (summary.refusedReason !== "") {
     return <StateLabel label="Refused" Icon={Ban} />;
   }
-  // Enabling a Plugin that requests Plugin Permissions first asks which to grant.
-  if (!summary.enabled && summary.requestedPermissions.length > 0) {
+  if (asksWhichToGrant(summary)) {
     return <GrantAndEnable summary={summary} settings={settings} />;
   }
   return <EnableOrDisable summary={summary} settings={settings} />;
+}
+
+/**
+ * Whether enabling `summary` first asks which Plugin Permissions to grant: a disabled Installed
+ * Plugin's that requests some. A Built-in one always holds all it requests (ADR 0079).
+ */
+function asksWhichToGrant(summary: PluginSummary) {
+  return (
+    !summary.enabled &&
+    summary.kind !== PluginKind.BUILT_IN &&
+    summary.requestedPermissions.length > 0
+  );
 }

@@ -29,10 +29,13 @@ test.each([
   expect(alert.textContent).toBe("It refused to start: the key was turned down.");
 });
 
-/** An Installed cleanup Plugin requesting `requestedPermissions`, listed alone, disabled by default. */
+/**
+ * The cleanup Plugin requesting `requestedPermissions`, listed alone, Installed and disabled unless
+ * `granted` says otherwise.
+ */
 function cleanupPlugin(
   requestedPermissions: PluginPermission[],
-  granted: { enabled?: boolean; grantedPermissions?: PluginPermission[] } = {},
+  granted: { enabled?: boolean; grantedPermissions?: PluginPermission[]; kind?: PluginKind } = {},
 ) {
   const summary = {
     id: "cleanup",
@@ -49,10 +52,10 @@ function cleanupPlugin(
 }
 
 /** Opens the list with the cleanup Plugin and returns the `GrantedPermissions` each Enable sends. */
-function openWithCleanup(requested: PluginPermission[]) {
+function openWithCleanup(requested: PluginPermission[], kind: PluginKind = PluginKind.INSTALLED) {
   const sent: PluginPermission[][] = [];
   const changes: Partial<ServiceImpl<typeof PluginService>> = {
-    ...cleanupPlugin(requested),
+    ...cleanupPlugin(requested, { kind }),
     enablePlugin: ({ grantedPermissions }) => {
       sent.push(grantedPermissions);
       return {};
@@ -123,3 +126,33 @@ test("an enabled Plugin's details page lists the Plugin Permissions granted it",
   const found4 = await plugin("cleanup");
   expect(found4.getByText("Granted: Read Watch State")).toBeDefined();
 });
+
+test("a Built-in Plugin requesting Plugin Permissions enables without a dialog", async () => {
+  const sent = openWithCleanup([PluginPermission.STORE], PluginKind.BUILT_IN);
+  const found5 = await row("cleanup");
+  fireEvent.click(found5.getByRole("button", { name: "Enable cleanup" }));
+
+  await waitFor(() => {
+    expect(sent).toStrictEqual([[]]);
+  });
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+});
+
+test.each([true, false])(
+  "a Built-in Plugin's details page lists the Plugin Permissions it holds, enabled %s",
+  async (enabled) => {
+    openPlugin(
+      "cleanup",
+      cleanupPlugin([PluginPermission.STORE, PluginPermission.READ_LIBRARIES], {
+        enabled,
+        kind: PluginKind.BUILT_IN,
+        grantedPermissions: [PluginPermission.STORE, PluginPermission.READ_LIBRARIES],
+      }),
+    );
+
+    const found6 = await plugin("cleanup");
+    const held = "Always holds, as part of the Server: Keep its own data, Read Libraries";
+    expect(found6.getByText(held)).toBeDefined();
+    expect(found6.queryByRole("checkbox")).toBeNull();
+  },
+);

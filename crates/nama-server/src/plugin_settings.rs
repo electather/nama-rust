@@ -49,8 +49,8 @@ mod title_sources;
 pub(crate) use personal::Personal;
 use sent::{check_fits, with_stored_secrets};
 use stored::{
-    first_grants, import, never_stored, save, save_first_grants, set_enabled, set_enabled_granting,
-    with_stored,
+    builtin_grants, import, never_stored, save, save_builtin_grants, set_enabled,
+    set_enabled_granting, with_stored,
 };
 pub use stored::{grants, stored};
 
@@ -119,7 +119,7 @@ pub enum StartError {
     /// On the first start, the config's tables couldn't be imported.
     #[error("could not import the plugin settings: {0}")]
     Import(sqlx::Error),
-    /// The Plugin Permissions granted the Built-in Plugins on their first start couldn't be saved.
+    /// The Plugin Permissions granted the Built-in Plugins couldn't be saved.
     #[error("could not save the permissions granted the built-in plugins: {0}")]
     Grant(sqlx::Error),
 }
@@ -206,8 +206,8 @@ impl PluginSettings {
     /// Makes the Installed Plugins in `config`'s data directory known beside those `registry`
     /// knows, and enables each one stored as enabled, with its stored settings. On the first start
     /// nothing is stored yet, so it uses `config`'s `[plugins.*]` tables, and imports them once
-    /// the Plugins have started. A Built-in Plugin nothing is stored for is granted the Plugin
-    /// Permissions it requests, and saved with them, since it is compiled in (ADR 0079).
+    /// the Plugins have started. Each Built-in Plugin is granted the Plugin Permissions it requests,
+    /// and saved with them in place of those stored, since it is compiled in (ADR 0079).
     ///
     /// A Plugin that fails to enable, such as one missing a required setting, is logged and left
     /// off.
@@ -224,8 +224,8 @@ impl PluginSettings {
     ) -> Result<Self, StartError> {
         let stored = stored(&db).await.map_err(StartError::Read)?;
         let mut grants = grants(&db).await.map_err(StartError::Read)?;
-        let first_grants = first_grants(&registry, &grants);
-        grants.extend(first_grants.clone());
+        let builtin_grants = builtin_grants(&registry, &grants);
+        grants.extend(builtin_grants.clone());
         let in_config: Vec<&str> = config.plugins.ids().collect();
         let importing = stored.is_none();
         let settings = match stored {
@@ -266,7 +266,7 @@ impl PluginSettings {
             info!(imported = ?in_config, "imported plugin settings from the config");
         }
         // After the import, which would otherwise find these Plugins' rows already stored.
-        save_first_grants(&plugins.db, &first_grants)
+        save_builtin_grants(&plugins.db, &builtin_grants)
             .await
             .map_err(StartError::Grant)?;
         plugins.note_had().await;
@@ -495,7 +495,8 @@ impl PluginSettings {
         .await
     }
 
-    /// [`PluginSettings::enable_granting`] with no Plugin Permissions.
+    /// [`PluginSettings::enable_granting`] with no Plugin Permissions, which a Built-in Plugin
+    /// ignores.
     ///
     /// # Errors
     ///
@@ -507,7 +508,8 @@ impl PluginSettings {
     /// Enables the Plugin `id` with its stored settings, granted the Plugin Permissions `granted`
     /// in place of those granted before, then saves it as enabled with them, so a refused enable
     /// saves nothing (ADR 0028, 0049). One already running with other grants is enabled again with
-    /// these. Enabling one already running saves it again, which is how a retry fixes a save that
+    /// these. A Built-in Plugin ignores `granted` and holds every Permission it requests (ADR
+    /// 0079). Enabling one already running saves it again, which is how a retry fixes a save that
     /// failed.
     ///
     /// # Errors
@@ -525,7 +527,12 @@ impl PluginSettings {
         let (this, id) = (self.clone(), id.clone());
         detached(async move {
             let _changing = this.lock().await;
-            let (manifest, StoredPlugin { stored, .. }) = this.listed(&id).await?;
+            let (manifest, StoredPlugin { plugin, stored, .. }) = this.listed(&id).await?;
+            let granted = if plugin.kind == PluginKind::PLUGIN_KIND_BUILT_IN {
+                manifest.permissions.iter().copied().collect()
+            } else {
+                granted
+            };
             if let Some(&permission) = granted
                 .iter()
                 .find(|permission| !manifest.permissions.contains(permission))

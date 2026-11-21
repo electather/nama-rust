@@ -112,27 +112,24 @@ async fn config_for_a_plugin_the_server_does_not_have_is_ignored() {
 }
 
 #[tokio::test]
-async fn a_builtin_plugin_is_granted_what_it_requests_on_its_first_start_and_an_admin_may_revoke_it()
- {
+async fn a_builtin_plugin_holds_what_it_requests_even_once_enabled_granting_none() {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-    let first = start(&db, data_dir.path(), "").await;
+    let plugins = start(&db, data_dir.path(), "").await;
     let requested = HashSet::from([
         Permission::PERMISSION_FORGET_HOME_ROWS,
         Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS,
         Permission::PERMISSION_FORGET_GONE_PLUGINS,
         Permission::PERMISSION_REFRESH_METADATA,
     ]);
-    assert_eq!(upkeep_granted(&first).await, requested);
+    assert_eq!(upkeep_granted(&plugins).await, requested);
 
-    first
+    plugins
         .enable_granting(&Upkeep::ID, HashSet::new())
         .await
         .unwrap();
-    first.shutdown().await;
-    let restarted = start(&db, data_dir.path(), "").await;
 
-    assert_eq!(upkeep_granted(&restarted).await, HashSet::new());
+    assert_eq!(upkeep_granted(&plugins).await, requested);
 }
 
 #[test]

@@ -4,7 +4,7 @@ import { GrantedPermissions } from "@/features/admin-plugins/components/granted-
 import { useDisablePlugin } from "@/features/admin-plugins/data/use-disable-plugin";
 import { useEnablePlugin } from "@/features/admin-plugins/data/use-enable-plugin";
 import { refusedChange } from "@/features/admin-plugins/lib/refused-change";
-import type { PluginSummary, Setting } from "@/gen/nama/v1/plugin_pb";
+import { PluginKind, type PluginSummary, type Setting } from "@/gen/nama/v1/plugin_pb";
 import { StateLabel } from "@/shared/components/state-label";
 import { pluginName } from "@/shared/lib/plugins";
 import { Button } from "@/shared/ui/button";
@@ -38,7 +38,12 @@ export function EnableOrDisable({
           {action}
         </Button>
       </div>
-      {summary.enabled && <GrantedPermissions granted={summary.grantedPermissions} />}
+      {showsHeld(summary) && (
+        <GrantedPermissions
+          granted={summary.grantedPermissions}
+          builtIn={summary.kind === PluginKind.BUILT_IN}
+        />
+      )}
       {change.isError && (
         <p role="alert" className="w-full text-sm text-pretty text-destructive">
           {refusedChange(change.error, `${action.toLowerCase()} ${pluginName(summary)}`, settings)}
@@ -46,4 +51,12 @@ export function EnableOrDisable({
       )}
     </>
   );
+}
+
+/**
+ * Whether `summary` lists the Plugin Permissions it holds: a Built-in Plugin holds them even while
+ * disabled (ADR 0079), and an Installed one gets new grants when it is enabled again.
+ */
+function showsHeld(summary: PluginSummary) {
+  return summary.enabled || summary.kind === PluginKind.BUILT_IN;
 }
