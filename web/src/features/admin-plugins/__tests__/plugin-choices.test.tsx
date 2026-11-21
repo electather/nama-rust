@@ -274,6 +274,42 @@ test("several picked choices are saved, and show picked after a reload", async (
   await expect(shown()).resolves.toStrictEqual({ offered: ["G", "PG", "R"], picked: ["G", "R"] });
 });
 
+test("a several-choices setting holding nothing shows its default picked", async () => {
+  const defaultValue = { value: { case: "texts" as const, value: { values: ["g", "r"] } } };
+  openPlugin("test-choices", {
+    getPlugin: () => ({
+      plugin: {
+        summary: { id: "test-choices", enabled: true },
+        settings: [{ ...ratingsSetting, defaultValue }],
+      },
+    }),
+  });
+
+  const { picked } = await shown();
+  expect(picked).toStrictEqual(["G", "R"]);
+});
+
+test("a required several-choices setting saved with none picked shows as missing", async () => {
+  openPlugin("test-choices", {
+    updatePluginSettings: () => {
+      throw refused(Code.InvalidArgument, "the setting ratings is required", {
+        reason: RefusalReason.FIELD_REQUIRED,
+        field: "settings.ratings",
+        params: { pluginId: "test-choices", settingKey: "ratings" },
+      });
+    },
+  });
+  await pick("PG", "nc-17 (no longer offered)");
+
+  await pressSave();
+
+  const group = await ratings();
+  const error = await group.findByText("This setting is required.");
+  const found = await plugin("test-choices");
+  const fieldset = found.getByRole("group", { name: "Ratings" });
+  expect(fieldset.getAttribute("aria-describedby")).toContain(error.id);
+});
+
 test("unpicking every choice saves none picked, not the default", async () => {
   const sent: unknown[] = [];
   openSaving(sent);

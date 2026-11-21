@@ -2,6 +2,7 @@ import { type Setting, type SettingChoices, SettingKind } from "@/gen/nama/v1/pl
 import { OwnInput } from "@/shared/components/setting-input/own-input";
 import { PickedInput } from "@/shared/components/setting-input/picked-input";
 
+// Keep in step with `PickedInput`, which draws any kind here it doesn't check for as Libraries.
 const pickedKinds = new Set<SettingKind>([
   SettingKind.CHOICE,
   SettingKind.CHOICES,

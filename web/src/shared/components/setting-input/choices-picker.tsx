@@ -16,7 +16,7 @@ export function ChoicesPicker({
   offered: Choice[];
   error: string | undefined;
 }) {
-  const held = setting.value?.value.case === "texts" ? setting.value.value.value.values : [];
+  const held = heldOf(setting);
   const gone = held.filter((value) => !offered.some((choice) => choice.value === value));
   return (
     <PickList label={setting.label} hint={hintOf(setting)} error={error}>
@@ -45,4 +45,10 @@ export function ChoicesPicker({
 /** What `setting` is for, then whether it's required. Picking none saves none, never its default. */
 function hintOf({ description, required }: Setting) {
   return required ? `${description} Required.`.trim() : description;
+}
+
+/** The values `setting` holds, or its default's while nothing is stored, which the form then saves. */
+function heldOf({ value, defaultValue }: Setting) {
+  const held = value ?? defaultValue;
+  return held?.value.case === "texts" ? held.value.value.values : [];
 }
