@@ -640,6 +640,7 @@ pub(super) async fn match_show_episodes(
     let stores = episodes
         .iter()
         .map(|&episode| Change::Store {
+            edition: None,
             path: format!("/media/Dark/Season {season}/Dark - S{season}E{episode}.mkv"),
             size: 1,
             modified_ns: 0,

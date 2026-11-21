@@ -111,6 +111,7 @@ async fn forgetting_unmatched_keeps_matches_pins_and_other_libraries_decisions()
         fx.store(path, 10, movie(title, year)).await;
     }
     let change = Change::Store {
+        edition: None,
         path: "/other/Alien (1979).mkv".to_owned(),
         size: 10,
         modified_ns: 0,
@@ -247,6 +248,7 @@ async fn items_of_one_file_found_together_list_one_a_page_in_every_order() {
     let fx = Fixture::new().await;
     // One file, so the three tie on both path and when they were found, and only ids part them.
     let change = Change::Store {
+        edition: None,
         path: ALIEN.to_owned(),
         size: 10,
         modified_ns: 0,

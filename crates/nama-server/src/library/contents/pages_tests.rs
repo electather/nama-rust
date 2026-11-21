@@ -71,6 +71,7 @@ impl Shows {
     async fn store(&self, fx: &Fixture, (title, show): (&str, i64), number: i64, episode: i64) {
         let path = format!("/media/{title}/{title} - S01E{number:02}.mkv");
         let change = Change::Store {
+            edition: None,
             path: path.clone(),
             size: 10,
             modified_ns: 0,

@@ -170,7 +170,7 @@ test("a Library's page shows a Movie as soon as it's Matched", async () => {
   await expect(screen.findByText("Alien")).resolves.toBeDefined();
 });
 
-test("a Movie's menu chooses its Version, each by its picture, sound and size, the largest first", async () => {
+test("a Movie's menu chooses its Version, each by its Edition, picture, sound and size, the largest first", async () => {
   const transport = serverToBrowse({
     getMovie: () => ({
       movie: {
@@ -179,7 +179,8 @@ test("a Movie's menu chooses its Version, each by its picture, sound and size, t
         versions: [
           {
             id: 1n,
-            fileName: "Alien (1979) - 2160p.mkv",
+            fileName: "Alien (1979) {edition-Director's Cut} - 2160p.mkv",
+            edition: "Director's Cut",
             size: 60_000_000_000n,
             tracks: [
               {
@@ -195,7 +196,8 @@ test("a Movie's menu chooses its Version, each by its picture, sound and size, t
           },
           {
             id: 2n,
-            fileName: "Alien (1979) - 720p.mkv",
+            fileName: "Alien (1979) {edition-Director's Cut} - 720p.mkv",
+            edition: "Director's Cut",
             size: 2_000_000_000n,
             tracks: [
               { codec: "h264", kind: { case: "video", value: { width: 1280, height: 534 } } },
@@ -215,8 +217,8 @@ test("a Movie's menu chooses its Version, each by its picture, sound and size, t
   expect(
     versions.map((version) => [version.textContent, version.getAttribute("aria-checked")]),
   ).toStrictEqual([
-    ["4K · HDR · 5.1 · 60 GB", "true"],
-    ["720p · Stereo · 2 GB", "false"],
+    ["Director's Cut · 4K · HDR · 5.1 · 60 GB", "true"],
+    ["Director's Cut · 720p · Stereo · 2 GB", "false"],
     ["0.7 GB", "false"],
   ]);
 });

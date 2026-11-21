@@ -151,6 +151,7 @@ async fn a_movie_keeps_the_time_it_was_added_through_a_reparse_and_a_new_match()
     db::advance_clock(Duration::from_secs(2));
     let file = fx.contents.stored(fx.library).await.unwrap()[ALIEN].id;
     let reparse = Change::Reparse {
+        edition: None,
         file,
         path: ALIEN.to_owned(),
         items: vec![movie("Alien", 2000)],

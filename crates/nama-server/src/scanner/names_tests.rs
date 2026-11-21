@@ -2,7 +2,7 @@ use std::path::Path;
 
 use nama_plugin_api::metadata::{ExternalId, IMDB};
 
-use super::{is_extra, parse};
+use super::{edition, is_extra, parse};
 use crate::library::{
     Item,
     LibraryKind::{Movies, Shows},
@@ -86,7 +86,7 @@ fn movies() {
             "B/Blade Runner (1982)/Blade Runner (1982).mkv",
             movie("Blade Runner", Some(1982), None),
         ),
-        // Editions, versions and qualities after the year are ignored.
+        // Editions, versions and qualities after the year name no other Movie.
         (
             "Blade Runner (1982)/Blade Runner (1982) {edition-Final Cut} - 2160p.mkv",
             movie("Blade Runner", Some(1982), None),
@@ -209,7 +209,8 @@ fn movies_with_id_hints_or_too_little_to_go_on() {
 #[test]
 fn movies_with_id_hints_in_any_namespace() {
     let cases = [
-        // Any other namespace in curly braces, case-folded, but not Plex's edition tag.
+        // Any other namespace in curly braces, case-folded, but not Plex's edition tag, which
+        // names a Version's Edition instead.
         (
             "Perfect Blue {AniDB-5101}/movie.mkv",
             movie(
@@ -225,9 +226,52 @@ fn movies_with_id_hints_in_any_namespace() {
         ("Blade Runner {edition-Director's Cut}/movie.mkv", None),
         ("Blade Runner {edition-Final}/movie.mkv", None),
         ("Blade Runner {tmdbid-abc}/movie.mkv", None),
+        // Placeholders name nothing.
+        ("Blade Runner {tmdb-0}/movie.mkv", None),
+        ("Blade Runner [imdbid-tt0000000]/movie.mkv", None),
     ];
     for (path, expected) in cases {
         assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");
+    }
+}
+
+#[test]
+fn editions() {
+    let cases = [
+        (
+            "Blade Runner (1982)/Blade Runner (1982) {edition-Director's Cut}.mkv",
+            Some("Director's Cut"),
+        ),
+        // Any case, kept as written but trimmed.
+        ("Alien (1979) {Edition- Final Cut }.mkv", Some("Final Cut")),
+        ("Alien (1979) {EDITION-IMAX}.mkv", Some("IMAX")),
+        // The Movie's folder's, for every file in it.
+        (
+            "Alien (1979) {edition-Theatrical}/Alien (1979) - 2160p.mkv",
+            Some("Theatrical"),
+        ),
+        // The file's wins over its folder's.
+        (
+            "Alien (1979) {edition-Theatrical}/Alien (1979) {edition-Extended}.mkv",
+            Some("Extended"),
+        ),
+        // The nearest folder's.
+        (
+            "Sci-Fi {edition-Wrong}/Alien (1979) {edition-Right}/alien.mkv",
+            Some("Right"),
+        ),
+        // An Episode's too.
+        (
+            "Dark (2017)/Season 01/Dark - S01E01 {edition-Extended}.mkv",
+            Some("Extended"),
+        ),
+        // Curly braces only, and never empty.
+        ("Alien (1979) [edition-Final Cut].mkv", None),
+        ("Alien (1979) {edition-  }.mkv", None),
+        ("Alien (1979)/Alien (1979).mkv", None),
+    ];
+    for (path, expected) in cases {
+        assert_eq!(edition(Path::new(path)).as_deref(), expected, "{path}");
     }
 }
 

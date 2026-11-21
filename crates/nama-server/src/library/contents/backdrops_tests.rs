@@ -40,6 +40,7 @@ async fn store_episode(fx: &Fixture, library: i64, path: &str, title: &str, show
         episode: 1,
     };
     let change = Change::Store {
+        edition: None,
         path: path.to_owned(),
         size: 10,
         modified_ns: 0,

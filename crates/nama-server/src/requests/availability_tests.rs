@@ -80,6 +80,7 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
         episode: 1,
     };
     let store = Change::Store {
+        edition: None,
         path: "/media/Dark/Season 01/Dark - S01E01.mkv".to_owned(),
         size: 1,
         modified_ns: 0,

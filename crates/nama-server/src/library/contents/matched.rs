@@ -77,6 +77,7 @@ pub(crate) struct Version {
     /// Its file as stored now.
     pub(crate) file: Stored,
     pub(crate) path: String,
+    pub(crate) edition: Option<String>,
 }
 
 /// What [`Contents::matched_to`] found a Version Matched to.
@@ -405,7 +406,8 @@ impl Contents {
                        SELECT titles.listed_id AS "listed_id!: String",
                               library_files.id AS "file!", library_files.path,
                               library_files.size, library_files.modified_ns,
-                              library_files.parser_version, item_matches.plugin AS "plugin!", "#
+                              library_files.parser_version, library_files.edition,
+                              item_matches.plugin AS "plugin!", "#
                         + $ids
                         + r#"'title') AS "ids?: String", item_matches.title AS "title!",
                               item_matches.original_title, item_matches.overview,
@@ -459,6 +461,7 @@ impl Contents {
                 row.size,
                 row.modified_ns,
                 row.parser_version,
+                row.edition,
             );
             match movies.last_mut() {
                 Some(movie) if movie.id == id => movie.versions.push(version),
@@ -517,7 +520,8 @@ impl Contents {
                               titles.own_id AS "own_id!: String",
                               library_files.id AS "file!", library_files.path,
                               library_files.size, library_files.modified_ns,
-                              library_files.parser_version, titles.season AS "season!: i64",
+                              library_files.parser_version, library_files.edition,
+                              titles.season AS "season!: i64",
                               titles.episode AS "episode!: i64",
                               item_matches.plugin AS "plugin!", "#
                         + $ids
@@ -608,6 +612,7 @@ impl Contents {
                 row.size,
                 row.modified_ns,
                 row.parser_version,
+                row.edition,
             );
             match season.episodes.last_mut() {
                 Some(episode) if episode.id == id => episode.versions.push(version),
@@ -718,14 +723,29 @@ pub(super) fn genres(json: Option<&str>) -> Result<Vec<String>, sqlx::Error> {
 
 /// The Version of a file that [`Contents::movies`] and [`Contents::shows`] read, its columns
 /// in the order both select them.
-fn version(id: i64, path: String, size: i64, modified_ns: i64, parser_version: i64) -> Version {
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the columns both queries select, in the order they select them"
+)]
+fn version(
+    id: i64,
+    path: String,
+    size: i64,
+    modified_ns: i64,
+    parser_version: i64,
+    edition: Option<String>,
+) -> Version {
     let file = Stored {
         id,
         size,
         modified_ns,
         parser_version,
     };
-    Version { file, path }
+    Version {
+        file,
+        path,
+        edition,
+    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO library_files (library_id, path, size, modified_ns, parser_version,\n                                                  edition)\n                       VALUES (?, ?, ?, ?, ?, ?)\n                       ON CONFLICT (library_id, path)\n                       DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns,\n                                     parser_version = excluded.parser_version,\n                                     edition = excluded.edition\n                       RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5681b1d93e252dc3e53f8e9f5d70bc9d3710213a6b4e3777fbc72b495a03853a"
+}

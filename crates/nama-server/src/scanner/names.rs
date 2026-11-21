@@ -10,11 +10,13 @@
 //! - ID Hints anywhere in a Movie's or Show's name: `{tmdb-123}`, `[tvdbid-123]`,
 //!   `(imdb=tt0083658)` and the like, a bare `tt0083658`, or `{namespace-value}` in any other
 //!   namespace, such as `{anidb-5101}`.
+//! - An Edition in a file's name, else its nearest folder's: `{edition-Director's Cut}`. It names
+//!   the Version and nothing else, so it never takes part in Matching.
 //! - A country tag ending a Show's name, as Sonarr names same-name Shows apart: `The Office (US)`.
 //!   It stays in the stored name, so pins keep their key; Matching reads it with
 //!   [`country_tag`](crate::library::country_tag).
 //!
-//! Only paths are read here. The scanner never opens `.nfo` files or any other sidecar.
+//! Only paths are read here; [`super::nfo`] reads the IDs in `.nfo` files.
 
 use std::{ops::RangeInclusive, path::Path, sync::LazyLock};
 
@@ -39,6 +41,9 @@ static ID_HINT: LazyLock<Regex> = LazyLock::new(|| {
         r"|(?:\b|_)(?P<bare>tt\d{7,})(?:\b|_)",
     ))
 });
+
+/// Plex's edition tag, in curly braces only.
+static EDITION: LazyLock<Regex> = LazyLock::new(|| regex(r"(?i)\{edition-(?P<edition>[^}]*)\}"));
 
 /// Any `{…}` or `[…]` tag, such as an ID Hint, an edition or a quality.
 static TAG: LazyLock<Regex> = LazyLock::new(|| regex(r"\{[^}]*\}|\[[^\]]*\]"));
@@ -100,7 +105,7 @@ const EXTRAS_SUFFIXES: &[&str] = &[
     clippy::expect_used,
     reason = "the patterns are constants, and the tests compile every one"
 )]
-fn regex(pattern: &str) -> Regex {
+pub(super) fn regex(pattern: &str) -> Regex {
     Regex::new(pattern).expect("a constant pattern compiles")
 }
 
@@ -150,6 +155,16 @@ pub(super) fn parse(kind: LibraryKind, relative: &Path) -> Option<Vec<Item>> {
         LibraryKind::Movies => parse_movie(&folders, &stem).map(|movie| vec![movie]),
         LibraryKind::Shows => parse_episodes(relative, &stem),
     }
+}
+
+/// The Edition the file at `relative`, relative to its Library folder, holds: the one in its own
+/// name, else in its nearest folder's, as written but trimmed.
+pub(super) fn edition(relative: &Path) -> Option<String> {
+    relative.iter().rev().find_map(|name| {
+        let captures = EDITION.captures(name.to_str()?)?;
+        let edition = captures.name("edition")?.as_str().trim();
+        (!edition.is_empty()).then(|| edition.to_owned())
+    })
 }
 
 /// A Movie, named by the file if its name gives a year or an ID Hint, or else by the nearest
@@ -329,15 +344,16 @@ pub(super) fn id_hint(namespace: &str, value: &str) -> Option<ExternalId> {
     let digits = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit());
     match namespace.strip_suffix("id").unwrap_or(namespace) {
         // Leading zeros go, as they did when these were read as numbers.
+        // An id of zeros is a placeholder, as `.nfo` files write one, and names nothing.
         well_known @ (TMDB | TVDB) => digits(value)
             .then(|| value.parse::<i64>().ok())
             .flatten()
+            .filter(|&id| id > 0)
             .and_then(|id| ExternalId::new(well_known, id.to_string()).ok()),
         IMDB => {
             let value = value.to_ascii_lowercase();
-            value
-                .strip_prefix("tt")
-                .is_some_and(digits)
+            (value.strip_prefix("tt"))
+                .is_some_and(|number| digits(number) && number.bytes().any(|b| b != b'0'))
                 .then(|| ExternalId::new(IMDB, value).ok())
                 .flatten()
         }

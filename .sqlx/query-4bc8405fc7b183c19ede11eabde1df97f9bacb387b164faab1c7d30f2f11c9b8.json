@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.id AS \"id!\", library_items.nfo_hints,\n                      library_items.episode_nfo_hints\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND (library_items.nfo_hints IS NOT NULL\n                      OR library_items.episode_nfo_hints IS NOT NULL)",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "nfo_hints",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "nfo_hints"
+          }
+        }
+      },
+      {
+        "name": "episode_nfo_hints",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode_nfo_hints"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "4bc8405fc7b183c19ede11eabde1df97f9bacb387b164faab1c7d30f2f11c9b8"
+}
