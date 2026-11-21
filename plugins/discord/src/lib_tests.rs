@@ -34,10 +34,10 @@ fn dune_approved() -> Notification {
     }
 }
 
-/// The User whose Personal setting webhook is `webhook`.
-fn user(webhook: &str) -> Recipient {
+/// The User whose Personal setting webhook is `url`.
+fn user(url: &str) -> Recipient {
     Recipient::User(Box::new(UserRecipient {
-        personal_settings: std::iter::once(("webhook".to_owned(), webhook.to_owned())).collect(),
+        personal_settings: std::iter::once(("webhook".to_owned(), url.to_owned())).collect(),
         ..UserRecipient::default()
     }))
 }

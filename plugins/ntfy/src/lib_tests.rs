@@ -33,7 +33,6 @@ fn dune_approved() -> Notification {
     }
 }
 
-/// The User with these Personal settings.
 fn user(personal_settings: &[(&str, &str)]) -> Recipient {
     Recipient::User(Box::new(UserRecipient {
         personal_settings: personal_settings
