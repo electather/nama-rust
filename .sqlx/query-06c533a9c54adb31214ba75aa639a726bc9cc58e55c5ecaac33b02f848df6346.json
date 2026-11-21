@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin, similar FROM similar_titles\n             WHERE kind = ? AND namespace = ? AND value = ?\n             ORDER BY plugin",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "similar_titles",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "similar",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "similar_titles",
+            "name": "similar"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "06c533a9c54adb31214ba75aa639a726bc9cc58e55c5ecaac33b02f848df6346"
+}

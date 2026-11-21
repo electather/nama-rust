@@ -24,7 +24,7 @@ use crate::{
     db::Database,
     diagnostics::{self, PluginLine},
     images::PluginLogos,
-    library::{CustomImageUrls, CustomImages, Slot},
+    library::{Contents, CustomImageUrls, CustomImages, Slot},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
@@ -188,10 +188,12 @@ impl PluginService for PluginServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DisablePluginRequest>,
     ) -> ServiceResult<DisablePluginResponse> {
-        self.plugin_settings
-            .disable(&PluginId::from(request.id.to_owned()))
-            .await
-            .map_err(change_refused)?;
+        let plugin = PluginId::from(request.id.to_owned());
+        (self.plugin_settings.disable(&plugin).await).map_err(change_refused)?;
+        // Its Similar titles go now, and come back only as its titles refresh (ADR 0084).
+        let contents = Contents::new(Arc::clone(&self.db));
+        let forgotten = contents.forget_similar_from(&plugin).await;
+        forgotten.map_err(database_failed)?;
         Response::ok(DisablePluginResponse::default())
     }
 

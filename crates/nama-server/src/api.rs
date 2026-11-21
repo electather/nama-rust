@@ -25,8 +25,8 @@ use crate::{
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, TitleKind,
-        TitleSources, artwork_router, custom_images_router, local_images_router,
+        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, SimilarSources,
+        TitleKind, TitleSources, artwork_router, custom_images_router, local_images_router,
     },
     playback::{
         Plans, PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
@@ -170,6 +170,7 @@ pub(crate) fn router(
         .add_service(Arc::new(requests::RequestServiceHandler {
             requests,
             browse: Browse::new(Arc::clone(&db)),
+            similar: SimilarSources::new(plugins.clone()),
             images: images.clone(),
             db: Arc::clone(&db),
         }))

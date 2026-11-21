@@ -14,9 +14,9 @@ use crate::{
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, OnServer,
-        Roles, Stored, TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState,
-        WatchStateKind, WatchStates,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, MAX_SIMILAR, NotFound,
+        OnServer, Roles, SimilarAnswer, Stored, TitleKind, TitleTarget as Target, Titles,
+        Unmatched, WatchState, WatchStateKind, WatchStates, merged_similar,
     },
     page::{self, Page},
     playback::{Probe, StoredTracks, Track},
@@ -342,16 +342,28 @@ impl Browse {
         self.tracks.of(&files).await
     }
 
-    /// The Similar titles that the Match in `library` of the title of `kind` known by `ids`
-    /// stores, as [`Self::in_libraries`] finds them.
+    /// The Similar titles of the title of `kind` known by `ids`, merged from what each Similar
+    /// source last answered about it, as [`Self::similar_in_libraries`] finds them.
     pub(crate) async fn similar(
         &self,
-        library: i64,
         kind: TitleKind,
         ids: &ExternalIds,
     ) -> Result<Vec<OnServer>, Error> {
-        let similar = self.contents.similar(library, kind, ids).await?;
-        self.in_libraries(kind, &similar).await
+        let answers = self.contents.similar(kind, ids).await?;
+        self.similar_in_libraries(kind, &answers).await
+    }
+
+    /// The first [`MAX_SIMILAR`] titles of `answers`, merged (ADR 0084), that a Library has, as
+    /// [`Self::in_libraries`] finds them: a title two sources answer, by any id they share, once,
+    /// at its heaviest weight.
+    pub(crate) async fn similar_in_libraries(
+        &self,
+        kind: TitleKind,
+        answers: &[SimilarAnswer],
+    ) -> Result<Vec<OnServer>, Error> {
+        let mut similar = self.in_libraries(kind, &merged_similar(answers)).await?;
+        similar.truncate(MAX_SIMILAR);
+        Ok(similar)
     }
 
     /// The titles of `kind` that `ids` name and a Library has, in the order of `ids`, each once,

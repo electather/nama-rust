@@ -46,6 +46,9 @@ home-rows-shared-only = ["home-rows"]
 home-rows-user-only = ["home-rows"]
 # Builds the Plugin naming the subtitle source Extension Point; it finds and downloads nothing.
 subtitle-source = []
+# Builds the Plugin naming the Similar source Extension Point; its `similar` setting says which
+# titles it answers about every title, or makes it fail or loop.
+similar-source = []
 
 [dependencies]
 # Extism's own HTTP, which `nama_pdk::extism_pdk` closes, so the Kernel's refusal of a host

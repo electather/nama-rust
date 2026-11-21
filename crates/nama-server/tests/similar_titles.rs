@@ -1,19 +1,31 @@
-//! A title's Similar titles in the Libraries (ADR 0081), on its page and its request page alike,
-//! over a real socket with the TMDB Plugin enabled against a fake TMDB, where Alien's are Aliens
-//! and Heat, and Dark's are Stranger Things and the US Office.
+//! A title's Similar titles in the Libraries (ADR 0081, ADR 0084), on its page and its request
+//! page alike, over a real socket with the TMDB Plugin enabled against a fake TMDB, whose Similar
+//! source answers Alien's as Aliens and Heat, and Dark's as Stranger Things and the US Office, and
+//! with the test Plugin as a second Similar source.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
 mod browsing;
+#[expect(dead_code, reason = "this binary uses only some of the helpers")]
+#[path = "support/home_row_plugin.rs"]
+mod home_row_plugin;
+#[path = "support/installed_test_plugin.rs"]
+mod installed_test_plugin;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
+#[path = "support/test_plugin.rs"]
+mod test_plugin;
+
+use std::collections::HashMap;
 
 use browsing::{ALIEN_1080P, tmdb_id};
 use connectrpc::client::HttpClient;
+use home_row_plugin::{PLUGIN, disable, enable, text};
 use nama_proto::nama::v1::{
     BrowseServiceClient, GetMovieRequest, GetShowRequest, LibraryKind, LookUpMovieRequest,
-    LookUpShowRequest, MovieHit, RequestServiceClient, ShowHit,
+    LookUpShowRequest, MatchServiceClient, MovieHit, RequestServiceClient, SetMatchRequest,
+    ShowHit, UpdatePluginSettingsRequest,
 };
 use server::{
     TestServer,
@@ -113,4 +125,168 @@ async fn a_shows_page_and_request_page_show_its_similar_titles_in_a_library_alon
     let the_office = vec![(Some(fx.shows), THE_OFFICE.to_string())];
     assert_eq!(shows_opened(&page), the_office);
     assert_eq!(shows_opened(&looked_up.unwrap().similar), the_office);
+}
+
+const DUNE_FILE: &str = "Dune (2021) {tmdb-438631}/Dune (2021).mkv";
+
+/// Alien's and Heat's IMDb ids, as their Matches have them from TMDB.
+const ALIEN_IMDB: &str = "imdb-tt0078748";
+const HEAT_IMDB: &str = "imdb-tt0113277";
+
+/// A Server with Alien, Heat and Dune in a Movies Library, Matched while the test Plugin, a
+/// Similar source, answered as [`answer_with`] set it, beside TMDB's.
+struct WithSource {
+    server: TestServer,
+    alien: i64,
+    movies: i64,
+    browse: BrowseServiceClient<HttpClient>,
+    requests: RequestServiceClient<HttpClient>,
+    matches: MatchServiceClient<HttpClient>,
+}
+
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+impl WithSource {
+    async fn start(answer: &str) -> Self {
+        let server = TestServer::builder().tmdb().start().await;
+        server.enable_test_plugin("similar-source").await;
+        answer_with(&server, answer).await;
+        let files = [ALIEN_1080P, HEAT_FILE, DUNE_FILE];
+        let movies = (server)
+            .create_library(LibraryKind::LIBRARY_KIND_MOVIES, &files)
+            .await;
+        let items: HashMap<String, i64> = server.scan_and_match(&movies).await;
+        let config = server.client_config();
+        Self {
+            alien: items[ALIEN_1080P],
+            movies: movies.id,
+            browse: BrowseServiceClient::new(HttpClient::plaintext(), config.clone()),
+            requests: RequestServiceClient::new(HttpClient::plaintext(), config.clone()),
+            matches: MatchServiceClient::new(HttpClient::plaintext(), config),
+            server,
+        }
+    }
+
+    /// The titles of the Similar titles on Alien's page.
+    async fn alien_page(&self) -> Vec<String> {
+        let page = self.browse.get_movie(GetMovieRequest {
+            library_id: self.movies,
+            movie_id: tmdb_id(ALIEN).into(),
+            ..Default::default()
+        });
+        titles(&page.await.unwrap().into_owned().similar)
+    }
+
+    /// The titles of the Similar titles on Alien's request page.
+    async fn alien_looked_up(&self) -> Vec<String> {
+        let looked_up = self.requests.look_up_movie(LookUpMovieRequest {
+            movie_id: tmdb_id(ALIEN).into(),
+            ..Default::default()
+        });
+        let found = looked_up.await.unwrap().into_owned().movie.into_option();
+        titles(&found.unwrap().similar)
+    }
+
+    /// Fixes Alien's Match by hand to Alien, which fetches it again and asks the Similar sources.
+    async fn refresh_alien(&self) {
+        (self.matches)
+            .set_match(SetMatchRequest {
+                item_id: self.alien,
+                title_id: tmdb_id(ALIEN).into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+}
+
+/// Saves `answer` as the test Plugin's `similar` setting: the titles it answers about every title,
+/// as `<namespace>-<value>@<weight>`, comma-separated, or `fail` or `loop`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn answer_with(server: &TestServer, answer: &str) {
+    (server.plugin_service())
+        .update_plugin_settings(UpdatePluginSettingsRequest {
+            id: PLUGIN.to_owned(),
+            settings: std::iter::once(("similar".to_owned(), text(answer))).collect(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+fn titles(hits: &[MovieHit]) -> Vec<String> {
+    hits.iter().map(|hit| hit.title.clone()).collect()
+}
+
+#[tokio::test]
+async fn two_sources_merge_by_weight_each_title_once_at_its_heaviest_ties_to_the_lower_plugin_id() {
+    // TMDB answers Aliens, in no Library, at 1.0 and Heat at 0.5. The test Plugin answers Dune at
+    // 0.5, Heat by its IMDb id at 0.2, Alien itself by its IMDb id at -3, which clamps to 0.0, and
+    // a Movie in no Library at 1.0.
+    let answer = format!(
+        "tmdb-{DUNE}@0.5,{HEAT_IMDB}@0.2,{ALIEN_IMDB}@-3,tmdb-{UNLISTED}@1.0",
+        DUNE = server::tmdb::DUNE,
+        UNLISTED = server::tmdb::UNLISTED,
+    );
+    let fx = WithSource::start(&answer).await;
+
+    let page = fx.alien_page().await;
+    let looked_up = fx.alien_looked_up().await;
+
+    // `test-plugin` sorts before `tmdb`, so Dune wins its tie with Heat.
+    assert_eq!(page, ["Dune", "Heat", "Alien"]);
+    assert_eq!(looked_up, page);
+}
+
+#[tokio::test]
+async fn a_failed_refresh_keeps_a_sources_last_answer_and_an_answer_replaces_it() {
+    let fx = WithSource::start(&format!("tmdb-{}@1.0", server::tmdb::DUNE)).await;
+
+    answer_with(&fx.server, "fail").await;
+    fx.refresh_alien().await;
+    let after_failing = fx.alien_page().await;
+    answer_with(&fx.server, "").await;
+    fx.refresh_alien().await;
+
+    assert_eq!(after_failing, ["Dune", "Heat"]);
+    assert_eq!(fx.alien_page().await, ["Heat"]);
+}
+
+#[tokio::test]
+async fn disabling_a_source_drops_its_titles_and_enabling_it_waits_for_the_next_refresh() {
+    let fx = WithSource::start(&format!("tmdb-{}@1.0", server::tmdb::DUNE)).await;
+
+    disable(&fx.server).await;
+    let disabled = fx.alien_page().await;
+    enable(&fx.server).await;
+    let enabled = fx.alien_page().await;
+    fx.refresh_alien().await;
+
+    assert_eq!(disabled, ["Heat"]);
+    assert_eq!(enabled, ["Heat"], "enabling asks about no title");
+    assert_eq!(fx.alien_page().await, ["Dune", "Heat"]);
+}
+
+#[tokio::test]
+async fn a_request_page_asks_the_sources_live_and_leaves_out_one_running_past_its_limit() {
+    let fx = WithSource::start("").await;
+
+    answer_with(&fx.server, &format!("tmdb-{}@1.0", server::tmdb::DUNE)).await;
+    let answered = fx.alien_looked_up().await;
+    answer_with(&fx.server, "loop").await;
+    let looping = fx.alien_looked_up().await;
+
+    assert_eq!(answered, ["Dune", "Heat"]);
+    assert_eq!(looping, ["Heat"]);
+    assert_eq!(
+        fx.alien_page().await,
+        ["Heat"],
+        "a title page reads what's stored"
+    );
 }

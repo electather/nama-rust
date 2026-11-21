@@ -57,14 +57,5 @@
       {"iso_639_1": "en", "iso_3166_1": "US", "name": "Final Trailer", "key": "darkFinal01", "site": "YouTube", "type": "Trailer", "official": true},
       {"iso_639_1": "en", "iso_3166_1": "US", "name": "Netflix Trailer", "key": "123456789", "site": "Vimeo", "type": "Trailer", "official": true}
     ]
-  },
-  "recommendations": {
-    "page": 1,
-    "results": [
-      {"id": 66732, "name": "Stranger Things"},
-      {"id": 2316, "name": "The Office"}
-    ],
-    "total_pages": 1,
-    "total_results": 2
   }
 }

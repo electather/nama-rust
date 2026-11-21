@@ -32,6 +32,7 @@ mod notification_text;
 mod outside_service;
 mod recogniser;
 mod segment_source;
+mod similar_source;
 mod subtitle_source;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod testing;
@@ -54,6 +55,7 @@ pub use recogniser::{
 pub use segment_source::{
     SegmentKind, SegmentResult, SegmentResults, SegmentSearch, SegmentSource,
 };
+pub use similar_source::{SimilarAsked, SimilarSource, SimilarTitle, SimilarTitles};
 pub use subtitle_source::{
     SubtitleDownload, SubtitleFile, SubtitleResult, SubtitleResults, SubtitleSearch, SubtitleSource,
 };

@@ -27,6 +27,7 @@ pub mod points;
 pub mod recogniser;
 pub mod segment_source;
 pub mod settings;
+pub mod similar_source;
 pub mod subtitle_source;
 
 /// The Plugin contract's messages (ADR 0041), which the Extension Points take and return, so a

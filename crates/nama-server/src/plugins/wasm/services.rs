@@ -16,6 +16,7 @@ use nama_plugin_api::{
     points::Events,
     recogniser::Recogniser,
     segment_source::SegmentSource,
+    similar_source::SimilarSource,
     subtitle_source::SubtitleSource,
 };
 use nama_plugin_proto::services;
@@ -171,6 +172,8 @@ pub(super) const SUBTITLE_DOWNLOAD: Method =
     required(services::SUBTITLE_SOURCE, "Download", "subtitle_download");
 pub(super) const SEGMENT_SEARCH: Method =
     required(services::SEGMENT_SOURCE, "Search", "segment_search");
+pub(super) const SIMILAR_TITLES: Method =
+    required(services::SIMILAR_SOURCE, "Similar", "similar_titles");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -283,6 +286,15 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn SegmentSource>,
         register: |registrar, running| {
             registrar.provide::<dyn SegmentSource>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        service: services::SIMILAR_SOURCE,
+        crash_group: services::SIMILAR_SOURCE,
+        methods: &[SIMILAR_TITLES],
+        key: PointKey::provide::<dyn SimilarSource>,
+        register: |registrar, running| {
+            registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, Arc::new(running));
         },
     },
     Point {

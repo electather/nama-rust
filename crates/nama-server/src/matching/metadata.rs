@@ -1,9 +1,36 @@
 //! What a Match stores of a title beyond its title source's answer: the artwork picked for it,
-//! and for an Episode, what it takes of its Show.
+//! for an Episode what it takes of its Show, and what the Similar sources answer about it.
 
-use nama_plugin_api::PluginId;
+use std::collections::HashMap;
 
-use crate::library::{ImageRef, Metadata, Picked, SourceEpisode, SourceSeason, SourceShow};
+use nama_plugin_api::{PluginId, metadata::ExternalIds};
+
+use super::{Matcher, Outcomes};
+use crate::library::{
+    ImageRef, Metadata, Picked, SimilarAnswer, SourceEpisode, SourceSeason, SourceShow, TitleKind,
+};
+
+impl Matcher {
+    /// `outcomes` with what each enabled Similar source answers about each Matched title, a Movie
+    /// or an Episode's Show, asked once per title, before the write that stores them (ADR 0084).
+    pub(super) async fn with_similar(&self, mut outcomes: Outcomes) -> Outcomes {
+        let mut answered: HashMap<ExternalIds, Vec<SimilarAnswer>> = HashMap::new();
+        for (_, outcome) in &mut outcomes.items {
+            let Ok(matched) = outcome else { continue };
+            let (kind, ids) = if matched.show_title.is_some() {
+                (TitleKind::Show, matched.show_ids.clone())
+            } else {
+                (TitleKind::Movie, matched.ids.clone())
+            };
+            if !answered.contains_key(&ids) {
+                let answers = self.similar.ask(kind, &ids).await;
+                answered.insert(ids.clone(), answers);
+            }
+            matched.similar = answered.get(&ids).cloned().unwrap_or_default();
+        }
+        outcomes
+    }
+}
 
 impl Metadata {
     /// This title with the artwork `picked`, keeping its own poster or backdrop where none was.
@@ -51,7 +78,7 @@ impl Metadata {
             show_first_air_date: show.first_air_date.clone(),
             score: show.score,
             original_language: show.original_language.clone(),
-            similar: show.similar.clone(),
+            similar: Vec::new(),
             trailers: show.trailers.clone(),
             roles: show.roles.clone(),
         }

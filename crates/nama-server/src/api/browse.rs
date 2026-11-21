@@ -154,10 +154,7 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let on_watchlist = (self.on_watchlist(user.id, TitleKind::Movie, &movie.ids)).await?;
-        let similar = (self
-            .browse
-            .similar(request.library_id, TitleKind::Movie, &movie.ids))
-        .await;
+        let similar = (self.browse.similar(TitleKind::Movie, &movie.ids)).await;
         let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let roles = self.browse.movie_roles(&movie).await;
         let roles = roles.map_err(refused(Fields::LIBRARY))?;
@@ -248,10 +245,7 @@ impl BrowseService for BrowseServiceHandler {
         let roles = roles.map_err(refused(Fields::LIBRARY))?;
         let aired = self.browse.aired_episodes(&show).await;
         let aired_episode_count = aired.map_err(database_failed)?;
-        let similar = (self
-            .browse
-            .similar(request.library_id, TitleKind::Show, &show.ids))
-        .await;
+        let similar = (self.browse.similar(TitleKind::Show, &show.ids)).await;
         let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         // Without a Plugin it has no Episodes, so no Roles to show headshots of.

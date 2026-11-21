@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO similar_titles (plugin, kind, namespace, value, similar)\n             VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "e0ff543d72a0e458d069fa3ebf1d0c275b9d75f20e63915c98fd4ee9044af57c"
+}

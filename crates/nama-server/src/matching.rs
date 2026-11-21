@@ -77,9 +77,10 @@ use crate::{
     db::{Database, detached},
     events::{EventBus, event},
     library::{
-        Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, Metadata,
-        Name, Named, Picked, Pin, Recognisers, ScanLock, ScanLocks, Source, SourceEpisode,
-        SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered, UnmatchedReason,
+        Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, Metadata, Name,
+        Named, Picked, Pin, Recognisers, ScanLock, ScanLocks, SimilarSources, Source,
+        SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered,
+        UnmatchedReason,
     },
     plugins::ExtensionPoints,
 };
@@ -127,6 +128,8 @@ pub(crate) struct Matcher {
     libraries: Libraries,
     metadata: TitleSources,
     recognisers: Recognisers,
+    /// Asks which titles are like each one Matched.
+    similar: SimilarSources,
     /// Picks a Match's artwork, and downloads the images of the Matches set by hand.
     artwork: Artwork,
     events: EventBus,
@@ -265,6 +268,7 @@ impl Matcher {
             libraries: Libraries::new(Arc::clone(&db)),
             recognisers: Recognisers::new(plugins.clone(), RecogniserMethod::Title),
             contents: Contents::new(db),
+            similar: SimilarSources::new(plugins.clone()),
             metadata: TitleSources::new(plugins),
             artwork,
             events,
@@ -542,6 +546,7 @@ impl Matcher {
     /// Stores the Matches found again in `found`. An item missed keeps the Match it has, since a
     /// refresh never changes which title an item Matches.
     async fn store_refreshed(&self, found: Outcomes) -> Result<(), sqlx::Error> {
+        let found = self.with_similar(found).await;
         let items = (found.items.into_iter())
             .filter_map(|(item, outcome)| Some((item, Decided::Matched(Box::new(outcome.ok()?)))))
             .collect();
@@ -641,7 +646,7 @@ impl Matcher {
         outcomes: Outcomes,
         summary: &mut Summary,
     ) -> Result<(), sqlx::Error> {
-        let decided = tally(outcomes, summary);
+        let decided = tally(self.with_similar(outcomes).await, summary);
         if decided.items.is_empty() {
             return Ok(());
         }
@@ -660,7 +665,7 @@ impl Matcher {
         outcomes: Outcomes,
     ) -> Result<Summary, ManualError> {
         let mut summary = Summary::default();
-        let decided = tally(outcomes, &mut summary);
+        let decided = tally(self.with_similar(outcomes).await, &mut summary);
         tracing::info!(
             library = named.library,
             title = %named.name.title,

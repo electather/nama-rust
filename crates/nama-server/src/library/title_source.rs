@@ -19,6 +19,7 @@ pub(crate) use titles::{
     Artwork, ArtworkKind, Candidate, Episode, Image, Movie, Role, Roles, SearchQuery, Season, Show,
     TitleKind, Trailer,
 };
+pub(super) use titles::{title_id, title_kind};
 
 use crate::{
     library::contents::{ImageRef, Metadata},
@@ -301,7 +302,7 @@ impl TitleSources {
         kind: TitleKind,
         ids: &ExternalIds,
     ) -> Vec<(Source, Vec<Artwork>)> {
-        let kind = titles::title_kind(kind);
+        let kind = title_kind(kind);
         self.lists_by(TitleMethod::Artwork, ids, |metadata, id| async move {
             let asked = ArtworkAsked {
                 kind: kind.into(),
@@ -363,7 +364,7 @@ impl TitleSources {
             let Some(id) = id else {
                 continue;
             };
-            let id = &titles::title_id(&id);
+            let id = &title_id(&id);
             let answered = self
                 .plugins
                 .ask(&source.plugin, |metadata| ask(metadata, id.clone()))
@@ -452,14 +453,14 @@ fn well_formed(namespace: &str) -> bool {
 
 fn asked(id: &ExternalId) -> TitleAsked {
     TitleAsked {
-        id: titles::title_id(id).into(),
+        id: title_id(id).into(),
         ..Default::default()
     }
 }
 
 fn season_asked(show: &ExternalId, season: u32) -> SeasonAsked {
     SeasonAsked {
-        show: titles::title_id(show).into(),
+        show: title_id(show).into(),
         season,
         ..Default::default()
     }
@@ -601,7 +602,7 @@ impl Metadata {
             show_first_air_date: None,
             score: movie.score,
             original_language: movie.original_language,
-            similar: movie.similar,
+            similar: Vec::new(),
             trailers: movie.trailers,
             roles: movie.roles,
         }

@@ -405,6 +405,8 @@ enum ExtensionPoint {
   // Says where a Version's Intro, Recap and Credits are, which a Library lists to ask it
   // (ADR 0075).
   EXTENSION_POINT_SEGMENT_SOURCE = 14;
+  // Says which titles are like a title, for its Similar titles (ADR 0084).
+  EXTENSION_POINT_SIMILAR_SOURCE = 15;
 }
 
 // What kind of value a setting takes.

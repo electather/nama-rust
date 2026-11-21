@@ -331,7 +331,8 @@ async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
             EXTENSION_POINT_SHOW_FULFILLER
         ]
     );
-    assert_eq!(points("tmdb"), [EXTENSION_POINT_TITLE_SOURCE]);
+    let tmdb = [EXTENSION_POINT_TITLE_SOURCE, EXTENSION_POINT_SIMILAR_SOURCE];
+    assert_eq!(points("tmdb"), tmdb);
     assert_eq!(points("tvdb"), [EXTENSION_POINT_TITLE_SOURCE]);
     assert_eq!(points("fanart"), [EXTENSION_POINT_TITLE_SOURCE]);
 }
@@ -340,10 +341,9 @@ async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
 async fn a_plugins_extension_points_come_with_it() {
     let tmdb = get_plugin_with(BTreeMap::new(), "tmdb").await;
 
-    assert_eq!(
-        tmdb.summary.extension_points,
-        [ExtensionPoint::EXTENSION_POINT_TITLE_SOURCE]
-    );
+    use ExtensionPoint::{EXTENSION_POINT_SIMILAR_SOURCE, EXTENSION_POINT_TITLE_SOURCE};
+    let points = [EXTENSION_POINT_TITLE_SOURCE, EXTENSION_POINT_SIMILAR_SOURCE];
+    assert_eq!(tmdb.summary.extension_points, points);
 }
 
 #[tokio::test]
