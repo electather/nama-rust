@@ -485,7 +485,7 @@ async fn a_search_keeps_a_word_some_indexed_word_starts_with() {
 }
 
 #[tokio::test]
-async fn a_search_finding_five_titles_lists_just_those() {
+async fn a_search_finding_five_titles_reads_no_vocab() {
     let fx = Fixture::new().await;
     for (tmdb, title) in [
         (1, "Heist"),
@@ -493,12 +493,27 @@ async fn a_search_finding_five_titles_lists_just_those() {
         (3, "Heist Three"),
         (4, "Heist Four"),
         (5, "Heist Five"),
-        (6, "Hers"),
     ] {
         fx.match_movie(tmdb, title, "2001-01-01").await;
     }
+    // A word that finds something is never corrected, so only a missing vocab shows the
+    // fallback didn't run.
+    (fx.contents.db)
+        .write(|tx| {
+            Box::pin(async move {
+                sqlx::query("DROP TABLE title_search_vocab")
+                    .execute(&mut **tx)
+                    .await
+            })
+        })
+        .await
+        .unwrap();
 
-    assert_eq!(fx.found_movies("heis").await.len(), 5);
+    let five = fx.contents.search("heis", None, 20).await;
+    let two = fx.contents.search("heis f", None, 20).await;
+
+    assert_eq!(five.unwrap().len(), 5);
+    assert!(two.is_err(), "fewer than five found reads the vocab");
 }
 
 #[tokio::test]

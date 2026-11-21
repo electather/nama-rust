@@ -14,8 +14,8 @@ use crate::library::TitleKind;
 // ponytail: a better fit ranked below these by bm25 is missed; raise it if one ever is.
 const CANDIDATES: i64 = 500;
 
-/// With fewer titles found than this, [`Contents::search`] corrects the query's typos and searches
-/// again, as Silo's search does (#1459).
+/// With fewer rows than this found by [`Contents::search_rows`], [`Contents::search`] corrects
+/// the query's typos and searches again, as Silo's search does (#1459).
 const FEW_FOUND: usize = 5;
 
 /// A Movie, Show or Episode [`Contents::search`] found, once per Library that has it.
@@ -90,34 +90,31 @@ impl Contents {
         let rows = self.search_rows(&words, kind).await?;
         let few_found = rows.len() < FEW_FOUND;
         let mut found = ranked(rows, &words);
-        if few_found
-            && let Some(corrected) = self.corrected(&words).await?
-            && let Some(corrected) = SearchWords::of(&corrected)
-        {
-            let corrected_rows = self.search_rows(&corrected, kind).await?;
-            found.extend(ranked(corrected_rows, &corrected));
+        // Only a word no indexed word starts with is corrected, and it finds nothing, so a
+        // corrected search adds to an empty batch: nothing it finds is already in it.
+        if few_found && words.correctable() {
+            let vocab = self.indexed_words().await?;
+            if let Some(corrected) = words.corrected(&vocab) {
+                let corrected_rows = self.search_rows(&corrected, kind).await?;
+                found.extend(ranked(corrected_rows, &corrected));
+            }
         }
         found.truncate(limit);
         Ok(found)
     }
 
-    /// `words` as a query with their typos corrected, or `None` if they have none: see
-    /// [`SearchWords::corrected`].
-    async fn corrected(&self, words: &SearchWords<'_>) -> Result<Option<String>, sqlx::Error> {
-        if !words.words.iter().any(|word| edits_allowed(word) > 0) {
-            return Ok(None);
-        }
+    /// Every word `title_search` holds, from `title_search_vocab`.
+    async fn indexed_words(&self) -> Result<Vec<IndexedWord>, sqlx::Error> {
         // ponytail: reads every word the Libraries' titles hold; read only those of a length
         // within reach if a big Library's searches get slow.
         // The casts keep sqlx's compile-time check from crashing on an `fts5vocab` column.
-        let vocab = sqlx::query_as!(
+        sqlx::query_as!(
             IndexedWord,
             r#"SELECT CAST(term AS TEXT) AS "word!: String", CAST(doc AS INTEGER) AS "titles!: i64"
                FROM title_search_vocab"#
         )
         .fetch_all(self.db.reader())
-        .await?;
-        Ok(words.corrected(&vocab))
+        .await
     }
 
     /// The best [`CANDIDATES`] titles whose `title_search` rows fit `words`, of `kind` only if
@@ -402,29 +399,42 @@ impl<'a> SearchWords<'a> {
             }
             _ => None,
         };
+        (!words.is_empty()).then(|| Self::new(words, year))
+    }
+
+    fn new(words: Vec<&'a str>, year: Option<&'a str>) -> Self {
         let compared = words.iter().chain(&year).map(|word| folded(word)).collect();
-        (!words.is_empty()).then_some(Self {
+        Self {
             words,
             year,
             compared,
-        })
+        }
     }
 
-    /// The query with each word of 4 or more letters that no word in `vocab` starts with
-    /// replaced by the nearest one, by [`edit_distance`] within [`edits_allowed`], then by the
-    /// most titles holding it, then alphabetically; `None` if no word is replaced.
-    fn corrected(&self, vocab: &[IndexedWord]) -> Option<String> {
-        let words = self.compared.get(..self.words.len()).unwrap_or_default();
+    /// The words, lowercase and without accents, without the year.
+    fn compared_words(&self) -> &[String] {
+        self.compared.get(..self.words.len()).unwrap_or_default()
+    }
+
+    /// Whether some word is long enough for [`Self::corrected`] to correct.
+    fn correctable(&self) -> bool {
+        (self.compared_words().iter()).any(|word| edits_allowed(word) > 0)
+    }
+
+    /// These words with each of 4 or more letters that no word in `vocab` starts with replaced
+    /// by the nearest one, by [`edit_distance`] within [`edits_allowed`], then by the most
+    /// titles holding it, then alphabetically; `None` if no word is replaced.
+    fn corrected<'s>(&'s self, vocab: &'s [IndexedWord]) -> Option<SearchWords<'s>> {
+        let words = self.compared_words();
         let corrections: Vec<Option<&str>> =
             words.iter().map(|word| nearest(word, vocab)).collect();
         if corrections.iter().all(Option::is_none) {
             return None;
         }
-        let corrected: Vec<&str> = (words.iter().zip(corrections))
+        let corrected = (words.iter().zip(corrections))
             .map(|(word, correction)| correction.unwrap_or(word))
-            .chain(self.year)
             .collect();
-        Some(corrected.join(" "))
+        Some(SearchWords::new(corrected, self.year))
     }
 
     /// How `title`, of `year`, fits these words, and whether the year they end with isn't its.
@@ -509,7 +519,7 @@ impl Fit {
     fn of(words: &SearchWords<'_>, title: &str, year: Option<&str>) -> Self {
         let query = &words.compared;
         // The year is the year band's to rank, past an exact title.
-        let without_year = query.get(..words.words.len()).unwrap_or_default();
+        let without_year = words.compared_words();
         let fit = |variant: &str| {
             let variant = title_words(variant);
             let with_year = year.map(|year| [&variant[..], &[year.to_owned()]].concat());
