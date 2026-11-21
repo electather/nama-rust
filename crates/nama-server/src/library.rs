@@ -45,13 +45,13 @@ pub(crate) use recognisers::{RecogniserFailed, Recognisers};
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
 pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage};
 pub(crate) use similar_sources::{
-    Answer as SimilarAnswer, MAX_SIMILAR, SimilarSources, merged as merged_similar, title_roles,
+    Answer as SimilarAnswer, MAX_SIMILAR, SimilarSources, merged as merged_similar,
 };
 #[cfg(test)]
 pub(crate) use title_source::scripted;
 pub(crate) use title_source::{
     Candidate, Episode as SourceEpisode, Roles, SearchQuery, Season as SourceSeason,
-    Show as SourceShow, Source, TitleKind, TitleSources, Trailer, Unanswered,
+    Show as SourceShow, Source, TitleKind, TitleSources, Trailer, Unanswered, title_roles,
 };
 pub(crate) use titles::{
     NotFound, OnServer, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,

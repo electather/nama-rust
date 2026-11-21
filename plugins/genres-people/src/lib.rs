@@ -9,8 +9,9 @@ use nama_pdk::{
     TitleId, TitleRole, extism_pdk::Error, kernel, services,
 };
 
-/// The Crew jobs whose shared Person weighs [`KEY_CREW_WEIGHT`].
-const KEY_JOBS: [&str; 3] = ["Director", "Creator", "Writer"];
+/// The Crew jobs whose shared Person weighs [`KEY_CREW_WEIGHT`]: a Director, Creator or Writer,
+/// whom TMDB also credits as `Screenplay`.
+const KEY_JOBS: [&str; 4] = ["Director", "Creator", "Writer", "Screenplay"];
 const KEY_CREW_WEIGHT: f32 = 0.3;
 /// How many of the Cast, first billed, count; a shared one weighs up to [`CAST_WEIGHT`], less the
 /// further down the billing either title has them.

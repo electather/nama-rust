@@ -6,12 +6,12 @@ use std::sync::Arc;
 use futures_util::future::join_all;
 use nama_plugin_api::{
     PluginId,
-    contract::{SimilarAsked, SimilarTitles, TitleRole},
+    contract::{SimilarAsked, SimilarTitles},
     metadata::{ExternalId, ExternalIds},
     similar_source::SimilarSource,
 };
 
-use super::title_source::{Role, Roles, TitleKind, title_id, title_kind};
+use super::title_source::{Roles, TitleKind, title_id, title_kind, title_roles};
 use crate::plugins::ExtensionPoints;
 
 /// The most titles a merged list shows: about a row of posters.
@@ -84,20 +84,6 @@ impl SimilarSources {
         answers.retain(|answer| enabled.contains(&answer.plugin));
         answers
     }
-}
-
-/// `roles` as a Plugin reads them: the Cast, then the Crew, each in billing order.
-pub(crate) fn title_roles(roles: &Roles) -> Vec<TitleRole> {
-    fn listed(crew: bool, list: &[Role]) -> impl Iterator<Item = TitleRole> {
-        (list.iter().enumerate()).map(move |(billed, role)| TitleRole {
-            person: title_id(&role.person).into(),
-            crew,
-            part: role.part.clone(),
-            billed: u32::try_from(billed).unwrap_or(u32::MAX),
-            ..TitleRole::default()
-        })
-    }
-    (listed(false, &roles.cast).chain(listed(true, &roles.crew))).collect()
 }
 
 /// Every title of `answers`, heaviest first, a tie going to the lower Plugin id, then to the

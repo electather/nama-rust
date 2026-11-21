@@ -99,6 +99,20 @@ fn a_shared_director_weighs_more_than_shared_genres_alone() {
 }
 
 #[test]
+fn a_shared_screenwriter_weighs_as_a_writer() {
+    let asked = SimilarAsked {
+        roles: vec![crew("1726", "Screenplay")],
+        ..alien()
+    };
+    let mut kernel =
+        Kernel::new().titles_sharing([titled("1", vec![crew("1726", "Screenplay")], &[])]);
+
+    let answer = with(&mut kernel, || GenresPeople::similar(asked)).unwrap();
+
+    assert_eq!(answer.titles[0].weight, 0.3);
+}
+
+#[test]
 fn shared_cast_weighs_less_the_further_down_the_billing() {
     let aliens = titled("679", vec![cast(WEAVER, 0)], &[]);
     let galaxy_quest = titled("926", vec![cast(WEAVER, 4)], &[]);
