@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO plugins_had (plugin_id, had_at) VALUES (?, ?)\n             ON CONFLICT (plugin_id) DO UPDATE SET had_at = excluded.had_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6b0c005023f626fcfe99e3c00db7a8e3d46b03d4c6734f66af60b4ca53832745"
+}

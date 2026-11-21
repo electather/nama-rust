@@ -160,6 +160,17 @@ pub(super) async fn delete(
     .await
 }
 
+/// Removes every entry `plugin` keeps, Plugin-wide and per-User.
+pub(super) async fn delete_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM plugin_store WHERE plugin_id = ?", plugin)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 #[path = "store_tests.rs"]
 mod tests;

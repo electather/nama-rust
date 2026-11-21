@@ -130,6 +130,8 @@ pub mod __buffa {
         reg.register_json_any(super::__WATCHLIST_TITLE_JSON_ANY);
         reg.register_json_any(super::__FORGET_HOME_ROWS_ASKED_JSON_ANY);
         reg.register_json_any(super::__HOME_ROWS_FORGOTTEN_JSON_ANY);
+        reg.register_json_any(super::__FORGET_GONE_PLUGINS_ASKED_JSON_ANY);
+        reg.register_json_any(super::__GONE_PLUGINS_FORGOTTEN_JSON_ANY);
         reg.register_json_any(super::__BLOB_TO_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_KEY_JSON_ANY);
@@ -452,6 +454,14 @@ pub use self::__buffa::view::ForgetHomeRowsAskedOwnedView;
 pub use self::__buffa::view::HomeRowsForgottenView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowsForgottenOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ForgetGonePluginsAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::ForgetGonePluginsAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GonePluginsForgottenView;
+#[doc(inline)]
+pub use self::__buffa::view::GonePluginsForgottenOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::BlobToPutView;
 #[doc(inline)]
