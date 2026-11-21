@@ -1,29 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { SettingsPage } from "@/features/settings/components/settings-page";
-import { imageSettingsQuery } from "@/features/settings/data/use-image-settings";
-import { serverSettingsQuery } from "@/features/settings/data/use-server-settings";
-import { subtitleAppearanceQuery } from "@/features/settings/data/use-subtitle-appearance";
-import { trackPreferencesQuery } from "@/features/settings/data/use-track-preferences";
-import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { yourDevicesQuery } from "@/shared/hooks/use-devices";
-import { may } from "@/shared/lib/permissions";
+import { firstSection } from "@/features/settings/lib/sections";
 
+/**
+ * Where the Settings page was. Settings is a modal over a page now (`src/app/settings-loader.tsx`),
+ * so a link here lands on Home with it open.
+ */
 export const Route = createFileRoute("/_member/settings")({
-  loader: ({ context: { queryClient, transport, signedIn } }) =>
-    Promise.all([
-      queryClient.query(yourDevicesQuery(transport)),
-      queryClient.query(trackPreferencesQuery(transport)),
-      queryClient.query(subtitleAppearanceQuery(transport)),
-      may(signedIn.user, Permission.MANAGE_SETTINGS) &&
-        queryClient.query(serverSettingsQuery(transport)),
-      may(signedIn.user, Permission.MANAGE_SETTINGS) &&
-        queryClient.query(imageSettingsQuery(transport)),
-    ]),
-  component: Settings,
+  beforeLoad: () => {
+    throw redirect({ to: "/", search: { settings: firstSection }, replace: true });
+  },
 });
-
-function Settings() {
-  const { signedIn } = Route.useRouteContext();
-  return <SettingsPage user={signedIn.user} />;
-}

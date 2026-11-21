@@ -21,6 +21,7 @@ export function ChoiceInput({
     return (
       <>
         <FormSelect
+          row
           label={setting.label}
           name={setting.key}
           disabled
@@ -39,6 +40,7 @@ export function ChoiceInput({
   }
   return (
     <FormSelect
+      row
       label={setting.label}
       name={setting.key}
       defaultValue={stored}

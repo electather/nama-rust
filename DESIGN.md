@@ -45,6 +45,11 @@ typography:
     fontSize: "0.75rem"
     fontWeight: 400
     lineHeight: 1.33
+  log:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.43
 rounded:
   sm: "6px"
   md: "8px"
@@ -123,7 +128,7 @@ The neutrals have no chroma. A coloured background competes with the artwork, so
 
 **Display Font:** Geist Variable (with `sans-serif`), bundled through Fontsource
 **Body Font:** the same family
-**Label/Mono Font:** none planned
+**Label/Mono Font:** the platform's monospace (Tailwind's `font-mono`), for log lines only
 
 **Character:** one clean sans in several weights, the face shadcn is built around. Large titles go lighter (medium) and tight-tracked, so they feel calm rather than loud. Hierarchy comes from weight and size, not from a second family.
 
@@ -134,11 +139,12 @@ The neutrals have no chroma. A coloured background competes with the artwork, so
 - **Body** (`text-base leading-7`): overviews and descriptions, capped at 65–75ch.
 - **Interface** (`text-sm`, `font-semibold` when selected): control labels, menu items and settings rows. A poster's caption and a settings group heading are `text-base font-medium`.
 - **Label** (`text-xs`, Quiet ink): metadata such as year, runtime, rating and Request state. Sentence case, not tracked uppercase.
+- **Log** (`font-mono`, `text-sm`): what a line of a Plugin Log says, under its time in `font-mono text-xs` Quiet ink. Its level stays in the sans, with an icon.
 
 Only Display is a token (`--text-display`); every other step is Tailwind's own scale, as shadcn writes it.
 
 ### Named Rules
-**The One Family Rule.** Nama uses one typeface. Hierarchy comes from weight (regular, medium, semibold) and size, never from adding a display or mono face.
+**The One Family Rule.** Nama uses one typeface. Hierarchy comes from weight (regular, medium, semibold) and size, never from adding a display or mono face. The one exception is a log line: its time and its text are set in the platform's monospace, because they're read as data, with ids, URLs and stack traces that line up from one line to the next. Nothing else is set in it.
 
 **The Legible Over Art Rule.** Text set over artwork always sits on a scrim or gradient that guarantees 4.5:1 contrast, whatever the image.
 

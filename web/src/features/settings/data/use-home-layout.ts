@@ -1,4 +1,4 @@
-import { createConnectQueryKey, useQuery } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
@@ -22,6 +22,5 @@ export async function refetchHomeLayout(queryClient: QueryClient) {
 
 /** The signed-in User's Home layout: every Home row they could see, each shown or hidden. */
 export function useHomeLayout() {
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the section shows nothing until it loads
-  return useQuery(UserService.method.getHomeLayout, {});
+  return useSuspenseQuery(UserService.method.getHomeLayout, {}).data.layout;
 }

@@ -1,25 +1,28 @@
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { LibraryService } from "@/gen/nama/v1/library_pb";
 import { SettingKind, type UpdatePluginSettingsRequest } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { input, openPlugin, plugin } from "@/test-plugins";
+import { input, openPlugin, plugin, saveSettings } from "@/test-plugins";
 import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
 /**
- * Opens the Plugin `id`'s details page to save its settings, answering `LibraryService` calls with
- * `library` where it gives them: `submit` saves them, and `sent` is the request the Server got.
+ * Opens the Plugin `id`'s details page to change its settings, answering `LibraryService` calls
+ * with `library` where it gives them: `sent` is the first request to save them the Server got, and
+ * `requests` every one, in order.
  */
 function openToSave(id: string, library: Partial<ServiceImpl<typeof LibraryService>> = {}) {
+  const requests: UpdatePluginSettingsRequest[] = [];
   const sent = new Promise<UpdatePluginSettingsRequest>((resolve) => {
     openPlugin(
       id,
       {
         updatePluginSettings: (request) => {
+          requests.push(request);
           resolve(request);
           return { plugin: { summary: { id, enabled: true } } };
         },
@@ -27,10 +30,14 @@ function openToSave(id: string, library: Partial<ServiceImpl<typeof LibraryServi
       library,
     );
   });
-  return {
-    sent,
-    submit: async () => fireEvent.click(await screen.findByRole("button", { name: "Save" })),
-  };
+  return { sent, requests };
+}
+
+/** Types `value` into the setting `label` of the Plugin shown as `name`, then leaves the field. */
+async function typeAndLeave(name: string, label: string, value: string) {
+  const field = await input(name, label);
+  fireEvent.change(field, { target: { value } });
+  fireEvent.blur(field);
 }
 
 test("a Plugin's settings fill its form, with defaults as hints and a set secret only as set", async () => {
@@ -57,8 +64,9 @@ test("the form checks the schema: a disabled Plugin's required setting may be bl
   expect(found7.required).toBe(false);
   const days = await input("log-events", "Keep for days");
   expect([days.type, days.step]).toStrictEqual(["number", "1"]);
-  const found8 = await input("log-events", "Verbose");
-  expect(found8.checked).toBe(true);
+  const page = await plugin("log-events");
+  const verbose = page.getByRole("switch", { name: "Verbose" });
+  expect(verbose.getAttribute("aria-checked")).toBe("true");
 });
 
 test("the form checks the schema: an enabled Plugin's required setting is required", async () => {
@@ -97,8 +105,7 @@ test("a number out of its bounds is refused under it, saying the bound", async (
     },
   });
 
-  const found10 = await plugin("cleanup");
-  fireEvent.click(found10.getByRole("button", { name: "Save" }));
+  await typeAndLeave("cleanup", "Days", "5");
 
   await expectUnderField("Days", "This must be at least 0.");
 });
@@ -114,70 +121,61 @@ test("the form checks the schema: a setting with a default isn't required and a 
   ]);
 });
 
-test("saving sends what was typed, leaving out blanks and a set secret", async () => {
-  const { sent, submit } = openToSave("tmdb");
-  fireEvent.change(await input("TMDB", "Language"), { target: { value: "fr-FR" } });
+test("leaving a field sends what was typed, leaving out blanks and a set secret", async () => {
+  const { sent, requests } = openToSave("tmdb");
+  const language = await input("TMDB", "Language");
+  fireEvent.change(language, { target: { value: "fr-FR" } });
+  // Nothing is saved while it's still being typed.
+  expect(requests).toStrictEqual([]);
 
-  await submit();
+  fireEvent.blur(language);
 
   const { id, settings } = await sent;
   expect(id).toBe("tmdb");
   expect(Object.keys(settings)).toStrictEqual(["language"]);
   expect(settings["language"]?.value).toStrictEqual({ case: "textValue", value: "fr-FR" });
-  await expect(screen.findByText("Saved, and in use now.")).resolves.toBeDefined();
+  const page = await plugin("TMDB");
+  expect(page.queryByRole("button", { name: "Save" })).toBeNull();
+});
+
+test("enter in a field sends what was typed", async () => {
+  const { sent } = openToSave("tmdb");
+  const language = await input("TMDB", "Language");
+  fireEvent.change(language, { target: { value: "it-IT" } });
+
+  fireEvent.keyDown(language, { key: "Enter" });
+
+  const { settings } = await sent;
+  expect(settings["language"]?.value).toStrictEqual({ case: "textValue", value: "it-IT" });
 });
 
 test("replace lets a set secret be typed again, and sends it", async () => {
-  const { sent, submit } = openToSave("tmdb");
+  const { sent } = openToSave("tmdb");
   const found11 = await plugin("TMDB");
   fireEvent.click(found11.getByRole("button", { name: "Replace API key" }));
-  fireEvent.change(await input("TMDB", "API key"), { target: { value: "new-key" } });
-
-  await submit();
+  await typeAndLeave("TMDB", "API key", "new-key");
 
   const found12 = await sent;
   expect(found12.settings["api_key"]?.value).toStrictEqual({ case: "textValue", value: "new-key" });
 });
 
-test("forget lets a set secret be left blank to forget it, and sends its key", async () => {
-  const { sent, submit } = openToSave("tmdb");
+test("forget forgets a set secret at the press, sending its key", async () => {
+  const { sent } = openToSave("tmdb");
   const found13 = await plugin("TMDB");
   fireEvent.click(found13.getByRole("button", { name: "Forget API key" }));
-
-  const found14 = await input("TMDB", "API key");
-  expect(found14.value).toBe("");
-  const found15 = await plugin("TMDB");
-  expect(
-    found15.getByText("Leave it blank to forget the one that’s set.", {
-      exact: false,
-    }),
-  ).toBeDefined();
-  await submit();
 
   const { settings, forgottenSecrets } = await sent;
   expect(forgottenSecrets).toStrictEqual(["api_key"]);
   expect(settings["api_key"]).toBeUndefined();
 });
 
-test("a value typed after Forget is sent in the forgotten secret's place", async () => {
-  const { sent, submit } = openToSave("tmdb");
-  const found16 = await plugin("TMDB");
-  fireEvent.click(found16.getByRole("button", { name: "Forget API key" }));
-  fireEvent.change(await input("TMDB", "API key"), { target: { value: "new-key" } });
-
-  await submit();
-
-  const found17 = await sent;
-  expect(found17.settings["api_key"]?.value).toStrictEqual({ case: "textValue", value: "new-key" });
-});
-
 test("a bool and a number, however it is written, are sent as their kind", async () => {
-  const { sent, submit } = openToSave("log-events");
-  fireEvent.click(await input("log-events", "Verbose"));
+  const { sent } = openToSave("log-events");
   fireEvent.change(await input("log-events", "Keep for days"), { target: { value: "7.0" } });
   fireEvent.change(await input("log-events", "Path"), { target: { value: "/var/log" } });
-
-  await submit();
+  const page = await plugin("log-events");
+  // A switch saves as it's flipped, with whatever is typed beside it.
+  fireEvent.click(page.getByRole("switch", { name: "Verbose" }));
 
   const { settings } = await sent;
   expect(settings["verbose"]?.value).toStrictEqual({ case: "boolValue", value: false });
@@ -193,10 +191,7 @@ test("a refusal shows under the setting it names", async () => {
       });
     },
   });
-  fireEvent.change(await input("log-events", "Path"), { target: { value: "x" } });
-
-  const found18 = await plugin("log-events");
-  fireEvent.click(found18.getByRole("button", { name: "Save" }));
+  await typeAndLeave("log-events", "Path", "x");
 
   await expectUnderField("Path", "This setting is required.");
 });
@@ -211,8 +206,7 @@ test("a refusal naming a secret that is set opens its input to show under", asyn
     },
   });
 
-  const found19 = await plugin("TMDB");
-  fireEvent.click(found19.getByRole("button", { name: "Save" }));
+  await saveSettings("TMDB");
 
   await expectUnderField("API key", "This setting can’t take that value.");
 });
@@ -227,8 +221,7 @@ test("a Plugin no longer on the Server says so for the form", async () => {
     },
   });
 
-  const found20 = await plugin("TMDB");
-  fireEvent.click(found20.getByRole("button", { name: "Save" }));
+  await saveSettings("TMDB");
 
   await expect(
     screen.findByText("This Plugin isn’t on the Server any more."),
@@ -257,18 +250,21 @@ test("a Libraries setting shows the Libraries it holds by name, leaving out one 
   ]);
 });
 
-test("picking two Libraries saves their ids", async () => {
-  const { sent, submit } = openToSave("cleanup");
+test("each Library ticked or unticked saves the ids picked", async () => {
+  const { requests } = openToSave("cleanup");
   const group = await librariesToClean();
   fireEvent.click(group.getByRole("checkbox", { name: "Movies" }));
   fireEvent.click(group.getByRole("checkbox", { name: "Shows" }));
   fireEvent.click(group.getByRole("checkbox", { name: "Anime" }));
 
-  await submit();
-
-  const { settings } = await sent;
-  expect(settings["libraries"]?.value.case).toBe("libraryIds");
-  expect(settings["libraries"]?.value.value).toMatchObject({ ids: [2n, 3n] });
+  await waitFor(() => {
+    expect(requests).toHaveLength(3);
+  });
+  // One save at a time, in the order they were made, so the last one made is the one kept.
+  const picked = requests.map(({ settings }) => settings["libraries"]?.value.value);
+  expect(picked[0]).toBeUndefined();
+  expect(picked[1]).toMatchObject({ ids: [2n] });
+  expect(picked[2]).toMatchObject({ ids: [2n, 3n] });
 });
 
 test.each([
@@ -288,12 +284,12 @@ test.each([
 ])(
   "saving while the Libraries are $listing keeps the ids the setting holds",
   async ({ shown, listLibraries }) => {
-    const { sent, submit } = openToSave("cleanup", { listLibraries });
+    const { sent } = openToSave("cleanup", { listLibraries });
     const found21 = await plugin("cleanup");
     const group = within(found21.getByRole("group", { name: "Libraries to clean" }));
     await group.findByText(shown);
 
-    await submit();
+    await saveSettings("cleanup");
 
     const { settings } = await sent;
     expect(settings["libraries"]?.value.case).toBe("libraryIds");
@@ -313,8 +309,7 @@ test("a refusal naming a Library no longer on the Server shows under the Librari
   });
   const group = await librariesToClean();
 
-  const found22 = await plugin("cleanup");
-  fireEvent.click(found22.getByRole("button", { name: "Save" }));
+  await saveSettings("cleanup");
 
   const error = await screen.findByText("A Library picked here isn’t on the Server any more.");
   const box = group.getByRole("checkbox", { name: "Movies" });

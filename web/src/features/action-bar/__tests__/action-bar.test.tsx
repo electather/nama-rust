@@ -133,7 +133,7 @@ function rows() {
 }
 
 test("⌘K opens the action bar on the pages a User may jump to, and closes it", async () => {
-  openApp("/settings", serverToSearch(findsOffice));
+  openApp("/code", serverToSearch(findsOffice));
 
   await openActionBar();
 
@@ -152,7 +152,7 @@ test("⌘K opens the action bar on the pages a User may jump to, and closes it",
 });
 
 test("a User who may open Admin pages can jump to Admin", async () => {
-  openApp("/settings", serverToSearch(findsOffice, admin));
+  openApp("/code", serverToSearch(findsOffice, admin));
 
   await openActionBar();
 
@@ -160,7 +160,7 @@ test("a User who may open Admin pages can jump to Admin", async () => {
 });
 
 test("typing lists the titles found, Enter opens the first, and it's a Recent next time", async () => {
-  const router = openApp("/settings", serverToSearch(findsOffice));
+  const router = openApp("/code", serverToSearch(findsOffice));
   const field = await openActionBar();
 
   type(field, "office");
@@ -181,7 +181,7 @@ test("typing lists the titles found, Enter opens the first, and it's a Recent ne
 });
 
 test("an Episode found opens its Show at its Season", async () => {
-  const router = openApp("/settings", serverToSearch(findsOffice));
+  const router = openApp("/code", serverToSearch(findsOffice));
   const field = await openActionBar();
 
   type(field, "office");
@@ -220,7 +220,7 @@ test("an Episode found leads with its Still, else its Show's Poster, else its ic
     episode("Poster", poster),
     episode("Neither", {}),
   ];
-  openApp("/settings", serverToSearch(streams({ part: { case: "hits", value: { hits: batch } } })));
+  openApp("/code", serverToSearch(streams({ part: { case: "hits", value: { hits: batch } } })));
   const field = await openActionBar();
 
   type(field, "office");
@@ -231,7 +231,7 @@ test("an Episode found leads with its Still, else its Show's Poster, else its ic
   expect(artOf(/Neither/u)).toStrictEqual([]);
   fireEvent.click(screen.getByRole("option", { name: /Still/u }));
   cleanup();
-  openApp("/settings", serverToSearch(findsOffice));
+  openApp("/code", serverToSearch(findsOffice));
   await openActionBar();
   // Recent comes back from storage as JSON, which a thumbhash's bytes don't survive.
   expect(artOf(/Still/u)).toStrictEqual(["/still.jpg"]);
@@ -243,7 +243,7 @@ test("a search of one kind asks the Server for that kind, and Escape steps back 
     kinds.push(request.kind);
     return findsOffice(request, context);
   };
-  openApp("/settings", serverToSearch(search));
+  openApp("/code", serverToSearch(search));
   const field = await openActionBar();
 
   fireEvent.click(screen.getByRole("option", { name: /^Search Shows/u }));
@@ -258,7 +258,7 @@ test("a search of one kind asks the Server for that kind, and Escape steps back 
 });
 
 test("a search that finds nothing says so", async () => {
-  openApp("/settings", serverToSearch(findsOffice));
+  openApp("/code", serverToSearch(findsOffice));
   const field = await openActionBar();
 
   type(field, "dune");
@@ -269,7 +269,7 @@ test("a search that finds nothing says so", async () => {
 test("a search that fails offers Retry, which searches again", async () => {
   let answer = down;
   const search: Search = (request, context) => answer(request, context);
-  openApp("/settings", serverToSearch(search));
+  openApp("/code", serverToSearch(search));
   const field = await openActionBar();
 
   type(field, "office");
@@ -281,7 +281,7 @@ test("a search that fails offers Retry, which searches again", async () => {
 });
 
 test("g then a page's key goes to that page", async () => {
-  const router = openApp("/settings", serverToSearch(findsOffice));
+  const router = openApp("/code", serverToSearch(findsOffice));
   await screen.findByRole("button", { name: "Search this Server" });
 
   fireEvent.keyDown(document.body, { key: "g" });
@@ -329,7 +329,7 @@ test("movies to request list below the Library's, by status, and open their requ
     ),
     { part: { case: "done", value: {} } },
   );
-  const router = openApp("/settings", serverToSearch(search));
+  const router = openApp("/code", serverToSearch(search));
   const field = await openActionBar();
 
   type(field, "office");
@@ -360,7 +360,7 @@ test("shows to request list by status, with their Request or a Requested tag, an
     ),
     { part: { case: "done", value: {} } },
   );
-  const router = openApp("/settings", serverToSearch(search));
+  const router = openApp("/code", serverToSearch(search));
   const field = await openActionBar();
 
   type(field, "office");
@@ -382,7 +382,7 @@ test("a search whose title source failed lists the Library's titles with a quiet
   const search = streams(movies([officeSpace.value, TitleStatus.AVAILABLE]), {
     part: { case: "done", value: { titleSourceUnavailable: true } },
   });
-  openApp("/settings", serverToSearch(search));
+  openApp("/code", serverToSearch(search));
   const field = await openActionBar();
 
   type(field, "office");

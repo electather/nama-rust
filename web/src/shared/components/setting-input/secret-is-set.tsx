@@ -14,10 +14,11 @@ export function SecretIsSet({
 }) {
   const actions: SecretAction[] = forgettable ? ["Replace", "Forget"] : ["Replace"];
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-sm font-medium">{setting.label}</p>
-        <p className="text-sm text-pretty text-muted-foreground empty:hidden">
+    // Spaced and ruled as `SettingRow` is, which it sits among.
+    <div className="flex items-center justify-between gap-x-5 py-3.5 not-first:border-t">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm">{setting.label}</p>
+        <p className="text-xs text-pretty text-muted-foreground empty:hidden">
           {setting.description}
         </p>
       </div>

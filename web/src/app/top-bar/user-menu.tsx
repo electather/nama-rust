@@ -32,7 +32,8 @@ export function UserMenu({ userName }: { userName: string }) {
       <DropdownMenuContent>
         <DropdownMenuItem
           onClick={() => {
-            void navigate({ to: "/settings" });
+            // A history entry of its own, so Back closes Settings.
+            void navigate({ to: ".", search: (rest) => ({ ...rest, settings: "playback" }) });
           }}
         >
           Settings

@@ -7,7 +7,7 @@ import type {
   UpdatePluginSettingsRequest,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { input, openPlugin, plugin } from "@/test-plugins";
+import { input, openPlugin, plugin, saveSettings } from "@/test-plugins";
 import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
@@ -30,28 +30,23 @@ async function profile() {
   return found101.getByLabelText<HTMLSelectElement>("Profile");
 }
 
-async function pressSave() {
-  const found1 = await plugin("test-choices");
-  fireEvent.click(found1.getByRole("button", { name: "Save" }));
-}
-
 async function pressTest() {
   const found2 = await plugin("test-choices");
-  fireEvent.click(found2.getByRole("button", { name: "Test" }));
+  fireEvent.click(found2.getByRole("button", { name: "Test the settings" }));
 }
 
 test("a Plugin with a settings check has a Test button", async () => {
   openPlugin("test-choices");
 
   const found3 = await plugin("test-choices");
-  expect(found3.getByRole("button", { name: "Test" })).toBeDefined();
+  expect(found3.getByRole("button", { name: "Test the settings" })).toBeDefined();
 });
 
 test("a Plugin without a settings check has no Test button", async () => {
   openPlugin("tmdb");
 
   const found4 = await plugin("TMDB");
-  expect(found4.queryByRole("button", { name: "Test" })).toBeNull();
+  expect(found4.queryByRole("button", { name: "Test the settings" })).toBeNull();
 });
 
 test("a choice can’t be picked before a test, and a passing test fills its dropdown", async () => {
@@ -87,7 +82,7 @@ test("a choice can’t be picked before a test, and a passing test fills its dro
   });
 });
 
-test("a picked choice is saved, and an untested one is saved as it was", async () => {
+test("a choice is saved as it's picked, and an untested one is saved as it was", async () => {
   const sent: UpdatePluginSettingsRequest[] = [];
   openPlugin("test-choices", {
     testPluginSettings: () => profiles,
@@ -96,14 +91,13 @@ test("a picked choice is saved, and an untested one is saved as it was", async (
       return { plugin: { summary: { id: "test-choices", enabled: true } } };
     },
   });
-  await pressSave();
+  await saveSettings("test-choices");
   await pressTest();
   await waitFor(async () => {
     const found10 = await profile();
     expect(found10.disabled).toBe(false);
   });
   fireEvent.change(await profile(), { target: { value: "2" } });
-  await pressSave();
 
   await waitFor(() => {
     expect(sent.map(({ settings }) => settings["profile"]?.value.value)).toStrictEqual(["1", "2"]);
@@ -153,7 +147,7 @@ async function saveRefusedOnProfile(reason: RefusalReason, message: string) {
       });
     },
   });
-  await pressSave();
+  await saveSettings("test-choices");
 }
 
 test("a save refused for a failed check shows the Plugin’s error on the choice it names", async () => {

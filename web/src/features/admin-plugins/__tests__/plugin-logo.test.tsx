@@ -20,9 +20,16 @@ async function openTmdbWithLogo(logo: () => { logoUrl: string; customLogo: boole
   return page;
 }
 
-/** Picks `file` as the logo on `page`. */
+/** Picks `file` in the file dialog that the "Upload a logo" box on `page` opens. */
 function uploadLogo(page: Awaited<ReturnType<typeof plugin>>, file: File) {
-  fireEvent.change(page.getByLabelText("Upload a Logo"), { target: { files: [file] } });
+  // The box stands in for its file input, which a screen reader is kept from.
+  const input = page
+    .getByRole("button", { name: "Upload a logo" })
+    .parentElement?.querySelector("input");
+  if (!input) {
+    throw new Error("the Upload a logo box has no file input");
+  }
+  fireEvent.input(input, { target: { files: [file] } });
 }
 
 test("an uploaded logo goes to the Plugin's path and shows without a reload", async () => {

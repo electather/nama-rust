@@ -1,8 +1,9 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
 import { NotificationKind, type SetNotificationPreferenceRequest } from "@/gen/nama/v1/user_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-app";
+import { openSettings } from "@/test-settings";
 
 test("a User turns off Approved notifications on Settings and keeps Available", async () => {
   // This User only ever turns kinds off.
@@ -25,19 +26,15 @@ test("a User turns off Approved notifications on Settings and keeps Available", 
       },
     },
   );
-  openApp("/settings", transport);
+  openSettings("connections", transport);
 
-  const notifications = await screen.findByRole("region", { name: "Notifications" });
-  const approved = within(notifications).getByRole<HTMLInputElement>("checkbox", {
-    name: "Your Request is approved",
-  });
+  const approved = await screen.findByRole("switch", { name: "Your Request is approved" });
+  expect(approved.getAttribute("aria-checked")).toBe("true");
   fireEvent.click(approved);
 
   await expect.poll(() => set).toMatchObject([{ kind: NotificationKind.APPROVED, on: false }]);
-  await expect.poll(() => approved.checked).toBe(false);
+  await expect.poll(() => approved.getAttribute("aria-checked")).toBe("false");
   expect(
-    within(notifications).getByRole<HTMLInputElement>("checkbox", {
-      name: "Your Request is Available",
-    }).checked,
-  ).toBe(true);
+    screen.getByRole("switch", { name: "Your Request is Available" }).getAttribute("aria-checked"),
+  ).toBe("true");
 });

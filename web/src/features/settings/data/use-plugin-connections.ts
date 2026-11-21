@@ -1,4 +1,4 @@
-import { createConnectQueryKey, useQuery } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { PluginConnectionState, UserService } from "@/gen/nama/v1/user_pb";
 
@@ -13,8 +13,7 @@ const WAITING_POLL_MS = 2000;
 
 /** The signed-in User's Plugin Connections, looked at again while one waits. */
 export function usePluginConnections() {
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the section shows nothing until it loads, and nothing if no Plugin connects Users
-  return useQuery(
+  return useSuspenseQuery(
     UserService.method.listPluginConnections,
     {},
     {
@@ -25,5 +24,5 @@ export function usePluginConnections() {
           ? WAITING_POLL_MS
           : false,
     },
-  );
+  ).data.connections;
 }

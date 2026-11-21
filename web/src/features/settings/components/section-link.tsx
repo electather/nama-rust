@@ -1,0 +1,63 @@
+import { Link } from "@tanstack/react-router";
+import {
+  Bell,
+  Film,
+  HardDrive,
+  House,
+  type LucideIcon,
+  Puzzle,
+  Shield,
+  SlidersHorizontal,
+  Tv,
+} from "lucide-react";
+import { useEffect, useRef } from "react";
+
+import { type Section, sectionTitles } from "@/features/settings/lib/sections";
+
+const icons: Record<Section, LucideIcon> = {
+  signin: Shield,
+  devices: Tv,
+  playback: SlidersHorizontal,
+  home: House,
+  requests: Film,
+  connections: Bell,
+  server: HardDrive,
+  plugins: Puzzle,
+};
+
+const LINK =
+  "flex h-11 flex-none items-center gap-2.5 rounded-sm px-2.5 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-10";
+// The open section is filled and bold, so it isn't marked by colour alone.
+const CURRENT = `${LINK} bg-popover font-semibold text-foreground`;
+const OTHER = `${LINK} text-muted-foreground hover:bg-muted hover:text-foreground`;
+
+/** A section's link in the sidebar, marked while it's the one open. */
+export function SectionLink({ section, current }: { section: Section; current: boolean }) {
+  const link = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    // On a phone the open section may sit outside the strip, as when a link opened Settings on it.
+    if (current) {
+      link.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }, [current]);
+  const Icon = icons[section];
+  return (
+    <Link
+      ref={link}
+      to="."
+      // A Plugin open in the Plugins section closes with it.
+      search={(rest) => ({ ...rest, settings: section, plugin: undefined })}
+      // Sections share one history entry, so Back closes Settings.
+      replace
+      aria-current={current ? "page" : undefined}
+      className={current ? CURRENT : OTHER}
+    >
+      <Icon
+        aria-hidden
+        strokeWidth={1.5}
+        className={current ? "size-5 text-primary max-md:hidden" : "size-5 max-md:hidden"}
+      />
+      {sectionTitles[section]}
+    </Link>
+  );
+}

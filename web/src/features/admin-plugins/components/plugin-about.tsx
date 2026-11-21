@@ -1,21 +1,21 @@
 import { SetupSteps } from "@/features/admin-plugins/components/setup-steps";
-import { webUrl } from "@/features/admin-plugins/lib/setup-markdown";
+import { pluginLinks } from "@/features/admin-plugins/lib/plugin-links";
 import type { Plugin } from "@/gen/nama/v1/plugin_pb";
 import { ExternalTextLink } from "@/shared/components/external-text-link";
 
 /**
  * The About section of a Plugin's page: how to set it up, then its links and licence. A Plugin that
- * gives none of them, or only links that aren't http or https, has none.
+ * gives none of them, or only links that aren't http or https, has none. A view that gives the
+ * links elsewhere, as Settings does in the header's "…", leaves them out with `links` off.
  */
 export function PluginAbout({
   plugin,
+  links: linked = true,
 }: {
   plugin: Pick<Plugin, "setupMarkdown" | "homepageUrl" | "sourceUrl" | "license">;
+  links?: boolean;
 }) {
-  const links = [
-    { name: "Homepage", href: webUrl(plugin.homepageUrl) },
-    { name: "Source", href: webUrl(plugin.sourceUrl) },
-  ].flatMap(({ name, href }) => (href === undefined ? [] : [{ name, href }]));
+  const links = linked ? pluginLinks(plugin) : [];
   const hasFooter = links.length > 0 || plugin.license !== "";
   if (plugin.setupMarkdown.trim() === "" && !hasFooter) {
     return null;

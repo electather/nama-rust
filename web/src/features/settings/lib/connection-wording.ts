@@ -8,12 +8,14 @@ export function failure(error: ConnectError | null, attempt: string) {
   return error ? refusal(error, attempt, {}).form : undefined;
 }
 
-/** Where the User's connection to the Plugin `name` is, in plain words. */
-export function status(state: PluginConnectionState, name: string) {
+/** What the Plugin `name` does for the User, where their connection to it is. */
+export function about(state: PluginConnectionState, name: string) {
   if (state === PluginConnectionState.WAITING) {
-    return `Open ${name} and press Start.`;
+    return `Finish in ${name}. This updates on its own.`;
   }
-  return state === PluginConnectionState.CONNECTED ? "Connected" : "Not connected";
+  return state === PluginConnectionState.CONNECTED
+    ? "Messages you when one of your Requests changes state."
+    : "Can message you when one of your Requests changes state.";
 }
 
 // ponytail: a Plugin's id capitalized, which fits Telegram; give Plugins a display name once one

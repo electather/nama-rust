@@ -1,4 +1,4 @@
-import { createConnectQueryKey, useQuery } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { UserService } from "@/gen/nama/v1/user_pb";
 
@@ -10,6 +10,5 @@ export const notificationPreferencesKey = createConnectQueryKey({
 
 /** The kinds of Request notification the signed-in User gets, each on or off. */
 export function useNotificationPreferences() {
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the section shows nothing until it loads
-  return useQuery(UserService.method.listNotificationPreferences, {});
+  return useSuspenseQuery(UserService.method.listNotificationPreferences, {}).data.preferences;
 }

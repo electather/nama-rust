@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { fakeServer, newUser, openApp } from "@/test-app";
 
-/** The `traceparent` the app sends with Settings' `ListDevices`, against a Server that exports Diagnostics or not. */
+/** The `traceparent` the app sends with `ListDevices`, which Settings' Devices pane calls, against a Server that exports Diagnostics or not. */
 async function traceparentSent(exportsDiagnostics: boolean) {
   const sent: (string | null)[] = [];
   const transport = fakeServer(
@@ -18,7 +18,7 @@ async function traceparentSent(exportsDiagnostics: boolean) {
       },
     },
   );
-  openApp("/settings", transport);
+  openApp("/code?settings=devices", transport);
   await expect.poll(() => sent.length).toBeGreaterThan(0);
   return sent[0];
 }

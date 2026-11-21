@@ -233,11 +233,11 @@ test("approving the last Pending Request leaves the page on Pending", async () =
 });
 
 test("back from the Requests page leaves it, past the default it chose", async () => {
-  const router = openApp("/settings", filteringServer([pendingHeat], [], { signedIn: admin }));
+  const router = openApp("/code", filteringServer([pendingHeat], [], { signedIn: admin }));
 
   fireEvent.click(await screen.findByRole("link", { name: "Requests, 1 Pending" }));
   await screen.findByRole("button", { name: "State: Pending" });
   router.history.back();
 
-  await expect(screen.findByRole("heading", { name: "Settings" })).resolves.toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Sign in a Device" })).resolves.toBeDefined();
 });

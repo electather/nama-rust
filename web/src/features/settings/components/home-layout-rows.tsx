@@ -18,7 +18,7 @@ export function HomeLayoutRows({ saved }: { saved: HomeLayout }) {
   const list = useRef<HTMLUListElement>(null);
   const rowDrag = useRowDrag(list, layout.rows.length, move);
   return (
-    <div className="mt-4 flex flex-col">
+    <div className="flex flex-col">
       <FeaturedRow shown={layout.featuredHidden !== true} onShownChange={setFeaturedShown} />
       <ul ref={list} className="-mx-3 flex flex-col">
         {layout.rows.map((row, index) => (

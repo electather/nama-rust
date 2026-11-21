@@ -1,6 +1,6 @@
 import { cn } from "cn";
-import type { ChangeEvent } from "react";
 
+import { handPicked } from "@/shared/lib/picked-file";
 import { buttonVariants } from "@/shared/ui/button";
 
 /** A button that picks a file of a type in `accept` to upload as the image `name`. */
@@ -15,14 +15,6 @@ export function UploadButton({
   pending: boolean;
   onPicked: (file: File) => void;
 }) {
-  function picked(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    // Cleared, so picking the same file again after a refusal still uploads it.
-    event.target.value = "";
-    if (file) {
-      onPicked(file);
-    }
-  }
   return (
     <label
       className={cn(
@@ -37,7 +29,9 @@ export function UploadButton({
         accept={accept}
         aria-label={`Upload a ${name}`}
         disabled={pending}
-        onChange={picked}
+        onChange={(event) => {
+          handPicked(event, onPicked);
+        }}
         className="sr-only"
       />
     </label>

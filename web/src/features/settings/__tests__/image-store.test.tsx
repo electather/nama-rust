@@ -43,7 +43,7 @@ const summaries = [
 /** Opens Settings for a User who manages settings, on a fake Server answering with `server`. */
 function openSettings(server: Partial<ServiceImpl<typeof ServerService>>) {
   openApp(
-    "/settings",
+    "/code?settings=server",
     fakeServer({ signedIn: manageSettings, serverService: server }, {}, {}, (router) => {
       router.service(PluginService, { listPlugins: () => ({ summaries }) });
     }),

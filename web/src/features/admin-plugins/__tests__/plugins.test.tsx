@@ -137,11 +137,12 @@ test("a refused Plugin's details page shows its file name and why, and no settin
   expect(page.queryByRole("button")).toBeNull();
 });
 
-test("a Plugin without settings says so on its details page", async () => {
+test("a Plugin without settings has no Settings section on its details page", async () => {
   openPlugin("local-auth");
 
   const found12 = await plugin("local-auth");
-  expect(found12.getByText("No settings.")).toBeDefined();
+  expect(found12.getByRole("heading", { name: "Logo" })).toBeDefined();
+  expect(found12.queryByRole("heading", { name: "Settings" })).toBeNull();
 });
 
 test("the details page of a Plugin the Server doesn't have says it isn't found", async () => {

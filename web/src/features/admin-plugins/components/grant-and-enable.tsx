@@ -13,14 +13,17 @@ import { Button } from "@/shared/ui/button";
 /**
  * A disabled Plugin that requests Plugin Permissions, with an Enable button that opens a dialog
  * with one checkbox for each, none checked, and enables it granting only those checked. The
- * dialog says why the Server refused.
+ * dialog says why the Server refused. As a view's `primary` button it stands alone, with no state
+ * beside it.
  */
 export function GrantAndEnable({
   summary,
   settings,
+  primary = false,
 }: {
   summary: PluginSummary;
   settings: Setting[] | undefined;
+  primary?: boolean;
 }) {
   const enable = useEnablePlugin();
   const name = pluginName(summary);
@@ -28,9 +31,9 @@ export function GrantAndEnable({
   const [openings, setOpenings] = useState(0);
   return (
     <div className="flex items-center gap-2">
-      <StateLabel label="Disabled" Icon={PowerOff} />
+      {!primary && <StateLabel label="Disabled" Icon={PowerOff} />}
       <Button
-        variant="ghost"
+        variant={primary ? "default" : "ghost"}
         aria-label={`Enable ${name}`}
         aria-haspopup="dialog"
         onClick={() => {

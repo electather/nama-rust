@@ -13,12 +13,15 @@ export function ConfirmDialog({
   name,
   ref,
   trigger = true,
+  destructive = true,
   ...confirmation
 }: Confirmation & {
   /** The button's accessible name, which says what it acts on, such as "Revoke Laptop". */
   name: string;
   ref?: Ref<Opener> | undefined;
   trigger?: boolean | undefined;
+  /** Whether confirming can't be undone, as most things asked about first can't. */
+  destructive?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [openings, setOpenings] = useState(0);
@@ -34,7 +37,7 @@ export function ConfirmDialog({
           {confirmation.action}
         </Button>
       )}
-      <ConfirmModal ref={dialog} openings={openings} destructive {...confirmation}>
+      <ConfirmModal ref={dialog} openings={openings} destructive={destructive} {...confirmation}>
         {/* Only once opened, so what they fetch waits until someone asks. */}
         {openings > 0 && confirmation.children}
       </ConfirmModal>

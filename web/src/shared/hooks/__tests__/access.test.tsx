@@ -312,18 +312,18 @@ test("a session that has ended sends you to sign in and back again", async () =>
       throw refused(Code.Unauthenticated, "signed out", { reason: RefusalReason.SIGN_IN_REQUIRED });
     },
   });
-  const router = openApp("/settings", transport);
+  const router = openApp("/code", transport);
   await screen.findByRole("button", { name: /’s menu$/u });
   delete state.signedIn;
 
   await signOut();
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
-  expect({ ...router.state.location.search }).toStrictEqual({ redirect: "/settings" });
+  expect({ ...router.state.location.search }).toStrictEqual({ redirect: "/code" });
 });
 
 test("an `unauthenticated` refusal while still signed in keeps you on the page", async () => {
   const router = openApp(
-    "/settings",
+    "/code",
     fakeServer(
       { signedIn: newUser },
       {
@@ -337,6 +337,6 @@ test("an `unauthenticated` refusal while still signed in keeps you on the page",
   );
 
   await signOut();
-  await screen.findByRole("heading", { name: "Settings" });
-  expect(router.state.location.pathname).toBe("/settings");
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+  expect(router.state.location.pathname).toBe("/code");
 });

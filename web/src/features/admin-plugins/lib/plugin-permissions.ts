@@ -1,4 +1,4 @@
-import { PluginPermission } from "@/gen/nama/v1/plugin_pb";
+import { PluginKind, PluginPermission, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 
 /** Each Plugin Permission in plain words, with what granting it lets the Plugin do. */
 export const pluginPermissions: Partial<
@@ -59,3 +59,23 @@ export const pluginPermissions: Partial<
       "It writes a Backup of the Server, every Plugin’s settings and API keys included, into the Backup folder set on the Backups page, and deletes the oldest it wrote beyond the count kept there.",
   },
 };
+
+/**
+ * Whether enabling `summary` first asks which Plugin Permissions to grant: a disabled Installed
+ * Plugin's that requests some. A Built-in one always holds all it requests (ADR 0079).
+ */
+export function asksWhichToGrant(summary: PluginSummary) {
+  return (
+    !summary.enabled &&
+    summary.kind !== PluginKind.BUILT_IN &&
+    summary.requestedPermissions.length > 0
+  );
+}
+
+/**
+ * Whether `summary` lists the Plugin Permissions it holds: a Built-in Plugin holds them even while
+ * disabled (ADR 0079), and an Installed one gets new grants when it is enabled again.
+ */
+export function showsHeld(summary: PluginSummary) {
+  return summary.enabled || summary.kind === PluginKind.BUILT_IN;
+}

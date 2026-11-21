@@ -45,7 +45,7 @@ test.each<{
     const events = eventFeed();
     let pending = 1;
     openApp(
-      "/settings",
+      "/code",
       server(manager, () => pending, events),
     );
 
@@ -61,7 +61,7 @@ test.each<{
 
 test("the Requests link reads 99+ above 99 Pending, and its name gives the count", async () => {
   openApp(
-    "/settings",
+    "/code",
     server(manager, () => 150),
   );
 
@@ -72,14 +72,14 @@ test("the Requests link reads 99+ above 99 Pending, and its name gives the count
 test("a User without Manage Requests sees no Pending count and never asks for one", async () => {
   let asked = false;
   openApp(
-    "/settings",
+    "/code",
     server(newUser, () => {
       asked = true;
       return 3;
     }),
   );
 
-  await screen.findByRole("heading", { name: "Settings" });
+  await screen.findByRole("heading", { name: "Sign in a Device" });
   expect(screen.getByRole("link", { name: "Requests" }).textContent).toBe("Requests");
   expect(asked).toBe(false);
 });

@@ -27,6 +27,7 @@ export function TypedInput({
 }) {
   return (
     <FormField
+      row
       label={setting.label}
       name={setting.key}
       {...inputs[setting.kind]}

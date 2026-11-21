@@ -6,10 +6,10 @@ import { Button } from "@/shared/ui/button";
 export function ResetHomeLayout() {
   const reset = useResetHomeLayout();
   return (
-    <div className="mt-4">
+    <div className="flex flex-col items-end gap-1">
       <Button
         type="button"
-        variant="ghost"
+        variant="secondary"
         disabled={reset.isPending}
         onClick={() => {
           reset.mutate({});
@@ -18,7 +18,7 @@ export function ResetHomeLayout() {
         Reset to default
       </Button>
       {reset.error && (
-        <p role="alert" className="mt-2 text-sm text-destructive">
+        <p role="alert" className="text-xs text-destructive">
           {refusal(reset.error, "reset your Home", {}).form}
         </p>
       )}
