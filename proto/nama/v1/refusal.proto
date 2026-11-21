@@ -305,4 +305,10 @@ enum RefusalReason {
   // `EXTENSION_POINT_SEGMENT_SOURCE`, or name one twice. `field` is `segment_source_ids` or
   // `segment_source_order`. Params: `pluginId`.
   REFUSAL_REASON_SEGMENT_SOURCES_INVALID = 92;
+  // `not_found`: no Plugin the Server has declares the Job named. `field` is `job_id`.
+  REFUSAL_REASON_JOB_NOT_FOUND = 93;
+  // `invalid_argument`: a Job's schedule isn't a standard 5-field cron schedule, or the Job has
+  // none of its own to replace, as it runs only when an Admin starts it. The message says why.
+  // `field` is `schedule`.
+  REFUSAL_REASON_SCHEDULE_INVALID = 94;
 }

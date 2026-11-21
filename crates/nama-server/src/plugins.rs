@@ -7,6 +7,7 @@ mod contract;
 mod cron;
 mod failing;
 mod fulfilling;
+mod job_overrides;
 mod jobs;
 mod points;
 mod registry;
@@ -44,9 +45,11 @@ pub use failing::Failing;
 pub(crate) use fulfilling::{
     AskedAbout, FulfillerOutcome, RETRIES, ask_fulfiller, enabled_fulfiller, tell_fulfiller,
 };
-pub(crate) use jobs::list_jobs;
+pub use job_overrides::ConfigureError;
+pub(crate) use job_overrides::{configure_job, forget_undeclared_jobs};
 pub(crate) use jobs::log_jobs_time_zone;
 pub use jobs::{JobRun, JobRunOutcome, ListedJob, job_runs};
+pub(crate) use jobs::{list_jobs, preview_schedule};
 pub use points::ExtensionPoints;
 pub use registry::Registry;
 #[cfg(test)]

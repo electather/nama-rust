@@ -314,6 +314,10 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_JOBS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_JOBS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__JOB_JSON_ANY);
+        reg.register_json_any(super::__CONFIGURE_JOB_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CONFIGURE_JOB_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_JOB_SCHEDULE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_JOB_SCHEDULE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_JOB_RUNS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_JOB_RUNS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__JOB_RUN_JSON_ANY);
@@ -1404,6 +1408,22 @@ pub use self::__buffa::view::ListJobsResponseOwnedView;
 pub use self::__buffa::view::JobView;
 #[doc(inline)]
 pub use self::__buffa::view::JobOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListJobRunsRequestView;
 #[doc(inline)]
