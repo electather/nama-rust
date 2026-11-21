@@ -4,6 +4,7 @@ import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import type { Event, SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import type { ListUnmatchedItemsResponse } from "@/gen/nama/v1/match_pb";
+import { adminStopQuery } from "@/shared/hooks/admin-stop-query";
 import { browseKey } from "@/shared/hooks/browse";
 import { requestsKey } from "@/shared/hooks/requests-key";
 import { SCANS, scanQuery } from "@/shared/hooks/scan-query";
@@ -19,6 +20,7 @@ export function applyEvent({ message }: SubscribeResponse, queryClient: QueryCli
     refreshBrowsing(message.value, queryClient);
     refreshLibrary(message.value, queryClient);
     refreshRequests(message.value, queryClient);
+    recordAdminStop(message.value, queryClient);
   } else if (message.case === "lagged") {
     forgetMissed(queryClient);
   }
@@ -134,5 +136,13 @@ function refreshRequests({ event }: Event, queryClient: QueryClient) {
   if (requestEvents.has(event.case)) {
     void queryClient.invalidateQueries({ queryKey: requestsKey });
     void queryClient.invalidateQueries({ queryKey: searchKey });
+  }
+}
+
+/** Keeps an Admin's stop of a plan, so its player closes, wherever it plays. */
+function recordAdminStop({ event }: Event, queryClient: QueryClient) {
+  if (event.case === "playbackEnded" && event.value.playback && event.value.adminStop) {
+    const { queryKey } = adminStopQuery(event.value.playback.planId);
+    queryClient.setQueryData(queryKey, event.value.adminStop);
   }
 }

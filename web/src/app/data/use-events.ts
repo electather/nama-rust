@@ -31,6 +31,7 @@ const types = [
   EventType.FOLLOWED_SHOW_CANCELLED,
   EventType.FOLLOWED_SHOW_REQUESTER_REMOVED,
   EventType.FOLLOWED_SHOW_WITHDRAWN,
+  EventType.PLAYBACK_ENDED,
 ];
 
 // How long to wait before subscribing again after the stream ends or fails.

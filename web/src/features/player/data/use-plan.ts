@@ -8,6 +8,7 @@ import { cantPlayBecause } from "@/features/player/lib/cant-play-plan";
 import { findDeviceDecoding } from "@/features/player/lib/device-decoding";
 import { stopPlan } from "@/features/player/lib/plan-lifetime";
 import { PlaybackPlanSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { adminStopQuery } from "@/shared/hooks/admin-stop-query";
 
 /**
  * The plan for Version `versionId` as `asking` says, asked for once and never reused after, once
@@ -32,7 +33,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
       noSubtitles,
       String(replacing),
     ],
-    queryFn: async () => {
+    queryFn: async ({ client }) => {
       if (replacing !== undefined) {
         await stopPlan(tellStopped, replacing);
       }
@@ -53,7 +54,10 @@ export function usePlan(versionId: bigint, asking: Asking) {
           PlaybackService.method.planPlayback,
           input,
         );
-        return create(PlaybackPlanSchema, plan);
+        const planned = create(PlaybackPlanSchema, plan);
+        // Plan ids start again when the Server restarts, so a stop kept under this one was another's.
+        client.removeQueries(adminStopQuery(planned.id));
+        return planned;
       } catch (error) {
         return cantPlayBecause(error);
       }
