@@ -282,8 +282,8 @@ pub mod kernel {
     }
 
     /// Writes a Backup of the Server (ADR 0068) named `nama-<UTC time>.tar` into the Backup
-    /// folder the Admin set, then deletes the oldest so named beyond the count the Admin keeps,
-    /// as `(name, size_bytes)`: its file name and size. A file named otherwise is never deleted,
+    /// folder the Admin set, as `(name, size_bytes)`: its file name and size. It then deletes the
+    /// oldest so named beyond the count the Admin keeps; a file named otherwise is never deleted,
     /// and a Backup that fails deletes nothing. Needs `PERMISSION_BACK_UP`.
     ///
     /// # Errors
