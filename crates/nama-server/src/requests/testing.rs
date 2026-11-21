@@ -33,7 +33,7 @@ use crate::{
     db::Database,
     events::EventBus,
     library::{
-        Change, Contents, Decided, Decisions, Item, Libraries, LibraryKind, Metadata, Roles,
+        Change, Contents, Decided, Decisions, Item, Libraries, LibraryKind, Metadata,
         SourceEpisode, SourceSeason,
         fixture::{MatchedMovie, movies_library, tmdb_movie},
     },
@@ -262,30 +262,9 @@ pub(super) fn tmdb(tmdb_id: i64) -> ExternalIds {
 /// A Match to the title with `ids`, or for an Episode to its Show's `show_ids`.
 pub(super) fn matched(ids: ExternalIds, show_ids: ExternalIds) -> Decided {
     Decided::Matched(Box::new(Metadata {
-        plugin: PluginId::from_static("tmdb"),
         ids,
         show_ids,
-        title: "Matched".to_owned(),
-        original_title: None,
-        show_title: None,
-        overview: None,
-        release_date: None,
-        runtime_minutes: None,
-        poster: None,
-        backdrop: None,
-        titled_backdrop: None,
-        logo: None,
-        still: None,
-        genres: Vec::new(),
-        content_rating: None,
-        show_poster: None,
-        show_overview: None,
-        show_first_air_date: None,
-        score: None,
-        original_language: None,
-        similar: Vec::new(),
-        trailers: Vec::new(),
-        roles: Roles::default(),
+        ..tmdb_movie(0, "Matched")
     }))
 }
 

@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-21, #1509
+
+- `FIELD_SAME_CARDINALITY`, `nama/v1/server.proto`: `HomeLayout.featured_hidden` is now `optional`. Its wire and JSON forms are unchanged.
+- `UserService.SetHomeLayout` with `featured_hidden` unset leaves the caller's Featured as it is, where it read unset as shown. `SetDefaultHomeLayout` still reads unset as shown, and every response sets it.
+- A client built before sends a shown Featured as unset, since `false` was its default, so its `SetHomeLayout` can hide Featured but not show it again, and still pins a hidden Featured when it saves a row. It must regenerate, send `featured_hidden` when it changes Featured, and leave it unset otherwise. The web app is the only client.
+
 ## 2026-11-21, #1528
 
 - None that `buf breaking` reports: in `nama/v1/server.proto`, `GetServerInfoResponse.searches_subtitles` (6) is deleted with its number and name reserved.

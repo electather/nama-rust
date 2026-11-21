@@ -36,7 +36,7 @@ mod sign_in_codes;
 pub use codes::SetupCode;
 use codes::new_token;
 pub(crate) use codes::random_secret;
-pub(crate) use home_layout::UserHomeLayout;
+pub(crate) use home_layout::{AskedHomeLayout, UserHomeLayout};
 pub(crate) use invites::Invite;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 use names::checked_name;
