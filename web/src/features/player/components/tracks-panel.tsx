@@ -30,7 +30,7 @@ export function TracksPanel({
 }) {
   const states = useShownSubtitles(planned, videoRef);
   const reportPick = useReportTrackPick(planned.versionId);
-  const maySearch = useMaySearchSubtitles();
+  const maySearch = useMaySearchSubtitles(planned.plan);
   const { audioTracks, subtitles, burnInTracks } = planned.plan;
   // Nothing to pick: only the file's own audio, no subtitles, and none to search for.
   if (audioTracks.length < 2 && subtitles.length + burnInTracks.length === 0 && !maySearch) {

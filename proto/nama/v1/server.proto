@@ -159,10 +159,9 @@ message GetServerInfoResponse {
   // while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
   // too often with HTTP 429.
   bool exports_diagnostics = 5;
-  // Whether a subtitle source is enabled, so `PlaybackService.SearchSubtitles` can find any
-  // (ADR 0067). A client offers that search only then, and only to a User with
-  // `PERMISSION_DOWNLOAD_SUBTITLES`.
-  bool searches_subtitles = 6;
+  // Anyone could read this before sign-in; `PlaybackPlan.can_search_subtitles` says it instead.
+  reserved 6;
+  reserved "searches_subtitles";
 }
 
 message GetServerSettingsRequest {}
