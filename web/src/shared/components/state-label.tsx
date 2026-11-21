@@ -8,6 +8,8 @@ export interface Shown {
 
 const TONES = {
   quiet: "border text-muted-foreground",
+  // It's as it should be, such as Connected or Saved: lit, as a chosen thing is.
+  positive: "bg-accent text-primary",
   // Something gave way, such as a Playback Limit the player couldn't keep: it stands out of the
   // picture without the alarm of Destructive.
   warning: "bg-secondary text-foreground",

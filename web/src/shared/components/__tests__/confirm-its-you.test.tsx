@@ -11,20 +11,22 @@ afterEach(cleanup);
 
 async function submitPasswordChange() {
   await screen.findByRole("button", { name: "Change password" });
+  fill("Current password", "correct horse");
   fill("New password", "battery staple");
+  fill("Confirm new password", "battery staple");
   fireEvent.click(screen.getByRole("button", { name: "Change password" }));
 }
 
 /**
- * Settings, on a Server that refuses `ChangePassword` for want of Recent Authentication until
- * `Reauthenticate` gets "correct horse", or always if `alwaysRefuse`. Returns the passwords it
- * changed to.
+ * Settings' Sign-in pane, on a Server whose Recent Authentication has lapsed again by the time
+ * `ChangePassword` arrives: the pane's own `Reauthenticate` isn't enough, so it refuses until a
+ * second one gets "correct horse", or always if `alwaysRefuse`. Returns the passwords it changed to.
  */
 function openSettingsNeedingRecentAuthentication(alwaysRefuse = false) {
-  let reauthenticated = false;
+  let confirmations = 0;
   const changedTo: string[] = [];
   openApp(
-    "/settings",
+    "/code?settings=signin",
     fakeServer(
       { signedIn: newUser },
       {
@@ -35,13 +37,13 @@ function openSettingsNeedingRecentAuthentication(alwaysRefuse = false) {
               field: "password",
             });
           }
-          reauthenticated = true;
+          confirmations += 1;
           return {};
         },
       },
       {
         changePassword: ({ newPassword }) => {
-          if (alwaysRefuse || !reauthenticated) {
+          if (alwaysRefuse || confirmations < 2) {
             throw recentAuthenticationRequired();
           }
           changedTo.push(newPassword);
@@ -59,9 +61,7 @@ test("without Recent Authentication, a password change goes through once you con
   await submitPasswordChange();
   await confirmItsYou();
 
-  await expect(
-    screen.findByText("Password changed. Your other Devices were signed out."),
-  ).resolves.toBeDefined();
+  await expect(screen.findByText("Password changed")).resolves.toBeDefined();
   expect(changedTo).toStrictEqual(["battery staple"]);
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
@@ -92,9 +92,7 @@ test("a wrong password in “Confirm it’s you” says so, and you can try agai
   await expect(within(dialog).findByText("That isn’t your password.")).resolves.toBeDefined();
   await confirmItsYou();
 
-  await expect(
-    screen.findByText("Password changed. Your other Devices were signed out."),
-  ).resolves.toBeDefined();
+  await expect(screen.findByText("Password changed")).resolves.toBeDefined();
   expect(changedTo).toStrictEqual(["battery staple"]);
 });
 

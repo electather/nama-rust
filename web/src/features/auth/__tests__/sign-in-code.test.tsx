@@ -56,7 +56,7 @@ function serverWaitingForApproval() {
 
 test("once the code is approved, polling signs the browser in", async () => {
   const { transport, approve } = serverWaitingForApproval();
-  const router = openApp("/sign-in?redirect=%2Fsettings", transport);
+  const router = openApp("/sign-in?redirect=%2Fcode", transport);
 
   await getCode();
   await expect(screen.findByText("ABCD-EFGH")).resolves.toBeDefined();
@@ -64,8 +64,8 @@ test("once the code is approved, polling signs the browser in", async () => {
   await nextPoll();
   approve();
   await nextPoll();
-  await screen.findByRole("heading", { name: "Settings" });
-  expect(router.state.location.pathname).toBe("/settings");
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+  expect(router.state.location.pathname).toBe("/code");
 });
 
 test("back and forward step through signing in with a code, code and all", async () => {

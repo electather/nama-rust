@@ -1,38 +1,35 @@
-import { pluginQueriesKey } from "@/features/admin-plugins/data/plugin-queries-key";
+import { LogoUpload } from "@/features/admin-plugins/components/logo-upload";
+import { useChangeLogo } from "@/features/admin-plugins/hooks/use-change-logo";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { ChangeImage } from "@/shared/components/change-image/change-image";
-import type { ImageRules } from "@/shared/lib/image-rules";
+import { RemoveImage } from "@/shared/components/change-image/remove-image";
 
-/** A Plugin's logo may also be an SVG, and the Plugin queries send its URL. */
-const pluginLogos: ImageRules = {
-  accept: "image/jpeg,image/png,image/webp,image/svg+xml",
-  refusals: {
-    403: "This needs the Manage Settings Permission.",
-    413: "That file is too big: an SVG can be up to 64 KB, other images up to 20 MB.",
-    415: "That isn’t a JPEG, PNG, WebP or SVG image.",
-    422: "That image is over 12 megapixels. Pick a smaller one.",
-  },
-  queryKey: pluginQueriesKey,
-};
-
-/** Where an admin uploads their own logo for the Plugin, shown in place of its own until removed. */
+/**
+ * Where an admin uploads their own logo for the Plugin, shown in place of its own until removed,
+ * and why the Server refused to change it.
+ */
 export function LogoChoice({ summary }: { summary: PluginSummary }) {
-  const image = {
-    name: "Logo",
-    custom: summary.customLogo,
-    path: `/custom-images/plugin/${encodeURIComponent(summary.id)}/logo`,
-  };
+  const { accept, upload, remove, pending, error } = useChangeLogo(summary.id);
   return (
     <section aria-labelledby="logo" className="mt-10">
       <h2 id="logo" className="font-medium">
         Logo
       </h2>
-      <p className="mt-1 max-w-prose text-sm text-pretty text-muted-foreground">
+      <p className="mt-1 mb-3 max-w-prose text-sm text-pretty text-muted-foreground">
         {summary.customLogo
           ? "Everyone sees the logo you uploaded, until you remove it."
-          : "Upload your own to show in place of the Plugin’s. JPEG, PNG or WebP up to 20 MB, or SVG up to 64 KB."}
+          : "Upload your own to show in place of the Plugin’s."}
       </p>
-      <ChangeImage image={image} rules={pluginLogos} />
+      <LogoUpload accept={accept} pending={pending} onFile={upload} />
+      {summary.customLogo && (
+        <div className="-ms-3 mt-2 flex">
+          <RemoveImage name="Logo" pending={pending} onRemove={remove} />
+        </div>
+      )}
+      {error !== undefined && (
+        <p role="alert" className="mt-2 text-sm text-pretty text-destructive">
+          {error}
+        </p>
+      )}
     </section>
   );
 }

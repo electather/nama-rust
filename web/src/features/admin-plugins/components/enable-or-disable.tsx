@@ -3,6 +3,7 @@ import { Power, PowerOff } from "lucide-react";
 import { GrantedPermissions } from "@/features/admin-plugins/components/granted-permissions";
 import { useDisablePlugin } from "@/features/admin-plugins/data/use-disable-plugin";
 import { useEnablePlugin } from "@/features/admin-plugins/data/use-enable-plugin";
+import { showsHeld } from "@/features/admin-plugins/lib/plugin-permissions";
 import { refusedChange } from "@/features/admin-plugins/lib/refused-change";
 import { PluginKind, type PluginSummary, type Setting } from "@/gen/nama/v1/plugin_pb";
 import { StateLabel } from "@/shared/components/state-label";
@@ -51,12 +52,4 @@ export function EnableOrDisable({
       )}
     </>
   );
-}
-
-/**
- * Whether `summary` lists the Plugin Permissions it holds: a Built-in Plugin holds them even while
- * disabled (ADR 0079), and an Installed one gets new grants when it is enabled again.
- */
-function showsHeld(summary: PluginSummary) {
-  return summary.enabled || summary.kind === PluginKind.BUILT_IN;
 }

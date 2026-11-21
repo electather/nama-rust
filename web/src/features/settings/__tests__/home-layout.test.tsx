@@ -1,11 +1,13 @@
 import { create } from "@bufbuild/protobuf";
-import { fireEvent, screen, within } from "@testing-library/react";
-import { expect, test } from "vite-plus/test";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, expect, test } from "vite-plus/test";
 
 import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
 import { type HomeLayout, HomeLayoutSchema } from "@/gen/nama/v1/server_pb";
 import { rowKey } from "@/shared/lib/home-layout";
 import { fakeServer, newUser, openApp } from "@/test-app";
+
+afterEach(cleanup);
 
 /** The Server's default as this User sees it: Continue Watching, then a Plugin's row. */
 function defaultLayout() {
@@ -34,7 +36,7 @@ function openSettings(reordered = Promise.resolve()) {
   const saves: HomeLayout[] = [];
   const orders: string[][] = [];
   openApp(
-    "/settings",
+    "/code?settings=home",
     fakeServer(
       { signedIn: newUser },
       {},
@@ -78,9 +80,15 @@ function shownSwitch(home: HTMLElement, name: string) {
   return within(home).getByRole("switch", { name: `Show ${name}` });
 }
 
+/** The Home pane, once its rows have loaded: until then the same frame holds a skeleton. */
+async function homePane() {
+  await screen.findByRole("switch", { name: "Show Featured" });
+  return screen.getByRole("region", { name: "Home" });
+}
+
 test("a User hides a Home row and Featured on Settings, then resets to the default", async () => {
   const { saves } = openSettings();
-  const home = await screen.findByRole("region", { name: "Home" });
+  const home = await homePane();
 
   fireEvent.click(shownSwitch(home, "Top picks"));
   await expect.poll(() => saves.at(-1)?.rows[0]?.hidden).toBe(true);
@@ -100,7 +108,7 @@ test("a User hides a Home row and Featured on Settings, then resets to the defau
 
 test("flipping a switch saves that row or Featured alone, so the rest follow the default", async () => {
   const { saves } = openSettings();
-  const home = await screen.findByRole("region", { name: "Home" });
+  const home = await homePane();
 
   fireEvent.click(shownSwitch(home, "Top picks"));
   await expect.poll(() => saves.length).toBe(1);
@@ -117,7 +125,7 @@ test("flipping a switch saves that row or Featured alone, so the rest follow the
 
 test("moving a row saves the User's order of their Home rows and says where it went", async () => {
   const { orders } = openSettings();
-  const home = await screen.findByRole("region", { name: "Home" });
+  const home = await homePane();
 
   fireEvent.click(await within(home).findByRole("button", { name: "Move Top picks up" }));
 
@@ -134,7 +142,7 @@ test("a switch flipped while a move saves stays as flipped", async () => {
     answerReorder = resolve;
   });
   const { saves } = openSettings(reordered);
-  const home = await screen.findByRole("region", { name: "Home" });
+  const home = await homePane();
 
   fireEvent.click(await within(home).findByRole("button", { name: "Move Top picks up" }));
   fireEvent.click(shownSwitch(home, "Top picks"));

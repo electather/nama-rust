@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import {
@@ -6,11 +6,13 @@ import {
   PluginConnectionState,
   type StartPluginConnectionRequest,
 } from "@/gen/nama/v1/user_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { admin, fakeServer, newUser } from "@/test-app";
+import { openSettings } from "@/test-settings";
 
 const link = "https://t.me/nama_bot?start=one-time-code";
 
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
 });
 
@@ -38,40 +40,67 @@ function telegramIn(state: { now: PluginConnectionState }) {
   return { transport, started, deleted };
 }
 
-test("a User connects Telegram on Settings, waits for Start, then sees it Connected", async () => {
+test("a User connects Telegram on Settings, waits for it, then sees it Connected", async () => {
   const opened = vi.spyOn(globalThis, "open").mockReturnValue(null);
   const state: { now: PluginConnectionState } = { now: PluginConnectionState.NOT_CONNECTED };
   const { transport, started } = telegramIn(state);
-  openApp("/settings", transport);
+  openSettings("connections", transport);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Connect Telegram" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Connect in Telegram" }));
 
-  await expect(screen.findByText("Open Telegram and press Start.")).resolves.toBeDefined();
-  expect(screen.getByRole("link", { name: "Open Telegram" }).getAttribute("href")).toBe(link);
+  await expect(
+    screen.findByText("Finish in Telegram. This updates on its own."),
+  ).resolves.toBeDefined();
+  expect(screen.getByText("Waiting for you")).toBeDefined();
+  expect(screen.getByRole("link", { name: "Open Telegram again" }).getAttribute("href")).toBe(link);
   expect(opened).toHaveBeenCalledWith(link, "_blank", "noopener");
   expect(started).toMatchObject([{ pluginId: "telegram" }]);
 
   state.now = PluginConnectionState.CONNECTED;
 
-  const connections = screen.getByRole("region", { name: "Connections" });
+  const connections = screen.getByRole("list", { name: "Plugins" });
   await expect(within(connections).findByText("Connected")).resolves.toBeDefined();
-  expect(within(connections).getByRole("button", { name: "Disconnect Telegram" })).toBeDefined();
+  expect(within(connections).getByRole("button", { name: "Disconnect" })).toBeDefined();
 });
 
-test("disconnect deletes the User's Telegram connection", async () => {
-  const { transport, deleted } = telegramIn({ now: PluginConnectionState.CONNECTED });
-  openApp("/settings", transport);
+test("cancelling a link that waits goes back to not connected", async () => {
+  const { transport, deleted } = telegramIn({ now: PluginConnectionState.WAITING });
+  openSettings("connections", transport);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Disconnect Telegram" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Cancel connecting Telegram" }));
 
-  await expect(screen.findByRole("button", { name: "Connect Telegram" })).resolves.toBeDefined();
+  await expect(screen.findByRole("button", { name: "Connect in Telegram" })).resolves.toBeDefined();
   expect(deleted).toMatchObject([{ pluginId: "telegram" }]);
 });
 
-test("settings shows no Connections while no Plugin connects Users", async () => {
-  openApp("/settings", fakeServer({ signedIn: newUser }));
+test("disconnect asks first, then deletes the User's Telegram connection", async () => {
+  const { transport, deleted } = telegramIn({ now: PluginConnectionState.CONNECTED });
+  openSettings("connections", transport);
 
-  await screen.findByRole("heading", { name: "Devices" });
+  fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+  const dialog = await screen.findByRole("alertdialog", { name: "Disconnect Telegram?" });
+  expect(deleted).toStrictEqual([]);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Disconnect" }));
 
-  expect(screen.queryByRole("heading", { name: "Connections" })).toBeNull();
+  await expect(screen.findByRole("button", { name: "Connect in Telegram" })).resolves.toBeDefined();
+  expect(deleted).toMatchObject([{ pluginId: "telegram" }]);
+});
+
+test("while no Plugin connects Users, the pane says so, and to ask an Admin", async () => {
+  openSettings("connections", fakeServer({ signedIn: newUser }));
+
+  await expect(
+    screen.findByText("No Plugins on this Server can message you yet."),
+  ).resolves.toBeDefined();
+  expect(screen.getByText("Ask an Admin to add one.")).toBeDefined();
+  expect(screen.queryByRole("link", { name: "See Plugins" })).toBeNull();
+});
+
+test("an Admin with no Plugin that connects Users is sent to the Plugins section", async () => {
+  openSettings("connections", fakeServer({ signedIn: admin }));
+
+  const see = await screen.findByRole("link", { name: "See Plugins" });
+  fireEvent.click(see);
+
+  await expect(screen.findByRole("heading", { name: "Plugins" })).resolves.toBeDefined();
 });

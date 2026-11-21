@@ -1,12 +1,12 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { createConnectQueryKey } from "@connectrpc/connect-query";
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { ExtensionPoint, type QualitySchema } from "@/gen/nama/v1/plugin_pb";
 import { RequestService, type SetDefaultQualityRequest } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fakeServer, newUser, openApp } from "@/test-app";
+import { openSettings, pick } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -40,37 +40,32 @@ function server(
 
 test("a User who may choose sets their default Quality for Movies, the default picked to start with", async () => {
   const set: SetDefaultQualityRequest[] = [];
-  openApp("/settings", server(mayChoose, {}, set));
+  openSettings("requests", server(mayChoose, {}, set));
 
-  const movies = await screen.findByLabelText<HTMLSelectElement>("Movies");
-  expect(movies.value).toBe("1");
-  expect(screen.getByRole("option", { name: "HD (Default)" })).toBeDefined();
-  fill("Movies", "2");
-  fireEvent.click(screen.getByRole("button", { name: "Save default for Movies" }));
+  const movies = await screen.findByRole("combobox", { name: "Quality for Movies" });
+  expect(movies.textContent).toBe("HD (Default)");
+  pick("Quality for Movies", "4K");
 
-  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
-  expect(set).toMatchObject([{ pluginId: "radarr", quality: 2n }]);
+  await expect.poll(() => set).toMatchObject([{ pluginId: "radarr", quality: 2n }]);
 });
 
 test("a default an admin has since removed is flagged, with the default picked", async () => {
-  openApp("/settings", server(mayChoose, { qualities: [hd], quality: 2n }));
+  openSettings("requests", server(mayChoose, { qualities: [hd], quality: 2n }));
 
-  const movies = await screen.findByLabelText<HTMLSelectElement>("Movies");
-  expect(movies.value).toBe("1");
-  expect(movies.getAttribute("aria-invalid")).toBe("true");
+  const movies = await screen.findByRole("combobox", { name: "Quality for Movies" });
+  expect(movies.textContent).toBe("HD (Default)");
   expect(
     screen.getByText("The Quality you picked is no longer offered, so your Requests get HD."),
   ).toBeDefined();
 });
 
-test("a User who may not choose a Quality sees no default Quality on Settings", async () => {
-  openApp("/settings", server(newUser, { quality: 2n }));
+test("a User who may not choose a Quality has no Requests section, and its address opens Playback", async () => {
+  openSettings("requests", server(newUser, { quality: 2n }));
 
-  await screen.findByRole("heading", { name: "Devices" });
-  await waitFor(() => {
-    expect(screen.queryByRole("heading", { name: "Your default Quality" })).toBeNull();
-  });
-  expect(screen.queryByLabelText("Movies")).toBeNull();
+  await screen.findByRole("heading", { name: "Playback" });
+  const sections = within(screen.getByRole("navigation", { name: "Settings" }));
+  expect(sections.queryByRole("link", { name: "Requests" })).toBeNull();
+  expect(screen.queryByLabelText("Quality for Movies")).toBeNull();
 });
 
 test("saving a default for Shows reads the Show Quality menu's Qualities again", async () => {
@@ -104,28 +99,16 @@ test("saving a default for Shows reads the Show Quality menu's Qualities again",
   });
 
   await act(async () => {
-    await router.navigate({ to: "/settings" });
+    await router.navigate({ to: ".", search: { settings: "requests" } });
   });
-  await screen.findByLabelText("Shows");
-  fill("Shows", "2");
-  fireEvent.click(screen.getByRole("button", { name: "Save default for Shows" }));
-  await screen.findByText("Saved.");
+  await screen.findByRole("combobox", { name: "Quality for Shows" });
+  pick("Quality for Shows", "4K");
+  await expect.poll(() => personalDefault).toBe(2n);
 
-  const showQualitiesKey = createConnectQueryKey({
-    schema: RequestService.method.listShowQualities,
-    cardinality: "finite",
-  });
-  // Unfixed, the menu below still shows the new default if a slow run remounts the Show page over
-  // 1 s later: useSuspenseQuery keeps data fresh for at least 1 s, then refetches on mount.
-  const cached = router.options.context.queryClient
-    .getQueryCache()
-    .findAll({ queryKey: showQualitiesKey });
-  expect(cached.map((query) => query.state.isInvalidated)).toStrictEqual([true]);
-  await act(async () => {
-    await router.navigate({ to: "/shows/$showId", params: { showId: "tmdb-70523" } });
-  });
+  // Settings sits over the Show's page, so closing it is all it takes to be back there.
+  fireEvent.click(screen.getByRole("button", { name: "Close Settings" }));
   await waitFor(() => {
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: chevron }).disabled).toBe(false);
+    expect(router.state.location.search.settings).toBeUndefined();
   });
   fireEvent.click(screen.getByRole("button", { name: chevron }));
   const items = await screen.findAllByRole("menuitemradio");

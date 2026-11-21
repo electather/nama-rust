@@ -1,4 +1,4 @@
-import { createConnectQueryKey, useQuery } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { UserService } from "@/gen/nama/v1/user_pb";
 
@@ -10,6 +10,5 @@ export const personalKey = createConnectQueryKey({
 
 /** The signed-in User's own Personal settings, a card per Plugin that declares any. */
 export function usePersonalSettings() {
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the section shows nothing until it loads, and nothing if no Plugin declares any
-  return useQuery(UserService.method.listPersonalSettings);
+  return useSuspenseQuery(UserService.method.listPersonalSettings);
 }

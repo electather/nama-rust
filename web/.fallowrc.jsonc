@@ -172,7 +172,15 @@
       },
       {
         "from": "settings",
-        "allow": ["settings", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        // Its Plugins pane lists the Plugins page's rows.
+        "allow": [
+          "settings",
+          "admin-plugins",
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+        ],
       },
       {
         "from": "home",
@@ -196,6 +204,7 @@
           "app",
           "action-bar",
           "player",
+          "settings",
           "shared-components",
           "shared-ui",
           "shared-hooks",

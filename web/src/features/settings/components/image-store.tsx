@@ -18,12 +18,12 @@ export function ImageStore() {
   const nameOf = (pluginId: string) => storeName(pluginId, plugins);
 
   return (
-    <section aria-labelledby="image-store" className="mt-10 flex flex-col gap-5">
+    <section aria-labelledby="image-store" className="flex flex-col gap-3.5">
       <div>
-        <h3 id="image-store" className="font-medium">
+        <h4 id="image-store" className="font-medium">
           Image store
-        </h3>
-        <p className="mt-1 text-sm text-pretty text-muted-foreground">
+        </h4>
+        <p className="text-xs text-pretty text-muted-foreground">
           Where the Server keeps the images it fetched, Custom Images and Plugin logos. Resized
           copies always stay on local disk.
         </p>

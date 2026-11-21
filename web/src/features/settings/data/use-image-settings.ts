@@ -1,9 +1,4 @@
-import type { Transport } from "@connectrpc/connect";
-import {
-  createConnectQueryKey,
-  createQueryOptions,
-  useSuspenseQuery,
-} from "@connectrpc/connect-query";
+import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
@@ -13,14 +8,6 @@ export const imageSettingsKey = createConnectQueryKey({
   schema: ServerService.method.getImageSettings,
   cardinality: "finite",
 });
-
-/** The image settings, for Settings to load before it shows the form. */
-export function imageSettingsQuery(transport: Transport) {
-  return {
-    ...createQueryOptions(ServerService.method.getImageSettings, {}, { transport }),
-    staleTime: "static" as const,
-  };
-}
 
 /** The image settings. */
 export function useImageSettings() {

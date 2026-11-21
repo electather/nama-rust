@@ -26,9 +26,3 @@ export const languages: Language[] = codes
 export function languageName(code: string) {
   return languages.find((language) => language.code === code)?.name ?? code;
 }
-
-/** The code of the language on the list typed as `typed`, by its name or code in any case. */
-export function languageCode(typed: string) {
-  const wanted = typed.trim().toLowerCase();
-  return languages.find(({ code, name }) => code === wanted || name.toLowerCase() === wanted)?.code;
-}

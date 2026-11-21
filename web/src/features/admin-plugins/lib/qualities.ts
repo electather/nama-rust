@@ -17,55 +17,63 @@ export function takesQualities(plugin: PluginDetails) {
   );
 }
 
-/** A Quality being edited, keyed so its inputs keep their names as others are removed. */
-export interface Row {
-  key: number;
-  quality: Quality;
-}
-
-const keys = { last: 0 };
-
-/** `qualities` as rows, each with a key no other row ever had. */
-export function keyed(qualities: Quality[]): Row[] {
-  return qualities.map((quality) => {
-    keys.last += 1;
-    return { key: keys.last, quality };
-  });
-}
-
 function notOffered(plugin: PluginDetails) {
   return `${pluginName(plugin.summary)} doesn’t offer this profile now.`;
 }
 
-/** A flag under each of `rows` whose saved profile `plugin` doesn't offer now, as `profiles` says. */
-export function profilesGone(rows: Row[], profiles: Choice[] | undefined, plugin: PluginDetails) {
-  if (profiles === undefined) {
-    return {};
+/**
+ * The flag under a Quality whose profile `plugin`'s service doesn't offer now, as `profiles` says.
+ * None while they aren't known: not fetched yet, or the check failed.
+ */
+export function profileFlag(
+  quality: Quality,
+  profiles: Choice[] | undefined,
+  plugin: PluginDetails,
+) {
+  const offered = profiles?.some(({ value }) => value === quality.profileId) ?? true;
+  return offered ? undefined : notOffered(plugin);
+}
+
+/** The line under a Quality's name: its profile as the service names it, else its id, then its description. */
+export function qualityMeta(quality: Quality, profiles: Choice[] = []) {
+  const named = profiles.find(({ value }) => value === quality.profileId)?.label;
+  return [named ?? quality.profileId, quality.description]
+    .filter((part) => part !== "")
+    .join(" · ");
+}
+
+/** A Quality as a list to save holds it. */
+function listed({ id, profileId, name, description, isDefault }: Quality) {
+  return { id, profileId, name, description, isDefault };
+}
+
+/**
+ * `saved` with the Quality `typed` into its dialog in place of `edited`, or at the end without one,
+ * where the first Quality of a list is its default.
+ */
+export function qualitiesWith(saved: Quality[], typed: FormData, edited?: Quality) {
+  const fields = {
+    profileId: formText(typed, "profile"),
+    name: formText(typed, "name"),
+    description: formText(typed, "description"),
+  };
+  if (edited === undefined) {
+    const kept = saved.map((quality) => listed(quality));
+    return [...kept, { id: 0n, ...fields, isDefault: saved.length === 0 }];
   }
-  const gone = rows.filter(
-    ({ quality: { profileId } }) =>
-      profileId !== "" && !profiles.some(({ value }) => value === profileId),
+  return saved.map((quality) =>
+    quality.id === edited.id ? { ...listed(quality), ...fields } : listed(quality),
   );
-  return Object.fromEntries(gone.map(({ key }) => [`profile-${key}`, notOffered(plugin)]));
 }
 
-/** The Qualities typed in `typed`, one per row, in order. */
-export function qualitiesTyped(typed: FormData, rows: Row[]) {
-  return rows.map(({ key, quality }) => ({
-    id: quality.id,
-    profileId: formText(typed, `profile-${key}`),
-    name: formText(typed, `name-${key}`),
-    description: formText(typed, `description-${key}`),
-    isDefault: formText(typed, "default") === String(key),
-  }));
+/** `saved` without `removed`. */
+export function qualitiesWithout(saved: Quality[], removed: Quality) {
+  return saved.filter(({ id }) => id !== removed.id).map((quality) => listed(quality));
 }
 
-/** The row and input a Refusal's `field`, such as `qualities[1].name`, names, if it names one. */
-function refusedInput(field: string, rows: Row[]) {
-  const [, index, part] =
-    /^qualities\[(?<index>\d+)\]\.(?<part>profile_id|name)$/u.exec(field) ?? [];
-  const row = rows[Number(index)];
-  return row && ([row, part === "name" ? "name" : "profile"] as const);
+/** `saved` with `chosen` its only default. */
+export function qualitiesDefaulting(saved: Quality[], chosen: Quality) {
+  return saved.map((quality) => ({ ...listed(quality), isDefault: quality.id === chosen.id }));
 }
 
 /** Why the Server refused the Qualities as a whole. */
@@ -75,37 +83,41 @@ function formRefused(error: unknown) {
     "save the Qualities",
     {},
     {
-      [RefusalReason.DEFAULT_QUALITY_REQUIRED]: { form: "Mark one Quality as the default." },
+      // Only removing the default while others are left sends a list without one.
+      [RefusalReason.DEFAULT_QUALITY_REQUIRED]: { form: "Make another Quality the default first." },
       // The Plugin's own words.
       [RefusalReason.SETTINGS_CHECK_FAILED]: { form: serverMessage(error) },
     },
   ).form;
 }
 
-/** Why the Server refused a Quality's name or profile, by its Refusal's reason. */
+/**
+ * Why the Server refused a Quality's name or profile, by the part of it the Refusal names and the
+ * Refusal's reason.
+ */
 function inputRefused(
   plugin: PluginDetails,
-): Record<"name" | "profile", Partial<Record<RefusalReason, string>>> {
+): Record<string, Partial<Record<RefusalReason, string>> | undefined> {
   return {
     name: { [RefusalReason.QUALITY_REPEATED]: "Another Quality has this name." },
-    profile: {
+    profile_id: {
       [RefusalReason.QUALITY_REPEATED]: "Another Quality offers this profile.",
       [RefusalReason.CHOICE_NOT_OFFERED]: notOffered(plugin),
     },
   };
 }
 
-/** Why the Server refused the Qualities: next to the input its Refusal names, or for the form. */
-export function qualityErrors(
-  error: unknown,
-  rows: Row[],
-  plugin: PluginDetails,
-): Record<string, string | undefined> {
+/** The part of a Quality a Refusal's `field`, such as `qualities[1].name`, names, or `""`. */
+function refusedPart(field: string) {
+  return /^qualities\[\d+\]\.(?<part>\w+)$/u.exec(field)?.groups?.["part"] ?? "";
+}
+
+/**
+ * Why the Server refused a change to the Qualities, as a sentence: what its Refusal says of the
+ * name or profile it names, or of the list.
+ */
+export function qualityRefusal(error: unknown, plugin: PluginDetails) {
   const { reason, field } = refusalOf(error);
-  const named = refusedInput(field, rows);
-  if (named === undefined) {
-    return { form: formRefused(error) };
-  }
-  const [row, input] = named;
-  return { [`${input}-${row.key}`]: inputRefused(plugin)[input][reason] ?? serverMessage(error) };
+  const said = inputRefused(plugin)[refusedPart(field)];
+  return said === undefined ? formRefused(error) : (said[reason] ?? serverMessage(error));
 }

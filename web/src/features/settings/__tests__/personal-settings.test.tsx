@@ -37,7 +37,7 @@ const ntfy = {
 /** Opens Settings with ntfy's Personal settings, saving them with `update`. */
 function openWithNtfy(update: (request: UpdatePersonalSettingsRequest) => object = () => ({})) {
   openApp(
-    "/settings",
+    "/code?settings=connections",
     fakeServer(
       { signedIn: newUser },
       {},
@@ -51,7 +51,7 @@ const card = async () => within(await screen.findByRole("listitem", { name: "ntf
 test("settings shows no Personal settings while no Plugin declares any", async () => {
   let listed = false;
   openApp(
-    "/settings",
+    "/code?settings=connections",
     fakeServer(
       { signedIn: newUser },
       {},
@@ -64,7 +64,7 @@ test("settings shows no Personal settings while no Plugin declares any", async (
     ),
   );
 
-  await screen.findByRole("heading", { name: "Devices" });
+  await screen.findByRole("heading", { name: "Connections" });
   await waitFor(() => {
     expect(listed).toBe(true);
   });
@@ -90,7 +90,7 @@ test("a set secret is said to be set, never filled in, and has no Forget of its 
   expect([token.type, token.value]).toStrictEqual(["password", ""]);
 });
 
-test("saving sends the values typed, keeping a set secret by leaving it out", async () => {
+test("a change sends the values typed, keeping a set secret by leaving it out", async () => {
   const sent = new Promise<UpdatePersonalSettingsRequest>((resolve) => {
     openWithNtfy((request) => {
       resolve(request);
@@ -99,16 +99,15 @@ test("saving sends the values typed, keeping a set secret by leaving it out", as
   });
   const ntfyCard = await card();
   fireEvent.change(ntfyCard.getByLabelText("Topic"), { target: { value: "movies" } });
-  fireEvent.click(ntfyCard.getByLabelText("High priority"));
-
-  fireEvent.click(ntfyCard.getByRole("button", { name: "Save" }));
+  // A switch saves as it's flipped, with whatever is typed beside it.
+  fireEvent.click(ntfyCard.getByRole("switch", { name: "High priority" }));
 
   const { pluginId, settings } = await sent;
   expect(pluginId).toBe("ntfy");
   expect(Object.keys(settings)).toStrictEqual(["topic", "priority"]);
   expect(settings["topic"]?.value).toStrictEqual({ case: "textValue", value: "movies" });
   expect(settings["priority"]?.value).toStrictEqual({ case: "boolValue", value: true });
-  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
+  expect(ntfyCard.queryByRole("button", { name: "Save" })).toBeNull();
 });
 
 test("a refused setting shows its refusal under its field", async () => {
@@ -120,7 +119,33 @@ test("a refused setting shows its refusal under its field", async () => {
   });
 
   const ntfyCard = await card();
-  fireEvent.click(ntfyCard.getByRole("button", { name: "Save" }));
+  const topic = ntfyCard.getByLabelText("Topic");
+  fireEvent.change(topic, { target: { value: "movies" } });
+  fireEvent.blur(topic);
 
   await expectUnderField("Topic", "This setting is required.");
+});
+
+test("the button at a card's corner forgets the Plugin's Personal settings", async () => {
+  const forgotten = new Promise<string>((resolve) => {
+    openApp(
+      "/code?settings=connections",
+      fakeServer(
+        { signedIn: newUser },
+        {},
+        {
+          listPersonalSettings: () => ({ plugins: [ntfy] }),
+          deletePersonalSettings: ({ pluginId }) => {
+            resolve(pluginId);
+            return {};
+          },
+        },
+      ),
+    );
+  });
+  const ntfyCard = await card();
+
+  fireEvent.click(ntfyCard.getByRole("button", { name: "Forget your ntfy settings" }));
+
+  await expect(forgotten).resolves.toBe("ntfy");
 });

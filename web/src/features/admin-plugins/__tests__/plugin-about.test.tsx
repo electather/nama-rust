@@ -22,7 +22,7 @@ function renderSetup(setupMarkdown: string) {
   return render(<PluginAbout plugin={{ ...noAbout, setupMarkdown }} />);
 }
 
-test("a Plugin's setup steps, links and licence show above its settings", async () => {
+test("a Plugin's setup steps, links and licence show above the rest of its setup", async () => {
   const page = await openTmdbWith({
     setupMarkdown: "Get an API key:\n\n1. Sign in to **TMDB**.\n2. Copy the `API key`.",
     homepageUrl: "https://www.themoviedb.org/",
@@ -46,9 +46,9 @@ test("a Plugin's setup steps, links and licence show above its settings", async 
     "noopener noreferrer",
   );
   expect(page.getByText("MIT licence")).toBeDefined();
-  const settings = page.getByRole("region", { name: "Settings" });
+  const logo = page.getByRole("region", { name: "Logo" });
   // oxlint-disable-next-line no-bitwise -- `compareDocumentPosition` answers with a bit mask.
-  const following = about.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING;
+  const following = about.compareDocumentPosition(logo) & Node.DOCUMENT_POSITION_FOLLOWING;
   expect(following).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 });
 

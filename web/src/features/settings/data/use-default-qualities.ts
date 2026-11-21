@@ -1,4 +1,4 @@
-import { createConnectQueryKey, useQuery } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { RequestService } from "@/gen/nama/v1/request_pb";
 
@@ -8,8 +8,7 @@ export const defaultsKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/** The signed-in User's own default Quality for each Fulfiller. */
+/** The signed-in User's own default Quality for each Fulfiller with more than one to pick from. */
 export function useDefaultQualities() {
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the section shows nothing until it loads, and nothing if no Fulfiller has a Quality to pick
-  return useQuery(RequestService.method.listDefaultQualities, {});
+  return useSuspenseQuery(RequestService.method.listDefaultQualities, {}).data.defaults;
 }

@@ -5,8 +5,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { DeviceSchema } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, fill, newUser, openApp } from "@/test-app";
-import { refused } from "@/test-refusal";
+import { fakeServer, fill, newUser } from "@/test-app";
+import { expectUnderField, refused } from "@/test-refusal";
+import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -16,8 +17,8 @@ function device(id: bigint, name: string, isCurrent = false) {
 
 test("revoking a Device, once confirmed, removes it from Settings", async () => {
   let devices = [device(1n, "Laptop", true), device(2n, "Living room TV")];
-  openApp(
-    "/settings",
+  openSettings(
+    "devices",
     fakeServer(
       { signedIn: newUser },
       {},
@@ -32,19 +33,20 @@ test("revoking a Device, once confirmed, removes it from Settings", async () => 
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Revoke Living room TV" }));
-  const dialog = await screen.findByRole("alertdialog");
-  fireEvent.click(within(dialog).getByRole("button", { name: "Revoke" }));
+  const dialog = await screen.findByRole("alertdialog", { name: "Revoke Living room TV?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Revoke Device" }));
 
   await waitFor(() => {
     expect(screen.queryByText("Living room TV")).toBeNull();
   });
   expect(screen.getByText("Laptop")).toBeDefined();
+  expect(screen.getByText("This Device")).toBeDefined();
 });
 
 test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
   let devices = [device(1n, "Laptop", true), device(2n, "Living room TV")];
-  openApp(
-    "/settings",
+  openSettings(
+    "devices",
     fakeServer(
       { signedIn: newUser },
       {},
@@ -62,7 +64,7 @@ test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: "Revoke Living room TV" }));
   fireEvent.click(
-    within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Revoke" }),
+    within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Revoke Device" }),
   );
 
   await waitFor(() => {
@@ -71,68 +73,94 @@ test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
 
-test("changing your password says your other Devices were signed out", async () => {
-  let devices = [device(1n, "Laptop", true), device(2n, "Living room TV")];
-  openApp(
-    "/settings",
+test("the Devices pane leads to signing in another Device", async () => {
+  openSettings("devices", fakeServer({ signedIn: newUser }));
+
+  const signIn = await screen.findByRole("link", { name: "Sign in a Device" });
+  expect(signIn.getAttribute("href")).toBe("/code");
+});
+
+/** The Sign-in pane, on a Server whose password is "correct horse", which records what it changed to. */
+function openSignin(answer: () => object = () => ({})) {
+  const changedTo: string[] = [];
+  openSettings(
+    "signin",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        listDevices: () => ({ devices }),
-        changePassword: () => {
-          devices = devices.slice(0, 1);
+        reauthenticate: ({ proof }) => {
+          if (proof.case !== "password" || proof.value !== "correct horse") {
+            throw refused(Code.Unauthenticated, "the password is wrong", {
+              reason: RefusalReason.WRONG_PASSWORD,
+              field: "password",
+            });
+          }
           return {};
         },
       },
-    ),
-  );
-
-  await screen.findByText("Living room TV");
-  fill("New password", "battery staple");
-  fireEvent.click(screen.getByRole("button", { name: "Change password" }));
-
-  await expect(
-    screen.findByText("Password changed. Your other Devices were signed out."),
-  ).resolves.toBeDefined();
-  await waitFor(() => {
-    expect(screen.queryByText("Living room TV")).toBeNull();
-  });
-});
-
-test("a User who isn't an Admin sees no Admin entry in the chrome", async () => {
-  openApp("/settings", fakeServer({ signedIn: newUser }));
-
-  await screen.findByRole("link", { name: "Home" });
-  expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
-});
-
-/** Settings, on a Server whose `ChangePassword` refuses with `reason` and `message`. */
-function openSettingsRefusingPasswordChange(reason: RefusalReason, message: string) {
-  openApp(
-    "/settings",
-    fakeServer(
-      { signedIn: newUser },
-      {},
       {
-        changePassword: () => {
-          throw refused(Code.Unauthenticated, message, { reason });
+        changePassword: ({ newPassword }) => {
+          changedTo.push(newPassword);
+          return answer();
         },
       },
     ),
   );
+  return changedTo;
 }
 
-async function submitPasswordChange() {
+async function changePassword(current: string, next: string, again = next) {
   await screen.findByRole("button", { name: "Change password" });
-  fill("New password", "battery staple");
+  fill("Current password", current);
+  fill("New password", next);
+  fill("Confirm new password", again);
   fireEvent.click(screen.getByRole("button", { name: "Change password" }));
 }
 
-test("a Device signed out meanwhile is told so", async () => {
-  openSettingsRefusingPasswordChange(RefusalReason.SIGNED_OUT, "this Device was signed out");
+test("your username shows, and changing your password with your current one signs out your other Devices", async () => {
+  const changedTo = openSignin();
 
-  await submitPasswordChange();
+  await expect(screen.findByText("Sam")).resolves.toBeDefined();
+  expect(screen.getByText("Your other Devices will be signed out.")).toBeDefined();
+  await changePassword("correct horse", "battery staple");
+
+  await expect(screen.findByText("Password changed")).resolves.toBeDefined();
+  expect(screen.getByText("Your other Devices are signed out.")).toBeDefined();
+  expect(changedTo).toStrictEqual(["battery staple"]);
+  // The current password confirmed it's you, so nothing asks again.
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(screen.getByLabelText<HTMLInputElement>("New password").value).toBe("");
+});
+
+test("a wrong current password is said under its field, and nothing changes", async () => {
+  const changedTo = openSignin();
+
+  await changePassword("correct hose", "battery staple");
+
+  await expectUnderField("Current password", "That isn’t your current password.");
+  expect(changedTo).toStrictEqual([]);
+});
+
+test("what's missing is said under each field before the Server is asked", async () => {
+  const changedTo = openSignin();
+
+  await changePassword("", "horse", "hose");
+
+  await expectUnderField("Current password", "Enter your current password.");
+  await expectUnderField("New password", "Use at least 8 characters.");
+  await expectUnderField("Confirm new password", "This doesn’t match the new password.");
+  expect(changedTo).toStrictEqual([]);
+});
+
+test("a Device signed out meanwhile is told so", async () => {
+  openSignin(() => {
+    throw refused(Code.Unauthenticated, "this Device was signed out", {
+      reason: RefusalReason.SIGNED_OUT,
+    });
+  });
+
+  await changePassword("correct horse", "battery staple");
+
   await screen.findByText("This Device was signed out.");
   expect(screen.getByLabelText("New password").getAttribute("aria-invalid")).toBe("false");
 });

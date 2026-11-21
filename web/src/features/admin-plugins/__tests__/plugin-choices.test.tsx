@@ -8,7 +8,7 @@ import {
   type UpdatePluginSettingsRequest,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { input, openPlugin, plugin } from "@/test-plugins";
+import { input, openPlugin, plugin, saveSettings } from "@/test-plugins";
 import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
@@ -44,28 +44,23 @@ async function profile() {
   return found101.getByLabelText<HTMLSelectElement>("Profile");
 }
 
-async function pressSave() {
-  const found1 = await plugin("test-choices");
-  fireEvent.click(found1.getByRole("button", { name: "Save" }));
-}
-
 async function pressTest() {
   const found2 = await plugin("test-choices");
-  fireEvent.click(found2.getByRole("button", { name: "Test" }));
+  fireEvent.click(found2.getByRole("button", { name: "Test the settings" }));
 }
 
 test("a Plugin with a settings check has a Test button", async () => {
   openPlugin("test-choices");
 
   const found3 = await plugin("test-choices");
-  expect(found3.getByRole("button", { name: "Test" })).toBeDefined();
+  expect(found3.getByRole("button", { name: "Test the settings" })).toBeDefined();
 });
 
 test("a Plugin without a settings check has no Test button", async () => {
   openPlugin("tmdb");
 
   const found4 = await plugin("TMDB");
-  expect(found4.queryByRole("button", { name: "Test" })).toBeNull();
+  expect(found4.queryByRole("button", { name: "Test the settings" })).toBeNull();
 });
 
 test("a choice can’t be picked before a test, and a passing test fills its dropdown", async () => {
@@ -101,7 +96,7 @@ test("a choice can’t be picked before a test, and a passing test fills its dro
   });
 });
 
-test("a picked choice is saved, and an untested one is saved as it was", async () => {
+test("a choice is saved as it's picked, and an untested one is saved as it was", async () => {
   const sent: UpdatePluginSettingsRequest[] = [];
   openPlugin("test-choices", {
     testPluginSettings: () => profiles,
@@ -110,14 +105,13 @@ test("a picked choice is saved, and an untested one is saved as it was", async (
       return { plugin: { summary: { id: "test-choices", enabled: true } } };
     },
   });
-  await pressSave();
+  await saveSettings("test-choices");
   await pressTest();
   await waitFor(async () => {
     const found10 = await profile();
     expect(found10.disabled).toBe(false);
   });
   fireEvent.change(await profile(), { target: { value: "2" } });
-  await pressSave();
 
   await waitFor(() => {
     expect(sent.map(({ settings }) => settings["profile"]?.value.value)).toStrictEqual(["1", "2"]);
@@ -167,7 +161,7 @@ async function saveRefusedOnProfile(reason: RefusalReason, message: string) {
       });
     },
   });
-  await pressSave();
+  await saveSettings("test-choices");
 }
 
 test("a save refused for a failed check shows the Plugin’s error on the choice it names", async () => {
@@ -270,8 +264,11 @@ test("without a settings check, a held choice the Manifest doesn’t list is no 
   });
 });
 
-/** A fake Server whose test Plugin holds the Ratings it was last sent, none at first. */
-function ratingsServer(): Parameters<typeof openPlugin>[1] {
+/**
+ * A fake Server whose test Plugin holds the Ratings it was last sent, none at first, keeping the
+ * Ratings' values each save sends in `sent`.
+ */
+function ratingsServer(sent: unknown[]): Parameters<typeof openPlugin>[1] {
   let held: string[] = [];
   const summary = { id: "test-choices", enabled: true };
   return {
@@ -283,18 +280,21 @@ function ratingsServer(): Parameters<typeof openPlugin>[1] {
     }),
     updatePluginSettings: (request) => {
       held = savedRatings(request) ?? [];
+      sent.push(held);
       return { plugin: { summary } };
     },
   };
 }
 
-test("several picked choices are saved, and show picked after a reload", async () => {
-  const server = ratingsServer();
+test("each choice picked is saved with the rest, and they show picked after a reload", async () => {
+  const sent: unknown[] = [];
+  const server = ratingsServer(sent);
   openPlugin("test-choices", server);
   await pick("G", "R");
-  await pressSave();
-  const found = await plugin("test-choices");
-  await found.findByText("Saved, and in use now.");
+  // One save a pick, in order, so the last one holds them all.
+  await waitFor(() => {
+    expect(sent).toStrictEqual([["g"], ["g", "r"]]);
+  });
   cleanup();
 
   openPlugin("test-choices", server);
@@ -314,7 +314,7 @@ test("a several-choices setting holding nothing saves nothing while its default 
   openRatings({ defaultValue: texts("r", "g") }, sent);
 
   await shown();
-  await pressSave();
+  await saveSettings("test-choices");
 
   await waitFor(() => {
     expect(sent).toStrictEqual([undefined]);
@@ -326,14 +326,13 @@ test("a several-choices setting holding nothing saves its picks once they differ
   openRatings({ defaultValue: texts("g", "r") }, sent);
 
   await pick("PG");
-  await pressSave();
 
   await waitFor(() => {
     expect(sent).toStrictEqual([["g", "pg", "r"]]);
   });
 });
 
-test("a required several-choices setting saved with none picked shows as missing", async () => {
+test("a required several-choices setting left with none picked shows as missing", async () => {
   openPlugin("test-choices", {
     updatePluginSettings: () => {
       throw refused(Code.InvalidArgument, "the setting ratings is required", {
@@ -344,8 +343,6 @@ test("a required several-choices setting saved with none picked shows as missing
     },
   });
   await pick("PG", "nc-17");
-
-  await pressSave();
 
   const group = await ratings();
   const error = await group.findByText("This setting is required.");
@@ -359,10 +356,9 @@ test("unpicking every choice saves none picked, not the default", async () => {
   openSaving(sent);
 
   await pick("PG", "nc-17");
-  await pressSave();
 
   await waitFor(() => {
-    expect(sent).toStrictEqual([[]]);
+    expect(sent).toStrictEqual([["nc-17"], []]);
   });
 });
 
@@ -371,7 +367,6 @@ test("a held choice no longer offered is saved until it’s unpicked", async () 
   openSaving(sent);
 
   await pick("G");
-  await pressSave();
 
   await waitFor(() => {
     expect(sent).toStrictEqual([["g", "pg", "nc-17"]]);

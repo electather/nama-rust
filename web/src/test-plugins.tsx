@@ -1,5 +1,5 @@
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 
 import type { LibraryService } from "@/gen/nama/v1/library_pb";
 import { PluginService } from "@/gen/nama/v1/plugin_pb";
@@ -32,6 +32,18 @@ function pluginServer(
       ...changes,
     });
   });
+}
+
+/**
+ * Opens Settings on its Plugins section, over a page that asks the Server for nothing, with the
+ * Plugin `open` in place of the list if one is named, answering other calls with `changes`.
+ */
+export function openPluginSettings(
+  changes: Partial<ServiceImpl<typeof PluginService>> = {},
+  open = "",
+) {
+  const asked = open === "" ? "" : `&plugin=${open}`;
+  return openApp(`/code?settings=plugins${asked}`, pluginServer(changes));
 }
 
 /** Opens the Plugins list on a fake Server with `plugins`, answering other calls with `changes`. */
@@ -77,4 +89,17 @@ export async function plugin(name: string) {
 /** The input for the setting labelled `label` on the details page of the Plugin shown as `name`. */
 export async function input(name: string, label: string) {
   return (await plugin(name)).getByLabelText<HTMLInputElement>(label);
+}
+
+/**
+ * Sends the settings form on the details page of the Plugin shown as `name`, as changing any of
+ * its settings does.
+ */
+export async function saveSettings(name: string) {
+  const page = await plugin(name);
+  const form = page.getByRole("heading", { name: "Settings" }).closest("form");
+  if (form === null) {
+    throw new Error(`${name} has no settings form`);
+  }
+  fireEvent.submit(form);
 }

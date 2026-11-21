@@ -16,6 +16,14 @@ export interface FieldText {
   heading?: boolean;
 }
 
+/** What a field hands its control, so its label, hint and error name and describe it. */
+export interface FieldControl {
+  id: string;
+  required: true;
+  "aria-invalid": boolean;
+  "aria-describedby": string;
+}
+
 /** A label, hint and error around the control `children` renders, wired to them by id. */
 export function Field({
   label,
@@ -25,12 +33,7 @@ export function Field({
   heading = false,
   children,
 }: Omit<FieldText, "name"> & {
-  children: (control: {
-    id: string;
-    required: true;
-    "aria-invalid": boolean;
-    "aria-describedby": string;
-  }) => ReactNode;
+  children: (control: FieldControl) => ReactNode;
 }) {
   const id = useId();
   return (

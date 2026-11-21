@@ -23,7 +23,7 @@ export function SwitchForm({
 
   return (
     <form
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-3"
       onSubmit={onSubmitted((typed) => {
         // A disabled option isn't submitted, so the store in use, when disabled, sends no pluginId.
         const pluginId = typed.has("pluginId") ? formText(typed, "pluginId") : current;
@@ -31,6 +31,7 @@ export function SwitchForm({
       })}
     >
       <FormSelect
+        row
         label="Keep images on"
         name="pluginId"
         defaultValue={current}
