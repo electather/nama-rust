@@ -639,8 +639,8 @@ impl Caller {
     }
 
     /// Deletes, in one write, what each Plugin the Server hasn't had for `asked.days` left behind:
-    /// its settings, Store entries, Personal settings, Plugin Connections, and the Similar titles
-    /// and Roles its title source gave.
+    /// its settings, Store entries, Personal settings, Plugin Connections, and what its title
+    /// source gave.
     async fn forget_gone_plugins(
         self,
         asked: ForgetGonePluginsAsked,
@@ -660,8 +660,8 @@ impl Caller {
 }
 
 /// Deletes, in `conn`'s write, what each Plugin the Server hasn't had for `gone_for` left behind,
-/// each table through its owner, Similar titles and Roles through [`Contents`], and returns their
-/// ids.
+/// each table through its owner, what its title source gave through [`Contents`], and returns
+/// their ids.
 async fn forget_gone(
     conn: &mut SqliteConnection,
     plugins: &PluginSettings,

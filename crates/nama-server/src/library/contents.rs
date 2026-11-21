@@ -69,13 +69,16 @@ impl Contents {
         Self { db }
     }
 
-    /// Deletes, in `conn`'s write, the Similar titles and Roles the Plugin `plugin`'s title
-    /// source gave titles, for Upkeep to forget a Plugin the Server no longer has.
+    /// Deletes, in `conn`'s write, the Scores, Trailers, Similar titles, Roles and air dates the
+    /// Plugin `plugin`'s title source gave titles, for Upkeep to forget a Plugin the Server no
+    /// longer has.
     pub(crate) async fn forget_plugin(
         conn: &mut SqliteConnection,
         plugin: &str,
     ) -> Result<(), sqlx::Error> {
+        details::forget_plugin(conn, plugin).await?;
         similar::forget_plugin(conn, plugin).await?;
-        roles::forget_plugin(conn, plugin).await
+        roles::forget_plugin(conn, plugin).await?;
+        air_dates::forget_plugin(conn, plugin).await
     }
 }
