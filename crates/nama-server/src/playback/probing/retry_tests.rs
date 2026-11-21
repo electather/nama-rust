@@ -2,18 +2,13 @@ use std::{fs, io, sync::Arc, time::Duration};
 
 use super::{
     ProbeError,
-    testing::{FakeReader, by_size, one_audio_track},
+    testing::{FakeReader, by_size, failed, one_audio_track},
     tests::{Fixture, chapters_read},
 };
 use crate::{
     ffmpeg::{Program, RunError},
     playback::tracks::{PROBE_ATTEMPTS, PROBE_VERSION, PassingReason, Probe, ProbeFailure},
 };
-
-/// What ffprobe failing on a file answers.
-fn failed() -> ProbeError {
-    ProbeError::Run(RunError::Failed(Program::Ffprobe, String::new()))
-}
 
 /// What ffprobe that couldn't be started answers, as when it's gone during a package upgrade.
 fn couldnt_run() -> ProbeError {

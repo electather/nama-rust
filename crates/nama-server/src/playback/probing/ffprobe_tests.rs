@@ -382,3 +382,29 @@ fn the_video_starts_where_its_first_stream_other_than_cover_art_does() {
         }
     );
 }
+
+#[test]
+fn chapters_count_from_the_files_start_and_an_untitled_one_reads_titled_empty() {
+    let json = r#"{
+            "format": {"format_name": "matroska,webm", "start_time": "1.500000"},
+            "chapters": [
+                {"start_time": "1.500000", "tags": {"title": "Opening"}},
+                {"start_time": "601.750000"},
+                {"start_time": "3001.500000", "tags": {"title": "Credits"}}
+            ]
+        }"#;
+
+    let (probe, _) = parse_probe(json.as_bytes()).unwrap();
+
+    let chapters: Vec<_> = (probe.chapters.into_iter())
+        .map(|chapter| (chapter.start_ms, chapter.title))
+        .collect();
+    assert_eq!(
+        chapters,
+        [
+            (0, "Opening".to_owned()),
+            (600_250, String::new()),
+            (3_000_000, "Credits".to_owned()),
+        ]
+    );
+}
