@@ -163,14 +163,14 @@ impl Client {
             .await
     }
 
-    /// The details of the Movie or Show at `path`, with its videos and `ratings`, the field its
-    /// ratings by country are appended as.
+    /// The details of the Movie or Show at `path`, with `appended`, the fields its ratings by
+    /// country, its credits and its videos are appended as.
     async fn title_details<T: DeserializeOwned>(
         &self,
         path: &str,
-        ratings: &str,
+        appended: &str,
     ) -> Result<Option<T>, MetadataError> {
-        let append = format!("external_ids,{ratings},videos");
+        let append = format!("external_ids,{appended}");
         self.api(path, &[("append_to_response", append.as_str())])
             .await
     }
@@ -318,7 +318,7 @@ impl TitleSource for Client {
                 }
             };
             let movie: Option<MovieDetails> = self
-                .title_details(&format!("/movie/{id}"), "release_dates")
+                .title_details(&format!("/movie/{id}"), "release_dates,credits,videos")
                 .await?;
             Ok(MovieAnswer {
                 movie: movie.map(|movie| movie.into_movie(self.country())).into(),
@@ -343,7 +343,10 @@ impl TitleSource for Client {
                 }
             };
             let show: Option<ShowDetails> = self
-                .title_details(&format!("/tv/{id}"), "content_ratings")
+                .title_details(
+                    &format!("/tv/{id}"),
+                    "content_ratings,aggregate_credits,videos",
+                )
                 .await?;
             Ok(ShowAnswer {
                 show: show.map(|show| show.into_show(self.country())).into(),

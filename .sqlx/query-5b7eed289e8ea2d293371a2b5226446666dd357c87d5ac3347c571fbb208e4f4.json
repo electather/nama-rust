@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM title_roles WHERE plugin = ? AND kind = ? AND namespace = ? AND value = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "5b7eed289e8ea2d293371a2b5226446666dd357c87d5ac3347c571fbb208e4f4"
+}

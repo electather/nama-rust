@@ -166,6 +166,10 @@ message Movie {
   optional string original_language = 22;
   // Its Trailers, as the title source it is Matched to gives them, at most 5.
   repeated Trailer trailers = 23;
+  // Its Cast, in billing order, from the title source it is Matched to.
+  repeated Role cast = 24;
+  // Its Crew, in billing order, from that source. Its directors have the job `Director`.
+  repeated Role crew = 25;
 }
 
 // One file a Movie or Episode is available in.
@@ -389,6 +393,10 @@ message Show {
   optional string original_language = 19;
   // As `Movie.trailers`.
   repeated Trailer trailers = 20;
+  // As `Movie.cast`, over the Show's whole run.
+  repeated Role cast = 21;
+  // As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
+  repeated Role crew = 22;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.

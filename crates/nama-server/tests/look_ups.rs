@@ -13,7 +13,7 @@ use connectrpc::{
 };
 use nama_proto::nama::v1::{
     AddToWatchlistRequest, Permission, RefusalReason, RemoveFromWatchlistRequest,
-    RequestServiceClient, TitleKind, WatchlistServiceClient,
+    RequestServiceClient, Role, TitleKind, WatchlistServiceClient,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
@@ -240,6 +240,28 @@ async fn a_looked_up_title_no_match_ties_to_the_id_it_was_added_under_is_not_on_
 
     // Its page's Remove would clear only `tmdb-348`, and leave it on.
     assert!(!alien.on_watchlist);
+}
+
+#[tokio::test]
+async fn a_looked_up_movie_and_show_have_their_cast_and_crew() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    let alien = as_grace.try_look_up_movie(tmdb_id(ALIEN)).await.unwrap();
+    let dark = as_grace.try_look_up_show(tmdb_id(DARK)).await.unwrap();
+
+    let names = |roles: &[Role]| {
+        roles
+            .iter()
+            .map(|role| role.name.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(names(&alien.cast), ["Tom Skerritt", "Sigourney Weaver"]);
+    assert_eq!(names(&alien.crew), ["Ridley Scott", "Dan O'Bannon"]);
+    assert!(alien.cast[1].headshot_url.is_some());
+    let dark_crew = ["Baran bo Odar", "Jantje Friese", "Baran bo Odar"];
+    assert_eq!(names(&dark.crew), dark_crew);
 }
 
 #[tokio::test]
