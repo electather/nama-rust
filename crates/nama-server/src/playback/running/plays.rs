@@ -1,11 +1,14 @@
 //! What an Admin sees of the plans playing now, whether any is, and stopping any of them.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use nama_proto::nama::v1::{AdminStop, Playback};
 
 use super::{Plan, RunningPlans, lock};
 use crate::ffmpeg::Hardware;
+
+/// How often [`RunningPlans::until_playing`] checks again.
+const PLAYING_CHECK: Duration = Duration::from_secs(1);
 
 /// The most characters an Admin's message to a viewer whose play they stop may have.
 pub(crate) const STOP_MESSAGE_LENGTH: usize = 200;
@@ -79,6 +82,13 @@ impl RunningPlans {
     /// Whether any plan is playing, a Direct Play included.
     pub(crate) fn any_playing(&self) -> bool {
         !lock(&self.inner.plans).is_empty()
+    }
+
+    /// Returns once whether any plan plays is `playing`, for background work that waits it out.
+    pub(crate) async fn until_playing(&self, playing: bool) {
+        while self.any_playing() != playing {
+            tokio::time::sleep(PLAYING_CHECK).await;
+        }
     }
 
     /// Every plan playing now, oldest first, with its title from the Library.

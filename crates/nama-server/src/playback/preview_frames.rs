@@ -18,7 +18,6 @@ use std::{
     io,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
 };
 
 use axum::{
@@ -55,9 +54,6 @@ const ROWS: u32 = 10;
 
 /// The JPEG quality of each sheet.
 const QUALITY: u8 = 80;
-
-/// How often a Version waiting for playback to stop checks again.
-const PLAYING_CHECK: Duration = Duration::from_secs(1);
 
 /// Why a Version's Preview frames couldn't be made or kept, which says nothing about its file, so
 /// they're tried again on the next pass.
@@ -170,10 +166,10 @@ impl PreviewFrames {
     async fn make_needed(&self) -> Result<(), Error> {
         for version in self.needed().await? {
             let made = loop {
-                self.until_playing(false).await;
+                self.inner.running.until_playing(false).await;
                 tokio::select! {
                     made = self.make(version) => break made,
-                    () = self.until_playing(true) => {}
+                    () = self.inner.running.until_playing(true) => {}
                 }
             };
             if let Err(err) = made {
@@ -181,13 +177,6 @@ impl PreviewFrames {
             }
         }
         Ok(())
-    }
-
-    /// Returns once whether any plan plays is `playing`.
-    async fn until_playing(&self, playing: bool) {
-        while self.inner.running.any_playing() != playing {
-            tokio::time::sleep(PLAYING_CHECK).await;
-        }
     }
 
     /// The Versions in Libraries that make Preview frames, probed with a video Track, whose file

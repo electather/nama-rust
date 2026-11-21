@@ -162,6 +162,8 @@ struct Inner {
     /// Notified when a background pass has caught up, for Segments. Not `passed`: `notify_one`
     /// wakes only one waiter, so each follower of a pass needs its own.
     passed_for_segments: Arc<Notify>,
+    /// As `passed_for_segments`, for text passes.
+    passed_for_text_passes: Notify,
 }
 
 impl Probing {
@@ -200,6 +202,7 @@ impl Probing {
                 listing: Claims::default(),
                 passed: Notify::new(),
                 passed_for_segments: Arc::default(),
+                passed_for_text_passes: Notify::new(),
             }),
         }
     }
@@ -336,6 +339,7 @@ impl Probing {
                     Some(Ok(probed)) => {
                         probing.inner.passed.notify_one();
                         probing.inner.passed_for_segments.notify_one();
+                        probing.inner.passed_for_text_passes.notify_one();
                         finished(probed);
                     }
                     Some(Err(err)) => {
@@ -362,6 +366,11 @@ impl Probing {
     /// has since the last call.
     pub(super) async fn pass_finished(&self) {
         self.inner.passed.notified().await;
+    }
+
+    /// As [`Self::pass_finished`], for text passes.
+    pub(super) async fn pass_finished_for_text_passes(&self) {
+        self.inner.passed_for_text_passes.notified().await;
     }
 
     /// Cancels the probes running, waits for them to stop, and starts no more passes.
