@@ -45,6 +45,7 @@
       { "name": "admin-needs-a-match", "patterns": ["src/features/admin-needs-a-match/**"] },
       { "name": "admin-playback", "patterns": ["src/features/admin-playback/**"] },
       { "name": "admin-jobs", "patterns": ["src/features/admin-jobs/**"] },
+      { "name": "admin-now-playing", "patterns": ["src/features/admin-now-playing/**"] },
       { "name": "admin-home", "patterns": ["src/features/admin-home/**"] },
       { "name": "admin-users", "patterns": ["src/features/admin-users/**"] },
       { "name": "requests", "patterns": ["src/features/requests/**"] },
@@ -116,6 +117,16 @@
         "allow": ["admin-jobs", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
+        "from": "admin-now-playing",
+        "allow": [
+          "admin-now-playing",
+          "shared-components",
+          "shared-ui",
+          "shared-hooks",
+          "shared-lib",
+        ],
+      },
+      {
         "from": "admin-home",
         "allow": ["admin-home", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
@@ -184,6 +195,7 @@
           "admin-needs-a-match",
           "admin-playback",
           "admin-jobs",
+          "admin-now-playing",
           "admin-home",
           "admin-users",
           "invites",

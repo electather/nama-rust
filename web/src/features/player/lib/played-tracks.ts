@@ -1,8 +1,8 @@
 import type { usePlaybackPlan } from "@/features/player/hooks/use-playback-plan";
 import { trackChange } from "@/features/player/lib/track-change";
 import { trackLabel } from "@/features/player/lib/track-label";
-import { codecName } from "@/features/player/lib/track-line";
 import type { Track } from "@/gen/nama/v1/browse_pb";
+import { codecName } from "@/shared/lib/codec-name";
 
 /** What Playback info reads of the plan the player plays. */
 export type Planned = Pick<ReturnType<typeof usePlaybackPlan>, "plan" | "shownSubtitle">;

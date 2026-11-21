@@ -14,7 +14,7 @@ export const usersKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/** The Users, for the Users page's loader to load before it shows. */
+/** The Users, for a loader to load before its page shows. */
 export function usersQuery(transport: Transport) {
   return {
     ...createQueryOptions(UserService.method.listUsers, {}, { transport }),

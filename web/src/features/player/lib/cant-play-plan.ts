@@ -1,7 +1,6 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import { Code } from "@connectrpc/connect";
 
-import { serverFailedToPlan } from "@/features/player/lib/playback-wording";
 import {
   PlaybackPlanSchema,
   PlaybackReasonKind,
@@ -10,6 +9,7 @@ import {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { isCode } from "@/shared/lib/connect-errors";
 import { refusalOf, serverMessage } from "@/shared/lib/forms";
+import { serverFailedToPlan } from "@/shared/lib/playback-wording";
 
 /** A plan that can't play, saying why, for an `error` the player explains; any other is thrown. */
 export function cantPlayBecause(error: unknown) {

@@ -2,11 +2,11 @@ import { useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
-import { usersKey } from "@/features/admin-users/data/use-users";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { signedInQuery } from "@/shared/hooks/access";
 import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
+import { usersKey } from "@/shared/hooks/use-users";
 
 /** `SetPermissions` for `user`, as `you`, after which the Users and your own access are fresh. */
 export function useSetPermissions(user: User, you: User | undefined) {

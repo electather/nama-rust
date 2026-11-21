@@ -2,8 +2,8 @@ import { MoreReasons } from "@/features/player/components/more-reasons";
 import { PlaybackTracks } from "@/features/player/components/playback-tracks";
 import { Reasons } from "@/features/player/components/reasons";
 import type { usePlaybackPlan } from "@/features/player/hooks/use-playback-plan";
-import { methodName, wordReasons } from "@/features/player/lib/playback-wording";
 import type { Track } from "@/gen/nama/v1/browse_pb";
+import { methodName, wordReasons } from "@/shared/lib/playback-wording";
 
 /** How the Playback Plan plays, why, and with which Tracks. */
 export function PlaybackInfo({

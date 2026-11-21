@@ -32,6 +32,7 @@ import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_adm
 import { Route as MemberAdminAdminHomeRouteImport } from './routes/_member/_admin/admin/home'
 import { Route as MemberAdminAdminJobsRouteImport } from './routes/_member/_admin/admin/jobs'
 import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
+import { Route as MemberAdminAdminNowPlayingRouteImport } from './routes/_member/_admin/admin/now-playing'
 import { Route as MemberAdminAdminPlaybackRouteImport } from './routes/_member/_admin/admin/playback'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
@@ -160,6 +161,12 @@ const MemberAdminAdminNeedsAMatchRoute =
     path: '/admin/needs-a-match',
     getParentRoute: () => MemberAdminRoute,
   } as any)
+const MemberAdminAdminNowPlayingRoute =
+  MemberAdminAdminNowPlayingRouteImport.update({
+    id: '/admin/now-playing',
+    path: '/admin/now-playing',
+    getParentRoute: () => MemberAdminRoute,
+  } as any)
 const MemberAdminAdminPlaybackRoute =
   MemberAdminAdminPlaybackRouteImport.update({
     id: '/admin/playback',
@@ -266,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/admin/home': typeof MemberAdminAdminHomeRoute
   '/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
+  '/admin/now-playing': typeof MemberAdminAdminNowPlayingRoute
   '/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
@@ -300,6 +308,7 @@ export interface FileRoutesByTo {
   '/admin/home': typeof MemberAdminAdminHomeRoute
   '/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
+  '/admin/now-playing': typeof MemberAdminAdminNowPlayingRoute
   '/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
@@ -340,6 +349,7 @@ export interface FileRoutesById {
   '/_member/_admin/admin/home': typeof MemberAdminAdminHomeRoute
   '/_member/_admin/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
+  '/_member/_admin/admin/now-playing': typeof MemberAdminAdminNowPlayingRoute
   '/_member/_admin/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
@@ -378,6 +388,7 @@ export interface FileRouteTypes {
     | '/admin/home'
     | '/admin/jobs'
     | '/admin/needs-a-match'
+    | '/admin/now-playing'
     | '/admin/playback'
     | '/admin/users'
     | '/sign-in/code/waiting'
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | '/admin/home'
     | '/admin/jobs'
     | '/admin/needs-a-match'
+    | '/admin/now-playing'
     | '/admin/playback'
     | '/admin/users'
     | '/sign-in/code/waiting'
@@ -451,6 +463,7 @@ export interface FileRouteTypes {
     | '/_member/_admin/admin/home'
     | '/_member/_admin/admin/jobs'
     | '/_member/_admin/admin/needs-a-match'
+    | '/_member/_admin/admin/now-playing'
     | '/_member/_admin/admin/playback'
     | '/_member/_admin/admin/users'
     | '/_signed-out/sign-in/code/waiting'
@@ -636,6 +649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminAdminNeedsAMatchRouteImport
       parentRoute: typeof MemberAdminRoute
     }
+    '/_member/_admin/admin/now-playing': {
+      id: '/_member/_admin/admin/now-playing'
+      path: '/admin/now-playing'
+      fullPath: '/admin/now-playing'
+      preLoaderRoute: typeof MemberAdminAdminNowPlayingRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
     '/_member/_admin/admin/playback': {
       id: '/_member/_admin/admin/playback'
       path: '/admin/playback'
@@ -741,6 +761,7 @@ interface MemberAdminRouteChildren {
   MemberAdminAdminHomeRoute: typeof MemberAdminAdminHomeRoute
   MemberAdminAdminJobsRoute: typeof MemberAdminAdminJobsRoute
   MemberAdminAdminNeedsAMatchRoute: typeof MemberAdminAdminNeedsAMatchRoute
+  MemberAdminAdminNowPlayingRoute: typeof MemberAdminAdminNowPlayingRoute
   MemberAdminAdminPlaybackRoute: typeof MemberAdminAdminPlaybackRoute
   MemberAdminAdminUsersRoute: typeof MemberAdminAdminUsersRoute
   MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
@@ -754,6 +775,7 @@ const MemberAdminRouteChildren: MemberAdminRouteChildren = {
   MemberAdminAdminHomeRoute: MemberAdminAdminHomeRoute,
   MemberAdminAdminJobsRoute: MemberAdminAdminJobsRoute,
   MemberAdminAdminNeedsAMatchRoute: MemberAdminAdminNeedsAMatchRoute,
+  MemberAdminAdminNowPlayingRoute: MemberAdminAdminNowPlayingRoute,
   MemberAdminAdminPlaybackRoute: MemberAdminAdminPlaybackRoute,
   MemberAdminAdminUsersRoute: MemberAdminAdminUsersRoute,
   MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,

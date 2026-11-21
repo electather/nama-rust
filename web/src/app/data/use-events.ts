@@ -5,6 +5,7 @@ import { useEffect } from "react";
 
 import { applyEvent, forgetMissed } from "@/app/data/apply-event";
 import { EventService, EventType } from "@/gen/nama/v1/event_pb";
+import { playsKey } from "@/shared/hooks/plays-key";
 import { unmatchedKey } from "@/shared/hooks/unmatched-key";
 
 /**
@@ -31,6 +32,8 @@ const types = [
   EventType.FOLLOWED_SHOW_CANCELLED,
   EventType.FOLLOWED_SHOW_REQUESTER_REMOVED,
   EventType.FOLLOWED_SHOW_WITHDRAWN,
+  EventType.PLAYBACK_STARTED,
+  EventType.PLAYBACK_CHANGED,
   EventType.PLAYBACK_ENDED,
 ];
 
@@ -61,8 +64,8 @@ interface Following {
 
 /**
  * Subscribes, and again whenever the stream ends, until `signal` aborts. Once a stream opens, what
- * the Events before it would have changed is read again: on the first, the Unmatched Items loaded
- * while subscribing; on a later one, everything, as after `Lagged`. A Server that stays down costs
+ * the Events before it would have changed is read again: on the first, the Unmatched Items and plays
+ * loaded while subscribing; on a later one, everything, as after `Lagged`. A Server that stays down costs
  * one failed call per retry and nothing more.
  */
 async function follow(following: Following, resubscribing = false) {
@@ -72,6 +75,7 @@ async function follow(following: Following, resubscribing = false) {
       forgetMissed(queryClient);
     } else {
       void queryClient.invalidateQueries({ queryKey: unmatchedKey() });
+      void queryClient.invalidateQueries({ queryKey: playsKey });
     }
   };
   try {
