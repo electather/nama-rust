@@ -1,10 +1,10 @@
-//! Continue Watching and Featured entries as clients see them.
+//! Continue Watching and Featured entries, and a title's Roles and Trailers, as clients see them.
 
 use nama_proto::nama::v1 as proto;
 
 use crate::{
     browse::{Featured, Started},
-    library::ShownImages,
+    library::{Roles, ShownImages, Trailer},
 };
 
 use super::{episode_to_proto, movie_to_proto, show_to_proto};
@@ -91,4 +91,33 @@ pub(super) fn featured_to_proto(
         next_episode: next_episode.into(),
         ..Default::default()
     }
+}
+
+/// A title's Cast and Crew as clients see them, each headshot at `headshot_url(its path)`.
+pub(in crate::api) fn roles_to_proto(
+    roles: Roles,
+    headshot_url: impl Fn(&str) -> Option<String>,
+) -> (Vec<proto::Role>, Vec<proto::Role>) {
+    let [cast, crew] = [roles.cast, roles.crew].map(|roles| {
+        (roles.into_iter())
+            .map(|role| proto::Role {
+                headshot_url: role.headshot.as_deref().and_then(&headshot_url),
+                name: role.name,
+                part: role.part,
+                ..Default::default()
+            })
+            .collect()
+    });
+    (cast, crew)
+}
+
+/// A title's Trailers, as clients see them.
+pub(in crate::api) fn trailers_to_proto(trailers: Vec<Trailer>) -> Vec<proto::Trailer> {
+    (trailers.into_iter())
+        .map(|trailer| proto::Trailer {
+            name: trailer.name,
+            url: trailer.url,
+            ..Default::default()
+        })
+        .collect()
 }

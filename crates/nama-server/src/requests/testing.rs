@@ -33,7 +33,7 @@ use crate::{
     db::Database,
     events::EventBus,
     library::{
-        Change, Contents, Decided, Decisions, Item, Libraries, LibraryKind, Metadata,
+        Change, Contents, Decided, Decisions, Item, Libraries, LibraryKind, Metadata, Roles,
         SourceEpisode, SourceSeason,
         fixture::{MatchedMovie, movies_library, tmdb_movie},
     },
@@ -285,6 +285,7 @@ pub(super) fn matched(ids: ExternalIds, show_ids: ExternalIds) -> Decided {
         original_language: None,
         similar: Vec::new(),
         trailers: Vec::new(),
+        roles: Roles::default(),
     }))
 }
 

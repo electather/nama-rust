@@ -2,6 +2,7 @@
 //! its Matches (ADR 0081). [`Contents::movies`](super::Contents::movies) and
 //! [`Contents::shows`](super::Contents::shows) read them back by the same key.
 
+use nama_plugin_api::metadata::ExternalId;
 use sqlx::SqliteConnection;
 
 use super::{Metadata, similar};
@@ -13,16 +14,10 @@ pub(super) async fn store(
     conn: &mut SqliteConnection,
     matched: &Metadata,
 ) -> Result<(), sqlx::Error> {
-    let (kind, ids) = if matched.show_title.is_some() {
-        ("show", &matched.show_ids)
-    } else {
-        ("movie", &matched.ids)
-    };
-    // The first id in namespace order, which `movies` and `shows` look it up by.
-    let Some(id) = ids.iter().next() else {
+    let Some((plugin, kind, id)) = title_key(matched) else {
         return Ok(());
     };
-    let (plugin, namespace, value) = (matched.plugin.as_str(), id.namespace(), id.value());
+    let (namespace, value) = (id.namespace(), id.value());
     let trailers =
         serde_json::to_string(&matched.trailers).map_err(|err| sqlx::Error::Encode(err.into()))?;
     sqlx::query!(
@@ -38,6 +33,17 @@ pub(super) async fn store(
     .execute(&mut *conn)
     .await?;
     similar::store(conn, matched).await
+}
+
+/// What a per-title store keeps the title `matched` gives under: the Plugin that Matched it, Movie
+/// or Show, and its first id in namespace order, which reads look it up by. `None` without ids.
+pub(super) fn title_key(matched: &Metadata) -> Option<(&str, &'static str, ExternalId)> {
+    let (kind, ids) = if matched.show_title.is_some() {
+        ("show", &matched.show_ids)
+    } else {
+        ("movie", &matched.ids)
+    };
+    Some((matched.plugin.as_str(), kind, ids.iter().next()?))
 }
 
 /// The Trailers in the `trailers` column's JSON, `json`: none where there's no row, as for a

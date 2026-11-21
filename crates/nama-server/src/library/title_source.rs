@@ -16,8 +16,8 @@ pub(crate) mod scripted;
 mod titles;
 
 pub(crate) use titles::{
-    Artwork, ArtworkKind, Candidate, Episode, Image, Movie, SearchQuery, Season, Show, TitleKind,
-    Trailer,
+    Artwork, ArtworkKind, Candidate, Episode, Image, Movie, Role, Roles, SearchQuery, Season, Show,
+    TitleKind, Trailer,
 };
 
 use crate::{
@@ -603,6 +603,7 @@ impl Metadata {
             original_language: movie.original_language,
             similar: movie.similar,
             trailers: movie.trailers,
+            roles: movie.roles,
         }
     }
 }

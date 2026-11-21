@@ -33,6 +33,19 @@
       {"descriptors": [], "iso_3166_1": "US", "rating": "TV-MA"}
     ]
   },
+  "created_by": [
+    {"id": 1191428, "credit_id": "58ba4ac4c3a368664200a6b6", "name": "Baran bo Odar", "original_name": "Baran bo Odar", "gender": 2, "profile_path": "/odar.jpg"},
+    {"id": 1191429, "credit_id": "58ba4ad1c3a36866500093d2", "name": "Jantje Friese", "original_name": "Jantje Friese", "gender": 1, "profile_path": null}
+  ],
+  "aggregate_credits": {
+    "cast": [
+      {"adult": false, "gender": 2, "id": 1452101, "known_for_department": "Acting", "name": "Louis Hofmann", "original_name": "Louis Hofmann", "popularity": 9.8, "profile_path": "/hofmann.jpg", "roles": [{"credit_id": "58ba4b2ec3a368663e009b3c", "character": "Jonas Kahnwald", "episode_count": 26}], "total_episode_count": 26, "order": 0},
+      {"adult": false, "gender": 1, "id": 1452102, "known_for_department": "Acting", "name": "Lisa Vicari", "original_name": "Lisa Vicari", "popularity": 8.1, "profile_path": null, "roles": [{"credit_id": "58ba4b3dc3a36866500094e0", "character": "Martha Nielsen", "episode_count": 20}], "total_episode_count": 20, "order": 1}
+    ],
+    "crew": [
+      {"adult": false, "gender": 2, "id": 1191428, "known_for_department": "Directing", "name": "Baran bo Odar", "original_name": "Baran bo Odar", "popularity": 2.2, "profile_path": "/odar.jpg", "jobs": [{"credit_id": "5a2d1e2a0e0a264cb20a3c6b", "job": "Director", "episode_count": 26}, {"credit_id": "5a2d1e2a0e0a264cb20a3c6c", "job": "Executive Producer", "episode_count": 26}], "department": "Directing", "total_episode_count": 26}
+    ]
+  },
   "videos": {
     "results": [
       {"iso_639_1": "en", "iso_3166_1": "US", "name": "Dark on Dailymotion", "key": "x8dark", "site": "Dailymotion", "type": "Trailer", "official": true},

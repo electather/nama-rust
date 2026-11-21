@@ -1,4 +1,5 @@
-//! The images Matches store, which artwork serves and keeps while some Match stores them.
+//! The images Matches store, with the headshots of the Roles of the titles they Match, which
+//! artwork serves and keeps while some Match stores them.
 
 use super::Contents;
 
@@ -17,6 +18,18 @@ impl Contents {
                                      OR (logo_plugin = ?1 AND logo = ?2)
                                      OR (show_poster_plugin = ?1 AND show_poster = ?2)
                                      OR (plugin = ?1 AND still = ?2)))
+                   OR EXISTS (SELECT 1 FROM title_roles
+                              WHERE plugin = ?1 AND headshot = ?2
+                                -- Kept while a Match stores the title it's keyed by.
+                                AND EXISTS (SELECT 1 FROM item_match_ids AS keyed
+                                            JOIN item_matches
+                                              ON item_matches.item_id = keyed.item_id
+                                            WHERE item_matches.state = 'matched'
+                                              AND item_matches.plugin = title_roles.plugin
+                                              AND keyed.scope = iif(title_roles.kind = 'movie',
+                                                                    'title', 'show')
+                                              AND keyed.namespace = title_roles.namespace
+                                              AND keyed.value = title_roles.value))
                AS "stored!: bool""#,
             plugin,
             image
@@ -25,15 +38,16 @@ impl Contents {
         .await
     }
 
-    /// Each image a Match stores, as its Plugin and path, in the Library `library` or else in
-    /// every Library.
+    /// Each image a Match stores, and each headshot of the Roles of the titles they Match, as its
+    /// Plugin and path, in the Library `library` or else in every Library.
     pub(crate) async fn images(
         &self,
         library: Option<i64>,
     ) -> Result<Vec<(String, String)>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"WITH matched AS (
-                   SELECT item_matches.plugin, item_matches.poster, item_matches.poster_plugin,
+                   SELECT item_matches.item_id, item_matches.plugin, item_matches.poster,
+                          item_matches.poster_plugin,
                           item_matches.backdrop, item_matches.backdrop_plugin,
                           item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
                           item_matches.logo, item_matches.logo_plugin, item_matches.still,
@@ -55,7 +69,17 @@ impl Contents {
                UNION
                SELECT show_poster_plugin, show_poster FROM matched WHERE show_poster IS NOT NULL
                UNION
-               SELECT plugin, still FROM matched WHERE still IS NOT NULL"#,
+               SELECT plugin, still FROM matched WHERE still IS NOT NULL
+               UNION
+               SELECT title_roles.plugin, title_roles.headshot FROM title_roles
+               WHERE title_roles.headshot IS NOT NULL
+                 -- As `stores_image` keeps it.
+                 AND EXISTS (SELECT 1 FROM matched
+                             JOIN item_match_ids AS keyed ON keyed.item_id = matched.item_id
+                             WHERE matched.plugin = title_roles.plugin
+                               AND keyed.scope = iif(title_roles.kind = 'movie', 'title', 'show')
+                               AND keyed.namespace = title_roles.namespace
+                               AND keyed.value = title_roles.value)"#,
             library
         )
         .fetch_all(self.db.reader())

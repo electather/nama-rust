@@ -15,7 +15,7 @@ use super::super::{
 use super::match_bands;
 use crate::{
     db::{self, Database},
-    library::{TitleKind, libraries::Kind},
+    library::{Roles, TitleKind, libraries::Kind},
 };
 
 /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
@@ -114,6 +114,7 @@ fn office_episode(tmdb: i64, title: &str) -> Decided {
         original_language: None,
         similar: Vec::new(),
         trailers: Vec::new(),
+        roles: Roles::default(),
     }))
 }
 
@@ -365,6 +366,21 @@ async fn a_search_finds_a_movie_by_its_original_title_or_a_prefix_of_it() {
 
     assert_eq!(fx.found_movies("casa de papel").await, ["Money Heist"]);
     assert_eq!(fx.found_movies("la cas").await, ["Money Heist"]);
+}
+
+#[tokio::test]
+async fn a_search_ranks_a_movie_by_the_better_fit_of_its_title_and_original_title() {
+    let fx = Fixture::new().await;
+    fx.match_movie(1, "La casa de papel verde", "2001-01-01")
+        .await;
+    fx.match_movie(2, "Papel de la casa", "2002-01-01").await;
+    let matched = translated_movie(71_446, "Money Heist", "La casa de papel");
+    MatchedMovie::store(&fx.contents, fx.library, "/media/71446.mkv", matched).await;
+
+    assert_eq!(
+        fx.found_movies("la casa de papel").await,
+        ["Money Heist", "La casa de papel verde", "Papel de la casa"]
+    );
 }
 
 #[tokio::test]

@@ -31,7 +31,7 @@ use crate::{
 
 use super::{
     ImageSources, caller, database_failed, external_id_to_proto, proto_number,
-    requests::{missing_movie_to_proto, missing_show_to_proto, trailers_to_proto},
+    requests::{missing_movie_to_proto, missing_show_to_proto},
     required_id,
     search::{movie_hits, show_hits},
 };
@@ -42,6 +42,7 @@ mod titles;
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
 use titles::{featured_to_proto, started_to_proto};
+pub(super) use titles::{roles_to_proto, trailers_to_proto};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -158,11 +159,16 @@ impl BrowseService for BrowseServiceHandler {
             .similar(request.library_id, TitleKind::Movie, &movie.ids))
         .await;
         let similar = similar.map_err(refused(Fields::LIBRARY))?;
+        let roles = self.browse.movie_roles(&movie).await;
+        let roles = roles.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
+        let (cast, crew) = roles_to_proto(roles, stored_by(&movie.plugin, &images));
         Response::ok(GetMovieResponse {
             similar: movie_hits(similar, &images),
             movie: proto::Movie {
                 on_watchlist,
+                cast,
+                crew,
                 ..movie_to_proto(movie, state, &images)
             }
             .into(),
@@ -238,6 +244,8 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let on_watchlist = (self.on_watchlist(user, TitleKind::Show, &show.ids)).await?;
+        let roles = self.browse.show_roles(&show).await;
+        let roles = roles.map_err(refused(Fields::LIBRARY))?;
         let aired = self.browse.aired_episodes(&show).await;
         let aired_episode_count = aired.map_err(database_failed)?;
         let similar = (self
@@ -246,6 +254,9 @@ impl BrowseService for BrowseServiceHandler {
         .await;
         let similar = similar.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
+        // Without a Plugin it has no Episodes, so no Roles to show headshots of.
+        let plugin = show.plugin().unwrap_or_default();
+        let (cast, crew) = roles_to_proto(roles, stored_by(plugin, &images));
         let seasons = (show.seasons.iter())
             .map(|(&number, season)| {
                 let downloaded = season.poster.as_ref().map(Downloaded::stored);
@@ -263,6 +274,8 @@ impl BrowseService for BrowseServiceHandler {
         Response::ok(GetShowResponse {
             show: proto::Show {
                 on_watchlist,
+                cast,
+                crew,
                 ..show_to_proto(&show, &images)
             }
             .into(),
@@ -638,6 +651,15 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
         played: state.played,
         updated_at: state.updated_at,
         ..Default::default()
+    }
+}
+
+/// Where clients fetch an image a Match of `plugin`'s stores, by its path.
+fn stored_by<'a>(plugin: &'a str, images: &'a ShownImages) -> impl Fn(&str) -> Option<String> + 'a {
+    move |path| {
+        images
+            .downloaded(Some(Downloaded::Stored { plugin, path }))
+            .url
     }
 }
 

@@ -650,9 +650,13 @@ message FoundMovie {
   // As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
   bool on_watchlist = 17;
   // As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
-  repeated MovieHit similar = 19;
+  repeated MovieHit similar = 21;
   // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
   repeated Trailer trailers = 18;
+  // As `nama.v1.Movie.cast`, from the title source it was looked up in.
+  repeated Role cast = 19;
+  // As `nama.v1.Movie.crew`, from the title source it was looked up in.
+  repeated Role crew = 20;
 }
 
 // A video advertising a Movie or Show, as a link to where it is hosted. A client only links to
@@ -731,6 +735,10 @@ message FoundShow {
   optional double score = 13;
   // As `nama.v1.Movie.original_language`.
   optional string original_language = 14;
+  // As `nama.v1.Show.cast`, from the title source it was looked up in.
+  repeated Role cast = 19;
+  // As `nama.v1.Show.crew`, from the title source it was looked up in.
+  repeated Role crew = 20;
   // As `FoundMovie.genres`.
   repeated string genres = 15;
   // As `FoundMovie.content_rating`, such as `TV-MA`.
@@ -738,9 +746,21 @@ message FoundShow {
   // As `FoundMovie.on_watchlist`.
   bool on_watchlist = 17;
   // As `FoundMovie.similar`, for the Show.
-  repeated ShowHit similar = 19;
+  repeated ShowHit similar = 21;
   // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
   repeated Trailer trailers = 18;
+}
+
+// A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew). A
+// Person has no page.
+message Role {
+  // The Person's name.
+  string name = 1;
+  // The character they play, or the job they did, in English, such as `Director` or `Creator`.
+  // Empty if the title source doesn't say.
+  string part = 2;
+  // Their headshot's URL on this Server. Only the first 15 of the Cast have one, if any.
+  optional string headshot_url = 3;
 }
 
 // A Season of a Show in the title source, and how close it is to being on the Server: in a

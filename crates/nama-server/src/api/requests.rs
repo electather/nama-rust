@@ -27,7 +27,7 @@ use crate::{
     db::Database,
     library::{
         Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
-        TitleKind, Trailer,
+        TitleKind,
     },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
@@ -38,7 +38,7 @@ use crate::{
 
 use super::{
     Refused,
-    browse::{Fields, refused},
+    browse::{Fields, refused, roles_to_proto, trailers_to_proto},
     caller, database_failed, external_id_to_proto, refuse, required_id,
     search::{movie_hits, show_hits},
     title_kind_from_proto,
@@ -504,6 +504,7 @@ fn looked_up_to_proto(
     };
     let poster = shown(Role::Poster, movie.poster.as_ref());
     let backdrop = shown(Role::Backdrop, movie.backdrop.as_ref());
+    let (cast, crew) = roles_to_proto(movie.roles, offered_by(&movie.plugin, images));
     proto::FoundMovie {
         id: external_id_to_proto(&id).into(),
         title: movie.title,
@@ -512,6 +513,8 @@ fn looked_up_to_proto(
         runtime_minutes: movie.runtime_minutes,
         score: movie.score,
         original_language: movie.original_language,
+        cast,
+        crew,
         genres: movie.genres,
         content_rating: movie.content_rating,
         on_watchlist,
@@ -572,6 +575,7 @@ fn looked_up_show_to_proto(
     };
     let poster = shown(Role::Poster, show.poster.as_deref());
     let backdrop = shown(Role::Backdrop, show.backdrop.as_deref());
+    let (cast, crew) = roles_to_proto(show.roles, offered_by(&plugin, images));
     proto::FoundShow {
         id: external_id_to_proto(&id).into(),
         title: show.title,
@@ -579,6 +583,8 @@ fn looked_up_show_to_proto(
         overview: show.overview,
         score: show.score,
         original_language: show.original_language,
+        cast,
+        crew,
         genres: show.genres,
         content_rating: show.content_rating,
         on_watchlist,
@@ -594,15 +600,17 @@ fn looked_up_show_to_proto(
     }
 }
 
-/// A title's Trailers, as clients see them.
-pub(super) fn trailers_to_proto(trailers: Vec<Trailer>) -> Vec<proto::Trailer> {
-    (trailers.into_iter())
-        .map(|trailer| proto::Trailer {
-            name: trailer.name,
-            url: trailer.url,
-            ..Default::default()
-        })
-        .collect()
+/// Where clients fetch an image the title source of `plugin` answered with, offered to them by its
+/// path.
+fn offered_by<'a>(
+    plugin: &'a PluginId,
+    images: &'a ShownImages,
+) -> impl Fn(&str) -> Option<String> + 'a {
+    move |path| {
+        images
+            .downloaded(Some(Downloaded::Offered { plugin, path }))
+            .url
+    }
 }
 
 const MOVIE_POSTER: TitleImage = TitleImage::Movie(Role::Poster);

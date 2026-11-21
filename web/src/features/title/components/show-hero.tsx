@@ -6,6 +6,7 @@ import { TitleFacts } from "@/features/title/components/title-facts";
 import { TitleGenres } from "@/features/title/components/title-genres";
 import { TitleHero } from "@/features/title/components/title-hero";
 import { TitleName } from "@/features/title/components/title-name";
+import { TitleStarring } from "@/features/title/components/title-starring";
 import { seasonsOf } from "@/features/title/lib/seasons-of";
 import { titleBadges } from "@/features/title/lib/title-badges";
 import type { Episode, Season, Show } from "@/gen/nama/v1/browse_pb";
@@ -39,6 +40,7 @@ export function ShowHero({
       <TitleName title={show.title} logoUrl={show.titleLogoUrl} />
       <TitleGenres kind="Show" genres={show.genres} />
       {show.overview !== undefined && <Overview text={show.overview} />}
+      <TitleStarring cast={show.cast} />
       <TitleFacts
         score={show.score}
         facts={[yearOf(show.firstAirDate), seasonsOf(show.seasonCount)]}

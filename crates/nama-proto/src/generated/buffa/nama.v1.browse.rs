@@ -1174,6 +1174,24 @@ pub struct Movie {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub trailers: ::buffa::alloc::vec::Vec<Trailer>,
+    /// Its Cast, in billing order, from the title source it is Matched to.
+    ///
+    /// Field 24: `cast`
+    #[serde(
+        rename = "cast",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub cast: ::buffa::alloc::vec::Vec<Role>,
+    /// Its Crew, in billing order, from that source. Its directors have the job `Director`.
+    ///
+    /// Field 25: `crew`
+    #[serde(
+        rename = "crew",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub crew: ::buffa::alloc::vec::Vec<Role>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1204,6 +1222,8 @@ impl ::core::fmt::Debug for Movie {
             .field("score", &self.score)
             .field("original_language", &self.original_language)
             .field("trailers", &self.trailers)
+            .field("cast", &self.cast)
+            .field("crew", &self.crew)
             .finish()
     }
 }
@@ -1459,6 +1479,22 @@ impl ::buffa::Message for Movie {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.cast {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.crew {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1553,6 +1589,22 @@ impl ::buffa::Message for Movie {
         for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
                 23u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.cast {
+            ::buffa::types::put_len_delimited_header(
+                24u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.crew {
+            ::buffa::types::put_len_delimited_header(
+                25u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -1818,6 +1870,30 @@ impl ::buffa::Message for Movie {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.trailers.push(elem);
             }
+            24u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.cast.push(elem);
+            }
+            25u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.crew.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1849,6 +1925,8 @@ impl ::buffa::Message for Movie {
         self.score = ::core::option::Option::None;
         self.original_language = ::core::option::Option::None;
         self.trailers.clear();
+        self.cast.clear();
+        self.crew.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5023,6 +5101,24 @@ pub struct Show {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub trailers: ::buffa::alloc::vec::Vec<Trailer>,
+    /// As `Movie.cast`, over the Show's whole run.
+    ///
+    /// Field 21: `cast`
+    #[serde(
+        rename = "cast",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub cast: ::buffa::alloc::vec::Vec<Role>,
+    /// As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
+    ///
+    /// Field 22: `crew`
+    #[serde(
+        rename = "crew",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub crew: ::buffa::alloc::vec::Vec<Role>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -5050,6 +5146,8 @@ impl ::core::fmt::Debug for Show {
             .field("score", &self.score)
             .field("original_language", &self.original_language)
             .field("trailers", &self.trailers)
+            .field("cast", &self.cast)
+            .field("crew", &self.crew)
             .finish()
     }
 }
@@ -5269,6 +5367,22 @@ impl ::buffa::Message for Show {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.cast {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.crew {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5344,6 +5458,22 @@ impl ::buffa::Message for Show {
         for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
                 20u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.cast {
+            ::buffa::types::put_len_delimited_header(
+                21u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.crew {
+            ::buffa::types::put_len_delimited_header(
+                22u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -5572,6 +5702,30 @@ impl ::buffa::Message for Show {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.trailers.push(elem);
             }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.cast.push(elem);
+            }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.crew.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5600,6 +5754,8 @@ impl ::buffa::Message for Show {
         self.score = ::core::option::Option::None;
         self.original_language = ::core::option::Option::None;
         self.trailers.clear();
+        self.cast.clear();
+        self.crew.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
