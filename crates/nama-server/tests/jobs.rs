@@ -5,6 +5,8 @@
 mod installed_test_plugin;
 #[path = "support/log.rs"]
 mod log;
+#[path = "support/refused.rs"]
+mod refused;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
@@ -18,12 +20,14 @@ use jiff::{ToSpan as _, Zoned};
 use log::Log;
 use nama_proto::nama::v1::{
     DisablePluginRequest, EnablePluginRequest, Job, JobRunOutcome, JobServiceClient,
-    ListJobRunsRequest, ListJobsRequest, Permission,
+    ListJobRunsRequest, ListJobsRequest, Permission, RefusalReason, RunJobRequest,
 };
+use refused::assert_refused;
 use server::TestServer;
 
 const STARTED: &[&str] = &["test-plugin's Job wait started"];
 const ENDED: &[&str] = &["test-plugin's Job wait ended"];
+const ON_ASK_ENDED: &[&str] = &["test-plugin's Job on-ask ended"];
 const DAY: Duration = Duration::from_hours(24);
 /// Long enough for a firing loop that would fire to have run the Job.
 const SETTLE: Duration = Duration::from_millis(500);
@@ -57,6 +61,7 @@ async fn a_job_fires_on_its_schedule_drops_a_firing_due_while_it_runs_and_stops_
     // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
     let log = Log::global();
     let (started, ended) = (log.count(STARTED), log.count(ENDED));
+    let on_ask = log.count(ON_ASK_ENDED);
 
     server.advance_clock(until_four().saturating_sub(Duration::from_secs(5)));
     tokio::time::sleep(SETTLE).await;
@@ -79,7 +84,11 @@ async fn a_job_fires_on_its_schedule_drops_a_firing_due_while_it_runs_and_stops_
     // Ends the Run, which the runtime's drop would otherwise wait out to its time limit.
     server.advance_clock(Duration::from_mins(1));
     log.wait_for(ENDED, ended + 2).await;
-    assert_eq!(log.count(&["test-plugin's Job on-ask"]), 0);
+    assert_eq!(
+        log.count(ON_ASK_ENDED),
+        on_ask,
+        "a Job without a schedule fired"
+    );
 
     server
         .plugin_service()
@@ -175,6 +184,7 @@ async fn an_admin_sees_each_job_and_its_runs_a_disabled_plugins_come_back_and_ot
         panic!("not one Run: {runs:?}");
     };
     assert!(run.ended_at_ms.is_some_and(|end| end > run.started_at_ms));
+    assert_eq!(run.started_by, "", "a scheduled Run names who started it");
 
     let plugins = server.plugin_service();
     let id = "test-plugin".to_owned();
@@ -199,4 +209,64 @@ async fn an_admin_sees_each_job_and_its_runs_a_disabled_plugins_come_back_and_ot
         .await
         .unwrap_err();
     assert_eq!(refused.code, ErrorCode::PermissionDenied);
+}
+
+fn run_request(job: &str) -> RunJobRequest {
+    RunJobRequest {
+        plugin_id: "test-plugin".to_owned(),
+        job_id: job.to_owned(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn an_admin_runs_a_job_now_as_themselves_once_at_a_time_and_only_one_an_enabled_plugin_declares()
+ {
+    let server = with_jobs().await;
+    // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
+    let log = Log::global();
+    let (started, ended) = (log.count(STARTED), log.count(ENDED));
+    let service = JobServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    service.run_job(run_request("wait")).await.unwrap();
+    assert_refused(
+        service.run_job(run_request("wait")).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_JOB_RUNNING,
+    );
+    assert_refused(
+        service.run_job(run_request("nap")).await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_JOB_NOT_FOUND,
+    );
+    log.wait_for(STARTED, started + 1).await;
+    // Ends the Run, which waits for the clock to move.
+    server.advance_clock(Duration::from_mins(1));
+    log.wait_for(ENDED, ended + 1).await;
+    assert_eq!(
+        waits_last_outcome(&server).await,
+        JobRunOutcome::JOB_RUN_OUTCOME_SUCCEEDED
+    );
+    let wait = &test_plugin_jobs(&server).await[0];
+    assert_eq!(
+        wait.last_run.as_option().map(|run| run.started_by.as_str()),
+        Some("Admin")
+    );
+    let on_ask = log.count(ON_ASK_ENDED);
+    service.run_job(run_request("on-ask")).await.unwrap();
+    log.wait_for(ON_ASK_ENDED, on_ask + 1).await;
+
+    (server
+        .plugin_service()
+        .disable_plugin(DisablePluginRequest {
+            id: "test-plugin".to_owned(),
+            ..Default::default()
+        }))
+    .await
+    .unwrap();
+    assert_refused(
+        service.run_job(run_request("on-ask")).await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_JOB_NOT_FOUND,
+    );
 }
