@@ -1,3 +1,4 @@
+import type { StillArt } from "@/features/action-bar/lib/titles";
 import type { Request } from "@/gen/nama/v1/request_pb";
 
 /** Where the action bar is: its root, a search of one kind of title, or the keyboard shortcuts. */
@@ -19,12 +20,6 @@ export type IconName =
   | "admin"
   | "keyboard"
   | "retry";
-
-/** An Episode's Still, and its thumbhash. */
-export interface StillArt {
-  url: string;
-  thumbhash: Uint8Array | undefined;
-}
 
 /** One thing the action bar lists, and what picking it does. */
 export interface Row {

@@ -1,12 +1,17 @@
-import type { StillArt } from "@/features/action-bar/lib/rows";
 import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
 import type { EpisodeHit, SearchResponse } from "@/gen/nama/v1/search_pb";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
+/** An Episode's Still, and its thumbhash. */
+export interface StillArt {
+  url: string;
+  thumbhash: Uint8Array | undefined;
+}
+
 /**
  * A Movie, Show or Episode, as the action bar lists it, opens it and remembers it. One in a Library
- * is plain data, so Recent can keep it in `localStorage`.
+ * is plain data, so Recent can keep it in `localStorage`, all but its Still's thumbhash.
  */
 export interface FoundTitle {
   /** Unique among titles: the same title in two Libraries is two of these. */
