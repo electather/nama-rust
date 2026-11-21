@@ -45,7 +45,7 @@ pub(crate) use recognisers::{RecogniserFailed, Recognisers};
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
 pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage};
 pub(crate) use similar_sources::{
-    Answer as SimilarAnswer, MAX_SIMILAR, SimilarSources, merged as merged_similar,
+    Answer as SimilarAnswer, MAX_SIMILAR, SimilarSources, merged as merged_similar, title_roles,
 };
 #[cfg(test)]
 pub(crate) use title_source::scripted;

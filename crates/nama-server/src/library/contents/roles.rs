@@ -93,7 +93,7 @@ impl Contents {
         self.roles(plugin, "show", &show.ids).await
     }
 
-    async fn roles(
+    pub(super) async fn roles(
         &self,
         plugin: &str,
         kind: &str,

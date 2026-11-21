@@ -2222,6 +2222,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-genres-people"
+version = "0.1.0"
+dependencies = [
+ "nama-pdk",
+]
+
+[[package]]
 name = "nama-plugin-local-auth"
 version = "0.1.0"
 dependencies = [
