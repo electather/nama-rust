@@ -50,7 +50,6 @@ fn ffprobe_failing_keyframes(bin: &Path) -> Ffmpeg {
     ffprobe_after(bin, &fail)
 }
 
-// The failing ffprobe is a shell script.
 #[tokio::test]
 async fn a_remux_whose_keyframes_cant_be_listed_transcodes_and_says_why() {
     let bin = tempfile::tempdir().unwrap();
@@ -65,7 +64,6 @@ async fn a_remux_whose_keyframes_cant_be_listed_transcodes_and_says_why() {
     fx.fetch_ok(&plan.url).await;
 }
 
-// The failing ffprobe is a shell script.
 #[tokio::test]
 async fn a_remux_whose_keyframes_cant_be_listed_is_refused_as_busy_at_the_transcode_limit() {
     let bin = tempfile::tempdir().unwrap();
@@ -82,7 +80,6 @@ async fn a_remux_whose_keyframes_cant_be_listed_is_refused_as_busy_at_the_transc
     );
 }
 
-// The failing ffprobe is a shell script.
 #[tokio::test]
 async fn a_version_whose_keyframes_couldnt_be_listed_transcodes_next_time_without_listing_them() {
     let bin = tempfile::tempdir().unwrap();
@@ -99,7 +96,6 @@ async fn a_version_whose_keyframes_couldnt_be_listed_transcodes_next_time_withou
     assert_eq!(runs.lines().count(), 1, "{runs}");
 }
 
-// The hanging ffprobe is a shell script.
 #[tokio::test]
 async fn a_first_play_whose_listing_hangs_transcodes_after_the_wait_and_the_next_play_remuxes() {
     let bin = tempfile::tempdir().unwrap();
@@ -130,7 +126,6 @@ async fn a_first_play_whose_listing_hangs_transcodes_after_the_wait_and_the_next
     assert_eq!(runs.lines().count(), 1, "{runs}");
 }
 
-// The logging ffprobe is a shell script.
 #[tokio::test]
 async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
     let bin = tempfile::tempdir().unwrap();
@@ -188,7 +183,6 @@ async fn alien_mp4(ffmpeg: Ffmpeg, faststart: bool) -> (Fixture, i64) {
     (fx, version)
 }
 
-// The logging ffprobe is a shell script.
 #[tokio::test]
 async fn an_mp4_remuxes_on_its_first_play_without_a_whole_file_listing_wherever_its_moov_is() {
     for faststart in [true, false] {
@@ -215,7 +209,6 @@ async fn an_mp4_remuxes_on_its_first_play_without_a_whole_file_listing_wherever_
     }
 }
 
-// The logging ffprobe is a shell script.
 #[tokio::test]
 async fn an_mkv_with_cues_remuxes_on_its_first_play_without_reading_it_all() {
     let bin = tempfile::tempdir().unwrap();
