@@ -39,7 +39,7 @@ mod exports {
     }
 
     /// Posts each notification for the channel to the webhook.
-    struct Webhook;
+    pub(super) struct Webhook;
 
     impl Notifier for Webhook {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
