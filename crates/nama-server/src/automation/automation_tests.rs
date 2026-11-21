@@ -11,9 +11,9 @@ use nama_plugin_api::{
     automation::{
         DeleteAsked, DeleteStarted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
         GonePluginsForgotten, HomeRowsForgotten, Libraries as ListedLibraries, LibrariesAsked,
-        LibraryKind, Permission, Requesters, RequestersAsked, StoreKey, StoreValue, Titles,
-        TitlesAsked, Users as ListedUsers, UsersAsked, WatchStates as ListedWatchStates,
-        WatchStatesAsked, Watchlist, WatchlistAsked,
+        LibraryKind, MetadataRefreshed, Permission, RefreshMetadataAsked, Requesters,
+        RequestersAsked, StoreKey, StoreValue, Titles, TitlesAsked, Users as ListedUsers,
+        UsersAsked, WatchStates as ListedWatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
     },
     contract,
     metadata::ExternalId,
@@ -763,4 +763,34 @@ async fn forget_gone_plugins_deletes_what_a_long_gone_plugin_left_and_keeps_a_re
     assert_eq!(left_behind(&db, "long-gone", ada).await, [false; 4]);
     assert_eq!(left_behind(&db, "recently-gone", ada).await, [true; 4]);
     assert_eq!(left_behind(&db, "log-events", ada).await, [true; 4]);
+}
+
+#[tokio::test]
+async fn refresh_metadata_answers_how_many_titles_it_fetched_again() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    movies(&db, media.path(), &[ALIEN_TMDB_ID]).await;
+    let (automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_REFRESH_METADATA);
+    let tmdb = FakeTmdb::start().await;
+    let settings = Settings::new(BTreeMap::from([(
+        "api_key".to_owned(),
+        SettingValue::Text(API_KEY.to_owned()),
+    )]));
+    let registry = automation.plugins.registry();
+    let source = Arc::new(Tmdb::with_endpoints(tmdb.endpoints()));
+    registry.enable_with_settings(source, settings).unwrap();
+
+    let refreshed = ask::<MetadataRefreshed>(
+        &kernel,
+        "refresh_metadata",
+        &RefreshMetadataAsked::default(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        (refreshed.titles, refreshed.unavailable_plugin_ids),
+        (1, vec![])
+    );
 }

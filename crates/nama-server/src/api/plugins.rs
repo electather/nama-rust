@@ -577,6 +577,7 @@ fn permission_to_proto(permission: Permission) -> proto::PluginPermission {
         Permission::PERMISSION_READ_WATCHLISTS => Public::PLUGIN_PERMISSION_READ_WATCHLISTS,
         Permission::PERMISSION_FORGET_HOME_ROWS => Public::PLUGIN_PERMISSION_FORGET_HOME_ROWS,
         Permission::PERMISSION_FORGET_GONE_PLUGINS => Public::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS,
+        Permission::PERMISSION_REFRESH_METADATA => Public::PLUGIN_PERMISSION_REFRESH_METADATA,
     }
 }
 
@@ -602,6 +603,9 @@ fn permission_from_proto(
         }
         Some(Public::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS) => {
             Ok(Permission::PERMISSION_FORGET_GONE_PLUGINS)
+        }
+        Some(Public::PLUGIN_PERMISSION_REFRESH_METADATA) => {
+            Ok(Permission::PERMISSION_REFRESH_METADATA)
         }
         Some(Public::PLUGIN_PERMISSION_UNSPECIFIED) | None => Err(super::unknown_enum_value(
             GRANTED_PERMISSIONS,

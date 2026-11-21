@@ -52,10 +52,7 @@ pub(crate) use title_source::{
 pub(crate) use titles::{
     NotFound, OnServer, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,
 };
-pub(crate) use versions::PARSER_VERSION;
-// Matching names it only in its docs, so outside rustdoc nothing would use it.
-#[cfg(doc)]
-pub(crate) use versions::METADATA_VERSION;
+pub(crate) use versions::{METADATA_VERSION, PARSER_VERSION};
 pub(crate) use watch_states::{
     Kind as WatchStateKind, MovieOrEpisode, Progress, WatchState, WatchStates,
     Watched as WatchedTitle,

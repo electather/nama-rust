@@ -14,8 +14,8 @@ use crate::{
     events::EventBus,
     images::ImageStore,
     library::{
-        Artwork, Change, Contents, Item, Libraries, Recognisers, ScanLocks, TitleSources,
-        UnmatchedReason, fixture,
+        Artwork, Change, Contents, Item, Libraries, METADATA_VERSION, Recognisers, ScanLocks,
+        TitleSources, UnmatchedReason, fixture,
         scripted::{ScriptedSource, SourcesAsked},
     },
     log_capture::CapturedLog,
@@ -320,7 +320,10 @@ async fn a_recogniser_failing_for_one_title_still_lets_the_scan_refresh_outdated
 
     media.scan(&media.movies).await;
 
-    let outdated = media.contents.outdated(media.movies.id).await.unwrap();
+    let outdated = (media.contents)
+        .matched_below(media.movies.id, METADATA_VERSION)
+        .await
+        .unwrap();
     assert!(outdated.is_empty(), "{outdated:?}");
     assert_eq!(
         media.outcomes(&media.movies).await,

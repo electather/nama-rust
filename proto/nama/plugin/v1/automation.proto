@@ -24,6 +24,7 @@ import "nama/plugin/v1/title_source.proto";
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //   forget_home_rows:  ForgetHomeRowsAsked -> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
 //   forget_gone_plugins: ForgetGonePluginsAsked -> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
+//   refresh_metadata:  RefreshMetadataAsked -> MetadataRefreshed  PERMISSION_REFRESH_METADATA
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
 // Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -61,6 +62,8 @@ enum Permission {
   PERMISSION_FORGET_HOME_ROWS = 8;
   // Deleting what Plugins the Server no longer has left behind: `forget_gone_plugins`.
   PERMISSION_FORGET_GONE_PLUGINS = 9;
+  // Fetching every Matched title again from its title source: `refresh_metadata`.
+  PERMISSION_REFRESH_METADATA = 10;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
@@ -293,4 +296,17 @@ message ForgetGonePluginsAsked {
 message GonePluginsForgotten {
   // The id of each Plugin whose rows it deleted.
   repeated string plugin_ids = 1;
+}
+
+// What `refresh_metadata` takes.
+message RefreshMetadataAsked {}
+
+// What `refresh_metadata` answers once it fetched every Matched title of every Library again by
+// the ids its Match has, whatever its metadata version, and stored what it got. It never searches
+// and never changes which title an Item is Matched to. A title it couldn't fetch keeps what it had.
+message MetadataRefreshed {
+  // How many titles, Movies and Shows, it fetched and stored.
+  uint64 titles = 1;
+  // The id of each Plugin that couldn't answer, whose titles it left as they were.
+  repeated string unavailable_plugin_ids = 2;
 }

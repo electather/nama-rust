@@ -356,6 +356,8 @@ pub enum PluginPermission {
     PLUGIN_PERMISSION_FORGET_HOME_ROWS = 8i32,
     /// Delete the settings and data kept for Plugins the Server stopped having a while ago.
     PLUGIN_PERMISSION_FORGET_GONE_PLUGINS = 9i32,
+    /// Fetch every Matched title's metadata again from its title source.
+    PLUGIN_PERMISSION_REFRESH_METADATA = 10i32,
 }
 impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -388,6 +390,9 @@ impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ForgetGonePlugins: Self = Self::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_REFRESH_METADATA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RefreshMetadata: Self = Self::PLUGIN_PERMISSION_REFRESH_METADATA;
 }
 impl ::core::default::Default for PluginPermission {
     fn default() -> Self {
@@ -501,6 +506,9 @@ impl ::buffa::Enumeration for PluginPermission {
             9i32 => {
                 ::core::option::Option::Some(Self::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS)
             }
+            10i32 => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_REFRESH_METADATA)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -526,6 +534,9 @@ impl ::buffa::Enumeration for PluginPermission {
             }
             Self::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS => {
                 "PLUGIN_PERMISSION_FORGET_GONE_PLUGINS"
+            }
+            Self::PLUGIN_PERMISSION_REFRESH_METADATA => {
+                "PLUGIN_PERMISSION_REFRESH_METADATA"
             }
         }
     }
@@ -561,6 +572,9 @@ impl ::buffa::Enumeration for PluginPermission {
             "PLUGIN_PERMISSION_FORGET_GONE_PLUGINS" => {
                 ::core::option::Option::Some(Self::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS)
             }
+            "PLUGIN_PERMISSION_REFRESH_METADATA" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_REFRESH_METADATA)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -576,6 +590,7 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_READ_WATCHLISTS,
             Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS,
             Self::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS,
+            Self::PLUGIN_PERMISSION_REFRESH_METADATA,
         ]
     }
 }

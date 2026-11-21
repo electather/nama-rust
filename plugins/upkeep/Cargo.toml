@@ -1,7 +1,7 @@
 [package]
 name = "nama-plugin-upkeep"
 version = "0.1.0"
-description = "Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again"
+description = "Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again, and refresh Matched titles' metadata"
 license = "AGPL-3.0-only"
 edition.workspace = true
 repository.workspace = true

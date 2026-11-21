@@ -317,12 +317,12 @@ impl Contents {
         Ok(rows.into_iter().map(|row| (row.id, row.path)).collect())
     }
 
-    /// The Matched Items of the Library `library` stored at a metadata version older than
-    /// [`METADATA_VERSION`], in the order they were stored, each with the Plugin that Matched it
-    /// and its title's id: a Movie's, or an Episode's Show's (see [`primary_id_in`]).
-    pub(crate) async fn outdated(
+    /// The Matched Items of the Library `library` stored at a metadata version below `below`, in
+    /// stored order, each with its Plugin and its Movie's or Show's id (see [`primary_id_in`]).
+    pub(crate) async fn matched_below(
         &self,
         library: i64,
+        below: i64,
     ) -> Result<Vec<(i64, Item, PluginId, ExternalId)>, sqlx::Error> {
         macro_rules! select {
             ($ids:literal) => {
@@ -343,7 +343,7 @@ impl Contents {
                          AND item_matches.metadata_version < ?
                        ORDER BY library_items.id"#,
                     library,
-                    METADATA_VERSION
+                    below
                 )
             };
         }

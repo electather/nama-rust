@@ -60,6 +60,7 @@ mod sources;
 #[cfg(test)]
 mod testing;
 
+pub(crate) use refresh::Refreshed;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -77,9 +78,10 @@ use crate::{
     db::{Database, detached},
     events::{EventBus, event},
     library::{
-        Artwork, Contents, Decided, Decisions, ImageRef, Item, Libraries, LibraryError, Metadata,
-        Name, Named, Picked, Pin, Recognisers, ScanLock, ScanLocks, Source, SourceEpisode,
-        SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered, UnmatchedReason,
+        Artwork, Contents, Decided, Decisions, ImageRef, Item, Libraries, LibraryError,
+        METADATA_VERSION, Metadata, Name, Named, Picked, Pin, Recognisers, ScanLock, ScanLocks,
+        Source, SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered,
+        UnmatchedReason,
     },
     plugins::ExtensionPoints,
 };
@@ -100,6 +102,9 @@ pub(crate) struct Summary {
 pub(crate) enum Error {
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+    /// The Libraries couldn't be read.
+    #[error(transparent)]
+    Library(#[from] LibraryError),
     /// The Server is shutting down.
     #[error("matching was cancelled")]
     Cancelled,
@@ -441,7 +446,8 @@ impl Matcher {
             self.store(library, decided, &mut summary).await?;
         }
         if available {
-            available = self.refresh(library, &this.metadata, cancel).await?;
+            let refreshed = self.refresh(library, &this.metadata, METADATA_VERSION, cancel);
+            available = refreshed.await?.unavailable.is_empty();
         }
         if summary != Summary::default() {
             tracing::info!(library, ?summary, "matched a Library");

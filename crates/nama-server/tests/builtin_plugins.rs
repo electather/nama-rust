@@ -120,6 +120,7 @@ async fn a_builtin_plugin_is_granted_what_it_requests_on_its_first_start_and_an_
     let requested = HashSet::from([
         Permission::PERMISSION_FORGET_HOME_ROWS,
         Permission::PERMISSION_FORGET_GONE_PLUGINS,
+        Permission::PERMISSION_REFRESH_METADATA,
     ]);
     assert_eq!(upkeep_granted(&first).await, requested);
 

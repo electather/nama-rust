@@ -66,7 +66,7 @@ use crate::{
         Artwork, Change, Contents, CustomImages, LastScan, Libraries, LibraryError, LibraryKind,
         LocalImages, NotFound, Recognisers, ScanLock, ScanLocks,
     },
-    matching::{self, Matcher, count},
+    matching::{self, Matcher, Refreshed, count},
     playback::{Probing, RunningPlans, Sidecars},
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
@@ -144,6 +144,7 @@ impl From<matching::Error> for Error {
     fn from(err: matching::Error) -> Self {
         match err {
             matching::Error::Database(err) => Self::Database(err),
+            matching::Error::Library(err) => Self::Library(err),
             matching::Error::Cancelled => Self::Cancelled,
         }
     }
@@ -286,6 +287,12 @@ impl Scanner {
     /// The Matcher that fixes a Match by hand, waiting for a scan of the item's Library.
     pub(crate) fn matcher(&self) -> &Matcher {
         &self.inner.matcher
+    }
+
+    /// Fetches every Matched title of every Library again by the ids its Match has, each Library
+    /// after any scan of it, until the Server shuts down.
+    pub(crate) async fn refresh_metadata(&self) -> Result<Refreshed, Error> {
+        Ok(self.inner.matcher.refresh_all(&self.inner.cancel).await?)
     }
 
     /// Cancels the scans running or waiting, waits for them and for media deletes already

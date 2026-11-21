@@ -18,10 +18,10 @@ use nama_plugin_api::{
     automation::{
         DeleteAsked, DeleteStarted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
         GonePluginsForgotten, HomeRowsForgotten, Kernel, KernelRefused, Libraries, LibrariesAsked,
-        Library, LibraryKind, Permission, Requesters, RequestersAsked, StoreEntry, StoreKey,
-        StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates,
-        Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
-        Watchlist, WatchlistAsked, WatchlistTitle,
+        Library, LibraryKind, MetadataRefreshed, Permission, RefreshMetadataAsked, Requesters,
+        RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind,
+        TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
+        WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
     },
     contract,
     fulfiller::TitleId,
@@ -167,6 +167,11 @@ const FUNCTIONS: &[Function] = &[
         needs: Permission::PERMISSION_FORGET_GONE_PLUGINS,
         answer: |caller, request| typed(caller, request, Caller::forget_gone_plugins),
     },
+    Function {
+        name: "refresh_metadata",
+        needs: Permission::PERMISSION_REFRESH_METADATA,
+        answer: |caller, request| typed(caller, request, Caller::refresh_metadata),
+    },
 ];
 
 /// Decodes `request`, has `handler` answer it for `caller`, and encodes its response.
@@ -201,6 +206,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_READ_WATCHLISTS => "Read Watchlists",
         Permission::PERMISSION_FORGET_HOME_ROWS => "Forget Home rows",
         Permission::PERMISSION_FORGET_GONE_PLUGINS => "Forget removed Plugins",
+        Permission::PERMISSION_REFRESH_METADATA => "Refresh metadata",
     }
 }
 
@@ -633,6 +639,24 @@ impl Caller {
         Ok(GonePluginsForgotten {
             plugin_ids,
             ..GonePluginsForgotten::default()
+        })
+    }
+
+    /// Fetches every Matched title again by the ids its Match has. Answers only once done, which
+    /// may take minutes: the time the Kernel spends answering doesn't count toward a call's limit.
+    async fn refresh_metadata(
+        self,
+        _asked: RefreshMetadataAsked,
+    ) -> Result<MetadataRefreshed, KernelRefused> {
+        let refreshed = (self.automation.scanner.refresh_metadata())
+            .await
+            .map_err(|err| self.database_refused("refreshing metadata", &err))?;
+        Ok(MetadataRefreshed {
+            titles: refreshed.titles,
+            unavailable_plugin_ids: (refreshed.unavailable.iter())
+                .map(ToString::to_string)
+                .collect(),
+            ..MetadataRefreshed::default()
         })
     }
 }

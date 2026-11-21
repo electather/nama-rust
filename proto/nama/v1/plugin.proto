@@ -353,6 +353,8 @@ enum PluginPermission {
   PLUGIN_PERMISSION_FORGET_HOME_ROWS = 8;
   // Delete the settings and data kept for Plugins the Server stopped having a while ago.
   PLUGIN_PERMISSION_FORGET_GONE_PLUGINS = 9;
+  // Fetch every Matched title's metadata again from its title source.
+  PLUGIN_PERMISSION_REFRESH_METADATA = 10;
 }
 
 // A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin

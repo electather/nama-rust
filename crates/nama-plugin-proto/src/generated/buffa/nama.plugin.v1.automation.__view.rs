@@ -20,6 +20,7 @@
 ///   delete_media:      DeleteAsked      -\> DeleteStarted  PERMISSION_DELETE_MEDIA
 ///   forget_home_rows:  ForgetHomeRowsAsked -\> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
 ///   forget_gone_plugins: ForgetGonePluginsAsked -\> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
+///   refresh_metadata:  RefreshMetadataAsked -\> MetadataRefreshed  PERMISSION_REFRESH_METADATA
 ///
 /// The functions are documented here rather than declared as a service: they are not an Extension
 /// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -9188,6 +9189,535 @@ impl ::buffa::HasMessageView for super::super::GonePluginsForgotten {
     type ViewHandle = GonePluginsForgottenOwnedView;
 }
 impl ::serde::Serialize for GonePluginsForgottenOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What `refresh_metadata` takes.
+#[derive(Clone, Debug, Default)]
+pub struct RefreshMetadataAskedView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for RefreshMetadataAskedView<'a> {
+    type Owned = super::super::RefreshMetadataAsked;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::RefreshMetadataAsked,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::RefreshMetadataAsked,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::RefreshMetadataAsked {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for RefreshMetadataAskedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for RefreshMetadataAskedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for RefreshMetadataAskedView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "RefreshMetadataAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.RefreshMetadataAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.RefreshMetadataAsked";
+}
+::buffa::impl_default_view_instance!(RefreshMetadataAskedView);
+::buffa::impl_view_reborrow!(RefreshMetadataAskedView);
+/** Self-contained, `'static` owned view of a `RefreshMetadataAsked` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`RefreshMetadataAskedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`RefreshMetadataAskedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct RefreshMetadataAskedOwnedView(
+    ::buffa::OwnedView<RefreshMetadataAskedView<'static>>,
+);
+impl RefreshMetadataAskedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RefreshMetadataAskedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RefreshMetadataAskedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::RefreshMetadataAsked,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RefreshMetadataAskedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`RefreshMetadataAskedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &RefreshMetadataAskedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::RefreshMetadataAsked {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<RefreshMetadataAskedView<'static>>>
+for RefreshMetadataAskedOwnedView {
+    fn from(inner: ::buffa::OwnedView<RefreshMetadataAskedView<'static>>) -> Self {
+        RefreshMetadataAskedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<RefreshMetadataAskedOwnedView>
+for ::buffa::OwnedView<RefreshMetadataAskedView<'static>> {
+    fn from(wrapper: RefreshMetadataAskedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<RefreshMetadataAskedView<'static>>>
+for RefreshMetadataAskedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<RefreshMetadataAskedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::RefreshMetadataAsked {
+    type View<'a> = RefreshMetadataAskedView<'a>;
+    type ViewHandle = RefreshMetadataAskedOwnedView;
+}
+impl ::serde::Serialize for RefreshMetadataAskedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What `refresh_metadata` answers once it fetched every Matched title of every Library again by
+/// the ids its Match has, whatever its metadata version, and stored what it got. It never searches
+/// and never changes which title an Item is Matched to. A title it couldn't fetch keeps what it had.
+#[derive(Clone, Debug, Default)]
+pub struct MetadataRefreshedView<'a> {
+    /// How many titles, Movies and Shows, it fetched and stored.
+    ///
+    /// Field 1: `titles`
+    pub titles: u64,
+    /// The id of each Plugin that couldn't answer, whose titles it left as they were.
+    ///
+    /// Field 2: `unavailable_plugin_ids`
+    pub unavailable_plugin_ids: ::buffa::RepeatedView<'a, &'a str>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for MetadataRefreshedView<'a> {
+    type Owned = super::super::MetadataRefreshed;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.titles = ::buffa::types::decode_uint64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.unavailable_plugin_ids.push(__elem);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::MetadataRefreshed, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::MetadataRefreshed, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::MetadataRefreshed {
+            titles: self.titles,
+            unavailable_plugin_ids: self
+                .unavailable_plugin_ids
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for MetadataRefreshedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.titles != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.titles) as u64;
+        }
+        for v in &self.unavailable_plugin_ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.titles != 0u64 {
+            ::buffa::types::put_uint64_field(1u32, self.titles, buf);
+        }
+        for v in &self.unavailable_plugin_ids {
+            ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for MetadataRefreshedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_u64(&self.titles) {
+            __map
+                .serialize_entry(
+                    "titles",
+                    &::buffa::json_helpers::ProtoJson(&self.titles),
+                )?;
+        }
+        if !self.unavailable_plugin_ids.is_empty() {
+            __map
+                .serialize_entry("unavailablePluginIds", &*self.unavailable_plugin_ids)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for MetadataRefreshedView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "MetadataRefreshed";
+    const FULL_NAME: &'static str = "nama.plugin.v1.MetadataRefreshed";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.MetadataRefreshed";
+}
+::buffa::impl_default_view_instance!(MetadataRefreshedView);
+::buffa::impl_view_reborrow!(MetadataRefreshedView);
+/** Self-contained, `'static` owned view of a `MetadataRefreshed` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`MetadataRefreshedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`MetadataRefreshedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct MetadataRefreshedOwnedView(
+    ::buffa::OwnedView<MetadataRefreshedView<'static>>,
+);
+impl MetadataRefreshedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            MetadataRefreshedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            MetadataRefreshedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::MetadataRefreshed,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            MetadataRefreshedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`MetadataRefreshedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &MetadataRefreshedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::MetadataRefreshed {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// How many titles, Movies and Shows, it fetched and stored.
+    ///
+    /// Field 1: `titles`
+    #[must_use]
+    pub fn titles(&self) -> u64 {
+        self.0.reborrow().titles
+    }
+    /// The id of each Plugin that couldn't answer, whose titles it left as they were.
+    ///
+    /// Field 2: `unavailable_plugin_ids`
+    #[must_use]
+    pub fn unavailable_plugin_ids(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().unavailable_plugin_ids
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<MetadataRefreshedView<'static>>>
+for MetadataRefreshedOwnedView {
+    fn from(inner: ::buffa::OwnedView<MetadataRefreshedView<'static>>) -> Self {
+        MetadataRefreshedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<MetadataRefreshedOwnedView>
+for ::buffa::OwnedView<MetadataRefreshedView<'static>> {
+    fn from(wrapper: MetadataRefreshedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<MetadataRefreshedView<'static>>>
+for MetadataRefreshedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<MetadataRefreshedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::MetadataRefreshed {
+    type View<'a> = MetadataRefreshedView<'a>;
+    type ViewHandle = MetadataRefreshedOwnedView;
+}
+impl ::serde::Serialize for MetadataRefreshedOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

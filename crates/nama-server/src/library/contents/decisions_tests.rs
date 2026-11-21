@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     db::{self, Database},
-    library::libraries::Kind,
+    library::{METADATA_VERSION, libraries::Kind},
     page::Page,
 };
 
@@ -309,7 +309,7 @@ async fn upgrading_to_titled_backdrops_keeps_each_match_and_has_the_next_scan_fe
     conn.close().await.unwrap();
 
     let contents = Contents::new(Arc::new(Database::open(data.path()).await.unwrap()));
-    let outdated = contents.outdated(1).await.unwrap();
+    let outdated = contents.matched_below(1, METADATA_VERSION).await.unwrap();
     let alien = contents.movies(1, None).await.unwrap().remove(0);
 
     let outdated: Vec<i64> = outdated.into_iter().map(|(item, ..)| item).collect();
