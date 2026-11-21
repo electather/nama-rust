@@ -42,7 +42,7 @@ function movieFound(movie: MovieHit, status: TitleStatus): FoundTitle {
     id: `movie:${libraryId ?? "to-request"}:${titleId}`,
     kind: "movie",
     libraryId,
-    // Only a Movie to request shows its Request; one in a Library stays plain data for Recent.
+    // Only a title to request shows its Request; one in a Library stays plain data for Recent.
     request: libraryId === undefined ? movie.request : undefined,
     status,
     titleId,

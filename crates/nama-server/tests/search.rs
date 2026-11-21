@@ -579,3 +579,65 @@ async fn when_the_show_search_fails_a_search_of_all_still_streams_the_movies_and
     );
     assert!(done.title_source_unavailable);
 }
+
+#[tokio::test]
+async fn a_show_with_one_season_in_a_library_and_another_requested_is_available() {
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+    fx.write(THE_OFFICE_US_S01E02, b"video");
+    fx.scan_and_match().await;
+    let ada = fx.server.user("Ada", &[Permission::RequestTv]).await;
+    RequestServiceClient::new(HttpClient::plaintext(), ada.client_config())
+        .ask_seasons(THE_OFFICE, &[3])
+        .await;
+
+    // Found through the title source, where the Season Request could make it Requested.
+    let parts = search(
+        &ada.client_config(),
+        "Bureau américain",
+        TitleKind::TITLE_KIND_SHOW,
+    )
+    .await
+    .unwrap();
+
+    let [Part::Hits(_), Part::Hits(to_request), Part::Done(_)] = &parts[..] else {
+        panic!("the Libraries' batch, the title source's, then Done: {parts:?}");
+    };
+    assert_eq!(
+        shows_and_statuses(to_request),
+        [
+            ("2316", AVAILABLE.into()),
+            ("2996", NOT_ON_THIS_SERVER.into())
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_show_whose_only_followed_show_the_caller_cant_see_is_not_on_this_server() {
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+    let ada = fx.server.user("Ada", &[Permission::RequestTv]).await;
+    let grace = fx.server.user("Grace", &[Permission::RequestTv]).await;
+    let ada_requests = RequestServiceClient::new(HttpClient::plaintext(), ada.client_config());
+    let (_, seasons) = ada_requests.follow(THE_OFFICE_UK).await;
+    for season in seasons {
+        ada_requests.withdraw(season.id).await;
+    }
+
+    let parts = search(
+        &grace.client_config(),
+        "The Office",
+        TitleKind::TITLE_KIND_SHOW,
+    )
+    .await
+    .unwrap();
+
+    let [Part::Hits(_), Part::Hits(to_request), Part::Done(_)] = &parts[..] else {
+        panic!("the Libraries' batch, the title source's, then Done: {parts:?}");
+    };
+    assert_eq!(
+        shows_and_statuses(to_request),
+        [
+            ("2316", NOT_ON_THIS_SERVER.into()),
+            ("2996", NOT_ON_THIS_SERVER.into())
+        ]
+    );
+}

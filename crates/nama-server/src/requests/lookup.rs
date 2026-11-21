@@ -150,7 +150,8 @@ impl Requests {
         let hits = self.search_shows(query.to_owned()).await?;
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(hits.len());
-        // ponytail: four or five queries per Show found, which a search caps at a page of 20.
+        // ponytail: a few queries per Show found, more with open Season Requests the viewer can't
+        // see, and a search caps them at a page of 20.
         for hit in hits {
             found.push(self.look_around_show(&mut conn, viewer, hit).await?);
         }
