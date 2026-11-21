@@ -958,6 +958,8 @@ async fn a_show_side_target_that_isnt_there_or_is_in_a_movies_library_is_refused
 /// A Server's ffmpeg and ffprobe, shell scripts in `bin`: ffprobe reads every file as an HEVC and
 /// AAC MKV, which a browser needs Transcoded, and ffmpeg lists libx264 but writes nothing until
 /// it's stopped, keeping its process id in `bin/ffmpeg.pid` while it runs.
+/// Any other run, such as the Preview frames the Server makes in the background, fails at once,
+/// so only the transcode writes that pid.
 #[cfg(unix)]
 fn ffmpeg_transcoding_forever(bin: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
@@ -968,7 +970,8 @@ cat <<EOF
 EOF
 "#;
     let ffmpeg = "#!/bin/sh\ncase \"$*\" in *-encoders*) echo ' V....D libx264  H.264' ;; \
-                  *-filters*) ;; *) echo $$ > \"$0.pid\"; exec sleep 600 ;; esac\n";
+                  *-filters*) ;; *\" -f hls \"*) echo $$ > \"$0.pid\"; exec sleep 600 ;; \
+                  *) exit 1 ;; esac\n";
     Ffmpeg {
         ffmpeg: Ok(script(bin, "ffmpeg", ffmpeg)),
         ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
