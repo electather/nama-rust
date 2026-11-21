@@ -104,7 +104,8 @@ impl Contents {
         words: &SearchWords<'_>,
         kind: Option<TitleKind>,
     ) -> Result<Vec<SearchRow>, sqlx::Error> {
-        let (titles, shows) = (words.in_column("title"), words.in_column("show_title"));
+        let titles = words.in_columns("{title original_title}");
+        let shows = words.in_columns("show_title");
         let movies_wanted = kind != Some(TitleKind::Show);
         let shows_wanted = kind != Some(TitleKind::Movie);
         // A hit is grouped by the id browsing knows its title by, which `matched_items` picks,
@@ -346,9 +347,9 @@ impl<'a> SearchWords<'a> {
         )
     }
 
-    /// The FTS5 query for `title_search` rows whose `column` has a word starting with each word,
-    /// so a client can search as the User types, and of the year, if any.
-    fn in_column(&self, column: &str) -> String {
+    /// The FTS5 query for `title_search` rows whose `columns`, an FTS5 column filter, have a word
+    /// starting with each word, so a client can search as the User types, and of the year, if any.
+    fn in_columns(&self, columns: &str) -> String {
         // Every word is letters and digits, so quoting it keeps FTS5 from reading it as `AND`,
         // `NOT` or the like.
         let words: Vec<String> = self
@@ -356,9 +357,9 @@ impl<'a> SearchWords<'a> {
             .iter()
             .map(|word| format!("\"{word}\"*"))
             .collect();
-        let words = format!("{column} : ({})", words.join(" "));
+        let words = format!("{columns} : ({})", words.join(" "));
         match self.year {
-            Some(year) => format!("{words} AND (year : \"{year}\" OR {column} : \"{year}\")"),
+            Some(year) => format!("{words} AND (year : \"{year}\" OR {columns} : \"{year}\")"),
             None => words,
         }
     }
@@ -434,7 +435,7 @@ impl Fit {
                 Self::WordStarts
             }
         };
-        // The marks `title_search_rows` (migration 0036) joins words by: keep the two alike.
+        // The marks `title_search_rows` joins words by: keep the two alike.
         let joined = title.replace(['-', '\'', '’', '.', '·'], "");
         fit(title).min(fit(&joined))
     }
