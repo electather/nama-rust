@@ -12,6 +12,8 @@ mod chapters;
 mod failing_ffmpeg;
 #[path = "support/http.rs"]
 mod http;
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
 #[path = "playback/keyframes.rs"]
 mod keyframes;
 #[path = "playback/now_playing.rs"]
