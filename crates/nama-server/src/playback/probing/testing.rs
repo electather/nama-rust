@@ -30,7 +30,7 @@ pub(super) struct FakeReader {
     answer: Mutex<Box<Answer>>,
     can_read: bool,
     seen: Arc<watch::Sender<Seen>>,
-    /// Cancelled while reads aren't held; a read started while it isn't waits for it.
+    /// What each read waits on before it answers; already cancelled unless reads are held.
     released: Mutex<CancellationToken>,
 }
 
@@ -94,7 +94,11 @@ impl FakeReader {
 
     /// Keeps the reads it starts from now on pending until [`Self::release`].
     pub(super) fn hold(&self) {
-        *lock(&self.released) = CancellationToken::new();
+        let mut released = lock(&self.released);
+        // A token still pending is kept, so `release` frees the reads held before this too.
+        if released.is_cancelled() {
+            *released = CancellationToken::new();
+        }
     }
 
     /// Lets every held read finish, and holds no more.
@@ -150,6 +154,7 @@ impl Reader for FakeReader {
         };
         let answered = lock(&self.answer)(&path).map(|probe| (probe, starts));
         Box::pin(async move {
+            // Moved in, so the read stops counting as running only once Probing drops it.
             let _running = running;
             released.cancelled().await;
             answered

@@ -454,7 +454,11 @@ async fn files_changed_during_a_pass_leaves_the_files_being_probed_to_it() {
     reader.release();
     media.probing.idle().await;
 
-    assert_eq!(reader.probes(), 2, "Alien was probed twice");
+    assert_eq!(
+        reader.probes(),
+        2,
+        "Alien read by the first pass alone, and Heat"
+    );
     assert!(media.probe(alien).await.is_some());
 }
 
@@ -491,7 +495,11 @@ async fn a_pass_waits_for_the_file_another_prober_holds_and_counts_it_as_probed(
     };
     assert_eq!(first.recv().await, Some(probed(1)));
     assert_eq!(second.recv().await, Some(probed(2)));
-    assert_eq!(reader.probes(), 2, "Alien was probed twice");
+    assert_eq!(
+        reader.probes(),
+        2,
+        "Alien read by the first pass alone, and Heat"
+    );
 }
 
 #[tokio::test]
@@ -521,7 +529,11 @@ async fn a_pass_probes_a_file_itself_once_the_prober_it_waited_for_gives_up() {
         ..Default::default()
     };
     assert_eq!(reported.recv().await, Some(caught_up));
-    assert_eq!(reader.probes(), 3, "Alien was probed again, and Heat once");
+    assert_eq!(
+        reader.probes(),
+        3,
+        "Alien read by `current`, then by the pass, and Heat"
+    );
     assert!(media.probe(alien).await.is_some());
 }
 
