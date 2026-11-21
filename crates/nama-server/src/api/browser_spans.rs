@@ -16,7 +16,7 @@ use crate::{diagnostics::BrowserSpans, users::Caller};
 const MAX_BODY: usize = 256 * 1024;
 
 /// Routes `/diagnostics/v1/traces` to `spans`, or nothing while the Server exports no Diagnostics,
-/// so the path is then not found. `PREFIXES` in `../api.rs` lets only signed-in Devices post.
+/// so the path is then not found. `PREFIXES` in `access.rs` lets only signed-in Devices post.
 pub(super) fn router(spans: Option<BrowserSpans>) -> Router {
     let Some(spans) = spans else {
         return Router::new();
