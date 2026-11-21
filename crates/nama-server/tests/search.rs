@@ -17,7 +17,8 @@ use nama_proto::nama::v1::{
 };
 use refused::assert_refused;
 use server::{
-    TestServer, search,
+    TestServer,
+    search::search,
     tmdb::{ALIEN, DUNE, THE_OFFICE},
 };
 

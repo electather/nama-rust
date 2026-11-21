@@ -37,7 +37,8 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{
-    SignedIn, search,
+    SignedIn,
+    search::search,
     tmdb::{ALIEN, DARK, HEAT, THE_OFFICE as THE_OFFICE_US},
 };
 

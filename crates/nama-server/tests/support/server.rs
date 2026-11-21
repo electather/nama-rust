@@ -4,6 +4,8 @@
 pub(crate) mod fulfiller;
 #[path = "requests.rs"]
 pub(crate) mod requests;
+#[path = "search.rs"]
+pub(crate) mod search;
 #[path = "tmdb.rs"]
 pub(crate) mod tmdb;
 
@@ -26,11 +28,10 @@ use nama_plugin_tmdb::{Tmdb, testing::FakeTmdb};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
     EventServiceClient, EventType, ImageSettings, LibraryKind, LibraryServiceClient, Permission,
-    PluginServiceClient, Quality, ReplaceQualitiesRequest, ScanLibraryRequest, SearchRequest,
-    SearchResponse, SearchServiceClient, ServerServiceClient, SessionDelivery,
-    SetPermissionsRequest, SetupRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, TitleKind, UpdateImageSettingsRequest, UserServiceClient, event,
-    search_response, subscribe_response,
+    PluginServiceClient, Quality, ReplaceQualitiesRequest, ScanLibraryRequest, ServerServiceClient,
+    SessionDelivery, SetPermissionsRequest, SetupRequest, SignInRequest, SignInServiceClient,
+    SubscribeRequest, SubscribeResponse, UpdateImageSettingsRequest, UserServiceClient, event,
+    subscribe_response,
 };
 use nama_server::{
     config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
@@ -724,27 +725,6 @@ async fn set_up(config: ClientConfig, setup_code: &SetupCode) -> String {
         .unwrap()
         .into_owned()
         .token
-}
-
-/// Every part a search for `query` of `kind` streams, in order, as whoever `who` calls the Server
-/// as.
-pub(crate) async fn search(
-    who: &ClientConfig,
-    query: &str,
-    kind: TitleKind,
-) -> Result<Vec<search_response::Part>, ConnectError> {
-    let request = SearchRequest {
-        query: query.to_owned(),
-        kind: kind.into(),
-        ..Default::default()
-    };
-    let client = SearchServiceClient::new(HttpClient::plaintext(), who.clone());
-    let mut stream = client.search(request).await?;
-    let mut parts = Vec::new();
-    while let Some(response) = stream.message::<SearchResponse>().await? {
-        parts.extend(response.to_owned_message().part);
-    }
-    Ok(parts)
 }
 
 /// Subscribes to events of `types`, or of every type if none, as whoever `who` calls the Server

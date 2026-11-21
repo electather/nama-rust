@@ -22,7 +22,7 @@ use nama_proto::nama::v1::{
 use nama_server::db::Database;
 use refused::{assert_refused, refusal_of};
 use serde_json::{Value, json};
-use server::{PASSWORD, TestServer, search, subscribe};
+use server::{PASSWORD, TestServer, search::search, subscribe};
 
 /// Every RPC that deletes media, which needs `PERMISSION_DELETE_MEDIA`.
 const DELETE_MEDIA: [&str; 2] = [
