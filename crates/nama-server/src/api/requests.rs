@@ -458,7 +458,7 @@ impl RequestService for RequestServiceHandler {
 }
 
 /// A Movie a search found, as clients see it, with its poster offered to them.
-fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
+pub(super) fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
     let Found {
         id,
         plugin,
@@ -506,6 +506,8 @@ fn looked_up_to_proto(found: Found<Metadata>, images: &ShownImages) -> proto::Fo
         year: movie.release_date.as_deref().and_then(year_of),
         overview: movie.overview,
         runtime_minutes: movie.runtime_minutes,
+        score: movie.score,
+        original_language: movie.original_language,
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,
@@ -563,6 +565,8 @@ fn looked_up_show_to_proto(found: FoundShow, images: &ShownImages) -> proto::Fou
         title: show.title,
         year: show.first_air_date.as_deref().and_then(year_of),
         overview: show.overview,
+        score: show.score,
+        original_language: show.original_language,
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,

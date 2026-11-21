@@ -4,7 +4,7 @@ use nama_plugin_api::{
 };
 
 use super::{
-    Artwork, ArtworkKind, SearchQuery, TitleKind, artwork, candidate, episode, search_query,
+    Artwork, ArtworkKind, SearchQuery, TitleKind, artwork, candidate, episode, movie, search_query,
     season, show,
 };
 
@@ -90,6 +90,24 @@ fn an_answer_with_a_malformed_id_fails_naming_it() {
             r#"the title source answered with the id "tvdb-": the id's value is empty"#,
             r#"the title source answered with the id "t v-1": the namespace "t v" isn't one or more of a-z and 0-9"#,
         ]
+    );
+}
+
+#[test]
+fn a_score_outside_0_to_10_is_dropped_not_stored() {
+    let scored = |score| {
+        let movie = movie(wire::Movie {
+            score: Some(score),
+            ..Default::default()
+        });
+        movie.unwrap().score
+    };
+
+    assert_eq!(scored(8.4), Some(8.4));
+    assert_eq!(scored(0.0), Some(0.0));
+    assert_eq!(
+        [scored(10.5), scored(-1.0), scored(f64::NAN)],
+        [None, None, None]
     );
 }
 

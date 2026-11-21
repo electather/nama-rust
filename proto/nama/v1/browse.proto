@@ -159,6 +159,11 @@ message Movie {
   optional string titled_backdrop_url = 19;
   // As `poster_thumbhash`, for the titled backdrop.
   optional bytes titled_backdrop_thumbhash = 20;
+  // Its Score, from 0 to 10, as the title source it is Matched to averages it. Unset, not 0, if
+  // nobody has voted or that source has none.
+  optional double score = 21;
+  // The ISO 639-1 code of the language it was made in, such as `ja`, as its title source has it.
+  optional string original_language = 22;
 }
 
 // One file a Movie or Episode is available in.
@@ -372,6 +377,10 @@ message Show {
   optional string titled_backdrop_url = 16;
   // As `Movie.titled_backdrop_thumbhash`.
   optional bytes titled_backdrop_thumbhash = 17;
+  // As `Movie.score`.
+  optional double score = 18;
+  // As `Movie.original_language`.
+  optional string original_language = 19;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.

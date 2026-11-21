@@ -4,7 +4,8 @@ import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { type SearchResponseSchema, SearchService } from "@/gen/nama/v1/search_pb";
+import { type MovieHitSchema, RequestState } from "@/gen/nama/v1/request_pb";
+import { type SearchResponseSchema, SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { modKey } from "@/shared/lib/mod-key";
 import { admin, fakeServer, newUser, openApp } from "@/test-app";
@@ -62,6 +63,30 @@ const findsOffice: Search = ({ query, kind }) => {
     },
   });
 };
+
+type Part = MessageInitShape<typeof SearchResponseSchema>;
+
+/** Streams `parts` for any search. */
+function streams(...parts: Part[]): Search {
+  return () =>
+    new ReadableStream<Part>({
+      start(controller) {
+        for (const part of parts) {
+          controller.enqueue(part);
+        }
+        controller.close();
+      },
+    });
+}
+
+/** A batch of Movies, each with its status. */
+function movies(...hits: [MessageInitShape<typeof MovieHitSchema>, TitleStatus][]): Part {
+  const batch = hits.map(([value, status]) => ({
+    title: { case: "movie" as const, value },
+    status,
+  }));
+  return { part: { case: "hits", value: { hits: batch } } };
+}
 
 /** A search the Server fails. */
 const down: Search = () => {
@@ -127,9 +152,9 @@ test("typing lists the titles found, Enter opens the first, and it's a Recent ne
   await screen.findByRole("option", { name: /^Office Space/u });
 
   expect(rows()).toStrictEqual([
-    "Office SpaceMovie1999Open",
-    "The OfficeShow",
-    "1. The DundiesEpisodeThe Office · Season 2",
+    "Office Space1999Open",
+    "The Office",
+    "1. The DundiesThe Office · Season 2",
   ]);
   fireEvent.keyDown(field, { key: "Enter" });
   await waitFor(() => {
@@ -165,10 +190,7 @@ test("a search of one kind asks the Server for that kind, and Escape steps back 
   type(field, "office");
   await screen.findByRole("option", { name: /^The Office/u });
 
-  expect(rows()).toStrictEqual([
-    "The OfficeShowOpen",
-    "1. The DundiesEpisodeThe Office · Season 2",
-  ]);
+  expect(rows()).toStrictEqual(["The OfficeOpen", "1. The DundiesThe Office · Season 2"]);
   expect(kinds).toStrictEqual([TitleKind.SHOW]);
   fireEvent.keyDown(field, { key: "Escape" });
   expect(screen.getByRole("option", { name: /^Search Movies/u })).toBeDefined();
@@ -228,4 +250,54 @@ test("an older search link's number is searched for as words", async () => {
   const field = await screen.findByRole<HTMLInputElement>("combobox", { name: "Command menu" });
 
   expect(field.value).toBe("1917");
+});
+
+test("movies to request list below the Library's, by status, and open their request page", async () => {
+  const toRequest = { id: tmdb("1"), title: "Office Hours" };
+  const requested = {
+    id: tmdb("2"),
+    title: "Office Party",
+    request: { state: RequestState.APPROVED },
+  };
+  const elsewhere = { libraryId: 1n, id: tmdb("3"), title: "Bureau" };
+  const search = streams(
+    movies([officeSpace.value, TitleStatus.AVAILABLE]),
+    movies(
+      [toRequest, TitleStatus.NOT_ON_THIS_SERVER],
+      [requested, TitleStatus.REQUESTED],
+      [elsewhere, TitleStatus.AVAILABLE],
+    ),
+    { part: { case: "done", value: {} } },
+  );
+  const router = openApp("/settings", serverToSearch(search));
+  const field = await openActionBar();
+
+  type(field, "office");
+  const officeHours = await screen.findByRole("option", { name: /^Office Hours/u });
+
+  expect(rows()).toStrictEqual([
+    "Office Space1999Open",
+    "Bureau",
+    "Office PartyRequested",
+    "Office HoursRequest",
+  ]);
+  fireEvent.click(officeHours);
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe("/movies/tmdb-1");
+  });
+});
+
+test("a search whose title source failed lists the Library's titles with a quiet note", async () => {
+  const search = streams(movies([officeSpace.value, TitleStatus.AVAILABLE]), {
+    part: { case: "done", value: { titleSourceUnavailable: true } },
+  });
+  openApp("/settings", serverToSearch(search));
+  const field = await openActionBar();
+
+  type(field, "office");
+
+  await expect(
+    screen.findByText("Titles to request couldn’t be searched, so only this Server’s are listed."),
+  ).resolves.toBeDefined();
+  expect(rows()).toStrictEqual(["Office Space1999Open"]);
 });

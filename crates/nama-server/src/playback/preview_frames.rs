@@ -32,7 +32,10 @@ use image::{ImageError, RgbImage, codecs::jpeg::JpegEncoder, imageops};
 use nama_proto::nama::v1 as proto;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-use super::{Probe, Probing, RunningPlans, TrackKind, Tracks};
+use super::{
+    Probe, Probing, RunningPlans, TrackKind, Tracks,
+    read_failures::{Read, ReadFailure},
+};
 use crate::{
     db::Database,
     ffmpeg::{Ffmpeg, RunError},
@@ -255,20 +258,16 @@ impl PreviewFrames {
                 tracing::warn!(version, "could not pack a Version's Preview frames: {err}");
                 None
             }
-            Err(err @ (RunError::Unavailable(_) | RunError::Run(..))) => {
-                return Err(Error::Ffmpeg(err));
-            }
-            // Like a probe's, a failure to open the file, as on a share gone, says nothing about it.
-            Err(err @ RunError::Failed(..)) if tokio::fs::File::open(&path).await.is_err() => {
-                return Err(Error::Ffmpeg(err));
-            }
-            Err(err @ (RunError::TimedOut(_) | RunError::Failed(..))) => {
+            Err(err)
+                if ReadFailure::of(&err, Read::WholeFile, &path).await == ReadFailure::Lasting =>
+            {
                 tracing::warn!(
                     version,
                     "ffmpeg couldn't make a Version's Preview frames: {err}"
                 );
                 None
             }
+            Err(err) => return Err(Error::Ffmpeg(err)),
         };
         let manifest = match packed {
             Some(packed) => {

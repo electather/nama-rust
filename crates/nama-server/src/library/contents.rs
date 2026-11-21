@@ -22,6 +22,7 @@ mod match_images;
 mod matched;
 mod pages;
 mod pins;
+mod scores;
 mod search;
 mod sort_titles;
 #[cfg(test)]
@@ -47,7 +48,7 @@ pub(crate) use matched::{
 };
 pub(crate) use pages::{Listing, TitleSort, Watched};
 pub(crate) use pins::{Named, Pin};
-pub(crate) use search::{Found, FoundEpisode, FoundMovie, FoundShow};
+pub(crate) use search::{Found, FoundEpisode, FoundMovie, FoundShow, match_bands};
 use titles_sql::{library_titles, listed_id_sql, matched_items};
 
 /// Reads and writes the contents of Libraries.

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                              library_files.modified_ns, library_files.parser_version,\n                              library_items.season AS \"season!\",\n                              library_items.episode AS \"episode!\",\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\",\n                              item_matches.title AS \"title!\",\n                              item_matches.show_title AS \"show_title!\",\n                              overview, release_date, runtime_minutes, poster, poster_plugin,\n                              backdrop, backdrop_plugin, titled_backdrop, titled_backdrop_plugin,\n                              logo, logo_plugin, still, genres,\n                              content_rating, show_poster, show_poster_plugin, show_overview,\n                              show_first_air_date, metadata_version, library_items.added_at,\n                              libraries.title_sources\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       WHERE library_files.library_id = ?1\n                         AND library_items.kind = 'episode'\n                         AND item_matches.state = 'matched'\n                         AND (?2 IS NULL\n                              OR EXISTS (SELECT 1 FROM item_match_ids AS named\n                                         JOIN json_each(?2) AS only\n                                           ON only.value = named.namespace || '-' || named.value\n                                         WHERE named.item_id = item_matches.item_id\n                                           AND named.scope = 'show'))\n                       ORDER BY library_items.season, library_items.episode, library_files.path",
+  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                              library_files.modified_ns, library_files.parser_version,\n                              library_items.season AS \"season!\",\n                              library_items.episode AS \"episode!\",\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\",\n                              item_matches.title AS \"title!\",\n                              item_matches.show_title AS \"show_title!\",\n                              overview, release_date, runtime_minutes, poster, poster_plugin,\n                              backdrop, backdrop_plugin, titled_backdrop, titled_backdrop_plugin,\n                              logo, logo_plugin, still, genres,\n                              content_rating, show_poster, show_poster_plugin, show_overview,\n                              show_first_air_date, metadata_version, item_matches.original_language,\n                              title_scores.score AS \"score?\", library_items.added_at,\n                              libraries.title_sources\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       -- Keyed as `scores::store` keys it.\n                       LEFT JOIN title_scores\n                           ON title_scores.plugin = item_matches.plugin\n                          AND title_scores.kind = 'show'\n                          AND (title_scores.namespace, title_scores.value) =\n                              (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed\n                               WHERE keyed.item_id = item_matches.item_id\n                                 AND keyed.scope = 'show'\n                               ORDER BY keyed.namespace LIMIT 1)\n                       WHERE library_files.library_id = ?1\n                         AND library_items.kind = 'episode'\n                         AND item_matches.state = 'matched'\n                         AND (?2 IS NULL\n                              OR EXISTS (SELECT 1 FROM item_match_ids AS named\n                                         JOIN json_each(?2) AS only\n                                           ON only.value = named.namespace || '-' || named.value\n                                         WHERE named.item_id = item_matches.item_id\n                                           AND named.scope = 'show'))\n                       ORDER BY library_items.season, library_items.episode, library_files.path",
   "describe": {
     "columns": [
       {
@@ -335,8 +335,30 @@
         }
       },
       {
-        "name": "added_at",
+        "name": "original_language",
         "ordinal": 31,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "original_language"
+          }
+        }
+      },
+      {
+        "name": "score?",
+        "ordinal": 32,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "title_scores",
+            "name": "score"
+          }
+        }
+      },
+      {
+        "name": "added_at",
+        "ordinal": 33,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -347,7 +369,7 @@
       },
       {
         "name": "title_sources",
-        "ordinal": 32,
+        "ordinal": 34,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -392,9 +414,11 @@
       true,
       true,
       false,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "17af85dd55c782981ace7bc11bfab921f8b679d2f9c75101fcccda7b6df9aa86"
+  "hash": "2a972658aaf36bb1ba79fb40c6f8f30c60da09cc3ac87bc78a629ad63f4a1e2e"
 }

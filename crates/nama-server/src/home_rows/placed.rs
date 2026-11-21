@@ -1,11 +1,8 @@
 //! What a Home layout places each Home row by, and the rows an Admin can place in one.
 
-use nama_plugin_api::{
-    PluginId,
-    home_row::{HomeRowMethod, HomeRowSource},
-};
+use nama_plugin_api::home_row::{HomeRowMethod, HomeRowSource};
 
-use super::{HomeRows, Row, store::Scope};
+use super::{HomeRows, Row, refreshes::Scope, rows::Rows};
 use crate::server_settings::HomeRowId;
 
 impl HomeRows {
@@ -17,29 +14,14 @@ impl HomeRows {
     ///
     /// If reading the stored rows fails.
     pub(crate) async fn placeable(&self) -> Result<Vec<(HomeRowId, String)>, sqlx::Error> {
-        let stored = sqlx::query!(
-            "SELECT plugin_id, key, heading FROM home_rows WHERE user_id IS NULL
-             ORDER BY plugin_id, position"
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        let shared: Vec<_> = (stored.into_iter())
-            .map(|row| {
-                let plugin = PluginId::from(row.plugin_id);
-                let id = HomeRowId::Shared {
-                    plugin,
-                    key: row.key,
-                };
-                (id, row.heading)
-            })
-            .collect();
+        let shared = Rows(self.clone()).stored_shared().await?;
         let mut placeable = Vec::new();
         for plugin in self.points.providers::<dyn HomeRowSource>() {
-            if self.gives(&plugin, HomeRowMethod::Shared).await {
+            if self.refreshes.gives(&plugin, HomeRowMethod::Shared).await {
                 let its = shared.iter().filter(|(id, _)| id.plugin() == Some(&plugin));
                 placeable.extend(its.cloned());
             }
-            if self.gives(&plugin, HomeRowMethod::User).await {
+            if self.refreshes.gives(&plugin, HomeRowMethod::User).await {
                 placeable.push((HomeRowId::UsersOwn { plugin }, String::new()));
             }
         }
@@ -48,7 +30,7 @@ impl HomeRows {
 }
 
 /// What a Home layout places a row of `scope` by.
-pub(super) fn placed_by((plugin, user): Scope, row: &Row) -> HomeRowId {
+pub(super) fn placed_by(Scope { plugin, user, .. }: Scope, row: &Row) -> HomeRowId {
     let key = row.key.clone();
     match user {
         None => HomeRowId::Shared { plugin, key },

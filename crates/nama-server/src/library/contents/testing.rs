@@ -229,7 +229,7 @@ impl Contents {
 
 pub(super) const ALIEN: &str = "/media/Alien (1979)/Alien (1979).mkv";
 
-/// A Movies Library with nothing stored yet.
+/// A Movies Library, or a Shows one, with nothing stored yet.
 pub(super) struct Fixture {
     pub(super) contents: Contents,
     pub(super) libraries: Libraries,
@@ -240,17 +240,21 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) async fn new() -> Self {
+        Self::of(Kind::Movies).await
+    }
+
+    pub(super) async fn shows() -> Self {
+        Self::of(Kind::Shows).await
+    }
+
+    async fn of(kind: Kind) -> Self {
         let data = tempfile::tempdir().unwrap();
         let folder = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
         let libraries = Libraries::new(Arc::clone(&db));
         let root = folder.path().canonicalize().unwrap();
         let library = libraries
-            .create(
-                "Movies",
-                Kind::Movies,
-                vec![root.to_str().unwrap().to_owned()],
-            )
+            .create("Titles", kind, vec![root.to_str().unwrap().to_owned()])
             .await
             .unwrap()
             .id;

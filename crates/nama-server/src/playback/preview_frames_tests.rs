@@ -16,7 +16,8 @@ use crate::{
     server_settings::ServerUrl,
 };
 
-/// A Movies Library holding one Version, whose Preview frames an ffmpeg that always fails makes.
+/// A Movies Library holding one Version, whose Preview frames an ffmpeg that always fails makes,
+/// printing on stderr what [`Fixture::failing_with`] is given.
 struct Fixture {
     frames: PreviewFrames,
     contents: Contents,
@@ -29,13 +30,20 @@ struct Fixture {
 
 impl Fixture {
     async fn new() -> Self {
+        Self::failing_with("").await
+    }
+
+    async fn failing_with(stderr: &str) -> Self {
         let (data, bin) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         let db = Arc::new(Database::open(data.path()).await.unwrap());
         let movie = MatchedMovie::new(&db, data.path(), tmdb_movie(348, "Alien")).await;
         // There, as ffmpeg failing on a file it can't open says nothing about the file.
         fs::write(data.path().canonicalize().unwrap().join("Alien.mkv"), "").unwrap();
         let runs = bin.path().join("runs");
-        let failing = format!("#!/bin/sh\necho run >> '{}'\nexit 1\n", runs.display());
+        let failing = format!(
+            "#!/bin/sh\necho run >> '{}'\necho '{stderr}' >&2\nexit 1\n",
+            runs.display()
+        );
         let ffmpeg = Arc::new(Ffmpeg {
             ffmpeg: Ok(ffmpeg::fake::script(bin.path(), "ffmpeg", &failing)),
             ..Ffmpeg::default()
@@ -163,6 +171,24 @@ async fn a_version_whose_preview_frames_failed_is_tried_again_only_once_its_file
     assert_eq!(fx.frames.needed().await.unwrap(), [version]);
     fx.frames.make(version).await.unwrap();
     assert_eq!(fx.ffmpeg_runs(), 2);
+}
+
+// The fake ffmpeg is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_version_whose_preview_frames_failed_on_a_full_disk_is_still_needed() {
+    let full = "av_interleaved_write_frame(): No space left on device";
+    let fx = Fixture::failing_with(full).await;
+    let version = fx.movie.version;
+    fx.probe_as_video().await;
+
+    assert!(matches!(
+        fx.frames.make(version).await,
+        Err(Error::Ffmpeg(_))
+    ));
+
+    assert_eq!(fx.ffmpeg_runs(), 1);
+    assert_eq!(fx.frames.needed().await.unwrap(), [version]);
 }
 
 // The fake ffmpeg is a shell script.

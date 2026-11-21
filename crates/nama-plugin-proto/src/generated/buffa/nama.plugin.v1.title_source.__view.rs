@@ -4951,6 +4951,15 @@ pub struct MovieView<'a> {
     ///
     /// Field 10: `content_rating`
     pub content_rating: ::core::option::Option<&'a str>,
+    /// Its Score: how well its audience liked it, from 0 to 10, as this source averages it. Unset,
+    /// not 0, if nobody has voted.
+    ///
+    /// Field 11: `score`
+    pub score: ::core::option::Option<f64>,
+    /// The ISO 639-1 code of the language it was made in, such as `ja`.
+    ///
+    /// Field 12: `original_language`
+    pub original_language: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -5039,6 +5048,20 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.content_rating = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                view.score = Some(::buffa::types::decode_double(&mut cur)?);
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.original_language = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -5104,6 +5127,8 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
             backdrop: self.backdrop.map(|s| s.to_string()),
             genres: self.genres.iter().map(|s| s.to_string()).collect(),
             content_rating: self.content_rating.map(|s| s.to_string()),
+            score: self.score,
+            original_language: self.original_language.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5148,6 +5173,12 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         if let Some(ref v) = self.content_rating {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.score.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -5195,6 +5226,12 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if let Some(ref v) = self.content_rating {
             ::buffa::types::put_string_field(10u32, v, buf);
+        }
+        if let Some(v) = self.score {
+            ::buffa::types::put_double_field(11u32, v, buf);
+        }
+        if let Some(ref v) = self.original_language {
+            ::buffa::types::put_string_field(12u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5250,6 +5287,12 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.content_rating {
             __map.serialize_entry("contentRating", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.score {
+            __map.serialize_entry("score", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.original_language {
+            __map.serialize_entry("originalLanguage", __v)?;
         }
         __map.end()
     }
@@ -5411,6 +5454,21 @@ impl MovieOwnedView {
     pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().content_rating
     }
+    /// Its Score: how well its audience liked it, from 0 to 10, as this source averages it. Unset,
+    /// not 0, if nobody has voted.
+    ///
+    /// Field 11: `score`
+    #[must_use]
+    pub fn score(&self) -> ::core::option::Option<f64> {
+        self.0.reborrow().score
+    }
+    /// The ISO 639-1 code of the language it was made in, such as `ja`.
+    ///
+    /// Field 12: `original_language`
+    #[must_use]
+    pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().original_language
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
     fn from(inner: ::buffa::OwnedView<MovieView<'static>>) -> Self {
@@ -5482,6 +5540,14 @@ pub struct ShowView<'a> {
     ///
     /// Field 10: `content_rating`
     pub content_rating: ::core::option::Option<&'a str>,
+    /// As `Movie.score`.
+    ///
+    /// Field 11: `score`
+    pub score: ::core::option::Option<f64>,
+    /// As `Movie.original_language`.
+    ///
+    /// Field 12: `original_language`
+    pub original_language: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -5562,6 +5628,20 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.content_rating = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                view.score = Some(::buffa::types::decode_double(&mut cur)?);
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.original_language = Some(::buffa::types::borrow_str(&mut cur)?);
             }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -5647,6 +5727,8 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             seasons: self.seasons.to_vec(),
             genres: self.genres.iter().map(|s| s.to_string()).collect(),
             content_rating: self.content_rating.map(|s| s.to_string()),
+            score: self.score,
+            original_language: self.original_language.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5696,6 +5778,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         if let Some(ref v) = self.content_rating {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.score.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -5752,6 +5840,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.content_rating {
             ::buffa::types::put_string_field(10u32, v, buf);
         }
+        if let Some(v) = self.score {
+            ::buffa::types::put_double_field(11u32, v, buf);
+        }
+        if let Some(ref v) = self.original_language {
+            ::buffa::types::put_string_field(12u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -5806,6 +5900,12 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.content_rating {
             __map.serialize_entry("contentRating", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.score {
+            __map.serialize_entry("score", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.original_language {
+            __map.serialize_entry("originalLanguage", __v)?;
         }
         __map.end()
     }
@@ -5965,6 +6065,20 @@ impl ShowOwnedView {
     #[must_use]
     pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().content_rating
+    }
+    /// As `Movie.score`.
+    ///
+    /// Field 11: `score`
+    #[must_use]
+    pub fn score(&self) -> ::core::option::Option<f64> {
+        self.0.reborrow().score
+    }
+    /// As `Movie.original_language`.
+    ///
+    /// Field 12: `original_language`
+    #[must_use]
+    pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().original_language
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {

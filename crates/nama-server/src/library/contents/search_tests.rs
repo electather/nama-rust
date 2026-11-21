@@ -9,6 +9,7 @@ use super::super::{
     fixture::{MatchedMovie, decide, tmdb_movie},
     testing::Fixture,
 };
+use super::match_bands;
 use crate::library::{TitleKind, libraries::Kind};
 
 /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
@@ -103,6 +104,8 @@ fn office_episode(tmdb: i64, title: &str) -> Decided {
         show_poster: None,
         show_overview: None,
         show_first_air_date: None,
+        score: None,
+        original_language: None,
     }))
 }
 
@@ -192,17 +195,17 @@ async fn a_search_finds_an_item_by_its_latest_match_and_not_once_it_is_unmatched
 }
 
 #[tokio::test]
-async fn a_search_skips_an_episode_whose_match_has_no_show_id() {
+async fn a_search_skips_a_show_whose_episodes_have_no_title_id() {
     let fx = Fixture::new().await;
     let (library, _folder) = fx.shows_library().await;
-    let Decided::Matched(mut showless) = office_episode(9001, "Pilot") else {
+    let Decided::Matched(mut untitled) = office_episode(9001, "Pilot") else {
         panic!("office_episode Matches");
     };
-    showless.show_ids = ExternalIds::default();
-    fx.decide_office_episode(library, 1, Decided::Matched(showless))
+    untitled.ids = ExternalIds::default();
+    fx.decide_office_episode(library, 1, Decided::Matched(untitled))
         .await;
 
-    assert!(fx.search("pilot").await.is_empty());
+    assert!(fx.search("office").await.is_empty());
 }
 
 #[tokio::test]
@@ -308,4 +311,32 @@ async fn a_search_ending_in_a_year_ranks_titles_starting_with_its_words_by_that_
     let found = fx.search("dune 2021").await;
 
     assert_eq!(titles(&found), ["Dune Messiah", "Dune 2021 Unboxed"]);
+}
+
+#[test]
+fn match_bands_put_an_exact_title_then_a_prefix_then_all_words_then_word_starts() {
+    let bands = |title| match_bands("alien", title, None);
+
+    assert!(bands("Alien") < bands("Alien: Romulus"));
+    assert!(bands("Alien: Romulus") < bands("Planet of the Alien"));
+    assert!(bands("Planet of the Alien") < bands("Planet of Aliens"));
+}
+
+#[test]
+fn match_bands_put_a_title_of_the_year_asked_for_first() {
+    let bands = |year| match_bands("dune 2021", "Dune: Messiah", Some(year));
+
+    assert!(bands("2021") < bands("1984"));
+}
+
+#[tokio::test]
+async fn a_search_by_a_show_title_skips_a_movie_whose_match_has_one() {
+    let fx = Fixture::new().await;
+    let matched = Metadata {
+        show_title: Some("Alien Saga".to_owned()),
+        ..tmdb_movie(348, "Alien")
+    };
+    MatchedMovie::store(&fx.contents, fx.library, "/media/348.mkv", matched).await;
+
+    assert!(fx.search("saga").await.is_empty());
 }

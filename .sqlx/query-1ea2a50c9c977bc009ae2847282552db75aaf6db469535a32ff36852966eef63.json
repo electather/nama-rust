@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO home_row_refreshes (plugin_id, user_id, stale_at)\n                             VALUES (?, ?, ?)\n                             ON CONFLICT (plugin_id, coalesce(user_id, 0))\n                             DO UPDATE SET stale_at = excluded.stale_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "1ea2a50c9c977bc009ae2847282552db75aaf6db469535a32ff36852966eef63"
+}

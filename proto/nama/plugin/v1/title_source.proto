@@ -226,6 +226,11 @@ message Movie {
   // Its Content Rating in the source's country, such as `R`. Unset rather than another
   // country's.
   optional string content_rating = 10;
+  // Its Score: how well its audience liked it, from 0 to 10, as this source averages it. Unset,
+  // not 0, if nobody has voted.
+  optional double score = 11;
+  // The ISO 639-1 code of the language it was made in, such as `ja`.
+  optional string original_language = 12;
 }
 
 // A Show's details.
@@ -250,6 +255,10 @@ message Show {
   repeated string genres = 9;
   // As `Movie.content_rating`, such as `TV-MA`.
   optional string content_rating = 10;
+  // As `Movie.score`.
+  optional double score = 11;
+  // As `Movie.original_language`.
+  optional string original_language = 12;
 }
 
 // One Season of a Show, with its Episodes.

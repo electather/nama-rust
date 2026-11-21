@@ -94,6 +94,15 @@ pub struct MovieView<'a> {
     ///
     /// Field 20: `titled_backdrop_thumbhash`
     pub titled_backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// Its Score, from 0 to 10, as the title source it is Matched to averages it. Unset, not 0, if
+    /// nobody has voted or that source has none.
+    ///
+    /// Field 21: `score`
+    pub score: ::core::option::Option<f64>,
+    /// The ISO 639-1 code of the language it was made in, such as `ja`, as its title source has it.
+    ///
+    /// Field 22: `original_language`
+    pub original_language: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -282,6 +291,20 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                     ::buffa::types::borrow_bytes(&mut cur)?,
                 );
             }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                view.score = Some(::buffa::types::decode_double(&mut cur)?);
+            }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.original_language = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             9u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -375,6 +398,8 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
             titled_backdrop_thumbhash: self
                 .titled_backdrop_thumbhash
                 .map(|b| (b).to_vec()),
+            score: self.score,
+            original_language: self.original_language.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -461,6 +486,12 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.titled_backdrop_thumbhash {
             size += 2u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if self.score.is_some() {
+            size += 2u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.original_language {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -546,6 +577,12 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if let Some(ref v) = self.titled_backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(20u32, v, buf);
+        }
+        if let Some(v) = self.score {
+            ::buffa::types::put_double_field(21u32, v, buf);
+        }
+        if let Some(ref v) = self.original_language {
+            ::buffa::types::put_string_field(22u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -647,6 +684,12 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
                     "titledBackdropThumbhash",
                     &::buffa::json_helpers::BytesJson(__v),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.score {
+            __map.serialize_entry("score", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.original_language {
+            __map.serialize_entry("originalLanguage", __v)?;
         }
         __map.end()
     }
@@ -885,6 +928,21 @@ impl MovieOwnedView {
     #[must_use]
     pub fn titled_backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().titled_backdrop_thumbhash
+    }
+    /// Its Score, from 0 to 10, as the title source it is Matched to averages it. Unset, not 0, if
+    /// nobody has voted or that source has none.
+    ///
+    /// Field 21: `score`
+    #[must_use]
+    pub fn score(&self) -> ::core::option::Option<f64> {
+        self.0.reborrow().score
+    }
+    /// The ISO 639-1 code of the language it was made in, such as `ja`, as its title source has it.
+    ///
+    /// Field 22: `original_language`
+    #[must_use]
+    pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().original_language
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -5409,6 +5467,14 @@ pub struct ShowView<'a> {
     ///
     /// Field 17: `titled_backdrop_thumbhash`
     pub titled_backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// As `Movie.score`.
+    ///
+    /// Field 18: `score`
+    pub score: ::core::option::Option<f64>,
+    /// As `Movie.original_language`.
+    ///
+    /// Field 19: `original_language`
+    pub original_language: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -5569,6 +5635,20 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                     ::buffa::types::borrow_bytes(&mut cur)?,
                 );
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                view.score = Some(::buffa::types::decode_double(&mut cur)?);
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.original_language = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             10u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -5629,6 +5709,8 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             titled_backdrop_thumbhash: self
                 .titled_backdrop_thumbhash
                 .map(|b| (b).to_vec()),
+            score: self.score,
+            original_language: self.original_language.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5696,6 +5778,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.titled_backdrop_thumbhash {
             size += 2u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if self.score.is_some() {
+            size += 2u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.original_language {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5762,6 +5850,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if let Some(ref v) = self.titled_backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(17u32, v, buf);
+        }
+        if let Some(v) = self.score {
+            ::buffa::types::put_double_field(18u32, v, buf);
+        }
+        if let Some(ref v) = self.original_language {
+            ::buffa::types::put_string_field(19u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5852,6 +5946,12 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
                     "titledBackdropThumbhash",
                     &::buffa::json_helpers::BytesJson(__v),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.score {
+            __map.serialize_entry("score", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.original_language {
+            __map.serialize_entry("originalLanguage", __v)?;
         }
         __map.end()
     }
@@ -6061,6 +6161,20 @@ impl ShowOwnedView {
     #[must_use]
     pub fn titled_backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().titled_backdrop_thumbhash
+    }
+    /// As `Movie.score`.
+    ///
+    /// Field 18: `score`
+    #[must_use]
+    pub fn score(&self) -> ::core::option::Option<f64> {
+        self.0.reborrow().score
+    }
+    /// As `Movie.original_language`.
+    ///
+    /// Field 19: `original_language`
+    #[must_use]
+    pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().original_language
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {
