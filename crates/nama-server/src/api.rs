@@ -405,6 +405,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_LIST_PLUGIN_LOG_LINES_SPEC.procedure,  ADMIN),
     (proto::JOB_SERVICE_LIST_JOBS_SPEC.procedure,                 ADMIN),
     (proto::JOB_SERVICE_LIST_JOB_RUNS_SPEC.procedure,             ADMIN),
+    (proto::JOB_SERVICE_CONFIGURE_JOB_SPEC.procedure,             ADMIN),
+    (proto::JOB_SERVICE_PREVIEW_JOB_SCHEDULE_SPEC.procedure,      ADMIN),
     (proto::JOB_SERVICE_RUN_JOB_SPEC.procedure,                   ADMIN),
 ];
 
@@ -655,7 +657,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_RECOGNISERS_INVALID
         | R::REFUSAL_REASON_SEGMENT_SOURCES_INVALID
         | R::REFUSAL_REASON_PERMISSION_NOT_REQUESTED
-        | R::REFUSAL_REASON_MESSAGE_TOO_LONG => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_MESSAGE_TOO_LONG
+        | R::REFUSAL_REASON_SCHEDULE_INVALID => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD

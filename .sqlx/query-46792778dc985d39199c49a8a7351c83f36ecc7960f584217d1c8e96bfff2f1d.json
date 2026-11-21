@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM job_runs\n                     WHERE plugin NOT IN (SELECT value FROM json_each(?))\n                     AND (plugin, job) NOT IN (SELECT value ->> 0, value ->> 1 FROM json_each(?))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "46792778dc985d39199c49a8a7351c83f36ecc7960f584217d1c8e96bfff2f1d"
+}
