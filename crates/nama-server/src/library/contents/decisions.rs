@@ -584,28 +584,38 @@ pub(super) async fn insert_decisions(
         if let Decided::Matched(metadata) = &decision {
             scores::store(&mut *conn, metadata).await?;
         }
-        // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
-        sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)
-            .execute(&mut *conn)
-            .await?;
-        let ids = (row.ids.iter().map(|id| ("title", id)))
-            .chain(row.show_ids.iter().map(|id| ("show", id)));
-        for (scope, id) in ids {
-            let (namespace, value) = (id.namespace(), id.value());
-            sqlx::query!(
-                "INSERT INTO item_match_ids (item_id, scope, namespace, value) VALUES (?, ?, ?, ?)",
-                item,
-                scope,
-                namespace,
-                value
-            )
-            .execute(&mut *conn)
-            .await?;
-        }
+        insert_match_ids(&mut *conn, item, &row).await?;
     }
     let mut happened = make_available(conn, movies).await?;
     happened.extend(make_seasons_available(conn, decided.seasons).await?);
     Ok(happened)
+}
+
+/// Stores the ids of `row`'s title and its Show as the Item `item`'s, in place of those it had.
+async fn insert_match_ids(
+    conn: &mut SqliteConnection,
+    item: i64,
+    row: &MatchRow<'_>,
+) -> Result<(), sqlx::Error> {
+    // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
+    sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)
+        .execute(&mut *conn)
+        .await?;
+    let ids = (row.ids.iter().map(|id| ("title", id)))
+        .chain(row.show_ids.iter().map(|id| ("show", id)));
+    for (scope, id) in ids {
+        let (namespace, value) = (id.namespace(), id.value());
+        sqlx::query!(
+            "INSERT INTO item_match_ids (item_id, scope, namespace, value) VALUES (?, ?, ?, ?)",
+            item,
+            scope,
+            namespace,
+            value
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
