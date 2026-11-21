@@ -663,11 +663,10 @@ pub(super) fn personal_settings_refusal(manifest: &Manifest) -> Option<String> {
 /// [`jobs::refusal`] says why, as loading an Installed Plugin does. `offers_choices` is whether
 /// its Plugin has a settings check to offer a Choices setting's choices.
 fn refuse_flawed(manifest: &Manifest, offers_choices: bool) -> Result<(), EnableError> {
-    let (settings, personal) = (&manifest.settings, &manifest.personal_settings);
-    let mut fields = settings.fields.iter().chain(&personal.fields);
-    let flaw = fields
-        .find_map(SettingField::flaw)
-        .or_else(|| settings.unoffered_choices(offers_choices));
+    let flaw_in = |schema: &SettingsSchema| schema.fields.iter().find_map(SettingField::flaw);
+    let flaw = flaw_in(&manifest.settings)
+        .or_else(|| manifest.settings.unoffered_choices(offers_choices))
+        .or_else(|| flaw_in(&manifest.personal_settings));
     let refusal = flaw
         .map(|flaw| flaw.to_string())
         .or_else(|| personal_settings_refusal(manifest))
