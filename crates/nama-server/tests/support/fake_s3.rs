@@ -45,7 +45,7 @@ const REGION: &str = "eu-west-1";
 const ACCESS_KEY_ID: &str = "AKIAFAKEFAKEFAKE";
 
 /// The secret access key the fake knows.
-pub(crate) const SECRET: &str = "fake-s3-secret-for-tests-only";
+const SECRET: &str = "fake-s3-secret-for-tests-only";
 
 /// What the Plugin is set to put before every key, so the fake also sees that it does.
 const PREFIX: &str = "nama/";
