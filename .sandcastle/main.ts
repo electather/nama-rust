@@ -105,12 +105,15 @@ const REPO_URL = gh("repo", "view", "--json", "url", "--jq", ".url");
 const record = recorder(LOGS, RUN, REPO_URL);
 const log = (msg: string) => console.log(`${new Date().toTimeString().slice(0, 8)} ${msg}`);
 
-// One agent went silent (sandcastle's idleTimeoutSeconds), e.g. waiting on a background build, or one of its prompt's
-// `!` commands outran sandcastle's 30s limit in a busy sandbox (#1495). Not infra: the other slots are fine, so only
-// that issue crashes and the run goes on (#1391 stopped a whole run for an hour).
+// One agent went silent (sandcastle's idleTimeoutSeconds), e.g. waiting on a background build, or one of sandcastle's
+// 30-second steps (a prompt's `!` command #1495, creating the worktree #1581) ran long on a loaded machine. Not
+// infra: the other slots are fine, so only that issue crashes and the run goes on (#1391 stopped a whole run for an
+// hour). A container that won't start stays infra: that is Docker, and every issue would hit it.
 // The message, not `instanceof`: sandcastle may hand the error back wrapped in an Effect FiberFailure.
-const oneIssueTimedOut = (e: unknown) =>
-  /Agent idle for \d+ seconds|PromptExpansionTimeoutError|Shell expression .* timed out/.test(String((e as Error)?.message ?? e));
+const oneIssueTimedOut = (e: unknown) => {
+  const msg = String((e as Error)?.message ?? e);
+  return /Agent idle for \d+ seconds|timed out after \d+ms/.test(msg) && !/container start timed out/.test(msg);
+};
 
 // GitHub allows 5000 API calls an hour per user, shared with the other machine's factory and the user's own gh.
 // Running out is a wait, not a crash: it ended a whole run once, eight babysat PRs at a time. Work that hits it is
