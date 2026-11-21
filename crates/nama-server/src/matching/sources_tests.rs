@@ -125,6 +125,7 @@ pub(super) fn dark(hint: Option<ExternalId>) -> TitleKey {
     TitleKey {
         name: item.name(),
         pin: None,
+        nfo: Vec::new(),
     }
 }
 
@@ -356,6 +357,7 @@ fn dark_movie(pin: Option<ExternalId>) -> TitleKey {
     TitleKey {
         name: item.name(),
         pin: pin.map(Pin::Title),
+        nfo: Vec::new(),
     }
 }
 

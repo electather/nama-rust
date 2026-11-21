@@ -16,7 +16,7 @@
 //!   It stays in the stored name, so pins keep their key; Matching reads it with
 //!   [`country_tag`](crate::library::country_tag).
 //!
-//! Only paths are read here. The scanner never opens `.nfo` files or any other sidecar.
+//! Only paths are read here; [`super::nfo`] reads the IDs in `.nfo` files.
 
 use std::{ops::RangeInclusive, path::Path, sync::LazyLock};
 
@@ -105,7 +105,7 @@ const EXTRAS_SUFFIXES: &[&str] = &[
     clippy::expect_used,
     reason = "the patterns are constants, and the tests compile every one"
 )]
-fn regex(pattern: &str) -> Regex {
+pub(super) fn regex(pattern: &str) -> Regex {
     Regex::new(pattern).expect("a constant pattern compiles")
 }
 
@@ -344,15 +344,16 @@ pub(super) fn id_hint(namespace: &str, value: &str) -> Option<ExternalId> {
     let digits = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit());
     match namespace.strip_suffix("id").unwrap_or(namespace) {
         // Leading zeros go, as they did when these were read as numbers.
+        // An id of zeros is a placeholder, as `.nfo` files write one, and names nothing.
         well_known @ (TMDB | TVDB) => digits(value)
             .then(|| value.parse::<i64>().ok())
             .flatten()
+            .filter(|&id| id > 0)
             .and_then(|id| ExternalId::new(well_known, id.to_string()).ok()),
         IMDB => {
             let value = value.to_ascii_lowercase();
-            value
-                .strip_prefix("tt")
-                .is_some_and(digits)
+            (value.strip_prefix("tt"))
+                .is_some_and(|number| digits(number) && number.bytes().any(|b| b != b'0'))
                 .then(|| ExternalId::new(IMDB, value).ok())
                 .flatten()
         }

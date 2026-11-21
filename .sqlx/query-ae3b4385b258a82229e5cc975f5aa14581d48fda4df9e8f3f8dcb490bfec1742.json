@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM item_matches\n             WHERE item_id = ?1\n               AND NOT EXISTS (\n                   SELECT 1 FROM library_items\n                   JOIN library_files ON library_files.id = library_items.file_id\n                   JOIN match_pins ON match_pins.library_id = library_files.library_id\n                                  AND match_pins.kind = library_items.kind\n                                  AND match_pins.title = library_items.title\n                                  AND match_pins.year IS library_items.year\n                                  AND match_pins.hint IS library_items.hint\n                   WHERE library_items.id = ?1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "ae3b4385b258a82229e5cc975f5aa14581d48fda4df9e8f3f8dcb490bfec1742"
+}

@@ -123,6 +123,7 @@ fn dark() -> TitleKey {
     TitleKey {
         name: item.name(),
         pin: None,
+        nfo: Vec::new(),
     }
 }
 

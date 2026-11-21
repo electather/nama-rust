@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT path, size, modified_ns, ids FROM nfo_files WHERE library_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "path",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "nfo_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "nfo_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "nfo_files",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "ids",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "nfo_files",
+            "name": "ids"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0d92a8a1a66cb9d3617d74b913e3ed253aa99fe8654fa8188e71124068322cbe"
+}

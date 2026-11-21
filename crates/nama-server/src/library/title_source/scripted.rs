@@ -168,6 +168,17 @@ impl ScriptedSource {
         self
     }
 
+    /// Gives the Episode `number` of the Season `season` of the Show `show` the id `id`, its own.
+    pub(crate) fn episode_id(mut self, show: &str, season: u32, number: u32, id: &str) -> Self {
+        let episode = (self.seasons.iter_mut())
+            .filter(|(of, held)| of == show && held.number == season)
+            .flat_map(|(_, held)| held.episodes.iter_mut())
+            .find(|episode| episode.number == number)
+            .expect("the Season holds the Episode");
+        episode.ids = vec![title_id(id)];
+        self
+    }
+
     /// Lists the image of `kind` at `path` in `language` as the artwork of every title and Season
     /// it's asked about, after those it lists already.
     pub(crate) fn with_artwork(mut self, kind: ArtworkKind, path: &str, language: &str) -> Self {

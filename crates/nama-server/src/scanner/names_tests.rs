@@ -226,6 +226,9 @@ fn movies_with_id_hints_in_any_namespace() {
         ("Blade Runner {edition-Director's Cut}/movie.mkv", None),
         ("Blade Runner {edition-Final}/movie.mkv", None),
         ("Blade Runner {tmdbid-abc}/movie.mkv", None),
+        // Placeholders name nothing.
+        ("Blade Runner {tmdb-0}/movie.mkv", None),
+        ("Blade Runner [imdbid-tt0000000]/movie.mkv", None),
     ];
     for (path, expected) in cases {
         assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");

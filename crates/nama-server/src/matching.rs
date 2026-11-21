@@ -4,6 +4,10 @@
 //! After each scan, Matching decides about every item of the Library it hasn't decided yet, asking
 //! the Library's title sources in its order (see [`sources`]):
 //!
+//! - An item whose `.nfo` file names ids is fetched by the first of them a source has, in place of
+//!   its name's ID hint, which counts only once the sources have none of them. While no source
+//!   looks titles up by any of their namespaces, it waits undecided (ADR 0087). An Episode's own
+//!   `.nfo` file names it among its Show's Episodes ahead of its numbers.
 //! - An item whose name has an ID hint is fetched by that id directly, from the source keeping its
 //!   namespace or else the first other to have it. If none has such a title, the item is
 //!   Unmatched. A hint in a namespace no source looks titles up by, such as `{x264-GROUP}`, is
@@ -38,7 +42,8 @@
 //! Matches the pinned Show. A rename that changes any of those is a new name, which isn't pinned.
 //!
 //! A Matched or Unmatched item stays so on later scans until its file changes, or, if it was left
-//! Unmatched automatically, a newer name parser reads its file (ADR 0023). An item Matching
+//! Unmatched automatically, a newer name parser reads its file (ADR 0023), or, unless it's pinned,
+//! the ids its `.nfo` files name change (ADR 0087). An item Matching
 //! couldn't decide, because no title source is enabled or one failed (such as when TMDB is
 //! unreachable or rejects the API key), or its pin's source isn't enabled, has no Match and so is
 //! Unmatched too, but nothing is stored for it: it is undecided, and the next scan tries it again.
@@ -63,7 +68,7 @@ mod testing;
 
 pub(crate) use refresh::Refreshed;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
 };
 
@@ -80,9 +85,9 @@ use crate::{
     events::{EventBus, event},
     library::{
         Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, METADATA_VERSION,
-        Metadata, Name, Named, Picked, Pin, Recognisers, ScanLock, ScanLocks, SimilarSources,
-        Source, SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered,
-        UnmatchedReason,
+        Metadata, Name, Named, NfoHints, Picked, Pin, Recognisers, ScanLock, ScanLocks,
+        SimilarSources, Source, SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources,
+        Unanswered, UnmatchedReason,
     },
     plugins::ExtensionPoints,
 };
@@ -146,6 +151,8 @@ pub(crate) struct Matcher {
 struct TitleKey {
     name: Name,
     pin: Option<Pin>,
+    /// The ID Hints its `.nfo` file names, strongest first, which replace its name's (ADR 0087).
+    nfo: Vec<ExternalId>,
 }
 
 /// A Show, the source that gave it, and its id there, which its Seasons are fetched by.
@@ -189,15 +196,19 @@ impl FromIterator<(i64, Result<Metadata, Miss>)> for Outcomes {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct PendingEpisode {
     item: i64,
     season: i64,
     episode: i64,
+    /// The IDs its own `.nfo` file names it by, which win over its numbers.
+    ids: Vec<ExternalId>,
 }
 
 impl PendingEpisode {
-    const fn of(item: i64, what: &Item) -> Option<Self> {
+    /// The Episode the item `item` holds, if it holds one, with the IDs its own `.nfo` file names
+    /// in `hints`, the ID Hints Items took from them.
+    fn of(item: i64, what: &Item, hints: &HashMap<i64, NfoHints>) -> Option<Self> {
         match *what {
             Item::Episode {
                 season, episode, ..
@@ -205,10 +216,25 @@ impl PendingEpisode {
                 item,
                 season,
                 episode,
+                ids: hints
+                    .get(&item)
+                    .map_or_default(|hints| hints.episode.clone()),
             }),
             Item::Movie { .. } => None,
         }
     }
+}
+
+/// The Season and Episode of `seasons` that `pending`'s own `.nfo` file names, if any.
+fn named_by_nfo<'a>(
+    pending: &PendingEpisode,
+    seasons: &'a BTreeMap<i64, Result<SourceSeason, Miss>>,
+) -> Option<(&'a SourceSeason, &'a SourceEpisode)> {
+    let named = |episode: &&SourceEpisode| {
+        (pending.ids.iter()).any(|id| episode.ids.get(id.namespace()).as_ref() == Some(id))
+    };
+    (seasons.values().filter_map(|season| season.as_ref().ok()))
+        .find_map(|season| Some((season, season.episodes.iter().find(named)?)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -309,10 +335,11 @@ impl Matcher {
                 let show = sources::fetch_show(&self.metadata, id, ExternalIds::default())
                     .await
                     .map_err(ManualError::looking_up(id))?;
+                let hints = self.contents.nfo_hints(named.library).await?;
                 let episodes: Vec<PendingEpisode> = named
                     .items
                     .iter()
-                    .filter_map(|(alike, what)| PendingEpisode::of(*alike, what))
+                    .filter_map(|(alike, what)| PendingEpisode::of(*alike, what, &hints))
                     .collect();
                 let picked = self.pick_show(&ordered, &show).await;
                 self.match_in_show(&show, &picked, &episodes).await
@@ -416,16 +443,18 @@ impl Matcher {
     async fn undecided(&self, library: i64, folders: &[String]) -> Result<Pending, sqlx::Error> {
         let mut pending = Pending::default();
         let mut paths = self.contents.paths_of_undecided(library).await?;
+        let hints = self.contents.nfo_hints(library).await?;
         for (id, item, pin) in self.contents.undecided(library).await? {
             let key = TitleKey {
                 name: item.name(),
                 pin,
+                nfo: hints.get(&id).map_or_default(|hints| hints.title.clone()),
             };
             let path = paths.remove(&id);
             if let Some(path) = path.and_then(|path| recognisers::relative(&path, folders)) {
                 pending.paths.entry(key.clone()).or_default().insert(path);
             }
-            match PendingEpisode::of(id, &item) {
+            match PendingEpisode::of(id, &item, &hints) {
                 Some(episode) => pending.shows.entry(key).or_default().push(episode),
                 None => pending.movies.entry(key).or_default().push(id),
             }
@@ -502,7 +531,8 @@ impl Matcher {
         }
     }
 
-    /// Matches `episodes` in the Show `found`, whose artwork is `picked`.
+    /// Matches `episodes` in the Show `found`, whose artwork is `picked`: each the Episode its own
+    /// `.nfo` file names in any Season, else the one its numbers name.
     async fn match_in_show(
         &self,
         found: &FoundShow,
@@ -510,42 +540,39 @@ impl Matcher {
         episodes: &[PendingEpisode],
     ) -> Outcomes {
         let FoundShow { source, id, show } = found;
-        let mut by_season: BTreeMap<i64, Vec<&PendingEpisode>> = BTreeMap::new();
         // Every Season but the Specials is fetched, for how many of the Show's Episodes aired.
-        for &number in show.seasons.iter().filter(|&&number| number > 0) {
-            by_season.entry(number.into()).or_default();
+        let listed = show.seasons.iter().filter(|&&number| number > 0);
+        let mut numbers: BTreeSet<i64> = listed.map(|&number| number.into()).collect();
+        numbers.extend(episodes.iter().map(|pending| pending.season));
+        let mut seasons = BTreeMap::new();
+        for number in numbers {
+            seasons.insert(number, sources::season(&self.metadata, found, number).await);
         }
-        for pending in episodes {
-            by_season.entry(pending.season).or_default().push(pending);
-        }
-        let mut outcomes = Outcomes {
-            items: Vec::with_capacity(episodes.len()),
-            seasons: Vec::new(),
-        };
         let in_show = |season: &SourceSeason, episode: &SourceEpisode| {
             Metadata::episode(&source.plugin, (show, picked), season, episode)
         };
-        let show_ids = (Some(show.ids.clone()).filter(|ids| !ids.is_empty()))
-            .unwrap_or_else(|| ExternalIds::from_iter([id.clone()]));
-        for (number, in_season) in by_season {
-            let season = sources::season(&self.metadata, found, number).await;
-            outcomes.items.extend(in_season.into_iter().map(|pending| {
-                let outcome = match &season {
-                    Ok(season) => season
-                        .episodes
-                        .iter()
-                        .find(|e| i64::from(e.number) == pending.episode)
-                        .map(|episode| in_show(season, episode))
-                        .ok_or(Miss::NOT_IN_SHOW),
-                    Err(miss) => Err(miss.clone()),
+        let items = (episodes.iter())
+            .map(|pending| {
+                let outcome = match named_by_nfo(pending, &seasons) {
+                    Some((season, episode)) => Ok(in_show(season, episode)),
+                    None => match seasons.get(&pending.season) {
+                        Some(Ok(season)) => (season.episodes.iter())
+                            .find(|e| i64::from(e.number) == pending.episode)
+                            .map(|episode| in_show(season, episode))
+                            .ok_or(Miss::NOT_IN_SHOW),
+                        Some(Err(miss)) => Err(miss.clone()),
+                        None => Err(Miss::NOT_IN_SHOW),
+                    },
                 };
                 (pending.item, outcome)
-            }));
-            if let Ok(season) = season {
-                (outcomes.seasons).push((source.plugin.clone(), show_ids.clone(), season));
-            }
-        }
-        outcomes
+            })
+            .collect();
+        let show_ids = (Some(show.ids.clone()).filter(|ids| !ids.is_empty()))
+            .unwrap_or_else(|| ExternalIds::from_iter([id.clone()]));
+        let seasons = (seasons.into_values().filter_map(Result::ok))
+            .map(|season| (source.plugin.clone(), show_ids.clone(), season))
+            .collect();
+        Outcomes { items, seasons }
     }
 
     async fn store(
