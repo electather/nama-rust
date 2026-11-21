@@ -9,11 +9,12 @@ use std::{cell::RefCell, collections::HashMap, fmt};
 use ::extism_pdk::{Error, HttpRequest};
 use buffa::{Message, MessageField};
 use nama_plugin_proto::nama::plugin::v1::{
-    DeleteAsked, DeleteStarted, ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten,
-    HomeRowsForgotten, KernelAnswer, Libraries, LibrariesAsked, Library, Requesters,
-    RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRequesters,
-    TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
-    WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
+    DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
+    ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, KernelAnswer, Libraries,
+    LibrariesAsked, Library, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored,
+    Title, TitleRef, TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users,
+    UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
+    WatchlistTitle, kernel_answer,
 };
 
 use crate::{Response, kernel::MAX_PAGE_SIZE};
@@ -27,6 +28,9 @@ type DeleteHandler = Box<dyn FnMut(&TitleRef, &[TitleRef]) -> Result<Vec<TitleRe
 
 /// Answers a Plugin's `forget_home_rows` of the days it asked with how many Users had rows.
 type ForgetHomeRowsHandler = Box<dyn FnMut(u32) -> Result<u32, String>>;
+
+/// Answers a Plugin's `delete_expired_sign_ins` with how many Devices and Invites it deleted.
+type DeleteExpiredSignInsHandler = Box<dyn FnMut() -> Result<(u32, u32), String>>;
 
 /// Answers a Plugin's `forget_gone_plugins` of the days it asked with the ids of the Plugins it
 /// forgot.
@@ -49,6 +53,7 @@ pub struct Kernel {
     watchlists: Option<HashMap<i64, Vec<WatchlistTitle>>>,
     delete_media: Option<DeleteHandler>,
     forget_home_rows: Option<ForgetHomeRowsHandler>,
+    delete_expired_sign_ins: Option<DeleteExpiredSignInsHandler>,
     forget_gone_plugins: Option<ForgetGonePluginsHandler>,
     /// Each Library's titles, by its id, answered once `libraries` is granted.
     titles: HashMap<i64, Vec<Title>>,
@@ -200,6 +205,19 @@ impl Kernel {
         self
     }
 
+    /// The Kernel, the Admin having granted the Plugin Delete expired sign-ins, answering each
+    /// `kernel::delete_expired_sign_ins` with `handler`. It answers how many Devices and Invites
+    /// went, or an `Err` holding the Kernel's words refusing it, which reach the Plugin as the
+    /// Kernel's.
+    #[must_use]
+    pub fn delete_expired_sign_ins(
+        mut self,
+        handler: impl FnMut() -> Result<(u32, u32), String> + 'static,
+    ) -> Self {
+        self.delete_expired_sign_ins = Some(Box::new(handler));
+        self
+    }
+
     /// The Kernel, the Admin having granted the Plugin Forget removed Plugins, answering each
     /// `kernel::forget_gone_plugins` with `handler`, which is given the days asked. It answers the
     /// ids of the Plugins forgotten, or an `Err` holding the Kernel's words refusing it, which
@@ -326,6 +344,9 @@ impl Kernel {
             "list_watchlist" => typed(request, |asked| self.list_watchlist(&asked)),
             "delete_media" => typed(request, |asked| self.start_delete(asked)),
             "forget_home_rows" => typed(request, |asked| self.answer_forget_home_rows(&asked)),
+            "delete_expired_sign_ins" => typed(request, |_: ExpiredSignInsAsked| {
+                self.answer_delete_expired_sign_ins()
+            }),
             "forget_gone_plugins" => {
                 typed(request, |asked| self.answer_forget_gone_plugins(&asked))
             }
@@ -467,6 +488,19 @@ impl Kernel {
         Ok(HomeRowsForgotten {
             users: handler(asked.days)?,
             ..HomeRowsForgotten::default()
+        })
+    }
+
+    fn answer_delete_expired_sign_ins(&mut self) -> Result<ExpiredSignInsDeleted, String> {
+        let handler = granted(
+            self.delete_expired_sign_ins.as_mut(),
+            "Delete expired sign-ins",
+        )?;
+        let (devices, invites) = handler()?;
+        Ok(ExpiredSignInsDeleted {
+            devices,
+            invites,
+            ..ExpiredSignInsDeleted::default()
         })
     }
 
@@ -880,6 +914,27 @@ mod tests {
     }
 
     #[test]
+    fn granted_delete_expired_sign_ins_answers_the_handlers_devices_and_invites() {
+        let mut kernel = Kernel::new().delete_expired_sign_ins(|| Ok((3, 2)));
+
+        let deleted = with(&mut kernel, crate::kernel::delete_expired_sign_ins).unwrap();
+
+        assert_eq!(deleted, (3, 2));
+    }
+
+    #[test]
+    fn a_refused_delete_expired_sign_ins_reaches_the_plugin_in_the_handlers_words() {
+        let mut kernel =
+            Kernel::new().delete_expired_sign_ins(|| Err("the database is busy".to_owned()));
+
+        let refused = with(&mut kernel, || {
+            crate::kernel::delete_expired_sign_ins().unwrap_err()
+        });
+
+        assert_eq!(refused.to_string(), "the database is busy");
+    }
+
+    #[test]
     fn granted_forget_gone_plugins_answers_the_handlers_ids_for_the_days_asked() {
         let mut kernel = Kernel::new().forget_gone_plugins(|days| Ok(vec![format!("gone-{days}")]));
 
@@ -912,6 +967,7 @@ mod tests {
                 crate::kernel::watchlist(7).map(drop),
                 crate::kernel::delete_media(movie(1, "1"), &[]).map(drop),
                 crate::kernel::forget_home_rows(30).map(drop),
+                crate::kernel::delete_expired_sign_ins().map(drop),
                 crate::kernel::forget_gone_plugins(30).map(drop),
             ]
             .map(|answered| answered.unwrap_err().to_string())
@@ -930,6 +986,7 @@ mod tests {
                 "Read Watchlists",
                 "Delete media",
                 "Forget Home rows",
+                "Delete expired sign-ins",
                 "Forget removed Plugins",
             ]
             .map(not_granted)

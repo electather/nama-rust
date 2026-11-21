@@ -5841,8 +5841,8 @@ pub const __FORGET_GONE_PLUGINS_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyE
     is_wkt: false,
 };
 /// What `forget_gone_plugins` answers once it deleted each such Plugin's Store entries, settings,
-/// Personal settings, Plugin Connections, and the Similar titles and Roles its title source gave. A
-/// Plugin the Server still has, enabled or not, is never one of them.
+/// Personal settings, Plugin Connections, and the Scores, Trailers, Similar titles, Roles and air
+/// dates its title source gave. A Plugin the Server still has, enabled or not, is never one of them.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

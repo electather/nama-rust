@@ -275,21 +275,25 @@ pub(super) async fn leave_behind(
 }
 
 /// Which of the rows [`leave_behind`] leaves for `plugin` and the User `user` are still there:
-/// its settings, Store entry, Personal settings, Plugin Connection, Similar titles and Roles.
-pub(super) async fn left_behind(db: &Arc<Database>, plugin: &'static str, user: i64) -> [bool; 6] {
+/// its settings, Store entry, Personal settings, Plugin Connection, Score and Trailers, Similar
+/// titles, Roles and air dates.
+pub(super) async fn left_behind(db: &Arc<Database>, plugin: &'static str, user: i64) -> [bool; 8] {
     let id = PluginId::from_static(plugin);
     // Read through the grants, since a Server that never imported its config lists no settings.
     let settings = crate::plugin_settings::grants(db).await.unwrap();
     let stored = super::store::get(db, &id, None, "key").await.unwrap();
     let personal = users::personal_settings_of(db, user, &id).await.unwrap();
     let connected = connections::connected(db, &id).await.unwrap();
-    let [similar, roles] = Contents::new(Arc::clone(db)).title_rows_of(plugin).await;
+    let [details, similar, roles, air_dates] =
+        Contents::new(Arc::clone(db)).title_rows_of(plugin).await;
     [
         settings.contains_key(plugin),
         stored.is_some(),
         !personal.is_empty(),
         !connected.is_empty(),
+        details,
         similar,
         roles,
+        air_dates,
     ]
 }

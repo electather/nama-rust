@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO title_details (plugin, kind, namespace, value, score)\n                         VALUES (?, 'movie', 'tmdb', '348', 8.1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "8c7efd781fcb592bba506cf5bd791c3c9a6e682a5c4f17ffc4ea675b0a74a6ba"
+}
