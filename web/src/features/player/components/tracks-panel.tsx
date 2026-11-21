@@ -2,8 +2,8 @@ import { Captions } from "lucide-react";
 import type { RefObject } from "react";
 
 import { TrackLists } from "@/features/player/components/track-lists";
-import { useMaySearchSubtitles } from "@/features/player/data/use-may-search-subtitles";
 import { useReportTrackPick } from "@/features/player/data/use-report-track-pick";
+import { useMaySearchSubtitles } from "@/features/player/hooks/use-may-search-subtitles";
 import type { usePlaybackPlan } from "@/features/player/hooks/use-playback-plan";
 import { useShownSubtitles } from "@/features/player/hooks/use-shown-subtitles";
 import { PANEL_GAP, type PanelPlace } from "@/features/player/lib/panel-place";
