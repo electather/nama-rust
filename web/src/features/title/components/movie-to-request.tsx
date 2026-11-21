@@ -4,6 +4,7 @@ import { CastAndCrew } from "@/features/title/components/cast-and-crew";
 import { MovieRequestHero } from "@/features/title/components/movie-request-hero";
 import { TitleDetails } from "@/features/title/components/title-details";
 import { TitlePage } from "@/features/title/components/title-page";
+import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useFoundMovie } from "@/features/title/data/use-found-movie";
 import { crewWithJob } from "@/features/title/lib/crew-with-job";
 import { originalAudio } from "@/features/title/lib/original-audio";
@@ -11,7 +12,7 @@ import type { ExternalId } from "@/gen/nama/v1/match_pb";
 
 /**
  * A Movie from the title source, for the signed-in User `you` to Request: its top, with Request or
- * where its Request is, then its Details.
+ * where its Request is, its Trailers, then its Details.
  */
 export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: bigint | undefined }) {
   const movie = useFoundMovie({ movieId });
@@ -21,6 +22,7 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
   return (
     <TitlePage hero={<MovieRequestHero movieId={movieId} movie={movie} you={you} />}>
       <CastAndCrew cast={movie.cast} crew={movie.crew} />
+      <TitleTrailers trailers={movie.trailers} />
       <TitleDetails
         groups={[
           {

@@ -10,8 +10,10 @@ use std::sync::Arc;
 use crate::db::Database;
 
 mod air_dates;
+mod any_library;
 mod backdrops;
 mod decisions;
+mod details;
 mod edit_distance;
 mod files;
 #[cfg(test)]
@@ -25,7 +27,6 @@ mod matched;
 mod pages;
 mod pins;
 mod roles;
-mod scores;
 mod search;
 mod sort_titles;
 #[cfg(test)]
@@ -34,6 +35,7 @@ mod titles_sql;
 #[cfg(test)]
 pub(crate) use testing::{File, FileItem, Recorded};
 
+pub(crate) use any_library::{library_with_movie, library_with_show, matched_episodes};
 pub(crate) use backdrops::NewestBackdrop;
 use decisions::insert_decisions;
 pub(crate) use decisions::{
@@ -45,10 +47,7 @@ use ids::{ids_from_json, ids_sql, primary_id_in};
 use items::ItemRow;
 pub(crate) use items::{Item, ItemKind, Name};
 pub(crate) use local_images::{LocalImage, LocalImageFile, LocalRole, TitleLocalImage};
-pub(crate) use matched::{
-    Episode, MatchedTo, Movie, Season, Show, TitlesIn, Version, library_with_movie,
-    library_with_show, matched_episodes, show_poster,
-};
+pub(crate) use matched::{Episode, MatchedTo, Movie, Season, Show, TitlesIn, Version, show_poster};
 pub(crate) use pages::{Listing, TitleSort, Watched};
 pub(crate) use pins::{Named, Pin};
 pub(crate) use search::{Found, FoundEpisode, FoundMovie, FoundShow, match_bands};

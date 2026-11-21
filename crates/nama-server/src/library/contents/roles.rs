@@ -1,12 +1,12 @@
 //! A title's Roles, stored once per title in `title_roles` rather than on each of its Matches
-//! (ADR 0081), under the key `title_scores` uses.
+//! (ADR 0081), under the key `title_details` uses.
 
 use std::collections::HashSet;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
-use super::{Contents, Metadata, Movie, Show, scores::title_key};
+use super::{Contents, Metadata, Movie, Show, details::title_key};
 use crate::library::title_source::{Role, Roles};
 
 /// The titles a write of Matches has stored Roles for, each as `title_key` keys it, owned.

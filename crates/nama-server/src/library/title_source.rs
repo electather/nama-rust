@@ -17,7 +17,7 @@ mod titles;
 
 pub(crate) use titles::{
     Artwork, ArtworkKind, Candidate, Episode, Image, Movie, Role, Roles, SearchQuery, Season, Show,
-    TitleKind,
+    TitleKind, Trailer,
 };
 
 use crate::{
@@ -601,6 +601,7 @@ impl Metadata {
             show_first_air_date: None,
             score: movie.score,
             original_language: movie.original_language,
+            trailers: movie.trailers,
             roles: movie.roles,
         }
     }

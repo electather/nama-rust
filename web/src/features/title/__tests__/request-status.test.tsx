@@ -38,6 +38,7 @@ function server(request: Request, permissions: Permission[] = newUser, retried: 
     crew: [{ name: "Denis Villeneuve", part: "Director" }],
     genres: ["Science Fiction", "Adventure"],
     contentRating: "PG-13",
+    trailers: [{ name: "Official Trailer", url: "https://www.youtube.com/watch?v=n9xhJrPXop4" }],
     request,
   });
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
@@ -183,7 +184,7 @@ test("a Request manager retries a Failed Season from its row", async () => {
   expect(screen.getByRole("checkbox", { description: "Failed" })).toBe(season2);
 });
 
-test("a Movie to Request shows its Score, genres and Content Rating, and its Original audio in Details", async () => {
+test("a Movie to Request shows its Score, genres and Content Rating, its Original audio in Details, and its Trailers", async () => {
   openApp("/movies/tmdb-438631", server({}));
 
   const score = await screen.findByText("Score");
@@ -191,6 +192,9 @@ test("a Movie to Request shows its Score, genres and Content Rating, and its Ori
   expect(screen.getByText("Movie · Science Fiction · Adventure")).toBeDefined();
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("English");
+  expect(screen.getByRole("link", { name: /^Official Trailer/u }).getAttribute("href")).toBe(
+    "https://www.youtube.com/watch?v=n9xhJrPXop4",
+  );
 });
 
 test("a Movie to Request shows who stars in it, its Cast & Crew, and who directed it", async () => {

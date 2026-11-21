@@ -45,5 +45,17 @@
     "crew": [
       {"adult": false, "gender": 2, "id": 1191428, "known_for_department": "Directing", "name": "Baran bo Odar", "original_name": "Baran bo Odar", "popularity": 2.2, "profile_path": "/odar.jpg", "jobs": [{"credit_id": "5a2d1e2a0e0a264cb20a3c6b", "job": "Director", "episode_count": 26}, {"credit_id": "5a2d1e2a0e0a264cb20a3c6c", "job": "Executive Producer", "episode_count": 26}], "department": "Directing", "total_episode_count": 26}
     ]
+  },
+  "videos": {
+    "results": [
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Dark on Dailymotion", "key": "x8dark", "site": "Dailymotion", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Season 1 Trailer", "key": "darkS1trail", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Season 2 Trailer", "key": "darkS2trail", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Season 3 Trailer", "key": "darkS3trail", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Dark Recap", "key": "darkRecap01", "site": "YouTube", "type": "Clip", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Dark Fan Cut", "key": "darkFan001", "site": "YouTube", "type": "Trailer", "official": false},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Final Trailer", "key": "darkFinal01", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Netflix Trailer", "key": "123456789", "site": "Vimeo", "type": "Trailer", "official": true}
+    ]
   }
 }

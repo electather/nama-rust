@@ -164,7 +164,7 @@ impl Client {
     }
 
     /// The details of the Movie or Show at `path`, with `appended`, the fields its ratings by
-    /// country and its credits are appended as.
+    /// country, its credits and its videos are appended as.
     async fn title_details<T: DeserializeOwned>(
         &self,
         path: &str,
@@ -318,7 +318,7 @@ impl TitleSource for Client {
                 }
             };
             let movie: Option<MovieDetails> = self
-                .title_details(&format!("/movie/{id}"), "release_dates,credits")
+                .title_details(&format!("/movie/{id}"), "release_dates,credits,videos")
                 .await?;
             Ok(MovieAnswer {
                 movie: movie.map(|movie| movie.into_movie(self.country())).into(),
@@ -343,7 +343,10 @@ impl TitleSource for Client {
                 }
             };
             let show: Option<ShowDetails> = self
-                .title_details(&format!("/tv/{id}"), "content_ratings,aggregate_credits")
+                .title_details(
+                    &format!("/tv/{id}"),
+                    "content_ratings,aggregate_credits,videos",
+                )
                 .await?;
             Ok(ShowAnswer {
                 show: show.map(|show| show.into_show(self.country())).into(),

@@ -92,6 +92,7 @@ pub mod __buffa {
         reg.register_json_any(super::__ARTWORK_JSON_ANY);
         reg.register_json_any(super::__MOVIE_JSON_ANY);
         reg.register_json_any(super::__SHOW_JSON_ANY);
+        reg.register_json_any(super::__TRAILER_JSON_ANY);
         reg.register_json_any(super::__ROLE_JSON_ANY);
         reg.register_json_any(super::__SEASON_JSON_ANY);
         reg.register_json_any(super::__EPISODE_JSON_ANY);
@@ -305,6 +306,10 @@ pub use self::__buffa::view::MovieOwnedView;
 pub use self::__buffa::view::ShowView;
 #[doc(inline)]
 pub use self::__buffa::view::ShowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TrailerView;
+#[doc(inline)]
+pub use self::__buffa::view::TrailerOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RoleView;
 #[doc(inline)]

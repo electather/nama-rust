@@ -4960,13 +4960,20 @@ pub struct MovieView<'a> {
     ///
     /// Field 12: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
+    /// Its Trailers, in the order to show them. The Kernel keeps the first 5 it can link to.
+    ///
+    /// Field 13: `trailers`
+    pub trailers: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TrailerView<'a>,
+    >,
     /// Its Cast, in billing order.
     ///
-    /// Field 13: `cast`
+    /// Field 14: `cast`
     pub cast: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
     /// Its Crew, in billing order.
     ///
-    /// Field 14: `crew`
+    /// Field 15: `crew`
     pub crew: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
@@ -5107,6 +5114,24 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 let __sub_ctx = ctx.descend()?;
                 let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TrailerView>(),
+                )?;
+                view.trailers
+                    .push(
+                        <super::super::__buffa::view::TrailerView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
                     ::core::mem::size_of::<super::super::__buffa::view::RoleView>(),
                 )?;
                 view.cast
@@ -5117,7 +5142,7 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                         )?,
                     );
             }
-            14u32 => {
+            15u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
@@ -5173,6 +5198,11 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
             content_rating: self.content_rating.map(|s| s.to_string()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
+            trailers: self
+                .trailers
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             cast: self
                 .cast
                 .iter()
@@ -5234,6 +5264,14 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.trailers {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         for v in &self.cast {
             let __slot = __cache.reserve();
@@ -5303,7 +5341,7 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(12u32, v, buf);
         }
-        for v in &self.cast {
+        for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
                 13u32,
                 u64::from(__cache.consume_next()),
@@ -5311,9 +5349,17 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.crew {
+        for v in &self.cast {
             ::buffa::types::put_len_delimited_header(
                 14u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.crew {
+            ::buffa::types::put_len_delimited_header(
+                15u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -5379,6 +5425,9 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
+        }
+        if !self.trailers.is_empty() {
+            __map.serialize_entry("trailers", &*self.trailers)?;
         }
         if !self.cast.is_empty() {
             __map.serialize_entry("cast", &*self.cast)?;
@@ -5561,9 +5610,18 @@ impl MovieOwnedView {
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
     }
+    /// Its Trailers, in the order to show them. The Kernel keeps the first 5 it can link to.
+    ///
+    /// Field 13: `trailers`
+    #[must_use]
+    pub fn trailers(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrailerView<'_>> {
+        &self.0.reborrow().trailers
+    }
     /// Its Cast, in billing order.
     ///
-    /// Field 13: `cast`
+    /// Field 14: `cast`
     #[must_use]
     pub fn cast(
         &self,
@@ -5572,7 +5630,7 @@ impl MovieOwnedView {
     }
     /// Its Crew, in billing order.
     ///
-    /// Field 14: `crew`
+    /// Field 15: `crew`
     #[must_use]
     pub fn crew(
         &self,
@@ -5658,13 +5716,20 @@ pub struct ShowView<'a> {
     ///
     /// Field 12: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
+    /// As `Movie.trailers`.
+    ///
+    /// Field 13: `trailers`
+    pub trailers: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TrailerView<'a>,
+    >,
     /// As `Movie.cast`, over the Show's whole run, without one Episode's guest stars.
     ///
-    /// Field 13: `cast`
+    /// Field 14: `cast`
     pub cast: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
     /// As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
     ///
-    /// Field 14: `crew`
+    /// Field 15: `crew`
     pub crew: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
@@ -5817,6 +5882,24 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 let __sub_ctx = ctx.descend()?;
                 let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TrailerView>(),
+                )?;
+                view.trailers
+                    .push(
+                        <super::super::__buffa::view::TrailerView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
                     ::core::mem::size_of::<super::super::__buffa::view::RoleView>(),
                 )?;
                 view.cast
@@ -5827,7 +5910,7 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                         )?,
                     );
             }
-            14u32 => {
+            15u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
@@ -5883,6 +5966,11 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             content_rating: self.content_rating.map(|s| s.to_string()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
+            trailers: self
+                .trailers
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             cast: self
                 .cast
                 .iter()
@@ -5949,6 +6037,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if let Some(ref v) = self.original_language {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.trailers {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         for v in &self.cast {
             let __slot = __cache.reserve();
@@ -6026,7 +6122,7 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(12u32, v, buf);
         }
-        for v in &self.cast {
+        for v in &self.trailers {
             ::buffa::types::put_len_delimited_header(
                 13u32,
                 u64::from(__cache.consume_next()),
@@ -6034,9 +6130,17 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.crew {
+        for v in &self.cast {
             ::buffa::types::put_len_delimited_header(
                 14u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.crew {
+            ::buffa::types::put_len_delimited_header(
+                15u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -6102,6 +6206,9 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
+        }
+        if !self.trailers.is_empty() {
+            __map.serialize_entry("trailers", &*self.trailers)?;
         }
         if !self.cast.is_empty() {
             __map.serialize_entry("cast", &*self.cast)?;
@@ -6282,9 +6389,18 @@ impl ShowOwnedView {
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
     }
+    /// As `Movie.trailers`.
+    ///
+    /// Field 13: `trailers`
+    #[must_use]
+    pub fn trailers(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrailerView<'_>> {
+        &self.0.reborrow().trailers
+    }
     /// As `Movie.cast`, over the Show's whole run, without one Episode's guest stars.
     ///
-    /// Field 13: `cast`
+    /// Field 14: `cast`
     #[must_use]
     pub fn cast(
         &self,
@@ -6293,7 +6409,7 @@ impl ShowOwnedView {
     }
     /// As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
     ///
-    /// Field 14: `crew`
+    /// Field 15: `crew`
     #[must_use]
     pub fn crew(
         &self,
@@ -6321,6 +6437,338 @@ impl ::buffa::HasMessageView for super::super::Show {
     type ViewHandle = ShowOwnedView;
 }
 impl ::serde::Serialize for ShowOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A video advertising a Movie or Show, which the Kernel only ever links to where it is hosted.
+#[derive(Clone, Debug, Default)]
+pub struct TrailerView<'a> {
+    /// The site hosting it: `YouTube` or `Vimeo`. The Kernel drops one on any other site.
+    ///
+    /// Field 1: `site`
+    pub site: &'a str,
+    /// Its id on that site, such as YouTube's `LjLamj-b0I8`.
+    ///
+    /// Field 2: `key`
+    pub key: &'a str,
+    /// What it is called, such as `Official Trailer`.
+    ///
+    /// Field 3: `name`
+    pub name: &'a str,
+    /// Whether the title's makers released it.
+    ///
+    /// Field 4: `official`
+    pub official: bool,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for TrailerView<'a> {
+    type Owned = super::super::Trailer;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.site = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.key = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.official = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::Trailer, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::Trailer, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::Trailer {
+            site: self.site.to_string(),
+            key: self.key.to_string(),
+            name: self.name.to_string(),
+            official: self.official,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for TrailerView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.site.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.site) as u64;
+        }
+        if !self.key.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.key) as u64;
+        }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if self.official {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.site.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.site, buf);
+        }
+        if !self.key.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.key, buf);
+        }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.name, buf);
+        }
+        if self.official {
+            ::buffa::types::put_bool_field(4u32, self.official, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for TrailerView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.site) {
+            __map.serialize_entry("site", self.site)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.key) {
+            __map.serialize_entry("key", self.key)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
+            __map.serialize_entry("name", self.name)?;
+        }
+        if self.official {
+            __map.serialize_entry("official", &self.official)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for TrailerView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Trailer";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Trailer";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Trailer";
+}
+::buffa::impl_default_view_instance!(TrailerView);
+::buffa::impl_view_reborrow!(TrailerView);
+/** Self-contained, `'static` owned view of a `Trailer` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`TrailerView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`TrailerView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct TrailerOwnedView(::buffa::OwnedView<TrailerView<'static>>);
+impl TrailerOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(TrailerOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            TrailerOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::Trailer,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            TrailerOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`TrailerView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &TrailerView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::Trailer {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The site hosting it: `YouTube` or `Vimeo`. The Kernel drops one on any other site.
+    ///
+    /// Field 1: `site`
+    #[must_use]
+    pub fn site(&self) -> &'_ str {
+        self.0.reborrow().site
+    }
+    /// Its id on that site, such as YouTube's `LjLamj-b0I8`.
+    ///
+    /// Field 2: `key`
+    #[must_use]
+    pub fn key(&self) -> &'_ str {
+        self.0.reborrow().key
+    }
+    /// What it is called, such as `Official Trailer`.
+    ///
+    /// Field 3: `name`
+    #[must_use]
+    pub fn name(&self) -> &'_ str {
+        self.0.reborrow().name
+    }
+    /// Whether the title's makers released it.
+    ///
+    /// Field 4: `official`
+    #[must_use]
+    pub fn official(&self) -> bool {
+        self.0.reborrow().official
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<TrailerView<'static>>>
+for TrailerOwnedView {
+    fn from(inner: ::buffa::OwnedView<TrailerView<'static>>) -> Self {
+        TrailerOwnedView(inner)
+    }
+}
+impl ::core::convert::From<TrailerOwnedView>
+for ::buffa::OwnedView<TrailerView<'static>> {
+    fn from(wrapper: TrailerOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<TrailerView<'static>>>
+for TrailerOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<TrailerView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::Trailer {
+    type View<'a> = TrailerView<'a>;
+    type ViewHandle = TrailerOwnedView;
+}
+impl ::serde::Serialize for TrailerOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

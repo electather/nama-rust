@@ -40,5 +40,14 @@
       {"adult": false, "gender": 2, "id": 915, "known_for_department": "Production", "name": "Gordon Carroll", "original_name": "Gordon Carroll", "popularity": 1.2, "profile_path": null, "credit_id": "52fe4235c3a36847f800ffc7", "department": "Production", "job": "Producer"},
       {"adult": false, "gender": 2, "id": 1726, "known_for_department": "Writing", "name": "Dan O'Bannon", "original_name": "Dan O'Bannon", "popularity": 3.0, "profile_path": null, "credit_id": "52fe4235c3a36847f800ffcd", "department": "Writing", "job": "Screenplay"}
     ]
+  },
+  "videos": {
+    "results": [
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Alien (1979) Fan Trailer", "key": "fanTrail01", "site": "YouTube", "type": "Trailer", "official": false},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "The Making of Alien", "key": "making0001", "site": "YouTube", "type": "Featurette", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Official Trailer", "key": "LjLamj-b0I8", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Chestburster", "key": "chestbust1", "site": "YouTube", "type": "Clip", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Teaser", "key": "teaser0001", "site": "YouTube", "type": "Teaser", "official": true}
+    ]
   }
 }

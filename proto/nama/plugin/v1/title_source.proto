@@ -231,10 +231,12 @@ message Movie {
   optional double score = 11;
   // The ISO 639-1 code of the language it was made in, such as `ja`.
   optional string original_language = 12;
+  // Its Trailers, in the order to show them. The Kernel keeps the first 5 it can link to.
+  repeated Trailer trailers = 13;
   // Its Cast, in billing order.
-  repeated Role cast = 13;
+  repeated Role cast = 14;
   // Its Crew, in billing order.
-  repeated Role crew = 14;
+  repeated Role crew = 15;
 }
 
 // A Show's details.
@@ -263,10 +265,24 @@ message Show {
   optional double score = 11;
   // As `Movie.original_language`.
   optional string original_language = 12;
+  // As `Movie.trailers`.
+  repeated Trailer trailers = 13;
   // As `Movie.cast`, over the Show's whole run, without one Episode's guest stars.
-  repeated Role cast = 13;
+  repeated Role cast = 14;
   // As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
-  repeated Role crew = 14;
+  repeated Role crew = 15;
+}
+
+// A video advertising a Movie or Show, which the Kernel only ever links to where it is hosted.
+message Trailer {
+  // The site hosting it: `YouTube` or `Vimeo`. The Kernel drops one on any other site.
+  string site = 1;
+  // Its id on that site, such as YouTube's `LjLamj-b0I8`.
+  string key = 2;
+  // What it is called, such as `Official Trailer`.
+  string name = 3;
+  // Whether the title's makers released it.
+  bool official = 4;
 }
 
 // A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew).

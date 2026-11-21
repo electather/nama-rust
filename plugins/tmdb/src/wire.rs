@@ -1,7 +1,9 @@
 //! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the contract's messages.
 
 use nama_plugin_api::{
-    contract::{Artwork, ArtworkKind, Candidate, Episode, Movie, Role, Season, Show, TitleId},
+    contract::{
+        Artwork, ArtworkKind, Candidate, Episode, Movie, Role, Season, Show, TitleId, Trailer,
+    },
     metadata::{ExternalId, IMDB},
 };
 use serde::Deserialize;
@@ -105,7 +107,7 @@ impl WireIds {
     }
 }
 
-/// `/movie/{id}?append_to_response=external_ids,release_dates,credits`.
+/// `/movie/{id}?append_to_response=external_ids,release_dates,credits,videos`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieDetails {
     id: i64,
@@ -128,6 +130,8 @@ pub(crate) struct MovieDetails {
     release_dates: ReleaseDates,
     #[serde(default)]
     credits: Credits,
+    #[serde(default)]
+    videos: Videos,
 }
 
 impl MovieDetails {
@@ -152,6 +156,7 @@ impl MovieDetails {
             }),
             score: self.votes.score(),
             original_language: original_language(self.original_language),
+            trailers: self.videos.trailers(),
             cast: self.credits.cast.into_iter().map(Role::from).collect(),
             crew: (self.credits.crew.into_iter())
                 .filter(|person| CREW_JOBS.contains(&person.job.as_str()))
@@ -166,7 +171,7 @@ impl MovieDetails {
 /// first, as `Creator`.
 const CREW_JOBS: [&str; 3] = ["Director", "Screenplay", "Writer"];
 
-/// `/tv/{id}?append_to_response=external_ids,content_ratings,aggregate_credits`.
+/// `/tv/{id}?append_to_response=external_ids,content_ratings,aggregate_credits,videos`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowDetails {
     id: i64,
@@ -191,6 +196,8 @@ pub(crate) struct ShowDetails {
     created_by: Vec<Person>,
     #[serde(default)]
     aggregate_credits: AggregateCredits,
+    #[serde(default)]
+    videos: Videos,
 }
 
 #[derive(Debug, Deserialize)]
@@ -215,6 +222,7 @@ impl ShowDetails {
             content_rating: rated.and_then(|rated| present(rated.rating)),
             score: self.votes.score(),
             original_language: original_language(self.original_language),
+            trailers: self.videos.trailers(),
             cast: (self.aggregate_credits.cast.into_iter())
                 .map(Role::from)
                 .collect(),
@@ -359,6 +367,50 @@ impl Votes {
     /// The Score, which TMDB gives as 0.0 when nobody has voted.
     fn score(&self) -> Option<f64> {
         self.vote_average.filter(|_| self.vote_count > 0)
+    }
+}
+
+/// `videos`, appended to a title's details.
+#[derive(Debug, Default, Deserialize)]
+struct Videos {
+    #[serde(default)]
+    results: Vec<Video>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Video {
+    site: String,
+    key: String,
+    name: String,
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(default)]
+    official: bool,
+}
+
+/// How many Trailers a title keeps: more is a wall of near-identical links.
+const MAX_TRAILERS: usize = 5;
+
+impl Videos {
+    /// The Trailers among the videos, official first, else in TMDB's order, which drops
+    /// Featurettes, Clips, Teasers and the like. Only a site the contract names counts, so one the
+    /// Kernel would drop doesn't take the place of one it keeps.
+    fn trailers(self) -> Vec<Trailer> {
+        let mut trailers: Vec<Video> = (self.results.into_iter())
+            .filter(|video| {
+                video.kind == "Trailer" && matches!(video.site.as_str(), "YouTube" | "Vimeo")
+            })
+            .collect();
+        trailers.sort_by_key(|video| !video.official);
+        (trailers.into_iter().take(MAX_TRAILERS))
+            .map(|video| Trailer {
+                site: video.site,
+                key: video.key,
+                name: video.name,
+                official: video.official,
+                ..Default::default()
+            })
+            .collect()
     }
 }
 

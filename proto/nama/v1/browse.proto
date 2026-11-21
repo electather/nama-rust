@@ -164,10 +164,12 @@ message Movie {
   optional double score = 21;
   // The ISO 639-1 code of the language it was made in, such as `ja`, as its title source has it.
   optional string original_language = 22;
+  // Its Trailers, as the title source it is Matched to gives them, at most 5.
+  repeated Trailer trailers = 23;
   // Its Cast, in billing order, from the title source it is Matched to.
-  repeated Role cast = 23;
+  repeated Role cast = 24;
   // Its Crew, in billing order, from that source. Its directors have the job `Director`.
-  repeated Role crew = 24;
+  repeated Role crew = 25;
 }
 
 // One file a Movie or Episode is available in.
@@ -389,10 +391,12 @@ message Show {
   optional double score = 18;
   // As `Movie.original_language`.
   optional string original_language = 19;
+  // As `Movie.trailers`.
+  repeated Trailer trailers = 20;
   // As `Movie.cast`, over the Show's whole run.
-  repeated Role cast = 20;
+  repeated Role cast = 21;
   // As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
-  repeated Role crew = 21;
+  repeated Role crew = 22;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.

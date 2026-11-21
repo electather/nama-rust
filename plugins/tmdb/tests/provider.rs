@@ -12,7 +12,7 @@ use nama_plugin_api::{
     Plugin, Registrar,
     contract::{
         ArtworkAsked, ArtworkKind, Candidate, EpisodeAsked, ImageAsked, Role, SearchQuery,
-        SeasonAsked, TitleAsked, TitleId, TitleKind,
+        SeasonAsked, TitleAsked, TitleId, TitleKind, Trailer,
     },
     metadata::{ExternalId, ExternalIds, IMDB, MetadataError, TMDB, TVDB, TitleSource},
     settings::{SettingKind, SettingValue, Settings},
@@ -351,6 +351,46 @@ async fn a_show_has_its_whole_runs_cast_and_crew_with_its_creators_first() {
             ("1191428".to_owned(), "Baran bo Odar", "Creator"),
             ("1191429".to_owned(), "Jantje Friese", "Creator"),
             ("1191428".to_owned(), "Baran bo Odar", "Director"),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_title_has_only_its_trailers_on_youtube_or_vimeo_official_first_and_at_most_5() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+    let keys = |trailers: &[Trailer]| -> Vec<String> {
+        trailers.iter().map(|trailer| trailer.key.clone()).collect()
+    };
+
+    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let alien = alien.movie.unwrap();
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+    let dark = dark.show.unwrap();
+
+    // Alien's Featurette, Clip and Teaser are dropped.
+    assert_eq!(keys(&alien.trailers), ["LjLamj-b0I8", "fanTrail01"]);
+    assert_eq!(
+        (
+            alien.trailers[0].site.as_str(),
+            alien.trailers[0].name.as_str()
+        ),
+        ("YouTube", "Official Trailer")
+    );
+    assert_eq!(
+        (alien.trailers[0].official, alien.trailers[1].official),
+        (true, false)
+    );
+    // Dark's Trailer on Dailymotion is dropped before its 5 are kept, so its sixth, its only
+    // unofficial one, is cut.
+    assert_eq!(
+        keys(&dark.trailers),
+        [
+            "darkS1trail",
+            "darkS2trail",
+            "darkS3trail",
+            "darkFinal01",
+            "123456789"
         ]
     );
 }
