@@ -3122,13 +3122,36 @@ pub struct AudioTrack {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub channels: u32,
+    /// Whether its profile says it carries Dolby Atmos, as TrueHD and E-AC-3 (JOC) can.
+    ///
+    /// Field 2: `atmos`
+    #[serde(
+        rename = "atmos",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub atmos: bool,
+    /// Whether the file marks it as Audio Description, for the visually impaired.
+    ///
+    /// Field 3: `audio_description`
+    #[serde(
+        rename = "audioDescription",
+        alias = "audio_description",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub audio_description: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for AudioTrack {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("AudioTrack").field("channels", &self.channels).finish()
+        f.debug_struct("AudioTrack")
+            .field("channels", &self.channels)
+            .field("atmos", &self.atmos)
+            .field("audio_description", &self.audio_description)
+            .finish()
     }
 }
 impl AudioTrack {
@@ -3161,6 +3184,12 @@ impl ::buffa::Message for AudioTrack {
         if self.channels != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.channels) as u64;
         }
+        if self.atmos {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.audio_description {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3173,6 +3202,12 @@ impl ::buffa::Message for AudioTrack {
         use ::buffa::Enumeration as _;
         if self.channels != 0u32 {
             ::buffa::types::put_uint32_field(1u32, self.channels, buf);
+        }
+        if self.atmos {
+            ::buffa::types::put_bool_field(2u32, self.atmos, buf);
+        }
+        if self.audio_description {
+            ::buffa::types::put_bool_field(3u32, self.audio_description, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3194,6 +3229,20 @@ impl ::buffa::Message for AudioTrack {
                 )?;
                 self.channels = ::buffa::types::decode_uint32(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.atmos = ::buffa::types::decode_bool(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.audio_description = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3203,6 +3252,8 @@ impl ::buffa::Message for AudioTrack {
     }
     fn clear(&mut self) {
         self.channels = 0u32;
+        self.atmos = false;
+        self.audio_description = false;
         self.__buffa_unknown_fields.clear();
     }
 }

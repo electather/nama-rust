@@ -247,6 +247,10 @@ enum BaseLayer {
 message AudioTrack {
   // How many, such as 6 for 5.1. 0 when the file doesn't say.
   uint32 channels = 1;
+  // Whether its profile says it carries Dolby Atmos, as TrueHD and E-AC-3 (JOC) can.
+  bool atmos = 2;
+  // Whether the file marks it as Audio Description, for the visually impaired.
+  bool audio_description = 3;
 }
 
 // A subtitle Track's own facts.

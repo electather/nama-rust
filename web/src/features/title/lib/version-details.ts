@@ -1,6 +1,6 @@
 import { listed } from "@/features/title/lib/listed";
 import { hdrBadge } from "@/features/title/lib/title-badges";
-import type { Track, Version } from "@/gen/nama/v1/browse_pb";
+import type { AudioTrack, Track, Version } from "@/gen/nama/v1/browse_pb";
 import { languageName } from "@/shared/lib/language-name";
 import { sizeOf } from "@/shared/lib/title-facts";
 import { channelsName, pictureOf } from "@/shared/lib/version-facts";
@@ -35,7 +35,10 @@ export function videoOf(versions: Version[]) {
   ]);
 }
 
-/** `versions`' audio languages, each with its sound, such as "English (5.1), French (Stereo)". */
+/**
+ * `versions`' audio languages, each with its sound and whether it's Dolby Atmos or Audio
+ * Description, such as "English (7.1, Dolby Atmos), French (Stereo, Audio Description)".
+ */
 export function audioOf(versions: Version[]) {
   return listed(tracksOf(versions).flatMap((track) => audioName(track)));
 }
@@ -45,7 +48,17 @@ function audioName({ kind, language }: Track): string[] {
   if (kind.case !== "audio" || name === undefined) {
     return [];
   }
-  return [kind.value.channels > 0 ? `${name} (${channelsName(kind.value.channels)})` : name];
+  const facts = audioFacts(kind.value);
+  return [facts === undefined ? name : `${name} (${facts})`];
+}
+
+/** An audio Track's sound and whether it's Dolby Atmos or Audio Description, such as "7.1, Dolby Atmos". */
+function audioFacts({ channels, atmos, audioDescription }: AudioTrack) {
+  return listed([
+    channels > 0 ? channelsName(channels) : undefined,
+    atmos ? "Dolby Atmos" : undefined,
+    audioDescription ? "Audio Description" : undefined,
+  ]);
 }
 
 /** `versions`' subtitle languages, marking SDH, such as "English (SDH), French". */
