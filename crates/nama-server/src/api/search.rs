@@ -88,17 +88,21 @@ impl SearchService for SearchServiceHandler {
             kind,
             limit,
         };
-        // A task of its own, so each batch goes out as soon as it is ready, the title source's
-        // without waiting for the Search sources asked beside it.
+        // Batches go through a channel, so each goes out as soon as it is ready, the title
+        // source's without waiting for the Search sources asked beside it. The work is polled with
+        // the stream rather than spawned, so a client that leaves stops the sources being asked.
         let (parts, received) = mpsc::unbounded_channel();
         let handler = self.clone();
         let sending = async move { handler.after_library(searched, sent, images, &parts).await };
-        tokio::spawn(sending.instrument(Span::current()));
-        let rest = stream::unfold(received, |mut received| async move {
+        let sending =
+            stream::once(sending.instrument(Span::current())).filter_map(|()| future::ready(None));
+        let received = stream::unfold(received, |mut received| async move {
             Some((received.recv().await?, received))
         });
-        let stream: ServiceStream<SearchResponse> =
-            Box::pin(stream::once(future::ready(Ok(response(library)))).chain(rest));
+        let stream: ServiceStream<SearchResponse> = Box::pin(
+            stream::once(future::ready(Ok(response(library))))
+                .chain(stream::select(received, sending)),
+        );
         Response::ok(stream)
     }
 }
