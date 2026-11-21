@@ -461,7 +461,7 @@ impl Tracks {
         )
         .fetch_all(self.db.reader())
         .await?;
-        let mut probes: HashMap<i64, Probe> = probes
+        let probes: HashMap<i64, Probe> = probes
             .into_iter()
             .filter(|row| read_at.contains(&(row.version_id, row.size, row.modified_ns)))
             .map(|row| {
@@ -478,16 +478,16 @@ impl Tracks {
                 (row.version_id, probe)
             })
             .collect();
-        self.with_tracks(&versions, &mut probes).await?;
+        let probes = self.with_tracks(&versions, probes).await?;
         self.with_chapters(&versions, probes).await
     }
 
-    /// Adds to `probes`, of the Versions `versions` lists as a JSON array, their Tracks.
+    /// `probes`, of the Versions `versions` lists as a JSON array, with their Tracks.
     async fn with_tracks(
         &self,
         versions: &str,
-        probes: &mut HashMap<i64, Probe>,
-    ) -> Result<(), sqlx::Error> {
+        mut probes: HashMap<i64, Probe>,
+    ) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let tracks = sqlx::query!(
             r#"SELECT version_id, kind, codec, language, title, is_default AS "default: bool",
                       forced AS "forced: bool", sdh AS "sdh: bool", width, height, frame_rate, bit_depth, hdr,
@@ -540,7 +540,7 @@ impl Tracks {
                 probe.tracks.push(track);
             }
         }
-        Ok(())
+        Ok(probes)
     }
 
     /// `probes`, of the Versions `versions` lists as a JSON array, with their Chapters.
