@@ -1,6 +1,9 @@
 use std::{collections::HashSet, sync::Arc};
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::{
+    PluginId,
+    metadata::{ExternalId, ExternalIds},
+};
 use nama_proto::nama::v1::{RequestState, event::Event as Happened};
 
 use super::availability;
@@ -99,7 +102,11 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
         .unwrap()[0];
     let scan = |episode_2_airs| Decisions {
         items: vec![(item, matched(ExternalIds::default(), tmdb(DARK)))],
-        seasons: vec![(tmdb(DARK), season_1(episode_2_airs))],
+        seasons: vec![(
+            PluginId::from_static("tmdb"),
+            tmdb(DARK),
+            season_1(episode_2_airs),
+        )],
     };
     contents.record(scan("2099-12-01")).await.unwrap();
 

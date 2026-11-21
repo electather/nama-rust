@@ -10,8 +10,8 @@ use nama_proto::nama::v1::{Event, PageResponse, SortDirection, UnmatchedItemSort
 use sqlx::SqliteConnection;
 
 use super::{
-    Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
-    scores, sort_titles::sort_title,
+    Contents, Item, ItemKind, ItemRow, Pin, air_dates, ids_from_json, ids_sql, parse_hint,
+    primary_id_in, scores, sort_titles::sort_title,
 };
 use crate::{
     db::now,
@@ -172,9 +172,10 @@ impl From<Candidate> for TiedTitle {
 pub(crate) struct Decisions {
     /// Each Item, with what was decided about it.
     pub(crate) items: Vec<(i64, Decided)>,
-    /// The Seasons fetched to decide about Episodes, as the title source gave them, with every
-    /// id of their Show. Their Requests follow how much of them a Library has.
-    pub(crate) seasons: Vec<(ExternalIds, Season)>,
+    /// The Seasons fetched with their Show, as the Plugin's title source gave them, with every
+    /// id of their Show. Their Requests follow how much of them a Library has, and their
+    /// Episodes' air dates are stored.
+    pub(crate) seasons: Vec<(PluginId, ExternalIds, Season)>,
 }
 
 impl From<Vec<(i64, Decided)>> for Decisions {
@@ -586,8 +587,13 @@ pub(super) async fn insert_decisions(
         }
         insert_match_ids(&mut *conn, item, &row).await?;
     }
+    let mut seasons = Vec::with_capacity(decided.seasons.len());
+    for (plugin, show, season) in decided.seasons {
+        air_dates::store(&mut *conn, &plugin, &show, &season).await?;
+        seasons.push((show, season));
+    }
     let mut happened = make_available(conn, movies).await?;
-    happened.extend(make_seasons_available(conn, decided.seasons).await?);
+    happened.extend(make_seasons_available(conn, seasons).await?);
     Ok(happened)
 }
 
