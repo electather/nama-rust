@@ -4,7 +4,7 @@
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
-    Contents, ItemKind, ids_from_json, ids_sql, listed_id_sql, matched::genres, parse_hint,
+    Contents, ItemKind, ids_from_json, ids_sql, matched::genres, matched_items, parse_hint,
 };
 
 /// A Matched Movie or Episode on a page [`Contents::titles_page`] reads, with what the Match of
@@ -34,12 +34,8 @@ pub(crate) struct Listed {
 impl Contents {
     /// Up to `limit` of the Library `library`'s Matched titles of `kind`, all of them for `None`,
     /// that come after `after`, by preferred id: namespace, then shorter value, then value, so a
-    /// title Matched between two pages never moves one already listed. An Episode without a Show
-    /// id is left out, as [`Contents::shows`] leaves it out.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one query, whose columns each row fills a title with"
-    )]
+    /// title Matched between two pages never moves one already listed. Only the Items
+    /// `matched_items` keeps are listed.
     pub(crate) async fn titles_page(
         &self,
         library: i64,
@@ -50,55 +46,38 @@ impl Contents {
         let (after_namespace, after_value) = after.map(|id| (id.namespace(), id.value())).unzip();
         // SQLite reads a negative LIMIT as none.
         let limit = limit.map_or(-1, |limit| i64::try_from(limit).unwrap_or(i64::MAX));
-        // An Item's preferred id is its `title` id whose namespace comes first in the Library's
-        // comma-separated `title_sources`, or else the first by namespace, as `primary_id` picks.
+        // ponytail: whole-Library read. `own_id` splits at its first `-`, as `ExternalId` reads
+        // it, so pages stay in id order. `items` is MATERIALIZED, or SQLite would run `own_id`'s
+        // subquery again at each use.
         macro_rules! select {
-            ($listed_id:literal) => {
+            (($($matched:tt)+)) => {
                 sqlx::query!(
-                    r#"WITH preferred AS (
-                           SELECT ids.namespace, ids.value, item_matches.title,
-                                  item_matches.show_title, library_items.season,
-                                  library_items.episode, library_items.added_at,
-                                  library_files.path, item_matches.genres,
-                                  item_matches.content_rating, "#
-                        + $listed_id
-                        + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id,
-                                  ROW_NUMBER() OVER (
-                                      PARTITION BY ids.item_id
-                                      ORDER BY instr(',' || libraries.title_sources || ',',
-                                                     ',' || ids.namespace || ',') = 0,
-                                               instr(',' || libraries.title_sources || ',',
-                                                     ',' || ids.namespace || ','),
-                                               ids.namespace) AS rank
-                           FROM item_matches
-                           JOIN item_match_ids AS ids ON ids.item_id = item_matches.item_id
-                                                     AND ids.scope = 'title'
-                           JOIN library_items ON library_items.id = item_matches.item_id
-                           JOIN library_files ON library_files.id = library_items.file_id
-                           JOIN libraries ON libraries.id = library_files.library_id
-                           WHERE library_files.library_id = ?1
-                             AND library_items.kind = ?2
-                             AND item_matches.state = 'matched'
-                             AND (library_items.kind = 'movie'
-                                  OR EXISTS (SELECT 1 FROM item_match_ids AS show
-                                             WHERE show.item_id = item_matches.item_id
-                                               AND show.scope = 'show'))),
+                    r#"WITH items AS MATERIALIZED (
+                           SELECT matched_items.own_id, matched_items.listed_id,
+                                  matched_items.path, matched_items.season, matched_items.episode,
+                                  matched_items.added_at, item_matches.title,
+                                  item_matches.show_title, item_matches.genres,
+                                  item_matches.content_rating
+                           FROM "#
+                        + $($matched)+
+                        + r#" AS matched_items
+                           JOIN item_matches ON item_matches.item_id = matched_items.item_id
+                           WHERE matched_items.library_id = ?1 AND matched_items.kind = ?2),
                        listed AS (
-                           SELECT *,
-                                  ROW_NUMBER() OVER (PARTITION BY namespace, value ORDER BY path)
+                           SELECT *, substr(own_id, 1, instr(own_id, '-') - 1) AS namespace,
+                                  substr(own_id, instr(own_id, '-') + 1) AS value,
+                                  ROW_NUMBER() OVER (PARTITION BY own_id ORDER BY path)
                                       AS version,
-                                  MAX(added_at) OVER (PARTITION BY namespace, value)
-                                      AS newest_added_at
-                           FROM preferred
-                           WHERE rank = 1
-                             AND (?3 IS NULL
-                                  OR (namespace, length(value), value) > (?3, length(?4), ?4)))
-                       SELECT namespace AS "namespace!", value AS "value!", title AS "title!",
-                              show_title, season, episode,
+                                  MAX(added_at) OVER (PARTITION BY own_id) AS newest_added_at
+                           FROM items)
+                       SELECT namespace AS "namespace!: String", value AS "value!: String",
+                              title AS "title!", show_title, season, episode,
                               newest_added_at AS "newest_added_at!: i64",
-                              genres, content_rating, listed_id AS "listed_id?: String"
+                              genres, content_rating, listed_id AS "listed_id!: String"
                        FROM listed
                        WHERE version = 1
+                         AND (?3 IS NULL
+                              OR (namespace, length(value), value) > (?3, length(?4), ?4))
                        ORDER BY namespace, length(value), value
                        LIMIT ?5"#,
                     library,
@@ -109,7 +88,7 @@ impl Contents {
                 )
             };
         }
-        let rows = listed_id_sql!(select).fetch_all(self.db.reader()).await?;
+        let rows = matched_items!(select).fetch_all(self.db.reader()).await?;
         let mut listed = Vec::with_capacity(rows.len());
         for row in rows {
             let Ok(id) = ExternalId::new(&row.namespace, row.value) else {
@@ -126,11 +105,7 @@ impl Contents {
                 genres: genres(row.genres.as_deref())?,
                 content_rating: row.content_rating,
                 // A Movie is listed under its own id, which isn't a Show's.
-                show_id: row
-                    .listed_id
-                    .as_deref()
-                    .and_then(parse_hint)
-                    .filter(|_| episode),
+                show_id: parse_hint(&row.listed_id).filter(|_| episode),
             });
         }
         Ok(listed)
