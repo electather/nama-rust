@@ -4,7 +4,7 @@ use nama_proto::nama::v1::{AudioCodec, Container, PlaybackReasonKind as Kind, Vi
 
 use super::{
     Candidates, DeviceDecoding, Facts, Fallback, Method, Network, Offers, PickedLimit, Plan,
-    Playing, Reason, RunningTranscodes, build, narrowed, too_busy_to_play,
+    Playing, Reason, RunningTranscodes, SubtitleOffsets, build, narrowed, too_busy_to_play,
     tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
 };
 use crate::{
@@ -246,6 +246,9 @@ fn an_h264_and_aac_mp4_direct_plays_with_no_reasons() {
                 limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
             },
             chapters: vec![],
+            segments: vec![],
+            preview_frames: None,
+            subtitle_offsets: SubtitleOffsets::default(),
         }
     );
 }
@@ -323,118 +326,6 @@ fn a_later_step_cant_allow_what_an_earlier_step_ruled_out() {
 
     assert_eq!(allowed, BTreeSet::from([Method::Remux, Method::Transcode]));
     assert_eq!(reasons.len(), 2);
-}
-
-/// An ffprobe in `bin` that finds an H.264 video and an AAC audio Track in any file. It's a
-/// shell script.
-#[cfg(unix)]
-fn h264_aac_ffprobe(bin: &std::path::Path) -> crate::ffmpeg::Ffmpeg {
-    let script = r#"#!/bin/sh
-echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
-                   {"codec_name": "aac", "codec_type": "audio"}],
-       "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}'
-"#;
-    crate::ffmpeg::Ffmpeg {
-        ffprobe: Ok(crate::ffmpeg::fake::script(bin, "ffprobe", script)),
-        ..crate::ffmpeg::Ffmpeg::default()
-    }
-}
-
-fn ripley_on_the_nostromo() -> crate::users::Caller {
-    use crate::users::{Caller, Device, Permissions, User};
-
-    Caller {
-        user: User {
-            id: 1,
-            name: "Ripley".to_owned(),
-            permissions: Permissions::NEW_USER,
-            created_at: 0,
-        },
-        device: Device {
-            id: 1,
-            name: "Nostromo".to_owned(),
-            created_at: 0,
-            last_seen_at: 0,
-            authenticated_at: 0,
-        },
-    }
-}
-
-// The fake ffprobe is a shell script. The Version is stored without a scan, so no background
-// pass probes it.
-#[cfg(unix)]
-#[tokio::test]
-async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() {
-    use std::sync::Arc;
-
-    use crate::{
-        db::Database,
-        events::EventBus,
-        ffmpeg::{Abilities, Ffmpeg},
-        library::{
-            Contents,
-            fixture::{MatchedMovie, tmdb_movie},
-        },
-        playback::{
-            Asked, AskedAudio, AskedSubtitle, Planned, Probing, StartedPlan, plan,
-            running::RunningPlans, subtitles,
-        },
-        plugins::ExtensionPoints,
-        server_settings::{ServerUrl, Settings},
-    };
-
-    let data = tempfile::tempdir().unwrap();
-    let media = tempfile::tempdir().unwrap();
-    let root = media.path().canonicalize().unwrap().join("library");
-    std::fs::create_dir(&root).unwrap();
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let alien = tmdb_movie(348, "Alien");
-    let version = MatchedMovie::new(&db, &root, alien).await.version;
-    let probing = Probing::new(
-        Arc::clone(&db),
-        Arc::new(h264_aac_ffprobe(data.path())),
-        subtitles::Cache::new(data.path()),
-        crate::images::ImageStore::new(data.path(), Arc::clone(&db)),
-    );
-    let settings = Settings::new(Arc::clone(&db), data.path().join("transcodes"));
-    let ffmpeg = Arc::new(Ffmpeg::default());
-    let running = RunningPlans::new(
-        settings.playback(),
-        Arc::clone(&ffmpeg),
-        Contents::new(Arc::clone(&db)),
-        probing.clone(),
-        EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
-    );
-
-    let asked = Asked {
-        version,
-        decoding: DeviceDecoding::default(),
-        failed: BTreeSet::new(),
-        audio: AskedAudio::Preferred(None),
-        subtitle: AskedSubtitle::None,
-        limit: PickedLimit::Unpicked,
-        start_ms: 0,
-        client: std::net::Ipv4Addr::LOCALHOST.into(),
-    };
-    let planned = plan(
-        &probing,
-        &Abilities::new(ffmpeg),
-        &running,
-        &ripley_on_the_nostromo(),
-        asked,
-        settings.playback().now(),
-    )
-    .await
-    .unwrap();
-
-    let tracks = match planned {
-        Some(Planned::Started(StartedPlan { plan, .. }) | Planned::Unplayable { plan, .. }) => {
-            plan.tracks
-        }
-        None => vec![],
-    };
-    let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();
-    assert_eq!(codecs, ["h264", "aac"]);
 }
 
 /// A 1080p H.264 Version this Device Direct Plays, with a second audio Track and a PGS one.

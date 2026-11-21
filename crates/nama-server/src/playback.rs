@@ -1,6 +1,6 @@
 //! Playback Plans: how the Server plays one Version on one Device, and why (ADR 0027).
 //!
-//! [`plan`] gathers what a plan is based on, probing the Version first if its Tracks aren't
+//! [`Plans`] gathers what a plan is based on, probing the Version first if its Tracks aren't
 //! current, and runs the steps over it in order. A step gives a Playback Reason for each fact that
 //! rules a method out, changes what plays, drops a choice or assumes what it couldn't know, and
 //! none when it changes nothing (ADR 0034). The plan keeps only the methods no reason rules out,
@@ -23,6 +23,7 @@ mod direct_play;
 mod downloads;
 mod lasting;
 mod limits;
+mod plans;
 mod preview_frames;
 mod probing;
 mod read_failures;
@@ -40,8 +41,9 @@ pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::router;
 pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
 pub(crate) use limits::{NAMED_LIMITS, limit_to_proto};
+pub(crate) use plans::{Asked, AskedSubtitle, Pick, PickError, Plans};
 pub(crate) use preview_frames::{PreviewFrames, router as preview_frames_router};
-pub(crate) use probing::{Error as ProbingError, Probing};
+pub(crate) use probing::Probing;
 use running::RunningTranscodes;
 pub(crate) use running::{
     MessageTooLong, PlayNow, ReportedProgress, RunningPlans, STOP_MESSAGE_LENGTH, StartError,
@@ -53,31 +55,25 @@ pub(crate) use subtitle_appearance::{
     SubtitleAppearance, of as subtitle_appearance_of, set_background as set_subtitle_background,
     set_size as set_subtitle_size,
 };
-pub(crate) use subtitle_offsets::{
-    SubtitleOffsets, of as subtitle_offsets_of, set as set_subtitle_offset,
-};
+pub(crate) use subtitle_offsets::SubtitleOffsets;
 pub(crate) use subtitles::Cache as SubtitleCache;
 pub(crate) use track_preferences::{
     Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,
     is_language,
 };
 pub(crate) use tracks::{
-    Chapter, Probe, Segment, SegmentKind, Segments, Track, TrackKind, Tracks, segments_of,
-    track_to_proto,
+    Chapter, Probe, Segment, SegmentKind, Segments, Track, TrackKind, Tracks, track_to_proto,
 };
 
-use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32};
+use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1 as proto;
 use proto::PlaybackReasonKind as Kind;
 
 use crate::{
-    db::detached,
-    ffmpeg::{Abilities, Accel, CanDo, Remux, RunError, Transcode},
-    server_settings::{HardwareChoice, PlaybackLimit, PlaybackValues},
-    users::Caller,
+    ffmpeg::{Accel, CanDo, Remux, Transcode},
+    server_settings::{HardwareChoice, PlaybackLimit},
 };
-use probing::ProbeError;
 
 use choices::{audio_asked, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles};
 use codecs::{played_audio_place, played_by, played_tracks};
@@ -155,6 +151,13 @@ pub(crate) struct Plan {
     pub(crate) offers: Offers,
     /// The Version's Chapters, or none when it has fewer than two, which the player has no use for.
     pub(crate) chapters: Vec<Chapter>,
+    /// The Version's Segments, earliest first. This and the next two are set only on the plan
+    /// [`Plans::plan`] answers, not on the one [`RunningPlans`] keeps.
+    pub(crate) segments: Vec<Segment>,
+    /// The Version's Preview frames, if made of its file as it is now.
+    pub(crate) preview_frames: Option<proto::PreviewFrames>,
+    /// The User's Subtitle Offsets for the Version's Tracks.
+    pub(crate) subtitle_offsets: SubtitleOffsets,
 }
 
 impl Plan {
@@ -226,7 +229,7 @@ pub(crate) struct StartedPlan {
     pub(crate) plan: Plan,
 }
 
-/// What [`plan`] answers.
+/// What [`Plans::plan`] answers.
 #[derive(Debug)]
 pub(crate) enum Planned {
     Started(StartedPlan),
@@ -338,161 +341,14 @@ pub(crate) struct DeviceDecoding {
     pub(crate) subtitle_formats: Vec<proto::SubtitleFormat>,
 }
 
-/// What a request for a plan asks.
-#[derive(Debug)]
-pub(crate) struct Asked {
-    /// The Version to play, by id.
-    pub(crate) version: i64,
-    pub(crate) decoding: DeviceDecoding,
-    /// The methods that just failed to play it on the Device.
-    pub(crate) failed: BTreeSet<Method>,
-    pub(crate) audio: AskedAudio,
-    pub(crate) subtitle: AskedSubtitle,
-    pub(crate) limit: PickedLimit,
-    /// Where playing starts, in milliseconds. A Remux or a Transcode starts ffmpeg at the segment
-    /// playing there.
-    pub(crate) start_ms: i64,
-    /// The Device's address, which says whether it's on the local network.
-    pub(crate) client: IpAddr,
-}
-
 /// What a request for a plan asks of audio.
 #[derive(Debug)]
-pub(crate) enum AskedAudio {
+enum AskedAudio {
     /// The audio Track chosen, by its place in the Version's Tracks.
     Chosen(usize),
     /// The Server's choice, by the User's Audio Preference for what the Version is of, or else
     /// their own, if they have one, or else the file's own (ADR 0035).
     Preferred(Option<Preferred<Description>>),
-}
-
-/// What a request for a plan asks of subtitles.
-#[derive(Debug)]
-pub(crate) enum AskedSubtitle {
-    /// The subtitle Track chosen to burn into the picture, by its place in the Version's Tracks.
-    BurnIn(usize),
-    /// None burned in, and none for the Server to choose.
-    None,
-    /// The Server's choice, by the User's Subtitle Preference for what the Version is of, or else
-    /// their own, if they have one (ADR 0035).
-    Preferred(Option<Preferred<SubtitlePreference>>),
-}
-
-/// Plans what `asked` asks on `caller`'s Device, by the Playback settings `settings`, and starts
-/// it in `running` if it plays. It probes the Version first unless its Tracks are current. A Remux
-/// whose keyframes can't be listed, or a plan whose ffmpeg stops before writing anything, is
-/// planned again without its method, until one plays or none is left. `None` if there is no such
-/// Version, and [`StartError::Busy`] if only a Transcode would play it and the Server is running
-/// as many as it may.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the handles are the PlaybackService handler's own, and the rest is the call; \
-              passing the handler would tie planning to the API"
-)]
-pub(crate) async fn plan(
-    probing: &Probing,
-    abilities: &Abilities,
-    running: &RunningPlans,
-    caller: &Caller,
-    asked: Asked,
-    settings: PlaybackValues,
-) -> Result<Option<Planned>, StartError> {
-    let Asked {
-        version,
-        decoding,
-        failed,
-        audio,
-        subtitle,
-        limit,
-        start_ms,
-        client,
-    } = asked;
-    let probe = match probing.current(version).await {
-        Ok(probe) => Some(probe),
-        Err(probing::Error::Probe(err)) => {
-            if !matches!(*err, ProbeError::Run(RunError::Unavailable(_))) {
-                tracing::warn!(
-                    version,
-                    "could not probe a Version to plan playing it: {err}"
-                );
-            }
-            None
-        }
-        Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
-        Err(probing::Error::Database(err)) => return Err(err.into()),
-    };
-    let audio = audio_asked(audio, probe.as_ref(), &decoding);
-    let (subtitle, subtitle_preference) = match subtitle {
-        AskedSubtitle::BurnIn(place) => (Some(place), None),
-        AskedSubtitle::None => (None, None),
-        AskedSubtitle::Preferred(preferred) => (None, preferred),
-    };
-    let mut facts = Facts {
-        version,
-        probe,
-        device: decoding,
-        can_do: abilities.can_do().await,
-        failed,
-        failed_on_server: BTreeSet::new(),
-        keyframes_unlisted: false,
-        audio,
-        running_transcodes: running.running_transcodes(),
-        max_transcodes: settings.max_transcodes,
-        picked_limit: limit,
-        network: if on_local_network(client) {
-            Network::Local
-        } else {
-            Network::Remote(settings.remote_limit)
-        },
-        subtitle,
-        shown_subtitle: None,
-        subtitle_preference,
-        hardware_choice: settings.hardware,
-        dropped: BTreeSet::new(),
-    };
-    loop {
-        match start_built(probing, running, caller, facts.clone(), start_ms).await {
-            Err(StartError::Keyframes(err)) => {
-                tracing::warn!(
-                    version,
-                    "could not list a Version's keyframes, so planning it without a Remux: {err}"
-                );
-                facts.keyframes_unlisted = true;
-            }
-            Err(StartError::FailedOnServer(method)) => {
-                facts.failed_on_server.insert(method);
-            }
-            planned => return planned,
-        }
-        // The pass may have waited seconds, so the Transcode limit is checked again (#827).
-        facts.running_transcodes = running.running_transcodes();
-    }
-}
-
-/// Builds the plan for `facts` and starts it in `running` if it plays, as [`plan`] says, or else
-/// lists the other Versions that would play.
-async fn start_built(
-    probing: &Probing,
-    running: &RunningPlans,
-    caller: &Caller,
-    mut facts: Facts,
-    start_ms: i64,
-) -> Result<Option<Planned>, StartError> {
-    let plan = build(&mut facts);
-    if plan.playing.is_none() {
-        if let Some(max) = too_busy_to_play(facts.clone()) {
-            return Err(StartError::Busy(max));
-        }
-        let playable_versions = playable_versions(probing, &facts).await?;
-        return Ok(Some(Planned::Unplayable {
-            plan,
-            playable_versions,
-        }));
-    }
-    let (running, caller) = (running.clone(), caller.clone());
-    // A Device giving up mid-wait mustn't leave ffmpeg and its folder with no plan (ADR 0029).
-    let started = detached(async move { running.start(&caller, plan, start_ms).await }).await?;
-    Ok(started.map(Planned::Started))
 }
 
 /// `reason` as the API sends it.
@@ -699,6 +555,9 @@ fn build(facts: &mut Facts) -> Plan {
             .map(|probe| probe.chapters.clone())
             .filter(|chapters| chapters.len() > 1)
             .unwrap_or_default(),
+        segments: vec![],
+        preview_frames: None,
+        subtitle_offsets: SubtitleOffsets::default(),
     }
 }
 
