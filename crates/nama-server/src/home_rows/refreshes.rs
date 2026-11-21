@@ -106,16 +106,12 @@ impl Refreshes {
             let user = (method != HomeRowMethod::Shared).then_some(reader);
             let fresh = self.fresh(method, user).await?;
             for plugin in serving.iter().filter(|plugin| !fresh.contains(*plugin)) {
-                let plugin = plugin.clone();
-                (self.refresh(
-                    adapter,
-                    Scope {
-                        plugin,
-                        method,
-                        user,
-                    },
-                ))
-                .await;
+                let scope = Scope {
+                    plugin: plugin.clone(),
+                    method,
+                    user,
+                };
+                self.refresh(adapter, scope).await;
             }
         }
         Ok(())
