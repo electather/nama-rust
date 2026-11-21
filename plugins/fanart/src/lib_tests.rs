@@ -501,3 +501,13 @@ fn an_image_is_fetched_from_the_assets_url_with_its_type_from_its_path() {
     );
     assert_eq!(kernel.sent()[0].request.url, format!("{ASSETS}{path}"));
 }
+
+#[test]
+fn a_refused_key_names_the_api_key() {
+    let mut kernel = kernel().http(|_request, _body| Ok(Response::new(401, "")));
+    let heat = artwork_of(TitleKind::TITLE_KIND_MOVIE, "tmdb", "949");
+
+    let err = with(&mut kernel, || Fanart::artwork(heat)).unwrap_err();
+
+    assert_eq!(err.to_string(), "fanart.tv refused the API key");
+}

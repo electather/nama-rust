@@ -3,12 +3,11 @@
 //! builds it for wasm32 and bundles it in its binary.
 
 use nama_pdk::{
-    Candidate, Episode, Image, ImageAnswer, ImageAsked, Manifest, Response, SearchQuery,
-    SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId,
-    TitleKind, TitleSource,
+    Candidate, Episode, Image, ImageAnswer, ImageAsked, Manifest, OutsideService, SearchQuery,
+    SearchResults, Season, SeasonAnswer, SeasonAsked, SettingField, SettingKind, Show, ShowAnswer,
+    TitleAsked, TitleId, TitleKind, TitleSource,
     extism_pdk::{Error, HttpRequest, Json, json},
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
-    services,
+    required_setting, services, setting_default, setting_field, setting_value,
 };
 use serde::{Deserialize, de::DeserializeOwned};
 
@@ -18,6 +17,11 @@ const API_KEY: &str = "api_key";
 const PIN: &str = "pin";
 const API_URL: &str = "api_url";
 const ARTWORK_URL: &str = "artwork_url";
+
+const TVDB: OutsideService = OutsideService::new("TVDB").credential("API key or subscriber PIN");
+
+/// The host of TVDB's images, which is sent no key.
+const ARTWORK_HOST: OutsideService = OutsideService::new("TVDB's artwork host");
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -49,20 +53,9 @@ const SETUP: &str = "\
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
-    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
-        ..SettingField::default()
-    };
     let url = |key: &str, label: &str, description: &str, default: &str| SettingField {
-        default_value: SettingValue {
-            value: Some(setting_value::Value::TextValue(default.to_owned())),
-            ..SettingValue::default()
-        }
-        .into(),
-        ..setting(key, label, description, SettingKind::SETTING_KIND_URL)
+        default_value: setting_default(setting_value::Value::TextValue(default.to_owned())),
+        ..setting_field(key, label, description, SettingKind::SETTING_KIND_URL)
     };
     Manifest {
         name: "TVDB".to_owned(),
@@ -77,14 +70,14 @@ fn manifest() -> Manifest {
         settings: vec![
             SettingField {
                 required: true,
-                ..setting(
+                ..setting_field(
                     API_KEY,
                     "API key",
                     "Your TVDB API key, from your account's API keys page on thetvdb.com.",
                     SettingKind::SETTING_KIND_SECRET,
                 )
             },
-            setting(
+            setting_field(
                 PIN,
                 "Subscriber PIN",
                 "Your TVDB subscriber PIN, if your API key needs one.",
@@ -179,11 +172,11 @@ impl TitleSource for Tvdb {
         }
         let url = format!(
             "{}{}",
-            setting(ARTWORK_URL)?.trim_end_matches('/'),
+            required_setting(ARTWORK_URL)?.trim_end_matches('/'),
             asked.path
         );
-        let response = send(&HttpRequest::new(url), None)?;
-        let Some(response) = accepted(response, "TVDB's artwork host")? else {
+        let response = TVDB.send(&HttpRequest::new(url), None::<String>)?;
+        let Some(response) = ARTWORK_HOST.found(response)? else {
             return Ok(ImageAnswer::default());
         };
         Ok(ImageAnswer {
@@ -213,25 +206,16 @@ impl Api {
     /// ponytail: one login per call, since each call is a fresh instance; cache the token when
     /// TVDB's rate limits bite.
     fn login() -> Result<Self, Error> {
-        let url = setting(API_URL)?.trim_end_matches('/').to_owned();
-        let pin = nama_pdk::setting(PIN)?
-            .map(|pin| pin.trim().to_owned())
-            .filter(|pin| !pin.is_empty());
-        let body = match pin {
-            Some(pin) => json::json!({ "apikey": setting(API_KEY)?, "pin": pin }),
-            None => json::json!({ "apikey": setting(API_KEY)? }),
+        let url = required_setting(API_URL)?.trim_end_matches('/').to_owned();
+        let api_key = required_setting(API_KEY)?;
+        let body = match nama_pdk::setting(PIN)? {
+            Some(pin) => json::json!({ "apikey": api_key, "pin": pin.trim() }),
+            None => json::json!({ "apikey": api_key }),
         };
         let request = HttpRequest::new(format!("{url}/login"))
             .with_method("POST")
             .with_header("Content-Type", "application/json");
-        let response = send(&request, Some(body))?;
-        let status = response.status_code();
-        if status == 401 {
-            return Err(Error::msg(
-                "TVDB refused the API key or subscriber PIN (HTTP status 401)",
-            ));
-        }
-        let Some(response) = accepted(response, "TVDB")? else {
+        let Some(response) = TVDB.found(TVDB.send(&request, Some(Json(body)))?)? else {
             return Err(Error::msg(
                 "TVDB has no login at the API URL (HTTP status 404)",
             ));
@@ -244,31 +228,11 @@ impl Api {
     fn get<T: DeserializeOwned>(&self, path: &str) -> Result<Option<T>, Error> {
         let request = HttpRequest::new(format!("{}/{path}", self.url))
             .with_header("Authorization", format!("Bearer {}", self.token));
-        let Some(response) = accepted(send(&request, None)?, "TVDB")? else {
+        let response = TVDB.send(&request, None::<String>)?;
+        let Some(response) = TVDB.found(response)? else {
             return Ok(None);
         };
         data(response.body()).map(Some)
-    }
-}
-
-/// The setting `key`, which the Server sets before every call.
-fn setting(key: &str) -> Result<String, Error> {
-    nama_pdk::setting(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
-}
-
-fn send(request: &HttpRequest, body: Option<json::Value>) -> Result<Response, Error> {
-    nama_pdk::http_request(request, body.map(Json), "TVDB didn't answer")
-}
-
-/// `response` if `service` took the request, `None` for a 404, else an error naming the status
-/// and nothing of the request, which may hold the key.
-fn accepted(response: Response, service: &str) -> Result<Option<Response>, Error> {
-    match response.status_code() {
-        200..300 => Ok(Some(response)),
-        404 => Ok(None),
-        status => Err(Error::msg(format!(
-            "{service} refused the request with HTTP status {status}"
-        ))),
     }
 }
 

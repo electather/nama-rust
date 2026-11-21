@@ -425,3 +425,26 @@ fn an_image_is_fetched_from_the_artwork_url_with_its_type_from_its_path() {
     );
     assert_eq!(kernel.sent()[0].request.url, format!("{ARTWORK}{path}"));
 }
+
+/// What a call to show Severance fails with when TVDB answers every request with `status`.
+fn failed_with(status: u16) -> String {
+    let mut kernel = kernel().http(move |_request, _body| Ok(Response::new(status, "")));
+    let err = with(&mut kernel, || Tvdb::show(severance())).unwrap_err();
+    err.to_string()
+}
+
+#[test]
+fn a_refused_login_names_the_api_key_or_subscriber_pin() {
+    assert_eq!(
+        failed_with(401),
+        "TVDB refused the API key or subscriber PIN"
+    );
+}
+
+#[test]
+fn a_login_tvdb_doesnt_have_says_the_api_url_has_none() {
+    assert_eq!(
+        failed_with(404),
+        "TVDB has no login at the API URL (HTTP status 404)"
+    );
+}
