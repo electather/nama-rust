@@ -56,27 +56,6 @@ macro_rules! ids_sql {
 }
 pub(super) use ids_sql;
 
-/// Hands `$query!` a subquery giving the id, in its text form, of the title an Item of a Library
-/// is listed under: a Movie's own, an Episode's Show's. It picks as [`primary_id_in`] does, and
-/// needs `item_matches`, `library_items` and `libraries` in scope. `$arg`s go first, as for
-/// [`ids_sql`].
-macro_rules! listed_id_sql {
-    ($query:ident $(, $arg:literal)*) => {
-        $query!(
-            $($arg,)*
-            // The lowest of each id's place in the Library's order, padded so text compares it
-            // as a number, unordered ones last in namespace order; the place is cut off after.
-            "(SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(
-                         ',' || libraries.title_sources || ',', ',' || listed.namespace || ','), 0),
-                         99999)) || listed.namespace || '-' || listed.value), 6)
-              FROM item_match_ids AS listed
-              WHERE listed.item_id = item_matches.item_id
-                AND listed.scope = IIF(library_items.kind = 'movie', 'title', 'show'))"
-        )
-    };
-}
-pub(super) use listed_id_sql;
-
 /// The ids an [`ids_sql`] subquery returned. A pair that isn't a valid id is skipped.
 pub(super) fn ids_from_json(json: Option<&str>) -> ExternalIds {
     let pairs: HashMap<String, String> = json

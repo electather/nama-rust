@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use super::ProbeError;
 use crate::{
-    ffmpeg::Ffmpeg,
+    ffmpeg::{Ffmpeg, Priority, Program, RunError},
     playback::tracks::{BaseLayer, Chapter, Hdr, ListedKeyframes, Probe, Track, TrackKind},
 };
 
@@ -50,7 +50,7 @@ pub(super) async fn probe(ffmpeg: &Ffmpeg, path: &str) -> Result<(Probe, Starts)
         probe.duration_ms = match video_end(ffmpeg, path).await {
             // Its Tracks were read, so a packet it can't read, as in a damaged file, leaves
             // only its length unknown rather than failing the probe for good.
-            Err(ProbeError::Failed(_)) => None,
+            Err(ProbeError::Run(RunError::Failed(..))) => None,
             end => end?,
         };
     }
@@ -98,22 +98,10 @@ async fn run(
     path: &str,
     timeout: Duration,
 ) -> Result<Vec<u8>, ProbeError> {
-    let Ok(ffprobe) = &ffmpeg.ffprobe else {
-        return Err(ProbeError::Unavailable);
-    };
-    let output = tokio::process::Command::new(&ffprobe.path)
-        .args(["-v", "error"])
-        .args(args)
-        .arg(path)
-        // A probe given up on, or cancelled at shutdown, stops ffprobe too.
-        .kill_on_drop(true)
-        .output();
-    let output = tokio::time::timeout(timeout, output).await??;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ProbeError::Failed(stderr.trim().to_owned()));
-    }
-    Ok(output.stdout)
+    let args = [args, &[path]].concat();
+    Ok(ffmpeg
+        .run(Program::Ffprobe, &args, timeout, Priority::Normal)
+        .await?)
 }
 
 /// The file's start and keyframes in what `ffprobe -show_entries
