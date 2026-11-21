@@ -5,7 +5,8 @@ use nama_proto::nama::v1::PluginKind;
 use tempfile::TempDir;
 
 use super::{
-    ConfigureError, JobOverride, configure_job, forget_undeclared_jobs, job_override, job_overrides,
+    ConfigureError, JobOverride, configure_job, forget_undeclared_jobs, job_override,
+    job_overrides, schedule,
 };
 use crate::{
     db::Database,
@@ -178,4 +179,16 @@ async fn a_job_no_plugin_declares_loses_its_override_and_runs_unless_its_plugin_
     assert_eq!(runs("gone", "tidy").await, 0);
     assert_eq!(runs("chores", "sweep").await, 1);
     assert_eq!(runs("refused", "tidy").await, 1);
+}
+
+#[test]
+fn an_admins_schedule_is_dropped_once_an_update_leaves_its_job_without_one() {
+    let own = JobOverride {
+        enabled: true,
+        schedule: Some("*/15 * * * *".to_owned()),
+    };
+    let tidy = job("tidy", Some("0 4 * * *"));
+    assert_eq!(schedule(&tidy, None), Some("0 4 * * *"));
+    assert_eq!(schedule(&tidy, Some(&own)), Some("*/15 * * * *"));
+    assert_eq!(schedule(&job("tidy", None), Some(&own)), None);
 }

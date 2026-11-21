@@ -277,7 +277,7 @@ pub enum RefusalReason {
     REFUSAL_REASON_JOB_NOT_FOUND = 93i32,
     /// `invalid_argument`: a Job's schedule isn't a standard 5-field cron schedule, or the Job has
     /// none of its own to replace, as it runs only when an Admin starts it. The message says why.
-    /// `field` is `schedule`.
+    /// `field` is `schedule`. Params: `schedule`, as sent.
     REFUSAL_REASON_SCHEDULE_INVALID = 94i32,
 }
 impl RefusalReason {

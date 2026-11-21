@@ -1,8 +1,8 @@
 import { useQuery } from "@connectrpc/connect-query";
 import { keepPreviousData } from "@tanstack/react-query";
 
+import { jobRefusal } from "@/features/admin-jobs/lib/job-refusal";
 import { JobService } from "@/gen/nama/v1/job_pb";
-import { serverMessage } from "@/shared/lib/forms";
 
 /** When `schedule` would next fire, or why the Server can't read it, asked again as it changes. */
 export function useSchedulePreview(schedule: string) {
@@ -15,6 +15,6 @@ export function useSchedulePreview(schedule: string) {
   return {
     // A schedule the Server refused has no data: the last one's is kept only while it's asked.
     nextRunsAtMs: data?.nextRunsAtMs ?? [],
-    error: error ? serverMessage(error) : undefined,
+    error: error ? jobRefusal(error, "check the schedule") : undefined,
   };
 }

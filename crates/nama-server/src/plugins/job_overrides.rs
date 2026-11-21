@@ -20,11 +20,16 @@ pub(super) struct JobOverride {
     pub(super) schedule: Option<String>,
 }
 
-/// The schedule `job` runs on as `changed` leaves it, whether or not it is on.
+/// The schedule `job` runs on as `changed` leaves it, whether or not it is on: none once its
+/// Manifest declares none, as only a Job with a schedule fires on its own, even one an Admin gave
+/// another before an update dropped it.
 pub(super) fn schedule<'a>(job: &'a Job, changed: Option<&'a JobOverride>) -> Option<&'a str> {
-    changed
-        .and_then(|it| it.schedule.as_deref())
-        .or(job.schedule.as_deref())
+    let declared = job.schedule.as_deref()?;
+    Some(
+        changed
+            .and_then(|it| it.schedule.as_deref())
+            .unwrap_or(declared),
+    )
 }
 
 /// Whether `job` runs on its schedule as `changed` leaves it.

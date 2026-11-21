@@ -17,7 +17,7 @@ use tracing::{info, warn};
 use super::{
     ExtensionPoints, Failure, FailureKind, Listed, ProviderError,
     cron::Cron,
-    job_overrides::{self, job_override},
+    job_overrides::{self, ConfigureError, job_override},
     points::Asked,
     scope::Scope,
     wasm::TimedOut,
@@ -515,9 +515,9 @@ pub(crate) async fn list_jobs(
 ///
 /// # Errors
 ///
-/// Why `schedule` doesn't parse.
-pub(crate) fn preview_schedule(schedule: &str) -> Result<Vec<i64>, String> {
-    let cron = Cron::parse(schedule.trim())?;
+/// [`ConfigureError::Invalid`], saying why `schedule` doesn't parse.
+pub(crate) fn preview_schedule(schedule: &str) -> Result<Vec<i64>, ConfigureError> {
+    let cron = Cron::parse(schedule.trim()).map_err(ConfigureError::Invalid)?;
     Ok(next_runs_ms(cron, wall_clock()))
 }
 

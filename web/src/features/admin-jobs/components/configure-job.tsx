@@ -2,10 +2,10 @@ import { useRef, useState } from "react";
 
 import { JobSettings } from "@/features/admin-jobs/components/job-settings";
 import { useConfigureJob } from "@/features/admin-jobs/data/use-configure-job";
+import { jobRefusal } from "@/features/admin-jobs/lib/job-refusal";
 import type { Job } from "@/gen/nama/v1/job_pb";
-import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
-import { formText, refusal, serverMessage } from "@/shared/lib/forms";
+import { formText } from "@/shared/lib/forms";
 import { Button } from "@/shared/ui/button";
 
 /** A Configure button that opens a dialog turning `job` on or off and setting its schedule. */
@@ -40,14 +40,7 @@ export function ConfigureJob({ job }: { job: Job }) {
             schedule: formText(typed, "schedule"),
           });
         }}
-        refusal={(error) => {
-          const told = { form: serverMessage(error) };
-          const byReason = {
-            [RefusalReason.SCHEDULE_INVALID]: told,
-            [RefusalReason.JOB_NOT_FOUND]: told,
-          };
-          return refusal(error, "save the Job", {}, byReason).form;
-        }}
+        refusal={(error) => jobRefusal(error, "save the Job")}
       >
         {/* Only once opened, so its preview asks the Server only when someone looks. */}
         {openings > 0 && <JobSettings job={job} />}

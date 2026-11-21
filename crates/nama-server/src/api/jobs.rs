@@ -80,7 +80,9 @@ impl JobService for JobServiceHandler {
                 );
                 Err(refused.field("job_id").into())
             }
-            Err(refused) => Err(schedule_invalid(refused.to_string())),
+            Err(refused @ (ConfigureError::Invalid(_) | ConfigureError::Unscheduled)) => {
+                Err(schedule_invalid(&refused, request.schedule))
+            }
         }
     }
 
@@ -94,7 +96,7 @@ impl JobService for JobServiceHandler {
         request: ServiceRequest<'_, PreviewJobScheduleRequest>,
     ) -> ServiceResult<PreviewJobScheduleResponse> {
         let next_runs_at_ms = preview_schedule(request.schedule)
-            .map_err(|why| schedule_invalid(format!("the schedule {why}")))?;
+            .map_err(|why| schedule_invalid(&why, request.schedule))?;
         Response::ok(PreviewJobScheduleResponse {
             next_runs_at_ms,
             ..Default::default()
@@ -102,11 +104,15 @@ impl JobService for JobServiceHandler {
     }
 }
 
-/// Refuses a schedule `why` says can't be used.
-fn schedule_invalid(why: String) -> connectrpc::ConnectError {
-    refuse(RefusalReason::REFUSAL_REASON_SCHEDULE_INVALID, why)
-        .field("schedule")
-        .into()
+/// Refuses `schedule`, which `why` says can't be used.
+fn schedule_invalid(why: &ConfigureError, schedule: &str) -> connectrpc::ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_SCHEDULE_INVALID,
+        why.to_string(),
+    )
+    .field("schedule")
+    .param("schedule", &schedule)
+    .into()
 }
 
 fn job_to_proto(listed: ListedJob) -> proto::Job {
