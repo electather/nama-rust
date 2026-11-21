@@ -88,9 +88,9 @@ message Manifest {
   // The Plugin Permissions it requests. The Admin grants some or all when enabling it, and only
   // the Kernel functions the granted ones cover answer.
   repeated Permission permissions = 17;
-  // How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
-  // `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
-  uint32 tick_every_seconds = 18;
+  // `tick_every_seconds`, the Automation Tick's interval, which Jobs replace (ADR 0079).
+  reserved 18;
+  reserved "tick_every_seconds";
   // How to set the Plugin up, such as where to get an API key, as short Markdown an admin sees
   // above its settings. Optional. Clients render it as text, never as HTML (ADR 0058). A Server
   // drops one over 4 KiB, logging why, and still loads the Plugin.

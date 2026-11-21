@@ -99,8 +99,6 @@ pub mod __buffa {
         reg.register_json_any(super::__SEASON_JSON_ANY);
         reg.register_json_any(super::__EPISODE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_JSON_ANY);
-        reg.register_json_any(super::__TICK_JSON_ANY);
-        reg.register_json_any(super::__TICKED_JSON_ANY);
         reg.register_json_any(super::__KERNEL_ANSWER_JSON_ANY);
         reg.register_json_any(super::__STORE_KEY_JSON_ANY);
         reg.register_json_any(super::__STORE_ENTRY_JSON_ANY);
@@ -331,14 +329,6 @@ pub use self::__buffa::view::EpisodeOwnedView;
 pub use self::__buffa::view::ImageView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::TickView;
-#[doc(inline)]
-pub use self::__buffa::view::TickOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::TickedView;
-#[doc(inline)]
-pub use self::__buffa::view::TickedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::KernelAnswerView;
 #[doc(inline)]

@@ -43,9 +43,9 @@ mod exports {
     // and Notifier behave, a profile its check offers, and how its check fails, its Personal
     // settings, a `handle` and a `token`, and its logo. With the `unexported-connector` feature it
     // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
-    // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
-    // requests the Store and Library Permissions, with `jobs` it runs a Job daily at 04:00 and one
-    // with no schedule, with `recogniser` it recognises files, with
+    // `empty-points` it names no Extension Points, with `automation` it runs a Job every minute
+    // and requests the Store and Library Permissions, with `jobs` it runs a Job daily at 04:00 and
+    // one with no schedule, with `recogniser` it recognises files, with
     // `home-rows` it gives Home rows and requests the Store and Read Watch States Permissions, with
     // `subtitle-source` it is a subtitle source that finds nothing, and with `panic` it panics
     // instead.
@@ -113,12 +113,12 @@ mod exports {
         };
         #[cfg(feature = "automation")]
         let manifest = Manifest {
-            points: [manifest.points, vec![nama_pdk::point(services::AUTOMATION)]].concat(),
+            points: [manifest.points, vec![nama_pdk::point(services::JOB)]].concat(),
             permissions: vec![
                 nama_pdk::Permission::PERMISSION_STORE.into(),
                 nama_pdk::Permission::PERMISSION_READ_LIBRARIES.into(),
             ],
-            tick_every_seconds: 60,
+            jobs: vec![job("kernel", Some("* * * * *"))],
             ..manifest
         };
         #[cfg(feature = "jobs")]
@@ -373,31 +373,7 @@ mod exports {
         }
     }
 
-    /// An Automation whose tick keeps a value in its Store, reads it back and lists the
-    /// Libraries, failing with the Kernel's words when it refuses any of them. With the
-    /// `looping-tick` feature its tick loops forever instead.
-    #[cfg(feature = "automation")]
-    struct TestAutomation;
-
-    #[cfg(feature = "automation")]
-    impl nama_pdk::Automation for TestAutomation {
-        fn tick(_tick: nama_pdk::Tick) -> Result<(), Error> {
-            if cfg!(feature = "looping-tick") {
-                loop_forever();
-            }
-            nama_pdk::kernel::store_put("ticked", None, b"yes")?;
-            let kept = nama_pdk::kernel::store_get("ticked", None)?;
-            nama_pdk::info!("test-plugin's Store keeps {kept:?}");
-            let libraries = nama_pdk::kernel::libraries()?;
-            nama_pdk::info!("test-plugin sees {} Libraries", libraries.len());
-            Ok(())
-        }
-    }
-
-    #[cfg(feature = "automation")]
-    nama_pdk::automation!(TestAutomation);
-
-    #[cfg(feature = "jobs")]
+    #[cfg(any(feature = "automation", feature = "jobs"))]
     fn job(id: &str, schedule: Option<&str>) -> nama_pdk::Job {
         nama_pdk::Job {
             id: id.to_owned(),
@@ -407,16 +383,21 @@ mod exports {
         }
     }
 
-    /// Runs its Jobs, logging when each starts, with the Kernel's clock, and ends. `wait` spins
-    /// until that clock reads a minute past its start, so a test brings its next firing due while
-    /// it runs.
-    #[cfg(feature = "jobs")]
+    /// Runs its Jobs. `kernel` keeps a value in its Store, reads it back and lists the Libraries,
+    /// failing with the Kernel's words when it refuses any of them; with the `looping-job` feature
+    /// it loops forever instead. The others log when they start, with the Kernel's clock, and end,
+    /// and `wait` spins until that clock reads a minute past its start, so a test brings its next
+    /// firing due while it runs.
+    #[cfg(any(feature = "automation", feature = "jobs"))]
     struct TestJobs;
 
-    #[cfg(feature = "jobs")]
+    #[cfg(any(feature = "automation", feature = "jobs"))]
     impl nama_pdk::JobRunner for TestJobs {
         fn run(run: nama_pdk::RunJob) -> Result<(), Error> {
             let job = &run.job_id;
+            if job == "kernel" {
+                return use_the_kernel();
+            }
             nama_pdk::info!("test-plugin's Job {job} started at {}", run.now_ms);
             if job == "wait" {
                 let started = UNIX_EPOCH
@@ -429,8 +410,22 @@ mod exports {
         }
     }
 
-    #[cfg(feature = "jobs")]
+    #[cfg(any(feature = "automation", feature = "jobs"))]
     nama_pdk::job_runner!(TestJobs);
+
+    /// The Job `kernel`: see [`TestJobs`].
+    #[cfg(any(feature = "automation", feature = "jobs"))]
+    fn use_the_kernel() -> Result<(), Error> {
+        if cfg!(feature = "looping-job") {
+            loop_forever();
+        }
+        nama_pdk::kernel::store_put("ran", None, b"yes")?;
+        let kept = nama_pdk::kernel::store_get("ran", None)?;
+        nama_pdk::info!("test-plugin's Store keeps {kept:?}");
+        let libraries = nama_pdk::kernel::libraries()?;
+        nama_pdk::info!("test-plugin sees {} Libraries", libraries.len());
+        Ok(())
+    }
 
     /// A Recogniser reading `<Show> - <n>.<ext>` as Episode n of the Show's Season 1, numbered
     /// from the start of the Show as anime often is. A `(<year>)` ending the Show's name is the

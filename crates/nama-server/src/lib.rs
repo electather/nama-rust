@@ -46,7 +46,7 @@ use crate::{
     library::{Contents, CustomImages, LocalImages},
     playback::{PreviewFrames, Probing, RunningPlans, Segments, SubtitleCache},
     plugin_settings::PluginSettings,
-    plugins::PluginBlobs,
+    plugins::{PluginBlobs, log_jobs_time_zone},
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
@@ -177,6 +177,7 @@ pub fn serve(
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
+        log_jobs_time_zone();
         // Before anything can publish an event, so that no notification misses its link, and
         // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;

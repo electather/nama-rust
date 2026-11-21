@@ -233,30 +233,21 @@ fn an_integer_settings_bounds_reach_its_schema() {
     );
 }
 
-fn automation(tick_every_seconds: u32, permissions: Vec<buffa::EnumValue<Permission>>) -> Manifest {
+fn requesting(permissions: Vec<buffa::EnumValue<Permission>>) -> Manifest {
     Manifest {
-        points: vec![Point {
-            service: services::AUTOMATION.to_owned(),
-            version: "^1.0.0".to_owned(),
-            ..Default::default()
-        }],
         permissions,
-        tick_every_seconds,
         ..title_source("cleanup")
     }
 }
 
 #[test]
-fn an_automation_reads_its_permissions_and_tick() {
-    let mut package = automation(
-        3600,
-        vec![
-            Permission::PERMISSION_STORE.into(),
-            Permission::PERMISSION_DELETE_MEDIA.into(),
-        ],
-    );
+fn a_plugin_reads_its_permissions() {
+    let mut package = requesting(vec![
+        Permission::PERMISSION_STORE.into(),
+        Permission::PERMISSION_DELETE_MEDIA.into(),
+    ]);
 
-    let manifest = judge(&mut package, &["tick"]).unwrap();
+    let manifest = judge(&mut package, &[]).unwrap();
 
     assert_eq!(
         manifest.permissions,
@@ -265,7 +256,6 @@ fn an_automation_reads_its_permissions_and_tick() {
             Permission::PERMISSION_DELETE_MEDIA
         ]
     );
-    assert_eq!(manifest.tick_every, Some(Duration::from_secs(3600)));
 }
 
 #[test]
@@ -275,7 +265,7 @@ fn an_unknown_or_unspecified_permission_is_refused() {
         Permission::PERMISSION_UNSPECIFIED.into(),
     ]
     .map(|permission| {
-        judge(&mut automation(60, vec![permission]), &["tick"])
+        judge(&mut requesting(vec![permission]), &[])
             .err()
             .map(|refused| refused.to_string())
     });
@@ -289,47 +279,6 @@ fn an_unknown_or_unspecified_permission_is_refused() {
         ]
         .map(|refusal| Some(refusal.to_owned()))
     );
-}
-
-#[test]
-fn an_automation_ticking_under_a_minute_or_naming_no_tick_is_refused() {
-    let refusals = [0, 59].map(|seconds| {
-        judge(&mut automation(seconds, Vec::new()), &["tick"])
-            .err()
-            .map(|refused| refused.to_string())
-    });
-
-    assert_eq!(
-        refusals,
-        [0, 59].map(|seconds| Some(format!(
-            "its Manifest names nama.plugin.v1.AutomationService, and ticks every {seconds} \
-             seconds, under the minimum of 60"
-        )))
-    );
-}
-
-#[test]
-fn an_automation_without_a_tick_export_is_refused() {
-    let refused = judge(&mut automation(60, Vec::new()), &[])
-        .err()
-        .map(|refused| refused.to_string());
-
-    assert_eq!(
-        refused.as_deref(),
-        Some("its Manifest names nama.plugin.v1.AutomationService, and it has no tick export")
-    );
-}
-
-#[test]
-fn tick_every_is_ignored_unless_the_manifest_names_an_automation() {
-    let mut package = Manifest {
-        tick_every_seconds: 5,
-        ..title_source("tvdb")
-    };
-
-    let manifest = judge(&mut package, &[]).unwrap();
-
-    assert_eq!(manifest.tick_every, None);
 }
 
 fn job(id: &str, schedule: Option<&str>) -> Job {

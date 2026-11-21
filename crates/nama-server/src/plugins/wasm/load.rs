@@ -47,14 +47,9 @@ use crate::plugins::{
 pub(super) const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
-/// How long a tick may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`], since a tick
-/// may page through every title of a large Library and each title's Watch States.
-pub(super) const TICK_TIMEOUT: Duration = Duration::from_secs(60);
-
-// Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
-/// How long a Job's Run may run, of the Plugin's own time: as long as a tick, which Jobs replace
-/// (ADR 0079).
-pub(super) const JOB_TIMEOUT: Duration = TICK_TIMEOUT;
+/// How long a Job's Run may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`], since a
+/// Run may page through every title of a large Library and each title's Watch States (ADR 0079).
+pub(super) const JOB_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How long a blob store call may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`],
@@ -71,9 +66,6 @@ pub(super) const HOME_ROWS_TIMEOUT: Duration = Duration::from_secs(60);
 /// what Extism keeps for it, so one Plugin can't take the Server down.
 // ponytail: one cap for all; let a Manifest ask for more once a Plugin needs it.
 pub(super) const MEMORY_MAX_PAGES: u32 = 2048;
-
-/// The shortest a Plugin's `tick_every_seconds` may be, so no Plugin keeps the Kernel busy.
-pub(super) const MIN_TICK_EVERY: Duration = Duration::from_secs(60);
 
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
@@ -225,7 +217,6 @@ pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<M
         return Err(Refused::NoPoints);
     }
     check_title_namespace(package, &points)?;
-    check_tick_every(package, &points)?;
     check_exports(&points, |export| exported.contains(&export))?;
     manifest(package, &points, exported)
 }
@@ -266,8 +257,6 @@ fn manifest(
         source_url: mem::take(&mut package.source_url),
         license: mem::take(&mut package.license),
         permissions,
-        tick_every: names(points, services::AUTOMATION)
-            .then(|| Duration::from_secs(package.tick_every_seconds.into())),
         jobs: if names(points, services::JOB) {
             package.jobs.iter().map(job).collect()
         } else {
@@ -522,19 +511,6 @@ fn check_title_namespace(package: &wire::Manifest, points: &[&Point]) -> Result<
         return Err(Refused::BadNamespace {
             field: "title_lookup_namespaces",
             namespace: namespace.clone(),
-        });
-    }
-    Ok(())
-}
-
-/// Checks that a Manifest naming `AutomationService` among `points` ticks no more often than
-/// [`MIN_TICK_EVERY`]; one that names no tick, 0, ticks too often too.
-fn check_tick_every(package: &wire::Manifest, points: &[&Point]) -> Result<(), Refused> {
-    if names(points, services::AUTOMATION)
-        && u64::from(package.tick_every_seconds) < MIN_TICK_EVERY.as_secs()
-    {
-        return Err(Refused::TickTooOften {
-            seconds: package.tick_every_seconds,
         });
     }
     Ok(())

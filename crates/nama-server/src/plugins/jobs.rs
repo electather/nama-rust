@@ -12,7 +12,7 @@ use nama_plugin_api::{
 use nama_plugin_proto::services;
 use tokio::{runtime::Handle, task::JoinHandle};
 use tokio_util::task::TaskTracker;
-use tracing::warn;
+use tracing::{info, warn};
 
 use super::{
     ExtensionPoints, Failure, FailureKind, Listed, ProviderError, cron::Cron, points::Asked,
@@ -74,7 +74,7 @@ pub enum JobRunOutcome {
 }
 
 /// How a Job Run failed: past its time limit, which only an Installed Plugin has, or otherwise.
-enum RunFailed {
+pub(super) enum RunFailed {
     TimedOut,
     Other,
 }
@@ -142,9 +142,9 @@ pub(super) fn refusal(manifest: &Manifest) -> Option<String> {
 }
 
 /// Starts in `scope` a loop firing each of `manifest`'s scheduled Jobs, if `registrations` provide
-/// a [`JobRunner`]. The Registry calls it under its lock, as it does `tick::scope`, so the loops
-/// are in the enablement's scope before a disable can find it. Starts nothing outside a Tokio
-/// runtime, where no task can run.
+/// a [`JobRunner`]. The Registry calls it under its lock, so the loops are in the enablement's
+/// scope before a disable can find it. Starts nothing outside a Tokio runtime, where no task can
+/// run.
 pub(super) fn schedule(
     scope: &Scope,
     points: &ExtensionPoints,
@@ -152,9 +152,7 @@ pub(super) fn schedule(
     registrations: &[Registration],
 ) {
     let runner = PointKey::provide::<dyn JobRunner>();
-    if !registrations.iter().any(|it| it.point() == runner)
-        || Handle::try_current().is_err()
-    {
+    if !registrations.iter().any(|it| it.point() == runner) || Handle::try_current().is_err() {
         return;
     }
     for job in &manifest.jobs {
@@ -195,10 +193,34 @@ async fn firing(points: ExtensionPoints, plugin: PluginId, job: String, cron: Cr
     }
 }
 
-/// The Kernel's clock as the Server's time zone reads it, looked up each time so a change to the
-/// zone reaches the next firing.
+/// Logs the time zone Jobs' schedules are read in, the Server's.
+pub(crate) fn log_jobs_time_zone() {
+    log_zone(TimeZone::try_system());
+}
+
+/// Logs `found`, the Server's time zone or why it has none, which leaves Jobs in UTC.
+fn log_zone(found: Result<TimeZone, jiff::Error>) {
+    match found {
+        Ok(zone) => info!(
+            zone = zone.iana_name().unwrap_or("unnamed"),
+            "reading job schedules in this time zone"
+        ),
+        Err(error) => warn!(
+            %error,
+            "reading job schedules in UTC, as the server's time zone can't be found; \
+             set TZ to one such as Europe/London or, in docker, mount /etc/localtime"
+        ),
+    }
+}
+
+/// The Kernel's clock as the Server's time zone reads it.
 fn wall_clock() -> DateTime {
-    let now = Timestamp::from_millisecond(db::now_ms()).unwrap_or_default();
+    wall_clock_at(Timestamp::from_millisecond(db::now_ms()).unwrap_or_default())
+}
+
+/// `now` as the Server's time zone reads it, asked of jiff each time so a change to the zone
+/// reaches a firing once jiff's five-minute cache of it expires.
+fn wall_clock_at(now: Timestamp) -> DateTime {
     TimeZone::system().to_datetime(now)
 }
 
@@ -210,7 +232,7 @@ fn until_next_minute() -> Duration {
 
 /// Runs `plugin`'s Job `job` once, now, recording the Run if the Registry records them, and
 /// returns how the Plugin was asked.
-async fn run_recorded(
+pub(super) async fn run_recorded(
     points: &ExtensionPoints,
     plugin: &PluginId,
     job: &str,

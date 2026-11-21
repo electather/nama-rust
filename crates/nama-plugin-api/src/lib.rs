@@ -41,7 +41,6 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
-    time::Duration,
 };
 
 use serde::{Deserialize, Serialize};
@@ -134,8 +133,6 @@ pub struct Manifest {
     /// The Plugin Permissions it requests, which the Admin grants some or all of when enabling
     /// it; each [`Kernel`] function needs one.
     pub permissions: Vec<Permission>,
-    /// How often the Kernel ticks its [`Automation`](automation::Automation), if it provides one.
-    pub tick_every: Option<Duration>,
     /// The Jobs its [`JobRunner`](job::JobRunner) runs. The Kernel refuses a Plugin naming that
     /// point with none, or with one whose id or schedule `job.proto` doesn't allow.
     pub jobs: Vec<job::Job>,
@@ -164,7 +161,6 @@ impl Manifest {
             source_url: String::new(),
             license: String::new(),
             permissions: Vec::new(),
-            tick_every: None,
             jobs: Vec::new(),
             title_source: None,
         }
@@ -485,8 +481,7 @@ impl Registrar {
         self.stop.clone()
     }
 
-    /// The functions the Plugin may call on the Kernel, if it is handed them; `None` for a Plugin
-    /// that provides no [`Automation`](automation::Automation).
+    /// The functions the Plugin may call on the Kernel, if it is handed them.
     #[must_use]
     pub fn kernel(&self) -> Option<Arc<dyn Kernel>> {
         self.kernel.clone()

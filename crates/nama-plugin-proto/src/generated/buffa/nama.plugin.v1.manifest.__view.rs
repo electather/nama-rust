@@ -120,11 +120,6 @@ pub struct ManifestView<'a> {
         'a,
         ::buffa::EnumValue<super::super::Permission>,
     >,
-    /// How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
-    /// `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
-    ///
-    /// Field 18: `tick_every_seconds`
-    pub tick_every_seconds: u32,
     /// How to set the Plugin up, such as where to get an API key, as short Markdown an admin sees
     /// above its settings. Optional. Clients render it as text, never as HTML (ADR 0058). A Server
     /// drops one over 4 KiB, logging why, and still loads the Plugin.
@@ -231,13 +226,6 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.title_namespace = ::buffa::types::borrow_str(&mut cur)?;
-            }
-            18u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.tick_every_seconds = ::buffa::types::decode_uint32(&mut cur)?;
             }
             19u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -477,7 +465,6 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             permissions: self.permissions.to_vec(),
-            tick_every_seconds: self.tick_every_seconds,
             setup_markdown: self.setup_markdown.to_string(),
             homepage_url: self.homepage_url.to_string(),
             source_url: self.source_url.to_string(),
@@ -564,11 +551,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 2u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
-        }
-        if self.tick_every_seconds != 0u32 {
-            size
-                += 2u64
-                    + ::buffa::types::uint32_encoded_len(self.tick_every_seconds) as u64;
         }
         if !self.setup_markdown.is_empty() {
             size
@@ -671,9 +653,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
-        if self.tick_every_seconds != 0u32 {
-            ::buffa::types::put_uint32_field(18u32, self.tick_every_seconds, buf);
-        }
         if !self.setup_markdown.is_empty() {
             ::buffa::types::put_string_field(19u32, &self.setup_markdown, buf);
         }
@@ -766,13 +745,6 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
                 .serialize_entry(
                     "permissions",
                     &::buffa::json_helpers::EnumSeqJson(&self.permissions),
-                )?;
-        }
-        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.tick_every_seconds) {
-            __map
-                .serialize_entry(
-                    "tickEverySeconds",
-                    &::buffa::json_helpers::ProtoJson(&self.tick_every_seconds),
                 )?;
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.setup_markdown) {
@@ -1017,14 +989,6 @@ impl ManifestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Permission>> {
         &self.0.reborrow().permissions
-    }
-    /// How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
-    /// `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
-    ///
-    /// Field 18: `tick_every_seconds`
-    #[must_use]
-    pub fn tick_every_seconds(&self) -> u32 {
-        self.0.reborrow().tick_every_seconds
     }
     /// How to set the Plugin up, such as where to get an API key, as short Markdown an admin sees
     /// above its settings. Optional. Clients render it as text, never as HTML (ADR 0058). A Server
