@@ -5,7 +5,6 @@ use super::*;
 
 /// Starts a Server with `ffmpeg` and Alien as [`Fixture::alien_mkv`] writes it, but copied through
 /// a pipe, which leaves its Cues out, so its first Remux lists its keyframes by reading it all.
-#[cfg(unix)]
 async fn alien_mkv_without_cues(ffmpeg: Ffmpeg) -> (Fixture, i64) {
     Fixture::alien_written(ffmpeg, |file| {
         let cued = file.with_extension("cued.mkv");
@@ -27,7 +26,6 @@ async fn alien_mkv_without_cues(ffmpeg: Ffmpeg) -> (Fixture, i64) {
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-#[cfg(unix)]
 fn ffprobe_after(bin: &Path, first: &str) -> Ffmpeg {
     let ffmpeg = system_ffmpeg();
     let real = ffmpeg.ffprobe.unwrap().path;
@@ -38,13 +36,11 @@ fn ffprobe_after(bin: &Path, first: &str) -> Ffmpeg {
     }
 }
 
-#[cfg(unix)]
 fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
     ffprobe_after(bin, &format!("echo \"$*\" >> '{}'", log.display()))
 }
 
 /// An ffprobe that fails to list keyframes, logging each listing to `bin/runs.log`.
-#[cfg(unix)]
 fn ffprobe_failing_keyframes(bin: &Path) -> Ffmpeg {
     let fail = format!(
         "case \"$*\" in *packet=pts_time,flags*) echo list >> '{}'; echo 'read failed' >&2; \
@@ -54,8 +50,6 @@ fn ffprobe_failing_keyframes(bin: &Path) -> Ffmpeg {
     ffprobe_after(bin, &fail)
 }
 
-// The failing ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_remux_whose_keyframes_cant_be_listed_transcodes_and_says_why() {
     let bin = tempfile::tempdir().unwrap();
@@ -70,8 +64,6 @@ async fn a_remux_whose_keyframes_cant_be_listed_transcodes_and_says_why() {
     fx.fetch_ok(&plan.url).await;
 }
 
-// The failing ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_remux_whose_keyframes_cant_be_listed_is_refused_as_busy_at_the_transcode_limit() {
     let bin = tempfile::tempdir().unwrap();
@@ -88,8 +80,6 @@ async fn a_remux_whose_keyframes_cant_be_listed_is_refused_as_busy_at_the_transc
     );
 }
 
-// The failing ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_version_whose_keyframes_couldnt_be_listed_transcodes_next_time_without_listing_them() {
     let bin = tempfile::tempdir().unwrap();
@@ -106,8 +96,6 @@ async fn a_version_whose_keyframes_couldnt_be_listed_transcodes_next_time_withou
     assert_eq!(runs.lines().count(), 1, "{runs}");
 }
 
-// The hanging ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_first_play_whose_listing_hangs_transcodes_after_the_wait_and_the_next_play_remuxes() {
     let bin = tempfile::tempdir().unwrap();
@@ -138,8 +126,6 @@ async fn a_first_play_whose_listing_hangs_transcodes_after_the_wait_and_the_next
     assert_eq!(runs.lines().count(), 1, "{runs}");
 }
 
-// The logging ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
     let bin = tempfile::tempdir().unwrap();
@@ -167,7 +153,6 @@ async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
     clippy::indexing_slicing,
     reason = "a test helper fails its test by panicking"
 )]
-#[cfg(unix)]
 async fn alien_mp4(ffmpeg: Ffmpeg, faststart: bool) -> (Fixture, i64) {
     let builder = TestServer::builder().ffmpeg(ffmpeg);
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
@@ -198,8 +183,6 @@ async fn alien_mp4(ffmpeg: Ffmpeg, faststart: bool) -> (Fixture, i64) {
     (fx, version)
 }
 
-// The logging ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn an_mp4_remuxes_on_its_first_play_without_a_whole_file_listing_wherever_its_moov_is() {
     for faststart in [true, false] {
@@ -226,8 +209,6 @@ async fn an_mp4_remuxes_on_its_first_play_without_a_whole_file_listing_wherever_
     }
 }
 
-// The logging ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn an_mkv_with_cues_remuxes_on_its_first_play_without_reading_it_all() {
     let bin = tempfile::tempdir().unwrap();
