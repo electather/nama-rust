@@ -8,7 +8,7 @@ use tracing::warn;
 
 use crate::{
     db::Database,
-    server_settings::{HomeLayout, HomeRowId, PlacedRow},
+    server_settings::{HomeLayout, HomeRowId, PlacedRow, keep_unnamed},
 };
 
 /// What a User shows other than the default Home layout does, and their order once they reorder
@@ -125,23 +125,36 @@ impl UserHomeLayout {
     }
 
     /// Saves `asked` as `user`'s order of the rows they see, `seen` as [`UserHomeLayout::arrange`]
-    /// got them, so the default's order no longer moves them. Only the rows of `asked` that name
-    /// one of `seen` count, each once.
+    /// got them, so `default`'s order no longer moves them. Only the rows of `asked` that name
+    /// one of `seen` count, each once. The rows their order, or `default`'s on their first reorder,
+    /// places that `asked` doesn't, such as a disabled Plugin's, keep their places.
     pub(crate) async fn reorder(
         db: &Database,
         user: i64,
         asked: &[HomeRowId],
         mut seen: Vec<HomeRowId>,
+        default: HomeLayout,
     ) -> Result<(), sqlx::Error> {
-        let order: Vec<HomeRowId> = (asked.iter())
+        let mut order: Vec<HomeRowId> = (asked.iter())
             .filter_map(|named| {
                 let at = seen.iter().position(|row| named.names(row))?;
                 Some(seen.swap_remove(at))
             })
             .collect();
+        // The default's entry for a Plugin's Users' own rows places none of them one by one, so
+        // it isn't copied: a User's own row their order lacks goes at its end.
+        let defaults: Vec<HomeRowId> = (default.rows.into_iter())
+            .map(|placed| placed.row)
+            .filter(|row| !matches!(row, HomeRowId::UsersOwn { .. }))
+            .collect();
         db.write(move |tx| {
             Box::pin(async move {
-                let before = Self::stored(&mut **tx, user).await?;
+                let mut before = Self::stored(&mut **tx, user).await?;
+                keep_unnamed(
+                    &mut order,
+                    &before.order.take().unwrap_or(defaults),
+                    PartialEq::eq,
+                );
                 let order = Some(order);
                 store(tx, user, &Self { order, ..before }).await
             })

@@ -120,15 +120,9 @@ impl HomeLayout {
     /// This layout with each row `before` places that it doesn't, such as a disabled Plugin's,
     /// which the editor didn't see: each after the row it followed in `before`, or first.
     pub(super) fn keeping_unnamed(mut self, before: &Self) -> Self {
-        let mut at = 0;
-        for placed in &before.rows {
-            if let Some(place) = self.rows.iter().position(|named| named.row == placed.row) {
-                at = place + 1;
-            } else {
-                self.rows.insert(at, placed.clone());
-                at += 1;
-            }
-        }
+        keep_unnamed(&mut self.rows, &before.rows, |named, placed| {
+            named.row == placed.row
+        });
         self
     }
 
@@ -140,5 +134,23 @@ impl HomeLayout {
                 .plugin()
                 .is_none_or(|plugin| !gone.contains(plugin))
         });
+    }
+}
+
+/// Puts each of `before` that `rows` has no `same` of, such as a disabled Plugin's row the editor
+/// didn't see, back into `rows`: after the row it followed in `before`, or first.
+pub(crate) fn keep_unnamed<T: Clone>(
+    rows: &mut Vec<T>,
+    before: &[T],
+    same: impl Fn(&T, &T) -> bool,
+) {
+    let mut at = 0;
+    for placed in before {
+        if let Some(place) = rows.iter().position(|named| same(named, placed)) {
+            at = place + 1;
+        } else {
+            rows.insert(at, placed.clone());
+            at += 1;
+        }
     }
 }

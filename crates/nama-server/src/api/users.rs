@@ -501,7 +501,8 @@ impl UserService for UserServiceHandler {
             .collect::<Result<Vec<_>, _>>()?;
         let seen = home_rows_of(&self.home_rows, reader).await?;
         let seen = seen.into_iter().map(|(row, _)| row).collect();
-        (UserHomeLayout::reorder(&self.db, reader.id, &asked, seen).await)
+        let default = self.settings.now().default_home_layout;
+        (UserHomeLayout::reorder(&self.db, reader.id, &asked, seen, default).await)
             .map_err(database_failed)?;
         Response::ok(ReorderHomeRowsResponse {
             layout: self.home_layout(reader).await?.into(),

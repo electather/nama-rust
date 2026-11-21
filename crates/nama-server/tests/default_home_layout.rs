@@ -675,6 +675,27 @@ async fn a_row_a_user_has_not_placed_goes_at_the_end_of_their_order() {
 }
 
 #[tokio::test]
+async fn reordering_while_a_plugin_is_disabled_keeps_its_rows_where_they_were() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    let missing_first = vec![shared("missing", "", false), continue_watching(false)];
+    set_default(&server, layout(false, missing_first)).await;
+    let kept = ["missing", "continue-watching", "picks", "again"];
+
+    disable(&server).await;
+    reorder(&ada, vec![continue_watching(false)]).await;
+    enable(&server).await;
+    wait_for_rows(ada.client_config(), &kept).await;
+
+    let missing_last = vec![continue_watching(false), shared("missing", "", false)];
+    set_default(&server, layout(false, missing_last)).await;
+    disable(&server).await;
+    reorder(&ada, vec![continue_watching(false)]).await;
+    enable(&server).await;
+    wait_for_rows(ada.client_config(), &kept).await;
+}
+
+#[tokio::test]
 async fn resetting_a_users_home_layout_returns_them_to_the_defaults_order() {
     let server = serving_rows().await;
     let ada = server.user_with_default_permissions("ada").await;
