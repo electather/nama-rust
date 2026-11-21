@@ -144,7 +144,6 @@ impl Cron {
     }
 }
 
-/// Whether `bits` has the bit for `value`.
 fn has(bits: u64, value: i8) -> bool {
     bits >> value & 1 == 1
 }

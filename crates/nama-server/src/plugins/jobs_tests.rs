@@ -6,7 +6,7 @@ use nama_plugin_api::{
 };
 use tempfile::TempDir;
 
-use super::{JobRun, JobRunOutcome, Recording, job_runs, run_recorded};
+use super::{JobRun, JobRunOutcome, Recording, RunLog, job_runs, run_recorded};
 use crate::{
     db::Database,
     plugins::{Registry, wasm::TimedOut},
@@ -14,7 +14,7 @@ use crate::{
 
 const ID: PluginId = PluginId::from_static("chores");
 
-/// A Built-in Plugin running the Jobs it declares with its runner, [`Idle`] unless it names one.
+/// A Built-in Plugin running the Jobs it declares with its runner.
 struct Declaring(Vec<Job>, Arc<dyn JobRunner>);
 
 impl Plugin for Declaring {
@@ -82,7 +82,7 @@ fn a_builtin_declaring_jobs_with_and_without_a_schedule_is_enabled() {
     assert_eq!(enabling(vec![job(None)]), Ok(()));
 }
 
-/// A Job runner that ends each Run as `ends` says, which may panic.
+/// A Job runner that ends each Run as its function does, which may panic.
 struct Ending(fn() -> Result<(), PluginError>);
 
 impl JobRunner for Ending {
@@ -173,9 +173,25 @@ async fn a_run_its_plugin_is_disabled_during_is_recorded_as_interrupted() {
 }
 
 #[tokio::test]
+async fn a_run_the_server_stops_during_is_recorded_as_interrupted_before_shutdown_returns() {
+    let (registry, db, _dir) = recording(Arc::new(Endless)).await;
+    let points = registry.extension_points();
+    assert!(registry.spawn_in(&ID, async move {
+        run_recorded(&points, &ID, "tidy").await;
+    }));
+    while runs(&db).await.is_empty() {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    registry.shutdown().await;
+
+    assert_eq!(runs(&db).await[0].outcome, JobRunOutcome::Interrupted);
+}
+
+#[tokio::test]
 async fn a_run_a_stopped_server_left_running_is_interrupted_at_the_next_start() {
     let (_registry, db, _dir) = recording(Arc::new(Idle)).await;
-    let recording = Recording::start(Some(Arc::clone(&db)), &ID, "tidy").await;
+    let recording = Recording::start(Some(RunLog::new(Arc::clone(&db))), &ID, "tidy").await;
     #[expect(
         clippy::mem_forget,
         reason = "a Server that stops mid-Run never drops its Recording, leaving its row running"

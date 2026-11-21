@@ -10,6 +10,8 @@ use nama_plugin_api::{
     job::{Job, JobRunner, RunJob},
 };
 use nama_plugin_proto::services;
+use tokio::{runtime::Handle, task::JoinHandle};
+use tokio_util::task::TaskTracker;
 use tracing::warn;
 
 use super::{
@@ -151,7 +153,7 @@ pub(super) fn schedule(
 ) {
     let runner = PointKey::provide::<dyn JobRunner>();
     if !registrations.iter().any(|it| it.point() == runner)
-        || tokio::runtime::Handle::try_current().is_err()
+        || Handle::try_current().is_err()
     {
         return;
     }
@@ -255,20 +257,52 @@ fn outcome(asked: &Asked<(), RunFailed>) -> JobRunOutcome {
     }
 }
 
+/// Where Job Runs are recorded, and the writes ending them, which the Registry waits for when the
+/// Server stops so none is cut off by the database closing.
+#[derive(Clone)]
+pub(super) struct RunLog {
+    db: Arc<Database>,
+    ending: TaskTracker,
+}
+
+impl RunLog {
+    pub(super) fn new(db: Arc<Database>) -> Self {
+        Self {
+            db,
+            ending: TaskTracker::new(),
+        }
+    }
+
+    /// Waits until every Run ending now has been written.
+    pub(super) async fn ended(&self) {
+        self.ending.close();
+        self.ending.wait().await;
+    }
+
+    /// Ends the Run `id` as `outcome` in a task of its own, which cancelling the Run's caller
+    /// doesn't stop.
+    fn end(&self, runtime: &Handle, id: i64, outcome: JobRunOutcome) -> JoinHandle<()> {
+        let db = Arc::clone(&self.db);
+        self.ending
+            .spawn_on(async move { end(&db, id, outcome).await }, runtime)
+    }
+}
+
 /// A Job Run's row while it runs. [`Recording::close`] ends it as the Run ended; dropping it
 /// unclosed, as cancelling the Plugin's scope mid-Run does, ends it as interrupted.
-pub(super) struct Recording(Option<(Arc<Database>, i64)>);
+pub(super) struct Recording(Option<(RunLog, i64)>);
 
 impl Recording {
-    /// Writes a row for a Run of `plugin`'s Job `job` starting now, in `db` if there is one, and
+    /// Writes a row for a Run of `plugin`'s Job `job` starting now, in `log` if there is one, and
     /// deletes the Job's Runs but the newest [`RUNS_KEPT`]. A Run whose row can't be written runs
     /// unrecorded.
-    pub(super) async fn start(db: Option<Arc<Database>>, plugin: &PluginId, job: &str) -> Self {
-        let Some(db) = db else {
+    pub(super) async fn start(log: Option<RunLog>, plugin: &PluginId, job: &str) -> Self {
+        let Some(log) = log else {
             return Self(None);
         };
         let (plugin, job, now) = (plugin.to_string(), job.to_owned(), db::now_ms());
-        let started = db
+        let started = log
+            .db
             .write(move |tx| {
                 Box::pin(async move {
                     let id = sqlx::query_scalar!(
@@ -298,7 +332,7 @@ impl Recording {
             })
             .await;
         match started {
-            Ok(id) => Self(Some((db, id))),
+            Ok(id) => Self(Some((log, id))),
             Err(err) => {
                 warn!("couldn't record a job run: {err}");
                 Self(None)
@@ -307,24 +341,26 @@ impl Recording {
     }
 
     async fn close(mut self, outcome: JobRunOutcome) {
-        if let Some((db, id)) = self.0.take() {
-            end(&db, id, outcome).await;
+        if let Some((log, id)) = self.0.take() {
+            // Its own task, as a Plugin's panic cancels this Run's scope while it closes.
+            if let Err(err) = log.end(&Handle::current(), id, outcome).await {
+                warn!(run = id, "couldn't record how a job run ended: {err}");
+            }
         }
     }
 }
 
 impl Drop for Recording {
     fn drop(&mut self) {
-        // Outside a runtime, as when the Server is stopping, startup closes the row instead.
-        if let Some((db, id)) = self.0.take()
-            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+        // Outside a runtime no task can run, so startup closes the row instead.
+        if let Some((log, id)) = self.0.take()
+            && let Ok(runtime) = Handle::try_current()
         {
-            runtime.spawn(async move { end(&db, id, JobRunOutcome::Interrupted).await });
+            log.end(&runtime, id, JobRunOutcome::Interrupted);
         }
     }
 }
 
-/// Ends the Run `id` now, as `outcome`.
 async fn end(db: &Database, id: i64, outcome: JobRunOutcome) {
     let (outcome, error) = match outcome {
         JobRunOutcome::Running => ("running", None),
