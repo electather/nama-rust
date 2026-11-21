@@ -25,7 +25,7 @@ use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::Stored};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(super) const PROBE_VERSION: i64 = 12;
+pub(super) const PROBE_VERSION: i64 = 13;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on, or failed to list the
 /// keyframes of, at an older one is tried again, and those it read are left alone; when to bump
@@ -190,6 +190,10 @@ pub(crate) enum TrackKind {
     },
     Audio {
         channels: Option<i64>,
+        /// Its profile says it carries Dolby Atmos, as `truehd` and `eac3` (JOC) can.
+        atmos: bool,
+        /// The file marks it as Audio Description, for the visually impaired.
+        audio_description: bool,
     },
     Subtitle {
         /// A bitmap, such as PGS, rather than text, such as SRT.
@@ -488,7 +492,9 @@ impl Tracks {
             r#"SELECT version_id, kind, codec, language, title, is_default AS "default: bool",
                       forced AS "forced: bool", sdh AS "sdh: bool", width, height, frame_rate, bit_depth, hdr,
                       dolby_vision_profile, dolby_vision_base_layer,
-                      channels, image AS "image: bool", header AS "header: bool"
+                      channels, atmos AS "atmos: bool",
+                      audio_description AS "audio_description: bool",
+                      image AS "image: bool", header AS "header: bool"
                FROM tracks
                WHERE version_id IN (SELECT value FROM json_each(?))
                ORDER BY version_id, position"#,
@@ -511,6 +517,8 @@ impl Tracks {
                 },
                 "audio" => TrackKind::Audio {
                     channels: row.channels,
+                    atmos: row.atmos,
+                    audio_description: row.audio_description,
                 },
                 _ => TrackKind::Subtitle {
                     image: row.image.unwrap_or_default(),
@@ -627,6 +635,14 @@ async fn store_track(
     position: i64,
     track: Track,
 ) -> Result<(), sqlx::Error> {
+    let (atmos, audio_description) = match track.kind {
+        TrackKind::Audio {
+            atmos,
+            audio_description,
+            ..
+        } => (atmos, audio_description),
+        TrackKind::Video { .. } | TrackKind::Subtitle { .. } => (false, false),
+    };
     let (kind, width, height, frame_rate, bit_depth, hdr, channels, image, header) =
         match track.kind {
             TrackKind::Video {
@@ -638,7 +654,7 @@ async fn store_track(
             } => (
                 "video", width, height, frame_rate, bit_depth, hdr, None, None, None,
             ),
-            TrackKind::Audio { channels } => {
+            TrackKind::Audio { channels, .. } => {
                 ("audio", None, None, None, None, None, channels, None, None)
             }
             TrackKind::Subtitle { image, header, .. } => (
@@ -658,8 +674,8 @@ async fn store_track(
         "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,
                              forced, sdh, width, height, frame_rate, bit_depth, hdr,
                              dolby_vision_profile, dolby_vision_base_layer, channels,
-                             image, header)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                             atmos, audio_description, image, header)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         version,
         position,
         kind,
@@ -677,6 +693,8 @@ async fn store_track(
         dolby_vision_profile,
         dolby_vision_base_layer,
         channels,
+        atmos,
+        audio_description,
         image,
         header,
     )

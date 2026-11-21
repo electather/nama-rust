@@ -240,6 +240,8 @@ struct ProbedStream {
     #[serde(default)]
     side_data_list: Vec<ProbedSideData>,
     channels: Option<i64>,
+    /// Such as `"Dolby TrueHD + Dolby Atmos"`, as libavcodec names an audio codec's profiles.
+    profile: Option<String>,
     /// How many bytes of codec header the file carries for it, such as VobSub's `.idx`.
     extradata_size: Option<i64>,
     nb_frames: Option<String>,
@@ -345,6 +347,12 @@ fn track(mut stream: ProbedStream) -> Option<Track> {
         },
         "audio" => TrackKind::Audio {
             channels: stream.channels,
+            // ponytail: DTS:X is object-based too; read its profile once a file needs it.
+            atmos: stream
+                .profile
+                .as_deref()
+                .is_some_and(|p| p.contains("Atmos")),
+            audio_description: flag("visual_impaired"),
         },
         "subtitle" => TrackKind::Subtitle {
             image: IMAGE_SUBTITLES.contains(&stream.codec_name.as_str()),

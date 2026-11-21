@@ -193,6 +193,8 @@ pub(super) fn one_audio_track(channels: i64) -> Probe {
             sdh: false,
             kind: TrackKind::Audio {
                 channels: Some(channels),
+                atmos: false,
+                audio_description: false,
             },
         }],
         font_attachments: vec![],

@@ -110,7 +110,13 @@ fn ffmpeg_index_counts_only_earlier_tracks_of_the_same_kind() {
             hdr: None,
         })
     };
-    let audio = || track(TrackKind::Audio { channels: None });
+    let audio = || {
+        track(TrackKind::Audio {
+            channels: None,
+            atmos: false,
+            audio_description: false,
+        })
+    };
     let subtitle = |image| {
         track(TrackKind::Subtitle {
             image,

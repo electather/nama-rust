@@ -28,8 +28,14 @@ pub(crate) fn track_to_proto(track: &Track) -> proto::Track {
             }
             .into()
         }
-        TrackKind::Audio { channels } => proto::AudioTrack {
+        TrackKind::Audio {
+            channels,
+            atmos,
+            audio_description,
+        } => proto::AudioTrack {
             channels: known(channels),
+            atmos,
+            audio_description,
             ..Default::default()
         }
         .into(),

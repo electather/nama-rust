@@ -172,7 +172,11 @@ fn stereo() -> Track {
         default: false,
         forced: false,
         sdh: false,
-        kind: TrackKind::Audio { channels: Some(2) },
+        kind: TrackKind::Audio {
+            channels: Some(2),
+            atmos: false,
+            audio_description: false,
+        },
     }
 }
 
