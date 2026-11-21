@@ -3,7 +3,10 @@ use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 use nama_proto::nama::v1::ProbingFinished;
 use tempfile::TempDir;
 
-use super::{Error, PROBES_AT_ONCE, ProbeError, Probing, ffprobe};
+use super::{
+    Error, PROBES_AT_ONCE, ProbeError, Probing,
+    ffprobe::{self, Ffprobe, Reader},
+};
 use crate::{
     config::Config,
     db::Database,
@@ -18,7 +21,8 @@ use crate::{
     },
 };
 
-/// A database, a Movies Library backed by one scratch folder, and Probing with `ffmpeg`.
+/// A database, a Movies Library backed by one scratch folder, and Probing reading files with
+/// ffprobe or a stand-in.
 /// Files are stored as a scan would, without scanning.
 pub(super) struct Fixture {
     pub(super) probing: Probing,
@@ -36,7 +40,13 @@ impl Fixture {
         Self::with_ffmpeg(Ffmpeg::default()).await
     }
 
+    /// Reading files with `ffmpeg`'s ffprobe.
     pub(super) async fn with_ffmpeg(ffmpeg: Ffmpeg) -> Self {
+        Self::with_reader(Arc::new(Ffprobe(Arc::new(ffmpeg)))).await
+    }
+
+    /// Reading files with `reader`.
+    pub(super) async fn with_reader(reader: Arc<impl Reader + 'static>) -> Self {
         let data = tempfile::tempdir().unwrap();
         let media = tempfile::tempdir().unwrap();
         let root = media.path().canonicalize().unwrap().join("library");
@@ -51,9 +61,9 @@ impl Fixture {
             .await
             .unwrap();
         Self {
-            probing: Probing::new(
+            probing: Probing::with_reader(
                 Arc::clone(&db),
-                Arc::new(ffmpeg),
+                reader,
                 subtitles::Cache::new(data.path()),
                 crate::images::ImageStore::new(data.path(), Arc::clone(&db)),
             ),
@@ -116,7 +126,6 @@ impl Fixture {
     }
 
     /// The channels of the one audio Track stored for the file at `relative`.
-    #[cfg(unix)]
     pub(super) async fn channels(&self, relative: &str) -> Option<i64> {
         let probe = self.probe(relative).await?;
         match probe.tracks.as_slice() {
@@ -350,7 +359,7 @@ EOF"#,
 /// from, and, when asked for its Chapters, with a titled one, an untitled one and another titled
 /// one.
 #[cfg(unix)]
-pub(super) fn ffprobe_reading_chapters(bin: &std::path::Path) -> Ffmpeg {
+fn ffprobe_reading_chapters(bin: &std::path::Path) -> Ffmpeg {
     fake_ffprobe(
         bin,
         r#"chapters='[]'
@@ -364,7 +373,6 @@ EOF"#,
 }
 
 /// The Chapters [`ffprobe_reading_chapters`] reads.
-#[cfg(unix)]
 pub(super) fn chapters_read() -> Vec<Chapter> {
     let chapter = |start_ms, title: &str| Chapter {
         start_ms,
@@ -652,23 +660,7 @@ async fn probing_a_version_right_away_doesnt_wait_for_the_background_pass_to_rea
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
 }
 
-/// A fake ffprobe in `bin` that logs each run to `bin/runs` and reads every file as one audio
-/// Track with as many channels as the file has bytes, so a changed file reads differently.
-#[cfg(unix)]
-pub(super) fn counting_ffprobe(bin: &std::path::Path) -> Ffmpeg {
-    let runs = bin.join("runs");
-    fake_ffprobe(
-        bin,
-        &format!(
-            r#"echo run >> '{}'
-for file; do :; done
-echo "{{\"format\": {{\"format_name\": \"matroska,webm\", \"duration\": \"1.000000\"}}, \"streams\": [{{\"codec_type\": \"audio\", \"codec_name\": \"ac3\", \"channels\": $(wc -c < "$file")}}]}}""#,
-            runs.display()
-        ),
-    )
-}
-
-/// How many runs a fake ffprobe in `bin` logged to `bin/runs`, as [`counting_ffprobe`] logs each.
+/// How many runs a fake ffprobe in `bin` logged, one line each to `bin/runs`.
 #[cfg(unix)]
 pub(super) fn probe_runs(bin: &std::path::Path) -> usize {
     fs::read_to_string(bin.join("runs")).map_or(0, |runs| runs.lines().count())

@@ -1,8 +1,9 @@
-//! Running ffprobe on a stored file and reading what it prints, private to Probing
-//! (the area's `AGENTS.md`, "One owner for probing").
+//! What Probing reads a stored file with, and its ffprobe adapter, which runs ffprobe on the file
+//! and reads what it prints, private to Probing (the area's `AGENTS.md`, "One owner for probing").
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, fmt::Debug, sync::Arc, time::Duration};
 
+use futures_util::future::BoxFuture;
 use serde::Deserialize;
 
 use super::ProbeError;
@@ -23,6 +24,40 @@ const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_sub
 
 /// The ends of the file names of fonts, for an attachment whose MIME type doesn't say it's one.
 const FONT_EXTENSIONS: &[&str] = &[".ttf", ".otf", ".ttc"];
+
+/// What reads a stored file for Probing: [`Ffprobe`] on the Server, and an in-memory one in tests.
+/// A read Probing drops, as at shutdown, stops.
+pub(super) trait Reader: Debug + Send + Sync {
+    /// Whether it can read files at all; a Server without ffprobe can't.
+    fn can_read(&self) -> bool;
+
+    /// The file at `path`'s facts and when it starts, as [`probe`] reads them.
+    fn probe(&self, path: String) -> BoxFuture<'static, Result<(Probe, Starts), ProbeError>>;
+
+    /// When the file at `path` starts and each keyframe of its first video falls, as [`keyframes`]
+    /// lists them by reading it whole.
+    fn keyframes(&self, path: String) -> BoxFuture<'static, Result<ListedKeyframes, ProbeError>>;
+}
+
+/// Reads files with the Server's ffprobe.
+#[derive(Debug)]
+pub(super) struct Ffprobe(pub(super) Arc<Ffmpeg>);
+
+impl Reader for Ffprobe {
+    fn can_read(&self) -> bool {
+        self.0.can_probe()
+    }
+
+    fn probe(&self, path: String) -> BoxFuture<'static, Result<(Probe, Starts), ProbeError>> {
+        let ffmpeg = Arc::clone(&self.0);
+        Box::pin(async move { probe(&ffmpeg, &path).await })
+    }
+
+    fn keyframes(&self, path: String) -> BoxFuture<'static, Result<ListedKeyframes, ProbeError>> {
+        let ffmpeg = Arc::clone(&self.0);
+        Box::pin(async move { keyframes(&ffmpeg, &path).await })
+    }
+}
 
 /// When a file ffprobe read starts, and when its first video does, in milliseconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
