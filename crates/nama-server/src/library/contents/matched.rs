@@ -30,6 +30,9 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) logo: Option<ImageRef>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
+    /// Its Score from the title source that made the Match, which keeps it once per title.
+    pub(crate) score: Option<f64>,
+    pub(crate) original_language: Option<String>,
     /// When its first Version was added, in seconds since the Unix epoch.
     pub(crate) added_at: i64,
     /// The files Matched to it, by path.
@@ -54,6 +57,8 @@ impl<V> Movie<V> {
             logo: self.logo,
             genres: self.genres,
             content_rating: self.content_rating,
+            score: self.score,
+            original_language: self.original_language,
             added_at: self.added_at,
             versions: self.versions.into_iter().map(version).collect(),
         }
@@ -119,6 +124,9 @@ pub(crate) struct Show<V = Version> {
     pub(crate) first_air_date: Option<String>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
+    /// As [`Movie::score`].
+    pub(crate) score: Option<f64>,
+    pub(crate) original_language: Option<String>,
     /// When its newest Episode was added, in seconds since the Unix epoch.
     pub(crate) added_at: i64,
     /// The Seasons the Library has Episodes of, by number.
@@ -392,12 +400,22 @@ impl Contents {
                               item_matches.backdrop, item_matches.backdrop_plugin,
                               item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
                               item_matches.logo, item_matches.logo_plugin, item_matches.genres,
-                              item_matches.content_rating, library_items.added_at,
-                              libraries.title_sources
+                              item_matches.content_rating, title_details.score AS "score?",
+                              title_details.original_language AS "original_language?",
+                              library_items.added_at, libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
                        JOIN libraries ON libraries.id = library_files.library_id
+                       -- Keyed as `details::store` keys it.
+                       LEFT JOIN title_details
+                           ON title_details.plugin = item_matches.plugin
+                          AND title_details.kind = 'movie'
+                          AND (title_details.namespace, title_details.value) =
+                              (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed
+                               WHERE keyed.item_id = item_matches.item_id
+                                 AND keyed.scope = 'title'
+                               ORDER BY keyed.namespace LIMIT 1)
                        WHERE library_files.library_id = ?1
                          AND library_items.kind = 'movie'
                          AND item_matches.state = 'matched'
@@ -449,6 +467,8 @@ impl Contents {
                     logo: ImageRef::stored(row.logo, row.logo_plugin),
                     genres: genres(row.genres.as_deref())?,
                     content_rating: row.content_rating,
+                    score: row.score,
+                    original_language: row.original_language,
                     added_at: row.added_at,
                     versions: Vec::new(),
                 }),
@@ -492,12 +512,22 @@ impl Contents {
                               backdrop, backdrop_plugin, titled_backdrop, titled_backdrop_plugin,
                               logo, logo_plugin, still, genres,
                               content_rating, show_poster, show_poster_plugin, show_overview,
-                              show_first_air_date, metadata_version, library_items.added_at,
-                              libraries.title_sources
+                              show_first_air_date, metadata_version, title_details.score AS "score?",
+                              title_details.original_language AS "original_language?",
+                              library_items.added_at, libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
                        JOIN libraries ON libraries.id = library_files.library_id
+                       -- Keyed as `details::store` keys it.
+                       LEFT JOIN title_details
+                           ON title_details.plugin = item_matches.plugin
+                          AND title_details.kind = 'show'
+                          AND (title_details.namespace, title_details.value) =
+                              (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed
+                               WHERE keyed.item_id = item_matches.item_id
+                                 AND keyed.scope = 'show'
+                               ORDER BY keyed.namespace LIMIT 1)
                        WHERE library_files.library_id = ?1
                          AND library_items.kind = 'episode'
                          AND item_matches.state = 'matched'
@@ -544,6 +574,8 @@ impl Contents {
                     first_air_date: row.show_first_air_date,
                     genres: genres(row.genres.as_deref())?,
                     content_rating: row.content_rating,
+                    score: row.score,
+                    original_language: row.original_language,
                     added_at: row.added_at,
                     seasons: BTreeMap::new(),
                 }),

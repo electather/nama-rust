@@ -636,7 +636,7 @@ async fn a_show_is_shown_by_its_own_poster_in_its_library_page_continue_watching
 }
 
 #[tokio::test]
-async fn a_movie_has_its_title_logo_genres_and_content_rating() {
+async fn a_movie_has_its_title_logo_genres_content_rating_score_and_original_language() {
     let fx = Fixture::alien().await;
 
     let listed = fx.list_movies(fx.library).await.unwrap();
@@ -649,6 +649,8 @@ async fn a_movie_has_its_title_logo_genres_and_content_rating() {
         );
         assert_eq!(movie.genres, ["Horror", "Science Fiction"]);
         assert_eq!(movie.content_rating.as_deref(), Some("R"));
+        let language = movie.original_language.as_deref();
+        assert_eq!((movie.score, language), (Some(8.2), Some("en")));
     }
 }
 
@@ -666,7 +668,7 @@ async fn a_movie_with_no_title_logo_or_rating_in_the_settings_country_has_neithe
 }
 
 #[tokio::test]
-async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_and_content_rating() {
+async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_rating_and_score() {
     let fx = Fixture::shows().await;
 
     let got = fx.get_show(fx.library, DARK).await.unwrap();
@@ -684,6 +686,8 @@ async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_and_conten
     );
     assert_eq!(show.genres, ["Crime", "Drama", "Mystery"]);
     assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));
+    let language = show.original_language.as_deref();
+    assert_eq!((show.score, language), (Some(8.4), Some("de")));
 }
 
 #[tokio::test]

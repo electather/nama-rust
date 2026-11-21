@@ -52,7 +52,7 @@ pub(crate) struct Candidate {
 }
 
 /// A Movie's details.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Movie {
     /// Its ids.
     pub(crate) ids: ExternalIds,
@@ -74,10 +74,14 @@ pub(crate) struct Movie {
     pub(crate) genres: Vec<String>,
     /// Its Content Rating in the source's country, such as `R`.
     pub(crate) content_rating: Option<String>,
+    /// Its Score, from 0 to 10, as the source averages it.
+    pub(crate) score: Option<f64>,
+    /// The ISO 639-1 code of the language it was made in, such as `ja`.
+    pub(crate) original_language: Option<String>,
 }
 
 /// A Show's details.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Show {
     /// Its ids.
     pub(crate) ids: ExternalIds,
@@ -99,6 +103,10 @@ pub(crate) struct Show {
     pub(crate) genres: Vec<String>,
     /// As [`Movie::content_rating`], such as `TV-MA`.
     pub(crate) content_rating: Option<String>,
+    /// As [`Movie::score`].
+    pub(crate) score: Option<f64>,
+    /// As [`Movie::original_language`].
+    pub(crate) original_language: Option<String>,
 }
 
 /// One Season of a Show, with its Episodes.
@@ -259,6 +267,8 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         backdrop: movie.backdrop,
         genres: movie.genres,
         content_rating: movie.content_rating,
+        score: score(movie.score),
+        original_language: movie.original_language,
     })
 }
 
@@ -274,7 +284,15 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         seasons: show.seasons,
         genres: show.genres,
         content_rating: show.content_rating,
+        score: score(show.score),
+        original_language: show.original_language,
     })
+}
+
+/// `score`, unless it's outside 0 to 10, where the Kernel stores none rather than failing the
+/// Match's write on it.
+fn score(score: Option<f64>) -> Option<f64> {
+    score.filter(|score| (0.0..=10.0).contains(score))
 }
 
 pub(super) fn season(season: wire::Season) -> Result<Season, MetadataError> {

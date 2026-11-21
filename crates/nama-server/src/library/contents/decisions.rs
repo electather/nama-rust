@@ -10,8 +10,8 @@ use nama_proto::nama::v1::{Event, PageResponse, SortDirection, UnmatchedItemSort
 use sqlx::SqliteConnection;
 
 use super::{
-    Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
-    sort_titles::sort_title,
+    Contents, Item, ItemKind, ItemRow, Pin, details, ids_from_json, ids_sql, parse_hint,
+    primary_id_in, sort_titles::sort_title,
 };
 use crate::{
     db::now,
@@ -128,7 +128,7 @@ impl UnmatchedRow {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Decided {
     Matched(Box<Metadata>),
     Unmatched(Option<UnmatchedReason>),
@@ -186,7 +186,7 @@ impl From<Vec<(i64, Decided)>> for Decisions {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Metadata {
     /// The Plugin whose title source made the Match.
     pub(crate) plugin: PluginId,
@@ -214,6 +214,10 @@ pub(crate) struct Metadata {
     pub(crate) show_poster: Option<ImageRef>,
     pub(crate) show_overview: Option<String>,
     pub(crate) show_first_air_date: Option<String>,
+    /// The title's Score; for an Episode, its Show's, as is `original_language`. Both are stored
+    /// once per title, apart from the Match.
+    pub(crate) score: Option<f64>,
+    pub(crate) original_language: Option<String>,
 }
 
 /// An image a Match stores: a path the title source of `plugin` serves.
@@ -575,6 +579,9 @@ pub(super) async fn insert_decisions(
         .await?;
         if written.rows_affected() == 0 {
             continue;
+        }
+        if let Decided::Matched(metadata) = &decision {
+            details::store(&mut *conn, metadata).await?;
         }
         // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
         sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)

@@ -272,6 +272,37 @@ async fn a_show_has_its_genres_and_content_rating_in_the_settings_country() {
 }
 
 #[tokio::test]
+async fn a_title_has_its_score_and_original_language() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let alien = alien.movie.unwrap();
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+    let dark = dark.show.unwrap();
+
+    assert_eq!(
+        (alien.score, alien.original_language.as_deref()),
+        (Some(8.2), Some("en"))
+    );
+    assert_eq!(
+        (dark.score, dark.original_language.as_deref()),
+        (Some(8.4), Some("de"))
+    );
+}
+
+#[tokio::test]
+async fn a_title_nobody_has_voted_on_has_no_score() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    // TMDB answers 0.0 with no votes.
+    let show = tmdb.show(&asked(&ExternalId::tmdb(900_001))).await.unwrap();
+
+    assert_eq!(show.show.unwrap().score, None);
+}
+
+#[tokio::test]
 async fn a_title_with_no_rating_in_the_settings_country_has_no_content_rating() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);

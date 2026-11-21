@@ -11,6 +11,7 @@ use crate::db::Database;
 
 mod backdrops;
 mod decisions;
+mod details;
 mod files;
 #[cfg(test)]
 pub(crate) mod fixture;

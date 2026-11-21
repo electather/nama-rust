@@ -120,5 +120,7 @@ pub(crate) fn tmdb_movie(tmdb: i64, title: &str) -> Metadata {
         show_poster: None,
         show_overview: None,
         show_first_air_date: None,
+        score: None,
+        original_language: None,
     }
 }
