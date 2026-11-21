@@ -655,7 +655,7 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         "ADR 0075: a Segment source added to a Library makes its Versions due inside its write",
     ),
     (
-        Importers::TestCode,
+        Importers::File("src/playback/tracks/segments_tests.rs"),
         &["plugin_settings", "PluginSettings"],
         "the Segments tests enable a Plugin as an Admin does, to check it makes Versions due",
     ),
