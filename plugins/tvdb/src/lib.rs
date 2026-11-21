@@ -175,6 +175,7 @@ impl TitleSource for Tvdb {
             required_setting(ARTWORK_URL)?.trim_end_matches('/'),
             asked.path
         );
+        // Sent as the service, whose "didn't answer" Admins already read; refused as the host.
         let response = TVDB.send(&HttpRequest::new(url), None::<String>)?;
         let Some(response) = ARTWORK_HOST.found(response)? else {
             return Ok(ImageAnswer::default());

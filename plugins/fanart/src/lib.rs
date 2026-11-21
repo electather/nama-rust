@@ -137,6 +137,7 @@ impl TitleSource for Fanart {
             required_setting(ASSETS_URL)?.trim_end_matches('/'),
             asked.path
         );
+        // Sent as the service, whose "didn't answer" Admins already read; refused as the host.
         let response = FANART.send(&HttpRequest::new(url), None::<String>)?;
         let Some(response) = ASSETS_HOST.found(response)? else {
             return Ok(ImageAnswer::default());
