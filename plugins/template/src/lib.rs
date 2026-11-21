@@ -71,7 +71,6 @@ impl nama_pdk::Notifier for Template {
         let Some((event, title)) = what_happened(&notification) else {
             return Ok(());
         };
-        // Fails with "the setting webhook_url isn't set" when it is unset or blank.
         let url = nama_pdk::required_setting(WEBHOOK_URL)?;
         let request = HttpRequest::new(url)
             .with_method("POST")
