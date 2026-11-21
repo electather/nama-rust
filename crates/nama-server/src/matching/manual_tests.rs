@@ -9,7 +9,7 @@ use super::{
     ManualError, Summary,
     testing::{Fixture, Outcome, episode, matched, movie},
 };
-use crate::library::{ImageRef, Picked, UnmatchedReason};
+use crate::library::{ImageRef, Picked, Roles, UnmatchedReason};
 
 #[tokio::test]
 async fn a_manual_match_survives_a_rescan_after_its_file_changes() {
@@ -337,6 +337,7 @@ fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::
         content_rating: None,
         score: None,
         original_language: None,
+        roles: Roles::default(),
     };
     let episode = SourceEpisode {
         ids: ExternalIds::default(),

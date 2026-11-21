@@ -22,6 +22,7 @@ mod match_images;
 mod matched;
 mod pages;
 mod pins;
+mod roles;
 mod scores;
 mod search;
 mod sort_titles;

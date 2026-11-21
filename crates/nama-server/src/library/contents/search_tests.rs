@@ -15,7 +15,7 @@ use super::super::{
 use super::match_bands;
 use crate::{
     db::{self, Database},
-    library::{TitleKind, libraries::Kind},
+    library::{Roles, TitleKind, libraries::Kind},
 };
 
 /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
@@ -112,6 +112,7 @@ fn office_episode(tmdb: i64, title: &str) -> Decided {
         show_first_air_date: None,
         score: None,
         original_language: None,
+        roles: Roles::default(),
     }))
 }
 

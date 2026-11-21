@@ -103,6 +103,14 @@ pub struct MovieView<'a> {
     ///
     /// Field 22: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
+    /// Its Cast, in billing order, from the title source it is Matched to.
+    ///
+    /// Field 23: `cast`
+    pub cast: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
+    /// Its Crew, in billing order, from that source. Its directors have the job `Director`.
+    ///
+    /// Field 24: `crew`
+    pub crew: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -334,6 +342,42 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
+            23u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::RoleView>(),
+                )?;
+                view.cast
+                    .push(
+                        <super::super::__buffa::view::RoleView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            24u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::RoleView>(),
+                )?;
+                view.crew
+                    .push(
+                        <super::super::__buffa::view::RoleView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -400,6 +444,16 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 .map(|b| (b).to_vec()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
+            cast: self
+                .cast
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            crew: self
+                .crew
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -492,6 +546,22 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.original_language {
             size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.cast {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.crew {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -583,6 +653,22 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(22u32, v, buf);
+        }
+        for v in &self.cast {
+            ::buffa::types::put_len_delimited_header(
+                23u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.crew {
+            ::buffa::types::put_len_delimited_header(
+                24u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -690,6 +776,12 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
+        }
+        if !self.cast.is_empty() {
+            __map.serialize_entry("cast", &*self.cast)?;
+        }
+        if !self.crew.is_empty() {
+            __map.serialize_entry("crew", &*self.crew)?;
         }
         __map.end()
     }
@@ -943,6 +1035,24 @@ impl MovieOwnedView {
     #[must_use]
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
+    }
+    /// Its Cast, in billing order, from the title source it is Matched to.
+    ///
+    /// Field 23: `cast`
+    #[must_use]
+    pub fn cast(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::RoleView<'_>> {
+        &self.0.reborrow().cast
+    }
+    /// Its Crew, in billing order, from that source. Its directors have the job `Director`.
+    ///
+    /// Field 24: `crew`
+    #[must_use]
+    pub fn crew(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::RoleView<'_>> {
+        &self.0.reborrow().crew
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -5475,6 +5585,14 @@ pub struct ShowView<'a> {
     ///
     /// Field 19: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
+    /// As `Movie.cast`, over the Show's whole run.
+    ///
+    /// Field 20: `cast`
+    pub cast: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
+    /// As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
+    ///
+    /// Field 21: `crew`
+    pub crew: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -5660,6 +5778,42 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::RoleView>(),
+                )?;
+                view.cast
+                    .push(
+                        <super::super::__buffa::view::RoleView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            21u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::RoleView>(),
+                )?;
+                view.crew
+                    .push(
+                        <super::super::__buffa::view::RoleView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5711,6 +5865,16 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 .map(|b| (b).to_vec()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
+            cast: self
+                .cast
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            crew: self
+                .crew
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5784,6 +5948,22 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.original_language {
             size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.cast {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.crew {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5856,6 +6036,22 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if let Some(ref v) = self.original_language {
             ::buffa::types::put_string_field(19u32, v, buf);
+        }
+        for v in &self.cast {
+            ::buffa::types::put_len_delimited_header(
+                20u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.crew {
+            ::buffa::types::put_len_delimited_header(
+                21u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5952,6 +6148,12 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
+        }
+        if !self.cast.is_empty() {
+            __map.serialize_entry("cast", &*self.cast)?;
+        }
+        if !self.crew.is_empty() {
+            __map.serialize_entry("crew", &*self.crew)?;
         }
         __map.end()
     }
@@ -6175,6 +6377,24 @@ impl ShowOwnedView {
     #[must_use]
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
+    }
+    /// As `Movie.cast`, over the Show's whole run.
+    ///
+    /// Field 20: `cast`
+    #[must_use]
+    pub fn cast(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::RoleView<'_>> {
+        &self.0.reborrow().cast
+    }
+    /// As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
+    ///
+    /// Field 21: `crew`
+    #[must_use]
+    pub fn crew(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::RoleView<'_>> {
+        &self.0.reborrow().crew
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {

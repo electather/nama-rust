@@ -14,7 +14,7 @@ use crate::{
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, Stored,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, Roles, Stored,
         TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind,
         WatchStates,
     },
@@ -130,6 +130,16 @@ impl Browse {
         let read_only_folder = read_only_folder(&library, paths).map(str::to_owned);
         let state = self.states_of(user, vec![movie_ids(&movie)]).await?.pop();
         Ok((movie, state.flatten(), read_only_folder))
+    }
+
+    /// `movie`'s Roles, each list in billing order.
+    pub(crate) async fn movie_roles(&self, movie: &Movie) -> Result<Roles, Error> {
+        Ok(self.contents.movie_roles(movie).await?)
+    }
+
+    /// `show`'s Roles, over its whole run.
+    pub(crate) async fn show_roles(&self, show: &Show) -> Result<Roles, Error> {
+        Ok(self.contents.show_roles(show).await?)
     }
 
     /// The Episodes of Season `season` of the Show `show` of the Shows Library `library`, each

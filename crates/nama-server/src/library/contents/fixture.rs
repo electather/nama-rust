@@ -11,7 +11,10 @@ use nama_plugin_api::{
 use super::{Change, Contents, Decided, Item, Metadata};
 use crate::{
     db::Database,
-    library::libraries::{Kind, Libraries},
+    library::{
+        libraries::{Kind, Libraries},
+        title_source::Roles,
+    },
 };
 
 /// A file stored in a Library and Matched to a Movie, by the ids tests need.
@@ -122,5 +125,6 @@ pub(crate) fn tmdb_movie(tmdb: i64, title: &str) -> Metadata {
         show_first_air_date: None,
         score: None,
         original_language: None,
+        roles: Roles::default(),
     }
 }

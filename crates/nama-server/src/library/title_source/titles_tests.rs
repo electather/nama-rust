@@ -111,6 +111,47 @@ fn a_score_outside_0_to_10_is_dropped_not_stored() {
     );
 }
 
+fn wire_role(person: &str, headshot: &str) -> wire::Role {
+    wire::Role {
+        person: id("tmdb", person).into(),
+        name: format!("Person {person}"),
+        headshot: Some(headshot.to_owned()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn only_the_first_15_of_the_cast_keep_a_headshot_and_the_crew_none() {
+    let cast = (0..20)
+        .map(|n| wire_role(&n.to_string(), "/face.jpg"))
+        .collect();
+    let movie = movie(wire::Movie {
+        cast,
+        crew: vec![wire_role("578", "/scott.jpg")],
+        ..Default::default()
+    });
+    let roles = movie.unwrap().roles;
+
+    let headshots = (roles.cast.iter())
+        .filter(|role| role.headshot.is_some())
+        .count();
+    assert_eq!((roles.cast.len(), headshots), (20, 15));
+    assert_eq!(roles.crew[0].headshot, None);
+}
+
+#[test]
+fn a_role_without_a_valid_person_id_is_dropped_and_at_most_50_are_kept() {
+    let mut listed = vec![wire::Role::default()];
+    listed.extend((0..60).map(|n| wire_role(&n.to_string(), "/face.jpg")));
+    let show = show(wire::Show {
+        cast: listed,
+        ..Default::default()
+    });
+    let cast = show.unwrap().roles.cast;
+
+    assert_eq!((cast.len(), cast[0].name.as_str()), (50, "Person 0"));
+}
+
 #[test]
 fn an_episode_keeps_its_numbers_and_still() {
     let aired = wire::Episode {

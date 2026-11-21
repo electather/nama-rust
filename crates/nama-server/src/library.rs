@@ -46,8 +46,8 @@ pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage}
 #[cfg(test)]
 pub(crate) use title_source::scripted;
 pub(crate) use title_source::{
-    Candidate, Episode as SourceEpisode, SearchQuery, Season as SourceSeason, Show as SourceShow,
-    Source, TitleKind, TitleSources, Unanswered,
+    Candidate, Episode as SourceEpisode, Roles, SearchQuery, Season as SourceSeason,
+    Show as SourceShow, Source, TitleKind, TitleSources, Unanswered,
 };
 pub(crate) use titles::{
     NotFound, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,

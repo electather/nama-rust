@@ -16,7 +16,8 @@ pub(crate) mod scripted;
 mod titles;
 
 pub(crate) use titles::{
-    Artwork, ArtworkKind, Candidate, Episode, Image, Movie, SearchQuery, Season, Show, TitleKind,
+    Artwork, ArtworkKind, Candidate, Episode, Image, Movie, Role, Roles, SearchQuery, Season, Show,
+    TitleKind,
 };
 
 use crate::{
@@ -600,6 +601,7 @@ impl Metadata {
             show_first_air_date: None,
             score: movie.score,
             original_language: movie.original_language,
+            roles: movie.roles,
         }
     }
 }

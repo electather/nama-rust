@@ -26,7 +26,7 @@ use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, Episode, ExternalId,
     GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, Movie,
-    ProbingFinished, RefusalReason, ReportProgressRequest, Season, SetMatchRequest,
+    ProbingFinished, RefusalReason, ReportProgressRequest, Role, Season, SetMatchRequest,
     SetPlayedRequest, ShowHit, ShowSeason, ShowSummary, TitleKind, Track, Version, VideoTrack,
     WatchState, WatchStateServiceClient, continue_watching_entry, event, hit, search_response,
     set_played_request::Target,
@@ -652,6 +652,52 @@ async fn a_movie_has_its_title_logo_genres_content_rating_score_and_original_lan
         let language = movie.original_language.as_deref();
         assert_eq!((movie.score, language), (Some(8.2), Some("en")));
     }
+}
+
+/// Each of `roles` as its name and part.
+fn parts(roles: &[Role]) -> Vec<(&str, &str)> {
+    (roles.iter())
+        .map(|role| (role.name.as_str(), role.part.as_str()))
+        .collect()
+}
+
+#[tokio::test]
+async fn a_movie_has_its_cast_and_crew_and_its_casts_headshots_are_served() {
+    let fx = Fixture::alien().await;
+
+    let alien = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let headshot = alien.cast[1].headshot_url.clone().unwrap();
+    let reply = fetch(&fx.server, &headshot, Some(&fx.server.admin_token)).await;
+
+    let cast = [
+        ("Tom Skerritt", "Dallas"),
+        ("Sigourney Weaver", "Ellen Ripley"),
+    ];
+    assert_eq!(parts(&alien.cast), cast);
+    let crew = [("Ridley Scott", "Director"), ("Dan O'Bannon", "Screenplay")];
+    assert_eq!(parts(&alien.crew), crew);
+    assert_eq!(alien.crew[0].headshot_url, None);
+    assert_eq!(reply.status, 200);
+}
+
+#[tokio::test]
+async fn a_show_has_its_cast_and_its_creators() {
+    let fx = Fixture::shows().await;
+
+    let dark = fx.get_show(fx.library, DARK).await.unwrap();
+    let dark = dark.show.into_option().unwrap();
+
+    let cast = [
+        ("Louis Hofmann", "Jonas Kahnwald"),
+        ("Lisa Vicari", "Martha Nielsen"),
+    ];
+    assert_eq!(parts(&dark.cast), cast);
+    let creators = [("Baran bo Odar", "Creator"), ("Jantje Friese", "Creator")];
+    assert_eq!(parts(&dark.crew), creators);
+    assert_eq!(
+        dark.cast[0].headshot_url.as_deref(),
+        Some("/media/artwork/tmdb/%2Fhofmann.jpg")
+    );
 }
 
 /// Heat has no Title Logo in TMDB's artwork list, and TMDB rates it only in Germany.

@@ -78,6 +78,8 @@ pub(crate) struct Movie {
     pub(crate) score: Option<f64>,
     /// The ISO 639-1 code of the language it was made in, such as `ja`.
     pub(crate) original_language: Option<String>,
+    /// Its Cast and Crew.
+    pub(crate) roles: Roles,
 }
 
 /// A Show's details.
@@ -107,7 +109,36 @@ pub(crate) struct Show {
     pub(crate) score: Option<f64>,
     /// As [`Movie::original_language`].
     pub(crate) original_language: Option<String>,
+    /// Its Roles over its whole run.
+    pub(crate) roles: Roles,
 }
+
+/// A title's Roles, each list in billing order (ADR 0081).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Roles {
+    pub(crate) cast: Vec<Role>,
+    pub(crate) crew: Vec<Role>,
+}
+
+/// A Person's part in a title: a character they play (Cast) or a job they did (Crew).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Role {
+    /// The Person's External ID.
+    pub(crate) person: ExternalId,
+    /// The Person's name.
+    pub(crate) name: String,
+    /// The character, or the job in English, such as `Director`; empty if the source doesn't say.
+    pub(crate) part: String,
+    /// The headshot's path, to pass to the title source's `image`. Only the first [`HEADSHOTS`]
+    /// of the Cast keep one.
+    pub(crate) headshot: Option<String>,
+}
+
+/// How many of the Cast, and of the Crew, the Kernel keeps of the hundreds a source may list.
+const MAX_ROLES: usize = 50;
+
+/// How many of the Cast, billed first, keep a headshot: those a title page shows.
+const HEADSHOTS: usize = 15;
 
 /// One Season of a Show, with its Episodes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -269,6 +300,7 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         content_rating: movie.content_rating,
         score: valid_score(movie.score),
         original_language: movie.original_language,
+        roles: roles(movie.cast, movie.crew),
     })
 }
 
@@ -286,6 +318,7 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         content_rating: show.content_rating,
         score: valid_score(show.score),
         original_language: show.original_language,
+        roles: roles(show.cast, show.crew),
     })
 }
 
@@ -293,6 +326,37 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
 /// Match's write on it.
 fn valid_score(score: Option<f64>) -> Option<f64> {
     score.filter(|score| (0.0..=10.0).contains(score))
+}
+
+/// The Roles the Kernel keeps of `cast` and `crew`: at most [`MAX_ROLES`] of each, the Crew
+/// without headshots.
+fn roles(cast: Vec<wire::Role>, crew: Vec<wire::Role>) -> Roles {
+    let kept = |roles: Vec<wire::Role>| roles.into_iter().filter_map(role).take(MAX_ROLES);
+    Roles {
+        cast: (kept(cast).enumerate())
+            .map(|(billed, role)| Role {
+                headshot: role.headshot.filter(|_| billed < HEADSHOTS),
+                ..role
+            })
+            .collect(),
+        crew: kept(crew)
+            .map(|role| Role {
+                headshot: None,
+                ..role
+            })
+            .collect(),
+    }
+}
+
+/// `role`, unless its Person has no valid id: one bad Role is dropped rather than failing the
+/// title.
+fn role(role: wire::Role) -> Option<Role> {
+    Some(Role {
+        person: external_id(role.person.as_option()?).ok()?,
+        name: role.name,
+        part: role.part,
+        headshot: role.headshot,
+    })
 }
 
 pub(super) fn season(season: wire::Season) -> Result<Season, MetadataError> {

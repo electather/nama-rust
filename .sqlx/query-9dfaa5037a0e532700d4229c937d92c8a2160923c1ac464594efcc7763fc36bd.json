@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO title_roles (plugin, kind, namespace, value, crew, billed,\n                                      person_namespace, person_value, name, part, headshot)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "9dfaa5037a0e532700d4229c937d92c8a2160923c1ac464594efcc7763fc36bd"
+}

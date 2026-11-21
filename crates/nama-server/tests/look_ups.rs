@@ -11,7 +11,7 @@ use connectrpc::{
     ErrorCode,
     client::{ClientConfig, HttpClient},
 };
-use nama_proto::nama::v1::{Permission, RefusalReason, RequestServiceClient};
+use nama_proto::nama::v1::{Permission, RefusalReason, RequestServiceClient, Role};
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
 use server::{
@@ -174,4 +174,25 @@ async fn a_looked_up_movie_and_show_have_their_score_and_original_language() {
     assert_eq!((alien.score, alien_language), (Some(8.2), Some("en")));
     let dark_language = dark.original_language.as_deref();
     assert_eq!((dark.score, dark_language), (Some(8.4), Some("de")));
+}
+
+#[tokio::test]
+async fn a_looked_up_movie_and_show_have_their_cast_and_crew() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    let alien = as_grace.try_look_up_movie(tmdb_id(ALIEN)).await.unwrap();
+    let dark = as_grace.try_look_up_show(tmdb_id(DARK)).await.unwrap();
+
+    let names = |roles: &[Role]| {
+        roles
+            .iter()
+            .map(|role| role.name.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(names(&alien.cast), ["Tom Skerritt", "Sigourney Weaver"]);
+    assert_eq!(names(&alien.crew), ["Ridley Scott", "Dan O'Bannon"]);
+    assert!(alien.cast[1].headshot_url.is_some());
+    assert_eq!(names(&dark.crew), ["Baran bo Odar", "Jantje Friese"]);
 }

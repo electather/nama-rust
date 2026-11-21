@@ -175,6 +175,7 @@ pub mod __buffa {
         reg.register_json_any(super::__LOOK_UP_MOVIE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SHOW_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_SHOW_JSON_ANY);
+        reg.register_json_any(super::__ROLE_JSON_ANY);
         reg.register_json_any(super::__FOUND_SEASON_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SHOW_RESPONSE_JSON_ANY);
@@ -862,6 +863,10 @@ pub use self::__buffa::view::ShowHitOwnedView;
 pub use self::__buffa::view::FoundShowView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundShowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RoleView;
+#[doc(inline)]
+pub use self::__buffa::view::RoleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundSeasonView;
 #[doc(inline)]
