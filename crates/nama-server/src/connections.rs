@@ -12,6 +12,7 @@ use std::{
 };
 
 use nama_plugin_api::{PluginId, connector::Connector};
+use sqlx::SqliteConnection;
 use tokio::time::Instant;
 use tracing::{error, warn};
 
@@ -303,6 +304,17 @@ pub(crate) async fn forget(
         })
     })
     .await
+}
+
+/// Deletes every User's Plugin Connection to `plugin`.
+pub(crate) async fn delete_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM plugin_connections WHERE plugin_id = ?", plugin)
+        .execute(conn)
+        .await?;
+    Ok(())
 }
 
 /// Removes a link's code from `waiting` when dropped, so a poll that ends, is cancelled with its

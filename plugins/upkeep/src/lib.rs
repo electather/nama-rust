@@ -7,11 +7,11 @@ use buffa::Message;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::{
-        ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetHomeRowsAsked, HomeRowsForgotten, Kernel,
-        Permission,
+        ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
+        GonePluginsForgotten, HomeRowsForgotten, Kernel, Permission,
     },
     job::{Job, JobRunner, RunJob},
-    settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
+    settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use tracing::info;
 
@@ -22,6 +22,11 @@ const HOME_ROWS_DAYS: &str = "home_rows_days";
 const DEFAULT_HOME_ROWS_DAYS: u32 = 30;
 /// The Job deleting expired Devices and Invites.
 const DELETE_EXPIRED_SIGN_INS: &str = "delete-expired-sign-ins";
+/// The Job deleting what Plugins the Server no longer has left behind.
+const FORGET_GONE_PLUGINS: &str = "forget-gone-plugins";
+/// The setting holding how many days what a removed Plugin left behind is kept.
+const GONE_PLUGINS_DAYS: &str = "gone_plugins_days";
+const DEFAULT_GONE_PLUGINS_DAYS: u32 = 30;
 
 /// The Plugin.
 #[derive(Debug, Default)]
@@ -39,23 +44,29 @@ impl Plugin for Upkeep {
             description: "Deletes what the Server keeps that nobody will read again.".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema {
-                fields: vec![SettingField {
-                    key: HOME_ROWS_DAYS.to_owned(),
-                    label: "Days".to_owned(),
-                    description: "How many days a User can go without opening home before their \
-                                  Home rows and Featured suggestions are forgotten."
-                        .to_owned(),
-                    kind: SettingKind::Integer,
-                    required: false,
-                    default: Some(SettingValue::Integer(DEFAULT_HOME_ROWS_DAYS.into())),
-                    min: Some(1),
-                    max: Some(3650),
-                }],
+                fields: vec![
+                    days_field(
+                        HOME_ROWS_DAYS,
+                        "Days",
+                        "How many days a User can go without opening home before their Home rows \
+                         and Featured suggestions are forgotten.",
+                        DEFAULT_HOME_ROWS_DAYS,
+                    ),
+                    days_field(
+                        GONE_PLUGINS_DAYS,
+                        "Days to keep a removed Plugin's data",
+                        "How many days after the Server stops having a Plugin its settings, \
+                         Plugin Store entries, Personal settings and Plugin Connections are \
+                         deleted. Reinstalling it sooner keeps them.",
+                        DEFAULT_GONE_PLUGINS_DAYS,
+                    ),
+                ],
             },
             extension_points: vec![PointKey::provide::<dyn JobRunner>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: vec![
                 Permission::PERMISSION_FORGET_HOME_ROWS,
+                Permission::PERMISSION_FORGET_GONE_PLUGINS,
                 Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS,
             ],
             jobs: vec![
@@ -63,19 +74,28 @@ impl Plugin for Upkeep {
                     id: FORGET_HOME_ROWS.to_owned(),
                     name: "Forget unread Home rows".to_owned(),
                     description: "Deletes the Home rows and Featured suggestions of Users who \
-                              haven't opened home in the days set. They get fresh ones when they \
-                              come back."
+                                  haven't opened home in the days set. They get fresh ones when \
+                                  they come back."
                         .to_owned(),
                     schedule: Some("0 4 * * *".to_owned()),
                 },
                 Job {
                     id: DELETE_EXPIRED_SIGN_INS.to_owned(),
                     name: "Delete expired sign-ins".to_owned(),
-                    description:
-                        "Deletes the Devices and Invites that have expired, which no longer \
-                              work."
-                            .to_owned(),
+                    description: "Deletes the Devices and Invites that have expired, which no \
+                                  longer work."
+                        .to_owned(),
                     schedule: Some("10 4 * * *".to_owned()),
+                },
+                Job {
+                    id: FORGET_GONE_PLUGINS.to_owned(),
+                    name: "Forget removed Plugins".to_owned(),
+                    description: "Deletes the settings, Plugin Store entries, Personal settings \
+                                  and Plugin Connections of each Plugin the Server hasn't had for \
+                                  the days set. A disabled Plugin is kept."
+                        .to_owned(),
+                    // After the daily Jobs, so they don't all run at once.
+                    schedule: Some("20 4 * * 0".to_owned()),
                 },
             ],
             ..Manifest::new(Self::ID)
@@ -86,16 +106,36 @@ impl Plugin for Upkeep {
         let kernel = registrar
             .kernel()
             .ok_or("the Kernel handed Upkeep none of its functions")?;
-        let home_rows_days = match registrar.settings().get(HOME_ROWS_DAYS) {
-            Some(SettingValue::Integer(days)) => u32::try_from(*days)?,
-            _ => DEFAULT_HOME_ROWS_DAYS,
-        };
+        let settings = registrar.settings();
         let jobs = Jobs {
+            home_rows_days: days(settings, HOME_ROWS_DAYS, DEFAULT_HOME_ROWS_DAYS)?,
+            gone_plugins_days: days(settings, GONE_PLUGINS_DAYS, DEFAULT_GONE_PLUGINS_DAYS)?,
             kernel,
-            home_rows_days,
         };
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, Arc::new(jobs));
         Ok(())
+    }
+}
+
+/// A setting of how many days something is kept, from 1 day to 10 years.
+fn days_field(key: &str, label: &str, description: &str, default: u32) -> SettingField {
+    SettingField {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        description: description.to_owned(),
+        kind: SettingKind::Integer,
+        required: false,
+        default: Some(SettingValue::Integer(default.into())),
+        min: Some(1),
+        max: Some(3650),
+    }
+}
+
+/// The days setting `key` holds, or `default` if it holds none.
+fn days(settings: &Settings, key: &str, default: u32) -> Result<u32, PluginError> {
+    match settings.get(key) {
+        Some(SettingValue::Integer(days)) => Ok(u32::try_from(*days)?),
+        _ => Ok(default),
     }
 }
 
@@ -103,6 +143,7 @@ impl Plugin for Upkeep {
 struct Jobs {
     kernel: Arc<dyn Kernel>,
     home_rows_days: u32,
+    gone_plugins_days: u32,
 }
 
 impl JobRunner for Jobs {
@@ -111,6 +152,7 @@ impl JobRunner for Jobs {
             match run.job_id.as_str() {
                 FORGET_HOME_ROWS => self.forget_home_rows().await,
                 DELETE_EXPIRED_SIGN_INS => self.delete_expired_sign_ins().await,
+                FORGET_GONE_PLUGINS => self.forget_gone_plugins().await,
                 other => Err(format!("Upkeep has no Job {other}").into()),
             }
         })
@@ -142,6 +184,22 @@ impl Jobs {
             devices = deleted.devices,
             invites = deleted.invites,
             "deleted expired Devices and Invites"
+        );
+        Ok(())
+    }
+
+    async fn forget_gone_plugins(&self) -> Result<(), PluginError> {
+        let asked = ForgetGonePluginsAsked {
+            days: self.gone_plugins_days,
+            ..ForgetGonePluginsAsked::default()
+        };
+        let answer = (self.kernel)
+            .call("forget_gone_plugins", asked.encode_to_vec())
+            .await?;
+        let forgotten = GonePluginsForgotten::decode_from_slice(&answer)?;
+        info!(
+            plugins = ?forgotten.plugin_ids,
+            "forgot what Plugins the Server no longer has left behind"
         );
         Ok(())
     }

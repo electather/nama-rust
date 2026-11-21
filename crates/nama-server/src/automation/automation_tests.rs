@@ -10,10 +10,10 @@ use buffa::MessageField;
 use nama_plugin_api::{
     automation::{
         DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
-        ForgetHomeRowsAsked, HomeRowsForgotten, Libraries as ListedLibraries, LibrariesAsked,
-        LibraryKind, Permission, Requesters, RequestersAsked, StoreKey, StoreValue, Titles,
-        TitlesAsked, Users as ListedUsers, UsersAsked, WatchStates as ListedWatchStates,
-        WatchStatesAsked, Watchlist, WatchlistAsked,
+        ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
+        Libraries as ListedLibraries, LibrariesAsked, LibraryKind, Permission, Requesters,
+        RequestersAsked, StoreKey, StoreValue, Titles, TitlesAsked, Users as ListedUsers,
+        UsersAsked, WatchStates as ListedWatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
     },
     contract,
     metadata::ExternalId,
@@ -28,8 +28,8 @@ use super::{
     FUNCTIONS, permission_name,
     testing::{
         ALIEN_TMDB_ID, DARK_TMDB_ID, LIES_TMDB_ID, SECRETS_TMDB_ID, UNREADABLE, ask, delete,
-        episode_ref, kernel, movie_ref, movies, titles_asked, two_episodes_in_one_file,
-        two_episodes_in_one_file_also_known_as, users,
+        episode_ref, kernel, leave_behind, left_behind, movie_ref, movies, titles_asked,
+        two_episodes_in_one_file, two_episodes_in_one_file_also_known_as, users,
     },
 };
 use crate::{
@@ -754,4 +754,31 @@ async fn delete_expired_sign_ins_answers_how_many_devices_and_invites_it_deleted
         (0, 0),
         "nothing has expired"
     );
+}
+
+#[tokio::test]
+async fn forget_gone_plugins_deletes_what_a_long_gone_plugin_left_and_keeps_a_recent_or_disabled_ones()
+ {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada] = users(&db, ["Ada"]).await;
+    let (automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_FORGET_GONE_PLUGINS);
+    let registry = automation.plugins.registry();
+    registry.list_as_installed(vec![|| Arc::new(nama_plugin_log_events::LogEvents)]);
+    automation.plugins.list().await.unwrap();
+    // The disabled Plugin as long unseen as the gone one: the Server still having it keeps it.
+    for (plugin, days_ago) in [("long-gone", 31), ("recently-gone", 29), ("log-events", 31)] {
+        leave_behind(&db, plugin, ada, days_ago).await;
+    }
+    let asked = ForgetGonePluginsAsked {
+        days: 30,
+        ..ForgetGonePluginsAsked::default()
+    };
+
+    let forgotten = ask::<GonePluginsForgotten>(&kernel, "forget_gone_plugins", &asked).await;
+
+    assert_eq!(forgotten.unwrap().plugin_ids, ["long-gone"]);
+    assert_eq!(left_behind(&db, "long-gone", ada).await, [false; 4]);
+    assert_eq!(left_behind(&db, "recently-gone", ada).await, [true; 4]);
+    assert_eq!(left_behind(&db, "log-events", ada).await, [true; 4]);
 }

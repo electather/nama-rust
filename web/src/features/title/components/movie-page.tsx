@@ -29,9 +29,12 @@ export function MoviePage({
   }
   return (
     <TitlePage hero={<MovieHero {...{ libraryId, movieId, movie, readOnlyFolder, params }} />}>
-      <CastAndCrew cast={movie.cast} crew={movie.crew} />
-      <TitleTrailers trailers={movie.trailers} />
+      <TitleTrailers
+        trailers={movie.trailers}
+        art={{ url: movie.backdropUrl, thumbhash: movie.backdropThumbhash }}
+      />
       <SimilarTitles heading="Similar titles" titles={similarMovies(similar)} />
+      <CastAndCrew cast={movie.cast} crew={movie.crew} />
       <MovieDetails libraryId={libraryId} movie={movie} />
     </TitlePage>
   );

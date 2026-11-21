@@ -43,4 +43,9 @@ export const pluginPermissions: Partial<
     about:
       "It deletes the Devices whose sign-in has expired and the Invites past their expiry. Neither works any more.",
   },
+  [PluginPermission.FORGET_GONE_PLUGINS]: {
+    label: "Forget removed Plugins",
+    about:
+      "It deletes the settings, Plugin Store entries, Personal settings and Plugin Connections of Plugins the Server stopped having a while ago. A disabled Plugin is kept.",
+  },
 };

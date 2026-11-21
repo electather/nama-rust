@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE plugins_had SET had_at = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "f36d2c17d5ebc6739011de36b890ba435d9e4dc6e0725cca9b298575eb6e30da"
+}

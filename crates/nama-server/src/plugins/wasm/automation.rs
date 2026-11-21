@@ -39,6 +39,7 @@ pub(crate) const KERNEL_IMPORTS: &[&str] = &[
     "delete_media",
     "forget_home_rows",
     "delete_expired_sign_ins",
+    "forget_gone_plugins",
 ];
 
 fn refused(words: &str) -> kernel_answer::Result {

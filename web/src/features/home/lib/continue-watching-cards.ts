@@ -128,9 +128,13 @@ function episodeCard(library: bigint, entry: ContinueWatchingEpisode): Card[] {
   ];
 }
 
-/** A card's art: its titled Backdrop, which needs no Title Logo, or else its Backdrop and Title Logo. */
+/**
+ * A card's art: its Backdrop under its Title Logo, or its titled Backdrop, which needs no Title
+ * Logo, only when it has no other. A titled Backdrop's title runs to its edges, which a 4:3 card
+ * crops.
+ */
 function artOf(movieOrShow: Movie | Show) {
-  if (movieOrShow.titledBackdropUrl !== undefined) {
+  if (movieOrShow.backdropUrl === undefined && movieOrShow.titledBackdropUrl !== undefined) {
     const { titledBackdropUrl: url, titledBackdropThumbhash: thumbhash } = movieOrShow;
     return { url, thumbhash, logoUrl: undefined, titled: true };
   }

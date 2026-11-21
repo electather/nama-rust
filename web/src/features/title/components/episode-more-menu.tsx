@@ -1,8 +1,8 @@
 import { useRef } from "react";
 
+import { CardMoreActions } from "@/features/title/components/card-more-actions";
 import { DeleteEpisode } from "@/features/title/components/delete-episode";
 import { MarkPlayedItem } from "@/features/title/components/mark-played-item";
-import { MoreActions } from "@/features/title/components/more-actions";
 import { OpenerItem } from "@/features/title/components/opener-item";
 import { useMayDelete } from "@/features/title/hooks/use-may-delete";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
@@ -23,14 +23,14 @@ export function EpisodeMoreMenu({
   const mayDelete = useMayDelete();
   return (
     <>
-      <MoreActions label={`More for ${episode.title}`} quiet>
+      <CardMoreActions label={`More for ${episode.title}`}>
         <MarkPlayedItem
           libraryId={libraryId}
           target={{ case: "episodeId", value: episodeId }}
           watchState={episode.watchState}
         />
         {mayDelete && <OpenerItem opener={remove}>Delete</OpenerItem>}
-      </MoreActions>
+      </CardMoreActions>
       {/* Only with Delete media, so a page of Episodes doesn't hold a dialog for each in vain. */}
       {mayDelete && (
         <DeleteEpisode ref={remove} libraryId={libraryId} episodeId={episodeId} episode={episode} />
