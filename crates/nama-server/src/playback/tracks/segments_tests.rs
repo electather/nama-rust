@@ -378,9 +378,11 @@ async fn a_version_a_source_said_to_try_again_for_is_asked_again_once_the_wait_i
 async fn while_one_source_waits_the_version_stays_due_and_the_librarys_other_sources_are_asked_once()
  {
     let intro = vec![result(SEGMENT_KIND_INTRO, 5_000, Some(10_000))];
-    // Far longer than a test run, so no delay between the two asks ends it.
-    let limited = limited("limited", Duration::from_mins(5), intro);
-    let fakes = vec![limited, fake("other", Some(vec![]))];
+    let fakes = vec![
+        // Far longer than a test run, so no delay between the two asks ends it.
+        limited("limited", Duration::from_mins(5), intro),
+        fake("other", Some(vec![])),
+    ];
     let fx = Fixture::new(vec![], &["limited", "other"], fakes).await;
     let mut waits = Waits::default();
 
