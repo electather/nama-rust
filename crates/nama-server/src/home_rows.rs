@@ -149,7 +149,6 @@ impl HomeRows {
     /// and lists what is stored meanwhile. Deletes the rows of a Plugin no longer giving them.
     /// Each row comes with what a Home layout places it by.
     pub(crate) async fn list(&self, reader: &User) -> Result<Vec<(HomeRowId, Row)>, Error> {
-        // Stored first, so rows a refresh stores meanwhile aren't taken for a disabled Plugin's.
         let rows = Rows(self.clone());
         let stored = rows.stored(reader.id).await?;
         self.refreshes.refresh_stale(&rows, reader.id).await?;
@@ -159,19 +158,18 @@ impl HomeRows {
         // ever matter sooner.
         self.refreshes.forget(&rows).await?;
         let methods: HashSet<_> = (stored.iter())
-            .map(|(scope, _)| (&scope.plugin, scope.method))
+            .map(|(scope, _)| (scope.plugin.clone(), scope.method))
             .collect();
         let mut given = HashSet::new();
         for (plugin, method) in methods {
-            if self.refreshes.gives(plugin, method).await {
+            if self.refreshes.gives(&plugin, method).await {
                 given.insert((plugin, method));
             }
         }
         let mut keys = HashSet::new();
-        let served: Vec<_> = (stored.iter())
-            .filter(|(scope, _)| given.contains(&(&scope.plugin, scope.method)))
-            .filter(|(scope, row)| keys.insert((&scope.plugin, &row.key)))
-            .cloned()
+        let served: Vec<_> = (stored.into_iter())
+            .filter(|(scope, _)| given.contains(&(scope.plugin.clone(), scope.method)))
+            .filter(|(scope, row)| keys.insert((scope.plugin.clone(), row.key.clone())))
             .map(|(scope, row)| (placed_by(scope, &row), row))
             .collect();
         let titles: Vec<Title> = (served.iter())
