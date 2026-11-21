@@ -38,6 +38,17 @@ pub(super) async fn store(
     Ok(())
 }
 
+/// Deletes the Similar titles `plugin`'s title source gave.
+pub(super) async fn forget_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM similar_titles WHERE plugin = ?", plugin)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 impl Contents {
     /// The Similar titles of the Movie or Show of `kind` known by `ids`, as the Match of it in
     /// `library` stores them, from that Match's title source alone, most alike first. Empty if

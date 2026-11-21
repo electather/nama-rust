@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO title_roles (plugin, kind, namespace, value, crew, billed,\n                                                  person_namespace, person_value, name, part)\n                         VALUES (?, 'movie', 'tmdb', '348', 0, 0, 'tmdb', '10205',\n                                 'Sigourney Weaver', 'Ripley')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "340980d07d96a8e04ae50310d1e3d1fa70f5304e922431bea77053fd7c32599e"
+}
