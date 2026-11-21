@@ -107,7 +107,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `CONTRACT_VERSION` 0.6.5: the Kernel function `list_titles_sharing`, with `TitlesSharingAsked`, `SharingTitles`, `SharingTitle` and `TitleRole`, under `PERMISSION_READ_LIBRARIES`, answers the Movies or Shows of every Library sharing Persons or genres with a title. `SimilarSourceService` 1.1.0 adds the asked title's `genres` and `roles` to `SimilarAsked`.
   `CONTRACT_VERSION` 0.6.6: the Kernel function `back_up`, with `BackUpAsked`, `BackedUp` and `PERMISSION_BACK_UP`, writes a Backup into the folder the Admin set and deletes the oldest beyond the count kept. A Plugin requesting `PERMISSION_BACK_UP` requires 0.6.6.
   `CONTRACT_VERSION` 0.6.7: `SETTING_KIND_CHOICES`, a setting holding several values picked from the choices `SettingField.choices` lists, or those `check_settings()` offers for it in their place, with the `SettingValue` arm `texts` (ADR 0088). A Plugin declaring one requires 0.6.7.
-  `HomeRowService` 1.5.0: the Kernel keeps the first 20 rows of a `shared_rows` or `user_rows` answer rather than 3 (ADR 0091). A Plugin built before gives at most 3 and works as before.
+  `HomeRowService` 1.5.0: the Kernel keeps the first 20 rows of a `shared_rows` or `user_rows` answer rather than 3 (ADR 0091). A Plugin built before still works, and one that answers more than 3 rows now shows up to 20.
 
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 

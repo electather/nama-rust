@@ -23,7 +23,7 @@ fn keys(kept: &[Row]) -> Vec<&str> {
 fn an_answer_of_21_rows_keeps_the_first_20_in_order() {
     let (kept, _) = kept(given(numbered(21)));
 
-    let first_20: Vec<String> = (1..=20).map(|n| format!("row-{n}")).collect();
+    let first_20: Vec<String> = numbered(20).into_iter().map(|row| row.key).collect();
     assert_eq!(keys(&kept), first_20);
 }
 
